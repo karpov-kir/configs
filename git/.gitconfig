@@ -1,0 +1,11 @@
+# This is Git's per-user configuration file.
+
+[user]
+name = Kirill Karpov
+email = karpov.kir.v@gmail.com
+
+[push]
+autoSetupRemote = true
+
+[pull]
+rebase = false
