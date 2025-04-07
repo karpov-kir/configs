@@ -1,6 +1,84 @@
 -- https://alpha2phi.medium.com/modern-neovim-pde-587ef26bb458
 return {
   {
+    "nvim-telescope/telescope.nvim",
+    branch = "0.1.x",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-telescope/telescope-ui-select.nvim",
+      "nvim-telescope/telescope-dap.nvim",
+      "vuki656/package-info.nvim",
+      "debugloop/telescope-undo.nvim",
+      "folke/noice.nvim",
+      {
+        "nvim-telescope/telescope-fzf-native.nvim",
+        build = "make",
+      },
+    },
+    lazy = false,
+    config = function()
+      local telescope = require("telescope")
+      local actions = require("telescope.actions")
+      telescope.setup({
+        extensions = {
+          ["ui-select"] = {
+            require("telescope.themes").get_dropdown({}),
+          },
+        },
+        pickers = {
+          buffers = {
+            mappings = {
+              i = {
+                ["<c-r>"] = actions.delete_buffer,
+              },
+              n = {
+                ["<c-r>"] = actions.delete_buffer,
+              },
+            },
+          },
+        },
+      })
+      telescope.load_extension("ui-select")
+      telescope.load_extension("dap")
+      telescope.load_extension("fzf")
+      telescope.load_extension("package_info")
+      telescope.load_extension("undo")
+      telescope.load_extension("noice")
+    end,
+    keys = {
+      {
+        "<C-p>",
+        function()
+          require("telescope.builtin").find_files()
+        end,
+      },
+      {
+        "<leader>fgf",
+        function()
+          require("telescope.builtin").find_files({ no_ignore = true })
+        end,
+      },
+      {
+        "<leader>fgg",
+        function()
+          require("telescope.builtin").live_grep()
+        end,
+      },
+      {
+        "<leader>fb",
+        function()
+          require("telescope.builtin").buffers()
+        end,
+      },
+      {
+        "<leader>fs",
+        function()
+          require("telescope.builtin").lsp_document_symbols()
+        end,
+      },
+    },
+  },
+  {
     "windwp/nvim-spectre",
     keys = {
       {
@@ -9,58 +87,6 @@ return {
           require("spectre").open()
         end,
         desc = "Search and Replace (Spectre)",
-      },
-    },
-  },
-  {
-    "kevinhwang91/nvim-bqf",
-    opts = {
-      filter = {
-        fzf = {
-          extra_opts = { "--bind", "ctrl-o:toggle-all", "--delimiter", "│" },
-        },
-      },
-    },
-    ft = "qf",
-  },
-  {
-    "kevinhwang91/nvim-hlslens",
-    keys = {
-      { "n", [[<Cmd>execute('normal! ' . v:count1 . 'n')<CR><Cmd>lua require('hlslens').start()<CR>]] },
-      { "N", [[<Cmd>execute('normal! ' . v:count1 . 'N')<CR><Cmd>lua require('hlslens').start()<CR>]] },
-      { "*", [[*<Cmd>lua require('hlslens').start()<CR>]] },
-      { "#", [[#<Cmd>lua require('hlslens').start()<CR>]] },
-      { "g*", [[g*<Cmd>lua require('hlslens').start()<CR>]] },
-      { "g#", [[g#<Cmd>lua require('hlslens').start()<CR>]] },
-    },
-    config = function()
-      require("hlslens").setup()
-    end,
-  },
-  {
-    "cshuaimin/ssr.nvim",
-    opts = {
-      border = "rounded",
-      min_width = 50,
-      min_height = 5,
-      max_width = 120,
-      max_height = 25,
-      keymaps = {
-        close = "q",
-        next_match = "n",
-        prev_match = "N",
-        replace_confirm = "<cr>",
-        replace_all = "<leader><cr>",
-      },
-    },
-    keys = {
-      {
-        "<leader>sR",
-        function()
-          require("ssr").open()
-        end,
-        mode = { "n", "x" },
-        desc = "Search and Replace (SSR)",
       },
     },
   },
