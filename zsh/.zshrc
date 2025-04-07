@@ -6,6 +6,11 @@ export EDITOR="nvim"
 # https://stackoverflow.com/a/64351976
 # zmodload zsh/zprof
 
+# Load OpenAI API key from file if it exists
+if [[ -f "$HOME/.openAiApiKey" ]]; then
+  export OPENAI_API_KEY="$(tr -d '[:space:]' < "$HOME/.openAiApiKey")"
+fi
+
 if [[ -f "/opt/homebrew/bin/brew" ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
   # Add Google Cloud SDK to PATH
