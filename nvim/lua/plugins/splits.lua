@@ -1,24 +1,24 @@
-return { 
-  'mrjones2014/smart-splits.nvim',
+return {
+  "swaits/zellij-nav.nvim",
+  lazy = true,
+  event = "VeryLazy",
   init = function()
-    -- recommended mappings
-    -- resizing splits
-    -- these keymaps will also accept a range,
-    -- for example `10<A-h>` will `resize_left` by `(10 * config.default_amount)`
-    vim.keymap.set('n', '<M-h>', require('smart-splits').resize_left)
-    vim.keymap.set('n', '<M-j>', require('smart-splits').resize_down)
-    vim.keymap.set('n', '<M-k>', require('smart-splits').resize_up)
-    vim.keymap.set('n', '<M-l>', require('smart-splits').resize_right)
-    -- moving between splits
-    vim.keymap.set('n', '<C-h>', require('smart-splits').move_cursor_left)
-    vim.keymap.set('n', '<C-j>', require('smart-splits').move_cursor_down)
-    vim.keymap.set('n', '<C-k>', require('smart-splits').move_cursor_up)
-    vim.keymap.set('n', '<C-l>', require('smart-splits').move_cursor_right)
-    vim.keymap.set('n', '<C-\\>', require('smart-splits').move_cursor_previous)
-    -- swapping buffers between windows
-    vim.keymap.set('n', '<leader><leader>h', require('smart-splits').swap_buf_left)
-    vim.keymap.set('n', '<leader><leader>j', require('smart-splits').swap_buf_down)
-    vim.keymap.set('n', '<leader><leader>k', require('smart-splits').swap_buf_up)
-    vim.keymap.set('n', '<leader><leader>l', require('smart-splits').swap_buf_right)
-  end
+    -- NOTE: Ensures that when exiting NeoVim, Zellij returns to normal mode
+    vim.api.nvim_create_autocmd("VimLeave", {
+      pattern = "*",
+      command = "silent !zellij action switch-mode normal"
+    })
+  end,
+  keys = {
+    { "<c-h>", "<cmd>ZellijNavigateLeftTab<cr>",  { silent = true, desc = "navigate left or tab"  } },
+    { "<c-j>", "<cmd>ZellijNavigateDown<cr>",  { silent = true, desc = "navigate down"  } },
+    { "<c-k>", "<cmd>ZellijNavigateUp<cr>",    { silent = true, desc = "navigate up"    } },
+    { "<c-l>", "<cmd>ZellijNavigateRightTab<cr>", { silent = true, desc = "navigate right or tab" } },
+
+    { "<M-h>", "<cmd>horizontal resize -5<cr>",  { silent = true, desc = "resize left"  } },
+    { "<M-j>", "<cmd>vertical resize -5<cr>",    { silent = true, desc = "resize down"  } },
+    { "<M-k>", "<cmd>vertical resize +5<cr>",    { silent = true, desc = "resize up"    } },
+    { "<M-l>", "<cmd>horizontal resize +5<cr>",  { silent = true, desc = "resize right" } },
+  },
+  opts = {},
 }

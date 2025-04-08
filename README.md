@@ -26,8 +26,6 @@ Config files for the tools I use:
 - [Neovim](https://neovim.io/)
   - `brew install neovim`
   - `rm -rf ~/.config/nvim && ln -s ~/Documents/WP/configs/nvim ~/.config/nvim`
-- [Tmux](https://github.com/tmux/tmux)
-  - `brew install tmux`
-  - `rm -rf ~/.config/tmux && ln -s ~/Documents/WP/configs/tmux ~/.config/tmux`
-  - [TPM](https://github.com/tmux-plugins/tpm)
-    - `git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm`
+- [Zellij]
+  - `brew install zellij`
+  - `rm -rf ~/.config/zellij && ln -s ~/Documents/WP/configs/zellij ~/.config/zellij`
