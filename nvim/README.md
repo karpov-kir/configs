@@ -7,3 +7,5 @@
 # Prerequisite
 
 - `ripgrep` for live grep to work (`brew install ripgrep`)
+- `lazygit` (`brew install lazygit`)
+- `yazi` (`brew install yazi && brew install coreutils`)

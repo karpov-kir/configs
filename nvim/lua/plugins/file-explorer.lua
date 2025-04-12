@@ -5,68 +5,48 @@ return {
     dependencies = { "nvim-tree/nvim-web-devicons" },
   },
   {
-    "nvim-neo-tree/neo-tree.nvim",
-    branch = "v3.x",
-    cmd = {
-      "Neotree",
-    },
-    opts = {
-      filesystem = {
-        filtered_items = {
-          visible = true,
-        },
-      },
-    },
+    "mikavilpas/yazi.nvim",
+    event = "VeryLazy",
     dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-tree/nvim-web-devicons",
-      "MunifTanjim/nui.nvim",
-      -- Optional image support in preview window: See `# Preview Mode` for more information
-      -- "3rd/image.nvim",
+      -- check the installation instructions at
+      -- https://github.com/folke/snacks.nvim
+      -- NOTE: it's already used in the indentation.lua
+      "folke/snacks.nvim"
     },
-    -- https://github.com/nvim-neo-tree/neo-tree.nvim/issues/1115#issuecomment-1784184617
-    keys = function()
-      local find_buffer_by_type = function(type)
-        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-          local ft = vim.api.nvim_buf_get_option(buf, "filetype")
-          if ft == type then
-            return buf
-          end
-        end
-        return -1
-      end
-  
-      local toggle_neotree = function(toggle_command)
-        if find_buffer_by_type("neo-tree") > 0 then
-          require("neo-tree.command").execute({ action = "close" })
-        else
-          toggle_command()
-        end
-      end
-  
-      return {
-        -- { "<C-n>", "<cmd>Neotree filesystem toggle left<CR>" },
-        -- { "<C-n>", "<cmd>Neotree float filesystem toggle<CR>" },
-        -- { "<C-n>", "<cmd>Neotree reveal float<CR>" },
-        -- { "<C-n>", "<cmd>Neotree reveal left<CR>" },
-        {
-          "<C-n>",
-          function()
-            toggle_neotree(function()
-              require("neo-tree.command").execute({ action = "focus", reveal = true, dir = vim.uv.cwd() })
-            end)
-          end,
-        },
-        -- {
-        --   "<leader>E",
-        --   function()
-        --     toggle_neotree(function()
-        --       require("neo-tree.command").execute({ action = "focus", reveal = true })
-        --     end)
-        --   end,
-        --   desc = "Toggle Explorer (root)",
-        -- },
-      }
+    keys = {
+      -- 👇 in this section, choose your own keymappings!
+      {
+        "<leader>cf",
+        mode = { "n", "v" },
+        "<cmd>Yazi<cr>",
+        desc = "Open yazi at the current file",
+      },
+      {
+        -- Open in the current working directory
+        "<leader>cw",
+        "<cmd>Yazi cwd<cr>",
+        desc = "Open the file manager in nvim's working directory",
+      },
+      -- {
+      --   "<c-up>",
+      --   "<cmd>Yazi toggle<cr>",
+      --   desc = "Resume the last yazi session",
+      -- },
+    },
+    ---@type YaziConfig | {}
+    opts = {
+      -- if you want to open yazi instead of netrw, see below for more info
+      open_for_directories = false,
+      keymaps = {
+        show_help = "<f1>",
+      },
+      -- log_level = vim.log.levels.DEBUG
+    },
+    -- 👇 if you use `open_for_directories=true`, this is recommended
+    init = function()
+      -- More details: https://github.com/mikavilpas/yazi.nvim/issues/802
+      -- vim.g.loaded_netrw = 1
+      vim.g.loaded_netrwPlugin = 1
     end,
-  }  
+  }
 }
