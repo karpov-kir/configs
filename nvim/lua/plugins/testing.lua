@@ -17,9 +17,11 @@ return {
           os.execute("rm -f" .. pipe_file_path)
           os.execute("mkfifo -m 600 " .. pipe_file_path)
           os.execute("zellij run -d down -c -n Tests -- bash -c 'tail -f " .. pipe_file_path .. " | bash' &")
+          -- Resize new panel
           for _ = 0, 3 do
             os.execute("zellij action resize decrease up")
           end
+          -- Focus back to Neovim
           os.execute("zellij action focus-previous-pane")
           -- A small delay to ensure `tail` has started (maybe not necessary?)
           os.execute("sleep 0.05")
