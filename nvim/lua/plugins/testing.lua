@@ -9,8 +9,12 @@ return {
         end
 
         local pipe_file_path = "/tmp/zellij-nvim-test-fifo"
-        local is_pane_already_listening = os.execute("pgrep -f 'tail -f " .. pipe_file_path .. "' > /dev/null 2>&1")
-          == 0
+
+        local pgrepHandle = io.popen("ps aux | grep '[t]ail -f " .. pipe_file_path .. "'")
+        local pgrepOutput = pgrepHandle:read("*a")
+        pgrepHandle:close()
+
+        local is_pane_already_listening = pgrepOutput ~= ""
 
         if not is_pane_already_listening then
           vim.notify("Running tests in new Zellij pane", "info")
