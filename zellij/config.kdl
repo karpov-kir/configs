@@ -8,7 +8,7 @@ load_plugins {
     triggers "nvim|vim|git|fzf|zoxide|atuin"
     // Reaction to input occurs after this many seconds. (default=0.3)
     // (An existing scheduled reaction prevents additional reactions.)
-    reaction_seconds "0.3"
+    reaction_seconds "0.5"
   }
 }
 
@@ -25,6 +25,15 @@ keybinds {
       MessagePlugin "autolock" {};
     }
   }
+
+  move {
+    bind "Ctrl m" { SwitchToMode "Normal"; }
+  }
+
+  shared_except "move" "locked" {
+    bind "Ctrl m" { SwitchToMode "Move"; }
+  }
+
   // Keybindings specific to 'Locked' mode.
   locked {
     bind "Alt z" {
@@ -34,6 +43,7 @@ keybinds {
       SwitchToMode "Normal";
     }
   }
+
   // Keybindings shared across all modes.
   shared {
     bind "Alt Shift z" {
@@ -41,6 +51,7 @@ keybinds {
       MessagePlugin "autolock" {payload "enable";};
     }
   }
+
   // Keybindings shared across all modes, except 'Locked'.
   shared_except "locked" {
     // Put keybindings here if they conflict with Vim or others.
