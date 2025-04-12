@@ -18,7 +18,7 @@ Config files for the tools I use:
 - [HSTR](https://github.com/dvorka/hstr)
   - `brew install hstr`
 - [Ghostty](https://ghostty.org)
-  - Download and install from https://ghostty.org
+  - `brew install --cask ghostty`
   - `rm -rf ~/.config/ghostty && ln -s ~/Documents/WP/configs/ghostty ~/.config/ghostty`
 - [Lazygit](https://github.com/jesseduffield/lazygit)
   - `brew install lazygit`
