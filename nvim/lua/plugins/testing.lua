@@ -3,7 +3,7 @@ return {
   init = function()
     vim.g["test#custom_strategies"] = {
       zellij = function(cmd)
-        if os.getenv("ZELLIJ_PANE_ID") == nil then
+        if os.getenv("ZELLIJ") == nil then
           vim.notify("Cannot create Zellij pane to run tests. You are not in Zellij context.", "error")
           return
         end
