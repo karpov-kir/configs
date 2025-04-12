@@ -109,10 +109,11 @@ return {
     },
     keys = {
       {
-        "<leader>gf",
+        "<leader>ff",
         function()
           require("conform").format()
         end,
+        desc = "Format file"
       },
     },
   },
