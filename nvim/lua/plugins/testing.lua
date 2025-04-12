@@ -9,8 +9,9 @@ return {
         end
 
         local pipe_file_path = "/tmp/zellij-nvim-test-fifo"
-        local is_pane_already_listening = os.execute("pgrep -f 'tail -f " .. pipe_file_path .. "' > /dev/null 2>&1") == 0
-    
+        local is_pane_already_listening = os.execute("pgrep -f 'tail -f " .. pipe_file_path .. "' > /dev/null 2>&1")
+          == 0
+
         if not is_pane_already_listening then
           vim.notify("Running tests in new Zellij pane", "info")
           os.execute("rm -f" .. pipe_file_path)
@@ -25,12 +26,12 @@ return {
         else
           vim.notify("Running tests in existing Zellij pane", "info")
         end
-    
+
         local escaped_cmd = cmd:gsub('"', '\\"')
         os.execute("echo '" .. escaped_cmd .. "' > " .. pipe_file_path)
-      end
+      end,
     }
-    
+
     vim.g["test#strategy"] = "zellij"
   end,
   cmd = {

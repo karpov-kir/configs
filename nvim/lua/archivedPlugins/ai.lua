@@ -8,8 +8,8 @@ return {
     end,
     keys = {
       { "<c-j>", 'copilot#Accept("")', expr = true, replace_keycodes = false, mode = "i" },
-      { "<c-]>", 'copilot#Next()', expr = true, replace_keycodes = false, mode = "i" },
-      { "<c-[>", 'copilot#Previous()', expr = true, replace_keycodes = false, mode = "i" },
+      { "<c-]>", "copilot#Next()", expr = true, replace_keycodes = false, mode = "i" },
+      { "<c-[>", "copilot#Previous()", expr = true, replace_keycodes = false, mode = "i" },
     },
   },
   {
@@ -18,7 +18,7 @@ return {
     cmd = {
       "CopilotChat",
       "CopilotChatOpen",
-      "CopilotChatToggle"
+      "CopilotChatToggle",
     },
     dependencies = {
       { "github/copilot.vim" },

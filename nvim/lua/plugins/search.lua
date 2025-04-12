@@ -30,7 +30,7 @@ return {
         local bufnr = previewer.state.bufnr or previewer.state.termopen_bufnr
         local winid = previewer.state.winid or vim.fn.win_findbuf(bufnr)[1]
         vim.keymap.set("n", "<Tab>", function()
-            vim.cmd(string.format("noautocmd lua vim.api.nvim_set_current_win(%s)", prompt_win))
+          vim.cmd(string.format("noautocmd lua vim.api.nvim_set_current_win(%s)", prompt_win))
         end, { buffer = bufnr })
         vim.cmd(string.format("noautocmd lua vim.api.nvim_set_current_win(%s)", winid))
         -- api.nvim_set_current_win(winid)
@@ -49,8 +49,8 @@ return {
             },
             i = {
               ["<Tab>"] = focus_preview,
-            }
-          }
+            },
+          },
         },
         pickers = {
           buffers = {

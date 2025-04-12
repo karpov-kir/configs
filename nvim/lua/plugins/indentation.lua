@@ -6,13 +6,13 @@ return {
     main = "ibl",
     opts = function(_, opts)
       vim.api.nvim_set_hl(0, "ScopeChar", { fg = "#d46ec0" })
-  
+
       return require("indent-rainbowline").make_opts({
         indent = {
           char = "❘",
         },
         scope = {
-          enabled = false
+          enabled = false,
         },
       }, {
         color_transparency = 0.045,
@@ -30,6 +30,9 @@ return {
     "folke/snacks.nvim",
     opts = {
       indent = {},
+    },
+    dependencies = {
+      "nvim-tree/nvim-web-devicons",
     },
   },
 }

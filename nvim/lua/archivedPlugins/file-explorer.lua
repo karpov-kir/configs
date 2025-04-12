@@ -42,7 +42,7 @@ return {
         end
         return -1
       end
-  
+
       local toggle_neotree = function(toggle_command)
         if find_buffer_by_type("neo-tree") > 0 then
           require("neo-tree.command").execute({ action = "close" })
@@ -50,7 +50,7 @@ return {
           toggle_command()
         end
       end
-  
+
       return {
         -- { "<C-n>", "<cmd>Neotree filesystem toggle left<CR>" },
         -- { "<C-n>", "<cmd>Neotree float filesystem toggle<CR>" },

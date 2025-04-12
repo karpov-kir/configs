@@ -5,7 +5,7 @@ return {
     lazy = false,
     init = function()
       -- '0' is not bad
-      vim.o.foldcolumn = "1"      
+      vim.o.foldcolumn = "1"
       -- Using ufo provider need a large value, feel free to decrease the value
       vim.o.foldlevel = 99
       vim.o.foldlevelstart = 99

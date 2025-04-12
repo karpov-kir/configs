@@ -39,13 +39,13 @@ return {
         local config = {
           capabilities = capabilities,
         }
-  
+
         -- Can be removed if `vtsls` is not used, but let's keep it for now
         if lsp_server == "vtsls" then
           config.settings = {
-            vtsls = { 
-              autoUseWorkspaceTsdk = true
-            }
+            vtsls = {
+              autoUseWorkspaceTsdk = true,
+            },
           }
         end
 
@@ -113,7 +113,7 @@ return {
         function()
           require("conform").format()
         end,
-        desc = "Format file"
+        desc = "Format file",
       },
     },
   },

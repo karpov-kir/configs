@@ -4,7 +4,7 @@ return {
     opts = {},
   },
   {
-    "danymat/neogen", 
-    config = true
+    "danymat/neogen",
+    config = true,
   },
 }
