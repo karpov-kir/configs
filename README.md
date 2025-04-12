@@ -9,12 +9,6 @@ Config files for the tools I use:
   - `brew install mise`
   - `mise use --global node@lts`
   - `mise use --global go@latest`
-- [ZSH](https://zsh.org)
-  - It's already installed by default on MacOS
-  - [Prezto](https://github.com/sorin-ionescu/prezto)
-    - `git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"`
-    - `rm -f ~/.zpreztorc && ln -s ~/Documents/WP/configs/zsh/.zpreztorc ~/.zpreztorc`
-  - `rm -f ~/.zshrc && ln -s ~/Documents/WP/configs/zsh/.zshrc ~/.zshrc`
 - [HSTR](https://github.com/dvorka/hstr)
   - `brew install hstr`
 - [Ghostty](https://ghostty.org)
@@ -29,3 +23,9 @@ Config files for the tools I use:
 - [Zellij](https://zellij.dev)
   - `brew install zellij`
   - `rm -rf ~/.config/zellij && ln -s ~/Documents/WP/configs/zellij ~/.config/zellij`
+- [ZSH](https://zsh.org)
+  - It's already installed by default on MacOS
+  - [Prezto](https://github.com/sorin-ionescu/prezto)
+    - `git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"`
+    - `rm -f ~/.zpreztorc && ln -s ~/Documents/WP/configs/zsh/.zpreztorc ~/.zpreztorc`
+  - `rm -f ~/.zshrc && ln -s ~/Documents/WP/configs/zsh/.zshrc ~/.zshrc`
