@@ -23,9 +23,9 @@ Config files for the tools I use:
 - [Lazygit](https://github.com/jesseduffield/lazygit)
   - `brew install lazygit`
   - `rm -rf ~/.config/lazygit && ln -s ~/Documents/WP/configs/lazygit ~/.config/lazygit`
-- [Neovim](https://neovim.io/)
+- [Neovim](https://neovim.io)
   - `brew install neovim`
   - `rm -rf ~/.config/nvim && ln -s ~/Documents/WP/configs/nvim ~/.config/nvim`
-- [Zellij]
+- [Zellij](https://zellij.dev)
   - `brew install zellij`
   - `rm -rf ~/.config/zellij && ln -s ~/Documents/WP/configs/zellij ~/.config/zellij`
