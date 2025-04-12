@@ -1,4 +1,6 @@
-local lsp_servers = { "lua_ls", "vtsls", "gopls" }
+-- NOTE: `vtsls` does not support automatic renaming of imports when file names are changed or file paths are changed (e.g. via Yazi in Neovim).
+-- It was found in the LSP's logs: `{ "error": { "code": -32601, "message": "Unhandled method workspace/willRenameFiles" } }`.
+local lsp_servers = { "lua_ls", "ts_ls", "gopls" }
 
 return {
   -- LSP
@@ -26,12 +28,28 @@ return {
   {
     "neovim/nvim-lspconfig",
     dependencies = { "williamboman/mason-lspconfig.nvim", "saghen/blink.cmp" },
+    init = function()
+      -- vim.lsp.set_log_level("debug")
+    end,
     config = function()
       local lspconfig = require("lspconfig")
       local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       for _, lsp_server in ipairs(lsp_servers) do
-        lspconfig[lsp_server].setup({ capabilities = capabilities })
+        local config = {
+          capabilities = capabilities,
+        }
+  
+        -- Can be removed if `vtsls` is not used, but let's keep it for now
+        if lsp_server == "vtsls" then
+          config.settings = {
+            vtsls = { 
+              autoUseWorkspaceTsdk = true
+            }
+          }
+        end
+
+        lspconfig[lsp_server].setup(config)
       end
     end,
     keys = {
