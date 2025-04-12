@@ -1,10 +1,9 @@
 layout {
   default_tab_template {
-    children
     // https://github.com/dj95/zjstatus/discussions/44#discussioncomment-11681328
     pane size=1 borderless=true {
       plugin location="https://github.com/dj95/zjstatus/releases/latest/download/zjstatus.wasm" {
-        // hide_frame_for_single_pane "true"
+        hide_frame_for_single_pane "true"
 
         format_left  "{mode}#[fg=blue,bg=#383E5A,bold]  {session} #[fg=#383E5A,bg=bg] #[fg=white,bg=fg]󰓩  {tabs}"
         // format_right "#[fg=blue,bg=bg]{datetime}"
@@ -24,5 +23,7 @@ layout {
         tab_active  "#[fg=green,bg=fg,bold,italic] [{index}] {name}"
       }
     }
+
+    children
   }
 }
