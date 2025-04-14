@@ -13,9 +13,6 @@ fi
 
 if [[ -f "/opt/homebrew/bin/brew" ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
-  # Add Google Cloud SDK to PATH
-  source "$(brew --prefix)/share/google-cloud-sdk/path.zsh.inc"
-  source "$(brew --prefix)/share/google-cloud-sdk/completion.zsh.inc"
 fi
 
 eval "$(mise activate zsh)"
@@ -25,17 +22,8 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
-# Add WebOS binaries to PATH
-# export PATH=$PATH:~/Documents/Other/webOS_TV_SDK/CLI/bin
-
-# Add Tizen binaries to PATH
-# export PATH=$PATH:~/Documents/Other/tizen-studio/tools:~/Documents/Other/tizen-studio/tools/ide/bin:~/Documents/Other/tizen-studio/package-manager
-
 # Go access to private repos
 export GOPRIVATE=github.com
-
-# Add custom binaries to PATH
-# export PATH=$PATH:~/Documents/Other/bin
 
 # Add AWS MFA bash snippet alias
 # https://bitmovin.atlassian.net/wiki/spaces/DEVOPS/pages/1607696505/AWS+MFA+Setup
