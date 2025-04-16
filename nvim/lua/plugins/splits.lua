@@ -15,10 +15,10 @@ return {
     { "<c-k>", "<cmd>ZellijNavigateUp<cr>", { silent = true, desc = "navigate up" } },
     { "<c-l>", "<cmd>ZellijNavigateRightTab<cr>", { silent = true, desc = "navigate right or tab" } },
 
-    { "<M-h>", "<cmd>horizontal resize -5<cr>", { silent = true, desc = "resize left" } },
-    { "<M-j>", "<cmd>vertical resize -5<cr>", { silent = true, desc = "resize down" } },
-    { "<M-k>", "<cmd>vertical resize +5<cr>", { silent = true, desc = "resize up" } },
-    { "<M-l>", "<cmd>horizontal resize +5<cr>", { silent = true, desc = "resize right" } },
+    { "<M-h>", "<cmd>vertical resize -5<cr>", { silent = true, desc = "resize left" } },
+    { "<M-j>", "<cmd>horizontal resize -5<cr>", { silent = true, desc = "resize down" } },
+    { "<M-k>", "<cmd>horizontal resize +5<cr>", { silent = true, desc = "resize up" } },
+    { "<M-l>", "<cmd>vertical resize +5<cr>", { silent = true, desc = "resize right" } },
   },
   opts = {},
 }
