@@ -1,10 +1,14 @@
 return {
-  "utilyre/barbecue.nvim",
-  name = "barbecue",
+  "Bekaboo/dropbar.nvim",
+  -- optional, but required for fuzzy finder support
   dependencies = {
-    "SmiteshP/nvim-navic",
-    -- optional dependency
-    "nvim-tree/nvim-web-devicons",
+    "nvim-telescope/telescope-fzf-native.nvim",
+    build = "make",
   },
-  opts = {},
+  config = function()
+    local dropbar_api = require("dropbar.api")
+    vim.keymap.set("n", "<Leader>;", dropbar_api.pick, { desc = "Pick symbols in winbar" })
+    vim.keymap.set("n", "[;", dropbar_api.goto_context_start, { desc = "Go to start of current context" })
+    vim.keymap.set("n", "];", dropbar_api.select_next_context, { desc = "Select next context" })
+  end,
 }
