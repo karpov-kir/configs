@@ -13,6 +13,9 @@ fi
 
 if [[ -f "/opt/homebrew/bin/brew" ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
+  # Add Google Cloud SDK to PATH
+  source "$(brew --prefix)/share/google-cloud-sdk/path.zsh.inc"
+  source "$(brew --prefix)/share/google-cloud-sdk/completion.zsh.inc"
 fi
 
 eval "$(mise activate zsh)"
