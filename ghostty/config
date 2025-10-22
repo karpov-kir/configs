@@ -1,4 +1,4 @@
-theme = catppuccin-mocha
+theme = catppuccin-mocha.conf
 macos-option-as-alt = true
 
 # Makes cursor appearance better in terminal multiplexers
