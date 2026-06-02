@@ -2,6 +2,13 @@
 
 Config files for the tools I use:
 
+- [Claude Code](https://code.claude.com) skills
+  - `mkdir -p ~/.claude/skills`
+  - `ln -s ~/Documents/WP/configs/aiSkills/refactor ~/.claude/skills/refactor`
+  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-build ~/.claude/skills/idsd-build`
+  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-charter ~/.claude/skills/idsd-charter`
+  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-constitution ~/.claude/skills/idsd-constitution`
+  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-intent ~/.claude/skills/idsd-intent`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
@@ -28,4 +35,7 @@ Config files for the tools I use:
   - [Prezto](https://github.com/sorin-ionescu/prezto)
     - `git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"`
     - `rm -f ~/.zpreztorc && ln -s ~/Documents/WP/configs/zsh/.zpreztorc ~/.zpreztorc`
+  - `brew install zsh-autocomplete`
+  - `mkdir -p ~/.zprezto-contrib`
+  - `git clone --depth 1 https://github.com/marlonrichert/zsh-autocomplete ~/.zprezto-contrib/zsh-autocomplete`
   - `rm -f ~/.zshrc && ln -s ~/Documents/WP/configs/zsh/.zshrc ~/.zshrc`
