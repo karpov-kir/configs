@@ -4,3 +4,4 @@ macos-option-as-alt = true
 # Makes cursor appearance better in terminal multiplexers
 cursor-invert-fg-bg = true
 cursor-opacity = 0.95
+keybind = shift+enter=text:\x1b\r
