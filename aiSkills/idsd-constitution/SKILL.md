@@ -1,6 +1,6 @@
 ---
 name: idsd-constitution
-description: Set up or edit the long-term memory for an IDSD project — principles, baseline NFRs, and gate commands that idsd-build injects as Context. Optional and run rarely (project seeding or standards changes). Use when asked to "seed the project", "set up IDSD", "define our standards/constitution". Colleague-safe.
+description: Set up or edit the long-term memory for an IDSD project — principles, baseline NFRs, and gate commands that idsd-build injects as Context. Optional and run rarely (project seeding or standards changes). Use when asked to "seed the project", "set up IDSD", "define our standards/constitution". The technical "how" layer — developer-owned.
 ---
 
 Write `.idsd/constitution.md` — the stable, shared layer `idsd-build` reads as Context. It holds only IDSD-specific defaults: project principles, the baseline non-functional requirements (NFRs — performance, accessibility, security, and the like) every intent inherits, and the concrete commands that resolve gates. It references code style; it never restates it.

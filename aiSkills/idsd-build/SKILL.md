@@ -38,12 +38,14 @@ Pull the "how" as needed, not all up front:
 
 Get the commands from the constitution. If there is none, discover them from repo tooling — `package.json` / `Makefile` / `pyproject` scripts, lint and test config, CI workflow. If the repo has no tooling either (greenfield), fall back to the stack's conventional commands. State each command before you run it.
 
+A command that *can't run* (missing tool or target) is a **stale gate**, not a failing check — flag and fix it (see *Keep long-term memory honest*); don't mistake it for a code failure and thrash. A command that *runs and fails* is a real red gate → fix the code.
+
 A constraint that can't become a command (e.g. "GDPR compliant") isn't a gate — flag it for human judgment at the checkpoint.
 
 ## Phase 3 — Implement & validate (bounded loop)
 
 1. Implement the smallest change that satisfies the goal within the constraints.
-2. Encode success/failure scenarios as real acceptance tests (unit/integration/e2e per stack), or drive them via the `verify` skill for runtime/UI behaviour. Extend hand-written tests; don't clobber them.
+2. Encode success/failure scenarios as real acceptance tests (unit/integration/e2e per stack); for runtime/UI behaviour that resists a unit test, drive the app directly — via the `verify` skill if your setup has one, otherwise an e2e test or a manual run. Scenarios are examples, not the whole contract — also cover every constraint no scenario exercises (each supported value, threshold, and edge branch). Extend hand-written tests; don't clobber them.
 3. Run the gates and the scenario tests.
 4. On failure, fix and re-run. Bound to a few iterations; if stuck, stop and report rather than thrash.
 
@@ -56,7 +58,7 @@ Present for human judgment:
 - **Gate results** — gates are absolute; a red gate blocks merge (fix or escalate).
 - **Scenario results** — pass/fail; the human approves the behaviour.
 
-Approve on outcomes → proceed. Reject with feedback → back to Phase 3. Code review is optional and the human's — offer the `code-review` skill; never force or silently skip it.
+Approve on outcomes → proceed. Reject with feedback → back to Phase 3. Code review is optional and the human's — offer a code review (the `code-review` skill, if your setup has one); never force or silently skip it.
 
 ## Phase 5 — Merge & archive
 

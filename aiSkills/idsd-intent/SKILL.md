@@ -14,6 +14,8 @@ Capture **what** to build and **why** as an ICE — never **how**. The intent is
 
 A **Gate** — the executable check that verifies constraints plus baselines (build/lint/coverage) — is resolved and run by `idsd-build`, never authored here.
 
+**Goal** and **scenarios** are the plain-language behavioural contract — readable and shapeable by anyone, solo or pairing; **constraints** are the technical must-holds.
+
 ## Phase 0 — Detect scope
 
 Pick scope from the request, not repo state:
@@ -43,8 +45,6 @@ Cover only what's unclear, in order — the heuristic per part:
 
 For a **project map**, also decompose into one ICE per independently-shippable slice and tag each `milestone` (`mvp`, `vnext`, …); parked vNext intents are real files at `status: draft`.
 
-When pairing with a non-developer, the colleague is domain authority over **Goal** and **scenarios** — keep that language plain. You own constraints; Goal is co-authored. Record their sign-off in `approved-by` when they approve.
-
 ## Phase 2 — Clarify pass
 
 Before writing, re-read the drafted ICE and surface only the highest-impact ambiguities (≤3 questions). Re-runnable later on an existing file.
@@ -53,7 +53,7 @@ Before writing, re-read the drafted ICE and surface only the highest-impact ambi
 
 Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤4 words. Number = highest existing `NNN` across `.idsd/intents/` and `.idsd/archive/`, plus one (zero-padded to 3).
 
-Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`. Set `collaborative: true` only when authored in a pair session (this activates `idsd-build`'s sign-off gate).
+Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`. Set `collaborative: true` only when authored in a pair session (this activates `idsd-build`'s sign-off gate); record the collaborator's sign-off in `approved-by` when they approve.
 
 If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every intent's frontmatter (active + archived), grouped under a heading per milestone, with columns: number, title, status. Intents with `milestone: none` group under an "Unscheduled" heading. Generated, never hand-edited.
 
@@ -64,7 +64,7 @@ If `.idsd/charter.md` exists, keep its **Scope** in sync: when this planning add
 While authoring, watch for drift and recurrence and surface it — propose, never auto-edit; confirmed changes land via `idsd-charter` / `idsd-constitution`:
 
 - A constraint contradicts a constitution baseline → flag it; don't let both stand.
-- The same constraint recurs across three or more intents → propose promoting it to a constitution baseline, so future intents inherit it instead of restating it.
+- The same constraint recurs across three or more intents → propose promoting it to a constitution baseline; on promotion, strip the now-redundant restatement from the contributing intents too (keep only what's genuinely intent-specific), so it lives in exactly one place.
 - A domain term keeps recurring → propose adding it to the charter's vocabulary.
 
 ## Rules
