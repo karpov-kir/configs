@@ -3,13 +3,13 @@ export TERM=xterm-256color
 export VISUAL="nvim"
 export EDITOR="nvim"
 
+export PATH="/Users/kirill/.bun/bin:$PATH"
+
+# Expose LSP servers installed by Mason so Claude can use them for code analysis and completion
+export PATH="$HOME/.local/share/nvim/mason/bin:$PATH"
+
 # https://stackoverflow.com/a/64351976
 # zmodload zsh/zprof
-
-# Load OpenAI API key from file if it exists
-if [[ -f "$HOME/.openAiApiKey" ]]; then
-  export OPENAI_API_KEY="$(tr -d '[:space:]' < "$HOME/.openAiApiKey")"
-fi
 
 if [[ -f "/opt/homebrew/bin/brew" ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -24,6 +24,12 @@ eval "$(mise activate zsh)"
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
+
+# Use menu-complete for tab completion, and cycle through options with Tab and Shift-Tab
+bindkey              '^I' menu-select
+bindkey "$terminfo[kcbt]" menu-select
+bindkey -M menuselect  '^[[D' .backward-char  '^[OD' .backward-char
+bindkey -M menuselect  '^[[C'  .forward-char  '^[OC'  .forward-char
 
 # Go access to private repos
 export GOPRIVATE=github.com

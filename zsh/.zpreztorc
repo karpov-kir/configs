@@ -1,8 +1,12 @@
+zstyle ':prezto:load' pmodule-dirs $HOME/.zprezto-contrib
+
 # Color output (auto set to 'no' on dumb terminals).
 zstyle ':prezto:*:*' color 'yes'
 
 # Set the Prezto modules to load (browse modules).
 # The order matters.
+# NOTE: instead of the the Prezto completion module (https://github.com/sorin-ionescu/prezto/tree/73ae7f11280adcc061c15ebb2f494954c2cc8a38/modules/completion)
+# we use zsh-autocomplete (https://github.com/marlonrichert/zsh-autocomplete).
 zstyle ':prezto:load' pmodule \
   'environment' \
   'terminal' \
@@ -11,7 +15,7 @@ zstyle ':prezto:load' pmodule \
   'directory' \
   'spectrum' \
   'utility' \
-  'completion' \
+  'zsh-autocomplete' \
   'syntax-highlighting' \
   'history-substring-search' \
   'autosuggestions' \
@@ -25,5 +29,6 @@ zstyle ':prezto:module:syntax-highlighting' highlighters \
   'main' \
   'brackets' \
   'pattern' \
+  'line' \
   'cursor' \
   'root'
