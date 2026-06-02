@@ -47,17 +47,11 @@ return {
     },
   },
   {
-    "ThePrimeagen/harpoon",
-    branch = "harpoon2",
-    dependencies = { "nvim-lua/plenary.nvim" },
+    "leath-dub/snipe.nvim",
     keys = {
-      -- { "<leader>a", function() harpoon:list():add() end },
-      {
-        "<leader>sm",
-        function()
-          require("harpoon").ui:toggle_quick_menu(require("harpoon"):list())
-        end,
-      },
+      {"L", function () require("snipe").open_buffer_menu() end, desc = "Open Snipe buffer menu"}
     },
+    opts = {
+    }
   },
 }

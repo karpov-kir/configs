@@ -34,6 +34,9 @@ return {
         end
 
         local escaped_cmd = cmd:gsub('"', '\\"')
+        os.execute("echo 'echo \"======================\"' > " .. pipe_file_path)
+        os.execute("echo 'echo \'Running tests with command: " .. escaped_cmd .. "\'' > " .. pipe_file_path)
+        os.execute("echo 'echo \"======================\"' > " .. pipe_file_path)
         os.execute("echo '" .. escaped_cmd .. "' > " .. pipe_file_path)
       end,
     }
