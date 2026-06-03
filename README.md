@@ -4,11 +4,11 @@ Config files for the tools I use:
 
 - [Claude Code](https://code.claude.com) skills
   - `mkdir -p ~/.claude/skills`
-  - `ln -s ~/Documents/WP/configs/aiSkills/refactor ~/.claude/skills/refactor`
-  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-build ~/.claude/skills/idsd-build`
-  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-charter ~/.claude/skills/idsd-charter`
-  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-constitution ~/.claude/skills/idsd-constitution`
-  - `ln -s ~/Documents/WP/configs/aiSkills/idsd-intent ~/.claude/skills/idsd-intent`
+  - `ln -s ~/Documents/WP/configs/ai-skills/refactor ~/.claude/skills/refactor`
+  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-build ~/.claude/skills/idsd-build`
+  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-charter ~/.claude/skills/idsd-charter`
+  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-constitution ~/.claude/skills/idsd-constitution`
+  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-intent ~/.claude/skills/idsd-intent`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
