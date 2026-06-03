@@ -3,11 +3,9 @@ name: idsd-constitution
 description: Set up or edit the long-term memory for an IDSD project — principles, baseline NFRs, and gate commands that idsd-build injects as Context. Optional and run rarely (project seeding or standards changes). Use when asked to "seed the project", "set up IDSD", "define our standards/constitution". The technical "how" layer — developer-owned.
 ---
 
-Write `.idsd/constitution.md` — the stable, shared layer `idsd-build` reads as Context. It holds only IDSD-specific defaults: project principles, the baseline non-functional requirements (NFRs — performance, accessibility, security, and the like) every intent inherits, and the concrete commands that resolve gates. It references code style; it never restates it.
+Write `.idsd/constitution.md` — the stable, shared layer `idsd-build` reads as Context. It holds only IDSD-specific defaults: project principles, the baseline non-functional requirements (NFRs) every intent inherits, and the concrete commands that resolve gates. It references code style; it never restates it.
 
 Optional. Feature work runs without it — `idsd-build` derives gates from repo tooling when it's absent.
-
-Living memory: it grows as the project teaches you durable standards. `idsd-intent` and `idsd-build` surface recurring constraints and stale gates as you build; you promote them here. Self-*auditing*, not self-*writing* — edits are deliberate.
 
 Where this fits: `idsd-charter` (optional) → **`idsd-constitution`** (optional) → `idsd-intent` → `idsd-build`. The constitution is the *how*; the charter the *what/why*.
 
@@ -15,7 +13,7 @@ Where this fits: `idsd-charter` (optional) → **`idsd-constitution`** (optional
 
 Read the repo first:
 - `CLAUDE.md`, `PROJECT_CODE_STYLE.md` — link to them; if missing and the project needs them, point the user to create them.
-- Repo tooling — `package.json`/`Makefile`/`pyproject` scripts, lint/test config, CI workflow — for the real gate commands.
+- Repo tooling — `package.json`/`Makefile`/`pyproject` scripts, lint/test config, CI workflow — for the real gate commands. On a greenfield repo with no tooling yet, name the intended toolchain and the commands the build will make real, rather than discovering them.
 
 ## Phase 2 — Grill the gaps only
 
@@ -31,5 +29,5 @@ Write `.idsd/constitution.md` from `templates/constitution-template.md`. Confirm
 ## Rules
 
 - Reference, never duplicate, `CLAUDE.md` / `PROJECT_CODE_STYLE.md` — if a section just echoes another file, replace it with a link.
-- Gate commands must be real and runnable — verify they exist in the repo.
+- Gate commands must be real, runnable, and **able to fail** — each must exercise the thing its NFR/constraint names and exit non-zero when the threshold is breached. A command that runs but can't fail (wrong target, no assertion, no server started) is worthless, not a gate.
 - Keep it at the standards altitude — principles, NFRs, gate commands. It grows as durable standards accumulate, but link out rather than restate.

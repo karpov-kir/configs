@@ -3,11 +3,9 @@ name: idsd-charter
 description: Set up or edit the charter for an IDSD project — the project's what & why (vision, problem, users, scope boundaries) that idsd-build reads as Context. Optional and run rarely (project seeding or a direction change). Use when asked to "set the project vision/charter", "what is this project about", "define scope". Safe to run solo or with a non-technical collaborator.
 ---
 
-Write `.idsd/charter.md` — the project's **what & why**: the level-0 intent that sits above the feature intents. It is the home for the vision the rest of the suite assumes but doesn't store.
+Write `.idsd/charter.md` — the project's **what & why**: the level-0 intent that sits above the feature intents.
 
 Optional. Feature work and even project planning run without it; create one when the project's purpose is worth stating for collaborators and for `idsd-build`'s Context.
-
-Living memory: it's refined as the project teaches you more. `idsd-intent` and `idsd-build` surface drift and recurring terms as you build; you make the change here. It's self-*auditing*, not self-*writing* — edits are deliberate.
 
 Where this fits: **`idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → `idsd-build`**. The charter is the *what/why*, the constitution the *how*; `idsd-intent` keeps the charter's scope current as features evolve.
 
@@ -19,7 +17,7 @@ Where this fits: **`idsd-charter` (optional) → `idsd-constitution` (optional) 
 
 ## Phase 2 — Grill the gaps only
 
-Grill like `grill-me` for project-level scope — one question at a time, each with your recommended answer; push until the boundaries are sharp. The charter is non-technical by nature, so it reads plainly whether you're solo or pairing. Cover only what's unclear:
+Grill like `grill-me` for project-level scope — one question at a time, each with your recommended answer; push until the boundaries are sharp. Cover only what's unclear:
 
 1. **Vision** — what the project is, in 1–2 sentences. An outcome for users, not a feature list.
 2. **Problem & users** — who it's for and what's broken without it (concrete stakes, not a generic harm).

@@ -3,7 +3,7 @@ name: idsd-intent
 description: Author or refine an ICE intent (Intent-Driven Software Development). Grills adaptively, then emits intent files under .idsd/intents/. Use for a new feature, a project plan/roadmap, refining an existing intent, or pairing with a non-developer. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "what should we build".
 ---
 
-Capture **what** to build and **why** as an ICE — never **how**. The intent is the durable, reviewable unit of work; implementation belongs to `idsd-build`.
+Capture **what** to build and **why** as an ICE — never **how**; implementation belongs to `idsd-build`.
 
 **ICE = Intent · Context · Expectations.** You author Intent and Expectations; `idsd-build` assembles Context at build time. The intent file holds these parts:
 
@@ -14,7 +14,7 @@ Capture **what** to build and **why** as an ICE — never **how**. The intent is
 
 A **Gate** — the executable check that verifies constraints plus baselines (build/lint/coverage) — is resolved and run by `idsd-build`, never authored here.
 
-**Goal** and **scenarios** are the plain-language behavioural contract — readable and shapeable by anyone, solo or pairing; **constraints** are the technical must-holds.
+**Goal** and **scenarios** are the plain-language contract (shapeable by a non-dev collaborator); **constraints** are the technical must-holds.
 
 ## Phase 0 — Detect scope
 
@@ -64,12 +64,13 @@ If `.idsd/charter.md` exists, keep its **Scope** in sync: when this planning add
 While authoring, watch for drift and recurrence and surface it — propose, never auto-edit; confirmed changes land via `idsd-charter` / `idsd-constitution`:
 
 - A constraint contradicts a constitution baseline → flag it; don't let both stand.
+- A constitution baseline that no `mvp` intent will satisfy (e.g. an auth baseline with auth parked in vNext) → flag it; the product would ship in standing violation. Pull an enforcing intent into the mvp, or mark the baseline deferred.
 - The same constraint recurs across three or more intents → propose promoting it to a constitution baseline; on promotion, strip the now-redundant restatement from the contributing intents too (keep only what's genuinely intent-specific), so it lives in exactly one place.
 - A domain term keeps recurring → propose adding it to the charter's vocabulary.
 
 ## Rules
 
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
-- Keep each ICE self-contained: declare every dependency in Links, none hidden.
+- Keep each ICE self-contained: declare every dependency in Links, none hidden — and keep Links consistent with build order: never `block` or `depend-on` an intent that is foundational to this one or already built (that's backwards). A later intent that adds a constraint to a shipped one `extends` it.
 - If the user says "just write it", cut to Phase 3 with current info.
-- Don't restate `CLAUDE.md` / `PROJECT_CODE_STYLE.md`; they're Context for `idsd-build`.
+- Don't restate `CLAUDE.md`; it's Context for `idsd-build`.

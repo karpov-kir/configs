@@ -4,7 +4,7 @@ Long-term memory for IDSD. Read by `idsd-build` as Context. Lean — link out, d
 
 ## References
 
-- Code style & conventions: [CLAUDE.md](../CLAUDE.md), [PROJECT_CODE_STYLE.md](../PROJECT_CODE_STYLE.md)
+- Code style & conventions: <link the project's `CLAUDE.md` and `PROJECT_CODE_STYLE.md` if they exist; otherwise note that the global `~/.claude/CLAUDE.md` governs — link only to files that actually exist>
 
 ## Principles
 
