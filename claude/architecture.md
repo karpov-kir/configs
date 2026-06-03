@@ -81,6 +81,8 @@ function append(path, data, options = {}):
     ...operate through the injected handle...
 ```
 
+**Functional core, imperative shell** — a context call, worth more as the logic grows heavier or more critical, not for thin CRUD. Decoupling taken further: keep business logic a pure **core** (decisions from inputs — no I/O, clock, or mutation) wrapped by a thin **shell** that gathers inputs, calls the core, and enacts the result; a pure core tests trivially: data in, data out, nothing to fake.
+
 ### Decision guides
 
 #### Where does this code go?
