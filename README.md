@@ -12,6 +12,7 @@ Config files for the tools I use:
   - `ln -s ~/Documents/WP/configs/ai-skills/idsd-intent ~/.claude/skills/idsd-intent`
   - `ln -s ~/Documents/WP/configs/ai-skills/explainer-graphic ~/.claude/skills/explainer-graphic`
   - `ln -s ~/Documents/WP/configs/ai-skills/grill-me ~/.claude/skills/grill-me`
+  - `ln -s ~/Documents/WP/configs/ai-skills/learning-path-generator ~/.claude/skills/learning-path-generator`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
