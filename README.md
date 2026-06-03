@@ -2,7 +2,8 @@
 
 Config files for the tools I use:
 
-- [Claude Code](https://code.claude.com) skills
+- [Claude Code](https://code.claude.com)
+  - `ln -s ~/Documents/WP/configs/claude/CLAUDE.md ~/.claude/CLAUDE.md`
   - `mkdir -p ~/.claude/skills`
   - `ln -s ~/Documents/WP/configs/ai-skills/refactor ~/.claude/skills/refactor`
   - `ln -s ~/Documents/WP/configs/ai-skills/idsd-build ~/.claude/skills/idsd-build`
