@@ -74,41 +74,11 @@ No mocks; treat test code as production code. Before writing or reviewing tests,
 
 Prefer defaults and latest stable — tools (linters, formatters, build, test runners, type checkers, etc.), libraries (ORMs, loggers, HTTP clients, etc.), runtimes, base images, and anything similar. Choose latest LTS when upstream offers one; otherwise latest stable — expressed as a concrete pinned range (e.g. `^1.4.0`), never a floating tag like npm `latest` (non-reproducible). Avoid pre-releases (alpha/beta/RC, etc.) unless the feature is required and not yet in stable.
 
-Override a default or pin to an older version only when concrete breakage forces it — "might be nicer" is not enough. Leave a one-line comment with the reason; if it doesn't fit on one line, the option probably doesn't belong. Prune overrides and pins when the reason no longer holds.
+Override a default or pin to an older version only when concrete breakage forces it — "might be nicer" is not enough. Leave a one-line comment with the reason; if it doesn't fit on one line, the option probably doesn't belong. Prune overrides and pins when the reason no longer holds. No unused dependencies — remove a package once nothing uses it.
 
 # Git
 
-## Branches
-
-Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`, `chore`, `docs`, `test`, or `style`. Drop ticket when none exists.
-
-Good: `fix/TA-2826-bad-git-ref`, `refactor/TA-2847-extract-execasync`, `chore/bump-eslint`
-Bad: `ta-2847-exec-timeouts`, `my-fix`
-
-## Commits & Push
-
-Commit messages: short, imperative, one-line subject (~50 chars). Body only when *why* isn't obvious from the diff.
-
-Frame for the repo's end user — app users for apps, downstream devs for libraries, operators for infra, and so on. Describe the user-visible effect, not the internal mechanism.
-
-Good: `fix race in token refresh`
-Bad (verbose): `Updated the auth middleware to fix a bug where tokens were sometimes refreshed twice`
-Bad (technical): `loosen regex from \d{4} to \d+`
-Good (user-facing): `support any version number in device names`
-
-Match the recent commit style on the branch — `git log` first. Use semantic prefixes (`feat:`, `fix:`, …) only when the branch already does AND commits land directly. PR branches default to plain since squash subjects are what ship.
-
-Before executing any `git commit` or `git push` command, always:
-1. Print the full command you intend to run
-2. Ask for explicit approval before executing
-
-## Pull Requests
-
-* Always follow [Writing Guidelines](#writing-guidelines).
-* Open PRs as drafts.
-* If the repo has a PR template, follow it too.
-* Do not add a "Test plan" section.
-* When addressing a PR comment, reply on the comment thread with `Done <link to commit>` pointing at the commit that resolves it.
+Before any `git commit` or `git push`: print the full command and get explicit approval first. Branch, commit, and PR conventions: [git.md](~/.claude/git.md).
 
 # Tooling
 

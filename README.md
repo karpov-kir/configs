@@ -6,6 +6,7 @@ Config files for the tools I use:
   - `ln -s ~/Documents/WP/configs/claude/CLAUDE.md ~/.claude/CLAUDE.md`
   - `ln -s ~/Documents/WP/configs/claude/testing.md ~/.claude/testing.md`
   - `ln -s ~/Documents/WP/configs/claude/architecture.md ~/.claude/architecture.md`
+  - `ln -s ~/Documents/WP/configs/claude/git.md ~/.claude/git.md`
   - `mkdir -p ~/.claude/skills`
   - `ln -s ~/Documents/WP/configs/ai-skills/refactor ~/.claude/skills/refactor`
   - `ln -s ~/Documents/WP/configs/ai-skills/idsd-build ~/.claude/skills/idsd-build`
