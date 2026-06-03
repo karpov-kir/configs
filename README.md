@@ -15,6 +15,7 @@ Config files for the tools I use:
   - `ln -s ~/Documents/WP/configs/ai-skills/learning-path-generator ~/.claude/skills/learning-path-generator`
   - `ln -s ~/Documents/WP/configs/ai-skills/market-competitors ~/.claude/skills/market-competitors`
   - `ln -s ~/Documents/WP/configs/ai-skills/quick-research ~/.claude/skills/quick-research`
+  - `ln -s ~/Documents/WP/configs/ai-skills/quick-spec ~/.claude/skills/quick-spec`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
