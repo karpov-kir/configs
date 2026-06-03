@@ -17,6 +17,10 @@ Applies to anything you write. Persistent artifacts (code comments, PR/commit de
 * Each line must carry a fact unreachable from surrounding context (code, types, siblings, the diff, etc.). Cut or link otherwise.
 * No backstory, hedging, or justification — describe what is true, not what we tried.
 
+# Architecture
+
+Prefer **vertical slicing** (organize by feature) and **horizontal decoupling** (logic behind ports). Before designing a module layout or wiring dependencies, read [architecture.md](~/.claude/architecture.md).
+
 # Code Style
 
 Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge its rules on top (project overrides win).
@@ -27,6 +31,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
   - Exception: well-established abbreviations are fine.
 - Strict camelCase / TitleCase for multi-word names. Acronyms are treated like normal words: `remoteUrl` not `remoteURL`, `HttpClient` not `HTTPClient`.
 - Booleans take a predicate prefix — `is`/`has`/`can`/`should`/`was`/`will` (e.g. `isLoading` not `loading`).
+- A function that returns a new instance takes a `new` prefix: `newWriter`, `newApiClient` (not `create…`/`make…`).
 - For recurring concepts, use consistent terminology across the codebase — always `options` or always `params`, not both.
 
 ## Parameters
@@ -61,9 +66,13 @@ Follow [Writing Guidelines](#writing-guidelines). Additionally: prefer clear nam
 - Keep files focused on a single responsibility — split when a file grows beyond ~400 lines or contains unrelated concepts.
 - Avoid barrel/index files. Import from the source module directly — they hide locations, hurt tree-shaking, and invite circular imports. Likewise, never re-export a symbol through a module that isn't where it's defined just to keep an import path stable; a symbol has one home, so import it from there and update importers if that home moves.
 
+# Testing
+
+No mocks; treat test code as production code. Before writing or reviewing tests, read [testing.md](~/.claude/testing.md).
+
 # Defaults & Pins
 
-Prefer defaults and latest stable — tools (linters, formatters, build, test runners, type checkers, etc.), libraries (ORMs, loggers, HTTP clients, etc.), runtimes, base images, and anything similar. Choose latest LTS when upstream offers one; otherwise latest stable. Avoid pre-releases (alpha/beta/RC, etc.) unless the feature is required and not yet in stable.
+Prefer defaults and latest stable — tools (linters, formatters, build, test runners, type checkers, etc.), libraries (ORMs, loggers, HTTP clients, etc.), runtimes, base images, and anything similar. Choose latest LTS when upstream offers one; otherwise latest stable — expressed as a concrete pinned range (e.g. `^1.4.0`), never a floating tag like npm `latest` (non-reproducible). Avoid pre-releases (alpha/beta/RC, etc.) unless the feature is required and not yet in stable.
 
 Override a default or pin to an older version only when concrete breakage forces it — "might be nicer" is not enough. Leave a one-line comment with the reason; if it doesn't fit on one line, the option probably doesn't belong. Prune overrides and pins when the reason no longer holds.
 
@@ -96,6 +105,7 @@ Before executing any `git commit` or `git push` command, always:
 ## Pull Requests
 
 * Always follow [Writing Guidelines](#writing-guidelines).
+* Open PRs as drafts.
 * If the repo has a PR template, follow it too.
 * Do not add a "Test plan" section.
 * When addressing a PR comment, reply on the comment thread with `Done <link to commit>` pointing at the commit that resolves it.
