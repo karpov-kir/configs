@@ -10,6 +10,7 @@ Config files for the tools I use:
   - `ln -s ~/Documents/WP/configs/ai-skills/idsd-charter ~/.claude/skills/idsd-charter`
   - `ln -s ~/Documents/WP/configs/ai-skills/idsd-constitution ~/.claude/skills/idsd-constitution`
   - `ln -s ~/Documents/WP/configs/ai-skills/idsd-intent ~/.claude/skills/idsd-intent`
+  - `ln -s ~/Documents/WP/configs/ai-skills/explainer-graphic ~/.claude/skills/explainer-graphic`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
