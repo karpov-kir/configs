@@ -36,7 +36,7 @@ Pull the "how" as needed, not all up front:
 - baseline checks — build, lint, test, coverage, perf;
 - one check per measurable constraint in the ICE.
 
-Get the commands from the constitution. If there is none, discover them from repo tooling — `package.json` / `Makefile` / `pyproject` scripts, lint and test config, CI workflow. If the repo has no tooling either (greenfield), fall back to the stack's conventional commands. State each command before you run it.
+Get the commands from the constitution. If there is none, discover them from repo tooling — manifest scripts (`package.json`, `Makefile`, `pyproject`, …), lint and test config, CI workflow. If the repo has no tooling either (greenfield), fall back to the stack's conventional commands. State each command before you run it.
 
 A command that *can't run* (missing tool or target), or that *runs but can't fail* (wrong target, no assertion, no server started — green no matter what), is a **stale gate**, not verification — flag and fix it (see *Keep long-term memory honest*); never read its green as a pass. A command that *runs and genuinely fails* is a real red gate → fix the code.
 

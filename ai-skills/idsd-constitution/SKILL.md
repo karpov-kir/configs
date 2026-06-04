@@ -19,7 +19,7 @@ Read the repo first:
 
 One question at a time, recommended answer each. Cover only what isn't already written down:
 1. **Principles** — 3–7 project-specific non-negotiables, beyond general code style.
-2. **Baseline NFRs** — defaults every intent inherits unless its own constraints override (latency, accessibility, security posture, coverage floor).
+2. **Baseline NFRs** — defaults every intent inherits unless its own constraints override (e.g. latency, accessibility, security posture, coverage floor).
 3. **Gate commands** — exact commands for build / lint / test / coverage / perf, discovered in Phase 1 and confirmed.
 
 ## Phase 3 — Emit
