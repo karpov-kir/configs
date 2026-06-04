@@ -22,12 +22,12 @@ Examples below are language-agnostic pseudo-code. Patterns matter, not the tools
 |---|---|---|---|
 | **Unit** (classical school) | One unit of *behaviour* | Real in-process collaborators; **no** real I/O | Fakes only for awkward/external edges |
 | **Integration — normal** | More than one unit wired together | In-process; still no external tech | Fakes at the true edges |
-| **Integration — infrastructure** | One real external technology adapter (DB, filesystem, server, broker) | The real technology | Real infra; fakes elsewhere |
+| **Integration — infrastructure** | One real external technology adapter (e.g. DB, filesystem, server, broker) | The real technology | Real infra; fakes elsewhere |
 | **Integration — acceptance** (gherkin) | A business scenario through the public boundary | Whole system, real entry point | Fakes only at true external edges (e.g. email) |
 | **Integration — e2e** | The whole system through its real front door | Everything real | As few fakes as possible |
 | **Performance** | A latency / throughput NFR (e.g. p99 < 50ms) under load | Whole system under load | As few as possible — measure the real path |
 
-**Classical-school unit:** a unit of *behaviour*, not a single class — real in-process collaborators used directly, doubles only at external/awkward boundaries (clock, network, disk, email).
+**Classical-school unit:** a unit of *behaviour*, not a single class — real in-process collaborators used directly, doubles only at external/awkward boundaries (e.g. clock, network, disk, email).
 
 ### Priority and adoption
 

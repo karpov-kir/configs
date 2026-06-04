@@ -30,7 +30,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 - Use full, descriptive variable names: `event` not `e`/`evt`, `error` not `err`/`e`, `element` not `el`, `index` not `i` (unless in a tight numeric loop), `accumulator` not `acc`, `value` not `val`, `screenshotDataUrl` not `dataUrl`.
   - Exception: well-established abbreviations are fine.
 - Strict camelCase / TitleCase for multi-word names. Acronyms are treated like normal words: `remoteUrl` not `remoteURL`, `HttpClient` not `HTTPClient`.
-- Booleans take a predicate prefix — `is`/`has`/`can`/`should`/`was`/`will` (e.g. `isLoading` not `loading`).
+- Booleans take a predicate prefix — `is`/`has`/`can`/`should`/`was`/`will`, … (e.g. `isLoading` not `loading`).
 - A function that returns a new instance takes a `new` prefix: `newWriter`, `newApiClient` (not `create…`/`make…`).
 - For recurring concepts, use consistent terminology across the codebase — always `options` or always `params`, not both.
 

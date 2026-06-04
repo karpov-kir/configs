@@ -28,7 +28,7 @@ src/
 
 ### Horizontal decoupling
 
-Business logic must not depend on infrastructure (database, web framework, broker, external services, clock, filesystem) — dependencies point inward, never out.
+Business logic must not depend on infrastructure (e.g. database, web framework, broker, third-party API, clock, filesystem) — dependencies point inward, never out.
 
 #### Ports
 
@@ -61,14 +61,23 @@ The single place that constructs every adapter and injects it into the domain; n
 
 ```
 class CompositionRoot(overrides = {}):
+    // partial overrides default to the real adapters — the seam a test
+    // (or another runtime) swaps one dependency through
     userRepository = overrides.userRepository ?? new SqlUserRepository()
     emailService   = overrides.emailService   ?? new SmtpEmailService()
-    webServer      = wire(new UserService(userRepository, emailService), ...)
+    userService    = new UserService(userRepository, emailService)
+    webServer      = new WebServer(userService)    // domain wrapper — framework private inside
+
+    getWebServer() -> webServer                    // hand out the handle, not the raw framework
 ```
 
-The constructor takes **partial overrides defaulting to the real adapters** — the seam a test (or another runtime) uses to swap one dependency.
+**Hand out domain handles — never a raw framework or vendor type.** The handle's shape follows the app — for example:
 
-Keep its public surface at the domain level — expose `start()`/`stop()` or an app handle, never a raw framework type; a leaked `FastifyInstance` (or `PrismaClient`) couples callers back to the technology the ports hide.
+- web service → a handle with `start()` / `stop()`, plus `handle(request)` for in-process tests
+- CLI / batch job → a handle with `run(args)`
+- library → the use-case API (or a domain facade), handed out directly
+
+A leaked `FastifyInstance`/`Hono` (or `PrismaClient`) couples callers back to the technology the ports hide. Returning the raw app *only* so tests can call `app.request(...)` is the trap — `handle(request)` delegates to the same in-process dispatch (`fastify.inject` / `hono.fetch`) without exposing the framework type.
 
 #### Injection seams
 
@@ -82,6 +91,31 @@ function append(path, data, options = {}):
 ```
 
 **Functional core, imperative shell** — a context call, worth more as the logic grows heavier or more critical, not for thin CRUD. Decoupling taken further: keep business logic a pure **core** (decisions from inputs — no I/O, clock, or mutation) wrapped by a thin **shell** that gathers inputs, calls the core, and enacts the result; a pure core tests trivially: data in, data out, nothing to fake.
+
+### Layering & request flow
+
+Within a slice, a request flows inward through layers; **match depth to complexity** — add a layer only when the path earns it. Default to **CQRS** — reads and writes take separate paths.
+
+```
+composition root wires the graph; a request enters at one boundary
+  controller   // boundary ↔ use case: validate input, map result out — no business logic
+    use case   // application service: orchestrate ONE business operation
+      domain   // business rules and decisions; reaches infra only through ports
+```
+
+A use case earns its place when logic is worth pulling out of the controller into a transport-agnostic, testable unit — for instance more than one boundary calls it (an HTTP controller and a CLI command share the *same* one), or it wraps writes across several repositories/aggregates in a **unit of work** (one atomic commit). Otherwise, skip it.
+
+Sample paths, shallow to deep (not fixed tiers):
+
+- query / read → `controller → query` — no rules to apply, even a near-raw query
+- thin command → `controller → domain` — nothing to orchestrate
+- command worth a use case → `controller → use case → domain`
+- business-logic-heavy → a DDD domain: `use case → aggregate → entities → domain events`
+- highest complexity → event-driven: domain events on a message bus, use cases as command/event handlers
+
+Put a read behind a port only where a fake adds value — faking a raw store query just echoes a canned value, so verify it with an integration or e2e test instead.
+
+DDD and event-driven patterns carry real cost — adopt them **only when the complexity justifies it**.
 
 ### Decision guides
 
@@ -100,6 +134,7 @@ function append(path, data, options = {}):
 | `new SomeAdapter()` inside a use case | Inject via the constructor; construct only in the composition root |
 | One slice imports another slice's internals | Depend on a published port, or emit an event |
 | Global singleton / service locator | Pass the dependency explicitly from the composition root |
+| Composition root returns a `FastifyInstance` / `Hono` / `PrismaClient` | Hand out a domain handle (e.g. a `WebServer` with `start`/`stop`) |
 
 ---
 
