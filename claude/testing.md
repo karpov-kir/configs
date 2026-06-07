@@ -12,7 +12,7 @@ Examples below are language-agnostic pseudo-code. Patterns matter, not the tools
 2. **Treat test code as production code** — same naming, type-safety, single-responsibility, and DRY rules; doubles and helpers included.
 3. **No mocks.** Reach for fakes, drivers, and builders instead (see §3).
 4. **Design for testability *is* design for production** — the ports and composition root that let a test inject a fake are what keep production code decoupled.
-5. **Cheapest level first.** Push each behaviour down to the cheapest level that can prove it: edge cases and branches in fast unit tests; only wiring and real-infrastructure risk need the slow levels.
+5. **Cheapest level first.** Push each behaviour down to the cheapest level that can prove it: edge cases and branches in fast unit tests; only wiring and real-infrastructure risk need the slow levels. A logic-less wrapper over a tool (a db client, a connection) earns no test of its own — its users' infra/e2e tests exercise it, and mocking the tool to "cover" it proves nothing.
 
 ---
 
@@ -35,24 +35,24 @@ Start with unit; add levels as the project needs them — the mix, and whether a
 
 **unit → acceptance → integration → e2e → infra → perf**
 
-Unit is usually the most numerous; acceptance comes next (it proves the system works for the user); performance last (NFRs, not correctness).
+Unit is usually the most numerous; acceptance is the next priority (it proves the system works for the user); performance is last (NFRs, not correctness).
 
 ### Commands and file names
 
-One script per level, matched by filename suffix; `test` aliases the unit suite:
+One script per level, each with its own config file, matched by filename suffix:
 
 | Script | Files it runs |
 |---|---|
-| `test` → `test:unit` | `*.test.<ext>` |
+| `test:unit` | `*.unit.test.<ext>` |
 | `test:acceptance` | `*.accept.test.<ext>` (+ `.feature`) |
 | `test:integration` | `*.integ.test.<ext>` |
 | `test:e2e` | `*.e2e.test.<ext>` |
 | `test:infra` | `*.infra.test.<ext>` |
 | `test:perf` | `*.perf.test.<ext>` |
 
-`test:unit` is fastest (no I/O) — the default, run on every save; the rest are separated for convenience (run one while working on it, all in CI) and don't all need real infrastructure (§4). On an existing project follow whatever suffixes it already uses (common variants: `.spec`, `.ispec`, `.steps`/`.e2espec`).
+`test` runs every level in priority order; `test:ci` does the same with coverage, which no other command generates. `test:unit:watch` reruns the unit suite on save, the only watch you need; the rest are separated for convenience (run one while working on it) and don't all need real infrastructure (§4). On an existing project follow whatever suffixes it already uses (common variants: `.spec`, `.ispec`, `.steps`/`.e2espec`).
 
-**Placement.** Unit tests sit beside the code they cover (`foo.test.ts` next to `foo.ts`); every other test and all test utilities (fakes, builders, object mothers, drivers) live in a `test/` folder beside `src/`, not per-feature `testing/` subfolders.
+**Placement.** Unit tests sit beside the code they cover (`foo.unit.test.ts` next to `foo.ts`); every other test and all test utilities (fakes, builders, object mothers, drivers) live in a `tests/` folder beside `src/`, not per-feature `testing/` subfolders.
 
 ---
 
@@ -125,11 +125,11 @@ class UserBuilder:
     DEFAULT_FIRST_NAME = "John"
     DEFAULT_EMAIL      = "john.doe@example.com"
     firstName = DEFAULT_FIRST_NAME; email = DEFAULT_EMAIL; ...
-    withEmail(e): this.email = e; return this
+    withEmail(email): this.email = email; return this
     build(): return { id: nextId(), firstName, email, ... }
 ```
 
-Two flavours: **in-memory** (`build()` returns a domain object — unit tests) and **persisting** (`build()` writes to a real store — infra/acceptance).
+Two flavours: **in-memory** (`build()` returns a domain object — unit tests) and **persisting** (`build()` writes to a real store — infra/acceptance). A persisting builder gives each entity unique keys — a fresh email and id — so cases isolate (§4).
 
 ### 3.6 Object mothers
 
@@ -160,13 +160,15 @@ assert inMemoryFile.write was called once
 | Test | Provisioning | Per-test isolation |
 |---|---|---|
 | On fakes / in-memory | none | none needed |
-| Against real infrastructure (DB, filesystem, server) | shared global setup: load env, migrate schema, start the real infra | reset state between cases; tear down owned resources |
+| Against real infrastructure (DB, filesystem, server) | shared global setup: load env, migrate schema, start the real infra | unique keys per case, else reset shared state; tear down owned resources |
 
 For tests against real infrastructure:
-- **Reset shared state between cases** (truncate tables, delete temp files) so order never matters.
-- **Run serially** when state is shared.
+- **Isolate by uniqueness** — give each case unique ids and temp paths so cases never collide and run in parallel.
+- **Reset and run serially** only when state is unavoidably shared (truncate tables, delete temp files).
 - **Clean up what the test created** (`afterAll`/`afterEach`): disconnect, stop the server, remove temp files.
 - **Provision the real thing**, don't fake the boundary you're testing.
+
+**Where it lives.** That shared global setup is one class under `tests/setups/`; each level that needs it registers a thin entry (e.g. `infraTestsSetup`) as its config's global setup.
 
 ```
 afterAll: remove all temp files this suite created
@@ -213,7 +215,21 @@ And   "I receive a welcome email":  assert fake sent an email to user.email
 
 ---
 
-## 6. Decision guides
+## 6. Coverage
+
+**One number, fed by every level (§2).** A line first reached by an acceptance or e2e test still counts — don't add a unit test just to hit it. Target **≥ 80%**, branches included — raise the bar per project; the build fails below it.
+
+**Include all of `src`; don't hand-list globs.** They rot when files move — a dangling glob measures nothing while the gate stays green. Mark each exception in the file, with the tool's ignore directive and a reason:
+
+```
+/* coverage ignore file — generated client */
+```
+
+**Exclude only what no level should cover** — e.g. a type-only module or a constant table. A file that does real work earns a test, not an exclusion — expense and "run by operators" are no excuse. Same for block and method exclusions: for a paid wrapper, test the request/response mapping on sample payloads and exclude only the live call, behind an opt-in infra test.
+
+---
+
+## 7. Decision guides
 
 ### Where does this test go?
 
