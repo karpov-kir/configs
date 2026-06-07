@@ -1,0 +1,52 @@
+version: '3'
+
+tasks:
+  start:dev:
+    cmds:
+      - '"${DEV_INFRA:?set it to your dev-infra checkout}/register-traefik-route.sh" <app>'
+      - docker compose -f "$DEV_INFRA/docker-compose.yml" up -d --wait
+      - '"$DEV_INFRA/ensure-postgres-db.sh" <app>'
+      - task: db:migrate
+      - <watch> # e.g. tsx watch src/main.ts | air | go run . | …
+
+  db:migrate:
+    cmds:
+      - <the project's forward-only migrate command>
+
+  install:tools:
+    cmds:
+      - <install vendored CLI tools into ./bin> # e.g. air, mockgen
+
+  install:dev-certs:
+    dir: docker/dev-certs
+    cmds:
+      - mkcert -install
+      - mkcert -cert-file <app>.pem -key-file <app>-key.pem "<app>.dev" "*.<app>.dev"
+
+  env:encrypt:development: { cmds: [{ task: encrypt, vars: { ENV: development } }] }
+  env:encrypt:staging:     { cmds: [{ task: encrypt, vars: { ENV: staging } }] }
+  env:encrypt:production:  { cmds: [{ task: encrypt, vars: { ENV: production } }] }
+  env:decrypt:development: { cmds: [{ task: decrypt, vars: { ENV: development } }] }
+  env:decrypt:staging:     { cmds: [{ task: decrypt, vars: { ENV: staging } }] }
+  env:decrypt:production:  { cmds: [{ task: decrypt, vars: { ENV: production } }] }
+
+  encrypt:
+    internal: true
+    dir: env
+    cmds:
+      - 'read -s -p "Password to encrypt .env.{{.ENV}}: " pass && echo && openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -in ".env.{{.ENV}}" -out ".env.{{.ENV}}.encrypted" -pass pass:"$pass"'
+
+  decrypt:
+    internal: true
+    dir: env
+    cmds:
+      - 'read -s -p "Password to decrypt .env.{{.ENV}}: " pass && echo && openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 200000 -in ".env.{{.ENV}}.encrypted" -out ".env.{{.ENV}}" -pass pass:"$pass"'
+
+  docker:build:
+    cmds:
+      - docker build -f docker/Dockerfile -t <app> .
+
+  docker:publish:
+    cmds:
+      - docker tag <app> <registry>/<app>
+      - docker push <registry>/<app>

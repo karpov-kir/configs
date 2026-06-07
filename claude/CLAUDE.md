@@ -36,7 +36,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 
 ## Parameters
 
-- Use named parameters (parameter object, keyword arguments, or equivalent) for 3+ params; positional style for single-param functions.
+- Use named parameters (parameter object, keyword arguments, or equivalent) for 3+ params; positional style for single-param functions. Exception: match the signature of an external interface you implement or fake.
 
 ## Comments
 
@@ -75,6 +75,10 @@ No mocks; treat test code as production code. Before writing or reviewing tests,
 Prefer defaults and latest stable — tools (linters, formatters, build, test runners, type checkers, etc.), libraries (ORMs, loggers, HTTP clients, etc.), runtimes, base images, and anything similar. Choose latest LTS when upstream offers one; otherwise latest stable — expressed as a concrete pinned range (e.g. `^1.4.0`), never a floating tag like npm `latest` (non-reproducible). Avoid pre-releases (alpha/beta/RC, etc.) unless the feature is required and not yet in stable.
 
 Override a default or pin to an older version only when concrete breakage forces it — "might be nicer" is not enough. Leave a one-line comment with the reason; if it doesn't fit on one line, the option probably doesn't belong. Prune overrides and pins when the reason no longer holds. No unused dependencies — remove a package once nothing uses it.
+
+# Project Setup
+
+Environments, scripts, and local dev / Docker: [project.md](~/.claude/project.md).
 
 # Git
 

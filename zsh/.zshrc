@@ -5,8 +5,14 @@ export EDITOR="nvim"
 
 export PATH="/Users/kirill/.bun/bin:$PATH"
 
+# E.g. Claude Code native installation is here
+export PATH="$HOME/.local/bin:$PATH"
+
 # Expose LSP servers installed by Mason so Claude can use them for code analysis and completion
 export PATH="$HOME/.local/share/nvim/mason/bin:$PATH"
+
+# Shared local dev infra (one Traefik + Postgres for every service); task start:dev routes + creates its DB through it
+export DEV_INFRA="$HOME/Documents/WP/dev-infra"
 
 # https://stackoverflow.com/a/64351976
 # zmodload zsh/zprof

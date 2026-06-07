@@ -1,0 +1,49 @@
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/<app>.pem
+      keyFile: /etc/traefik/certs/<app>-key.pem
+
+http:
+  middlewares:
+    <app>-cors:
+      headers:
+        accessControlAllowOriginList:
+          - "https://<app>.dev"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "OPTIONS"
+        accessControlAllowHeaders:
+          - "Content-Type"
+          - "Authorization"
+    <app>-rate-limit-<something>:
+      rateLimit:
+        average: 10
+        period: 1h
+        burst: 10
+    <app>-limit-<something>-body-size:
+      buffering:
+        # 10 MB
+        maxRequestBodyBytes: 10485760
+  routers:
+    <app>:
+      rule: "Host(`api.<app>.dev`)"
+      entryPoints: "websecure"
+      service: <app>
+      tls: {}
+      middlewares:
+        - <app>-cors
+    <app>-<something>:
+      rule: "Host(`api.<app>.dev`) && Path(`/<something>`) && Method(`POST`)"
+      entryPoints: "websecure"
+      service: "<app>"
+      tls: {}
+      middlewares:
+        - <app>-cors
+        - <app>-rate-limit-<something>
+        - <app>-limit-<something>-body-size
+  services:
+    <app>:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:4040"
