@@ -17,14 +17,15 @@ Organize the top level by feature, not by technical layer — a slice owns its A
 ```
 src/
   modules/
-    user/            # one vertical slice: api + logic + data for "user"
+    user/            # one vertical slice: api + logic + data + its adapters for "user"
     billing/         # another slice
   shared/            # cross-slice primitives, no feature logic
-  infra/             # process startup, server, db connection, composition root
+  entrypoints/       # transport host + composition roots
+  infra/             # global / cross-slice infra only — db pool, unit of work
 ```
 
 - A slice may use `shared`, never another slice's internals; cross-slice needs go through a published port or an event.
-- Keep a slice whole — its tests, types, and helpers live with it.
+- Keep a slice whole — its adapters, tests, types, and helpers live with it.
 
 ### Horizontal decoupling
 
@@ -48,7 +49,7 @@ type MinimalFileHandle = pick(FileHandle, [read, write, close, truncate, stat])
 
 #### Adapters
 
-An adapter implements a port against one concrete technology. The core imports only the port; database clients, web frameworks, and vendor SDKs are imported solely inside adapters and `infra`.
+An adapter implements a port against one concrete technology. The core (use case + domain) imports only the port; concrete tech sits at the edge that faces it — web frameworks in controllers and entrypoints, database clients and vendor SDKs in adapters and `infra`.
 
 ```
 class SqlUserRepository implements UserRepository:    // production adapter
@@ -57,7 +58,7 @@ class SqlUserRepository implements UserRepository:    // production adapter
 
 #### Composition root
 
-The single place that constructs every adapter and injects it into the domain; nothing else calls `new` on an infrastructure class.
+A composition root constructs adapters and injects them into the domain; business and domain code never call `new` on an infrastructure class.
 
 ```
 class CompositionRoot(overrides = {}):
@@ -66,9 +67,7 @@ class CompositionRoot(overrides = {}):
     userRepository = overrides.userRepository ?? new SqlUserRepository()
     emailService   = overrides.emailService   ?? new SmtpEmailService()
     userService    = new UserService(userRepository, emailService)
-    webServer      = new WebServer(userService)    // domain wrapper — framework private inside
-
-    getWebServer() -> webServer                    // hand out the handle, not the raw framework
+    webServer      = new WebServer(userService)    // the handle callers use
 ```
 
 **Hand out domain handles — never a raw framework or vendor type.** The handle's shape follows the app — for example:
@@ -78,6 +77,35 @@ class CompositionRoot(overrides = {}):
 - library → the use-case API (or a domain facade), handed out directly
 
 A leaked `FastifyInstance`/`Hono` (or `PrismaClient`) couples callers back to the technology the ports hide. Returning the raw app *only* so tests can call `app.request(...)` is the trap — `handle(request)` delegates to the same in-process dispatch (`fastify.inject` / `hono.fetch`) without exposing the framework type.
+
+#### Entrypoints
+
+Ports/adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain: an HTTP server, a message consumer, a CLI, a cron job. One per way into the app.
+
+An entrypoint owns the transport host — framework instance, server lifecycle, mounting the slices' routes, app-wide cross-cutting (e.g. a global error→status handler) — then hands each request to a slice's controller, its HTTP boundary (see Layering); only the use case behind it is transport-agnostic.
+
+Match structure to need: an entrypoint starts as one file — host plus inline wiring — and earns a folder when it needs more than one. A split-out composition root takes the entrypoint's name (`WebServerCompositionRoot`); a single entrypoint's is just `CompositionRoot`.
+
+No composition root composes composition roots. To run several in one process, a thin startup file imports the entrypoints and starts them.
+
+```
+entrypoints/
+  main.ts              # startup
+  syncTickers.ts       # simple entrypoint
+  webServer/           # grown entrypoint
+    WebServer
+    WebServerCompositionRoot
+```
+
+```
+// main.ts
+const db = newDbClient()    // shared infra
+
+const webServer   = new WebServerCompositionRoot({ db }).webServer
+const syncTickers = newSyncTickers({ db })
+
+await all(webServer.start(), syncTickers.start())
+```
 
 #### Injection seams
 
@@ -103,6 +131,8 @@ composition root wires the graph; a request enters at one boundary
       domain   // business rules and decisions; reaches infra only through ports
 ```
 
+**Validation splits across the layers.** The boundary checks *structure* — types, ranges, required fields — and rejects malformed input before business logic runs. The domain checks *semantics* — state-dependent rules no schema can express (sufficient balance, the SKU exists). At the edge, follow the robustness principle: liberal in what you accept (validate only the fields you use), conservative in what you emit.
+
 A use case earns its place when logic is worth pulling out of the controller into a transport-agnostic, testable unit — for instance more than one boundary calls it (an HTTP controller and a CLI command share the *same* one), or it wraps writes across several repositories/aggregates in a **unit of work** (one atomic commit). Otherwise, skip it.
 
 Sample paths, shallow to deep (not fixed tiers):
@@ -123,15 +153,16 @@ DDD and event-driven patterns carry real cost — adopt them **only when the com
 
 - Feature-specific behaviour → that feature's slice.
 - Used by 2+ slices, no infrastructure → `shared`.
-- Talks to external technology → a port (declared by the domain) + an adapter.
-- Wiring / startup → composition root in `infra`.
+- Talks to external technology → a port (declared by the domain) + an adapter, in the slice that uses it.
+- Global plumbing, or an adapter shared across slices → `infra`.
+- Inbound transport host + composition roots → `entrypoints`.
 
 #### Tempted to couple to infrastructure? Do this instead
 
 | Temptation | Instead |
 |---|---|
 | Domain imports the ORM / client / framework | Declare a port in the domain; implement it in an adapter |
-| `new SomeAdapter()` inside a use case | Inject via the constructor; construct only in the composition root |
+| `new SomeAdapter()` inside a use case | Inject via the constructor; the composition root constructs it |
 | One slice imports another slice's internals | Depend on a published port, or emit an event |
 | Global singleton / service locator | Pass the dependency explicitly from the composition root |
 | Composition root returns a `FastifyInstance` / `Hono` / `PrismaClient` | Hand out a domain handle (e.g. a `WebServer` with `start`/`stop`) |
