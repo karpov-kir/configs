@@ -5,7 +5,7 @@ description: Run the IDSD build loop against an ICE intent — restate, gather c
 
 Turn an ICE intent into merged code. You are the harness: you assemble Context, write code and tests, and run validation. The human approves **outcomes** at the checkpoint, not necessarily code.
 
-Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → **`idsd-build`**.
+Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → `idsd-audit` (optional) → **`idsd-build`**.
 
 Input: an intent file under `.idsd/intents/NNN-<slug>.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
 

@@ -28,7 +28,7 @@ At project scope:
 
 If refining, read the named intent file and grill only the gaps.
 
-Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → **`idsd-intent`** → `idsd-build`.
+Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → **`idsd-intent`** → `idsd-audit` (optional) → `idsd-build`.
 
 ## Phase 1 — Grill (adaptive, one question at a time)
 

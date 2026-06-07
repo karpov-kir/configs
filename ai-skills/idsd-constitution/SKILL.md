@@ -7,7 +7,7 @@ Write `.idsd/constitution.md` — the stable, shared layer `idsd-build` reads as
 
 Optional. Feature work runs without it — `idsd-build` derives gates from repo tooling when it's absent.
 
-Where this fits: `idsd-charter` (optional) → **`idsd-constitution`** (optional) → `idsd-intent` → `idsd-build`. The constitution is the *how*; the charter the *what/why*.
+Where this fits: `idsd-charter` (optional) → **`idsd-constitution`** (optional) → `idsd-intent` → `idsd-audit` (optional) → `idsd-build`. The constitution is the *how*; the charter the *what/why*.
 
 ## Phase 1 — Inventory what exists
 

@@ -7,7 +7,7 @@ Write `.idsd/charter.md` — the project's **what & why**: the level-0 intent th
 
 Optional. Feature work and even project planning run without it; create one when the project's purpose is worth stating for collaborators and for `idsd-build`'s Context.
 
-Where this fits: **`idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → `idsd-build`**. The charter is the *what/why*, the constitution the *how*; `idsd-intent` keeps the charter's scope current as features evolve.
+Where this fits: **`idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → `idsd-audit` (optional) → `idsd-build`**. The charter is the *what/why*, the constitution the *how*; `idsd-intent` keeps the charter's scope current as features evolve.
 
 ## Phase 1 — Inventory what exists
 
