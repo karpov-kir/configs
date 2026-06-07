@@ -6,11 +6,15 @@ Starter configs: [`templates/`](~/.claude/templates/) — match them closely: dr
 
 ## Environments
 
-A service's own folders — `env/`, `docker/` — live beside its `src/`, inside the package in a monorepo (`packages/<service>/`), never the repo root. `env/` holds one file per environment: `.env.development`, `.env.staging`, `.env.production` — real, working values, never `.env.example` placeholders.
+A service's own folders — `env/`, `docker/` — live beside its `src/`, inside the package in a monorepo (`packages/<service>/`), never the repo root. `env/` holds one file per environment: `.env.development`, `.env.staging`, `.env.production` — real, working values, never `.env.example` placeholders. Env is per-project: a service needing no runtime configuration keeps no `env/` — a stateless middleware (e.g. a rate limiter) is configured by its orchestration alone.
 
-- **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<environment>` itself — point its env dir at `env/` and pass the env flag (Vite's `--mode <environment>`). Otherwise a small loader reads `.env.$ENV` — only when `ENV` is set and the file exists, no fallback: locally the dev runner sets `ENV`; a deploy has no such file, so the loader does nothing. Whatever names the environment — `ENV` for a loader, the build tool's mode otherwise — the app's config reads that same one, never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a go-task `dotenv:` bypasses both the loader and the encrypt-at-rest flow.
+- **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<environment>` itself — point its env dir at `env/` and pass the env flag (Vite's `--mode <environment>`). Otherwise a small loader reads `.env.$ENV`, defaulting to `development` and loading the file only if it exists — so local dev needs no setup, and a deploy (which sets `ENV`) loads whatever the image ships, if anything. Config reads that same selector (`ENV`, or the build tool's mode), never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a go-task `dotenv:` bypasses both the loader and the encrypt-at-rest flow.
 
-- **Commit real env; encrypt secrets.** A file with no secrets is committed as-is; one with secrets is committed only as `.env.<env>.encrypted` (plaintext gitignored) — that encrypted file is the recoverable reference and must be committed. Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each prompting for that environment's own password (never stored) — so locally you hold and decrypt only `.env.development`. At deploy the orchestration provides the rest: an encrypted file decrypted and injected as a secret, a plain file's values set directly (e.g. the compose `environment:`) — never stored decrypted off the dev machine.
+- **Commit real env; encrypt only secrets.** Per file, by whether it holds a secret:
+  - **No secrets** → committed plain and baked into the image (Docker, below). A fully non-secret project encrypts nothing.
+  - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; at deploy it's decrypted and injected (a mounted secret, or values set directly — e.g. compose `environment:`).
+
+  Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each prompting for that environment's own password (never stored) — so locally you hold and decrypt only `.env.development`.
 
 ## Config
 
@@ -19,6 +23,13 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 - Coerce to real types: numbers, booleans, the environment as an **enum** — not bare strings.
 - Define defaults inline; env vars only override them.
 - Log it with secrets masked.
+
+## Logging
+
+One logger, constructed by the composition root behind a `Logger` port so call sites never touch the concrete library.
+
+- **Format and level are explicit, never derived from the environment** — so any environment (production included) runs locally with readable logs. `LOG_FORMAT` is `pretty` (colored, human-readable) or `json` (structured, one object per line); `LOG_LEVEL` is a normal level. Both default for local dev (`pretty`, `info`); a deploy overrides (`LOG_FORMAT=json`).
+- **Keep secrets out at the call site** rather than redacting downstream — pass only what's safe to print.
 
 ## Scripts
 
@@ -60,7 +71,7 @@ docker/
 - **Certs** — `install:dev-certs` mints them into `dev-certs/`; local per-machine artifacts, gitignored.
 - **Give the service its own distinct host port** — not the template default — so co-running host processes don't collide; ask the user which.
 - **Service-specific containers** go in the service's own `docker/docker-compose.yml` (brought up by its `start:dev`); common deps stay in the dev-infra.
-- **Env stays out of the image.** Never `COPY` env files in, and don't bake the `ENV` selector — one image runs any environment; env and `ENV` are provided at deploy. The `Dockerfile`'s `CMD` runs `start` (or the artifact).
+- **Env in the image follows the secret rule above** — non-secret files `COPY`-ed (staging/production, not dev), secrets injected at deploy. `ENV` itself is always provided at deploy, never baked, so one image runs any environment. `CMD` runs `start` (or the artifact).
 
 ## Migrations
 
