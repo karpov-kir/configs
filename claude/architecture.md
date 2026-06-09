@@ -118,7 +118,7 @@ function append(path, data, options = {}):
     ...operate through the injected handle...
 ```
 
-**Functional core, imperative shell** — a context call, worth more as the logic grows heavier or more critical, not for thin CRUD. Decoupling taken further: keep business logic a pure **core** (decisions from inputs — no I/O, clock, or mutation) wrapped by a thin **shell** that gathers inputs, calls the core, and enacts the result; a pure core tests trivially: data in, data out, nothing to fake.
+**Functional core, imperative shell** — a judgment call, worth more as the logic grows heavier or more critical, not for thin CRUD. Decoupling taken further: keep business logic a pure **core** (decisions from inputs — no I/O, clock, or mutation) wrapped by a thin **shell** that gathers inputs, calls the core, and enacts the result; a pure core tests trivially: data in, data out, nothing to fake.
 
 ### Layering & request flow
 
@@ -130,6 +130,8 @@ composition root wires the graph; a request enters at one boundary
     use case   // application service: orchestrate ONE business operation
       domain   // business rules and decisions; reaches infra only through ports
 ```
+
+Keep the boundary thin: reusable protocol mechanics — serialization, streaming/SSE framing, error→status mapping — live in a transport helper or the entrypoint's cross-cutting, not piled into each controller; interleaving request flow with low-level writes mixes abstraction levels (CLAUDE.md → Abstraction).
 
 **Validation splits across the layers.** The boundary checks *structure* — types, ranges, required fields — and rejects malformed input before business logic runs. The domain checks *semantics* — state-dependent rules no schema can express (sufficient balance, the SKU exists). At the edge, follow the robustness principle: liberal in what you accept (validate only the fields you use), conservative in what you emit.
 
@@ -167,23 +169,3 @@ DDD and event-driven patterns carry real cost — adopt them **only when the com
 | Global singleton / service locator | Pass the dependency explicitly from the composition root |
 | Composition root returns a `FastifyInstance` / `Hono` / `PrismaClient` | Hand out a domain handle (e.g. a `WebServer` with `start`/`stop`) |
 
----
-
-## Code
-
-Code-level design within a unit (general rules — naming, control flow, types, size — live in CLAUDE.md's Code Style).
-
-### Abstraction layers
-
-Keep each unit at one abstraction level — don't interleave a high-level, intent-revealing operation with the low-level mechanics it's built from; push those down a layer. Holds for any pair: policy over mechanism, orchestration over steps, domain over transport. A domain client over a generic transport is one case:
-
-```
-class HttpClient:                    // transport — protocol verbs only
-    get(path), post(path, body), put(path, body)
-
-class ApiClient (over HttpClient):   // domain — intent-named operations
-    signUp(request):  post("signUp", request)
-    signIn(request):  post("signIn", request)
-```
-
-Callers depend on `ApiClient`, not `httpClient.post(...)` — reaching down leaks a lower level up.

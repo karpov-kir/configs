@@ -37,10 +37,11 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 ## Parameters
 
 - Use named parameters (parameter object, keyword arguments, or equivalent) for 3+ params; positional style for single-param functions. Exception: match the signature of an external interface you implement or fake.
+- A parameter the body branches on to pick between behaviours is a flag — split it into two named functions.
 
 ## Comments
 
-Follow [Writing Guidelines](#writing-guidelines). Additionally: prefer clear naming and small, declaratively named functions over explanatory comments.
+Follow [Writing Guidelines](#writing-guidelines). Additionally: prefer clear naming and small functions over explanatory comments (see Abstraction).
 
 ## Type Safety
 
@@ -57,13 +58,22 @@ Follow [Writing Guidelines](#writing-guidelines). Additionally: prefer clear nam
 - Limit nesting depth to ~3 levels; deeper that early returns can't fix → extract inner logic into a named function.
 - Prefer multi-line `if` statements with braces over single-line guard clauses like `if (!value) return`.
 - Use the language's single idiomatic absence value. In TS/JS prefer `undefined` over `null`; pick one and stick to it.
+- No special case bolted onto an unrelated flow — move it behind its own abstraction, or into the slice that owns it.
+
+## Abstraction
+
+Two demands — a unit can hold one and fail the other:
+
+- **One level — don't mix.** Keep a unit at one abstraction level; don't interleave an intent-revealing operation with the low-level mechanics it's built from — push those down. Callers depend on `apiClient.signUp()`, never `httpClient.post(...)`.
+- **Name the operations.** Wrap raw mechanics in an intent-named operation so the unit reads top-down as prose — `emitToken(delta)`, not an inline `stream.writeSSE({ … })`. A comment narrating *what* a block does is a missing name.
 
 ## Extraction & Size
 
-- Functions do one thing at one abstraction level. Extract when concerns split, abstraction levels mix, or length exceeds ~100 lines.
+- Prefer the reframe that deletes a branch or concept over cleanup that keeps it — model state so invalid cases can't be represented, and the conditional disappears instead of getting tidied.
+- Functions do one thing. Extract when concerns split, abstraction blurs (above), or length exceeds ~100 lines.
 - Tolerate duplication at 1–2 sites; extract a shared helper on the 3rd. Earlier abstraction risks the wrong shape.
 - Don't extract tiny wrappers around self-evident code — indirection without payoff.
-- Keep files focused on a single responsibility — split when a file grows beyond ~400 lines or contains unrelated concepts.
+- Keep files focused on a single responsibility — split when a file grows beyond ~450 lines or contains unrelated concepts.
 - Avoid barrel/index files. Import from the source module directly — they hide locations, hurt tree-shaking, and invite circular imports. Likewise, never re-export a symbol through a module that isn't where it's defined just to keep an import path stable; a symbol has one home, so import it from there and update importers if that home moves.
 
 # Testing

@@ -99,7 +99,7 @@ driver.register(mother.defaultUser())
 assert driver.shownProfileName() == "John Doe"
 ```
 
-Reach for a driver only when no abstraction exists; when one does — say an `ApiClient` with `signUp`/`signIn` (see [architecture.md](~/.claude/architecture.md)) — use it directly.
+Reach for a driver only when no abstraction exists; when one does — say an `ApiClient` with `signUp`/`signIn` ([CLAUDE.md](~/.claude/CLAUDE.md) → Abstraction) — use it directly.
 
 ### 3.4 Composition root
 
