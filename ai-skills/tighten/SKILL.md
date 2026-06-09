@@ -10,7 +10,7 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`, losslessly: cut 
 
 **Scope.** Prose only — standalone docs (markdown, standards, skills, prompts, tickets, PR/commit text) and the prose *inside* code (comments, docstrings). Never code logic or behaviour; that's `/refactor` and `/simplify`. If a comment is unclear only because the code is, note it — don't rewrite the code.
 
-**The invariant — lossless on substance.** Cut only what's recoverable from surrounding context: adjacent text, the code it documents, types, sibling artifacts, the diff. Never drop a rule, fact, constraint, or example carrying unique information. Unsure a cut loses meaning → keep it.
+**The invariant — lossless on substance and clarity.** Cut only what's recoverable from surrounding context: adjacent text, the code it documents, types, sibling artifacts, the diff. Never drop a rule, fact, constraint, or example carrying unique information. Some redundancy earns its keep — a rule restated at its point of use, a safety-critical repeat, an example that speeds comprehension; that's signal, not filler. A cut wins only when it nets positive for the reader (AI and human) — never trade real clarity for a few tokens. Unsure a cut loses meaning → keep it.
 
 ## Setup (once)
 
@@ -54,4 +54,5 @@ Judge each artifact in context, never in isolation. For every non-trivial claim,
 ## Do not
 
 - Reword for taste — change only what a lens item flags.
+- Manufacture cuts — `OK` with no edits is correct when nothing earns removal.
 - Echo the queue, write transition filler, or merge artifacts into one verdict.
