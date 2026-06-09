@@ -21,6 +21,7 @@ Match the recent style on the branch (`git log` first). Use semantic prefixes (`
 ## Pull requests
 
 - Open as drafts; follow the repo's PR template if it has one.
-- No "Test plan" section.
+- No "Test plan"/"Verification" section and similar.
+- Link the ticket in the description when the branch carries one.
 - Follow CLAUDE.md's Writing Guidelines.
 - Resolve a review comment by replying on its thread with `Done <link to commit>`.
