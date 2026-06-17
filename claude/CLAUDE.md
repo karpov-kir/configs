@@ -19,7 +19,7 @@ Applies to anything you write. Persistent artifacts (code comments, PR/commit de
 
 # Architecture
 
-Prefer **vertical slicing** (organize by feature) and **horizontal decoupling** (logic behind ports). Before designing a module layout or wiring dependencies, read [architecture.md](~/.claude/architecture.md).
+Prefer **vertical slicing** (organize by feature) and **horizontal decoupling** (logic behind ports). Before designing a module layout or wiring dependencies, read [architecture.md](~/.claude/architecture.md) for the shared core, then [architecture-backend.md](~/.claude/architecture-backend.md) or [architecture-frontend.md](~/.claude/architecture-frontend.md) for the side you're on.
 
 # Code Style
 
@@ -67,6 +67,10 @@ Two demands — a unit can hold one and fail the other:
 - **One level — don't mix.** Keep a unit at one abstraction level; don't interleave an intent-revealing operation with the low-level mechanics it's built from — push those down. Callers depend on `apiClient.signUp()`, never `httpClient.post(...)`.
 - **Name the operations.** Wrap raw mechanics in an intent-named operation so the unit reads top-down as prose — `emitToken(delta)`, not an inline `stream.writeSSE({ … })`. A comment narrating *what* a block does is a missing name.
 
+## Classes vs functions
+
+Reach for a class (or a `newX` factory returning an object with private state) when operations share state or configuration, form one cohesive named unit, or sit at a boundary that benefits from injection — an API client, an adapter, a service, a stateful session. A module of free functions threading the same implicit dependencies — a shared base URL, a `fetch`, private helpers everyone calls — is that class turned inside-out; group it into one. Keep as plain functions only what is genuinely standalone: stateless pure logic (the functional core — data in, data out) and one-off helpers. Don't invert it either — a class with only static methods is a module with extra syntax, and wrapping a single function in a class is noise.
+
 ## Extraction & Size
 
 - Prefer the reframe that deletes a branch or concept over cleanup that keeps it — model state so invalid cases can't be represented, and the conditional disappears instead of getting tidied.
@@ -111,3 +115,5 @@ If caveman mode is active (startup hook sets it), display this banner as the fir
 Add new memory entries to this section. Do **not** create or write to per-project memory dirs (`~/.claude/projects/*/memory/`) — keep all memory here.
 
 This is a staging area. Once enough memory accumulates, the user folds entries into the proper sections of this document. Do not reorganize on your own. Entries here are authoritative — apply them as if they were in a structured section.
+
+- Never add NOSONAR or similar inline lint/Sonar suppression comments. Kirill resolves unfixable Sonar findings manually in the SonarCloud UI — if a finding can't be fixed in code, leave it and report it instead.
