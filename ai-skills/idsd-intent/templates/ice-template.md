@@ -4,7 +4,7 @@ milestone: <mvp | vnext | none>
 status: draft        # draft → approved (at build confirm) → built (at merge)
 collaborative: false # true → idsd-build requires approved-by before running
 approved-by:         # collaborative sign-off; independent of status, may be set while still draft
-links:               # neighbouring intents: "extends NNN", "depends-on NNN", "blocks NNN"
+links:               # neighbouring intents, one edge per line: "extends NNN — why" (relation: extends | depends-on | blocks; drop the why when the relation + linked title make it obvious)
 ---
 
 # <Goal in one sentence — outcome, no "and">
@@ -41,6 +41,9 @@ Optional — include only when the outcome must encode an explicit list or table
 
 - <e.g. allowed country codes: AT, DE, CH>
 
-## Links
+## Follow-ups
 
-- <extends / depends-on / blocks> NNN-<slug> — <why>
+Optional, build-managed — open questions and cross-intent consequences surfaced during `idsd-build`, tracked as a checklist: an unchecked item is not yet addressed, a checked one carries a one-line resolution. Every item must be checked before archive; the checklist travels with the archived intent as the record.
+
+- [ ] <follow-up — open, not yet addressed>
+- [x] <follow-up> — <resolution: fixed … / moved to NNN / declined: …>

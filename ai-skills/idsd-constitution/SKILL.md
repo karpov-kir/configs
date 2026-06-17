@@ -17,7 +17,7 @@ Read the repo first:
 
 ## Phase 2 — Grill the gaps only
 
-One question at a time, recommended answer each. Cover only what isn't already written down:
+Grill like `grill-me` — one question at a time, each with your recommended answer. Cover only what isn't already written down:
 1. **Principles** — 3–7 project-specific non-negotiables, beyond general code style.
 2. **Baseline NFRs** — defaults every intent inherits unless its own constraints override (e.g. latency, accessibility, security posture, coverage floor).
 3. **Gate commands** — exact commands for build / lint / test / coverage / perf, discovered in Phase 1 and confirmed.

@@ -15,13 +15,14 @@ Read everything under `.idsd/`: active intents (`intents/`), built ones (`archiv
 
 Run every applicable check; skip a dimension only when its inputs are absent (no constitution → skip baseline coverage).
 
-- **Links & build order** — every `links` target resolves to a real intent; the `depends-on` graph is acyclic; directions follow `idsd-intent`'s Links rule (extend a built/foundational intent, don't depend backward onto it).
+- **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`, nothing else) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow `idsd-intent`'s Links rule (extend a built/foundational intent, don't depend backward onto it).
 - **Milestone coherence** — no `mvp` intent depends on a `vnext`/unscheduled or still-`draft` one (it could never ship in the MVP); roadmap groupings match each intent's `milestone`.
 - **Constitution coverage** — every baseline NFR is enforced by, or at least not contradicted by, the `mvp` set; flag a baseline no `mvp` intent satisfies (ships in standing violation) and any constraint contradicting a baseline.
 - **Charter scope** — every active intent sits inside the charter's Scope; flag off-mission intents, in-scope areas no intent covers, and intents orphaned by a past scope cut.
 - **Duplication** — overlapping goals/constraints across intents; a constraint recurring in ≥3 intents → propose promoting it to a constitution baseline.
-- **Well-formedness** — each intent has a goal with a real *why*, 3–7 constraints, and ≥1 success + ≥1 failure scenario; a goal joined by "and" should split. Flag the gap and route to `idsd-intent`; don't re-grill here.
+- **Well-formedness** — each intent has a goal with a real *why*, 3–7 constraints, and ≥1 success + ≥1 failure scenario; a goal joined by "and" is either mis-named (one outcome → rename) or two intents (→ split); scenario coverage shouldn't be thin for the intent's surface (a many-path outcome on the bare floor). Flag the gap and route to `idsd-intent`; don't re-grill here.
 - **Status hygiene** — `built` intents live in `archive/` (not `intents/`); numbers are unique and contiguous; `collaborative: true` intents missing `approved-by` are flagged before they reach `idsd-build`; `roadmap.md` matches current frontmatter.
+- **Follow-up hygiene** — flag any archived intent still carrying an unchecked `- [ ]`, and an active intent's open `- [ ]` item that names an intent which doesn't exist.
 
 ## Phase 3 — Report
 
