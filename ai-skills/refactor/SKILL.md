@@ -12,7 +12,9 @@ Review every file resolved from `$ARGUMENTS` against CLAUDE.md, one at a time.
 
 **Confirmation by change kind.** Apply every fix directly except architecture, testing, and project-setup ones (subject to the cross-file rule above). **Architecture**, **testing**, and **project-setup** fixes are structural and opinionated — propose each, with any files it touches, and apply only after the user confirms; routine refactoring is never gated. A declined gated fix is noted and skipped, not retried.
 
-**Prefer the proper fix.** Take the root-cause fix over a cheaper workaround that only masks the symptom — gated by the rules above when it spans files or turns structural.
+**Prefer the proper fix.** Take the root-cause fix over a cheaper workaround that only masks the symptom — gated by the rules above when it spans files or turns structural. Root-cause means the quality root — not a functional bug: a logic error or broken behaviour is `/review`'s lane.
+
+**Caller.** You run either standalone (the user is your caller) or spawned by an orchestrator with no interactive user. Every "ask the user" / "confirm" below resolves to *ask your caller*: interactive → ask directly; spawned → don't apply, return the proposal (or `blocked: <what you need>`) and stop. Never apply an out-of-scope or gated change just because you can't ask.
 
 ## Setup (once)
 
@@ -33,7 +35,7 @@ Review every file resolved from `$ARGUMENTS` against CLAUDE.md, one at a time.
 - Order inside a message: read the file, apply fixes if needed, then emit the verdict as the last thing in the message. The verdict describes the state **before** the fix.
 - If the file passes, move on. If it fails, the next message re-reads the same file from scratch and tries again.
 - Safety stop: if the same guideline fails on the same file three messages in a row, emit a `WARN` verdict, stop the loop, and ask the user for help.
-- Once every file has an `OK` verdict, do a final sweep with the same rules. If any file warns during the final sweep, void all prior `OK`s and restart from file 1.
+- Once every file has an `OK` verdict, do a final sweep with the same rules. A file that warns in the sweep retries per the rule above; passing files stay passed.
 - The loop ends only when a complete final sweep produces zero warnings.
 
 ## Verdict format

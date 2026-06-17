@@ -12,6 +12,8 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`, losslessly: cut 
 
 **The invariant — lossless on substance and clarity.** Cut only what's recoverable from surrounding context: adjacent text, the code it documents, types, sibling artifacts, the diff. Never drop a rule, fact, constraint, or example carrying unique information. Some redundancy earns its keep — a rule restated at its point of use, a safety-critical repeat, an example that speeds comprehension; that's signal, not filler. A cut wins only when it nets positive for the reader (AI and human) — never trade real clarity for a few tokens. Unsure a cut loses meaning → keep it.
 
+**Caller.** You run either standalone (the user is your caller) or spawned by an orchestrator with no interactive user. Every "ask" / "confirm" below resolves to *ask your caller*: interactive → ask directly; spawned → don't apply, return the proposal (or `blocked: <what you need>`) and stop. Never edit a sibling outside the resolved list, or stop without resolution, just because you can't ask.
+
 ## Setup (once)
 
 - Read CLAUDE.md's **Writing Guidelines** (already in context) — the standard you tighten against.
@@ -38,7 +40,8 @@ Judge each artifact in context, never in isolation. For every non-trivial claim,
 - Apply cuts directly — tightening is routine; the one exception is the substance invariant — flag a doubtful cut instead of guessing.
 - Order per message: read, cut, then the verdict last.
 - Safety stop: if an issue resists three passes, emit `WARN` and ask.
-- Once every artifact is `OK`, run one final sweep; if any warns, restart from the first.
+- If an artifact passes, move on; if it warns, the next message re-reads it from scratch and retries.
+- Once every artifact is `OK`, run one final sweep with the same rules. An artifact that warns in the sweep retries per the rule above; passing artifacts stay passed. The loop ends when a complete sweep produces zero warnings.
 
 ## Verdict (the last thing in the message)
 
