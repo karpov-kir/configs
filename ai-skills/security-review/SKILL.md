@@ -15,7 +15,7 @@ Adversarially review every change resolved from `$ARGUMENTS` — assume the code
 ## Setup (once)
 
 - Read `CLAUDE.md` and the constitution's security principles and NFRs (already in context where present). List the project security invariants the changes must hold.
-- Resolve the change set from `$ARGUMENTS` by intent:
+- Resolve the change set from `$ARGUMENTS` by intent (this audits *changes* — there is no whole-project mode by design):
   - File path or directory — its current diff against the base.
   - **Staged** / **unstaged** / **all changed** → `git diff` with `--cached` / nothing / `HEAD` (names via `--name-only`).
   - Natural-language scope — the matching changed files.
@@ -42,7 +42,7 @@ Adapt to the stack — skip classes the target can't have (web items for a CLI, 
 - Apply a trivial, unambiguous fix (e.g. secret redaction), flagging any that changes behaviour; propose every risky or structural fix with its remediation, per **Caller**.
 - Order inside a message: read the file, apply trivial fixes, then emit the verdict last. The verdict describes the state **before** the fix.
 - If the file passes, move on. If a finding resists three passes, emit a `WARN` verdict and ask the caller.
-- Once every file has a verdict, do a final sweep for cross-file data flows; a file that warns in the sweep retries next message, passing files stay passed.
+- Once every file has a verdict, do a final sweep for cross-file data flows; a file that warns in the sweep retries next message, passing files stay passed. The loop ends when a complete sweep produces no new warnings.
 
 ## Verdict format
 

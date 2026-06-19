@@ -1,10 +1,12 @@
 ---
 name: refactor
 description: Refactor code to follow project code style rules. Use when asked to clean up, refactor, or improve code quality.
-argument-hint: "file path, directory, or natural language description of scope"
+argument-hint: "file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope"
 ---
 
 Review every file resolved from `$ARGUMENTS` against CLAUDE.md, one at a time.
+
+**Quality, not correctness or security.** Structure, style, naming, duplication, abstraction, and architecture compliance are this lane. Functional bugs are `/review`'s; exploitable weaknesses are `/security-review`'s; trimming prose for concision (in comments or docs) is `/tighten`'s — never flag those here.
 
 **Rules in scope:** all of `CLAUDE.md` (already in context — every section) plus every standards doc it points to. Pull the linked docs in by relevance: a project code-style override if the project has one (its rules win over the generic ones on conflict); the architecture standard when the reviewed files include source code; the testing standard when they include tests; the project-setup standard when they include env, scripts, or Docker/local-dev config.
 

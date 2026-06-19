@@ -1,6 +1,7 @@
 ---
 name: idsd-intent
 description: Author or refine an ICE intent (Intent-Driven Software Development). Grills adaptively, then emits intent files under .idsd/intents/. Use for a new feature, a project plan/roadmap, refining an existing intent, or pairing with a non-developer. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "what should we build".
+argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
 Capture **what** to build and **why** as an ICE — never **how**; implementation belongs to `idsd-build`.

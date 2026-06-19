@@ -15,7 +15,7 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 ## Setup (once)
 
 - Read `CLAUDE.md` (already in context) and the in-scope standards docs it points to. List the relevant `CLAUDE.md` files — the root one plus any in directories the changes touch.
-- Resolve the change set from `$ARGUMENTS` by intent:
+- Resolve the change set from `$ARGUMENTS` by intent (this reviews *changes* — there is no whole-project mode by design):
   - File path or directory — its current diff against the base.
   - **Staged** / **unstaged** / **all changed** → `git diff` with `--cached` / nothing / `HEAD` (names via `--name-only`).
   - Natural-language scope — the matching changed files.
@@ -42,7 +42,7 @@ Surface a finding only when you've verified it's a real bug that will be hit —
 - Apply each surviving finding that is a safe correctness fix (unambiguous, within the changed scope), flagging any that changes behaviour; leave a finding that needs a human decision (a trade-off, an ambiguous intent, a risky change) for the caller, per **Caller**.
 - Order inside a message: read the file, apply safe fixes, then emit the verdict last. The verdict describes the state **before** the fix.
 - If the file passes, move on. If a finding resists three passes, emit a `WARN` verdict and ask the caller.
-- Once every file has a verdict, do a final sweep with the same dimensions for cross-file and interaction bugs; a file that warns in the sweep retries next message, passing files stay passed.
+- Once every file has a verdict, do a final sweep with the same dimensions for cross-file and interaction bugs; a file that warns in the sweep retries next message, passing files stay passed. The loop ends when a complete sweep produces no new warnings.
 
 ## Verdict format
 
