@@ -1,6 +1,7 @@
 ---
 name: idsd-build
 description: Run the IDSD build loop against an ICE intent — restate, gather context, implement, validate against scenarios and gates, checkpoint, merge. Use to implement an intent authored by idsd-intent, or when asked to "build the intent" or "implement this ICE". Code-level work; run by a developer, not a non-dev collaborator.
+argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 ---
 
 Turn an ICE intent into merged code. You are the harness: you assemble Context, write code and tests, and run validation. The human approves **outcomes** at the checkpoint, not necessarily code.
@@ -8,6 +9,8 @@ Turn an ICE intent into merged code. You are the harness: you assemble Context, 
 Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → `idsd-audit` (optional) → **`idsd-build`**.
 
 Input: an intent file under `.idsd/intents/NNN-<slug>.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
+
+**Caller.** Standalone (a developer) → the full loop. Spawned by `idsd-ship` → **Pipeline mode** (below). Either way you run inline with the human live — unlike the analysis skills, never a return-data subagent.
 
 A quick vocabulary (full definitions live in `idsd-intent`):
 - **Constraint** — an absolute must-hold, authored in the ICE.
@@ -71,7 +74,7 @@ Approve on outcomes → proceed. Reject with feedback → back to Phase 3.
 
 ## Phase 5 — Merge & archive
 
-**Address follow-ups first.** Every unchecked `- [ ]` item in the ICE's `## Follow-ups` — and every scope-delta deferral from Phase 4 — must be addressed: routed to a real home (an intent created or updated via `idsd-intent`, a constitution proposal), landed in code, or declined with a reason. *Addressed* means the item is checked `- [x]` with its one-line resolution; routing to a `draft` intent counts (the work need not be finished). Any unchecked follow-up blocks the archive.
+**Address follow-ups first.** Every unchecked `- [ ]` item in the ICE's `## Follow-ups` — and every scope-delta deferral from Phase 4 — must be addressed: routed to a real home (an intent created or updated via `idsd-intent`, a constitution proposal), landed in code, or declined with a reason. *Addressed* means the item is checked `- [x]` with its one-line resolution; routing to a `draft` intent counts (the work need not be finished). Don't scan by hand: run the shared open-TODO gate — `idsd-ship`'s `scripts/todo-gate.sh <this-intent-file>` (the same scanner `idsd-ship done` runs on the ship report) — and a non-zero exit blocks the archive.
 
 **Then check this intent's links.** Before landing, validate the merging intent's `links:` by the rules `idsd-audit` applies set-wide, scoped to this one — relation known, target resolves, no `depends-on` cycle. A bad link blocks the archive — fix it (or route via `idsd-intent`) first. Whole-set consistency stays `idsd-audit`'s pre-build-round job, not re-run here.
 
