@@ -5,9 +5,7 @@ Config files for the tools I use:
 - [Claude Code](https://code.claude.com)
   - `ln -s ~/Documents/WP/configs/claude/CLAUDE.md ~/.claude/CLAUDE.md`
   - `ln -s ~/Documents/WP/configs/claude/testing.md ~/.claude/testing.md`
-  - `ln -s ~/Documents/WP/configs/claude/architecture.md ~/.claude/architecture.md`
-  - `ln -s ~/Documents/WP/configs/claude/architecture-backend.md ~/.claude/architecture-backend.md`
-  - `ln -s ~/Documents/WP/configs/claude/architecture-frontend.md ~/.claude/architecture-frontend.md`
+  - `ln -s ~/Documents/WP/configs/claude/architecture ~/.claude/architecture`
   - `ln -s ~/Documents/WP/configs/claude/project.md ~/.claude/project.md`
   - `ln -s ~/Documents/WP/configs/claude/templates ~/.claude/templates`
   - `ln -s ~/Documents/WP/configs/claude/git.md ~/.claude/git.md`

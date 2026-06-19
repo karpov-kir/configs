@@ -19,7 +19,7 @@ Applies to anything you write. Persistent artifacts (code comments, PR/commit de
 
 # Architecture
 
-Prefer **vertical slicing** (organize by feature) and **horizontal decoupling** (logic behind ports). Before designing a module layout or wiring dependencies, read [architecture.md](~/.claude/architecture.md) for the shared core, then [architecture-backend.md](~/.claude/architecture-backend.md) or [architecture-frontend.md](~/.claude/architecture-frontend.md) for the side you're on.
+Prefer **vertical slicing** (organize by feature) and **horizontal decoupling** (logic behind ports). Before designing a module layout or wiring dependencies, read [core.md](~/.claude/architecture/core.md) for the shared core, then [backend.md](~/.claude/architecture/backend.md) or [frontend.md](~/.claude/architecture/frontend.md) for the side you're on.
 
 # Code Style
 

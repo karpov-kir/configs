@@ -1,6 +1,6 @@
 # Frontend Architecture
 
-Frontend / UI flavor of [architecture.md](~/.claude/architecture.md) — read it first for the shared core. This file is the frontend's flavor of each shared section, plus a few UI-only ones; it restates no principle and never references its sibling doc.
+Frontend / UI flavor of [core.md](~/.claude/architecture/core.md) — read it first for the shared core. This file is the frontend's flavor of each shared section, plus a few UI-only ones; it restates no principle and never references its sibling doc.
 
 ## Folder layout
 

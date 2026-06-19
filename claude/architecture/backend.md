@@ -1,6 +1,6 @@
 # Backend Architecture
 
-Backend / services flavor of [architecture.md](~/.claude/architecture.md) — read it first for the shared core. This file is the backend's flavor of each shared section; it restates no principle and never references its sibling doc.
+Backend / services flavor of [core.md](~/.claude/architecture/core.md) — read it first for the shared core. This file is the backend's flavor of each shared section; it restates no principle and never references its sibling doc.
 
 ## Folder layout
 

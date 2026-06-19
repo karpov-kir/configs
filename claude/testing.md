@@ -58,7 +58,7 @@ One script per level, each with its own config file, matched by filename suffix:
 
 ## 3. The anti-mock toolkit
 
-Ports and the composition root are reused production patterns ([architecture.md](~/.claude/architecture.md)); fakes, drivers, builders, and object mothers are test constructs.
+Ports and the composition root are reused production patterns ([core.md](~/.claude/architecture/core.md)); fakes, drivers, builders, and object mothers are test constructs.
 
 ### 3.1 Ports
 
@@ -169,6 +169,8 @@ For tests against real infrastructure:
 - **Provision the real thing**, don't fake the boundary you're testing.
 
 **Where it lives.** That shared global setup is one class under `tests/setups/`; each level that needs it registers a thin entry (e.g. `infraTestsSetup`) as its config's global setup.
+
+**Silence logs.** Default the logger to its off level (`LogLevel.Silent`) in the global setup — log output is noise in a test run, and nothing asserts on it. Raise the level in a single test only when debugging needs the output.
 
 ```
 afterAll: remove all temp files this suite created
