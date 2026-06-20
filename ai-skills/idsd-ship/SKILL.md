@@ -112,6 +112,8 @@ Present the `idsd-ship-report.md` file itself — the Decide/Watch list as writt
 
 For `review` mode without an intent, the gate message omits the `done` option — there is no merge step. Instead: "Review the diff and the report. If you make changes, run `/idsd-ship review` again."
 
+**Dogfooding that turns into a redesign.** The gate-message loop (`review` → edit → `review`) is for *refinements* that keep the intent's contract. When the human's hands-on use instead reshapes that contract — a different presentation, a reworked surface, a new sub-feature — it's a **re-scope, not an open edit session**: amend the ICE via `idsd-intent` first so the new shape is recorded, then commit the reviewed state as a checkpoint *before* the rework starts, so the redesign lands as its own distinct change set. Skip the checkpoint commit and the reviewed work and the rework fuse into one diff that can no longer be split.
+
 ## `done` — merge
 
 On `/idsd-ship done`:
