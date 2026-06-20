@@ -51,7 +51,8 @@ A constraint that can't become a command (e.g. "GDPR compliant") isn't a gate �
 2. Encode success/failure scenarios as real acceptance tests (unit/integration/e2e per stack); for runtime/UI behaviour that resists a unit test, drive the app directly — via the `verify` skill if your setup has one, otherwise an e2e test or a manual run. Scenarios are examples, not the whole contract — also cover every constraint no scenario exercises (each supported value, threshold, and edge branch). Extend hand-written tests; don't clobber them.
 3. Run the gates and the scenario tests.
 4. On failure, fix and re-run. Bound to a few iterations; if stuck, stop and report rather than thrash.
-5. Before the checkpoint, self-review the changed files against CLAUDE.md and the standards it points to — passing gates don't prove the code follows the conventions.
+5. **Exercise it end-to-end — black-box, where the change has observable behaviour.** Once gates and scenario tests are green, confirm the *running* system meets the intent. Spawn a general-purpose subagent (it must launch and drive the system) and hand it only the intent's scenarios and how to run the project — **withhold the diff**, so it verifies against the spec, not the implementation. It exercises the real path (UI via browser automation, API/CLI via real calls, data via real queries — the project's `verify` skill if one exists), reports each scenario's observed outcome with evidence, and tears down. A divergence is a red result — fix and re-run, like a gate. A pure internal/refactor/doc change with no observable behaviour skips this. The separate agent also keeps the run's noise — screenshots, logs — out of the build context.
+6. Before the checkpoint, self-review the changed files against CLAUDE.md and the standards it points to — passing gates don't prove the code follows the conventions.
 
 Capture every decision and loose end in the artifact that owns it, never only in chat:
 - A decision that changes the contract → its constraint or scenario in the ICE (via `idsd-intent`).
@@ -66,7 +67,7 @@ Present for human judgment:
 - Diff summary — what changed conceptually, not a line dump.
 - **Gate results** — gates are absolute; a red gate blocks merge (fix or escalate).
 - **Scenario results** — pass/fail; the human approves the behaviour.
-- **Observed outcomes** — drive the real running system and watch each scenario actually happen; a green gate can be vacuous (see *stale gate*, Phase 2), so confirm by observation, never present green as proof on its own.
+- **Observed outcomes** — the end-to-end run's per-scenario results and evidence (Phase 3 step 5); a green gate can be vacuous (see *stale gate*, Phase 2), so confirm by observation, never present green as proof on its own.
 - **Scope delta** — what the goal and scenarios named versus what shipped: everything delivered, or **each deferral/descope recorded** (routed to the owning intent or a new one via `idsd-intent`). No unrecorded gap reaches merge.
 - **Open follow-ups** — the ICE's `## Follow-ups`: every unchecked `- [ ]` item and where it will land.
 
@@ -93,7 +94,7 @@ When invoked by `idsd-ship` (not standalone), the boundary shifts — `idsd-ship
 
 - Run Phases 1–3 unchanged — the interactive gates (restate/confirm, clarify, gate resolution) still fire; never suppress them.
 - Skip Phase 3's self-review step — the dedicated `/code-review` pass replaces it.
-- Stop after Phase 3's gates are green: skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back to `idsd-ship`.
+- Stop after Phase 3 completes — gates green and the end-to-end check passed (its evidence is what `idsd-ship` presents as observed outcomes): skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back to `idsd-ship`.
 - `idsd-ship` re-invokes Phase 5 (merge & archive) after its own approval — run it then, unchanged.
 
 ## Rules
