@@ -4,23 +4,13 @@ reviewed-tree: <hash>
 ---
 
 <!-- idsd-ship working digest — persists across runs (gitignored; durable record is the ICE + git).
-     Each section is one of: "Passed — nothing needs your attention.", "Not applicable — <reason>",
-     or — only when non-empty — a **Watch:** group (non-actionable bullets) and/or an **Action:**
-     group of `- [ ]` TODOs. On re-review: unresolved `- [ ]` carry forward, resolved ones drop;
-     Watch bullets are re-evaluated (kept while relevant, dropped when moot). -->
+     Only the residue that needs the human. Two optional groups: # Decide (`- [ ]` actions the human
+     must rule on before merge) and # Watch (monitor-only, no checkbox). A stage that surfaces nothing
+     for the human writes nothing — an empty report is the success case, not an omission. Omit resolved
+     fixes, passed/clean/not-applicable stages, and any "here's what changed" or verification narration;
+     that lives in the diff + commit. On re-review: unresolved `- [ ]` carry forward, resolved ones drop;
+     Watch bullets re-evaluated (kept while relevant, dropped when moot). No per-stage sections, no summary. -->
 
-# Pipeline
+# Decide
 
-## Build
-
-## Code-review
-
-## Security
-
-## Refactor
-
-## Tighten
-
-## Retro
-
-# Summary
+# Watch
