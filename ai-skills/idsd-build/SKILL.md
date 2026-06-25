@@ -35,6 +35,7 @@ Pull the "how" as needed, not all up front:
 - Read `.idsd/charter.md` if present (the project's what/why) and `.idsd/constitution.md` if present (baseline NFRs and gate commands).
 - Read `CLAUDE.md` if present and follow it.
 - Read only the parts of the codebase the intent touches; pull more as work reveals need.
+- Before building on an existing subsystem, verify any load-bearing assumption about its behaviour in the code, not from its name — e.g. whether a maintenance run powers the target on, whether a hook fires on the path you assume. A wrong assumption surfaces as rework after the build, not as a red gate.
 
 **Resolve gates to commands.** The gate set is:
 - baseline checks — build, lint, test, coverage, perf;

@@ -39,6 +39,7 @@ Adapt to the stack — skip classes the target can't have (web items for a CLI, 
 - Review one changed file per message.
 - Read the full file every time, including re-reviews. For files over 2000 lines, read in sequential chunks until every line is covered.
 - Trace the coverage classes over the file and the flows it reaches; surface a finding only with a concrete exploit scenario — if you can't write how an attacker uses it, downgrade the severity or drop it.
+- State each finding's provenance: whether the change introduces the weakness, worsens it, or routes a pre-existing pattern into a newly dangerous path (e.g. an existing helper now sitting in an enforcement path). All three are in scope, but the label lets the caller weigh it without re-deriving the history — never drop a finding merely because the pattern predates the change.
 - Apply a trivial, unambiguous fix (e.g. secret redaction), flagging any that changes behaviour; propose every risky or structural fix with its remediation, per **Caller**.
 - Order inside a message: read the file, apply trivial fixes, then emit the verdict last. The verdict describes the state **before** the fix.
 - If the file passes, move on. If a finding resists three passes, emit a `WARN` verdict and ask the caller.
