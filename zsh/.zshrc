@@ -31,6 +31,9 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
+# Starship prompt (must init after Prezto so its precmd hook wins)
+eval "$(starship init zsh)"
+
 # Use menu-complete for tab completion, and cycle through options with Tab and Shift-Tab
 bindkey              '^I' menu-select
 bindkey "$terminfo[kcbt]" menu-select

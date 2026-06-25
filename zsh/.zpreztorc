@@ -18,10 +18,9 @@ zstyle ':prezto:load' pmodule \
   'zsh-autocomplete' \
   'syntax-highlighting' \
   'history-substring-search' \
-  'autosuggestions' \
-  'prompt'
-
-zstyle ':prezto:module:prompt' theme 'steeef'
+  'autosuggestions'
+# NOTE: prompt is rendered by Starship (https://starship.rs), so the Prezto
+# `prompt` module is intentionally not loaded here.
 
 # Set syntax highlighters.
 # By default, only the main highlighter is enabled.

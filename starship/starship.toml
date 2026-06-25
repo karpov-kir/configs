@@ -1,0 +1,6 @@
+# Starship prompt — https://starship.rs
+# Minimal: uses Starship defaults. Ghostty provides Nerd Font glyph fallback,
+# so default icon symbols render without setting a font.
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = false

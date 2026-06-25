@@ -54,3 +54,8 @@ Config files for the tools I use:
   - `mkdir -p ~/.zprezto-contrib`
   - `git clone --depth 1 https://github.com/marlonrichert/zsh-autocomplete ~/.zprezto-contrib/zsh-autocomplete`
   - `rm -f ~/.zshrc && ln -s ~/Documents/WP/configs/zsh/.zshrc ~/.zshrc`
+- [Starship](https://starship.rs) — prompt engine (replaces the Prezto `prompt` module)
+  - `brew install starship`
+  - `mkdir -p ~/.config`
+  - `rm -f ~/.config/starship.toml && ln -s ~/Documents/WP/configs/starship/starship.toml ~/.config/starship.toml`
+  - Default icon glyphs render via Ghostty's built-in Nerd Font fallback — no font change needed.
