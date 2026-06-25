@@ -33,6 +33,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 - Booleans take a predicate prefix — `is`/`has`/`can`/`should`/`was`/`will`, … (e.g. `isLoading` not `loading`).
 - A function that returns a new instance takes a `new` prefix: `newWriter`, `newApiClient` (not `create…`/`make…`).
 - For recurring concepts, use consistent terminology across the codebase — always `options` or always `params`, not both.
+- Qualify a name by the case it belongs to. When a value applies only under a specific mode, branch, or variant — or sits beside siblings it could be confused with — put that qualifier in the name: `FINE_MOVE_STEP` not `MOVE_STEP`, `retryDelayMs` not `delayMs` (when other delays exist), `adminEmails` not `emails`. Test: in the wrong context the unqualified name reads as plausibly correct, the qualified one as obviously wrong.
 
 ## Parameters
 
