@@ -1,6 +1,6 @@
 ---
-name: review
-description: Review the working-tree changes for correctness bugs and CLAUDE.md violations — apply the safe fixes, surface the rest for a human decision. Use when asked to "review the changes/diff", "code review", or when an orchestrator (idsd-ship) spawns a review of a build. Not a PR tool — operates on local changes and returns findings as data.
+name: kk-code-review
+description: Review the working-tree changes for correctness bugs and standards/CLAUDE.md violations — apply the safe fixes, surface the rest for a human decision. Use when asked to "review the changes/diff", "code review", or when an orchestrator (idsd-ship) spawns a review of a build. Not a PR tool — operates on local changes and returns findings as data.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
@@ -14,7 +14,7 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 
 ## Setup (once)
 
-- Read `CLAUDE.md` (already in context) and the in-scope standards docs it points to. List the relevant `CLAUDE.md` files — the root one plus any in directories the changes touch.
+- Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context) and load the standards it routes you to; also read the project's own `CLAUDE.md` files — the root one plus any in directories the changes touch — for project-specific conventions.
 - Resolve the change set from `$ARGUMENTS` by intent (this reviews *changes* — there is no whole-project mode by design):
   - File path or directory — its current diff against the base.
   - **Staged** / **unstaged** / **all changed** → `git diff` with `--cached` / nothing / `HEAD` (names via `--name-only`).
@@ -25,14 +25,14 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 
 Check every changed file against all four; each surfaces candidate findings with the reason flagged:
 
-1. **`CLAUDE.md` correctness rules** — violations of rules whose breach causes bugs (bypassed type checks, unchecked assertions, swallowed errors, unhandled absence). Skip style and architecture rules — those are `/refactor`'s. (`CLAUDE.md` is author-time guidance; not every rule applies at review time.)
+1. **Standards correctness rules** — violations (in the kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs (bypassed type checks, unchecked assertions, swallowed errors, unhandled absence). Skip style and architecture rules — those are `/refactor`'s. (These are author-time guidance; not every rule applies at review time.)
 2. **Bug scan** — read only the changed lines; flag large, real bugs, skipping nitpicks and likely false positives.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
 4. **Comments** — code comments in the file; flag changes that violate guidance written there.
 
 Cross-file and interaction bugs: flag on whichever file surfaces them; the final sweep catches the rest.
 
-Surface a finding only when you've verified it's a real bug that will be hit — discard maybes and anything a closer look doesn't confirm. For a `CLAUDE.md`-flagged finding, confirm the `CLAUDE.md` actually calls out that issue specifically.
+Surface a finding only when you've verified it's a real bug that will be hit — discard maybes and anything a closer look doesn't confirm. For a standards-flagged finding, confirm the standard (or the project's `CLAUDE.md`) actually calls out that issue specifically.
 
 ## Loop
 

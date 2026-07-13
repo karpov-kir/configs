@@ -1,5 +1,5 @@
 ---
-name: tighten
+name: kk-tighten
 description: Tighten prose artifacts (docs, skills, standards, prompts, comments) for the context window — cut redundancy and inferable filler, fix closed taxonomies and contradictions, enforce the Writing Guidelines, losslessly (every rule and fact survives). Use when asked to "tighten", "de-dup the docs", "make it concise", "cut redundancy", or to review changed prose for bloat. Triggers on "tighten", "tighten the changes", "de-duplicate".
 argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\", \"staged\")"
 ---
@@ -16,7 +16,7 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`, losslessly: cut 
 
 ## Setup (once)
 
-- Read CLAUDE.md's **Writing Guidelines** (already in context) — the standard you tighten against.
+- Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context), then read the writing standard it routes you to (`standards/writing.md`) — what you tighten against.
 - Resolve the artifact list from `$ARGUMENTS`: a path or directory (recursively glob prose + commented source); **staged** / **unstaged** / **all changed** → `git diff --name-only` with `--cached` / nothing / `HEAD`; **whole project** → every doc and commented source under the root.
 - Skip deleted files; for a rename use the new path. Save the list to TodoWrite — the queue. It grows only by appending a sibling pulled in to absorb a duplication; never drop a queued artifact.
 

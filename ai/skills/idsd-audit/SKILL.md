@@ -16,6 +16,7 @@ Read everything under `.idsd/`: active intents (`intents/`), built ones (`archiv
 Run every applicable check; skip a dimension only when its inputs are absent (no constitution → skip baseline coverage).
 
 - **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`, nothing else) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow `idsd-intent`'s Links rule (extend a built/foundational intent, don't depend backward onto it).
+- **Build batches (parallel schedule)** — from the `depends-on`/`blocks` graph over the not-yet-`built` intents, derive the batches whose members share no unbuilt dependency: each batch is safe to build concurrently, one worktree per intent. Informational, not a finding — an orchestrator schedules parallel `idsd-ship`/`idsd-build` runs from it (see those skills' *Parallel execution*).
 - **Milestone coherence** — no `mvp` intent depends on a `vnext`/unscheduled or still-`draft` one (it could never ship in the MVP); roadmap groupings match each intent's `milestone`.
 - **Constitution coverage** — every baseline NFR is enforced by, or at least not contradicted by, the `mvp` set; flag a baseline no `mvp` intent satisfies (ships in standing violation) and any constraint contradicting a baseline.
 - **Charter scope** — every active intent sits inside the charter's Scope; flag off-mission intents, in-scope areas no intent covers, and intents orphaned by a past scope cut.
@@ -26,7 +27,7 @@ Run every applicable check; skip a dimension only when its inputs are absent (no
 
 ## Phase 3 — Report
 
-One report, grouped by severity:
+One report, grouped by severity, plus the informational **Build batches** list (the parallel schedule) when any intent is unbuilt:
 
 - **Blocker** — breaks a build or ships a violation: link cycle, dangling link, an `mvp` intent that can't ship, an unsatisfied baseline.
 - **Fix** — drift to reconcile: off-mission intent, scope gap, duplication, stale roadmap.

@@ -1,12 +1,12 @@
 ---
-name: security-review
+name: kk-security-review
 description: Adversarially review the working-tree changes for security vulnerabilities — injection, auth/access, secret exposure, unsafe input/deserialization, and any security invariant the project states. Surface findings with severity, exploit scenario, and fix; apply only trivial safe fixes. Use when asked to "security review", "audit the changes for vulns", or when idsd-ship spawns a security pass. Local changes; returns findings as data.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
 Adversarially review every change resolved from `$ARGUMENTS` — assume the code is hostile until proven otherwise, find the vulnerabilities a real attacker would, and explain each so an engineer can fix it. Scoped to the change and the data flows it touches. Reviews **local working-tree changes** and returns findings as data — it never posts to GitHub.
 
-**Security, not correctness or quality.** Functional bugs are `/review`'s lane; style and structure are `/refactor`'s. Here: exploitable weaknesses only. A security rule the project's `CLAUDE.md`/constitution states (path-safety, network-bind, secrets, oid-match, …) is in scope — violating it is the finding.
+**Security, not correctness or quality.** Functional bugs are `/code-review`'s lane; style and structure are `/refactor`'s. Here: exploitable weaknesses only. A security rule the project's `CLAUDE.md`/constitution states (path-safety, network-bind, secrets, oid-match, …) is in scope — violating it is the finding.
 
 **Caller.** You run either standalone (the user is your caller) or spawned by an orchestrator with no interactive user. Every "ask" / "confirm" below resolves to *ask your caller*: interactive → ask directly; spawned → return the finding (or `blocked: <what you need>`) and stop. Apply only a trivial, unambiguous fix (e.g. redacting a logged secret); propose the rest with its fix — a risky or structural security change needs human sign-off, so never apply one just because you can't ask.
 
@@ -14,7 +14,7 @@ Adversarially review every change resolved from `$ARGUMENTS` — assume the code
 
 ## Setup (once)
 
-- Read `CLAUDE.md` and the constitution's security principles and NFRs (already in context where present). List the project security invariants the changes must hold.
+- Read the security invariants in scope: inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context) and load the standards it routes you to, plus any the project's constitution / `CLAUDE.md` states. List the project security invariants the changes must hold.
 - Resolve the change set from `$ARGUMENTS` by intent (this audits *changes* — there is no whole-project mode by design):
   - File path or directory — its current diff against the base.
   - **Staged** / **unstaged** / **all changed** → `git diff` with `--cached` / nothing / `HEAD` (names via `--name-only`).

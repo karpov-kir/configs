@@ -1,14 +1,18 @@
 ---
 name: idsd-ship
-description: "Ship an ICE intent end-to-end or review standalone changes. Subcommands: `idsd-ship <intent>` (full pipeline), `idsd-ship done` (merge), `idsd-ship review` (quality stages only, no build or merge)."
-argument-hint: "<intent> | done | review"
+description: "Ship an ICE intent end-to-end or review standalone changes. Subcommands: `idsd-ship <intent>` (full pipeline), `idsd-ship done` (merge), `idsd-ship review` (quality stages only, no build or merge), `idsd-ship continue` (resume from current state)."
+argument-hint: "<intent> | done | review | continue"
 ---
 
 Drive one intent from ICE to merge-ready — or review standalone changes — through a fixed pipeline, accumulating a `idsd-ship-report.md` digest of what needs the human's attention. You **orchestrate** existing skills — invoke them, never reimplement; their rules still hold (gates absolute, follow-ups routed before archive, no-mocks, …).
 
-**Interactive first.** Prefer asking the human live over deferring to the digest. A decision you can't settle from the intent, the code, or a sensible default — or an ambiguity that changes what gets built — is *blocking*: stop and ask now. The sub-skills' own clarify gates (e.g. `idsd-build`'s Phase 1) still fire — never suppress one by recording instead. `idsd-ship-report.md` is for what does *not* block — surfaced for the human at the final checkpoint, not lost in chat history.
+**Interactive first.** Prefer asking the human live over deferring to the digest. A decision you can't settle from the intent, the code, or a sensible default — or an ambiguity that changes what gets built — is *blocking*: stop and ask now. Every such question carries a **recommended answer you earned by legwork first** (the intent, code, charter, constitution, precedent) — recommend from evidence, not a guess; when it stays open after checking, say what you checked. This holds for a subagent's `blocked` too: on relay it names its recommendation. The sub-skills' own clarify gates (e.g. `idsd-build`'s Phase 1) still fire — never suppress one by recording instead. `idsd-ship-report.md` is for what does *not* block — surfaced for the human at the final checkpoint, not lost in chat history.
 
-Where this fits: `idsd-intent` → (`idsd-audit`) → **`idsd-ship`** (= `idsd-build` + `/review` + `/security-review` + `/refactor` + `/tighten` + `idsd-retro`, sequenced).
+Where this fits: `idsd-intent` → (`idsd-audit`) → **`idsd-ship`** (= `idsd-build` + `/code-review` + `/security-review` + `/refactor` + `/tighten` + `idsd-retro`, sequenced).
+
+**kk-flavor wiring.** If the flavor isn't injected, read `~/.kk-flavor/inject.md` first. Resolve every cross-referenced skill and toggle through the bucket at `~/.kk-flavor`:
+- The skill names below (`/code-review`, `/security-review`, `/refactor`, `/tighten`, and the idsd-* names) are **roles** — spawn the skill mapped in `~/.kk-flavor/config.yaml` → `roles` (unlisted names resolve to themselves; the quality roles default to the `kk-` variants).
+- Run a stage only when its `~/.kk-flavor/config.yaml` → `pipeline` flag is true. A stage turned off is **skipped silently** — don't spawn it and don't record its absence as a gap. `build`, `code-review`, and the final gate are structural and always run.
 
 ## Subcommands
 
@@ -17,8 +21,9 @@ Where this fits: `idsd-intent` → (`idsd-audit`) → **`idsd-ship`** (= `idsd-b
 | `idsd-ship <intent>` | Full pipeline: build + quality stages + checkpoint. Ends with the gate message (see **After the quality stages**). |
 | `idsd-ship done` | Proceeds to merge (idsd-build Phase 5), gated on review freshness (see **`done` — merge**). Reads the intent from the report's frontmatter. Error if no report exists or if the report was produced by `review` mode (no merge target). |
 | `idsd-ship review` | Quality stages only (2–5), no build, no merge. For standalone changes with no intent, or for re-reviewing after post-pipeline refinements. |
+| `idsd-ship continue` | Detect where the change set stands and run the next step (or report it's done). Reads state from the report — needs no `<intent>`. See **`continue`**. |
 
-If `<intent>` is unspecified (and the subcommand is not `done` or `review`), list the not-yet-built intents and ask which.
+If `<intent>` is unspecified (and the subcommand is not `done`, `review`, or `continue`), list the not-yet-built intents and ask which.
 
 ## Flow
 
@@ -49,7 +54,9 @@ Gate message                │
 
 ## Report
 
-`idsd-ship-report.md` lives at the repo root and **persists across runs** — the working digest, never committed (the ICE and git history are the durable record). Add it to `.gitignore` if it isn't already (`scripts/report.sh check-ignore` asserts this). The deterministic report operations — stamp, the `done` gate, carry-forward — run through `scripts/report.sh` (in the skill dir), never by hand.
+`idsd-ship-report.md` lives at the repo root and **persists across runs** — the working digest, never committed (the ICE and git history are the durable record). The deterministic report operations — stamp, the `done` gate, carry-forward, and the `continue` state token — run through `scripts/report.sh` (in the skill dir), never by hand.
+
+**Ignore per repo type — never commit the report or a `.gitignore` diff for it.** Always run `scripts/report.sh check-ignore` before any stage: it ignores the report by the mechanism that fits the repo, so the fingerprinting `git add -A` (stamp/gate) can never stage it. In an idsd repo (`.idsd/` at root) it asserts a tracked `.gitignore` entry — shared and committed with the rest of the idsd setup — and WARNs if missing, so add it. In a non-idsd repo (e.g. a standalone `review` on a project that doesn't use idsd) it ignores the report locally via `.git/info/exclude` and leaves `.gitignore` untouched, so no ignore diff ever enters the change set. Either way the report is a local scratch file, never staged, never committed.
 
 ### Structure
 
@@ -70,7 +77,7 @@ reviewed-tree: <git tree hash at time quality stages completed>
 
 ### What goes in (and what never does)
 
-The report holds the *non-blocking* attention set — decisions to ratify, deferrals, gated/declined fixes, monitor-only watches — never a blocking question (asked live, per Interactive first). A **Decide** item is one `- [ ]` line: the decision and what the human must do, at their altitude — no "what we tried", no dep lists, command strings, or code identifiers (those live in the diff, commit, or ICE — link, don't restate); tag its origin stage in parentheses only when that aids the human. A **Watch** item is monitor-only, no checkbox.
+The report holds the *non-blocking* attention set — decisions to ratify, deferrals, gated/declined fixes, monitor-only watches — never a blocking question (asked live, per Interactive first). A **Decide** item is one `- [ ]` line: the decision, what the human must do, and **your recommended resolution** (earned by legwork, per Interactive first — never a bare choice), at their altitude — no "what we tried", no dep lists, command strings, or code identifiers (those live in the diff, commit, or ICE — link, don't restate); tag its origin stage in parentheses only when that aids the human. A **Watch** item is monitor-only, no checkbox.
 
 **The test: if the human takes no action, it is not in the report.** A resolved or applied fix, a passed / clean / not-applicable stage, "here's what changed", and any verification narration (what passed, what's byte-identical, invariants confirmed) are all **omitted** — they live in the diff, the commit, and the fact the pipeline ran. The report shrinks to nothing when nothing needs the human — that's the success case, not an omission. The one exception is a fix the human might want to *reverse*: record that as a Decide item (ratify or revert), not as an FYI.
 
@@ -80,9 +87,9 @@ Start from the right base. **First review of a change set** (no report, or one r
 
 When all quality stages complete, stamp the tree fingerprint: run `scripts/report.sh stamp` — it computes `git write-tree` and writes the hash into `reviewed-tree`.
 
-**How each stage runs.** Build runs **inline**, not for consistency's sake but because its human coupling is *continuous* — `idsd-build` restates, clarifies, and decides with the human throughout, a live dialogue the `blocked`→resume bridge (built for *occasional* pauses) would turn into constant ping-pong. The analysis stages are the opposite: mostly autonomous, returning findings as data with an occasional `blocked`, so each runs in a **dedicated subagent** (which also isolates its heavier context from the orchestrator) — code-review, security-review, refactor, tighten, and retro. The subagent executes the skill in full and returns structured findings; it never decides whether to run, and never fakes the pass with its own inline judgment.
+**How each stage runs.** Build runs **inline**, not for consistency's sake but because its human coupling is *continuous* — `idsd-build` restates, clarifies, and decides with the human throughout, a live dialogue the `blocked`→resume bridge (built for *occasional* pauses) would turn into constant ping-pong. Across parallel ships the human still runs this dialogue inline, just one build at a time (see *Parallel execution*). The analysis stages are the opposite: mostly autonomous, returning findings as data with an occasional `blocked`, so each runs in a **dedicated subagent** (which also isolates its heavier context from the orchestrator) — code-review, security-review, refactor, tighten, and retro. The subagent executes the skill in full and returns structured findings; it never decides whether to run, and never fakes the pass with its own inline judgment.
 
-**Spawn the skill, not your own review.** Each subagent prompt names exactly one skill and hands it the change scope — nothing more. The skill defines what to check; the spawn prompt must not pre-select, narrow, or invent which rules apply, must not borrow another stage's lane (correctness is `/review`'s, style/structure/architecture is `/refactor`'s, vulnerabilities are `/security-review`'s, prose/concision is `/tighten`'s), and must let the subagent run the skill's full decomposition itself. The only thing you may inject is emphasis the **user explicitly stated** this run (e.g. "ensure arch-doc compliance" → pass to refactor) — never a rule you inferred. A spawn prompt that lists specific CLAUDE.md rules to look for, or asks for findings outside the named skill's scope, is the defect this guards against. Only the main thread has the human, so every decision and all report-writing stay here: take the subagent's returned findings, ask the human live for any that block, record the rest. When a subagent hits something only the human can settle — a clarification, a gated choice — it pauses and returns `blocked: <what it needs>` rather than guessing. Answer it, then **resume that same subagent by its ID** so it continues with its context and progress intact; never start a fresh one — a new spawn loses the work it already did and the skill state it was holding.
+**Spawn the skill, not your own review.** Each subagent prompt names exactly one skill and hands it the change scope — nothing more. The skill defines what to check; the spawn prompt must not pre-select, narrow, or invent which rules apply, must not borrow another stage's lane (correctness is `/code-review`'s, style/structure/architecture is `/refactor`'s, vulnerabilities are `/security-review`'s, prose/concision is `/tighten`'s), and must let the subagent run the skill's full decomposition itself. The only thing you may inject is emphasis the **user explicitly stated** this run (e.g. "ensure arch-doc compliance" → pass to refactor) — never a rule you inferred. A spawn prompt that lists specific CLAUDE.md rules to look for, or asks for findings outside the named skill's scope, is the defect this guards against. Only the main thread has the human, so every decision and all report-writing stay here: take the subagent's returned findings, ask the human live for any that block, record the rest. When a subagent hits something only the human can settle — a clarification, a gated choice — it pauses and returns `blocked: <what it needs>` rather than guessing. Answer it, then **resume that same subagent by its ID** so it continues with its context and progress intact; never start a fresh one — a new spawn loses the work it already did and the skill state it was holding.
 
 **Reconcile contradictions.** When two stages give opposing verdicts on the same location — one clears what another flags — or a claim contradicts an observation (a subagent reports green while a tool shows otherwise) — adjudicate empirically before recording: re-run the check yourself and trust neither side's word over the result.
 
@@ -90,7 +97,7 @@ When all quality stages complete, stamp the tree fingerprint: run `scripts/repor
 
 1. **Build** (skip on `review`) — run `idsd-build` for the intent in its **pipeline mode**: it runs restate/confirm, context, and implementation until gates are green, then hands back — skipping its self-review, checkpoint, and merge, which the dedicated passes and the final approval below replace. As it builds, idsd-build *records and routes* every follow-up to the ICE's `## Follow-ups` and every durable standard to a constitution proposal — at build time, its own rule (resolving them stays merge-gated under `done`). Before recording, confirm it did: an unrouted follow-up is a build defect, not something the report absorbs.
    - Record as **Decide** items: deferrals to confirm, constraints that need human judgment (can't become a gate), and decisions to ratify — each pointing to its durable home (the ICE `## Follow-ups`, a constitution proposal) idsd-build already wrote. An ambiguity resolved with no open decision is not recorded. The report flags for the human; it never replaces the durable record.
-2. **Code-review** — spawn a subagent to run `/review` on the build's changes: it applies every fix it can make correctly and returns the rest — findings needing a human decision (a trade-off, an ambiguous intent, a risky change), plus any behaviour-changing fix it made. On its return, ask the human live for blocking findings; record the others.
+2. **Code-review** — spawn a subagent to run `/code-review` on the build's changes: it applies every fix it can make correctly and returns the rest — findings needing a human decision (a trade-off, an ambiguous intent, a risky change), plus any behaviour-changing fix it made. On its return, ask the human live for blocking findings; record the others.
    - Record as **Decide** items: findings needing a human decision. A fix already applied is recorded only if the human might want to reverse it (ratify-or-revert); otherwise it's just the diff.
 3. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or any constitution security invariant); otherwise skip. Spawn a subagent to run `/security-review` on the build's changes: it applies trivial safe fixes (e.g. secret redaction) and returns the rest as findings with severity, exploit scenario, and fix. On its return, ask the human about anything blocking; record the others.
    - Record as **Decide** items: findings needing a human decision (severity + exploit + fix). Record nothing when the surface was clean or untouched.
@@ -114,12 +121,35 @@ For `review` mode without an intent, the gate message omits the `done` option �
 
 **Dogfooding that turns into a redesign.** The gate-message loop (`review` → edit → `review`) is for *refinements* that keep the intent's contract. When the human's hands-on use instead reshapes that contract — a different presentation, a reworked surface, a new sub-feature — it's a **re-scope, not an open edit session**: amend the ICE via `idsd-intent` first so the new shape is recorded, then commit the reviewed state as a checkpoint *before* the rework starts, so the redesign lands as its own distinct change set. Skip the checkpoint commit and the reviewed work and the rework fuse into one diff that can no longer be split.
 
+## `continue` — resume from current state
+
+`idsd-ship continue` recovers where the change set stands and runs the next step. Read the state deterministically with `scripts/report.sh state` (never hand-parse the report); it prints one token, and each routes to an existing behaviour whose rules hold unchanged:
+
+| Token | State | `continue` does |
+|---|---|---|
+| `no-report` | nothing in progress | Say so. With an `<intent>` arg, start `ship <intent>`; otherwise list the not-yet-built intents and recommend one (per *Interactive first*). |
+| `resume` | quality never completed (`reviewed-tree` unstamped) | Run the full `ship <intent>` flow for the report's intent — build restates and idempotently resumes to green (a no-op if already there), then the quality stages run and stamp. |
+| `re-review` | reviewed once, tree moved since | Run `review` (quality stages only) — the build already shipped; carry-forward keeps open items. |
+| `decide` | quality done, tree fresh, open `- [ ]` remain | Present the gate message with the Decide list; the human clears each, then runs `done`. |
+| `ready` | quality done, tree fresh, nothing open | Present the gate message (review the diff + report, then `done`). Never merge on its own — `done` owns that. |
+| `done` | the intent is built and archived | Report everything is done; recommend the next unbuilt intent if any. |
+
+`continue` only dispatches; it never relaxes a gate.
+
 ## `done` — merge
 
 On `/idsd-ship done`:
 
 1. **Gate.** Run `scripts/report.sh gate` (in the skill dir). It exits non-zero on either a **stale tree** (current `git write-tree` ≠ `reviewed-tree`) or **any open `- [ ]`**, printing which block(s) fired. A freshness-only block the human may explicitly override (then proceed). An open-TODO block has **no override** — the human clears each first: resolve it (do it, then check or delete the box) or route it out of the report (to the ICE `## Follow-ups`, a backlog, a constitution proposal). Watch bullets don't gate.
 2. On a clean gate — or freshness overridden with no open `- [ ]` — hand to `idsd-build`'s Phase 5: `status: built`, archive, roadmap, commit (which asks first). The pipeline never commits on its own.
+
+## Parallel execution
+
+Ship many intents concurrently by isolating each; each ship stays single-intent. `idsd-build`'s **Parallel execution** rule is canonical — this only adds the orchestration seams.
+
+- **A worktree per intent.** `idsd-ship <intent>` runs in a dedicated worktree + branch `idsd/NNN-<slug>`, created unless the caller (an external orchestrator, launching one ship per intent from `idsd-audit`'s build batches) already placed you in one. Because the report lives at the worktree root, each ship's `idsd-ship-report.md` is isolated by construction — no cross-run clobber, no frontmatter thrash from the "different intent" reset. `check-ignore` still runs per worktree.
+- **One human, serialized.** Build's coupling is still continuous, but across parallel ships the human is a single attention queue: attend each build's live moments in turn while the others' autonomous stretches and quality-stage subagents run in the background. The subagents already return-or-`block`; the build pauses via blocked→resume. Don't demand simultaneous live sessions.
+- **`done` merges serially against an up-to-date target.** Beyond the stale-tree / open-TODO gate: if the target branch advanced past this branch's base since the quality stages stamped `reviewed-tree`, the review is stale against the new base — integrate the target and re-run `review` (which re-stamps) before landing. Merges queue: one `done` at a time.
 
 ## Rules
 

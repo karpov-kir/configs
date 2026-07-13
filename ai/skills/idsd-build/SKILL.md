@@ -33,7 +33,7 @@ Wait for the human's OK, then set `status: approved`.
 
 Pull the "how" as needed, not all up front:
 - Read `.idsd/charter.md` if present (the project's what/why) and `.idsd/constitution.md` if present (baseline NFRs and gate commands).
-- Read `CLAUDE.md` if present and follow it.
+- Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context) and follow the standards it routes you to; also read the project's `CLAUDE.md` if present. Follow both.
 - Read only the parts of the codebase the intent touches; pull more as work reveals need.
 - Before building on an existing subsystem, verify any load-bearing assumption about its behaviour in the code, not from its name — e.g. whether a maintenance run powers the target on, whether a hook fires on the path you assume. A wrong assumption surfaces as rework after the build, not as a red gate.
 
@@ -54,7 +54,7 @@ A constraint that can't become a command (e.g. "GDPR compliant") isn't a gate �
 3. Run the gates and the scenario tests.
 4. On failure, fix and re-run. Bound to a few iterations; if stuck, stop and report rather than thrash.
 5. **Exercise it end-to-end — black-box, where the change has observable behaviour.** Once gates and scenario tests are green, confirm the *running* system meets the intent. Spawn a general-purpose subagent (it must launch and drive the system) and hand it only the intent's scenarios and how to run the project — **withhold the diff**, so it verifies against the spec, not the implementation. It exercises the real path (UI via browser automation, API/CLI via real calls, data via real queries — the project's `verify` skill if one exists), reports each scenario's observed outcome with evidence, and tears down. A divergence is a red result — fix and re-run, like a gate. A pure internal/refactor/doc change with no observable behaviour skips this. The separate agent also keeps the run's noise — screenshots, logs — out of the build context. With no runnable entrypoint yet, a minimal throwaway harness — instantiate the composition root, serve the built assets — is the expected way to exercise it, not grounds to skip; it may need to sit inside the repo for workspace module resolution, and is removed after. Drive against a disposable seeded fixture (a throwaway repo/dataset), never live project content — black-box at the data layer, and reproducible. For UI or layout behaviour the fixture must be **representative, not minimal** — real-world scale and variety (long and wide lines, many entries, content that exercises highlighting and wrapping) — since a toy fixture renders fine while hiding the overflow and freeze that real input triggers. (A modifier-gesture click — shift/ctrl+click — isn't expressible through the Chrome MCP click tool; dispatch it via evaluate_script.)
-6. Before the checkpoint, self-review the changed files against CLAUDE.md and the standards it points to — passing gates don't prove the code follows the conventions.
+6. Before the checkpoint, self-review the changed files against the kk-flavor standards (per `~/.kk-flavor/inject.md`) and the project's `CLAUDE.md` — passing gates don't prove the code follows the conventions.
 
 If you delegate a slice of the implementation to a subagent, re-run the gates yourself once it lands — its reported "gates green" is a claim to verify, never one to inherit.
 
@@ -84,7 +84,7 @@ Approve on outcomes → proceed. Reject with feedback → back to Phase 3.
 
 **Then check this intent's links.** Before landing, validate the merging intent's `links:` by the rules `idsd-audit` applies set-wide, scoped to this one — relation known, target resolves, no `depends-on` cycle. A bad link blocks the archive — fix it (or route via `idsd-intent`) first. Whole-set consistency stays `idsd-audit`'s pre-build-round job, not re-run here.
 
-Once approved and every follow-up is checked, land the change via your normal git flow (which asks before commit/push). Then set `status: built`, move the file to `.idsd/archive/NNN-<slug>.md` (its resolved checklist travels with it as the record), and regenerate `.idsd/roadmap.md` if it exists (preserve its layout).
+Once approved and every follow-up is checked, land the change via your normal git flow (which asks before commit/push). Then set `status: built`, move the file to `.idsd/archive/NNN-<slug>.md` (its resolved checklist travels with it as the record), and regenerate `.idsd/roadmap.md` if it exists (preserve its layout). Under concurrent builds this phase serializes — see *Parallel execution*.
 
 ## Keep long-term memory honest
 
@@ -102,8 +102,18 @@ When invoked by `idsd-ship` (not standalone), the boundary shifts — `idsd-ship
 - Stop after Phase 3 completes — gates green and the end-to-end check passed (its evidence is what `idsd-ship` presents as observed outcomes): skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back to `idsd-ship`.
 - `idsd-ship` re-invokes Phase 5 (merge & archive) after its own approval — run it then, unchanged.
 
+## Parallel execution
+
+Several intents may build at once. The pipeline stays single-intent per build; **isolation** — not new coordination — is what makes concurrency safe.
+
+- **One intent = one worktree = one branch.** Before assembling Context, ensure this build runs in a dedicated git worktree on branch `idsd/NNN-<slug>`. If a caller (`idsd-ship`, an external orchestrator) already placed you in one, inherit it — never nest a second. Otherwise, when a concurrent build could touch the same tree, create one and continue there; a lone build in an otherwise-idle repo may skip it. Each worktree owns its index, working tree, and `idsd-ship-report.md`, so the per-run state races disappear.
+- **The human is one serialized queue; autonomous work overlaps.** Don't run N live dialogues at once. Attend each build's interactive moments — Phase 1 restate/confirm, a mid-build clarification, the Phase 4 checkpoint — one at a time; the long autonomous stretches (implement, gates, the end-to-end run) of the other builds overlap in the background, which is where the wall-clock actually goes. When a build reaches a point that needs the human while you're attending another, it pauses and surfaces `blocked: <what it needs>` rather than guessing — the same bridge Pipeline mode uses — and you service it when free.
+- **Integration is serial, on the up-to-date target.** Phase 5's merge, `archive/` move, and `.idsd/roadmap.md` regeneration run one build at a time against the current target branch — not concurrently inside each worktree, where they would conflict. If the target advanced since this branch's gates ran, re-run the gates against the new base before landing: a moved base is an unverified base.
+- **The end-to-end run acquires shared runtime, not just data.** Phase 3's black-box run isolates its *data* (a disposable per-run fixture), but the *runtime* it drives — dev-server ports, a single browser / Chrome-MCP instance, an extension install slot — is a shared singleton across builds. Either isolate it per build (unique ports, a separate browser profile/instance) or serialize the end-to-end step across parallel builds. When the driver is a single shared instance (the usual Chrome-MCP case), serialize — two builds steering one browser corrupt each other's observations.
+
 ## Rules
 
+- Every question you put to the human carries a **recommended answer you earned** — do the legwork first (read the code, charter, constitution, the intent, precedent), then recommend from evidence, never a bare open question or a guessed pick. When the legwork can't settle it, ask anyway but say what you checked and why it's still open.
 - Outcomes over instructions: no single prescribed implementation — satisfy the intent, honour the constraints.
 - Never relax a constraint or edit a scenario to make validation pass. If the intent is wrong, send it back to `idsd-intent`.
 - One intent at a time. If work reveals a missing intent — or defers or descopes any part of THIS intent's goal or scenarios — record it in `## Follow-ups` and route it before archive (Phase 5), never silently absorb or drop it.

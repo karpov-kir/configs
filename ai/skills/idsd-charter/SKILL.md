@@ -17,7 +17,7 @@ Where this fits: **`idsd-charter` (optional) → `idsd-constitution` (optional) 
 
 ## Phase 2 — Grill the gaps only
 
-Grill like `grill-me` for project-level scope — one question at a time, each with your recommended answer; push until the boundaries are sharp. Cover only what's unclear:
+Grill like `grill-me` for project-level scope — one question at a time, each with a recommended answer you **earned by legwork first** (grounded in Phase 1's inventory and the code, not a guess; when it can't be settled that way, recommend anyway and say what you checked); push until the boundaries are sharp. Cover only what's unclear:
 
 1. **Vision** — what the project is, in 1–2 sentences. An outcome for users, not a feature list.
 2. **Problem & users** — who it's for and what's broken without it (concrete stakes, not a generic harm).

@@ -37,7 +37,7 @@ Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) �
 
 ## Phase 1 — Grill (adaptive, one question at a time)
 
-Grill like `grill-me`: one question at a time, each with your recommended answer. Ask the fewest that lock the ICE, scaled to complexity — a tiny feature may need one or two, a project map many more. Skip anything answerable by reading the codebase; read instead. Stop when the goal, constraints, and scenarios are concrete and no open question could still change them.
+Grill like `grill-me`: one question at a time, each with a recommended answer you **earned by legwork first** — read the code, charter, constitution, and neighbouring intents before recommending; when that can't settle it, still recommend but say what you checked and why it's open. Ask the fewest that lock the ICE, scaled to complexity — a tiny feature may need one or two, a project map many more. Skip anything answerable by reading the codebase; read instead. Stop when the goal, constraints, and scenarios are concrete and no open question could still change them.
 
 Cover only what's unclear, in order — the heuristic per part:
 
@@ -61,7 +61,7 @@ Emit one outcome line as the gate's evidence: either the residual ambiguities fo
 
 **Precondition (Phase 2 gate):** write no file until Phase 2's outcome line is emitted; if it isn't, run Phase 2 first.
 
-Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` and `.idsd/archive/`, plus one (zero-padded to 3).
+Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` and `.idsd/archive/`, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one — numbers must stay unique (`idsd-audit` enforces uniqueness and contiguity).
 
 Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`. Set `collaborative: true` only when authored in a pair session (this activates `idsd-build`'s sign-off gate); record the collaborator's sign-off in `approved-by` when they approve.
 
@@ -83,4 +83,4 @@ While authoring, watch for drift and recurrence and surface it — propose, neve
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
 - Keep each ICE self-contained: declare every dependency in the frontmatter `links:`, none hidden — and keep it consistent with build order: never `block` or `depend-on` an intent that is foundational to this one or already built (that's backwards). A later intent that adds a constraint to a shipped one `extends` it.
 - If the user says "just write it", collapse Phases 1–2 to the fastest pass that still emits the Phase 2 outcome line, then Phase 3 — the gate fires even on the fast path.
-- Don't restate `CLAUDE.md`; it's Context for `idsd-build`.
+- Don't restate the kk-flavor standards or `CLAUDE.md`; they're Context for `idsd-build`.
