@@ -23,5 +23,5 @@ Match the recent style on the branch (`git log` first). Use semantic prefixes (`
 - Open as drafts; follow the repo's PR template if it has one.
 - No "Test plan"/"Verification" section and similar. Omit anything reachable from CI or the diff — test counts, lint/typecheck status, version-pin values. State only what a reviewer can't see: untested paths, a temporary pin that blocks release, rollout coupling.
 - Link the ticket in the description when the branch carries one.
-- Follow CLAUDE.md's Writing Guidelines.
+- Follow [writing.md](writing.md).
 - Resolve a review comment by replying on its thread with `Done <link to commit>`.

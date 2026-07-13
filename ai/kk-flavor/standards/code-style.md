@@ -1,26 +1,3 @@
-# Core Principles
-
-1. Think before coding. State assumptions out loud. If ambiguous, ask; if a simpler approach exists, push back. When confused, name what is unclear — don't pick one interpretation and run.
-2. Simplicity first. Minimum code that solves the problem. No speculative abstractions, no flexibility nobody asked for. Test: would a senior engineer call this overcomplicated.
-3. Surgical changes. Touch only what the task requires. Don't improve neighboring code. Every changed line traces back to the request.
-4. Goal-driven execution. Turn vague instructions into verifiable targets before writing a line. "Add validation" → "write tests for invalid inputs, then make them pass."
-
-# Writing Guidelines
-
-Applies to anything you write. Persistent artifacts (code comments, PR/commit descriptions, tickets, design/investigation docs, and similar) always follow these guidelines in full — lean, concise, fact-per-line — but in normal prose; caveman mode never applies to them, even when active. Chat responses still follow caveman style when on.
-
-* Scope. Stay within the artifact's responsibility — reference only down to its own altitude; link to other layers rather than restating them. Function docs describe the function, not its callers; prose above the code (commit/PR descriptions, tickets, design docs, and similar) states the problem and outcome, not the files or functions implementing it — that trace lives in the diff.
-* Lead with the "why", not the implementation trace.
-* Describe conceptually — what happens and why, not call-by-call. One abstraction level.
-* Keep code references minimal; the diff is source of truth.
-* Group by purpose, not by file.
-* Each line must carry a fact unreachable from surrounding context (code, types, siblings, the diff, etc.). Cut or link otherwise.
-* No backstory, hedging, or justification — describe what is true, not what we tried.
-
-# Architecture
-
-Prefer **vertical slicing** (organize by feature) and **horizontal decoupling** (logic behind ports). Before designing a module layout or wiring dependencies, read [core.md](~/.claude/architecture/core.md) for the shared core, then [backend.md](~/.claude/architecture/backend.md) or [frontend.md](~/.claude/architecture/frontend.md) for the side you're on.
-
 # Code Style
 
 Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge its rules on top (project overrides win).
@@ -42,7 +19,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 
 ## Comments
 
-Follow [Writing Guidelines](#writing-guidelines). Additionally: prefer clear naming and small functions over explanatory comments (see Abstraction).
+Follow [writing.md](writing.md). Additionally: prefer clear naming and small functions over explanatory comments (see Abstraction).
 
 ## Type Safety
 
@@ -81,40 +58,12 @@ Reach for a class (or a `newX` factory returning an object with private state) w
 - Keep files focused on a single responsibility — split when a file grows beyond ~450 lines or contains unrelated concepts.
 - Avoid barrel/index files. Import from the source module directly — they hide locations, hurt tree-shaking, and invite circular imports. Likewise, never re-export a symbol through a module that isn't where it's defined just to keep an import path stable; a symbol has one home, so import it from there and update importers if that home moves.
 
-# Testing
-
-No mocks; treat test code as production code. Before writing or reviewing tests, read [testing.md](~/.claude/testing.md).
-
-# Defaults & Pins
+## Dependencies
 
 Prefer defaults and latest stable — tools (linters, formatters, build, test runners, type checkers, etc.), libraries (ORMs, loggers, HTTP clients, etc.), runtimes, base images, and anything similar. Choose latest LTS when upstream offers one; otherwise latest stable — expressed as a concrete pinned range (e.g. `^1.4.0`), never a floating tag like npm `latest` (non-reproducible). Avoid pre-releases (alpha/beta/RC, etc.) unless the feature is required and not yet in stable.
 
 Override a default or pin to an older version only when concrete breakage forces it — "might be nicer" is not enough. Leave a one-line comment with the reason; if it doesn't fit on one line, the option probably doesn't belong. Prune overrides and pins when the reason no longer holds. No unused dependencies — remove a package once nothing uses it.
 
-# Project Setup
-
-Environments, scripts, and local dev / Docker: [project.md](~/.claude/project.md).
-
-# Git
-
-Before any `git commit` or `git push`: print the full command and get explicit approval first. Branch, commit, and PR conventions: [git.md](~/.claude/git.md).
-
-# Tooling
+## Tooling
 
 - Use TypeScript LSP for TS/JS work — diagnostics, types, go-to-def, refs.
-
-# Caveman Mode
-
-If caveman mode is active (startup hook sets it), display this banner as the first thing in the first message of the session:
-
-```
-🦴 CAVEMAN MODE ACTIVE 🦴
-```
-
-# Memory
-
-Add new memory entries to this section. Do **not** create or write to per-project memory dirs (`~/.claude/projects/*/memory/`) — keep all memory here.
-
-This is a staging area. Once enough memory accumulates, the user folds entries into the proper sections of this document. Do not reorganize on your own. Entries here are authoritative — apply them as if they were in a structured section.
-
-- Never add NOSONAR or similar inline lint/Sonar suppression comments. Kirill resolves unfixable Sonar findings manually in the SonarCloud UI — if a finding can't be fixed in code, leave it and report it instead.

@@ -4,8 +4,8 @@ Examples below are language-agnostic pseudo-code. Patterns matter, not the tools
 
 This file holds the **shared core** — the principles backend and frontend both follow. Two companion files apply that core to each side; read this first, then the one you need:
 
-- Backend / services → [backend.md](~/.claude/architecture/backend.md)
-- Frontend / UI → [frontend.md](~/.claude/architecture/frontend.md)
+- Backend / services → [backend.md](backend.md)
+- Frontend / UI → [frontend.md](frontend.md)
 
 **Applying these documents.** Follow them when a project already does, or when starting a new one; otherwise match the project's existing architecture — consistency within a project wins.
 
@@ -13,7 +13,7 @@ This file holds the **shared core** — the principles backend and frontend both
 
 ## Two axes
 
-How a system is decomposed and wired, along two axes that compose: **vertical slicing** (per-feature cohesion) and **horizontal decoupling** (each slice swappable from its tech). The same ports and composition-root seam make it testable — the real graph with a fake at one edge, no mocks (see [testing.md](~/.claude/testing.md)).
+How a system is decomposed and wired, along two axes that compose: **vertical slicing** (per-feature cohesion) and **horizontal decoupling** (each slice swappable from its tech). The same ports and composition-root seam make it testable — the real graph with a fake at one edge, no mocks (see [testing.md](../testing.md)).
 
 ### Vertical slicing
 
@@ -93,7 +93,7 @@ An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds
 
 Match structure to need: an entrypoint starts as one file and earns a folder when it needs more than one. One entry sits in a singular `entrypoint/`; several go under `entrypoints/`, one named folder each. A split-out composition root takes the entrypoint's name (`WebServerCompositionRoot`, `PopupCompositionRoot`); a single entrypoint's is just `CompositionRoot`. No composition root composes composition roots — to run several in one process, a cumulative entrypoint starts their handles together (`await all(a.start(), b.start())`).
 
-Each side's flavor: transport hosts in [backend.md](~/.claude/architecture/backend.md), mount surfaces in [frontend.md](~/.claude/architecture/frontend.md).
+Each side's flavor: transport hosts in [backend.md](backend.md), mount surfaces in [frontend.md](frontend.md).
 
 #### Injection seams
 
@@ -127,9 +127,9 @@ Validate structure with a **declarative schema** from a validation library — p
 
 ## Logging & events
 
-**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors. It's pure side-output: nothing branches on it, no test asserts it, so the usual costs of a global (hidden dependencies, untestability) don't apply and injecting it everywhere is ceremony without payoff. One root logger, scoped per slice/feature so each line carries its source and filters by level; level set once from config. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](~/.claude/architecture/Logger.ts).
+**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors. It's pure side-output: nothing branches on it, no test asserts it, so the usual costs of a global (hidden dependencies, untestability) don't apply and injecting it everywhere is ceremony without payoff. One root logger, scoped per slice/feature so each line carries its source and filters by level; level set once from config. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
 
-**Events — injected like any port.** Notification goes through a typed pub-sub (fire-and-forget). Unlike the logger, a pub-sub is a behavioral dependency, so it's injected from the composition root: the owner holds it as a private `pubSub` field (the idiomatic name) and exposes a domain verb pair per channel — bound `onStateChanged`/`offStateChanged` fields typed `ChannelSubscriber<Payload>` that call `pubSub.subscribe`/`unsubscribe` directly (the handler infers as `ChannelHandler<Payload>`) — so consumers call `owner.onStateChanged(handler)` and never import the pub-sub. Two independent questions decide its use. *Coupling* — should this notification be decoupled into an event at all? Cross-slice, yes; within a slice a fixed 1:1 call is simpler, so don't. *Mechanism* — when you have dynamic **1:N fan-out** (one source emitting to a set of subscribers that varies at runtime — e.g. a service feeding several SSE streams), that shape *is* pub/sub: reach for the pub-sub even intra-slice and even at the first site, rather than hand-rolling a listener `Set` + notify loop that re-implements subscribe/unsubscribe/fan-out the primitive already gives you, typed. A ready-to-go typed pub-sub ships in [PubSub.ts](~/.claude/architecture/PubSub.ts): `PubSub<ChannelMap>`, keyed by a channel map that declares each channel as a `ChannelHandler<Payload>` (the `(payload) => void` callback). To use it, **vendor the slice you need** into the project's `shared`, adapting the `Logger` seam (wire your logger, or drop the logging where there is none) — a no-dead-code/coverage gate rejects a wholesale copy. Head the vendored file with a provenance line (source repo + commit) so the next propagation diffs against a known base rather than re-deriving the trim. Trickier needs — asynchronous handlers, cross-process or cross-tab delivery, durability, retries — call for a real async/distributed pub-sub (a message broker or queue), not this. On the client, reactive UI state is a signal, not a pub-sub message.
+**Events — injected like any port.** Notification goes through a typed pub-sub (fire-and-forget). Unlike the logger, a pub-sub is a behavioral dependency, so it's injected from the composition root: the owner holds it as a private `pubSub` field (the idiomatic name) and exposes a domain verb pair per channel — bound `onStateChanged`/`offStateChanged` fields typed `ChannelSubscriber<Payload>` that call `pubSub.subscribe`/`unsubscribe` directly (the handler infers as `ChannelHandler<Payload>`) — so consumers call `owner.onStateChanged(handler)` and never import the pub-sub. Two independent questions decide its use. *Coupling* — should this notification be decoupled into an event at all? Cross-slice, yes; within a slice a fixed 1:1 call is simpler, so don't. *Mechanism* — when you have dynamic **1:N fan-out** (one source emitting to a set of subscribers that varies at runtime — e.g. a service feeding several SSE streams), that shape *is* pub/sub: reach for the pub-sub even intra-slice and even at the first site, rather than hand-rolling a listener `Set` + notify loop that re-implements subscribe/unsubscribe/fan-out the primitive already gives you, typed. A ready-to-go typed pub-sub ships in [PubSub.ts](PubSub.ts): `PubSub<ChannelMap>`, keyed by a channel map that declares each channel as a `ChannelHandler<Payload>` (the `(payload) => void` callback). To use it, **vendor the slice you need** into the project's `shared`, adapting the `Logger` seam (wire your logger, or drop the logging where there is none) — a no-dead-code/coverage gate rejects a wholesale copy. Head the vendored file with a provenance line (source repo + commit) so the next propagation diffs against a known base rather than re-deriving the trim. Trickier needs — asynchronous handlers, cross-process or cross-tab delivery, durability, retries — call for a real async/distributed pub-sub (a message broker or queue), not this. On the client, reactive UI state is a signal, not a pub-sub message.
 
 ## Decision guides
 

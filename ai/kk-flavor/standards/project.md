@@ -2,7 +2,7 @@
 
 **Applying this document:** follow it on a new project or one that already does; otherwise match the project's existing setup.
 
-Starter configs: [`templates/`](~/.claude/templates/) — match them closely: drop what a project doesn't need, don't add what a template deliberately omits (a Taskfile's `desc`/`deps`, etc.), and diverge only on a command no template covers. Their comments note file-specific intent, not these guidelines.
+Starter configs: [`templates/`](../templates/) — match them closely: drop what a project doesn't need, don't add what a template deliberately omits (a Taskfile's `desc`/`deps`, etc.), and diverge only on a command no template covers. Their comments note file-specific intent, not these guidelines.
 
 ## Environments
 
@@ -40,7 +40,7 @@ Same names on every stack. Prefer the built-in runner (npm/bun scripts); reach f
 | `start` / `start:dev` | the built long-running service (fails if not built) / the dev loop — compile + watch |
 | `exec` / `exec:dev` | the built one-shot tool, e.g. a CLI / the same from source via tsx |
 | `build` / `build:<env>` | prefer one env-agnostic build; bake per environment with `build:<env>` only where the artifact can't take env at run time — e.g. a chrome extension |
-| `test` / `test:<level>` | the test suites — see [testing.md](~/.claude/testing.md) |
+| `test` / `test:<level>` | the test suites — see [testing.md](testing.md) |
 | `lint` / `lint:fix` | every linter / every linter's fix |
 | `lint:<type>` / `lint:<type>:fix` | one linter — `lint:eslint`, `lint:stylelint`, … |
 
@@ -79,4 +79,4 @@ Schema changes are versioned SQL files an idempotent tool applies — forward-on
 
 ## Repo files
 
-Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore` — some have starters in [`templates/`](~/.claude/templates/).
+Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore` — some have starters in [`templates/`](../templates/).

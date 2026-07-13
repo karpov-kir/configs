@@ -1,0 +1,27 @@
+# kk-flavor configuration — single source for skill wiring.
+#
+# Skills reference each other and their standards by the logical names below,
+# not by hardcoded skill names. To swap a skill, repoint its role here; to turn
+# an idsd-ship stage off, set its pipeline flag to false. The defaults reproduce
+# the flavor's built-in behavior, so an untouched config changes nothing.
+# (The standards live in ./standards, routed by ./inject.md.)
+
+# Role -> skill name. Only listed where a cross-reference name differs from the
+# skill that fills it: the tailored quality skills carry a kk- prefix, so a skill
+# that defers to "refactor"/"review"/etc. resolves the real name here. Everything
+# unlisted — the idsd-* suite, and self-named skills like verify/simplify — is
+# referenced by its own name directly. Repoint a value to substitute your own skill.
+roles:
+  code-review: kk-code-review
+  security-review: kk-security-review
+  refactor: kk-refactor
+  tighten: kk-tighten
+
+# idsd-ship stage switches. A stage set to false is skipped — idsd-ship neither
+# spawns it nor records its absence as a gap. build, code-review, and the final
+# gate are not listed: they are structural and always run.
+pipeline:
+  security-review: true
+  refactor: true
+  tighten: true
+  retro: true

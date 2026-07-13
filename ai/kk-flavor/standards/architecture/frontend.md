@@ -1,6 +1,6 @@
 # Frontend Architecture
 
-Frontend / UI flavor of [core.md](~/.claude/architecture/core.md) — read it first for the shared core. This file is the frontend's flavor of each shared section, plus a few UI-only ones; it restates no principle and never references its sibling doc.
+Frontend / UI flavor of [core.md](core.md) — read it first for the shared core. This file is the frontend's flavor of each shared section, plus a few UI-only ones; it restates no principle and never references its sibling doc.
 
 ## Folder layout
 
@@ -71,7 +71,7 @@ The UI holds long-lived client state — two kinds, kept apart:
 
 ## Promotion — where a component lives
 
-Start scoped, promote on reuse — the CLAUDE.md duplication rule (tolerate 1–2 sites, extract on the 3rd) for UI:
+Start scoped, promote on reuse — the [code-style.md](../code-style.md) duplication rule (tolerate 1–2 sites, extract on the 3rd) for UI:
 
 1. **In its entrypoint** — used by one surface, lives there (e.g. `popup/ScreenshotCard.tsx`).
 2. **→ `features/`** — a 2nd entrypoint needs the same slice; promote logic + components + API access together.

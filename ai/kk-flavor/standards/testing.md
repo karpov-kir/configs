@@ -58,7 +58,7 @@ One script per level, each with its own config file, matched by filename suffix:
 
 ## 3. The anti-mock toolkit
 
-Ports and the composition root are reused production patterns ([core.md](~/.claude/architecture/core.md)); fakes, drivers, builders, and object mothers are test constructs.
+Ports and the composition root are reused production patterns ([core.md](architecture/core.md)); fakes, drivers, builders, and object mothers are test constructs.
 
 ### 3.1 Ports
 
@@ -99,7 +99,7 @@ driver.register(mother.defaultUser())
 assert driver.shownProfileName() == "John Doe"
 ```
 
-Reach for a driver only when no abstraction exists; when one does — say an `ApiClient` with `signUp`/`signIn` ([CLAUDE.md](~/.claude/CLAUDE.md) → Abstraction) — use it directly.
+Reach for a driver only when no abstraction exists; when one does — say an `ApiClient` with `signUp`/`signIn` ([code-style.md](code-style.md) → Abstraction) — use it directly.
 
 ### 3.4 Composition root
 

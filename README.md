@@ -3,27 +3,9 @@
 Config files for the tools I use:
 
 - [Claude Code](https://code.claude.com)
-  - `ln -s ~/Documents/WP/configs/claude/CLAUDE.md ~/.claude/CLAUDE.md`
-  - `ln -s ~/Documents/WP/configs/claude/testing.md ~/.claude/testing.md`
-  - `ln -s ~/Documents/WP/configs/claude/architecture ~/.claude/architecture`
-  - `ln -s ~/Documents/WP/configs/claude/project.md ~/.claude/project.md`
-  - `ln -s ~/Documents/WP/configs/claude/templates ~/.claude/templates`
-  - `ln -s ~/Documents/WP/configs/claude/git.md ~/.claude/git.md`
-  - `mkdir -p ~/.claude/skills`
-  - `ln -s ~/Documents/WP/configs/ai-skills/refactor ~/.claude/skills/refactor`
-  - `ln -s ~/Documents/WP/configs/ai-skills/tighten ~/.claude/skills/tighten`
-  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-audit ~/.claude/skills/idsd-audit`
-  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-build ~/.claude/skills/idsd-build`
-  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-charter ~/.claude/skills/idsd-charter`
-  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-constitution ~/.claude/skills/idsd-constitution`
-  - `ln -s ~/Documents/WP/configs/ai-skills/idsd-intent ~/.claude/skills/idsd-intent`
-  - `ln -s ~/Documents/WP/configs/ai-skills/explainer-graphic ~/.claude/skills/explainer-graphic`
-  - `ln -s ~/Documents/WP/configs/ai-skills/grill-me ~/.claude/skills/grill-me`
-  - `ln -s ~/Documents/WP/configs/ai-skills/learning-path-generator ~/.claude/skills/learning-path-generator`
-  - `ln -s ~/Documents/WP/configs/ai-skills/market-competitors ~/.claude/skills/market-competitors`
-  - `ln -s ~/Documents/WP/configs/ai-skills/quick-research ~/.claude/skills/quick-research`
-  - `ln -s ~/Documents/WP/configs/ai-skills/quick-spec ~/.claude/skills/quick-spec`
-  - `ln -s ~/Documents/WP/configs/ai-skills/workflow-visualizer ~/.claude/skills/workflow-visualizer`
+  - `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
+  - Mount the kk-flavor bucket (standards, config, and templates the skills read): `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
+  - Install the skills (each is a dir under `ai/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/skills/*/; do ln -sfn "$d" ~/.claude/skills/; done`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
