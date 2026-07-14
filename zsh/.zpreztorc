@@ -22,6 +22,12 @@ zstyle ':prezto:load' pmodule \
 # NOTE: prompt is rendered by Starship (https://starship.rs), so the Prezto
 # `prompt` module is intentionally not loaded here.
 
+# utility module: disable the default `-i` safety aliases on cp/mv/rm/ln. `-i` prompts even
+# in non-interactive shells (e.g. tooling snapshots), where it silently no-ops a copy and can
+# leave a paired `rm` to delete the source. The opt-in `cpi`/`mvi`/`rmi`/`lni` variants stay
+# available for when an interactive confirm is actually wanted.
+zstyle ':prezto:module:utility' safe-ops 'no'
+
 # Set syntax highlighters.
 # By default, only the main highlighter is enabled.
 zstyle ':prezto:module:syntax-highlighting' highlighters \
