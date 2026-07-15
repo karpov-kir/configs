@@ -9,6 +9,8 @@
 #   carry            print prior open `- [ ]` (with their section) so re-qualify loses none
 #   check-ignore     keep the report out of the fingerprint by the mechanism that fits the mode
 #   promote          throwaway → committed: stop excluding .idsd/, ignore report via .gitignore, stage
+#   discard          throwaway only: remove this ship's local scratch (report + intent file), and the
+#                    whole .idsd/ + its local exclusion when nothing else remains — for `done` cleanup
 #   state            print the `continue` routing token: no-report|resume|re-qualify|decide|ready|done
 #
 # committed vs throwaway (the mode): a repo that has *committed* .idsd/ content durably uses idsd —
@@ -44,6 +46,31 @@ exclude_path() {
   local p
   p=$(git -C "$root" rev-parse --git-path info/exclude)
   case "$p" in /*) echo "$p" ;; *) echo "$root/$p" ;; esac
+}
+
+# This ship's intent slug — the first whitespace-delimited token of the report's `intent:` line,
+# guarded to the slug charset. Prints nothing when the intent is a standalone `review:` (no slug) or
+# holds any char outside the set (notably `/`), so a slug can never `../`-escape a path it indexes.
+# Single source for both `state`'s archive probe and `discard`'s intent-file removal.
+intent_slug() {
+  local intent slug
+  intent=$(grep -m1 '^intent:' "$report" 2>/dev/null | sed -e 's/^intent:[[:space:]]*//' -e 's/^"//' -e 's/"$//')
+  slug=${intent%%[[:space:]]*}
+  case "$slug" in
+    review:* | "" | *[!0-9A-Za-z._-]*) ;;
+    *) echo "$slug" ;;
+  esac
+}
+
+# Stop excluding .idsd/ locally: drop the whole-line entry from .git/info/exclude (a no-op if absent).
+# Shared by `promote` (going durable) and `discard` (removing the scratch dir).
+drop_local_exclusion() {
+  local exclude tmp
+  exclude=$(exclude_path)
+  [ -f "$exclude" ] || return 0
+  tmp=$(mktemp)
+  grep -vxF '.idsd/' "$exclude" >"$tmp" 2>/dev/null || true
+  mv "$tmp" "$exclude"
 }
 
 require_report() {
@@ -155,16 +182,38 @@ case "${1:-}" in
       echo "already committed — .idsd/ is tracked; nothing to promote"
       exit 0
     fi
-    exclude=$(exclude_path)
-    if [ -f "$exclude" ]; then
-      tmp=$(mktemp)
-      grep -vxF '.idsd/' "$exclude" >"$tmp" 2>/dev/null || true
-      mv "$tmp" "$exclude"
-    fi
+    drop_local_exclusion
     gitignore="$root/.gitignore"
     grep -qxF '.idsd/ship-report.md' "$gitignore" 2>/dev/null || printf '.idsd/ship-report.md\n' >>"$gitignore"
     git -C "$root" add .idsd .gitignore
     echo "promoted: .idsd/ staged, report ignored via .gitignore — commit when ready (not committed here)"
+    ;;
+
+  discard)
+    require_report
+    # throwaway-only cleanup, run by `done` after the code has landed: a throwaway run promises zero
+    # traces, but `done` would otherwise leave the report + archived intent behind. Committed repos keep
+    # .idsd/ as their durable record, so refuse there.
+    if [ "$(mode)" = committed ]; then
+      echo "committed idsd repo — .idsd/ is the durable record; nothing to discard" >&2
+      exit 2
+    fi
+    # Remove only this ship's intent file (both pre- and post-archive locations); a standalone
+    # `review:` intent has no slug and no file to remove.
+    slug=$(intent_slug)
+    [ -n "$slug" ] && rm -f "$root/.idsd/intents/$slug.md" "$root/.idsd/archive/$slug.md"
+    rm -f "$report"
+    # If no intents remain in either location, this ship was the last occupant — remove the whole
+    # scratch dir (regenerable roadmap and OS junk with it) and stop excluding it, leaving the repo
+    # pristine. Checking the intent dirs, not the .idsd/ root, avoids a stray dotfile falsely keeping it.
+    rmdir "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null || true
+    if [ -z "$(ls -A "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null)" ]; then
+      rm -rf "$root/.idsd"
+      drop_local_exclusion
+      echo "discarded: removed .idsd/ scratch and its local exclusion (throwaway, zero traces)"
+    else
+      echo "discarded: removed this ship's report + intent; kept .idsd/ (other intents remain)"
+    fi
     ;;
 
   state)
@@ -175,24 +224,13 @@ case "${1:-}" in
       echo "no-report"
       exit 0
     fi
-    intent=$(grep -m1 '^intent:' "$report" 2>/dev/null | sed -e 's/^intent:[[:space:]]*//' -e 's/^"//' -e 's/"$//')
-    case "$intent" in
-      review:*) ;; # a standalone review has no merge/archive target — never reaches `done`
-      *)
-        slug=${intent%%[[:space:]]*}
-        # Guard the slug before it indexes a path: reject empty or any char outside the slug set
-        # (notably `/`), so an attacker-influenced intent can't `../`-escape the archive probe.
-        case "$slug" in
-          "" | *[!0-9A-Za-z._-]*) ;;
-          *)
-            if [ -f "$root/.idsd/archive/$slug.md" ]; then
-              echo "done"
-              exit 0
-            fi
-            ;;
-        esac
-        ;;
-    esac
+    # A built intent's file has been moved to archive/ (a standalone `review:` has no slug, so
+    # intent_slug is empty and this is skipped — it never reaches `done`).
+    slug=$(intent_slug)
+    if [ -n "$slug" ] && [ -f "$root/.idsd/archive/$slug.md" ]; then
+      echo "done"
+      exit 0
+    fi
     reviewed=$(reviewed_tree)
     case "$reviewed" in
       "" | "<hash>") # never stamped → quality stages haven't completed
@@ -212,7 +250,7 @@ case "${1:-}" in
     ;;
 
   *)
-    echo "usage: report.sh {init <intent>|mode|stamp|gate|carry|check-ignore|promote|state}" >&2
+    echo "usage: report.sh {init <intent>|mode|stamp|gate|carry|check-ignore|promote|discard|state}" >&2
     exit 2
     ;;
 esac

@@ -65,6 +65,8 @@ Gate message                │
 
 **Promoting a throwaway run.** When the human wants to keep a single-shot `.idsd/`, `report.sh promote` converts it: drop the local exclusion, add the shared `.gitignore` entry, stage `.idsd/` (report excluded) — then the human commits. It never commits on its own. A pure `qualify` with no intents has nothing durable to promote (only the report, which is never committed) — say so rather than promoting an empty `.idsd/`.
 
+**Discarding a throwaway run.** The counterpart to promote, run by `done` (see **`done` — merge**): `report.sh discard` removes this ship's local scratch — the report and its intent file — and, when nothing else remains in `.idsd/`, the whole directory plus its local exclusion, so the repo is pristine. Throwaway-only (refuses in committed mode, where `.idsd/` is the durable record); slug-scoped, so a `.idsd/` holding other intents keeps them.
+
 ### Structure
 
 ```markdown
@@ -135,7 +137,7 @@ It must **not** contain: per-stage results or verdicts ("code-review clean", "ti
 
 For `qualify` mode without an intent, omit the `done` option — there is no merge step. Instead: "Review the diff and the report. If you make changes, run `/idsd-ship qualify` again."
 
-**Throwaway notice.** In throwaway mode (`report.sh mode` → `throwaway`), add **one line** to the status: `.idsd/` is local scratch this run (excluded, nothing committed, zero traces) — `/idsd-ship promote` to keep it, else it stays local-only. Never promote or commit `.idsd/` unless the human asks. (The full mechanism lives in *Report*, not the chat.)
+**Throwaway notice.** In throwaway mode (`report.sh mode` → `throwaway`), add **one line** to the status: `.idsd/` is local scratch this run (excluded, nothing committed, zero traces) — `/idsd-ship promote` to keep it, else `done` will offer to clear it and it stays local-only otherwise. Never promote or commit `.idsd/` unless the human asks. (The full mechanism lives in *Report*, not the chat.)
 
 **Dogfooding that turns into a redesign.** The gate-message loop (`qualify` → edit → `qualify`) is for *refinements* that keep the intent's contract. When the human's hands-on use instead reshapes that contract — a different presentation, a reworked surface, a new sub-feature — it's a **re-scope, not an open edit session**: amend the ICE via `idsd-intent` first so the new shape is recorded, then commit the reviewed state as a checkpoint *before* the rework starts, so the redesign lands as its own distinct change set. Skip the checkpoint commit and the reviewed work and the rework fuse into one diff that can no longer be split.
 
@@ -160,6 +162,7 @@ On `/idsd-ship done`:
 
 1. **Gate.** Run `scripts/report.sh gate` (in the skill dir). It exits non-zero on either a **stale tree** (current `git write-tree` ≠ `reviewed-tree`) or **any open `- [ ]`**, printing which block(s) fired. A freshness-only block the human may explicitly override (then proceed). An open-TODO block has **no override** — the human clears each first: resolve it (do it, then check or delete the box) or route it out of the report (to the ICE `## Follow-ups`, a backlog, a constitution proposal). Watch bullets don't gate.
 2. On a clean gate — or freshness overridden with no open `- [ ]` — hand to `idsd-build`'s Phase 5: `status: built`, archive, roadmap, commit (which asks first). The pipeline never commits on its own.
+3. **Throwaway cleanup.** In throwaway mode (`report.sh mode` → `throwaway`), the local `.idsd/` scratch — the report, plus the intent Phase 5 just archived — is the one thing that outlives the ship, breaking the mode's zero-traces contract. So **after** the commit succeeds (only then — never lose the intent while the work is unlanded), **ask** the human whether to clear it (default yes): on yes run `scripts/report.sh discard` (mechanism in *Report*), on no leave it. Committed mode keeps `.idsd/` as its durable record — no cleanup; keeping a throwaway `.idsd/` instead is what `promote` (before `done`) is for.
 
 ## Parallel execution
 
