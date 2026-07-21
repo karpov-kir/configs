@@ -8,9 +8,6 @@ export PATH="/Users/kirill/.bun/bin:$PATH"
 # E.g. Claude Code native installation is here
 export PATH="$HOME/.local/bin:$PATH"
 
-# Expose LSP servers installed by Mason so Claude can use them for code analysis and completion
-export PATH="$HOME/.local/share/nvim/mason/bin:$PATH"
-
 # Shared local dev infra (one Traefik + Postgres for every service); task start:dev routes + creates its DB through it
 export DEV_INFRA="$HOME/Documents/WP/dev-infra"
 
@@ -42,13 +39,6 @@ bindkey -M menuselect  '^[[C'  .forward-char  '^[OC'  .forward-char
 
 # Go access to private repos
 export GOPRIVATE=github.com
-
-# Add AWS MFA bash snippet alias
-# https://bitmovin.atlassian.net/wiki/spaces/DEVOPS/pages/1607696505/AWS+MFA+Setup
-if [[ -r "$HOME/Documents/Other/bin/aws-mfa-cli.sh" ]]; 
-then
-  alias aws-mfa-cli="source ~/Documents/Other/bin/aws-mfa-cli.sh"
-fi
 
 # Add Go binaries to PATH
 export PATH=$PATH:$(go env GOPATH)/bin
