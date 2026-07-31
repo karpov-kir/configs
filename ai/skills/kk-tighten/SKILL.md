@@ -12,13 +12,14 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`, losslessly: cut 
 
 **The invariant — lossless on substance and clarity.** Cut only what's recoverable from surrounding context: adjacent text, the code it documents, types, sibling artifacts, the diff. Never drop a rule, fact, constraint, or example carrying unique information. Some redundancy earns its keep — a rule restated at its point of use, a safety-critical repeat, an example that speeds comprehension; that's signal, not filler. A cut wins only when it nets positive for the reader (AI and human) — never trade real clarity for a few tokens. Unsure a cut loses meaning → keep it.
 
-**Caller.** You run either standalone (the user is your caller) or spawned by an orchestrator with no interactive user. Every "ask" / "confirm" below resolves to *ask your caller*: interactive → ask directly; spawned → don't apply, return the proposal (or `blocked: <what you need>`) and stop. Never edit a sibling outside the resolved list, or stop without resolution, just because you can't ask.
+**Outward text needs more than lossless.** When a resolved artifact's audience is a person reading communication (the set `~/.kk-flavor/standards/human-writing.md` defines — PR/ticket text, chat, email, …), lossless tightening is necessary but not sufficient: after your pass, hand it to the `humanize` role (`~/.kk-flavor/config.yaml`) for voice, AI-tell scrubbing, and the lossy reader-action budget — interactive → invoke it; spawned → note the handoff in your return instead.
+
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`; deltas below.
 
 ## Setup (once)
 
-- Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context), then read the writing standard it routes you to (`standards/writing.md`) — what you tighten against.
-- Resolve the artifact list from `$ARGUMENTS`: a path or directory (recursively glob prose + commented source); **staged** / **unstaged** / **all changed** → `git diff --name-only` with `--cached` / nothing / `HEAD`; **whole project** → every doc and commented source under the root.
-- Skip deleted files; for a rename use the new path. Save the list to TodoWrite — the queue. It grows only by appending a sibling pulled in to absorb a duplication; never drop a queued artifact.
+- Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context), then read the skill protocol (above) and the writing standard the flavor routes you to (`standards/writing.md`) — what you tighten against.
+- Resolve the artifact list from `$ARGUMENTS`: a path or directory (recursively glob prose + commented source), a git scope (per the protocol), or **whole project** — every doc and commented source under the root. Queue it per the protocol; the one append source here is a sibling pulled in to absorb a duplication.
 
 ## The lens
 
@@ -34,16 +35,11 @@ Check every artifact against all five:
 
 Judge each artifact in context, never in isolation. For every non-trivial claim, scan its siblings — other skills in the dir, other sections of the same standard, the docs it links — for the same claim stated elsewhere. Editing a sibling to absorb a duplication is in scope: append it to the queue; if it's outside the resolved list, describe the change and confirm first.
 
-## Loop
+## Loop deltas
 
-- One artifact per message; read it in full each time (re-read after editing).
-- Apply cuts directly — tightening is routine; the one exception is the substance invariant — flag a doubtful cut instead of guessing.
-- Order per message: read, cut, then the verdict last.
-- Safety stop: if an issue resists three passes, emit `WARN` and ask.
-- If an artifact passes, move on; if it warns, the next message re-reads it from scratch and retries.
-- Once every artifact is `OK`, run one final sweep with the same rules. An artifact that warns in the sweep retries per the rule above; passing artifacts stay passed. The loop ends when a complete sweep produces zero warnings.
+- Apply cuts directly — tightening is routine; the one exception is the substance invariant: flag a doubtful cut for your caller instead of guessing.
 
-## Verdict (the last thing in the message)
+## Verdict
 
 - Pass: `Artifact N/M <path> | <lines>L | OK`
 - Fail:
@@ -51,11 +47,3 @@ Judge each artifact in context, never in isolation. For every non-trivial claim,
   Artifact N/M <path> | <lines>L | WARN
   <each redundancy / inferable / closed-taxonomy / contradiction — one line>
   ```
-
-`M` is the current queue length (grows as you append siblings). The verdict describes the state before your edits.
-
-## Do not
-
-- Reword for taste — change only what a lens item flags.
-- Manufacture cuts — `OK` with no edits is correct when nothing earns removal.
-- Echo the queue, write transition filler, or merge artifacts into one verdict.
