@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Open-TODO gate — scan a markdown file for unchecked `- [ ]`, fence/comment-aware so an
 # example checkbox never reads as a real TODO. Prints each open item (with its `## Section`)
-# and exits 1 if any are found, 0 if none. The one scanner both idsd gates rely on:
-# idsd-ship's report gate (`report.sh`) and idsd-build's Phase 5 archive gate.
+# and exits 1 if any are found, 0 if none. The one scanner both gates rely on:
+# the qualify report gate (`report.sh`) and idsd-build's Phase 5 archive gate.
 set -uo pipefail
 
 file="${1:-}"
@@ -16,11 +16,11 @@ file="${1:-}"
 }
 
 found=$(awk '
-  /^[[:space:]]*```/ || /^[[:space:]]*~~~/ { fence = !fence; next }
-  fence { next }
-  /<!--/ { incomment = 1 }
-  incomment { if (/-->/) { incomment = 0 } next }
-  /^## / { section = $0; next }
+  /^[[:space:]]*```/ || /^[[:space:]]*~~~/ { in_fence = !in_fence; next }
+  in_fence { next }
+  /<!--/ { in_comment = 1 }
+  in_comment { if (/-->/) { in_comment = 0 } next }
+  /^#+ / { section = $0; next }
   /^[[:space:]]*- \[ \]/ { line = $0; sub(/^[[:space:]]*/, "", line); print section " | " line }
 ' "$file")
 

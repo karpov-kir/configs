@@ -1,6 +1,6 @@
 ---
 name: idsd-retro
-description: Adversarial retrospective on how a run was conducted — a fresh agent reads a factual run-log plus the diff and touched files, and surfaces where agents drifted from intent, lane, or docs, what a stage missed, what was avoidable friction, and (when the run changed its own tooling) whether that tooling is sound. Returns bounded, routed, evidence-backed findings. Use standalone to reflect on a run, or spawned by idsd-ship's Retro stage.
+description: Adversarial retrospective on how a run was conducted — a fresh agent reads a factual run-log plus the diff and touched files, and surfaces where agents drifted from intent, lane, or docs, what a stage missed, what was avoidable friction, and (when the run changed its own tooling) whether that tooling is sound. Returns bounded, routed, evidence-backed findings. Use standalone to reflect on a run, or spawned by idsd-qualify's Retro stage.
 argument-hint: "path to a run-log, or the run/session to reflect on"
 ---
 
@@ -10,7 +10,7 @@ Look back at **how a run was conducted** — not at the change it produced (revi
 
 ## Input
 
-- A **factual run-log** — what was asked, what each stage/step did, where the human corrected course, what was deferred. Decisions and events only, no self-assessment. A caller (e.g. idsd-ship) writes it; standalone, reconstruct it tersely from the session and `git` first.
+- A **factual run-log** — what was asked, what each stage/step did, where the human corrected course, what was deferred. Decisions and events only, no self-assessment. A caller (e.g. idsd-qualify) writes it; standalone, reconstruct it tersely from the session and `git` first.
 - The **diff**, and any **skill / doc / prompt / script the run touched**.
 
 ## Lenses

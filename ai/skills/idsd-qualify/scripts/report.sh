@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
-# idsd-ship report tool — the deterministic gates the skill must not execute by hand.
+# Qualify report tool — the deterministic gates the skills must not execute by hand. Owned by
+# idsd-qualify (which writes the report); idsd-ship calls it too (gate/state/promote/discard).
 # The report always lives at .idsd/ship-report.md. Portable: bash + git + awk/sed,
 # no project runtime. Subcommands:
 #   init "<intent>"  scaffold .idsd/ + the report from the template, stamping its intent line
-#   mode             print committed|throwaway — is .idsd/ tracked in git?
-#   stamp            compute the tree fingerprint and write it to reviewed-tree
-#   gate             done-blocker: stale tree OR any open `- [ ]` → non-zero + reasons
+#   repo-mode        print committed|throwaway — is .idsd/ tracked in git?
+#   stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
+#                    reviewed-stages — every pipeline stage, bare (ran) or `:skipped(reason)` /
+#                    `refactor:partial(reason)`; any `(fast)` reason marks the pass not-full
+#   gate             done-blocker: stale tree OR turnaround-trimmed stages OR any open `- [ ]`
+#                    → non-zero + reasons
 #   carry            print prior open `- [ ]` (with their section) so re-qualify loses none
-#   check-ignore     keep the report out of the fingerprint by the mechanism that fits the mode
+#   check-ignore     keep the report out of the fingerprint by the mechanism that fits the repo mode
 #   promote          throwaway → committed: stop excluding .idsd/, ignore report via .gitignore, stage
 #   discard          throwaway only: remove this ship's local scratch (report + intent file), and the
 #                    whole .idsd/ + its local exclusion when nothing else remains — for `done` cleanup
-#   state            print the `continue` routing token: no-report|resume|re-qualify|decide|ready|done
+#   state            print the `continue` routing token:
+#                    no-report|resume|re-qualify|decide|finalize|ready|done
 #
-# committed vs throwaway (the mode): a repo that has *committed* .idsd/ content durably uses idsd —
-# the report is ignored via a shared, tracked .gitignore entry and .idsd/ changes get committed. A repo
-# with no .idsd/, or an untracked one a single-shot run created, is throwaway — the whole .idsd/ (intents
-# + report) is excluded locally via .git/info/exclude, leaving zero traces and never touching .gitignore.
+# Repo mode, short version: committed = .idsd/ has tracked content (report ignored via a shared
+# .gitignore entry); throwaway = whole .idsd/ excluded via .git/info/exclude, zero traces. The full
+# contract lives in idsd-qualify's SKILL.md → Report — the owner; this header is just the map.
 #
 # Open-`- [ ]` scanning is a separate concern, owned by sibling `todo-gate.sh` (shared with
 # idsd-build); gate and carry delegate to it. This script only preserves and gates;
@@ -33,7 +37,7 @@ template="$skill_dir/templates/ship-report-template.md"
 todo_gate="$(cd "$(dirname "$0")" && pwd)/todo-gate.sh"
 
 # committed when .idsd/ has any tracked file; throwaway otherwise (absent, or untracked scratch).
-mode() {
+repo_mode() {
   if [ -n "$(git -C "$root" ls-files .idsd 2>/dev/null)" ]; then
     echo committed
   else
@@ -43,9 +47,9 @@ mode() {
 
 # Absolute path to .git/info/exclude (git-path is repo-relative for a normal repo).
 exclude_path() {
-  local p
-  p=$(git -C "$root" rev-parse --git-path info/exclude)
-  case "$p" in /*) echo "$p" ;; *) echo "$root/$p" ;; esac
+  local path
+  path=$(git -C "$root" rev-parse --git-path info/exclude)
+  case "$path" in /*) echo "$path" ;; *) echo "$root/$path" ;; esac
 }
 
 # This ship's intent slug — the first whitespace-delimited token of the report's `intent:` line,
@@ -80,27 +84,43 @@ require_report() {
   }
 }
 
-# git add -A && git write-tree — the fingerprint the freshness gate compares. Matches the
-# index to the working tree as a side effect (same as the skill's prior manual step).
+# git add -A && git write-tree against a throwaway index — the fingerprint the freshness gate
+# compares. Never touches the human's staging area (a polluted real index once carried ~19k lines
+# of stray browser debris into a stamp).
 current_tree() {
-  git -C "$root" add -A
-  git -C "$root" write-tree
+  local tmp_index tree=""
+  tmp_index=$(mktemp) && rm -f "$tmp_index"
+  GIT_INDEX_FILE="$tmp_index" git -C "$root" add -A &&
+    tree=$(GIT_INDEX_FILE="$tmp_index" git -C "$root" write-tree)
+  rm -f "$tmp_index"
+  echo "$tree"
 }
 
 reviewed_tree() {
   grep -m1 '^reviewed-tree:' "$report" 2>/dev/null | sed 's/^reviewed-tree:[[:space:]]*//'
 }
 
+# Stage entries of the last stamp (comma-separated). Empty when never stamped with stages —
+# callers treat that as not-full (covers reports predating the stage record).
+reviewed_stages() {
+  grep -m1 '^reviewed-stages:' "$report" 2>/dev/null | sed 's/^reviewed-stages:[[:space:]]*//'
+}
+
+# Entries the last stamp marked `(fast)` — stages trimmed for turnaround. Non-empty ⇒ not a full pass.
+fast_trims() {
+  reviewed_stages | tr ',' '\n' | grep '(fast)' | tr '\n' ' ' | sed 's/ $//'
+}
+
 case "${1:-}" in
   init)
-    intent_val="${2:-}"
-    [ -n "$intent_val" ] || {
+    intent_value="${2:-}"
+    [ -n "$intent_value" ] || {
       echo "usage: report.sh init \"<intent frontmatter value>\"" >&2
       exit 2
     }
     # Frontmatter is single-line: collapse any CR/LF so the value can't inject extra frontmatter
     # lines (e.g. a forged reviewed-tree) — matters now the intent may be seeded from a fetched ticket.
-    intent_val=${intent_val//[$'\n\r']/ }
+    intent_value=${intent_value//[$'\n\r']/ }
     [ -f "$template" ] || {
       echo "error: template not found ($template)" >&2
       exit 2
@@ -109,25 +129,57 @@ case "${1:-}" in
     cp "$template" "$report"
     tmp=$(mktemp)
     # Pass via ENVIRON, not -v: awk's -v processes C escapes, so a backslash in the value would be mangled.
-    intent_val="$intent_val" awk '!done_i && /^intent:/ { print "intent: " ENVIRON["intent_val"]; done_i = 1; next } { print }' "$report" >"$tmp" && mv "$tmp" "$report"
-    echo "initialized $report (mode: $(mode), intent: $intent_val)"
+    intent_value="$intent_value" awk '!replaced && /^intent:/ { print "intent: " ENVIRON["intent_value"]; replaced = 1; next } { print }' "$report" >"$tmp" && mv "$tmp" "$report"
+    echo "initialized $report (repo mode: $(repo_mode), intent: $intent_value)"
     ;;
 
-  mode)
-    mode
+  repo-mode)
+    repo_mode
     ;;
 
   stamp)
     require_report
+    entries="${2:-}"
+    [ -n "$entries" ] || {
+      echo "usage: report.sh stamp \"<stage[,stage:skipped(reason),...]>\" — all of: code-review security-review tighten refactor retro" >&2
+      exit 2
+    }
+    entries=$(printf '%s' "$entries" | tr -d '[:space:]')
+    # Validate: exactly the five pipeline stages, each once. code-review always runs (bare);
+    # refactor runs at least once (bare or :partial(reason)); the rest bare or :skipped(reason).
+    invalid=$(printf '%s\n' "$entries" | tr ',' '\n' | awk '
+      /^code-review$/ { seen["code-review"]++; next }
+      /^refactor(:partial\([a-z0-9-]+\))?$/ { seen["refactor"]++; next }
+      /^(security-review|tighten|retro)(:skipped\([a-z0-9-]+\))?$/ { name = $0; sub(/:.*/, "", name); seen[name]++; next }
+      { print "malformed entry: " $0 }
+      END {
+        split("code-review security-review tighten refactor retro", required, " ")
+        for (i in required) {
+          if (!(required[i] in seen)) print "missing stage: " required[i]
+          else if (seen[required[i]] > 1) print "duplicate stage: " required[i]
+        }
+      }')
+    [ -z "$invalid" ] || {
+      printf 'error: invalid stage record\n%s\n' "$invalid" >&2
+      exit 2
+    }
     grep -q '^reviewed-tree:' "$report" || {
       echo "error: no 'reviewed-tree:' line in frontmatter" >&2
       exit 2
     }
     tree=$(current_tree)
     tmp=$(mktemp)
-    # First match only — the frontmatter line, never a body line that quotes the field.
-    awk -v tree="$tree" '!stamped && /^reviewed-tree:/ { print "reviewed-tree: " tree; stamped = 1; next } { print }' "$report" >"$tmp" && mv "$tmp" "$report"
-    echo "stamped reviewed-tree: $tree"
+    # Rewrite frontmatter only (never a body line quoting a field): refresh reviewed-tree, write
+    # reviewed-stages next to it, retire any reviewed-mode line from before stages subsumed it.
+    entries="$entries" tree="$tree" awk '
+      NR > 1 && /^---[[:space:]]*$/ { in_frontmatter = 0 }
+      in_frontmatter && /^reviewed-mode:/ { next }
+      in_frontmatter && /^reviewed-stages:/ { next }
+      in_frontmatter && /^reviewed-tree:/ { print "reviewed-tree: " ENVIRON["tree"]; print "reviewed-stages: " ENVIRON["entries"]; next }
+      { print }
+      NR == 1 { in_frontmatter = 1 }
+    ' "$report" >"$tmp" && mv "$tmp" "$report"
+    echo "stamped reviewed-tree: $tree (stages: $entries)"
     ;;
 
   gate)
@@ -139,13 +191,22 @@ case "${1:-}" in
       echo "BLOCK (freshness): tree changed since last qualify (current $current != reviewed ${reviewed:-<unstamped>}). Re-qualify, or the human may explicitly override this one." >&2
       blocked=1
     fi
+    stages=$(reviewed_stages)
+    trims=$(fast_trims)
+    if [ -z "$stages" ]; then
+      echo "BLOCK (stages): no reviewed-stages record — run a full qualify (it stamps the stage set), or the human may explicitly override this one." >&2
+      blocked=1
+    elif [ -n "$trims" ]; then
+      echo "BLOCK (stages): trimmed for turnaround ($trims) — run a full qualify before merge, or the human may explicitly override this one." >&2
+      blocked=1
+    fi
     todos=$("$todo_gate" "$report")
     if [ -n "$todos" ]; then
       echo "BLOCK (open TODOs): clear each before merge — no override." >&2
       echo "$todos" >&2
       blocked=1
     fi
-    [ "$blocked" -eq 0 ] && echo "gate clean: tree fresh, no open TODOs"
+    [ "$blocked" -eq 0 ] && echo "gate clean: tree fresh, full qualify, no open TODOs"
     exit "$blocked"
     ;;
 
@@ -155,9 +216,9 @@ case "${1:-}" in
     ;;
 
   check-ignore)
-    require_report
-    # Must run before any fingerprinting `git add -A` (stamp/gate) so nothing scratch is ever staged.
-    if [ "$(mode)" = committed ]; then
+    # Runs before anything else — init included, so it never requires the report to exist — and
+    # before any fingerprinting `git add -A` (stamp/gate), so nothing scratch is ever staged.
+    if [ "$(repo_mode)" = committed ]; then
       # committed idsd repo: the report ignore is shared and committed with the rest of the idsd setup.
       if git -C "$root" check-ignore -q "$report"; then
         echo "ok: report is gitignored (committed idsd repo)"
@@ -178,7 +239,7 @@ case "${1:-}" in
     require_report
     # throwaway → committed: keep .idsd/ durably. Drop the local exclusion, share the report ignore via
     # a tracked .gitignore entry, and stage .idsd/. Never commits — the human/idsd-build owns that.
-    if [ "$(mode)" = committed ]; then
+    if [ "$(repo_mode)" = committed ]; then
       echo "already committed — .idsd/ is tracked; nothing to promote"
       exit 0
     fi
@@ -194,7 +255,7 @@ case "${1:-}" in
     # throwaway-only cleanup, run by `done` after the code has landed: a throwaway run promises zero
     # traces, but `done` would otherwise leave the report + archived intent behind. Committed repos keep
     # .idsd/ as their durable record, so refuse there.
-    if [ "$(mode)" = committed ]; then
+    if [ "$(repo_mode)" = committed ]; then
       echo "committed idsd repo — .idsd/ is the durable record; nothing to discard" >&2
       exit 2
     fi
@@ -209,8 +270,14 @@ case "${1:-}" in
     rmdir "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null || true
     if [ -z "$(ls -A "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null)" ]; then
       rm -rf "$root/.idsd"
-      drop_local_exclusion
-      echo "discarded: removed .idsd/ scratch and its local exclusion (throwaway, zero traces)"
+      # The exclusion lives in the shared .git/info/exclude — every worktree reads it, and a
+      # parallel throwaway ship's .idsd/ must stay excluded. Drop it only from the last worktree.
+      if [ "$(git -C "$root" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" -gt 1 ]; then
+        echo "discarded: removed .idsd/ scratch; kept the shared exclusion (other worktrees exist)"
+      else
+        drop_local_exclusion
+        echo "discarded: removed .idsd/ scratch and its local exclusion (throwaway, zero traces)"
+      fi
     else
       echo "discarded: removed this ship's report + intent; kept .idsd/ (other intents remain)"
     fi
@@ -246,11 +313,15 @@ case "${1:-}" in
       echo "decide" # quality done, tree fresh, open `- [ ]` remain
       exit 0
     fi
-    echo "ready" # quality done, tree fresh, nothing open → merge-ready
+    if [ -z "$(reviewed_stages)" ] || [ -n "$(fast_trims)" ]; then
+      echo "finalize" # stages trimmed (or unrecorded) and fresh, nothing open — a full qualify remains
+      exit 0
+    fi
+    echo "ready" # full-reviewed, tree fresh, nothing open → merge-ready
     ;;
 
   *)
-    echo "usage: report.sh {init <intent>|mode|stamp|gate|carry|check-ignore|promote|discard|state}" >&2
+    echo "usage: report.sh {init <intent>|repo-mode|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|state}" >&2
     exit 2
     ;;
 esac
