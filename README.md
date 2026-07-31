@@ -2,10 +2,20 @@
 
 Config files for the tools I use:
 
+- [ZSH](https://zsh.org)
+  - It's already installed by default on MacOS
+  - [Prezto](https://github.com/sorin-ionescu/prezto)
+    - `git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"`
+    - `rm -f ~/.zpreztorc && ln -s ~/Documents/WP/configs/zsh/.zpreztorc ~/.zpreztorc`
+  - `brew install zsh-autocomplete`
+  - `mkdir -p ~/.zprezto-contrib`
+  - `git clone --depth 1 https://github.com/marlonrichert/zsh-autocomplete ~/.zprezto-contrib/zsh-autocomplete`
+  - `rm -f ~/.zshrc && ln -s ~/Documents/WP/configs/zsh/.zshrc ~/.zshrc`
 - [Claude Code](https://code.claude.com)
   - `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
   - Mount the kk-flavor bucket (standards, config, and templates the skills read): `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
   - Install the skills (each is a dir under `ai/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/skills/*/; do ln -sfn "$d" ~/.claude/skills/; done`
+  - MCP servers: `ai/mcp.json` is the public source of truth; machine-private servers (internal hosts) live beside it in `ai/mcp.private.json` — gitignored, same shape. Claude Code has no global MCP file to symlink, so sync both into the user scope (applies to all projects, CLI + IDE) with `~/Documents/WP/configs/ai/mcp-sync.sh`. Re-run after editing either file. Requires `jq` (`brew install jq`).
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
@@ -27,15 +37,6 @@ Config files for the tools I use:
 - [Zellij](https://zellij.dev)
   - `brew install zellij`
   - `rm -rf ~/.config/zellij && ln -s ~/Documents/WP/configs/zellij ~/.config/zellij`
-- [ZSH](https://zsh.org)
-  - It's already installed by default on MacOS
-  - [Prezto](https://github.com/sorin-ionescu/prezto)
-    - `git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"`
-    - `rm -f ~/.zpreztorc && ln -s ~/Documents/WP/configs/zsh/.zpreztorc ~/.zpreztorc`
-  - `brew install zsh-autocomplete`
-  - `mkdir -p ~/.zprezto-contrib`
-  - `git clone --depth 1 https://github.com/marlonrichert/zsh-autocomplete ~/.zprezto-contrib/zsh-autocomplete`
-  - `rm -f ~/.zshrc && ln -s ~/Documents/WP/configs/zsh/.zshrc ~/.zshrc`
 - [Starship](https://starship.rs) — prompt engine (replaces the Prezto `prompt` module)
   - `brew install starship`
   - `mkdir -p ~/.config`

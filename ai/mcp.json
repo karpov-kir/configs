@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "mise",
+      "args": ["exec", "node@lts", "--", "npx", "-y", "@playwright/mcp"],
+      "env": {}
+    },
+    "amplitude": {
+      "type": "http",
+      "url": "https://mcp.amplitude.com/mcp"
+    }
+  }
+}
