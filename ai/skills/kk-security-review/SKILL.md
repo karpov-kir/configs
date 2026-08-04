@@ -24,6 +24,7 @@ Adapt to the stack — skip classes the target can't have (web items for a CLI, 
 - **Injection** — SQL/NoSQL, OS-command, argument/option, template, path; trace every user-controlled input to its sink, including dynamic queries, shell-outs, and args passed to a process *without* a shell — a value starting with `-` is parsed as a flag (e.g. `git` option injection, up to RCE), so require a `--` separator and reject option-like values.
 - **Auth / session / access** — missing checks on sensitive routes or actions, IDOR, privilege escalation, permissive ACLs or file permissions.
 - **Secret exposure** — secrets in source, weak crypto, PII or credentials in logs, over-broad env propagation to subprocesses (a full environment leaks every parent secret to the child and anything it spawns — helpers, hooks); require a minimal, allow-listed env.
+- **Credential persistence** — tooling that stores credentials as a side effect: git credential helpers (a successful fetch triggers `op=store` to every configured helper), package-manager keychains, CLI token caches. A subprocess handling a shared secret needs them disabled or isolated — the leak outlives the process and its rotation.
 - **Unsafe input** — missing validation at trust boundaries; insecure deserialization (untrusted data into `pickle`/`yaml.load`/custom parsers).
 - **SSRF / path traversal / open redirect** — web and network targets.
 - **Misconfiguration** — debug mode, verbose errors, default or hardcoded credentials.

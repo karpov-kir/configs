@@ -22,9 +22,10 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 Check every changed file against all four; each surfaces candidate findings with the reason flagged:
 
 1. **Standards correctness rules** — violations (in the kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs (bypassed type checks, unchecked assertions, swallowed errors, unhandled absence). Skip style and architecture rules — those are `/refactor`'s. (These are author-time guidance; not every rule applies at review time.)
+   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent (or a required one the schema lets be null), a degenerate value (`0`, `''`, `-1`) that the surrounding default logic reads as present. "Make invalid states unrepresentable" is a `/refactor` rule, but only you hold the fact that decides it — that repeating this call duplicates a row, that the column is `NOT NULL`, that a zero bound abandons the work instantly. Flag the mismatch and say which fact makes it unsafe; leave the shape of the fix to `/refactor` if it is more than narrowing a type.
 2. **Bug scan** — read only the changed lines; flag large, real bugs, skipping nitpicks and likely false positives.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
-4. **Comments** — code comments in the file; flag changes that violate guidance written there.
+4. **Comments** — code comments in the file; flag changes that violate guidance written there, and check each factual claim a comment makes against the code, schema or migration it describes. A comment is a claim, not authority: a false one is itself a finding, and it usually sits directly on top of the defect — a fallback justified by a state the schema no longer allows, a bound described as inherited from something that does not supply it.
 
 Cross-file and interaction bugs: flag on whichever file surfaces them; the final sweep catches the rest.
 
@@ -34,6 +35,7 @@ Surface a finding only when you've verified it's a real bug that will be hit —
 
 - Check every dimension; surface only verified findings, discarding maybes.
 - Apply each surviving finding that is a safe correctness fix (unambiguous, within the changed scope), flagging any that changes behaviour; a finding that needs a human decision (a trade-off, an ambiguous intent, a risky change) goes to your caller.
+- Once a finding is confirmed, grep the interface or module it belongs to for the same shape before moving on, and report what the sweep found — one instance is rarely the only one, and the sweep is how a pre-existing sibling gets surfaced as a note instead of staying invisible.
 - The final sweep hunts cross-file and interaction bugs.
 
 ## Verdict
