@@ -6,7 +6,9 @@ Two failure modes to defend against: text that reads machine-written, and text t
 
 ## Budget — the reader-action test
 
-- A sentence earns its place only if it changes what the reader knows *and* will do or decide. True-but-inert detail gets cut — deliberately **lossy**, unlike `/tighten`. Substance that matters but not to this reader goes to a durable home (ticket, commit body, doc) with a link, or gets dropped.
+The one rule every form in this file instantiates: **name this artifact's reader and the action they'll take; a sentence earns its place only by changing that action.** The sections below write it out for the classes that recur (change descriptions, code comments); any other class — a commit message, a ticket, an announcement — gets its bar from those two questions directly. Write a new form only when a class recurs with a repeated failure mode.
+
+- True-but-inert detail gets cut — deliberately **lossy**, unlike `/tighten`. Substance that matters but not to this reader goes to a durable home (ticket, commit body, doc) with a link, or gets dropped.
 - Lead with the answer or outcome; add evidence only where the reader will verify or push back.
 - One concern per message. A reply addresses what was raised, not everything adjacent you know.
 - Match the asker's altitude: a one-line question earns a short answer, not a briefing.
@@ -39,6 +41,16 @@ A watch-list, not a complete set — the patterns drift as models change. Their 
 - Sycophancy and throat-clearing: "Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up".
 - Hedge frames: "It's important to note", "It's worth noting", "That said"; sentence-initial "Moreover / Furthermore / Additionally".
 - Boilerplate closers: "Let me know if you have any questions", "Please don't hesitate", or a recap of what you just said.
+
+## Change descriptions (PRs)
+
+The reader is a reviewer deciding approve-or-not: a paragraph earns its place only if it could change the verdict or where they look. The shape, in order:
+
+- **What changes and why** — a few sentences, leading with the outcome.
+- **Review focus** — the risky or surprising parts, and each deliberate trade-off a reviewer might push back on.
+- **Verification** — what ran and what it showed: links and counts, not narration.
+
+Findings, measurements, and field observations are run *results*, not review input — their home is the ticket, a doc, or a PR comment, with one link line in the description. A repo's own PR template sections stay, filled per these rules.
 
 ## Code comments
 
