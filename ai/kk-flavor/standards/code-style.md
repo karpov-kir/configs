@@ -19,7 +19,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 
 ## Comments
 
-Follow [writing.md](writing.md). Additionally: prefer clear naming and small functions over explanatory comments (see Abstraction).
+Follow [writing.md](writing.md) and [human-writing.md](human-writing.md)'s comment form — comments are for humans: a constraint, a why, or a warning is what earns a comment its length. Prefer clear naming and small functions over explanatory comments (see Abstraction).
 
 ## Type Safety
 
