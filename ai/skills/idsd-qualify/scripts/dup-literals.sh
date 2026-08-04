@@ -5,15 +5,19 @@
 # runs before the refactor stage and its hits ride the spawn prompt's tool-output slot as evidence.
 #   usage: dup-literals.sh [<git-diff args>]   # defaults to HEAD (all uncommitted changes)
 #   env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
+#          DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
 # Prints each duplicate (count, length, 60-char prefix); exits 1 when any found, 0 when clean.
 # With no diff args, untracked text files are scanned too (they never appear in `git diff HEAD`);
-# the index is never touched.
+# the index is never touched. Untracked files above DUP_MAX_FILE_BYTES are skipped: a file that large is
+# machine-generated (a test-run dump, a coverage report), and its internal repetition says nothing about
+# the change while crowding out the real hits — one run's evidence was three-quarters dump noise.
 set -uo pipefail
 # Byte-level text processing throughout — the C locale keeps tr/sed/awk from choking on
 # stray non-UTF-8 bytes in diffs and fixtures. All patterns here are ASCII.
 export LC_ALL=C
 
 min="${DUP_MIN_LEN:-100}"
+max_file_bytes="${DUP_MAX_FILE_BYTES:-262144}"
 
 {
   git diff "${@:-HEAD}"
@@ -21,8 +25,11 @@ min="${DUP_MIN_LEN:-100}"
     git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
       # Binary = NUL in the first 8KB (BSD grep -I is unreliable here). if-guard, not &&: a
       # skipped file must not fail the loop — pipefail would read that as "found".
-      if [ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd '\000' | wc -c)" -eq 0 ]; then
-        sed 's/^/+/' "./$file"
+      bytes="$(wc -c < "./$file" 2>/dev/null || echo 0)"
+      if [ "$bytes" -le "$max_file_bytes" ] &&
+        [ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd '\000' | wc -c)" -eq 0 ]; then
+        # || true: a file that vanished mid-scan contributes nothing, same as any other skip.
+        sed 's/^/+/' "./$file" 2>/dev/null || true
       fi
     done
   fi

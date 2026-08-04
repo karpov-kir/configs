@@ -35,7 +35,7 @@ standalone:     qualify [fast|full] → gate message → …
 
 ## Report & .idsd lifecycle
 
-The report contract — the path (`.idsd/ship-report.md`), its structure and carry rules, what goes in, the **committed vs throwaway** repo modes, and `scripts/report.sh` — is owned by `idsd-qualify` (see its **Report** section); the script lives in that skill's dir, and every deterministic operation (init, repo-mode, stamp, gate, carry, check-ignore, state, promote, discard) runs through it, never by hand. Ship adds the lifecycle around the report:
+The report contract — the path (`.idsd/ship-report.md`), its structure and carry rules, what goes in, the **committed vs throwaway** repo modes, and `scripts/report.sh` — is owned by `idsd-qualify` (see its **Report** section); the script lives in that skill's dir, and every deterministic operation (init, repo-mode, invalidate, stamp, gate, carry, check-ignore, state, promote, discard) runs through it, never by hand. Ship adds the lifecycle around the report:
 
 **Promoting a throwaway run.** When the human wants to keep a single-shot `.idsd/`: `report.sh promote` converts it and stages the result (mechanics in the script) — then the human commits; it never commits on its own. A standalone qualify with no intents has nothing durable to promote (only the report, which is never committed) — say so rather than promoting an empty `.idsd/`.
 

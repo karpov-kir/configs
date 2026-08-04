@@ -5,6 +5,7 @@
 # no project runtime. Subcommands:
 #   init "<intent>"  scaffold .idsd/ + the report from the template, stamping its intent line
 #   repo-mode        print committed|throwaway — is .idsd/ tracked in git?
+#   invalidate       clear reviewed-tree/reviewed-stages at pass start, so no stamp outlives its tree
 #   stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
 #                    reviewed-stages — every pipeline stage, bare (ran) or `:skipped(reason)` /
 #                    `refactor:partial(reason)`; any `(fast)` reason marks the pass not-full
@@ -193,7 +194,7 @@ case "${1:-}" in
     fi
     stages=$(reviewed_stages)
     trims=$(fast_trims)
-    if [ -z "$stages" ]; then
+    if [ -z "$stages" ] || [ "$stages" = pending ]; then
       echo "BLOCK (stages): no reviewed-stages record — run a full qualify (it stamps the stage set), or the human may explicitly override this one." >&2
       blocked=1
     elif [ -n "$trims" ]; then
@@ -213,6 +214,21 @@ case "${1:-}" in
   carry)
     require_report
     "$todo_gate" "$report" || true
+    ;;
+
+  invalidate)
+    # Clears the stamp at the start of a pass, so a stamp can never outlive the tree it describes —
+    # the merge gate must not read a review state the pass under way has already invalidated.
+    require_report
+    tmp=$(mktemp)
+    awk '
+      NR > 1 && /^---[[:space:]]*$/ { in_frontmatter = 0 }
+      in_frontmatter && /^reviewed-tree:/ { print "reviewed-tree: pending"; next }
+      in_frontmatter && /^reviewed-stages:/ { print "reviewed-stages: pending"; next }
+      { print }
+      NR == 1 { in_frontmatter = 1 }
+    ' "$report" >"$tmp" && mv "$tmp" "$report"
+    echo "invalidated reviewed-tree — restamp when the pass completes"
     ;;
 
   check-ignore)
@@ -300,7 +316,7 @@ case "${1:-}" in
     fi
     reviewed=$(reviewed_tree)
     case "$reviewed" in
-      "" | "<hash>") # never stamped → quality stages haven't completed
+      "" | "<hash>" | pending) # never stamped, or invalidated mid-pass → quality stages haven't completed
         echo "resume"
         exit 0
         ;;
@@ -321,7 +337,7 @@ case "${1:-}" in
     ;;
 
   *)
-    echo "usage: report.sh {init <intent>|repo-mode|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|state}" >&2
+    echo "usage: report.sh {init <intent>|repo-mode|invalidate|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|state}" >&2
     exit 2
     ;;
 esac
