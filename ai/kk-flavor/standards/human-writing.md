@@ -1,6 +1,6 @@
 # Human Writing (outward text)
 
-Rules for text a person reads as communication: PR and ticket descriptions and comments, review replies, commit messages, chat/Slack, email, announcements, README-grade docs. Internal context-window artifacts (skills, standards, prompts, CLAUDE.md) stay on [writing.md](writing.md) house style alone. **Code comments are for humans** — a colleague skimming the code — so all three lens groups apply, with the Budget in **comment form**: a sentence earns its place by changing how the next person reads or edits this code — a constraint, a why, a warning, a non-obvious consequence. **This license is lossy where the `tighten` role's is not**: true, unique content also goes when it fails that bar — incident anecdotes, provenance, secondary rationale, alternatives considered (a commit body or doc is their home when they matter). Default to the shortest comment that still carries the constraint. **Never drop a stated constraint, invariant, or warning** — those are what comments exist for. For outward text — and, in its comment form, for code comments — this file wins on conflict.
+Rules for text a person reads as communication: PR and ticket descriptions and comments, review replies, commit messages, chat/Slack, email, announcements, README-grade docs. Internal context-window artifacts (skills, standards, prompts, CLAUDE.md) stay on [writing.md](writing.md) house style alone. **Code comments** get their own form (**Code comments**, below). For outward text — and, per its comment form, for code comments — this file wins on conflict.
 
 Two failure modes to defend against: text that reads machine-written, and text that says everything it knows. Apply these rules **while writing**; the `humanize` role (config.yaml) retrofits text that already exists.
 
@@ -39,3 +39,13 @@ A watch-list, not a complete set — the patterns drift as models change. Their 
 - Sycophancy and throat-clearing: "Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up".
 - Hedge frames: "It's important to note", "It's worth noting", "That said"; sentence-initial "Moreover / Furthermore / Additionally".
 - Boilerplate closers: "Let me know if you have any questions", "Please don't hesitate", or a recap of what you just said.
+
+## Code comments
+
+Every comment taxes every future reader — it interrupts the skim whether or not it deserved to — so only essential ones stay. The whole-file test: someone reading just the code gets interrupted exactly where the code alone would mislead them, and nowhere else. All three groups above apply, in comment form:
+
+- **First ask whether the comment should exist.** Delete it whole when it narrates what the code says — a doc block's `@param`/`@returns` restating the signature included — when a rename or extraction would carry it (note the rename for the `refactor` role), when it justifies a decision no reader would question, or when a sibling comment or doc block already covers it. `/** Key system families, valued as a player DRM configuration names them */` on `enum DrmSystem` fails twice — the first half narrates the declaration, the second doesn't clear the bar below: delete.
+- **The bar is misread-or-misedit.** A comment earns its lines only where the code would be misread or wrongly edited without it — it looks wrong, arbitrary, or tempting to "fix". A why nobody would question is noise; a warning someone would trip over is the point. This license is lossy where the `tighten` role's is not: true, unique content goes too — anecdotes, provenance, secondary rationale, alternatives considered (a commit body or doc is their home when they matter).
+- **Judge the file, not each comment alone.** In a subtle domain every decision has a defensible why; admit each and the code drowns even though every block passes individually. When comment load rivals the code it annotates, go back through with the deletion question asked harder.
+- Default to the shortest comment that still carries the constraint — a couple of plain lines; needing a paragraph means the home is elsewhere.
+- **Phrasing text as a constraint exempts nothing from the existence question.** But once a comment stays, shortening never drops its stated constraint, invariant, or warning — those are what comments exist for.

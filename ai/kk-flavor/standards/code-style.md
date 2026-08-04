@@ -19,7 +19,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 
 ## Comments
 
-Follow [writing.md](writing.md) and [human-writing.md](human-writing.md)'s comment form — comments are for humans: a constraint, a why, or a warning is what earns a comment its length. Prefer clear naming and small functions over explanatory comments (see Abstraction).
+Follow [writing.md](writing.md) and [human-writing.md](human-writing.md)'s comment form. **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it, in a couple of plain lines — a paragraph's home is the commit, the PR, or a doc. Prefer clear naming and small functions over explanatory comments (see Abstraction).
 
 ## Type Safety
 

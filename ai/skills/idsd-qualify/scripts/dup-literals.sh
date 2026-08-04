@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Repeated-long-literal detector — finds byte-identical long strings appearing 2+ times among the
-# diff's ADDED lines (copy-pasted tokens, keys, fixtures). Human reviewers reliably miss these:
-# one run shipped nine identical ~900-char DRM tokens past two review stages. Mechanical, so it
-# runs before the refactor stage and its hits ride the spawn prompt's tool-output slot as evidence.
+# diff's ADDED lines (copy-pasted tokens, keys, fixtures) that reviewers reliably miss. It runs
+# before the refactor stage and its hits ride the spawn prompt's tool-output slot as evidence.
 #   usage: dup-literals.sh [<git-diff args>]   # defaults to HEAD (all uncommitted changes)
 #   env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
 #          DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
