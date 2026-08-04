@@ -29,7 +29,8 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 One logger, constructed by the composition root behind a `Logger` port so call sites never touch the concrete library.
 
 - **Format and level are explicit, never derived from the environment** — so any environment (production included) runs locally with readable logs. `LOG_FORMAT` is `pretty` (colored, human-readable) or `json` (structured, one object per line); `LOG_LEVEL` is a normal level. Both default for local dev (`pretty`, `info`); a deploy overrides (`LOG_FORMAT=json`).
-- **Keep secrets out at the call site** rather than redacting downstream — pass only what's safe to print.
+
+Call-site rules — where log lines belong, message content, levels, secrets — live in [code-style.md](code-style.md) → Logging.
 
 ## Scripts
 

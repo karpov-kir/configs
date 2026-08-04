@@ -38,6 +38,19 @@ Follow [writing.md](writing.md). Additionally: prefer clear naming and small fun
 - Use the language's single idiomatic absence value. In TS/JS prefer `undefined` over `null`; pick one and stick to it.
 - No special case bolted onto an unrelated flow — move it behind its own abstraction, or into the slice that owns it.
 
+## Logging
+
+Call-site rules — where log lines belong and what they say; the logger itself (construction, format, levels) is [project.md](project.md)'s. Review for *absence* as much as quality: a boundary or handled failure with no log line violates these rules the same way a bad message does.
+
+- Log at boundaries: inbound work accepted (request, job, message), outbound calls to other systems, process lifecycle (startup with resolved config, shutdown). Pure interior logic returns values instead of logging — its callers log.
+- Every failure path that doesn't propagate must log: a caught-and-handled error, a retry, a fallback, a degraded mode. Silent recovery is invisible behavior — the most common logging defect.
+- Log an error where it's *handled*, once — never at every layer it passes through, and never log-and-rethrow at the same layer.
+- A message names the operation, its key identifiers, and the outcome with its cause — "failed to \<operation\> for \<entity\>: \<error\>", never a bare "error occurred". Static message text plus structured fields (ids, counts, durations) beats interpolated prose: grep finds the one site, and json format keeps fields queryable.
+- Carry enough correlating fields (request id, entity id, attempt) to follow one flow across lines.
+- Levels by action needed: `error` — someone must act or an invariant broke; `warn` — handled but degraded, worth attention if recurring; `info` — the operational narrative an incident timeline needs; `debug` — development diagnostics. If nobody would act on it, it isn't `error`.
+- No per-item logging at `info`+ inside loops — one aggregate line with counts, or drop to `debug`.
+- Keep secrets and PII out at the call site rather than redacting downstream — pass only what's safe to print.
+
 ## Abstraction
 
 Two demands — a unit can hold one and fail the other:

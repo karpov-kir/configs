@@ -13,7 +13,7 @@ Load lazily: read a doc only when its trigger matches what you're doing — unre
 
 | When you are… | Read |
 | --- | --- |
-| writing or refactoring code | [standards/code-style.md](standards/code-style.md) — naming, params, comments, type safety, control flow, abstraction, classes vs functions, extraction, dependencies, tooling |
+| writing or refactoring code | [standards/code-style.md](standards/code-style.md) — naming, params, comments, type safety, control flow, logging, abstraction, classes vs functions, extraction, dependencies, tooling |
 | designing modules / wiring dependencies | [standards/architecture/core.md](standards/architecture/core.md), then [backend.md](standards/architecture/backend.md) or [frontend.md](standards/architecture/frontend.md) |
 | writing or reviewing tests | [standards/testing.md](standards/testing.md) — no mocks; test code is production code |
 | writing outward text — anything a person reads as communication (PR/ticket text, chat, email, …) | [standards/human-writing.md](standards/human-writing.md) — the set it covers, natural voice, no AI tells, reader-action budget |
