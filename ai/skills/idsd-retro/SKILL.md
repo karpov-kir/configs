@@ -10,7 +10,7 @@ Look back at **how a run was conducted** — not at the change it produced (revi
 
 ## Input
 
-- A **factual run-log** — what was asked, what each stage/step did, where the human corrected course, what was deferred. Decisions and events only, no self-assessment. A caller (e.g. idsd-qualify) writes it; standalone, reconstruct it tersely from the session and `git` first.
+- A **factual run-log** — what was asked, what each stage/step did, where the human corrected course, what was deferred. Events and decisions, stated as events: a defect the run hit and how it surfaced belongs there, because you would otherwise have to rediscover it, but the log never grades the run or draws the conclusion. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit** — a log that has already judged itself is the surest way to make this pass agree with it. A caller (e.g. idsd-qualify) writes it; standalone, reconstruct it tersely from the session and `git` first.
 - The **diff**, and any **skill / doc / prompt / script the run touched**.
 
 ## Lenses

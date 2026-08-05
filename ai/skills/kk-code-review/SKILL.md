@@ -36,6 +36,7 @@ Surface a finding only when you've verified it's a real bug that will be hit —
 - Check every dimension; surface only verified findings, discarding maybes.
 - Apply each surviving finding that is a safe correctness fix (unambiguous, within the changed scope), flagging any that changes behaviour; a finding that needs a human decision (a trade-off, an ambiguous intent, a risky change) goes to your caller.
 - Once a finding is confirmed, grep the interface or module it belongs to for the same shape before moving on, and report what the sweep found — one instance is rarely the only one, and the sweep is how a pre-existing sibling gets surfaced as a note instead of staying invisible.
+- **A finding that predicts how a device, browser or external service behaves at runtime is not confirmed until you check what actually happened.** Recorded results — a test run, a log, a previous session's output — outrank documentation about the platform, so where they exist for the code in hand, read them and name what you read in the finding; where they do not, say the finding is unverified inference. Two findings in one pass argued correctly from a vendor's documented behaviour and were both refuted by results already on disk: a licence URL said to be corrupted by query decoding, whose combination had passed on two devices in five seconds, and a missing gate said to cost a full timeout, which measurably skipped in sixteen milliseconds.
 - The final sweep hunts cross-file and interaction bugs.
 
 ## Verdict

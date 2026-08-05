@@ -20,6 +20,7 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`, losslessly: cut 
 
 - Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context), then read the skill protocol (above) and the writing standard the flavor routes you to (`standards/writing.md`) — what you tighten against.
 - Resolve the artifact list from `$ARGUMENTS`: a path or directory (recursively glob prose + commented source), a git scope (per the protocol), or **whole project** — every doc and commented source under the root. Queue it per the protocol; the one append source here is a sibling pulled in to absorb a duplication.
+- **Prose the run itself wrote or edited belongs in the queue too, even when it sits outside the code scope** — an intent, a design doc, a ticket body. A git scope misses anything the run keeps outside version control, which is exactly where a hurried edit lands. One pass edited an intent in four places and no stage covered it: the result repeated a figure it already stated elsewhere, narrated its own history where git holds it, and grew a fifteen-line bullet.
 
 ## The lens
 
