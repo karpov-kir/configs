@@ -6,6 +6,8 @@
 #   init "<intent>"  scaffold .idsd/ + the report from the template, stamping its intent line
 #   repo-mode        print committed|throwaway — is .idsd/ tracked in git?
 #   invalidate       clear reviewed-tree/reviewed-stages at pass start, so no stamp outlives its tree
+#   stage-returned <stage>  mark a stage as returned; stamp then refuses until the report is newer,
+#                    so a stage's items cannot be left unrecorded
 #   stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
 #                    reviewed-stages — every pipeline stage, bare (ran) or `:skipped(reason)` /
 #                    `refactor:partial(reason)`; any `(fast)` reason marks the pass not-full
@@ -138,8 +140,36 @@ case "${1:-}" in
     repo_mode
     ;;
 
+  # Recording a stage's findings is prose discipline, and prose discipline failed twice: a report two
+  # hours behind the pass asserted stages had never run. This makes the omission mechanical instead —
+  # the marker is newer than the report until the report is edited, and stamp refuses while that holds.
+  stage-returned)
+    require_report
+    stage="${2:-}"
+    case "$stage" in
+      code-review | security-review | tighten | refactor | retro) ;;
+      *)
+        echo "usage: report.sh stage-returned <code-review|security-review|tighten|refactor|retro>" >&2
+        exit 2
+        ;;
+    esac
+    mkdir -p "$root/.idsd/.stage-returns"
+    : >"$root/.idsd/.stage-returns/$stage"
+    echo "recorded return of $stage — record its items in the report before stamping"
+    ;;
+
   stamp)
     require_report
+    # Refuse while any stage's return is newer than the report: its items were never written down.
+    unrecorded=$(find "$root/.idsd/.stage-returns" -type f -newer "$report" 2>/dev/null | while read -r marker; do
+      basename "$marker"
+    done)
+    [ -z "$unrecorded" ] || {
+      printf 'error: these stages returned after the report was last edited, so their items are unrecorded:\n' >&2
+      printf '  %s\n' $unrecorded >&2
+      printf 'record them (or note there were none) and stamp again.\n' >&2
+      exit 2
+    }
     entries="${2:-}"
     [ -n "$entries" ] || {
       echo "usage: report.sh stamp \"<stage[,stage:skipped(reason),...]>\" — all of: code-review security-review tighten refactor retro" >&2
@@ -228,6 +258,8 @@ case "${1:-}" in
       { print }
       NR == 1 { in_frontmatter = 1 }
     ' "$report" >"$tmp" && mv "$tmp" "$report"
+    # Last pass's stage returns are not this pass's; left behind they would block its stamp forever.
+    rm -rf "$root/.idsd/.stage-returns"
     echo "invalidated reviewed-tree — restamp when the pass completes"
     ;;
 
