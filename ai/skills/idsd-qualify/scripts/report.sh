@@ -6,8 +6,10 @@
 #   init "<intent>"  scaffold .idsd/ + the report from the template, stamping its intent line
 #   repo-mode        print committed|throwaway — is .idsd/ tracked in git?
 #   invalidate       clear reviewed-tree/reviewed-stages at pass start, so no stamp outlives its tree
-#   stage-returned <stage>  mark a stage as returned; stamp then refuses until the report is newer,
-#                    so a stage's items cannot be left unrecorded
+#   stage-returned <stage>  mark a stage returned, recording the report as it then stood; stamp refuses until
+#                    the report has changed since, so a stage's items cannot be left unrecorded
+#   no-items <stage> mark a stage as having surfaced nothing, the one way to clear its marker without
+#                    editing the report
 #   stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
 #                    reviewed-stages — every pipeline stage, bare (ran) or `:skipped(reason)` /
 #                    `refactor:partial(reason)`; any `(fast)` reason marks the pass not-full
@@ -35,6 +37,40 @@ root=$(git rev-parse --show-toplevel 2>/dev/null) || {
   exit 2
 }
 report="$root/.idsd/ship-report.md"
+# Written into a marker instead of a checksum when a stage returned with nothing the report should carry.
+NO_ITEMS="no-items"
+
+report_checksum() {
+  cksum <"$report"
+}
+
+# The five pipeline stages, by name — the only values stage-returned and no-items accept.
+valid_stage() {
+  case "$1" in
+    code-review | security-review | tighten | refactor | retro) printf '%s' "$1" ;;
+    *)
+      echo "usage: report.sh $2 <code-review|security-review|tighten|refactor|retro>" >&2
+      exit 2
+      ;;
+  esac
+}
+
+# Why a stage may not be stamped yet, or nothing if it may. A stage that ran must have been marked returned, and the
+# report must have changed since that mark — otherwise its findings were never written down.
+stage_block_reason() {
+  marker="$root/.idsd/.stage-returns/$1"
+
+  [ -f "$marker" ] || {
+    printf 'ran but was never marked returned (report.sh stage-returned %s)' "$1"
+    return
+  }
+
+  [ "$(cat "$marker")" != "$NO_ITEMS" ] || return
+
+  [ "$(cat "$marker")" != "$(report_checksum)" ] || {
+    printf 'returned but the report is unchanged since — record its items, or report.sh no-items %s' "$1"
+  }
+}
 skill_dir="$(cd "$(dirname "$0")/.." && pwd)"
 template="$skill_dir/templates/ship-report-template.md"
 todo_gate="$(cd "$(dirname "$0")" && pwd)/todo-gate.sh"
@@ -140,36 +176,31 @@ case "${1:-}" in
     repo_mode
     ;;
 
-  # Recording a stage's findings is prose discipline, and prose discipline failed twice: a report two
-  # hours behind the pass asserted stages had never run. This makes the omission mechanical instead —
-  # the marker is newer than the report until the report is edited, and stamp refuses while that holds.
+  # Recording a stage's findings is prose discipline, and prose discipline failed twice: a report two hours behind
+  # the pass asserted stages had never run. This makes the omission mechanical. A marker holds the report's checksum
+  # as it stood when that stage returned, so "were this stage's items written down?" is answered per stage and
+  # regardless of the order the markers were made in — an mtime comparison could do neither, because the round's
+  # stages return concurrently and one report edit would clear every marker at once.
   stage-returned)
     require_report
-    stage="${2:-}"
-    case "$stage" in
-      code-review | security-review | tighten | refactor | retro) ;;
-      *)
-        echo "usage: report.sh stage-returned <code-review|security-review|tighten|refactor|retro>" >&2
-        exit 2
-        ;;
-    esac
+    stage=$(valid_stage "${2:-}" stage-returned)
     mkdir -p "$root/.idsd/.stage-returns"
-    : >"$root/.idsd/.stage-returns/$stage"
+    report_checksum >"$root/.idsd/.stage-returns/$stage"
     echo "recorded return of $stage — record its items in the report before stamping"
+    ;;
+
+  # The escape hatch for a stage that genuinely surfaced nothing. Without it the only way to clear a marker is to
+  # edit the report, and the report's own contract bans the per-stage line that would say "nothing to record".
+  no-items)
+    require_report
+    stage=$(valid_stage "${2:-}" no-items)
+    mkdir -p "$root/.idsd/.stage-returns"
+    echo "$NO_ITEMS" >"$root/.idsd/.stage-returns/$stage"
+    echo "recorded $stage as having surfaced nothing for the report"
     ;;
 
   stamp)
     require_report
-    # Refuse while any stage's return is newer than the report: its items were never written down.
-    unrecorded=$(find "$root/.idsd/.stage-returns" -type f -newer "$report" 2>/dev/null | while read -r marker; do
-      basename "$marker"
-    done)
-    [ -z "$unrecorded" ] || {
-      printf 'error: these stages returned after the report was last edited, so their items are unrecorded:\n' >&2
-      printf '  %s\n' $unrecorded >&2
-      printf 'record them (or note there were none) and stamp again.\n' >&2
-      exit 2
-    }
     entries="${2:-}"
     [ -n "$entries" ] || {
       echo "usage: report.sh stamp \"<stage[,stage:skipped(reason),...]>\" — all of: code-review security-review tighten refactor retro" >&2
@@ -192,6 +223,21 @@ case "${1:-}" in
       }')
     [ -z "$invalid" ] || {
       printf 'error: invalid stage record\n%s\n' "$invalid" >&2
+      exit 2
+    }
+    # Every stage this record says ran must also have been marked returned, with its items recorded since. Validating
+    # the entry string alone let a pass stamp `refactor,retro` while neither had run: the shape was legal, and a stage
+    # that never marked itself looked identical to one that had nothing to say.
+    blocked=$(printf '%s\n' "$entries" | tr ',' '\n' | while read -r entry; do
+      case "$entry" in
+        *:skipped\(*) continue ;;
+      esac
+      stage_name=${entry%%:*}
+      reason=$(stage_block_reason "$stage_name")
+      [ -z "$reason" ] || printf '  %s: %s\n' "$stage_name" "$reason"
+    done)
+    [ -z "$blocked" ] || {
+      printf 'error: these stages are recorded as having run, but:\n%s\n' "$blocked" >&2
       exit 2
     }
     grep -q '^reviewed-tree:' "$report" || {

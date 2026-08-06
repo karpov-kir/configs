@@ -14,7 +14,7 @@ Baseline rules below. If the project root has a `PROJECT_CODE_STYLE.md`, merge i
 
 ## Parameters
 
-- Use named parameters (parameter object, keyword arguments, or equivalent) for 3+ params; positional style for single-param functions. Exception: match the signature of an external interface you implement or fake.
+- Use named parameters (parameter object, keyword arguments, or equivalent) for 3+ params; positional style for single-param functions. Three exceptions, all about scope rather than taste: match the signature of an external interface you implement or fake; leave a pre-existing signature the change is not otherwise touching, since converting it is its own change and not a rider on an unrelated one; and leave a published package's public surface, where the conversion breaks callers you cannot see. Without these the rule reads unconditional and gets proposed against all three — declined three times in one session.
 - A parameter the body branches on to pick between behaviours is a flag — split it into two named functions.
 
 ## Comments
