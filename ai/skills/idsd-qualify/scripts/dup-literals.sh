@@ -5,7 +5,8 @@
 #   usage: dup-literals.sh [<git-diff args>]   # defaults to HEAD (all uncommitted changes)
 #   env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
 #          DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
-# Prints each duplicate (count, length, 60-char prefix); exits 1 when any found, 0 when clean.
+# Prints each duplicate (count, length, 60-char prefix); exits 1 when any found, 0 when clean, and 2
+# when git rejected the arguments — a scan that did not run is not evidence, so never read 2 as clean.
 # With no diff args, untracked text files are scanned too (they never appear in `git diff HEAD`);
 # the index is never touched. Untracked files above DUP_MAX_FILE_BYTES are skipped: a file that large is
 # machine-generated (a test-run dump, a coverage report), and its internal repetition says nothing about
@@ -19,7 +20,11 @@ min="${DUP_MIN_LEN:-100}"
 max_file_bytes="${DUP_MAX_FILE_BYTES:-262144}"
 
 {
-  git diff "${@:-HEAD}"
+  # `|| exit 2`: this group's status is the trailing `if`'s, not git's, so a rejected argument would
+  # leave it at 0 and a scan that never ran would be indistinguishable from a clean one. Exiting here
+  # leaves the pipe empty, so awk finds nothing and exits 0 and pipefail surfaces the 2. Exiting works
+  # because the group is the left side of a pipeline, and so already a subshell.
+  git diff "${@:-HEAD}" || exit 2
   if [ "$#" -eq 0 ]; then
     git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
       # Binary = NUL in the first 8KB (BSD grep -I is unreliable here). if-guard, not &&: a

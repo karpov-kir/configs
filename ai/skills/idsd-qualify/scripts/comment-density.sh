@@ -6,7 +6,8 @@
 #          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this (default 5)
 #          DENSITY_MAX_FILE_BYTES — skip untracked files larger than this (default 262144; that large
 #          is machine-generated, not authored comments)
-# Prints each outlier with its counts; exits 1 when any found, 0 when clean. Prose/data files
+# Prints each outlier with its counts; exits 1 when any found, 0 when clean, and 2 when git rejected
+# the arguments — a scan that did not run is not evidence, so never read 2 as clean. Prose/data files
 # (md, txt, json, lockfiles) don't count — their "comments" are content. With no diff args, untracked
 # text files are scanned too; the index is never touched.
 set -uo pipefail
@@ -18,7 +19,11 @@ min_lines="${COMMENT_MIN_LINES:-5}"
 max_file_bytes="${DENSITY_MAX_FILE_BYTES:-262144}"
 
 {
-  git diff "${@:-HEAD}"
+  # `|| exit 2`: this group's status is the trailing `if`'s, not git's, so a rejected argument would
+  # leave it at 0 and a scan that never ran would be indistinguishable from a clean one. Exiting here
+  # leaves the pipe empty, so awk finds nothing and exits 0 and pipefail surfaces the 2. Exiting works
+  # because the group is the left side of a pipeline, and so already a subshell.
+  git diff "${@:-HEAD}" || exit 2
   if [ "$#" -eq 0 ]; then
     git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
       # Binary = NUL in the first 8KB. if-guard, not &&: a skipped file must not fail the loop —
