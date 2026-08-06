@@ -6,7 +6,7 @@ argument-hint: "file, directory, diff selector (staged/unstaged/all changed), wh
 
 Review every file resolved from `$ARGUMENTS` against the kk-flavor standards, one at a time.
 
-**Quality, not correctness or security.** Structure, style, naming, duplication, abstraction, and architecture compliance are this lane. Functional bugs are `/code-review`'s; exploitable weaknesses are `/security-review`'s; trimming prose for concision (in comments or docs) is `/tighten`'s — never flag those here. (Skill names here are roles resolved through `~/.kk-flavor/config.yaml` → `roles`.)
+**Quality, not correctness or security.** Structure, style, naming, duplication, abstraction, and architecture compliance are this lane. Functional bugs are `/code-review`'s; exploitable weaknesses are `/security-review`'s; trimming prose for concision (in comments or docs) is `/tighten`'s — never flag those here. A true comment attached to the wrong construct *is* yours, since it is placement rather than wording; a comment whose content is false is `/code-review`'s, because it marks a defect. (Skill names here are roles resolved through `~/.kk-flavor/config.yaml` → `roles`.)
 
 **Rules in scope:** the kk-flavor standards, loaded via its router — inject the flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context) and pull each doc its triggers point to for the reviewed files: `code-style.md`/`writing.md`/`core-principles.md` generally; the **architecture** docs for source code; the **testing** standard for tests; the **project-setup** standard for env, scripts, or Docker/local-dev config. A project `PROJECT_CODE_STYLE.md` (and its `CLAUDE.md`), when present, layers on top — its rules win on conflict.
 
