@@ -6,6 +6,10 @@ Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-i
 🍦 kk-flavor loaded 🍦
 ```
 
+# RTK
+
+@RTK.md
+
 # Memory
 
 Keep all memory here. Do **not** create or write to per-project memory dirs (`~/.claude/projects/*/memory/`). This section is a staging area: an entry stays only until it fits a standard or a skill, then it moves into that file. Entries here are authoritative — don't reorganize them.

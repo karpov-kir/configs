@@ -16,6 +16,9 @@ Config files for the tools I use:
   - Mount the kk-flavor bucket (standards, config, and templates the skills read): `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
   - Install the skills (each is a dir under `ai/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/skills/*/; do ln -sfn "$d" ~/.claude/skills/; done`
   - MCP servers: `ai/mcp.json` is the public source of truth; machine-private servers (internal hosts) live beside it in `ai/mcp.private.json` — gitignored, same shape. Claude Code has no global MCP file to symlink, so sync both into the user scope (applies to all projects, CLI + IDE) with `~/Documents/WP/configs/ai/mcp-sync.sh`. Re-run after editing either file. Requires `jq` (`brew install jq`).
+- [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before Claude Code reads it
+  - `brew install rtk`
+  - `rtk init -g`, then restart Claude Code
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
