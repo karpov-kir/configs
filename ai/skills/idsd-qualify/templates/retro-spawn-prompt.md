@@ -1,7 +1,3 @@
-<!-- Spawn-prompt template for idsd-qualify's retro stage (idsd-retro). Review stages use
-     spawn-prompt.md — its austerity guards their lens; the retro needs these richer inputs to
-     work at all, so they live here as declared slots rather than smuggled into a prose slot. -->
-
 Run the `idsd-retro` skill in full, per its SKILL.md.
 
 Change scope: <the diff the run produced — derived from `git diff --stat` against the base>

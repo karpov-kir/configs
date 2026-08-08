@@ -60,9 +60,6 @@ export class Logger {
    */
   static readonly root = new Logger({ logLevel: LogLevel.Info, stringifyObjects: true });
 
-  /**
-   * Create a scoped child logger that prepends `[label]` to all messages.
-   */
   scope(label: string): Logger {
     const prefix = this.prefix ? `${this.prefix} [${label}]` : `[${label}]`;
     return new Logger({ prefix });
@@ -112,72 +109,48 @@ export class Logger {
     return [`[CS ${timestamp}] [${level}]${prefixPart}`, ...processedArgs];
   }
 
-  /**
-   * Debug-level logging (most verbose)
-   */
   debug(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.Debug)) {
       console.log(...this.formatArgs({ level: 'DEBUG', args }));
     }
   }
 
-  /**
-   * Info-level logging (default)
-   */
   info(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.Info)) {
       console.log(...this.formatArgs({ level: 'INFO', args }));
     }
   }
 
-  /**
-   * Warning-level logging
-   */
   warn(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.Warn)) {
       console.warn(...this.formatArgs({ level: 'WARN', args }));
     }
   }
 
-  /**
-   * Error-level logging
-   */
   error(...args: unknown[]): void {
     if (this.shouldLog(LogLevel.Error)) {
       console.error(...this.formatArgs({ level: 'ERROR', args }));
     }
   }
 
-  /**
-   * Start a collapsible log group
-   */
   group(label: string): void {
     if (this.shouldLog(LogLevel.Info)) {
       console.group(label);
     }
   }
 
-  /**
-   * Start a collapsed log group
-   */
   groupCollapsed(label: string): void {
     if (this.shouldLog(LogLevel.Info)) {
       console.groupCollapsed(label);
     }
   }
 
-  /**
-   * End the current log group
-   */
   groupEnd(): void {
     if (this.shouldLog(LogLevel.Info)) {
       console.groupEnd();
     }
   }
 
-  /**
-   * Set the log level. Use `LogLevel.Silent` to disable all output (e.g. in tests).
-   */
   setLevel(level: LogLevel): void {
     Logger.logLevel = level;
   }

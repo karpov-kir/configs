@@ -1,6 +1,7 @@
 # Core Principles
 
-1. Think before coding. State assumptions out loud. If ambiguous, ask; if a simpler approach exists, push back. When confused, name what is unclear — don't pick one interpretation and run.
-2. Simplicity first. Minimum code that solves the problem. No speculative abstractions, no flexibility nobody asked for. Test: would a senior engineer call this overcomplicated.
-3. Surgical changes. Touch only what the task requires. Don't improve neighboring code. Every changed line traces back to the request.
-4. Goal-driven execution. Turn vague instructions into verifiable targets before writing a line. "Add validation" → "write tests for invalid inputs, then make them pass."
+1. Think before coding, and state your assumptions. Settle an ambiguity from the code, the intent, or a defensible default and say what settled it; ask only when none of those decide it and reversing the choice is expensive. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. Push back when a simpler approach exists.
+2. Simplicity first, in code and in what you write: the minimum that solves the problem — no speculative abstractions, no flexibility nobody asked for.
+3. Surgical changes. Touch only what the task requires. Don't improve neighboring code.
+4. Goal-driven execution. Turn vague instructions into verifiable targets before writing a line.
+5. Verify the effect, not the report of it — and **prove the check can fail**, by running the negative control first. Against a running system, [live-systems.md](live-systems.md) adds the traps specific to it.

@@ -1,33 +1,22 @@
 ---
 name: idsd-constitution
-description: Set up or edit the long-term memory for an IDSD project — principles, baseline NFRs, and gate commands that idsd-build injects as Context. Optional and run rarely (project seeding or standards changes). Use when asked to "seed the project", "set up IDSD", "define our standards/constitution". The technical "how" layer — developer-owned.
+description: Write or edit .idsd/constitution.md — an IDSD project's principles, baseline NFRs, and gate commands. Use for "seed the project", "define our standards". The developer-owned technical how, not idsd-charter's what & why.
 ---
 
-Write `.idsd/constitution.md` — the stable, shared layer `idsd-build` reads as Context. It holds only IDSD-specific defaults: project principles, the baseline non-functional requirements (NFRs) every intent inherits, and the concrete commands that resolve gates. It references code style; it never restates it.
-
-Optional. Feature work runs without it — `idsd-build` derives gates from repo tooling when it's absent.
-
-Where this fits: `idsd-charter` (optional) → **`idsd-constitution`** (optional) → `idsd-intent` → `idsd-audit` (optional) → `idsd-build`. The constitution is the *how*; the charter the *what/why*.
+Write `.idsd/constitution.md` — the stable, shared layer `idsd-build` reads as Context: project principles, the baseline NFRs every intent inherits, and the commands that resolve gates. Reference `CLAUDE.md` / `PROJECT_CODE_STYLE.md` and the code style, never restate them — a section that just echoes another file becomes a link to it.
 
 ## Phase 1 — Inventory what exists
 
-Read the repo first:
-- `CLAUDE.md`, `PROJECT_CODE_STYLE.md` — link to them; if missing and the project needs them, point the user to create them.
-- Repo tooling — `package.json`/`Makefile`/`pyproject` scripts, lint/test config, CI workflow — for the real gate commands. On a greenfield repo with no tooling yet, name the intended toolchain and the commands the build will make real, rather than discovering them.
+Read the repo first: `CLAUDE.md` and `PROJECT_CODE_STYLE.md` (link to them; if one is missing and the project needs it, point the user to create it), then the tooling that holds the real gate commands — manifest scripts, lint and test config, CI workflow. On a greenfield repo with no tooling, name the intended toolchain and the commands the build will make real, rather than discovering them.
 
 ## Phase 2 — Grill the gaps only
 
-Grill like `grill-me` — one question at a time, each with a recommended answer you **earned by legwork first** (grounded in Phase 1's repo inventory — the tooling, CI, and existing config — not a guess; when it can't be settled that way, recommend anyway and say what you checked). Cover only what isn't already written down:
-1. **Principles** — 3–7 project-specific non-negotiables, beyond general code style.
-2. **Baseline NFRs** — defaults every intent inherits unless its own constraints override (e.g. latency, accessibility, security posture, coverage floor).
-3. **Gate commands** — exact commands for build / lint / test / coverage / perf, discovered in Phase 1 and confirmed.
+Invoke `kk-grill` over the sections of `templates/constitution-template.md`, which says what belongs in each. Its legwork here is Phase 1's inventory — the tooling, CI, and existing config — so every gate command is confirmed from there, never invented. Cover only what isn't already written down.
 
 ## Phase 3 — Emit
 
-Write `.idsd/constitution.md` from `templates/constitution-template.md`. Confirm the path once before writing.
+Run `idsd-qualify`'s `scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**), then confirm the path once and write `.idsd/constitution.md` from that template.
 
 ## Rules
 
-- Reference, never duplicate, `CLAUDE.md` / `PROJECT_CODE_STYLE.md` — if a section just echoes another file, replace it with a link.
-- Gate commands must be real, runnable, and **able to fail** — each must exercise the thing its NFR/constraint names and exit non-zero when the threshold is breached. A command that runs but can't fail (wrong target, no assertion, no server started) is worthless, not a gate.
-- Keep it at the standards altitude — principles, NFRs, gate commands. It grows as durable standards accumulate, but link out rather than restate.
+Gate commands must be real, runnable, and **able to fail** — each must exercise the thing its NFR or constraint names and exit non-zero when the threshold is breached. A command that runs but can't fail (wrong target, no assertion, no server started) is worthless, not a gate.

@@ -4,24 +4,19 @@
 
 Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`, `chore`, `docs`, `test`, or `style`; drop the ticket when there's none.
 
-Good: `fix/TA-2826-bad-git-ref`, `refactor/TA-2847-extract-execasync`, `chore/bump-eslint`
-Bad: `ta-2847-exec-timeouts`, `my-fix`
-
 ## Commits
+
+**Print the command and get approval before any commit or push.**
 
 Short, imperative, one-line subject (~50 chars); a body only when the *why* isn't obvious from the diff. Frame for the repo's consumer — app user, library dev, or operator — the user-visible effect, not the internal mechanism.
 
-Good: `fix race in token refresh`
-Bad (verbose): `Updated the auth middleware to fix a bug where tokens were sometimes refreshed twice`
-Bad (technical): `loosen regex from \d{4} to \d+`
-Good (user-facing): `support any version number in device names`
+**Re-form the change set after any review pass.** Run `git add -A` after the final pass, and never re-present a commit command formed earlier in the run.
 
 Match the recent style on the branch (`git log` first). Use semantic prefixes (`feat:`, `fix:`, …) only when the branch already does and commits land directly; PR branches default to plain, since the squash subject is what ships.
 
 ## Pull requests
 
 - Open as drafts; follow the repo's PR template if it has one.
-- No "Test plan"/"Verification" section and similar. Omit anything reachable from CI or the diff — test counts, lint/typecheck status, version-pin values. State only what a reviewer can't see: untested paths, a temporary pin that blocks release, rollout coupling.
 - Link the ticket in the description when the branch carries one.
-- Follow [writing.md](writing.md).
+- The description follows [human-writing.md](human-writing.md).
 - Resolve a review comment by replying on its thread with `Done <link to commit>`.

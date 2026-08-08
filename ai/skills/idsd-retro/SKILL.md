@@ -1,16 +1,14 @@
 ---
 name: idsd-retro
-description: Adversarial retrospective on how a run was conducted — a fresh agent reads a factual run-log plus the diff and touched files, and surfaces where agents drifted from intent, lane, or docs, what a stage missed, what was avoidable friction, and (when the run changed its own tooling) whether that tooling is sound. Returns bounded, routed, evidence-backed findings. Use standalone to reflect on a run, or spawned by idsd-qualify's Retro stage.
+description: Adversarial retrospective on how a run was conducted, never the change it produced — a fresh agent reads the run-log and diff cold and never self-grades. Use standalone, or as idsd-qualify's retro stage.
 argument-hint: "path to a run-log, or the run/session to reflect on"
 ---
 
-Look back at **how a run was conducted** — not at the change it produced (review, refactor, and security-review cover the change). The point is to learn: where the work drifted, stalled, or cost more than it should, and the concrete change that prevents the repeat.
-
-**Fresh and adversarial.** Whoever ran the work rationalises their own choices, so this never self-grades. Read the run cold and hunt for what went wrong or wasted effort — assume there's something to learn, the more so on a run that needed course-correction.
+Look back at **how a run was conducted**, not at the change it produced — review, refactor and security-review cover that. Read the run cold and never self-grade: whoever ran the work rationalises their own choices. Assume there is something to find.
 
 ## Input
 
-- A **factual run-log** — what was asked, what each stage/step did, where the human corrected course, what was deferred. Events and decisions, stated as events: a defect the run hit and how it surfaced belongs there, because you would otherwise have to rediscover it, but the log never grades the run or draws the conclusion. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit** — a log that has already judged itself is the surest way to make this pass agree with it. A caller (e.g. idsd-qualify) writes it; standalone, reconstruct it tersely from the session and `git` first.
+- A **factual run-log** — what was asked, what each stage did, where the human corrected course, what was deferred, and any defect the run hit and how it surfaced. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit** — a log that has already judged itself is the surest way to make this pass agree with it. A caller (e.g. `idsd-qualify`) writes it; standalone, reconstruct it tersely from the session and `git` first.
 - The **diff**, and any **skill / doc / prompt / script the run touched**.
 
 ## Lenses
@@ -21,11 +19,28 @@ Apply each; surface only what the run evidences:
 2. **Lane** — a stage doing another's job (e.g. a correctness pass flagging style).
 3. **Docs** — straying from the project's standards or architecture.
 4. **Missed-late** — what a stage should have caught that only surfaced later.
-5. **Friction** — avoidable churn, rework, or round-trips in how the work was done.
-6. **Tooling ergonomics** — when the run changed its own tooling (a skill, a pipeline, a shared script): is it sound, or does it lean on prose where code would be reliable, is it heavier than it earns, is it itself overdue a retrospective? A tooling change that ships without one is a blind spot.
+5. **Friction** — avoidable churn, rework, or round-trips, communication included: when the human had to re-read a message or ask back about a report, that cost a round. Judge the run's messages against `~/.kk-flavor/standards/writing.md` → **Readability floor**.
+6. **Tooling ergonomics** — when the run changed its own tooling (a skill, standard, prompt or shared script), judge it against `~/.kk-flavor/standards/ecosystem.md`. **Bloat is a finding here** — nothing else in the pipeline looks for it.
+
+## The findings ledger
+
+`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run.
+
+**Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new. Bound it at roughly 50 lines, dropping the oldest `1x` entries first, or it grows into every future retro's context unread.
+
+Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses:
+
+- A **new** finding gets one line, in this shape, so a repeat is one grep away:
+
+  ```
+  - 1x | 2026-08-07 | <repo> | <target> | <the finding in a clause> -> <where it routed>
+  ```
+
+- A finding **already on file** bumps that line's count and date instead of adding a line — carry the count into the finding you return and let it argue for a durable fix.
+- A line whose improvement **landed** is deleted; a ledger of solved problems buries the open ones.
 
 ## Output
 
-Bounded, **evidence-backed** findings — never a vague essay; cost is not a reason to narrow them. Each states: the improvement, the concrete **target** (a skill / arch doc / prompt / the pipeline / the constitution / a backlog), the **durable home** its fix routes to, and **what evidences it**.
+Bounded, **evidence-backed** findings; cost is not a reason to narrow them. Each states the improvement, its **target** (the skill / arch doc / prompt / pipeline / constitution / backlog it concerns), **where the fix routes**, **what evidences it**, and its ledger count when this is not the first time.
 
-**Caller.** Spawned by an orchestrator → return the findings as data; don't apply or route them (the orchestrator records, the human ratifies). Standalone → present them and let the human route. Either way the retro only flags — it never edits the durable record itself.
+**Caller.** Spawned by an orchestrator → return the findings as data, applying and routing nothing. Standalone → present them and let the human route. Either way the retro only flags: the ledger is the one file it writes, and it never edits the durable record.

@@ -1,56 +1,49 @@
 ---
 name: kk-code-review
-description: Review the working-tree changes for correctness bugs and standards/CLAUDE.md violations — apply the safe fixes, surface the rest for a human decision. Use when asked to "review the changes/diff", "code review", or when an orchestrator (idsd-qualify) spawns a review of a change set. Not a PR tool — operates on local changes and returns findings as data.
+description: Review the working-tree changes for correctness bugs and the standards violations that cause them — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (idsd-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
-Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, broken logic, violated invariants and constraints, misuse that makes the code do the wrong thing. Apply the fixes you can make correctly; surface the rest for a human decision. This reviews **local working-tree changes** and returns findings as data — it never posts to GitHub.
+Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, broken logic, violated invariants and constraints, leaks, races, misuse that makes the code do the wrong thing.
 
-**Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `/refactor`'s lane — never flag them here. `CLAUDE.md` matters only where a rule encodes a correctness invariant (type-system escape hatches, unchecked assertions, unhandled absence); its style and architecture rules belong to `/refactor`.
+**Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `kk-refactor`'s lane — never flag them here; broad security auditing is `kk-security-review`'s. A security rule the project's `CLAUDE.md`/constitution states is in scope — violating one is a constraint bug.
 
-**What counts.** Real correctness bugs on the reviewed lines — wrong output, a broken edge case, a violated constraint or invariant, a resource leak, a race. A security rule the project's `CLAUDE.md`/constitution states (path-safety, network-bind, secrets, …) counts too — violating one is a constraint bug. Not: style or structure (→ `/refactor`), broad/generic security auditing (→ `/security-review`), nitpicks a senior engineer wouldn't raise, anything a linter / typechecker / compiler / test catches (assume CI runs them), general quality (coverage, docs) unless `CLAUDE.md` requires it, changes intentional to the broader goal, or issues on lines outside the reviewed changes.
-
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below.
-
-## Setup (once)
-
-- Inject the kk-flavor if needed (read `~/.kk-flavor/inject.md` when its routing isn't already in context), read the skill protocol (above) and the standards the flavor routes you to; also read the project's own `CLAUDE.md` files — the root one plus any in directories the changes touch — for project-specific conventions.
-- Resolve the change set from `$ARGUMENTS`: a git scope (per the protocol), a file path or directory (its current diff against the base), or a natural-language scope (the matching changed files). This reviews *changes* — no whole-project mode by design. Queue per the protocol.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below. This reviews *changes* — no whole-project mode by design.
 
 ## Review dimensions
 
-Check every changed file against all four; each surfaces candidate findings with the reason flagged:
+Check every changed file against all four:
 
-1. **Standards correctness rules** — violations (in the kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs (bypassed type checks, unchecked assertions, swallowed errors, unhandled absence). Skip style and architecture rules — those are `/refactor`'s. (These are author-time guidance; not every rule applies at review time.)
-   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent (or a required one the schema lets be null), a degenerate value (`0`, `''`, `-1`) that the surrounding default logic reads as present. "Make invalid states unrepresentable" is a `/refactor` rule, but only you hold the fact that decides it — that repeating this call duplicates a row, that the column is `NOT NULL`, that a zero bound abandons the work instantly. Flag the mismatch and say which fact makes it unsafe; leave the shape of the fix to `/refactor` if it is more than narrowing a type.
-2. **Bug scan** — read only the changed lines; flag large, real bugs, skipping nitpicks and likely false positives.
+1. **Standards correctness rules** — violations (kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
+   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent, a degenerate value (`0`, `''`, `-1`) the surrounding default logic reads as present. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
+2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
-4. **Comments** — code comments in the file; flag changes that violate guidance written there, and check each factual claim a comment makes against the code, schema or migration it describes. A comment is a claim, not authority: a false one is itself a finding, and it usually sits directly on top of the defect. A comment whose content is *true* but attached to the wrong construct is `/refactor`'s, not yours — moving it changes no behaviour, so it does not belong in the correctness lane, where nothing re-reads it — a fallback justified by a state the schema no longer allows, a bound described as inherited from something that does not supply it.
-
-Cross-file and interaction bugs: flag on whichever file surfaces them; the final sweep catches the rest.
-
-Surface a finding only when you've verified it's a real bug that will be hit — discard maybes and anything a closer look doesn't confirm. For a standards-flagged finding, confirm the standard (or the project's `CLAUDE.md`) actually calls out that issue specifically.
+4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding. Placement is `kk-refactor`'s lane; content is yours.
 
 ## Loop deltas
 
-- Check every dimension; surface only verified findings, discarding maybes.
-- Apply each surviving finding that is a safe correctness fix (unambiguous, within the changed scope), flagging any that changes behaviour; a finding that needs a human decision (a trade-off, an ambiguous intent, a risky change) goes to your caller.
-- Once a finding is confirmed, grep the interface or module it belongs to for the same shape before moving on, and report what the sweep found — one instance is rarely the only one, and the sweep is how a pre-existing sibling gets surfaced as a note instead of staying invisible.
-- **A finding that predicts how a device, browser or external service behaves at runtime is not confirmed until you check what actually happened.** Recorded results — a test run, a log, a previous session's output — outrank documentation about the platform, so where they exist for the code in hand, read them and name what you read in the finding; where they do not, say the finding is unverified inference. Two findings in one pass argued correctly from a vendor's documented behaviour and were both refuted by results already on disk: a licence URL said to be corrupted by query decoding, whose combination had passed on two devices in five seconds, and a missing gate said to cost a full timeout, which measurably skipped in sixteen milliseconds.
+- Check every dimension; surface a finding only once you've verified it is a real bug that will be hit, and — for a standards-flagged one — that the standard names that issue specifically.
+- Apply each surviving finding that is a safe correctness fix — unambiguous, within the changed scope — and flag any that changes behaviour.
+- Once a finding is confirmed, grep the interface or module it belongs to for the same shape before moving on, and report what the sweep found.
+- **A finding that predicts how a device, browser or external service behaves at runtime is unconfirmed until you check what actually happened.** Recorded results — a test run, a log, an earlier session's output — outrank platform documentation: read them where they exist and name what you read; where they don't, label the finding an unverified inference.
 - The final sweep hunts cross-file and interaction bugs.
 
 ## Verdict
 
-- Pass: `File N/M <path> | <lines>L | OK`
-- Fail:
-  ```
-  File N/M <path> | <lines>L | WARN
-  <location>: <bug> — fixed | needs human: <decision>
-  ```
+Record for each changed file how much of it a human needs to read — an **observation, not a finding**:
+
+- **Read** — a published surface or port, a type crossing a module boundary, a gherkin scenario, a migration or persisted-schema change, or a security-relevant edge. Also any body no behaviour test covers.
+- **Skim** — a body behind a published surface that is covered, but only incidentally: no test would fail on a behaviour change.
+- **Skip** — a body behind a published surface, imported nowhere outside its module, with a test at that surface that fails when it breaks.
+
+**Read is the default.** Skim and Skip are earned in one clause naming the surface the body sits behind and **the test file and assertion** that would fail if it broke — never a claim that coverage exists. A clause you can't complete leaves the file on Read.
+
+That tier is a verdict field — `File N/M <path> | <lines>L | read|skim|skip | OK`. A `skim` or `skip` puts its earning clause on the next line.
+
+Finding line: `<location>: <bug> — fixed | needs human: <decision>`
 
 ## Do not
 
 - Post to GitHub or run `gh` — this is a local review.
-- Build, typecheck, or run tests — assume CI does.
-- Flag nitpicks or anything a linter / typechecker / test catches.
-- Fix or block on a pre-existing bug outside the change. If one is serious, surface it once as a separate non-blocking note for the human to route — never fold it into the change's findings or drop it silently. (A pre-existing bug the change makes reachable or worse is in scope — the change introduced that.)
+- Build, typecheck, run tests, or flag nitpicks and anything a linter / typechecker / test catches — assume CI runs them.
+- Fix or block on a pre-existing bug outside the change — surface a serious one once as a separate non-blocking note for the human to route, never folded into the change's findings and never dropped silently. (One the change makes reachable or worse is in scope.)

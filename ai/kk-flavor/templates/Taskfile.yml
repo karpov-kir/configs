@@ -7,7 +7,7 @@ tasks:
       - docker compose -f "$DEV_INFRA/docker-compose.yml" up -d --wait
       - '"$DEV_INFRA/ensure-postgres-db.sh" <app>'
       - task: db:migrate
-      - <watch> # e.g. tsx watch src/main.ts | air | go run . | …
+      - <watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
 
   db:migrate:
     cmds:

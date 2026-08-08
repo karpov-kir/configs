@@ -1,86 +1,59 @@
 ---
 name: idsd-intent
-description: Author or refine an ICE intent (Intent-Driven Software Development). Grills adaptively, then emits intent files under .idsd/intents/. Use for a new feature, a project plan/roadmap, refining an existing intent, or pairing with a non-developer. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "what should we build".
+description: Author or refine an ICE intent — what to build and why, never how — emitted under .idsd/intents/; also owns .idsd/language.md, the project's ubiquitous language. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term".
 argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
-Capture **what** to build and **why** as an ICE — never **how**; implementation belongs to `idsd-build`.
-
-**ICE = Intent · Context · Expectations.** You author Intent and Expectations; `idsd-build` assembles Context at build time. The intent file holds these parts:
-
-- **Goal** — one-sentence outcome, with a one-line *why it matters* (value or cost of inaction).
-- **Constraints** — absolute must-hold qualities/thresholds in business language ("p99 < 200ms", "bundle < 200kb", "WCAG 2.1 AA"); violation = failure regardless of execution. Project-wide ones are inherited from the constitution — author only the intent-specific ones.
-- **Success / Failure scenarios** — behaviour as Given/When/Then.
-- **Links** — neighbouring intents (extends / depends-on / blocks), declared in the frontmatter `links:`.
-
-A **Gate** — the executable check that verifies constraints plus baselines (build/lint/coverage) — is resolved and run by `idsd-build`, never authored here.
-
-A `## Follow-ups` section may also appear — build-time bookkeeping (open questions, cross-intent consequences surfaced during `idsd-build`), not contract; preserve it when refining. It's a checklist — see the template for the format.
-
-**Goal** and **scenarios** are the plain-language contract (shapeable by a non-dev collaborator); **constraints** are the technical must-holds.
-
-**Authoring gate.** Re-reading the assembled set surfaces cross-cutting gaps a one-at-a-time grill structurally can't — so Phase 2 (the clarify pass) is a required checkpoint, not optional polish, run even when the grill felt thorough. It gates Phase 3 (below).
-
-## Phase 0 — Detect scope
-
-Pick scope from the request, not repo state:
-- **Feature** — one ticket / one outcome → one ICE (rarely a small handful).
-- **Project** — "plan the project", "map the MVP", "multiple features" → a map of linked ICEs, each tagged by `milestone`.
-
-At project scope:
-- Read `.idsd/charter.md` if present, to ground decomposition; if absent, offer once to run `idsd-charter` — never force it.
-- If `.idsd/constitution.md` is absent, offer once to run `idsd-constitution` — never force it.
-
-If refining, read the named intent file and grill only the gaps.
+Capture **what** to build and **why** as an **ICE** — Intent · Context · Expectations — never **how**. You author Intent and Expectations (goal, constraints, scenarios); `idsd-build` assembles Context, resolves the gate commands that check the constraints (its Phase 2), and owns implementation.
 
 Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → **`idsd-intent`** → `idsd-audit` (optional) → `idsd-build`.
 
-## Phase 1 — Grill (adaptive, one question at a time)
+## Phase 0 — Detect scope
 
-Grill like `grill-me`: one question at a time, each with a recommended answer you **earned by legwork first** — read the code, charter, constitution, and neighbouring intents before recommending; when that can't settle it, still recommend but say what you checked and why it's open. Ask the fewest that lock the ICE, scaled to complexity — a tiny feature may need one or two, a project map many more. Skip anything answerable by reading the codebase; read instead. Stop when the goal, constraints, and scenarios are concrete and no open question could still change them.
+Pick scope from the request, not repo state: one ticket or one outcome → a **feature**, one ICE; "plan the project" / "map the MVP" / several features → a **project**, a map of linked ICEs each tagged by `milestone`.
 
-Cover only what's unclear, in order — the heuristic per part:
+At project scope, read `.idsd/charter.md` if present to ground decomposition, and offer once to run `idsd-charter` / `idsd-constitution` for whichever is missing — never force it.
 
-1. **Goal** — one outcome. Could two different implementations satisfy it? An "and" is a smell, not an automatic split: if both halves are facets of one outcome, name that outcome; if they're independently shippable, split (horizontal decomposition — more intents, not deeper).
-   - **Why it matters** — the value it delivers or the cost of inaction. Test: if it just rephrases the goal or describes the current situation, it isn't a why — push for the stakes ("…or else what?").
-   - **Outcome breadth** — when the goal's outcome word is broader than the symptom or fix the request names ("warmed up" vs "powered on"), pin down which outcome is actually wanted before approving. The broader reading usually implies a different contract, and resolving it after the build is the costly rework — settle it here, in outcome terms, never by reaching for a mechanism.
-2. **Constraints** — 3–7; prefer measurable ones, since `idsd-build` gates those automatically. Each must constrain THIS outcome, not how another component consumes its output (that belongs in their intent). Exact thresholds are constraints; an explicit list or table the outcome must encode goes in the optional Reference data section.
-3. **Success scenarios** — the behaviour that proves it works. One is the floor; add one per distinct behaviour or path worth proving — never pad with near-duplicates.
-4. **Failure scenarios** — behaviour that must not happen; intent-specific binary limits go here (e.g. "rejects payloads > 1MB"). Same scaling, per distinct failure mode.
-5. **Links** — what this intent extends, depends on, or blocks; in the frontmatter `links:`, one edge per line, why inline only when not obvious.
+If refining, read the named intent file, grill only the gaps, and preserve its build-managed `## Follow-ups` checklist.
+
+## Phase 1 — Grill
+
+Invoke `kk-grill` over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, the constitution, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
+
+Cover only what's unclear — the heuristic per part:
+
+1. **Goal** — one outcome. An "and" is a smell, not an automatic split: two facets of one outcome → name that outcome; independently shippable → split (horizontal decomposition — more intents, not deeper). When the goal's outcome word is broader than the symptom the request names, settle which outcome is wanted before approving — in outcome terms, never by reaching for a mechanism.
+2. **Constraints** — prefer measurable ones, since `idsd-build` gates those automatically. Each must constrain THIS outcome, not how another component consumes its output (that belongs in their intent).
+3. **Scenarios** — one success and one failure scenario are the floor (`templates/ice-template.md`); add one per distinct behaviour, path, or failure mode worth proving — never pad with near-duplicates.
+
+**Goal** and **scenarios** are the plain-language contract a non-dev collaborator can shape; **constraints** are the technical must-holds.
 
 For a **project map**, also decompose into one ICE per independently-shippable slice and tag each `milestone` (`mvp`, `vnext`, …); parked vNext intents are real files at `status: draft`.
 
 ## Phase 2 — Clarify pass (gate)
 
-Re-read the assembled draft as a whole — the one view the one-at-a-time grill can't give you. Surface every residual ambiguity that would change what gets written — across every part of the ICE, not only the highest-impact one. Scale to what's left: a tidy feature often yields nothing. No cap. Fold each answer into the part it refines — no separate log; the concrete ICE is the record. Re-runnable later on an existing file.
+Required, even when the grill felt thorough. Re-read the assembled draft as a whole and surface every residual ambiguity that would change what gets written — across every part of the ICE, not only the highest-impact one. Fold each answer into the part it refines; the concrete ICE is the record, so keep no separate log.
 
-Emit one outcome line as the gate's evidence: either the residual ambiguities found (and where each was folded), or the verbatim `Clarify pass: no residual ambiguities`.
+Emit one outcome line as the gate's evidence: the residual ambiguities found and where each was folded, or the verbatim `Clarify pass: no residual ambiguities`.
 
 ## Phase 3 — Emit
 
-**Precondition (Phase 2 gate):** write no file until Phase 2's outcome line is emitted; if it isn't, run Phase 2 first.
+**Precondition:** write no file until Phase 2's outcome line is emitted.
 
-Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` and `.idsd/archive/`, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one — numbers must stay unique (`idsd-audit` enforces uniqueness and contiguity).
+Run `idsd-qualify`'s `scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one.
 
-Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`. Set `collaborative: true` only when authored in a pair session (this activates `idsd-build`'s sign-off gate); record the collaborator's sign-off in `approved-by` when they approve.
+Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`. Set `collaborative: true` only when authored in a pair session, and record the collaborator's sign-off in `approved-by`.
 
-If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every intent's frontmatter (active + archived), grouped under a heading per milestone, with columns: number, title, status. Intents with `milestone: none` group under an "Unscheduled" heading. Generated, never hand-edited.
+If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every intent's frontmatter (active + archived): a heading per milestone (`milestone: none` → "Unscheduled"), columns number, title, status. Generated, never hand-edited.
 
-If `.idsd/charter.md` exists, keep its **Scope** in sync: when this planning adds or defers intents, or an intent falls outside the current scope, propose a Scope update — confirm it, and never rewrite vision or problem (those change only via `idsd-charter`). If there's no charter, don't create one here.
+If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update and confirm it. If there's no charter, don't create one here.
 
-## Keep long-term memory honest
-
-While authoring, watch for drift and recurrence and surface it — propose, never auto-edit; confirmed changes land via `idsd-charter` / `idsd-constitution`:
-
-- A constraint contradicts a constitution baseline → flag it; don't let both stand.
-- A constitution baseline that no `mvp` intent will satisfy (e.g. an auth baseline with auth parked in vNext) → flag it; the product would ship in standing violation. Pull an enforcing intent into the mvp, or mark the baseline deferred.
-- The same constraint recurs across three or more intents → propose promoting it to a constitution baseline; on promotion, strip the now-redundant restatement from the contributing intents too (keep only what's genuinely intent-specific), so it lives in exactly one place.
-- A domain term keeps recurring → propose adding it to the charter's vocabulary.
+**Keep `.idsd/language.md` current** — the project's ubiquitous language, and the file that makes `~/.kk-flavor/standards/writing.md` → **Readability floor**'s *one term per thing* enforceable across intents, code and conversation. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. It has no cadence of its own — it changes when an intent does, and `idsd-audit` is what notices when it stopped.
 
 ## Rules
 
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
-- Keep each ICE self-contained: declare every dependency in the frontmatter `links:`, none hidden — and keep it consistent with build order: never `block` or `depend-on` an intent that is foundational to this one or already built (that's backwards). A later intent that adds a constraint to a shipped one `extends` it.
+- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: never point `blocks` or `depends-on` at an intent that is foundational to this one or already built (that's backwards); a later intent that adds a constraint to a shipped one `extends` it.
+- Never rewrite the charter's vision or problem, or the constitution — those change only via `idsd-charter` / `idsd-constitution`, on a proposal you make and they confirm.
 - If the user says "just write it", collapse Phases 1–2 to the fastest pass that still emits the Phase 2 outcome line, then Phase 3 — the gate fires even on the fast path.
 - Don't restate the kk-flavor standards or `CLAUDE.md`; they're Context for `idsd-build`.

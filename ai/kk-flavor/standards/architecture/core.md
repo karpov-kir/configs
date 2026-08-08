@@ -1,152 +1,75 @@
 # How We Structure Code
 
-Examples below are language-agnostic pseudo-code. Patterns matter, not the tools.
+Follow this on a new project; otherwise match the project's existing architecture.
 
-This file holds the **shared core** — the principles backend and frontend both follow. Two companion files apply that core to each side; read this first, then the one you need:
-
-- Backend / services → [backend.md](backend.md)
-- Frontend / UI → [frontend.md](frontend.md)
-
-**Applying these documents.** Follow them when a project already does, or when starting a new one; otherwise match the project's existing architecture — consistency within a project wins.
-
----
-
-## Two axes
-
-How a system is decomposed and wired, along two axes that compose: **vertical slicing** (per-feature cohesion) and **horizontal decoupling** (each slice swappable from its tech). The same ports and composition-root seam make it testable — the real graph with a fake at one edge, no mocks (see [testing.md](../testing.md)).
+## Three axes
 
 ### Vertical slicing
 
-Organize the top level by feature, not by technical layer — a slice owns its boundary, business logic, and data access together (a feature change stays in one folder). Prefer this over a layer-first `controllers/`/`services/`/`repositories/` tree.
-
-Shared folder vocabulary, used by both sides — each companion file shows its concrete tree:
-
-| Folder | Role |
-|---|---|
-| `features/` | Vertical slices — one folder per feature, owning its boundary, logic, data, and adapters. |
-| `shared/` | Cross-slice primitives — no feature logic. |
-| `entrypoints/` | Inbound edges — one per way into the app; each owns its host, composition root, and app-wide cross-cutting. |
-| `infra/` | Global / cross-slice outbound plumbing and adapters. |
+Organize the top level by feature, not by technical layer. A **slice** is one feature's folder, owning its boundary, business logic, and data access together, so a feature change stays in one place. The top level: `features/` (the slices), `shared/` (cross-slice primitives, no feature logic), `entrypoints/` (inbound edges), `infra/` (cross-slice outbound plumbing and adapters).
 
 - A slice may use `shared`, never another slice's internals; cross-slice needs go through a published port or an event.
 - Keep a slice whole — its adapters, tests, types, and helpers live with it.
 
 ### Horizontal decoupling
 
-Business logic must not depend on infrastructure (e.g. a database, a message broker, an HTTP API, a UI framework, browser storage, the clock, the filesystem) — dependencies point inward, never out.
+Business logic must not depend on infrastructure — a database, a broker, an HTTP API, a UI framework, browser storage, the clock, the filesystem, … Dependencies point inward, never out.
 
-#### Ports
+**Functional core, imperative shell** — the layer that drives the ports hands values inward; the core computes and returns rather than awaiting I/O mid-decision.
 
-A port is an interface at a boundary to external technology, declared by the domain in its own terms.
+#### Ports and adapters
 
-```
-interface Store:                          // a port, declared by the domain
-    load(key) -> Promise<Value | undefined>
-    save(key, value) -> Promise<void>
-```
+A port is an interface at a boundary to external technology, declared by the domain in its own terms. It can also be a **minimal structural subset** of a large third-party type — declare only the methods you use.
 
-A port can also be a **minimal structural subset** of a large third-party type — declare only the methods you use:
-
-```
-type MinimalFileHandle = pick(FileHandle, [read, write, close, truncate, stat])
-```
-
-#### Adapters
-
-An adapter implements a port against one concrete technology. The core imports only the port; concrete tech sits at the edge that faces it — frameworks, SDKs, and platform APIs live in entrypoints and adapters, never in the core. The same port takes one adapter per technology — including one per side:
-
-```
-class SqlStore implements Store:          // backend adapter
-    load(key): ...db query...
-class LocalStorageStore implements Store: // frontend adapter
-    load(key): ...read window.localStorage...
-```
+An adapter implements a port against one concrete technology, and the same port takes one adapter per technology. The core imports only the port; frameworks, SDKs, and platform APIs live in entrypoints and adapters, never in the core.
 
 #### Composition root
 
-A composition root constructs adapters and injects them into the domain; business and domain code never call `new` on an infrastructure class.
+A composition root constructs adapters and injects them into the domain; business and domain code never call `new` on an infrastructure class. Its constructor takes partial overrides that default to the real adapters, and it exposes the handle callers hold. Those overrides are the seam a test, or another runtime, swaps one dependency through. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
 
-```
-class CompositionRoot(overrides = {}):
-    // partial overrides default to the real adapters — the seam a test
-    // (or another runtime) swaps one dependency through
-    store     = overrides.store ?? new RealStore()
-    clock     = overrides.clock ?? new SystemClock()
-    reminders = new ReminderService(store, clock)
-    // the handle callers use:
-    handle    = new WebServer(reminders)     // backend
-    // handle = new ReminderApp(reminders)   // frontend
-```
-
-**Hand out domain handles — never a raw framework or vendor type.** A leaked one couples callers back to the technology the ports hide. The handle's shape follows the app — for example:
-
-- service → `start()` / `stop()`, plus `handle(request)` for in-process tests
-- UI mount (SPA or extension surface) → `mount()` / `unmount()`
-- CLI / batch job → `run(args)`
-- library → the use-case API (or a domain facade), handed out directly
+**Hand out domain handles — never a raw framework or vendor type**, which couples callers back to the technology the ports hide. The shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job, the use-case API for a library.
 
 #### Entrypoints
 
-Ports/adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain. One per way into the app.
+Ports and adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain, one per way into the app. An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its **composition root**, and app-wide cross-cutting, then hands each inbound interaction inward to a slice's boundary; only the logic behind it stays transport-agnostic.
 
-An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its **composition root**, and app-wide cross-cutting, then hands each inbound interaction inward to a slice's boundary; only the logic behind it stays transport-agnostic.
+One entrypoint sits in a singular `entrypoint/`; several go under `entrypoints/`, one named folder each. No composition root composes composition roots — to run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll.ts`, `web.ts`, `worker.ts`) starts their handles together (`await all(a.start(), b.start())`).
 
-Match structure to need: an entrypoint starts as one file and earns a folder when it needs more than one. One entry sits in a singular `entrypoint/`; several go under `entrypoints/`, one named folder each. A split-out composition root takes the entrypoint's name (`WebServerCompositionRoot`, `PopupCompositionRoot`); a single entrypoint's is just `CompositionRoot`. No composition root composes composition roots — to run several in one process, a cumulative entrypoint starts their handles together (`await all(a.start(), b.start())`).
+### Module depth
 
-Each side's flavor: transport hosts in [backend.md](backend.md), mount surfaces in [frontend.md](frontend.md).
+A module's **interface** is everything a caller must learn to use it — its exports, their types, and the constraints only prose carries. Its **depth** is the functionality it hides divided by that interface. Deep is the goal, and depth is not size — **splitting a file is free, exporting the halves is not.**
 
-#### Injection seams
+- **Publish one surface per module.** A slice or module declares its boundary in one file: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Name that file `exports.ts` (or the language's equivalent), never `index.ts` — an implicitly-resolved name hides which file the caller is actually reading, and it is what turns a declared surface back into the re-export barrel [code-style.md](../code-style.md) → Extraction & Size bans.
+- **Adding capability inside must not widen the surface.**
+- **No pass-throughs.** A method that mostly forwards to a same-named method one layer down costs interface and hides nothing.
+- **No required sequences.** An interface the caller must drive in order — construct, then configure, then start — is shallow. Hide the order inside, or model the states so the wrong order can't be expressed.
+- **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open. The types carry what they can; the contract prose beside them carries the rest ([code-style.md](../code-style.md) → Comments exempts that prose from the no-comment default).
 
-- **Constructor injection** — a class receives its dependencies, never constructs them (above).
-- **Function option with a real default** — give a plain function a dependency option defaulting to the real implementation:
+## Per-side specifics
 
-```
-function append(path, data, options = {}):
-    openFile = options.openFile ?? realOpenFile    // production default
-    ...operate through the injected handle...
-```
-
-**Functional core, imperative shell** — a judgment call, worth more as the logic grows heavier or more critical, not for thin CRUD. Keep business logic a pure **core** (decisions from inputs — no I/O, clock, or mutation) wrapped by a thin **shell** that gathers inputs, calls the core, and enacts the result; a pure core tests trivially: data in, data out, nothing to fake.
-
-### Depth matches complexity
-
-An inbound interaction flows inward through a slice's layers; **add a layer only when the path earns it**. The roles are shared; each side names them and documents when each is earned:
+An inbound interaction flows inward through a slice's layers; add a layer only when the path earns it.
 
 ```
 backend  : entrypoint(host)  → controller → use case → core / domain  (→ ports)
 frontend : entrypoint(mount) → page       → feature  → core / domain  (→ ports)
 ```
 
-The heavier patterns each side can reach for — DDD and event-driven on services, state machines and event buses on the client — carry real cost; adopt them only when complexity justifies it.
+**Backend.** Default to **CQRS** — reads and writes take separate paths. No `main.ts`. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates); otherwise skip it. Put a read behind a port only where a fake adds value. Schema library: zod / valibot (TS), pydantic (Python).
+
+**Frontend.** Server cache — data mirrored from the API — goes to a data-fetching library (TanStack Query, a Solid resource) behind a port, never hand-rolled in components; UI state (open/closed, selection, draft) stays in component-local signals. A server semantic rejection (409/422) maps onto the offending field, not a generic toast.
 
 ## Validation
 
-The inbound boundary checks **structure** — types, ranges, required fields — and rejects malformed input before deeper logic runs. Inner layers check **semantics** — state-dependent rules no schema expresses (sufficient balance, the record exists). The two failure modes stay distinct: malformed input is the caller's error, rejected at the boundary; a well-formed value naming nothing real is a not-found deeper in.
+The inbound boundary checks **structure** — types, ranges, required fields — and rejects malformed input before deeper logic runs. Inner layers check **semantics** — state-dependent rules no schema expresses (sufficient balance, the record exists).
 
-Validate structure with a **declarative schema** from a validation library — parse once into a typed value or a rejection. Never an unchecked cast, never a hand-rolled `typeof`/`in` chain where a schema fits. Define the schema **once** as the single authority and derive the static type from it; every surface checking the format delegates to it. At the edge, follow the robustness principle: liberal in what you accept (only the fields you use), conservative in what you emit.
+Validate structure with a **declarative schema**, parsed once into a typed value or a rejection — never an unchecked cast or a hand-rolled `typeof`/`in` chain. Define the schema once as the single authority, derive the static type from it, and delegate every format check to it.
 
 ## Logging & events
 
-**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors. It's pure side-output: nothing branches on it, no test asserts it, so the usual costs of a global (hidden dependencies, untestability) don't apply and injecting it everywhere is ceremony without payoff. One root logger, scoped per slice/feature so each line carries its source and filters by level; level set once from config. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
+**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level; level set once from config ([project.md](../project.md) → Logging). Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
 
-**Events — injected like any port.** Notification goes through a typed pub-sub (fire-and-forget). Unlike the logger, a pub-sub is a behavioral dependency, so it's injected from the composition root: the owner holds it as a private `pubSub` field (the idiomatic name) and exposes a domain verb pair per channel — bound `onStateChanged`/`offStateChanged` fields typed `ChannelSubscriber<Payload>` that call `pubSub.subscribe`/`unsubscribe` directly (the handler infers as `ChannelHandler<Payload>`) — so consumers call `owner.onStateChanged(handler)` and never import the pub-sub. Two independent questions decide its use. *Coupling* — should this notification be decoupled into an event at all? Cross-slice, yes; within a slice a fixed 1:1 call is simpler, so don't. *Mechanism* — when you have dynamic **1:N fan-out** (one source emitting to a set of subscribers that varies at runtime — e.g. a service feeding several SSE streams), that shape *is* pub/sub: reach for the pub-sub even intra-slice and even at the first site, rather than hand-rolling a listener `Set` + notify loop that re-implements subscribe/unsubscribe/fan-out the primitive already gives you, typed. A ready-to-go typed pub-sub ships in [PubSub.ts](PubSub.ts): `PubSub<ChannelMap>`, keyed by a channel map that declares each channel as a `ChannelHandler<Payload>` (the `(payload) => void` callback). To use it, **vendor the slice you need** into the project's `shared`, adapting the `Logger` seam (wire your logger, or drop the logging where there is none) — a no-dead-code/coverage gate rejects a wholesale copy. Head the vendored file with a provenance line (source repo + commit) so the next propagation diffs against a known base rather than re-deriving the trim. Trickier needs — asynchronous handlers, cross-process or cross-tab delivery, durability, retries — call for a real async/distributed pub-sub (a message broker or queue), not this. On the client, reactive UI state is a signal, not a pub-sub message.
+**Events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget, injected by the composition root.
 
-## Decision guides
-
-#### Where does this code go?
-
-- Feature-specific behaviour → that feature's slice.
-- Used by 2+ slices, no infrastructure → `shared`.
-- Talks to external technology → a port (declared by the domain) + an adapter, in the slice that uses it.
-- Global plumbing, or an adapter shared across slices → `infra`.
-- Inbound host + composition root → `entrypoints`.
-
-#### Tempted to couple to infrastructure? Do this instead
-
-| Temptation | Instead |
-|---|---|
-| Domain imports the ORM / client / framework | Declare a port in the domain; implement it in an adapter |
-| `new SomeAdapter()` inside the core | Inject via the constructor; the composition root constructs it |
-| One slice imports another slice's internals | Depend on a published port, or emit an event |
-| Global singleton / service locator | Pass the dependency explicitly from the composition root |
-| Composition root returns a raw framework / vendor handle | Hand out a domain handle (a server's `start`/`stop`, a UI mount's `mount`/`unmount`) |
+- **Dynamic 1:N fan-out** — one source emitting to a subscriber set that varies at runtime — *is* pub-sub: use one even inside a single slice and even at the first site, rather than hand-rolling a listener `Set` plus notify loop. Without that fan-out, a fixed 1:1 call inside a slice is simpler.
+- **The owner hides it.** Hold it as a private `pubSub` field and expose one domain verb pair per channel: bound `onStateChanged`/`offStateChanged` fields typed `ChannelSubscriber<Payload>`. Consumers call `owner.onStateChanged(handler)` and never import the pub-sub.
+- A ready-to-go typed `PubSub<ChannelMap>` ships in [PubSub.ts](PubSub.ts); **vendor the slice you need** into the project's `shared`, adapt the `Logger` seam, and head it with a provenance line — source repo plus commit. Cross-process delivery, durability, retries, or asynchronous handlers need a real broker.

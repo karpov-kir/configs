@@ -1,36 +1,24 @@
 ---
 name: idsd-charter
-description: Set up or edit the charter for an IDSD project — the project's what & why (vision, problem, users, scope boundaries) that idsd-build reads as Context. Optional and run rarely (project seeding or a direction change). Use when asked to "set the project vision/charter", "what is this project about", "define scope". Safe to run solo or with a non-technical collaborator.
+description: Write or edit .idsd/charter.md — an IDSD project's what & why (vision, problem, users, scope). Use for "set the project vision/charter", "define scope". Safe with a non-technical collaborator; the technical how is idsd-constitution's.
 ---
 
-Write `.idsd/charter.md` — the project's **what & why**: the level-0 intent that sits above the feature intents.
-
-Optional. Feature work and even project planning run without it; create one when the project's purpose is worth stating for collaborators and for `idsd-build`'s Context.
-
-Where this fits: **`idsd-charter` (optional) → `idsd-constitution` (optional) → `idsd-intent` → `idsd-audit` (optional) → `idsd-build`**. The charter is the *what/why*, the constitution the *how*; `idsd-intent` keeps the charter's scope current as features evolve.
+Write `.idsd/charter.md` — the project's **what & why**, the level-0 intent above the feature intents. Don't list features (that's the roadmap), restate principles or standards (the constitution), or detail behaviour (the intents) — link to them.
 
 ## Phase 1 — Inventory what exists
 
 - If editing, read the current `.idsd/charter.md`.
-- If a roadmap or intents already exist, read them for grounding — but the charter links to them, it doesn't copy them.
-- If this edit removes something from scope, scan the intents (active and archived) for ones covering the removed area — they are now off-mission and must be reconciled (see Rules).
+- If a roadmap or intents already exist, read them for grounding.
+- If this edit removes something from scope, scan active and archived intents for ones covering the removed area — they are now off-mission. Name them and recommend retiring them: a removal intent via `idsd-intent` → `idsd-build`, or deleting the obsolete code.
 
 ## Phase 2 — Grill the gaps only
 
-Grill like `grill-me` for project-level scope — one question at a time, each with a recommended answer you **earned by legwork first** (grounded in Phase 1's inventory and the code, not a guess; when it can't be settled that way, recommend anyway and say what you checked); push until the boundaries are sharp. Cover only what's unclear:
-
-1. **Vision** — what the project is, in 1–2 sentences. An outcome for users, not a feature list.
-2. **Problem & users** — who it's for and what's broken without it (concrete stakes, not a generic harm).
-3. **Scope boundaries** — what's in and, just as important, what's explicitly out for now.
-4. **Shared vocabulary** *(optional)* — domain terms worth pinning so intents use them consistently. Add as they're clarified, not up front.
+Invoke `kk-grill` at project scope, over the sections of `templates/charter-template.md`, which says what belongs in each. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear, and push until the boundaries are sharp — hardest on what is explicitly **out** for now.
 
 ## Phase 3 — Emit
 
-Write `.idsd/charter.md` from `templates/charter-template.md`. Confirm the path once before writing. Keep it lean — link out for detail. In "See also", link only to artifacts that exist — drop the constitution line if there's no constitution, and the roadmap line until intents have been drafted.
+Run `idsd-qualify`'s `scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**), then confirm the path once and write `.idsd/charter.md` from that template. In "See also", link only to artifacts that exist: drop the constitution line when there's no constitution, the roadmap line until intents have been drafted, and the language line until there is a `language.md`. Domain terms go there and never here — `idsd-intent` owns that file and `idsd-audit` checks only that file, so a term pinned in the charter is a term nothing audits.
 
 ## Rules
 
-- Charter holds the *what & why* (plus the supporting vocabulary), nothing else. Don't list features (that's the roadmap) or restate principles/standards (that's the constitution) or detail behaviour (that's the intents) — link to them.
-- Curated, not generated: humans own the wording. `idsd-intent` may refine the scope section as features evolve, but vision and problem change only here, on purpose.
-- A scope cut that orphans built or active intents must be flagged: name them and recommend retiring them — open a removal intent via `idsd-intent` → `idsd-build`, or delete the obsolete code. Never leave the charter and the codebase contradicting each other.
-- Keep it at altitude: vision, problem, scope, shared vocabulary — never feature detail (intents) or architecture (code). It may grow as the project teaches you more, but link out rather than copy detail in.
+Curated, not generated: humans own the wording. `idsd-intent` may refine the scope section as features evolve, but vision and problem change only here, on purpose.

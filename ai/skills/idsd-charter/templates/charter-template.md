@@ -15,13 +15,8 @@ The project's what & why — the level-0 intent. Read by `idsd-build` as Context
 - **In:** <the high-level capabilities this project covers>
 - **Out (for now):** <what is deliberately excluded — the boundary that keeps scope honest>
 
-## Vocabulary
-
-Optional — domain terms worth pinning so intents use them consistently. Add as they're clarified.
-
-- **<term>** — <one-line meaning>
-
 ## See also
 
 - Feature intents & status: [roadmap.md](roadmap.md)
 - Standards & gates: [constitution.md](constitution.md)
+- Domain vocabulary: [language.md](language.md)
