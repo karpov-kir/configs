@@ -37,7 +37,7 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 **`check.sh` over the root is yours, not theirs.** `kk-ecosystem` opens and closes with it, but a Phase 3 agent cannot fix what it finds — the files belong to other agents, and with several editing at once each one's in-flight state reads to the others as dangling links. `AGENT-BRIEF.md` → **Scope discipline** tells them to skip both steps, and its return contract routes what they hit. You run the wiring check between phases and at the end.
 
-**You own the handoff ledger**, at `<scratch>/reduce-handoff.md`. Agents return handoffs in their `HANDOFF:` line; you append them, relay each to the owning agent if it is still running, and **drain the ledger in Phase 4** — every entry applied, or recorded with why it was declined. An entry nobody applies is a change the campaign promised and dropped.
+**You own the cross-scope ledger**, at `<scratch>/reduce-cross-scope.md`. Agents return an edit another agent's file needs in their `CROSS-SCOPE:` line; you append them, relay each to the owning agent if it is still running, and **drain the ledger in Phase 4** — every entry applied, or recorded with why it was declined. An entry nobody applies is a change the campaign promised and dropped. A *handoff* is not a cross-scope entry: it names a lane rather than an edit, and Phase 6 drains it (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
 **Keep a campaign record beside it** — the plan path, each theme's scope, whether its agent finished, and every return verbatim. This is the most destructive procedure here, and without that record an interrupted campaign leaves a half-cut tree with no way to tell which themes landed.
 
@@ -48,7 +48,7 @@ The partition that made Phase 3 safe is what leaves this work: no agent could se
 - **One home, and no home.** Reconcile rules living in several files. Then grep-verify **every `DELETED:` line every agent returned** — open the file each names as still covering the rule and confirm the text is there. Verifying only what the plan rescued misses the case that actually happens: two agents concurrently confirming each other's copy exists and each deleting its own, which no plan ever scheduled. A line whose named home no longer holds it is a rule deleted twice; restore one copy.
 - **Stale claims.** A wiring check proves a cited path exists; nothing proves the target still says the thing. Check every citation into a file that was heavily cut.
 - **Prefer the mechanism.** Prose a script can assert (ecosystem.md → **Prefer the mechanism**). This is the pass that converts words into enforcement instead of deleting them, and it is worth more than any single cut.
-- **Trace the real runs.** Walk each end-to-end path as the agent would, loading files in order, and find where the instruction runs out: a step naming something no file defines, a handoff whose receiving skill no longer expects what the sender sends, a contract with one half deleted. Nothing else in this campaign checks that the system still works as a system.
+- **Trace the real runs.** Walk each end-to-end path as the agent would, loading files in order, and find where the instruction runs out: a step naming something no file defines, an invocation whose receiving skill no longer expects what the sender sends, a contract with one half deleted. Nothing else in this campaign checks that the system still works as a system.
 - **Skill shape**, where skills were cut — invoke `kk-skillcraft`. Run it here and not in Phase 3: what to extract depends on what survived.
 
 ## 5. Converge
@@ -59,7 +59,9 @@ Stop when a round returns little and says so. Two rounds is usually enough; a th
 
 ## 6. Repair
 
-Cutting damages prose: it stitches sentences together, strands pronouns, and leaves terms used before the line defining them. Spawn `kk-tighten` **last**, pointed at the readability floor rather than at volume, and expect it to *add* words. Where scripts changed, `kk-code-review` then `kk-refactor` — in that order, refactor being the serializer.
+Cutting damages prose: it stitches sentences together, strands pronouns, and leaves terms used before the line defining them. Spawn `kk-tighten` **last**, pointed at the readability floor rather than at volume, and expect it to *add* words.
+
+**Then drain the handoffs the phases returned** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**). A campaign that rewrote scripts owes that lane, and nothing else here reads a script as code.
 
 **Close the campaign by recording the result** — `kk-foreman`'s `scripts/stats.sh --append "<what ran>"`. A campaign changes the tree more than anything else and is always started directly, so nothing else will write that row.
 

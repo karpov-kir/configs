@@ -10,10 +10,10 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs c
 
 ## Two licenses, by what the artifact carries
 
-- **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar and its deletion tests — read it before the pass.
+- **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar, and holds the deletion tests — read it before the pass.
 - **Everything else** — a design doc, an investigation, an ICE, a report: **lossless**. Cut only what the surrounding context recovers — adjacent text, the code it documents, sibling artifacts, the diff. Unsure a cut loses meaning → keep it.
 
-**Outward text — the set `~/.kk-flavor/standards/human-writing.md` defines — belongs to `kk-humanize`**: hand off after your pass. Interactive → spawn it; spawned → note the handoff in your return.
+**Outward text — the set `~/.kk-flavor/standards/human-writing.md` defines — belongs to `kk-humanize`**: hand off after your pass, per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**. Your handoff carries every outward-text artifact in your queue, edited or not — the lane is barred to you, so leaving one out strands it.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`; deltas below.
 

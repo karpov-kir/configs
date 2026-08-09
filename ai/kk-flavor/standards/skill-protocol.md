@@ -45,6 +45,14 @@ Nothing downstream reviews what a quality pass writes, including a fix the orche
 - **A behaviour-changing fix lands a test per branch it introduces**, whatever its size.
 - **A finding that proposes building a subsystem carries that subsystem's standing cost** — disk, memory, schedule, whatever it will keep consuming.
 
+## Finish in the lanes your edits opened
+
+Name every lane your **own edits** gave work to. Standalone, run each, in [quality-pipeline.md](quality-pipeline.md) → **The stages** order. What your pass opened is a handoff; "it might find more" is not. Spawned, **name the handoff in your return and spawn nothing** — your caller owns the round's order and has that stage queued already, or dropped it on purpose.
+
+A handoff carries **only the files that opened the lane** — the ones you changed — never your entire scope. Where your lens is barred from a whole file kind, it also carries the ones you left untouched for the receiving skill. **A skill reached by a handoff makes no further one**; it returns what it found. That is what bounds the chain, so a caller spawning one **says in the prompt that it is reached by a handoff** — the slot is in `~/.kk-flavor/templates/spawn-prompt.md`, and unsaid, the receiver cannot know.
+
+**The caller's half: read every return for a handoff and queue it**, or say why you dropped it. One left unread is work the run created and nothing does. Where it lands in your order is your own skill's delta.
+
 ## Do not
 
 - Skip files by labeling them — "trivial", "historical", "same as prior", or any shortcut meaning "less attention here".

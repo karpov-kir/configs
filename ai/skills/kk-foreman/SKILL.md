@@ -46,6 +46,8 @@ Two fixed points when rows merge. **A stage another row's skill already spawns i
 
 Spawn each stage per the protocol's default, in the order **Route** resolved. Relay a stage's blocking question to the human live — you hold the thread and it does not.
 
+**A handoff a stage returns is placed by Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**) — the table's rows and its two fixed points decide where it lands, so a handoff naming a skill already queued merges into that row rather than running twice.
+
 When the chain finishes and the instruction tree changed, `scripts/stats.sh --append "<what ran>"`. That row is what the next invocation reads, and skipping it is how the ledger stops being able to answer anything.
 
 ## Rules

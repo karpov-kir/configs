@@ -33,7 +33,7 @@ before you judge a rule dead; prefer one to a deletion you would have to argue f
 ## Scope discipline
 
 - Edit **only** your listed files. Other agents own the rest and run concurrently.
-- A change another file needs is a `HANDOFF`, not a reach outside your scope.
+- A change another file needs is a `CROSS-SCOPE`, not a reach outside your scope.
 - **Skip `kk-ecosystem`'s wiring check over the root** (its first and last steps) — that is your orchestrator's. Other agents are mid-edit and their in-flight state reads as findings; fixing it would clobber files you do not own.
 - **Skip its shape and prose stages too** — it spawns `kk-skillcraft` and `kk-tighten`, and the campaign runs both later over what survived. Rule economy is the whole of your pass.
 - Never delete a file unless your scope says to.
@@ -53,7 +53,8 @@ WORDS: <before> -> <after> (saved N)
 DELETED: one line per rule removed, each naming what still covers it — or plainly "nothing did"
 MOVED: what you split, extracted, or gave one home, and where the pointer sits
 RESCUED-KEPT: one line per plan-rescued passage, confirming it survives and where
-HANDOFF: changes another file needs (path + what) — or "none"
+CROSS-SCOPE: changes another file needs (path + what) — or "none"
+HANDOFF: each lane your edits opened (skill + the files that opened it) — never kk-skillcraft or kk-tighten, the campaign runs those — or "none"
 PROPOSAL: additions you did not make — or "none"
 BROKEN: references your edits invalidated — or "none"
 ```

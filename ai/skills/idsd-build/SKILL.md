@@ -38,9 +38,9 @@ A command that *can't run*, that *runs but can't fail* (`idsd-constitution`'s re
 2. Encode success/failure scenarios as real acceptance tests; for runtime/UI behaviour that resists a unit test, drive the app directly (a project `verify` skill if there is one, an e2e test, or a manual run). Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises (each supported value, threshold, edge branch), and the non-ASCII / special-character case wherever code lists or round-trips external names. When the deliverable is a mapping, produce the full table (code path → resulting state) and validate every row. Extend hand-written tests; don't clobber them.
 3. Run the gates and the scenario tests. On failure, fix and re-run — bounded to a few iterations; if stuck, stop and report rather than thrash.
 4. **Exercise it end-to-end, black-box**, wherever the change has observable behaviour. Once gates and scenario tests are green, **spawn a general-purpose subagent** with only the intent's scenarios and how to run the project — **withhold the diff**, so it verifies against the spec, not the implementation. It drives the real path, reports each scenario's observed outcome with evidence, and tears down; a divergence is a red result — fix and re-run. **Drive against a disposable seeded fixture, never live project content**, and for UI or layout behaviour make that fixture representative, not minimal — a toy one renders fine while hiding the overflow that real input triggers. No runnable entrypoint yet is not grounds to skip: a throwaway harness (composition root, built assets) is the expected way, removed afterwards.
-5. Before the checkpoint, self-review the changed files against the kk-flavor standards and the project's `CLAUDE.md` — passing gates don't prove the code follows them.
+5. Before the checkpoint, **spawn `kk-code-review` over the changed files** rather than reviewing them yourself — passing gates don't prove the code is correct. Structure and style are `kk-refactor`'s half of that review: spawn it too where this build moved either. **After code-review, never alongside it** — refactor rewrites the identifiers a concurrent review is still reading (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 
-Re-run the gates yourself after any delegated slice lands.
+Re-run the gates yourself after any spawned subagent's edits land.
 
 Capture every decision, loose end and piece of operating knowledge in the artifact that owns it, never only in chat:
 - **How to operate this repo** — a command the human hands you that runs it in a mode, seeds a fixture, or drives a tool → `.idsd/playbook.md`, appended without asking. Record what the next agent needs rather than what you were told: the command, what it does, when to reach for it, verified by running it. Gate commands stay the constitution's — point at them. It is agent-maintained where the constitution is curated, and it accumulates across throwaway ships.
@@ -74,7 +74,7 @@ Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (i
 When `idsd-ship` invokes you, it owns review, refactor, and final approval:
 
 - Run Phases 1–3 unchanged; the interactive gates still fire.
-- Skip Phase 3's self-review step — the dedicated `kk-code-review` pass replaces it.
+- Skip Phase 3's step 5 — the pipeline's own `kk-code-review` and `kk-refactor` stages replace it.
 - Stop when Phase 3 completes — gates green, end-to-end check passed (its evidence is what `idsd-ship` presents as observed outcomes): skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back.
 - `idsd-ship` re-invokes Phase 5 after its own approval — run it then, unchanged.
 

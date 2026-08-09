@@ -14,7 +14,7 @@ Refine the ecosystem. The product is a **smaller** set of instructions that stee
 
 ## 1. Check the wiring
 
-Run `scripts/check.sh` (this skill's dir) over the ecosystem root and fix what it finds before anything else.
+Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and fix what it finds before anything else.
 
 ## 2. Audit the always-loaded set
 
@@ -37,16 +37,21 @@ Spawn `kk-skillcraft` over every skill directory in the resolved scope — the l
 
 Spawn `kk-tighten` over the resolved artifact set, plus whatever the two stages above moved.
 
-## 6. Account for it
+## 6. Hand off the scripts
+
+A script this pass edited is code no stage of this lane reviews. Hand it off per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**, carrying exactly the scripts this pass changed.
+
+## 7. Account for it
 
 Report, in this order:
 
 - every rule **deleted**, and what still covers it — or plainly that nothing did;
 - every rule **added**, and which one it replaced;
 - the always-loaded budget, before and after;
-- total lines, before and after.
+- total lines, before and after;
+- the handoff step 6 named, or plainly that this pass changed no script.
 
-Then re-run `scripts/check.sh` — the cuts themselves break references.
+Then re-run `~/.claude/skills/kk-ecosystem/scripts/check.sh` — the cuts themselves break references.
 
 The size-ledger row is your **caller's**, not yours: `kk-foreman` appends one after the chain it ran, and a row written here as well double-counts every chained pass. Invoked directly, report the budget and let the human place it.
 
