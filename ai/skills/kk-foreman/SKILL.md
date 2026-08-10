@@ -18,6 +18,8 @@ Run `scripts/stats.sh` (this skill's dir) and read `history.md` beside it. Exit 
 
 Those two answer the question a description cannot: *has this grown since it was last cut, and by how much?* Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it.
 
+**A `+` on a row's always-loaded figure makes it a lower bound**, not a measurement: the tier also carries `@path` imports the scripts name but never count, and the row does not record which files those were. Read the delta between two such rows as "at least this much".
+
 ## 2. Route
 
 **Start at the smallest skill that covers the work, and escalate only on evidence.** One `kk-*` skill run directly — whichever description matches — is the common answer, and three touched lines get one of those, not a chain: say which skill and run it, without ceremony.

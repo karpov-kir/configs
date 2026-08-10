@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Repeated-long-literal detector — finds byte-identical long strings that appear 2+ times among the
-# diff's ADDED lines — copy-pasted tokens, keys, fixtures — which reviewers reliably miss. Run by
-# kk-refactor's setup, and by a pipeline orchestrator before the refactor stage.
+# Repeated-long-literal detector — byte-identical long strings that appear 2+ times among the diff's
+# ADDED lines: copy-pasted tokens, keys, fixtures, and the like. Run by kk-refactor's setup, and by
+# a pipeline orchestrator before the refactor stage.
 #   usage: dup-literals.sh [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
 #          a path argument is refused with exit 2, never scanned
 #   env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
@@ -54,7 +54,11 @@ fi
   # front of it and an external diff driver (`diff.external`, `GIT_EXTERNAL_DIFF`) replaces the
   # output wholesale; under either, the scan finds nothing and exits 0 over a real duplicate.
   # Pin the shape here; the caller's own flags still come after and win.
-  git diff --no-ext-diff --no-color "${@:-HEAD}" || {
+  # `--text` because the PR author owns `.gitattributes`: `* -diff` there, or one NUL byte in the
+  # file, makes git emit `Binary files … differ` instead of a diff — the scan then finds nothing
+  # and exits 0 over a real hit. Forcing text pushes genuine binaries through too; every printed
+  # span is length-bounded already.
+  git diff --no-ext-diff --no-textconv --no-color --text "${@:-HEAD}" || {
     echo "dup-literals.sh: git rejected these arguments — exit 2, the scan did NOT run. Not a clean result." >&2
     exit 2
   }
@@ -92,14 +96,21 @@ fi
   }
   END {
     found = 0
+    shown = 0
+    # `%.60s` already bounds each line; this bounds how many there are. Under kk-pr-review both the
+    # literals and their count come from a branch someone else wrote, and this output is read by an
+    # agent that drafts a review. A suppressed duplicate is announced, never dropped — which holds
+    # only while the cap on the two loops and the one in the announcement stay the same number.
+    max_shown = 200
     for (token in tokens) if (tokens[token] >= 2) {
-      found = 1
-      printf "%dx token (%d chars): %.60s…\n", tokens[token], length(token), token
+      found++
+      if (++shown <= max_shown) printf "%dx token (%d chars): %.60s…\n", tokens[token], length(token), token
     }
     for (line in lines) if (lines[line] >= 2 && !(line in tokens)) {
-      found = 1
-      printf "%dx line  (%d chars): %.60s…\n", lines[line], length(line), line
+      found++
+      if (++shown <= max_shown) printf "%dx line  (%d chars): %.60s…\n", lines[line], length(line), line
     }
-    exit found
+    if (found > max_shown) printf "… and %d further duplicate(s), not shown\n", found - max_shown
+    exit (found > 0)
   }
 '

@@ -57,9 +57,13 @@ fi
   # `core.quotePath=false` is part of that shape. By default git C-quotes any path holding a
   # non-ASCII byte, a quote or a backslash, so `café.ts` arrives as `+++ "b/caf\303\251.ts"`, fails
   # the `b/` test below, and every added line in it is attributed to no file and dropped. The scan
-  # then exits 0 over a file that is almost all comment. Under kk-pr-review that matters more than
-  # it looks: the filename was chosen by the author of the branch under review.
-  git -c core.quotePath=false diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ "${@:-HEAD}" || {
+  # then exits 0 over a file that is almost all comment. Under kk-pr-review the filename is chosen
+  # by the author of the branch under review.
+  # `--text` because the PR author owns `.gitattributes`: `* -diff` there, or one NUL byte in the
+  # file, makes git emit `Binary files … differ` instead of a diff — the scan then finds nothing
+  # and exits 0 over a real hit. Forcing text pushes genuine binaries through too; every printed
+  # span is length-bounded already.
+  git -c core.quotePath=false diff --no-ext-diff --no-textconv --no-color --text --src-prefix=a/ --dst-prefix=b/ "${@:-HEAD}" || {
     echo "comment-density.sh: git rejected these arguments — exit 2, the scan did NOT run. Not a clean result." >&2
     exit 2
   }
@@ -109,14 +113,23 @@ fi
   }
   END {
     found = 0
+    shown = 0
+    # The path comes from the diff, so under kk-pr-review it is a name the branch author chose, and
+    # this output is read by an agent that drafts a review. Both the path and the number of lines are
+    # bounded for that reason. A suppressed outlier is announced, never dropped: the count stays
+    # exact, which holds only while the cap below and the one in the announcement are the same
+    # number. The `%.200s` on the path is a separate bound that happens to share the value.
+    max_shown = 200
     for (file in comments) {
       total = comments[file] + code[file]
       ratio = comments[file] / total
       if (comments[file] >= min_lines && ratio > max_ratio) {
-        found = 1
-        printf "%s: %d comment / %d code added lines (%.2f)\n", file, comments[file], code[file], ratio
+        found++
+        if (++shown <= max_shown)
+          printf "%.200s: %d comment / %d code added lines (%.2f)\n", file, comments[file], code[file], ratio
       }
     }
-    exit found
+    if (found > max_shown) printf "… and %d further outlier(s), not shown\n", found - max_shown
+    exit (found > 0)
   }
 '
