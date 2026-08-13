@@ -1,24 +1,24 @@
 ---
 name: kk-foreman
-description: The front door to the kk-* skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, or for a periodic "what does this repo need?". Keeps the size ledger. The idsd-* intent workflow is its own door (idsd-ship).
+description: The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". Reads the size ledger that kk-reduce keeps. The idsd-* intent workflow is its own door (idsd-ship).
 argument-hint: "what you want done (default: look at the working tree and recommend)"
 ---
 
-Turn an intent into the right skills, in the right order, and run them. You **dispatch and do not do the work** — every stage is a skill that already exists, invoked per `~/.kk-flavor/standards/skill-protocol.md`.
+You **dispatch and do not do the work** — every stage is a skill that already exists, invoked per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
 
-**This file holds no catalogue of what each skill does.** Their own `description:` fields are that, and a second copy here would drift (`~/.kk-flavor/standards/ecosystem.md` → **One home**). Resolve candidates at run time by reading the frontmatter under `~/.claude/skills/*/SKILL.md` — that also finds skills whose `disable-model-invocation: true` keeps them out of your context.
+**This file holds no catalogue of what each skill does.** Their own `description:` fields are that (`~/.kk-flavor/standards/ecosystem.md` → **One home**). Resolve candidates at run time by reading the frontmatter under `~/.claude/skills/*/SKILL.md` — that also finds skills whose `disable-model-invocation: true` keeps them out of your context.
 
-What this skill carries is only what a description cannot: **the chains, the order inside them, and when not to run something.**
+**That mount is the candidate set.** Not every skill you can invoke sits on it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Off that mount, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
 
 ## 1. Read the state before choosing
 
 **Only when the work touches the agent instruction tree** — skills, standards, prompts, templates, `CLAUDE.md`. The ledger measures that tree and nothing else, so in any other repo there is nothing to read: go straight to **Route**.
 
-Run `scripts/stats.sh` (this skill's dir) and read `history.md` beside it. Exit 2 means nothing was measured — fix the invocation rather than treat it as no change.
+Run `~/.claude/skills/kk-reduce/scripts/stats.sh` and read `~/.claude/skills/kk-reduce/stats.md`, which is a level above it. On exit 2, fix what the script names; never treat it as no change. **You read that file; `kk-reduce` writes it** — one row before a campaign and one after, so the rows are the reductions and nothing else.
 
-Those two answer the question a description cannot: *has this grown since it was last cut, and by how much?* Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it.
+Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it.
 
-**A `+` on a row's always-loaded figure makes it a lower bound**, not a measurement: the tier also carries `@path` imports the scripts name but never count, and the row does not record which files those were. Read the delta between two such rows as "at least this much".
+**A `+` on a row's always-loaded figure makes it a lower bound**: `stats.sh` named an `@import` it could not resolve and left it uncounted. Read the delta between two marked rows as "at least this much". From a marked row to an unmarked one, part of the rise is `stats.sh` resolving more rather than the tree growing. The unmarked row's note says how much.
 
 ## 2. Route
 
@@ -30,27 +30,37 @@ The chains below are the ones where order is load-bearing and an agent choosing 
 
 | The work | The chain |
 |---|---|
-| Code or tooling changed | `kk-code-review`, plus `kk-security-review` where the change touches a security surface — concurrently, they are independent lenses → then `kk-refactor`, which serializes on the tree they leave. Drop the middle one for a change that touches no such surface; drop refactor where no structure moved. |
+| Code or tooling changed | `kk-drive`, then `kk-code-review` and `kk-security-review`, then `kk-refactor`, then `kk-humanize` over the comments. That order, each stage's own trigger, and what may be dropped are `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it** and → **The stages**; **`kk-refactor` is never dropped.** |
 | A PR | `kk-pr-review`. It drafts, and posts nothing until the human approves. |
-| Prose changed | `kk-tighten` or `kk-humanize` — their own descriptions split which prose is whose. Neither needs an orchestrator. |
+| Changes were requested on a PR | Make the edits, or name `idsd-ship` if the change is intent-shaped, then run the code row over what you changed. **`kk-pr-review` answers nothing**: it is never how a comment gets addressed, and exactly how the edits get re-reviewed once they are in. |
+| Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
+| Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
 | Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — it owns that lane end to end and spawns `kk-skillcraft` and `kk-tighten` itself, so queuing either beside it runs them twice and out of order. |
 | The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. |
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. Every row above reviews something that exists; this is the only one that reaches a choice while it is still cheap to change. |
 | Nothing named, or a periodic check | Recommend from what changed, plus the ledger's trend where step 1 read one. Recommending nothing is a valid outcome. |
 
-**You route `kk-*` skills only.** The `idsd-*` suite is a workflow the human enters deliberately and stays inside, carrying its own orchestrator and its own order. When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it: `idsd-qualify` writes a report and stamps a merge gate, which no chain here reproduces.
+**The `idsd-*` suite is a workflow the human enters deliberately and stays inside.** When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it: `idsd-qualify` writes a report and stamps a merge gate, which no chain here reproduces.
 
 **More than one row will often match** — a change set that touches skills and their scripts matches two. Run them as one chain rather than one after the other: stages whose file sets are disjoint go concurrently, and where the sets overlap the rows keep their own order. Two full chains run back to back review the same files twice and let the second undo the first.
 
-Two fixed points when rows merge. **A stage another row's skill already spawns is not queued again** — it runs there, in that skill's own order. And **`kk-humanize` over code comments always runs after `kk-refactor`**, which renames the identifiers those comments name (`~/.kk-flavor/standards/quality-pipeline.md` → The stages).
+**When rows merge:** a stage another row's skill already spawns is not queued again — it runs there, in that skill's own order. Where two rows queue the same skill, the row listed first above fixes its position.
 
-## 3. Run and record
+### Tool skills
+
+**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name on that mount that is neither `kk-*` nor `idsd-*`, and you route it by its own `description:` like any other. You still dispatch, so when a skill owns a system never reach for a raw API call of your own — reads included.
+
+**An MCP server acts in an outside system too, and is not a skill.** Its tools are that system's sanctioned interface, not the improvised call the line above rules out. Where a skill and an MCP server both reach one system, **the human names which**; picking for them silently is how a run authenticates the wrong way or writes through a path they were not watching.
+
+**The send goes last**, by a skill or an MCP tool, and the ordering is `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**. Read it: a create is an external write, which is that file's trigger. Here it means draft the ticket body, run the prose lane, show the human, then create.
+
+**A tool skill is an action; the `kk-*` skills are lanes over its text.** Its return is text you now own — a body it wrote for you, a description it fetched — and it re-enters **Route** like any other prose, with no free pass for having come from a skill.
+
+## 3. Run
 
 Spawn each stage per the protocol's default, in the order **Route** resolved. Relay a stage's blocking question to the human live — you hold the thread and it does not.
 
-**A handoff a stage returns is placed by Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**) — the table's rows and its two fixed points decide where it lands, so a handoff naming a skill already queued merges into that row rather than running twice.
-
-When the chain finishes and the instruction tree changed, `scripts/stats.sh --append "<what ran>"`. That row is what the next invocation reads, and skipping it is how the ledger stops being able to answer anything.
+**A handoff a stage returns is placed by Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**): one naming a skill already queued merges into that row rather than running twice.
 
 ## Rules
 

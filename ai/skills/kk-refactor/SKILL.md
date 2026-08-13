@@ -1,6 +1,6 @@
 ---
 name: kk-refactor
-description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review) or vulnerabilities (kk-security-review).
+description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-tighten). Refactors to the kk-flavor standards under skill-protocol's queue and verdict, which a bundled simplifier does not.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope"
 ---
 
@@ -13,8 +13,6 @@ Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
 - **Duplication, generalization, and simplification reframes** (a remodel that deletes a branch or concept). Treat each reviewed file's functions, types, and non-trivial logic as search seeds, grep the codebase for the same shape, and fix every site at once.
 - **Shallowness, on the same footing** (`architecture/core.md` → Module depth): a module whose exports mirror its internal functions, a pass-through forwarding to a same-named method one layer down.
 - **A duplicate split across two file kinds** — a doc and a script carrying the same command — is invisible to `dup-literals.sh`: make one point at the other.
-
-Prefer the root-cause fix over a workaround that masks the symptom.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below.
 

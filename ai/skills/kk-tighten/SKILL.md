@@ -6,14 +6,14 @@ argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\"
 
 Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs context-window tokens without earning them.
 
-**Scope.** Standalone prose only. Never code logic or behaviour (that's `kk-refactor`'s), and never code comments or docstrings — those are `kk-humanize`'s whole lane, read by people first.
+**Scope.** Standalone prose only. Never code logic or behaviour — that's `kk-refactor`'s.
 
 ## Two licenses, by what the artifact carries
 
 - **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar, and holds the deletion tests — read it before the pass.
 - **Everything else** — a design doc, an investigation, an ICE, a report: **lossless**. Cut only what the surrounding context recovers — adjacent text, the code it documents, sibling artifacts, the diff. Unsure a cut loses meaning → keep it.
 
-**Outward text — the set `~/.kk-flavor/standards/human-writing.md` defines — belongs to `kk-humanize`**: hand off after your pass, per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**. Your handoff carries every outward-text artifact in your queue, edited or not — the lane is barred to you, so leaving one out strands it.
+**What `~/.kk-flavor/standards/human-writing.md` covers is `kk-humanize`'s — code comments and docstrings included — and barred to your lens.** Hand off every queued artifact carrying such text, edited or not, per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened** — a code file goes for its comments alone, even when the change set holds no outward text. Barred means leaving one out strands it.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`; deltas below.
 
@@ -21,6 +21,7 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs c
 
 - A directory globs prose documents recursively; **whole project** is every prose doc under the root.
 - **Prose the run itself wrote or edited belongs in the queue too, even when it sits outside the code scope** — an intent, a design doc, a ticket body.
+- **A change-set scope keeps its code files in the queue for the handoff above, never for your lens.**
 
 ## The lens
 

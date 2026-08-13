@@ -16,8 +16,9 @@
 #   no-items <stage> mark a stage already marked returned as having surfaced nothing, the one way to clear
 #                    its marker without editing the report
 #   stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
-#                    reviewed-stages — every pipeline stage, bare (ran) or `:skipped(fast|not-applicable)`
-#                    / `refactor:partial(fast|cap)`; any `(fast)` marks the pass not-full
+#                    reviewed-stages — every pipeline stage: code-review always bare, refactor bare
+#                    or `:partial(fast|cap)`, the other three bare or `:skipped(fast|not-applicable)`;
+#                    any `(fast)` marks the pass not-full. The `stamp` usage string is the authority
 #   gate             done-blocker: stale tree OR turnaround-trimmed stages OR any open `- [ ]`
 #                    → non-zero + reasons
 #   carry            print prior open `- [ ]` (with their section) so re-qualify loses none

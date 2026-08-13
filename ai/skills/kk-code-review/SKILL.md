@@ -1,6 +1,6 @@
 ---
 name: kk-code-review
-description: Review the working-tree changes for correctness bugs and the standards violations that cause them — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (idsd-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's.
+description: Review the working-tree changes for correctness bugs and the standards violations that cause them — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (idsd-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards under skill-protocol's queue and verdict, which a same-named bundled reviewer does not.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
@@ -22,8 +22,8 @@ Check every changed file against all four:
 
 ## Loop deltas
 
-- Check every dimension; surface a finding only once you've verified it is a real bug that will be hit, and — for a standards-flagged one — that the standard names that issue specifically.
-- Apply each surviving finding that is a safe correctness fix — unambiguous, within the changed scope — and flag any that changes behaviour.
+- Surface a finding only once you've verified it is a real bug that will be hit, and — for a standards-flagged one — that the standard names that issue specifically.
+- Apply each surviving finding that is a safe correctness fix — unambiguous, within the changed scope, and making the code do what its stated contract already claims. **A fix that would oblige you to write a test is not a safe one** (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**): a changed return, a new error path, a widened or narrowed signature. Flag those instead.
 - Once a finding is confirmed, grep the interface or module it belongs to for the same shape before moving on, and report what the sweep found.
 - **A finding that predicts how a device, browser or external service behaves at runtime is unconfirmed until you check what actually happened.** Recorded results — a test run, a log, an earlier session's output — outrank platform documentation: read them where they exist and name what you read; where they don't, label the finding an unverified inference.
 - The final sweep hunts cross-file and interaction bugs.

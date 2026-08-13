@@ -1,6 +1,6 @@
 # Agent brief
 
-Handed verbatim to every Phase 3–5 agent, alongside its scope (`SKILL.md`).
+`SKILL.md` hands this file verbatim to every Phase 3–5 agent, alongside that agent's scope.
 
 ---
 
@@ -17,18 +17,23 @@ You are one scoped agent in a campaign shrinking an ecosystem of agent instructi
 - **Accepted** entries for your files: apply them.
 - **Modified** entries override the raw cut list; their numbers were verified against real files and the cut list's were not.
 - **Rescued** entries are binding. The passage must survive in the file named — tighten its wording, never remove its instruction. Disagree → escalate, do not act.
-- **Anything the plan did not consider is still yours to cut.** The plan is a floor on the shrink, not a ceiling.
+- **Anything the plan did not consider is still yours to cut.**
 
 ## The one failure mode that matters
 
 **De-duplication to zero**: two files each state a rule, each copy is deleted citing the other as its home, and the rule now exists nowhere.
 
-Before deleting anything because "another file covers it", **open that file at the moment you delete — not earlier — confirm the text is there, and confirm the plan does not also schedule it.** Another agent may be deleting its copy while you read yours, and an earlier read would have passed. If both copies are scheduled, keep one and say which. This costs a file read and prevents the only defect this method reliably produces.
+Before deleting anything because "another file covers it", **open that file at the moment you delete — not earlier — confirm the text is there, and confirm the plan does not also schedule it.** Another agent may be deleting its copy while you read yours, and an earlier read would have passed. If both copies are scheduled, keep one and say which.
 
 ## Move before you cut
 
-Try **each** of the moves in `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it**
-before you judge a rule dead; prefer one to a deletion you would have to argue for.
+Prefer a move (`~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it**) to a deletion
+you would have to argue for.
+
+**Extracting a rule into a script owes two things.** The case in the `<name>-test.sh` beside it that
+the script's own header requires — an extraction nothing exercises is a rule that now fires nowhere.
+And honesty in `WORDS`: a comment is prose that changed file, not prose you saved, so words you moved
+into a script are still there. A comment's bar is `~/.kk-flavor/standards/human-writing.md` → **Code comments**.
 
 ## Scope discipline
 

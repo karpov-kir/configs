@@ -10,28 +10,30 @@ Refine the ecosystem. The product is a **smaller** set of instructions that stee
 
 **Protocol.** You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` — its Caller and orchestrator rules bind you; the per-file queue and loop belong to the subagents you spawn.
 
-**You own this whole lane, in this order: rule economy (yours), then shape (`kk-skillcraft`), then prose (`kk-tighten`).** Reversing any pair wastes the earlier one — tightened prose you then delete was tightened for nothing, and a skill re-shaped after its prose pass moves text the pass already judged. A caller queues **only you**, never a lane stage beside you. Build each spawn prompt from `~/.kk-flavor/templates/spawn-prompt.md`.
+**You own this whole lane, in this order: rule economy (yours), then shape (`kk-skillcraft`), then prose (`kk-tighten`).** Reversing any pair wastes the earlier one: prose tightened before the cut that deletes it, or before the shape pass that moves it, was tightened for nothing.
+
+**Economy runs first, so nothing a later stage adds has been through it — and shape writes into the priciest tier there is.** A `description:` it lengthens for a trigger is always-loaded and never met your bar. So before step 7's accounting, hold every `description:` the lane's own stages touched to ecosystem.md → **Earn the place**, and say what each addition bought.
 
 ## 1. Check the wiring
 
-Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and fix what it finds before anything else.
+Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and fix what it finds before anything else. Changing `check.sh` itself carries duties its own header states.
 
 ## 2. Audit the always-loaded set
 
-`check.sh` prints this set's size, not its members: it is `CLAUDE.md`, `~/.kk-flavor/inject.md`, and the standards that file marks as read on every task. Read them whole and hold each line to the top of the rising bar (ecosystem.md → **Earn the place**); anything narrower moves down a tier.
+`check.sh` prints this set's size, not its members. The set is `CLAUDE.md`, `~/.kk-flavor/inject.md`, the standards that file marks as read on every task, every `@import` those carry, and every skill `description:` the harness holds for a skill without `disable-model-invocation`. Read them whole and hold each line to the top of the rising bar (ecosystem.md → **Earn the place**); anything narrower moves down a tier. An import an installer owns outside this tree is audited here too. Being unable to change it makes the finding a report, not a skip.
 
 ## 3. Cut, or move
 
 Work the two things no per-file pass can see:
 
-- **Contradictions** — two files that cannot both be followed. Reconcile to one home and delete the loser.
+- **Contradictions** — two files that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them by inbound reference**: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. Neither file shows a contradiction alone, so a scope that stops at what you edited never opens the other. Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
 - **Restatements** — one rule living in several files (ecosystem.md → **One home**): keep the copy whose file owns that lane, cross-reference the rest. A rule with two homes is a contradiction that has not happened yet.
 
 Before calling a rule dead, read ecosystem.md → **Move it before you cut it** and try **each** move it names. Hunt candidates deliberately: the largest file's rarely-reached sections, a procedure written out in more than two skills, prose restating what a script already prints. Report a move you judged and rejected — that it was considered is the finding.
 
 ## 4. Shape
 
-Spawn `kk-skillcraft` over every skill directory in the resolved scope — the lens that asks whether a skill is *shaped* so an agent reaches it and complies, which nothing above asks. Skip it only when the scope holds no skill directory, and say so when you do.
+Spawn `kk-skillcraft` over every skill directory in the resolved scope — the shape lens, which nothing above applies. Skip it only when the scope holds no skill directory, and say so when you do.
 
 ## 5. Prose
 
@@ -53,8 +55,6 @@ Report, in this order:
 
 Then re-run `~/.claude/skills/kk-ecosystem/scripts/check.sh` — the cuts themselves break references.
 
-The size-ledger row is your **caller's**, not yours: `kk-foreman` appends one after the chain it ran, and a row written here as well double-counts every chained pass. Invoked directly, report the budget and let the human place it.
-
 ## Rules
 
-Relocating a rule is in scope, **writing a new one is not**. A rule you want to add that this pass was not asked for is a proposal to your caller, not an edit of your own.
+Relocating a rule is in scope, **writing a new one is not** — an addition this pass was not asked for is a proposal to your caller, never an edit of your own.

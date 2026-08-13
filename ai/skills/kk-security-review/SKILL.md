@@ -1,10 +1,10 @@
 ---
 name: kk-security-review
-description: Adversarially review the working-tree changes for exploitable vulnerabilities — injection, auth/access, secret exposure, unsafe input. Use for "security review", "audit the changes for vulns". Local changes; functional bugs are kk-code-review's.
+description: Adversarially review the working-tree changes for exploitable vulnerabilities — injection, auth/access, secret exposure, unsafe input. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr-review's, functional bugs kk-code-review's. Works this skill's own threat model under skill-protocol's queue and verdict, which a same-named bundled reviewer does not.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
-Adversarially review every change resolved from `$ARGUMENTS`: assume the code is hostile until proven otherwise. Scoped to the change and the data flows it touches.
+Adversarially review every change resolved from `$ARGUMENTS`: assume the code is hostile until proven otherwise. Scoped to the change and the data flows it touches — no whole-project mode by design.
 
 **Exploitable weaknesses only** — functional bugs are `kk-code-review`'s lane, style and structure `kk-refactor`'s.
 
@@ -15,11 +15,10 @@ Adversarially review every change resolved from `$ARGUMENTS`: assume the code is
 ## Setup (once)
 
 - List the security invariants the changes must hold — the project's constitution and `CLAUDE.md` on top of the standards.
-- This audits *changes* — no whole-project mode by design.
 
-## Coverage
+## Coverage — the threat model
 
-Adapt to the stack — skip classes the target can't have (web items for a CLI, …):
+Adapt it to the stack — skip classes the target can't have (web items for a CLI, …), and add any the stack carries that this list misses:
 
 - **Injection** — SQL/NoSQL, OS-command, argument/option, template, path; trace every user-controlled input to its sink. Args passed *without* a shell are not safe on their own: a value starting with `-` is parsed as a flag (`git` option injection, up to RCE), so require a `--` separator and reject option-like values.
 - **Auth / session / access** — missing checks on sensitive routes or actions, IDOR, privilege escalation, permissive ACLs or file permissions.
@@ -36,7 +35,7 @@ Adapt to the stack — skip classes the target can't have (web items for a CLI, 
 ## Loop deltas
 
 - Trace the coverage classes over the file and the flows it reaches; surface a finding only with a concrete exploit scenario — if you can't write how an attacker uses it, downgrade the severity or drop it.
-- Label each finding **introduced**, **worsened**, or **newly reachable** (a pre-existing pattern the change routes into a dangerous path). All three are in scope: never drop a finding merely because the pattern predates the change.
+- Label each finding **introduced**, **worsened**, or **newly reachable** (a pre-existing pattern the change routes into a dangerous path).
 - The final sweep hunts cross-file data flows.
 
 ## Verdict

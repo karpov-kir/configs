@@ -1,20 +1,20 @@
 # Quality Pipeline
 
-The stages a quality pass runs over one change set, and the discipline that keeps them from colliding. Read by the two orchestrators that run them — `idsd-qualify` over a working tree, `kk-pr-review` over a GitHub PR; each adds its own deltas and owns where a stage's outcome lands.
+The stages a quality pass runs over one change set, and the discipline that keeps them from colliding. Binding on whoever runs a pass or any single stage of one: the two full orchestrators are `idsd-qualify` over a working tree and `kk-pr-review` over a GitHub PR, each adding its own deltas and owning where a stage's outcome lands.
 
-You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. Code-review always runs; beyond it, **which stages run — and whether retro runs at all — is the orchestrator's call**.
+You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run — and whether retro runs at all — is the orchestrator's call**. Each stage below states its own trigger; loosening one is an override of this file.
 
-**Each scanner lives with the lens it serves**, and both orchestrators run it from there: `comment-density.sh` under `kk-humanize`, `dup-literals.sh` under `kk-refactor`.
+**Each scanner lives with the lens it serves**, and you run it from there: `comment-density.sh` under `kk-humanize`, `dup-literals.sh` under `kk-refactor`.
 
 ## The round
 
-**The parallel round.** Spawn its stages **in one message** so they run concurrently.
+Spawn the round's stages **in one message** so they run concurrently.
 
-**The round's own stages move the tree under each other.** `kk-code-review` applies safe fixes; `kk-security-review` reads. Run side by side over one change set, the second is reviewing a tree the first is editing — so **a stage re-reads any queued file that changed since it read it, and re-verifies every finding standing in that file, before returning.** Say in the return that the tree moved and against which state the verdicts hold. This is not yours to drop from a spawn prompt: you cannot see which file a stage was mid-way through.
+**The round's own stages move the tree under each other.** `kk-code-review` applies safe fixes; `kk-security-review` reads. Run side by side over one change set, the second reviews a tree the first is editing — the stages absorb that themselves under [skill-protocol.md](skill-protocol.md) → **Loop**: you cannot see which file one was mid-way through.
 
-**Refactor is the round's serializer** — a fresh spawn after the round, over the now-changed tree, never joining it. The round must have settled *to a decision* first: every blocking finding answered *and applied*, asked of the human as it arrives.
+**Refactor is the round's serializer** — a fresh spawn after the round, never joining it. The round must have settled *to a decision* first: every blocking finding answered *and applied*, asked of the human as it arrives.
 
-**Spawn the skill, not your own review.** Each stage gets its own subagent; every decision, and everything the pass itself writes, stay in this thread, which alone has the human. Build each prompt from `~/.kk-flavor/templates/spawn-prompt.md`, filling only its slots. Carry a mid-session deferral into the spawn prompt of every stage that runs afterwards.
+**Spawn the skill, not your own review** — one subagent per stage. Every decision, and everything the pass itself writes, stay in this thread, which alone has the human. Carry a mid-session deferral into the spawn prompt of every stage that runs afterwards.
 
 **A script's output is evidence only when the script ran.** An exit you did not look at must never reach a spawn prompt as "returned no hits".
 
@@ -28,19 +28,29 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
+## Drive it before you review it
+
+**Use the change the way its user will, wherever it has observable behaviour, and do it before any lens reads it.** Green gates are not evidence that it works (Core Principle 5), and a round of quality findings buries the one saying it doesn't.
+
+**Spawn `kk-drive`, handed only the scenarios the change was asked to satisfy and how to run the project — withhold the diff**, so it verifies against what was asked rather than against the implementation. You own that it ran.
+
+**This is a gate, not a stage** — a divergence stops the pipeline as a red gate does. **A dropped step is carried, with its reason, into the pass's own output.**
+
+**A runtime-behaviour claim the round returns comes back here** — nothing else in the pass can check it: drive the scenario it predicts, or let it land labelled an **unverified inference**.
+
 ## The stages
 
 **Decide** and the decision log named below are `idsd-qualify`'s homes for a stage's residue; an orchestrator without them maps each onto its own equivalent.
 
 1. **Code-review** — `kk-code-review` on the change set. Ask live for blocking findings; record the others.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or a constitution security invariant — a trigger summary; the skill owns the coverage set).
-3. **Tighten & comment pass** — *only if* the change added or changed standalone prose or non-trivial comment blocks.
+3. **Tighten & comment pass** — *only if* the change added or changed standalone prose, or touched any comment.
    - **Where the change touched the agents' own instructions** — a skill, standard, prompt, template or `CLAUDE.md` — this stage is `kk-ecosystem` over those files instead. It owns that whole lane and spawns `kk-skillcraft` and `kk-tighten` itself, so queue neither. Nothing else in the pipeline asks whether a rule earns its place, so a run that grows the ecosystem otherwise merges unexamined.
-   - **Standalone prose** joins the round via `kk-tighten`, scoped to the change set's prose *plus the prose this pass itself wrote*. Some of that is git-invisible and so reaches no diff-scoped stage — an open PR's body, or a working file the orchestrator keeps outside the repo: **name those files explicitly in the spawn prompt's scope slot**, since no other stage owns them. `kk-tighten`'s outward-text handoff (`human-writing.md`'s set) is queued here too, not deferred: spawn `kk-humanize` over the files it names.
+   - **Standalone prose** joins the round via `kk-tighten`, scoped to the change set's prose *plus the prose this pass itself wrote*. Some of that is git-invisible and so reaches no diff-scoped stage — an open PR's body, or a working file the orchestrator keeps outside the repo: **name those files explicitly in the spawn prompt's scope slot**, since no other stage owns them. `kk-tighten`'s handoff is queued here too, not deferred: spawn `kk-humanize` over the outward-text files it names. Any file it hands off for its **comments** waits for refactor, per the next bullet.
    - **Comment blocks** wait for refactor — it renames the identifiers they name — then go to `kk-humanize` directly, never `kk-tighten` first. Run `comment-density.sh` **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
-4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run `kk-refactor`, which returns gated proposals and reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run `dup-literals.sh` before the first iteration and **again after the last** — refactor rewrites call sites, so it authors duplication a pre-stage scan cannot see; second-run hits are yours to resolve or record, not a reason for another iteration.
+4. **Refactor** — **never dropped where the change set holds code**: whether it duplicates a shape already in the repo is what refactor's hunt returns, so a drop decided in advance asserts the finding it skipped the search for. A loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run `kk-refactor`, which returns gated proposals and reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run `dup-literals.sh` before the first iteration and **again after the last** — refactor rewrites call sites, so it authors duplication a pre-stage scan cannot see; second-run hits are yours to resolve or record, not a reason for another iteration.
 5. **Retro** — always last; how it runs is the orchestrator's.
 
 ## Gates
 
-**A full pass verifies the gates are real** — the repo's baseline gates, against the stale-gate test in `~/.claude/skills/idsd-build/SKILL.md` → **Phase 2**. A stale one is never an assumed green; what it then becomes is the orchestrator's.
+**A full pass verifies the repo's baseline gates are real.** A command that *can't run*, that *runs but can't fail*, or that runs and can fail but *never reads the changed code*, is a **stale gate** rather than verification — never an assumed green. Read what CI actually invokes, never its stage names. What a stale one then becomes is the orchestrator's.

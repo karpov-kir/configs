@@ -11,6 +11,9 @@
 # the arguments. A scan that did not run is not evidence, so never read 2 as clean. Prose/data files
 # (md, txt, json, lockfiles) don't count, because their "comments" are content. With no diff args,
 # untracked text files are scanned too; the index is never touched.
+# A targeting aid, never a bar to clear, and the ratio can rise across a pass that cut comments: it
+# counts ADDED lines, so rewording a comment the base already carried moves that line from diff context
+# into the added set. Read the ratio to pick a file, and the file to judge the file.
 set -uo pipefail
 # Byte-level text processing. The C locale keeps sed/awk from choking on stray non-UTF-8 bytes.
 export LC_ALL=C

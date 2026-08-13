@@ -18,6 +18,7 @@ The reader understands the text on the first read, without backtracking — in *
 * Lead with the "why", not the implementation trace — the diff is source of truth for that.
 * Group by purpose, not by file.
 * Each line carries a fact unreachable from its surrounding context (code, types, siblings, the diff, …). Cut or link otherwise.
+* **One line per item: `<what was wrong> — <what changed>`.** No nesting, and no preamble above the items. Holds wherever you report several things, a reply included.
 * One home per fact ([ecosystem.md](ecosystem.md) → One home). Two statements that can't both hold get reconciled to one, never left to coexist.
 * Open your enumerations — mark an open set ("e.g.", "and similar"); enumerate plainly only when the set is genuinely fixed.
 * No backstory, hedging, or justification — describe what is true, not what we tried.

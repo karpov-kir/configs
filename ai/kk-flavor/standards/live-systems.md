@@ -11,3 +11,5 @@ This covers a deploy, live data, an external write API, an infrastructure change
 ## Arrange the undo before the act
 
 Capture the current state and name the one-command revert first. Read the repo's own runbook before improvising a path. Never learn an undocumented write API by sending it a payload — read the routes first.
+
+**Where no undo exists, the human sees it before it goes.** A ticket everyone now watches, a message delivered, a comment on someone's PR: the revert you were told to arrange does not exist for these, so the gate moves earlier instead of disappearing. **Outward text takes any lane it is owed before the send, never after**, since the version that went is the version that landed.
