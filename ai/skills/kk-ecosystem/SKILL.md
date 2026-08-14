@@ -1,6 +1,6 @@
 ---
 name: kk-ecosystem
-description: Refine what agents read — skills, standards, prompts, templates, CLAUDE.md — against the bar in ecosystem.md, checking the wiring and cutting what no longer earns its place. Use for "refine the ecosystem", "de-bloat". Runs that whole lane — it spawns kk-skillcraft and kk-tighten itself, so queue it alone.
+description: Refine what agents read — skills, standards, prompts, templates, CLAUDE.md — against the bar in ecosystem.md, checking the wiring and cutting what no longer earns its place. Use for "refine the ecosystem", "de-bloat".
 argument-hint: "the ecosystem root, a subset of it, or the change to refine (default: the whole ecosystem)"
 ---
 
@@ -12,7 +12,7 @@ Refine the ecosystem. The product is a **smaller** set of instructions that stee
 
 **You own this whole lane, in this order: rule economy (yours), then shape (`kk-skillcraft`), then prose (`kk-tighten`).** Reversing any pair wastes the earlier one: prose tightened before the cut that deletes it, or before the shape pass that moves it, was tightened for nothing.
 
-**Economy runs first, so nothing a later stage adds has been through it — and shape writes into the priciest tier there is.** A `description:` it lengthens for a trigger is always-loaded and never met your bar. So before step 7's accounting, hold every `description:` the lane's own stages touched to ecosystem.md → **Earn the place**, and say what each addition bought.
+**Economy runs first, so nothing a later stage adds has been through it — and shape writes into the priciest tier.** A `description:` lengthened for a trigger is always-loaded and never met your bar. Before step 7's accounting, hold every `description:` this lane's stages touched to ecosystem.md → **Earn the place**, and say what each addition bought.
 
 ## 1. Check the wiring
 
@@ -26,7 +26,7 @@ Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and
 
 Work the two things no per-file pass can see:
 
-- **Contradictions** — two files that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them by inbound reference**: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. Neither file shows a contradiction alone, so a scope that stops at what you edited never opens the other. Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
+- **Contradictions** — two files that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them by inbound reference**: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
 - **Restatements** — one rule living in several files (ecosystem.md → **One home**): keep the copy whose file owns that lane, cross-reference the rest. A rule with two homes is a contradiction that has not happened yet.
 
 Before calling a rule dead, read ecosystem.md → **Move it before you cut it** and try **each** move it names. Hunt candidates deliberately: the largest file's rarely-reached sections, a procedure written out in more than two skills, prose restating what a script already prints. Report a move you judged and rejected — that it was considered is the finding.

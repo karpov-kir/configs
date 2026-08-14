@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
 #
-# Sync the MCP servers declared in ai/mcp.json (and ai/mcp.private.json, when present)
-# into Claude Code's user scope (~/.claude.json), making them available in every
-# project and every launch method (terminal CLI and the IDE extension alike).
-#
-# ai/mcp.json is the public source of truth; ai/mcp.private.json (gitignored) holds
-# machine-private servers, internal hosts and the like, in the same shape. Edit
-# either file, then re-run this script. The sync is idempotent: each declared server
-# is removed and re-added, so re-running re-applies the current definitions. It adds
-# and updates but does not prune, so a server you delete from a file stays
-# registered until you remove it with `claude mcp remove <name> -s user`.
+# Sync the MCP servers declared in ai/mcp.json — and ai/mcp.private.json (gitignored, same shape),
+# when present — into Claude Code's user scope, so they reach every project and every launch method.
+# Edit either file, then re-run. It adds and updates but does not prune: a server you delete from a
+# file stays registered until `claude mcp remove <name> -s user`.
 
 set -euo pipefail
 
@@ -37,8 +31,8 @@ for mcp_file in "$public_mcp_file" "$private_mcp_file"; do
   jq -r '.mcpServers | keys[]' "$mcp_file" | while IFS= read -r name; do
     config="$(jq -c --arg name "$name" '.mcpServers[$name]' "$mcp_file")"
     claude mcp remove -s user -- "$name" >/dev/null 2>&1 || true
-    # The remove already happened, so a failed add leaves the server gone rather than stale, and
-    # `set -e` would end the run with nothing said. Name what was lost and what never ran.
+    # The remove already happened, so a failed add leaves the server gone, and `set -e` would end the
+    # run with nothing said.
     claude mcp add-json -s user -- "$name" "$config" || {
       echo "error: re-adding '$name' failed — it was removed first, so it is now UNREGISTERED." >&2
       echo "       The sync stopped here: nothing after '$name' was synced, in this file or any later one." >&2

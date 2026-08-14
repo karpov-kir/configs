@@ -1,6 +1,6 @@
 ---
 name: idsd-intent
-description: Author or refine an ICE intent — what to build and why, never how — emitted under .idsd/intents/; also owns .idsd/language.md, the project's ubiquitous language. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term".
+description: Author or refine an ICE intent — what to build and why, never how; also owns .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term".
 argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
@@ -40,7 +40,7 @@ Emit one outcome line as the gate's evidence: the residual ambiguities found and
 
 **Precondition:** write no file until Phase 2's outcome line is emitted.
 
-Run `idsd-qualify`'s `scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one.
+Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one.
 
 Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`. Set `collaborative: true` only when authored in a pair session, and record the collaborator's sign-off in `approved-by`.
 
@@ -48,7 +48,7 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update and confirm it. If there's no charter, don't create one here.
 
-**Keep `.idsd/language.md` current** — the project's ubiquitous language, and the file that makes `~/.kk-flavor/standards/writing.md` → **Readability floor**'s *one term per thing* enforceable across intents, code and conversation. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. It has no cadence of its own — it changes when an intent does, and `idsd-audit` is what notices when it stopped.
+**Keep `.idsd/language.md` current** — the project's ubiquitous language. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. It has no cadence of its own — it changes when an intent does, and `idsd-audit` is what notices when it stopped.
 
 ## Rules
 

@@ -1,6 +1,6 @@
 ---
 name: kk-tighten
-description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Lossy on agent-facing rules, lossless elsewhere. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's.
+description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's.
 argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\", \"staged\")"
 ---
 

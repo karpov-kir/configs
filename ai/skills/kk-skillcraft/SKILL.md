@@ -1,6 +1,6 @@
 ---
 name: kk-skillcraft
-description: Review and refine skills as skills — how each one is triggered, whether its steps and reference material are split right, whether it steers the agent hard enough, and what in it is a no-op. Use for "review my skills", "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy or prose (kk-tighten) — kk-ecosystem owns that lane and spawns this itself, so invoke it directly only for a skills-only pass.
+description: Review and refine skills as skills — how each one is triggered, whether its steps and reference material are split right, whether it steers the agent hard enough, and what in it is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy or prose (kk-tighten).
 argument-hint: "a skill dir, several, or the whole skills tree"
 ---
 
@@ -14,15 +14,9 @@ A big skill is a symptom. Read it for the cause.
 
 ## 1. Trigger — how it gets invoked
 
-Every skill is either **model-invoked** (its description sits in every session's context; the agent decides whether to follow the pointer) or **user-invoked** — `disable-model-invocation: true`, which drops the description from context altogether and leaves `/<name>` as the only way in. The trade is real in both directions:
+Judge each skill on how much it costs to *miss*; `~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins** settles whether it is model-invoked or user-invoked. A description that never routes anything is pure overhead.
 
-- Model-invoked costs **context load**. Every description is paid on every request, whether or not the skill runs, and each one is another thing the agent weighs. Descriptions are the cheapest text in an ecosystem to overlook because they do not look like a document — count them.
-- Model-invoked also costs **unpredictability**. A perfectly-matched skill the model simply declines to load is a failure no wording fixes, and confirming it fires means running evals.
-- User-invoked costs **cognitive load**: the human must remember the skill exists and when it applies.
-
-Judge each skill on how much it costs to *miss*; `~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins** settles which way that falls. A description that never routes anything is pure overhead.
-
-Then check the description does its one job: **route**. It exists to answer "is this the skill for what is happening now", not to summarise the body. It carries a trigger, a target, and — where a near-neighbour exists — a discriminator that keeps the two apart, including the negative kind: the neighbour that owns what this one does not. Too short is a real failure, not a virtue: a description stripped past routing gets the skill invoked at the wrong moment or not at all.
+Then check the description does its one job: **route**. It exists to answer "is this the skill for what is happening now", not to summarise the body. It carries a trigger, a target, and — where a near-neighbour exists — a discriminator that keeps the two apart. **Too short is a failure, not a virtue** — stripped past routing, a description gets the skill invoked at the wrong moment or not at all.
 
 `description` plus `when_to_use` is truncated at 1,536 characters in the listing, so text past that budget is not merely expensive — it is discarded, and a discriminator that lands after the cut does nothing.
 
@@ -42,8 +36,8 @@ Fail any one and it stays inline. **A bad extraction is worse than none**, becau
 
 When an agent ignores an instruction, argue less and steer harder.
 
-- **Leading words.** A dense term the model already knows beats a paragraph describing the same thing. "Build it as a vertical slice" changes the plan; "don't write it layer by layer" does not — the agent repeats the term back in its own reasoning and inherits everything attached to it. Hunt for paragraphs that describe a concept the language already names, and replace them with the name.
-- **Hide the next step.** An agent that can see the goal rushes the step in front of it — which is why a skill told to *ask clarifying questions, then plan* barely asks anything. Split that into two skills. With the plan out of view, the questioning phase is the whole task and gets the whole effort. Where you find one skill whose early phase is chronically thin, this is usually why.
+- **Leading words.** A dense term the model already knows beats a paragraph describing the same thing. Hunt for paragraphs that describe a concept the language already names, and replace them with the name.
+- **Hide the next step.** An agent that can see the goal rushes the step in front of it — a skill told to *ask clarifying questions, then plan* barely asks. Split that skill in two, so the early phase is the whole task. Where you find one skill whose early phase is chronically thin, this is usually why.
 
 ## 4. Pruning — what is not doing anything
 

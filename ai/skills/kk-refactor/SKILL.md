@@ -1,6 +1,6 @@
 ---
 name: kk-refactor
-description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-tighten). Refactors to the kk-flavor standards under skill-protocol's queue and verdict, which a bundled simplifier does not.
+description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-tighten).
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope"
 ---
 

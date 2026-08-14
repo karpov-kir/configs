@@ -2,16 +2,11 @@
 # Tests for stats.sh — the parts kk-ecosystem's check-test.sh cannot reach.
 #   usage: stats-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise
 #
-# The two scripts share fenced regions that check.sh's wiring check keeps byte-identical, so those
-# need no test here. What's untested is everything *around* them: each script has its own budget
-# accumulator and its own consumer loop, and that is where they last disagreed. An unreadable file
-# gave stats.sh an empty word count. That turned its arithmetic into a syntax error and printed a
-# figure of 0 that `--append` would have written to the ledger as a measurement. So the first case is
-# the invariant that matters: for one tree, both scripts report the same router figure.
-#
-# Self-contained rather than sharing helpers with check-test.sh. That file belongs to kk-ecosystem,
-# and a test under one skill sourcing a file under another is the cross-skill dependency this tree
-# refuses, for the same reason the shared regions are duplicated and drift-checked instead of sourced.
+# A change to stats.sh needs a case here, and `stats-mutate.sh` is what proves a case can fail.
+# The agreement cases at the top hold the invariant that matters: for one tree, both scripts report
+# the same router figure.
+# This file is self-contained rather than sourcing check-test.sh — check.sh's note on the shared
+# regions says why.
 set -uo pipefail
 export LC_ALL=C
 
@@ -23,18 +18,13 @@ for required in "$stats" "$check"; do
 done
 
 base="$(mktemp -d)" || { echo "stats-test: mktemp gave no fixture dir — nothing was tested"; exit 1; }
-# The chmod is for an interrupted run. Each case restores the mode it took away, so a completed run needs
-# nothing; a run killed between the two chmods would otherwise leave a directory this trap cannot clear.
+# The chmod is for a run killed between a case's two chmods; a completed run restores every mode.
 trap 'chmod -R u+rwX "$base" 2>/dev/null; rm -rf "$base"' EXIT
 passed=0
 failed=0
 case_number=0
-# The HOME both scripts run under, empty to inherit this shell's. A case sets it to make its fixture
-# look like the installed checkout, which is the condition an `@import` resolves under.
 check_home=""
 
-# A fresh throwaway root holding the two directories both scripts require, plus enough prose that
-# stats.sh does not exit 2 on "measured 0 words".
 new_root() {
   case_number=$((case_number + 1))
   root="$base/r$case_number"
@@ -55,8 +45,6 @@ record_fail() {
   printf '%s\n' "$@" | sed 's/^/          /'
 }
 
-# The router word figure each script reports for `$root`: check.sh's "N words across" and stats.sh's
-# "= N router" are the same number by contract.
 router_words_from_check() {
   HOME="${check_home:-$HOME}" "$check" "$root" 2>/dev/null |
     sed -n 's/^always-loaded: [0-9]* lines, \([0-9]*\) words across.*/\1/p' | head -1
@@ -84,8 +72,6 @@ new_root
 printf 'one two three four five\n' >"$root/CLAUDE.md"
 assert_scripts_agree "agree on a plain budget"
 
-# The glue defect: concatenating budget files joins the last word of a file with no final newline
-# onto the first word of the next, one word short of what summing per file gives.
 new_root
 printf 'one two three' >"$root/CLAUDE.md"
 assert_scripts_agree "agree when a budget file has no final newline"
@@ -96,11 +82,6 @@ printf 'alpha beta gamma\n' >"$root/kk-flavor/standards/core.md"
 printf 'one two\n' >"$root/CLAUDE.md"
 assert_scripts_agree "agree with a Read-always target in the budget"
 
-# A resolved `@import` is the one budget member the two scripts add differently: check.sh appends it to
-# an array counted in one pass at the end, stats.sh sums its words on the spot. Nothing else here puts an
-# import in the budget at all, so without this case both accumulators run untested on the member most
-# likely to split them. The symlink makes the fixture look like the installed checkout, which is what
-# opens the resolver.
 new_root
 printf '# Root\n\n@FOO.md\n' >"$root/CLAUDE.md"
 check_home="$root/home"
@@ -111,9 +92,6 @@ assert_scripts_agree "agree when an import resolves into the budget"
 
 echo "stats.sh — a short figure never reaches the ledger"
 
-# An unreadable budget file must be refused by both, so stats.sh exits 2 rather than print a figure
-# it can't stand behind. Without the `-r` test in contained_in_root, check.sh drops the words while
-# still counting the file, stats.sh prints 0, and neither records a refusal.
 new_root
 printf '# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n' >"$root/kk-flavor/inject.md"
 printf 'alpha beta gamma\n' >"$root/kk-flavor/standards/core.md"
@@ -126,9 +104,9 @@ if [ "$stats_status" = 2 ] && printf '%s' "$stats_output" | grep -qF 'budget fil
 else
   record_fail "exits 2 and says why, on an unreadable budget file" "status: $stats_status" "$stats_output"
 fi
-# The refusal lives in a shared region, so check.sh must reach the same verdict on the same fixture.
-# Asserted separately rather than by comparing figures: stats.sh prints no figure at all when it exits 2,
-# so an agreement test here would compare a number against an empty string and pass for that reason.
+# This can't be an agreement test: stats.sh prints no figure at all when it exits 2, so the comparison
+# would put check.sh's number against an empty string and go red whatever check.sh did — saying nothing
+# about the refusal asserted here.
 chmod 000 "$root/kk-flavor/standards/core.md"
 check_output="$("$check" "$root" 2>&1)"
 chmod 644 "$root/kk-flavor/standards/core.md"
@@ -144,9 +122,6 @@ figure_from_stats() {
   "$stats" "$root" 2>/dev/null | sed -n "s/^$1: *\([0-9]*\) words.*/\1/p" | head -1
 }
 
-# The ledger is a record, so it must not move `prose`: adding one has to leave that figure untouched and
-# show up on its own line instead. Counted together, a reduction raises `prose` by recording that it ran,
-# which is the reading that decides whether the next reduction is owed.
 new_root
 printf 'one two three\n' >"$root/CLAUDE.md"
 prose_without_ledger="$(figure_from_stats prose)"
@@ -163,10 +138,6 @@ else
     "ledger reported: '$ledger_reported' (want 4)"
 fi
 
-# The ledger figure is subtracted from `prose`, and `prose` is measured with `find -type f`, which does
-# not walk a symlink. A `-f` test does follow one, so a symlink at the ledger path takes words out of a
-# total that never held them: here prose reads 3 for a tree holding 5. Point it at a large enough file
-# and prose goes negative, which stats.sh reports as "the scan did not work".
 new_root
 printf 'one two three\n' >"$root/CLAUDE.md"
 prose_without_linked_ledger="$(figure_from_stats prose)"
@@ -186,10 +157,9 @@ fi
 
 echo "stats.sh — a probe-shaped import is reported, not hidden"
 
-# check-test.sh covers this side of check.sh; nothing covered stats.sh's own reporting hook. A name that
-# is a path rather than a bare filename is a shape no ordinary machine produces, so it must say so on
-# stderr rather than blending into the uncounted names a healthy run also prints. The mount link opens
-# the gate, and the file is planted where the traversal would land so the case cannot pass on absence.
+# The file sits where the traversal lands, so a resolver with the guard gone would find it. This case
+# asserts on the reported refusal alone, so it would pass with the file absent too; check-test.sh's
+# twin of this fixture is the one that also asserts the name stayed uncounted.
 new_root
 mkdir -p "$root/home/.claude"
 ln -s "$root/kk-flavor" "$root/home/.kk-flavor"
@@ -204,18 +174,15 @@ fi
 
 echo "stats.sh — a skill mounted from outside the tree is reported apart"
 
-# kk-foreman routes those as tool skills, so their descriptions cost the always-loaded tier while no pass
-# here can shrink them. The mount has to resolve outside `$root` or the exclusion swallows it, which is why
-# the fixture skill lives beside the root rather than under it. The `.kk-flavor` link is what makes this
-# fixture read as the installed checkout, which is the only place the figure means anything.
+# The fixture skill lives beside the root, not under it: a mount resolving inside `$root` is excluded.
 new_root
 printf 'one two\n' >"$root/CLAUDE.md"
 mkdir -p "$base/outside-skill" "$root/home/.claude/skills"
 printf -- '---\nname: outside-skill\ndescription: four words exactly here\n---\n' >"$base/outside-skill/SKILL.md"
 ln -s "$base/outside-skill" "$root/home/.claude/skills/outside-skill"
-# A second mount, this one resolving *inside* the root: it is one of the tree's own skills and must not be
-# counted, or the figure says nothing. Without it the exclusion is untested — deleting all three of its
-# lines left this suite green, because the only mount here already sat outside.
+# A second mount, this one resolving *inside* the root: the tree's own skill must not count. The
+# suite stays green if you delete it, which is exactly why it looks removable — take it out and
+# nothing here tests the exclusion.
 mkdir -p "$root/skills/inside-skill"
 printf -- '---\nname: inside-skill\ndescription: four words exactly here\n---\n' >"$root/skills/inside-skill/SKILL.md"
 ln -s "$root/skills/inside-skill" "$root/home/.claude/skills/inside-skill"
@@ -228,10 +195,6 @@ else
     "reported: '$outside_line' (want 4)"
 fi
 
-# The same fixture minus the flavor mount is any relocated checkout — a clone, or the worktree a PR review
-# runs in. There the mounts resolve to the *installed* tree, the exclusion matches nothing, and every mounted
-# skill would count as outside: 889 words across 21 measured, instead of 43 across 2. The figure describes
-# someone else's machine at that point, so it is not printed at all.
 new_root
 printf 'one two\n' >"$root/CLAUDE.md"
 mkdir -p "$base/outside-skill-2" "$root/home/.claude/skills"
@@ -247,8 +210,6 @@ fi
 
 echo "stats.sh — an over-long note is refused rather than appended"
 
-# The bar exists because prose asking for a short note was ignored by every author of a long row, the
-# rule's own writer included. Refusing is the only form that holds: no row beats a row nobody will read.
 new_root
 mkdir -p "$root/skills/kk-reduce/scripts"
 cp "$stats" "$root/skills/kk-reduce/scripts/stats.sh"
@@ -269,8 +230,8 @@ fi
 
 echo "stats.sh — the note cannot forge a ledger row"
 
-# --append writes to ../stats.md relative to the script, so a test must never run the real one.
-# This copies stats.sh into a fixture that has its own stats.md.
+# `--append` writes to ../stats.md relative to the script, so a case must never run the real one —
+# copy it into the fixture first.
 new_root
 mkdir -p "$root/skills/kk-reduce/scripts"
 cp "$stats" "$root/skills/kk-reduce/scripts/stats.sh"
@@ -283,8 +244,8 @@ second line | with a pipe' "$root" >/dev/null 2>&1
 rows_after=$(grep -c '^|' "$root/skills/kk-reduce/stats.md")
 appended=$((rows_after - rows_before))
 row="$(tail -1 "$root/skills/kk-reduce/stats.md")"
-# Escaped pipes are dropped before counting: `\|` renders as a literal inside the cell and separates no
-# column, so counting raw `|` characters marks the guard working as the guard failing.
+# Escaped pipes come out before the count: `\|` separates no column, so counting raw `|` would read
+# the guard working as the guard failing.
 columns=$(printf '%s' "$row" | sed 's/\\|//g' | tr -cd '|' | wc -c | tr -d ' ')
 if [ "$appended" = 1 ] && [ "$columns" = 7 ]; then
   record_pass "a note carrying a newline and a pipe still writes exactly one 6-column row"
@@ -293,11 +254,31 @@ else
     "rows appended: $appended (want 1)" "unescaped pipes: $columns (want 7)" "$row"
 fi
 
+echo "stats.sh — a missing ledger is opened with a header a reader can use"
+
+# The only case that leaves stats.md out of the fixture, so it is the only one that reaches the header
+# stats.sh writes when the ledger does not exist. Every other `--append` case creates the file first and
+# never sees that block. The `+` legend is asserted because it is the one thing in the header a reader
+# cannot reconstruct from the columns, and the header is where a fresh ledger states it.
+new_root
+mkdir -p "$root/skills/kk-reduce/scripts"
+cp "$stats" "$root/skills/kk-reduce/scripts/stats.sh"
+printf 'one two\n' >"$root/CLAUDE.md"
+fresh_ledger="$root/skills/kk-reduce/stats.md"
+"$root/skills/kk-reduce/scripts/stats.sh" --append 'opening row' "$root" >/dev/null 2>&1
+fresh_rows=$(grep -c '^|' "$fresh_ledger" 2>/dev/null || echo 0)
+if [ "$fresh_rows" = 3 ] &&
+   grep -qF '| date | prose | scripts | always-loaded | skills | what ran |' "$fresh_ledger" &&
+   grep -qF 'lower bound' "$fresh_ledger"; then
+  record_pass "creates the ledger with the column header, the + legend, and one row under them"
+else
+  record_fail "creates the ledger with the column header, the + legend, and one row under them" \
+    "lines starting '|': $fresh_rows (want 3 — header, rule, row)" \
+    "$(cat "$fresh_ledger" 2>/dev/null)"
+fi
+
 echo "stats.sh — the ledger is not written through a symlink"
 
-# It is refused as a symlink when read, via contained_in_root, and was followed when written: appending the
-# row to whatever it pointed at, or creating the target outright when dangling. The installed mount points
-# into the human's own tree, so a branch checked out there reaches this the moment a campaign records.
 new_root
 printf 'one two\n' >"$root/CLAUDE.md"
 mkdir -p "$root/skills/kk-reduce/scripts"

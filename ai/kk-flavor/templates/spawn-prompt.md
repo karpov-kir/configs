@@ -1,9 +1,7 @@
-<!-- Spawn-prompt template for the review-stage subagents of `~/.kk-flavor/standards/quality-pipeline.md`,
-     used by every orchestrator that spawns a skill as a stage. Fill the slots; add nothing
-     else — extra content pre-selects which rules the stage applies. The handoff, emphasis and
-     tool-output slots are omitted entirely when empty. A lead the orchestrator inferred is
-     neither emphasis nor evidence and has no slot by design. The retro stage has its own richer
-     template: `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`. -->
+<!-- Fill the slots; add nothing else — extra content pre-selects which rules the stage applies.
+     The handoff, emphasis and tool-output slots are omitted entirely when empty. A lead the
+     orchestrator inferred is neither emphasis nor evidence and has no slot by design. The retro
+     stage adds its own extra slots: `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`. -->
 
 Run the `<skill name>` skill in full, per its SKILL.md.
 

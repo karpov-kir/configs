@@ -1,7 +1,5 @@
 # Touching a Running System
 
-This covers a deploy, live data, an external write API, an infrastructure change. Core Principle 5's first trap — prove the check can fail — binds everywhere, so it stays in [core-principles.md](core-principles.md); the traps below fire only here.
-
 ## Verify the effect, not the report of it
 
 - **Check identity, not liveness.** A healthy response proves the service is up, never which artifact it runs.
@@ -12,4 +10,4 @@ This covers a deploy, live data, an external write API, an infrastructure change
 
 Capture the current state and name the one-command revert first. Read the repo's own runbook before improvising a path. Never learn an undocumented write API by sending it a payload — read the routes first.
 
-**Where no undo exists, the human sees it before it goes.** A ticket everyone now watches, a message delivered, a comment on someone's PR: the revert you were told to arrange does not exist for these, so the gate moves earlier instead of disappearing. **Outward text takes any lane it is owed before the send, never after**, since the version that went is the version that landed.
+**Where no undo exists, the human sees it before it goes** — a ticket everyone now watches, a message delivered, a comment on someone's PR. With no revert to fall back on, the gate moves earlier instead of disappearing: **outward text takes any lane it is owed before the send, never after.**

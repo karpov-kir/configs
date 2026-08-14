@@ -4,12 +4,11 @@
 #   usage: stats-mutate.sh   # one line per mutation; exit 0 only when every one proved something
 #
 # Slow on purpose: one full suite run per mutation. Run it when a guard or a case changes.
-# The runner's judgement is `check-mutate.sh`'s, fenced as a shared region so the two cannot drift.
 set -uo pipefail
 export LC_ALL=C
 
-# Physical, because the gate below compares it against a `pwd -P` of the mount. A logical `pwd` keeps the
-# symlink that mount *is*, so the two never agree and the gate refuses the very path its message names.
+# Physical, because the gate below compares it against a `pwd -P` of the mount: a logical `pwd` keeps
+# the symlink that mount *is*, and the gate would refuse the very path its message names.
 here="$(cd -P -- "$(dirname "$0")" && pwd -P)"
 stats="$here/stats.sh"
 check="$here/../../kk-ecosystem/scripts/check.sh"
@@ -18,10 +17,9 @@ for required in "$stats" "$check" "$suite"; do
   [ -x "$required" ] || { echo "stats-mutate: $required is not executable"; exit 1; }
 done
 
-# Only from the installed checkout. This executes the suite sitting beside it, once per mutation, and in a
-# review worktree that suite is the branch's own file — which would break the read-never-execute property
-# `check.sh` leans on to justify its shape. The safe run is also the only useful one: mutating a branch's
-# copy proves nothing about the guards that will actually run.
+# Only from the installed checkout. This executes the suite sitting beside it, and in a review worktree
+# that suite is the branch's own file — which would break the read-never-execute property `check.sh`
+# leans on. Mutating a branch's copy proves nothing about the guards that will actually run anyway.
 installed="$(cd -P -- "${HOME:-}/.claude/skills/kk-reduce/scripts" 2>/dev/null && pwd -P)"
 [ -n "$installed" ] && [ "$installed" = "$here" ] || {
   echo "stats-mutate: run it as ~/.claude/skills/kk-reduce/scripts/stats-mutate.sh — this copy is somewhere else" >&2
@@ -31,9 +29,9 @@ installed="$(cd -P -- "${HOME:-}/.claude/skills/kk-reduce/scripts" 2>/dev/null &
 
 # --- shared:mutation-runner ---
 # A mutation that no longer matches the code, or that breaks the script instead of its behaviour, reports
-# a pass it never earned — the stale-gate defect one level up, inside the verification. Both happened here,
-# three times between them, so both halves are asserted: the edit must change the file, and it must turn
-# at least one case red. Either failure makes the whole run exit non-zero.
+# a pass it never earned — the stale-gate defect one level up, inside the verification. So both halves
+# are asserted: the edit must change the file, and it must turn at least one case red. Either failure
+# makes the whole run exit non-zero.
 mutants_run=0
 mutants_bad=0
 
@@ -44,14 +42,10 @@ mutants_bad=0
 #   spread    — it changed more than one line, so it removed guards it was not aimed at
 #   truncated — the suite stopped early, so its FAIL lines are not a verdict on this guard
 #   applied   — a real one-line edit to a script that still runs
-# `spread` exists because `bash -n` only sees *shell* syntax: `/gsub/d` once deleted four lines across three
-# awk programs, one of them the drift comparator's `END {`, whose stderr check.sh sends to /dev/null. The
-# mutant parsed, a guard nobody aimed at went silently dead, and the aimed guard's case failed by luck.
-# `truncated` exists because a mutant that drives the script to exit 2 mid-suite leaves earlier FAIL lines
-# behind, which count as a kill while most cases never ran.
-# `broken` earns its own verdict because it is the trap that is easiest to mistake for success: a mutant
-# that cannot run fails cases in bulk, which looks exactly like a guard being caught. The kill count is
-# printed for the same reason — a number far above one is worth reading even when the verdict is clean.
+# The four failing verdicts all look like success from a distance: a mutant that cannot run, or one that
+# killed a guard nobody aimed at, fails cases in bulk. `bash -n` sees *shell* syntax only, so it does not
+# catch an edit that spreads across awk programs. The kill count is printed for the same reason — a
+# number far above one is worth reading even when the verdict is clean.
 judge_mutant() {
   mutants_run=$((mutants_run + 1))
   case "$2" in
@@ -72,9 +66,8 @@ report_mutants() {
   echo "$mutants_run mutation(s), $mutants_bad that proved nothing"
   [ "$mutants_bad" -eq 0 ]
 }
-# The baseline, before any mutation. Every verdict below means "this edit turned a green case red", which
-# says nothing if the case was already red — a runner that skips this reports a clean sweep over a broken
-# suite, which is the very failure it exists to catch, one level further up.
+# The baseline, before any mutation. Every verdict below means "this edit turned a green case red",
+# which says nothing if the case was already red.
 assert_baseline_green() {
   local out
   out="$("$1" 2>&1)" || {
@@ -107,8 +100,7 @@ run_mutant() {
   elif ! bash -n "$target.mutant" 2>/dev/null; then
     verdict=broken
   else
-    # Exactly one original line, or it removed a guard it was not aimed at. `/gsub/d` matched three awk
-    # programs; `/fence { next }/d` matched `in_fence { next }` as a substring too.
+    # Exactly one original line, or it removed a guard it was not aimed at.
     touched=$(diff "$target" "$target.mutant" | grep -c '^<' || true)
     if [ "$touched" = 1 ]; then verdict=applied; else verdict=spread; fi
   fi
@@ -117,8 +109,8 @@ run_mutant() {
   fails=0
   if [ "$verdict" = applied ]; then
     out="$("$dir/skills/kk-reduce/scripts/stats-test.sh" 2>&1)"
-    # The trailer, not just the FAIL lines: a mutant that drives the suite to exit 2 part-way leaves the
-    # FAILs it already printed behind, and counting those alone reads a truncated run as a kill.
+    # The trailer, not just the FAIL lines: a mutant that drives the suite to exit 2 part-way leaves
+    # earlier FAILs behind, and counting those alone reads a truncated run as a kill.
     if printf '%s' "$out" | grep -qE '^[0-9]+ passed, [0-9]+ failed$'; then
       fails=$(printf '%s' "$out" | grep -c '^  FAIL' || true)
     else
@@ -149,5 +141,8 @@ run_mutant "mounted-outside gate removed"      stats 's|^\[ "$import_mount_is_in
 run_mutant "in-tree mounts not excluded"       stats 's|"$root_canon"/\*) continue ;;|"$root_canon"/*) ;;|'
 
 run_mutant "ledger symlink followed on write"   stats 's|^\[ -L "$history" \] && {|[ -L "" ] \&\& {|'
+
+run_mutant "fresh ledger loses the + legend"   stats '/makes it a lower bound/d'
+run_mutant "fresh ledger loses its columns"    stats '/| date | prose | scripts | always-loaded | skills | what ran |/d'
 
 report_mutants

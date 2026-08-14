@@ -1,6 +1,6 @@
 ---
 name: kk-code-review
-description: Review the working-tree changes for correctness bugs and the standards violations that cause them — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (idsd-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards under skill-protocol's queue and verdict, which a same-named bundled reviewer does not.
+description: Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (idsd-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
@@ -15,7 +15,7 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 Check every changed file against all four:
 
 1. **Standards correctness rules** — violations (kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
-   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent, a degenerate value (`0`, `''`, `-1`) the surrounding default logic reads as present. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
+   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
 2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
 4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding. Placement is `kk-refactor`'s lane; content is yours.

@@ -1,6 +1,6 @@
 ---
 name: kk-foreman
-description: The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". Reads the size ledger that kk-reduce keeps. The idsd-* intent workflow is its own door (idsd-ship).
+description: The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". The idsd-* intent workflow is its own door (idsd-ship).
 argument-hint: "what you want done (default: look at the working tree and recommend)"
 ---
 
@@ -17,8 +17,6 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 Run `~/.claude/skills/kk-reduce/scripts/stats.sh` and read `~/.claude/skills/kk-reduce/stats.md`, which is a level above it. On exit 2, fix what the script names; never treat it as no change. **You read that file; `kk-reduce` writes it** — one row before a campaign and one after, so the rows are the reductions and nothing else.
 
 Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it.
-
-**A `+` on a row's always-loaded figure makes it a lower bound**: `stats.sh` named an `@import` it could not resolve and left it uncounted. Read the delta between two marked rows as "at least this much". From a marked row to an unmarked one, part of the rise is `stats.sh` resolving more rather than the tree growing. The unmarked row's note says how much.
 
 ## 2. Route
 
@@ -48,13 +46,13 @@ The chains below are the ones where order is load-bearing and an agent choosing 
 
 ### Tool skills
 
-**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name on that mount that is neither `kk-*` nor `idsd-*`, and you route it by its own `description:` like any other. You still dispatch, so when a skill owns a system never reach for a raw API call of your own — reads included.
+**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name on that mount that is neither `kk-*` nor `idsd-*`, and you route it by its own `description:` like any other. When a skill owns a system, never reach for a raw API call of your own — reads included.
 
-**An MCP server acts in an outside system too, and is not a skill.** Its tools are that system's sanctioned interface, not the improvised call the line above rules out. Where a skill and an MCP server both reach one system, **the human names which**; picking for them silently is how a run authenticates the wrong way or writes through a path they were not watching.
+**An MCP server acts in an outside system too, and is not a skill.** Its tools are that system's sanctioned interface, not the raw call the line above rules out. Where a skill and an MCP server both reach one system, **the human names which**.
 
-**The send goes last**, by a skill or an MCP tool, and the ordering is `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**. Read it: a create is an external write, which is that file's trigger. Here it means draft the ticket body, run the prose lane, show the human, then create.
+**The send goes last**, by a skill or an MCP tool, and the ordering is `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act** — a create is an external write, which is that file's trigger. Here it means draft the ticket body, run the prose lane, show the human, then create.
 
-**A tool skill is an action; the `kk-*` skills are lanes over its text.** Its return is text you now own — a body it wrote for you, a description it fetched — and it re-enters **Route** like any other prose, with no free pass for having come from a skill.
+**A tool skill is an action; the `kk-*` skills are lanes over its text.** Its return is text you now own, and it re-enters **Route** like any other prose.
 
 ## 3. Run
 

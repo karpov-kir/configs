@@ -1,6 +1,6 @@
 # How We Set Up a Project
 
-**Applying this document:** follow it on a new project or one that already does; otherwise match the project's existing setup.
+Follow this on a new project or one that already does; otherwise match the project's existing setup.
 
 Starter configs: [`templates/`](../templates/) — match them closely; diverge only on what no template covers.
 
@@ -26,7 +26,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 
 ## Logging
 
-The logger itself is [architecture/core.md](architecture/core.md) → Logging & events. Call-site rules — where log lines belong, message content, levels, secrets — live in [code-style.md](code-style.md) → Logging. Here, only its configuration:
+The logger itself is [architecture/core.md](architecture/core.md) → Logging & events; call-site rules are [code-style.md](code-style.md) → Logging. Here, only its configuration:
 
 - **Format and level are explicit, never derived from the environment** — so any environment (production included) runs locally with readable logs. `LOG_FORMAT` is `pretty` or `json`; `LOG_LEVEL` is one of the levels in [code-style.md](code-style.md) → Logging.
 

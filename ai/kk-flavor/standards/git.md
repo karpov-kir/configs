@@ -8,11 +8,11 @@ Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`,
 
 **Print the command and get approval before any commit or push.**
 
-Short, imperative, one-line subject (~50 chars); a body only when the *why* isn't obvious from the diff. Frame for the repo's consumer — app user, library dev, or operator — the user-visible effect, not the internal mechanism.
+Short, imperative, one-line subject (~50 chars); a body only when the *why* isn't obvious from the diff. Frame it for the repo's consumer — the user-visible effect, not the internal mechanism.
 
 **Re-form the change set after any review pass.** Run `git add -A` after the final pass, and never re-present a commit command formed earlier in the run.
 
-Match the recent style on the branch (`git log` first). Use semantic prefixes (`feat:`, `fix:`, …) only when the branch already does and commits land directly; PR branches default to plain, since the squash subject is what ships.
+Match the recent style on the branch (`git log` first). Use semantic prefixes (`feat:`, `fix:`, …) only when the branch already does and commits land directly; PR branches default to plain.
 
 ## Pull requests
 

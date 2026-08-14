@@ -6,7 +6,7 @@ The set this covers: anything a person reads as communication — PR/ticket desc
 
 ## Budget — the reader-action test
 
-**Name this artifact's reader and the action they'll take; a sentence earns its place only by changing that action.** Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.** Naming the home and retelling it anyway is the restatement banned everywhere else, and this reader pays for it twice: they read the summary, then they open the thing it summarised.
+**Name this artifact's reader and the action they'll take; a sentence earns its place only by changing that action.** Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
 
 ## AI tells
 
@@ -18,7 +18,7 @@ A watch-list, not a complete set. What these tells share is manufactured polish 
 
 **Vocabulary** (unnaturally frequent) — delve, tapestry, underscore, harness, testament, leverage, utilize, robust, seamless, comprehensive, pivotal, crucial, foster, bolster, streamline, elevate, empower, unlock, game-changer, cutting-edge, landscape, realm, journey, navigate, myriad, plethora, holistic, synergy; "dive into" / "unpack" a topic; "plays a vital role".
 
-**Conversational** — sycophancy and throat-clearing ("Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up"); hedge frames ("It's important to note", "It's worth noting", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions", "Please don't hesitate"); narrating your own care ("I left the open questions in rather than guessing", "checked X rather than assuming") — the reader wants the questions, not your restraint in not answering them.
+**Conversational** — sycophancy and throat-clearing ("Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up"); hedge frames ("It's important to note", "It's worth noting", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions", "Please don't hesitate"); narrating your own care ("I left the open questions in rather than guessing", "checked X rather than assuming").
 
 ## Change descriptions (PRs)
 
@@ -32,7 +32,7 @@ The author's side, for a reviewer deciding approve-or-not, in order. **A linked 
 
 The reviewer's side, for an author deciding what to change. **Each note goes on the line it concerns; the body carries the verdict, any mismatch with what was asked, and nothing else a line could have held.**
 
-A note earns its place only by producing an edit, or an answer only the author can give. Drop the rest instead of marking it optional: a note they skip trains them to skim the ones that matter. What you ran is your business — no coverage accounting, and no reporting a concern you checked and cleared.
+A note earns its place only by producing an edit, or an answer only the author can give. Drop the rest instead of marking it optional. What you ran is your business — no coverage accounting, and no reporting a concern you checked and cleared.
 
 ## Code comments
 

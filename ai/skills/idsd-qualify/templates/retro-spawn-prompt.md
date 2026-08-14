@@ -1,4 +1,7 @@
-Run the `idsd-retro` skill in full, per its SKILL.md.
+<!-- The retro stage's extra slots, filled into `~/.kk-flavor/templates/spawn-prompt.md` for skill
+     `idsd-retro`; the **Change scope** slot below replaces that template's own, and its **Ledger**
+     slot is omitted because `idsd-retro` has no file queue and no per-file verdict — its one ledger
+     is the `findings.md` in its own directory. -->
 
 Change scope: <the diff the run produced — derived from `git diff --stat` against the base>
 
@@ -9,5 +12,3 @@ Scope boundary: <which earlier rounds were already retrospected, and that assess
 Tooling this run touched: <the skills, scripts, standards, docs or prompts in the diff — or that it touched none>
 
 Routing homes: <where an improvement goes: the human's skills and standards, their global notes, an ICE, a constitution>
-
-You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your skill and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows your skill's own lens.

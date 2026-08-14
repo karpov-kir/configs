@@ -19,8 +19,8 @@
 #                    reviewed-stages — every pipeline stage: code-review always bare, refactor bare
 #                    or `:partial(fast|cap)`, the other three bare or `:skipped(fast|not-applicable)`;
 #                    any `(fast)` marks the pass not-full. The `stamp` usage string is the authority
-#   gate             done-blocker: stale tree OR turnaround-trimmed stages OR any open `- [ ]`
-#                    → non-zero + reasons
+#   gate             done-blocker: stale tree OR turnaround-trimmed stages (both human-overridable)
+#                    OR any open `- [ ]` (never overridable) → non-zero + reasons
 #   carry            print prior open `- [ ]` (with their section) so re-qualify loses none
 #   check-ignore     keep the report and its superseded copy out of the fingerprint, by the
 #                    mechanism that fits the repo mode
@@ -31,22 +31,12 @@
 #                    "something" — those are the human's, not this ship's scratch
 #   state            print the `continue` routing token:
 #                    no-report|resume|re-qualify|decide|finalize|ready|done
-#
-# Repo mode, short version: committed = .idsd/ has tracked content (the report and its superseded
-# copy ignored via shared .gitignore entries); throwaway = whole .idsd/ excluded via
-# .git/info/exclude, zero traces.
-#
-# Open-`- [ ]` scanning is a separate concern, owned by sibling `todo-gate.sh` (shared with
-# idsd-build); gate and carry delegate to it. This script only preserves and gates;
-# deciding a finding is resolved stays human/agent judgment.
 set -uo pipefail
 # Byte-oriented, like every sibling script: macOS awk aborts on the first non-UTF-8 byte under a
-# UTF-8 locale, and the report can carry one — it quotes code excerpts, and `init` may seed its
-# intent line from fetched ticket text.
+# UTF-8 locale, and the report can carry one.
 export LC_ALL=C
 
-# Stop, saying why: one stderr line per argument, then exit 2. Every caller reads 2 as "this did not
-# run", never as a result, so every path that stops halfway has to leave by here.
+# exit 2 = "this did not run", never a result. Every path that stops halfway leaves by here.
 refuse() {
   printf '%s\n' "$@" >&2
   exit 2
@@ -54,10 +44,8 @@ refuse() {
 
 root=$(git rev-parse --show-toplevel 2>/dev/null) || refuse "error: not a git repo"
 
-# Absolute path to <name> inside this worktree's git dir. --git-path answers relative to the repo for
-# an ordinary repo and absolute inside a linked worktree, so anchor the relative form at $root. An
-# empty answer is refused rather than passed on: the bare "$root/" it would otherwise build puts
-# whatever the caller writes into the working tree, where a commit can pick it up.
+# Absolute path to <name> in this worktree's git dir. --git-path answers relative for an ordinary
+# repo, absolute in a linked worktree; an empty answer would build a bare "$root/" in the tree.
 git_path() {
   local path
   path=$(git -C "$root" rev-parse --git-path "$1") && [ -n "$path" ] ||
@@ -66,24 +54,19 @@ git_path() {
 }
 
 report="$root/.idsd/ship-report.md"
-# The copy `init --force` keeps of the report it replaced — a copy of the report, so it lives where
-# the report lives and is handled as the report is: never committed, never in the fingerprint.
 superseded="$root/.idsd/ship-report.superseded.md"
-# Per-pass bookkeeping, held in the git dir because that is the one place no commit can reach and no
-# `git add -A` can see. Under .idsd/ they would be committed in committed mode, and every later
-# `invalidate` would hand the human deletions they never made. Per-worktree, so ships cannot collide.
+# Per-pass bookkeeping, in the git dir: no commit and no `git add -A` reaches it, and it is
+# per-worktree so ships cannot collide. Under .idsd/, committed mode would commit them.
 stage_returns=$(git_path idsd-stage-returns) || exit 2
 skill_dir="$(cd "$(dirname "$0")/.." && pwd)"
 template="$skill_dir/templates/ship-report-template.md"
 todo_gate="$(cd "$(dirname "$0")" && pwd)/todo-gate.sh"
-# Written into a marker instead of a checksum when a stage returned with nothing the report should carry.
 NO_ITEMS="no-items"
 
 report_checksum() {
   cksum <"$report"
 }
 
-# The five pipeline stages, by name — the only values stage-returned and no-items accept.
 valid_stage() {
   case "$1" in
     code-review | security-review | tighten | refactor | retro) printf '%s' "$1" ;;
@@ -91,8 +74,7 @@ valid_stage() {
   esac
 }
 
-# Write a stage's marker, or fail loudly: a marker that was never written while the caller still
-# prints "recorded" is a stage the stamp then waves through as handled.
+# A marker never written while the caller prints "recorded" is a stage the stamp waves through.
 write_stage_marker() {
   local stage="$1" value="$2"
   [ -n "$value" ] || {
@@ -105,9 +87,8 @@ write_stage_marker() {
   }
 }
 
-# The stage marked returned against the report as it now stands, meaning its items are still
-# unwritten. Prints nothing when no stage is. See `stage-returned` for why only one may stand at a
-# time. A `no-items` marker holds a word, never a checksum, so a stage settled that way never matches.
+# The stage marked returned against the report as it now stands — items still unwritten. Only one may
+# stand at a time (see `stage-returned`); a `no-items` marker holds a word, never a checksum.
 outstanding_stage() {
   local marker current
   current=$(report_checksum)
@@ -121,14 +102,10 @@ outstanding_stage() {
   return 1
 }
 
-# True once a stage has been marked returned. A stage with no marker never ran, which is what
-# separates "returned having surfaced nothing" from "never happened" everywhere this is asked.
 stage_was_marked_returned() {
   [ -f "$stage_returns/$1" ]
 }
 
-# Why a stage may not be stamped yet, or nothing if it may. A stage that ran must have been marked
-# returned, and the report must have changed since that mark. Otherwise nobody wrote its findings down.
 stage_block_reason() {
   local recorded
   stage_was_marked_returned "$1" || {
@@ -144,7 +121,6 @@ stage_block_reason() {
   }
 }
 
-# committed when .idsd/ has any tracked file; throwaway otherwise (absent, or untracked scratch).
 repo_mode() {
   if [ -n "$(git -C "$root" ls-files .idsd 2>/dev/null)" ]; then
     echo committed
@@ -153,20 +129,15 @@ repo_mode() {
   fi
 }
 
-# What this script writes under .idsd/ that must never be committed or reach the tree fingerprint,
-# one path per line, relative to $root: the report, and the copy `init --force` keeps of the one it
-# replaced. `promote` writes a .gitignore entry per line and `check-ignore` verifies one per line, so
-# the two can never disagree. Deliberately absent: the durable record (intents/, archive/,
-# charter.md, constitution.md, roadmap.md, decisions.md), which committed mode keeps tracked, and the
-# stage markers, which are in the git dir and so are out of git's reach already.
+# What must never be committed or fingerprinted, one path per line relative to $root. `promote`
+# writes a .gitignore entry per line and `check-ignore` verifies one per line, so the two cannot
+# disagree. The durable record is deliberately absent — committed mode keeps it tracked.
 ignore_surface() {
   printf '%s\n' "${report#"$root"/}" "${superseded#"$root"/}"
 }
 
-# Add <entry> as a line of <file>, unless it already is one. The trailing-newline check is the whole
-# point: appending to a file whose last line has none fuses the two into one, and then neither the
-# rule that was there nor the entry just added matches anything — a promotion that reports the report
-# ignored while staging it, and a human's own ignore rule silently dropped.
+# The trailing-newline check is the point: appending to a file whose last line has none fuses the
+# two, and then neither the human's own rule nor the entry just added matches anything.
 append_line() {
   local file="$1" entry="$2"
   grep -qxF "$entry" "$file" 2>/dev/null && return 0
@@ -176,10 +147,8 @@ append_line() {
   printf '%s\n' "$entry" >>"$file"
 }
 
-# This ship's intent slug — the first whitespace-delimited token of the report's `intent:` line,
-# guarded to the slug charset. Prints nothing when the intent is a standalone `review:` (no slug) or
-# holds any char outside the set (notably `/`), so a slug can never `../`-escape a path it indexes.
-# Single source for both `state`'s archive probe and `discard`'s intent-file removal.
+# Guarded to the slug charset: nothing for a standalone `review:`, or for any char outside the set
+# (notably `/`), so a slug can never `../`-escape a path it indexes.
 intent_slug() {
   local intent slug
   intent=$(grep -m1 '^intent:' "$report" 2>/dev/null | sed -e 's/^intent:[[:space:]]*//' -e 's/^"//' -e 's/"$//')
@@ -190,9 +159,6 @@ intent_slug() {
   esac
 }
 
-# Start excluding .idsd/ locally: add the whole-line entry to .git/info/exclude, unless it is already
-# one. Used by `check-ignore` in throwaway mode, and by `promote` to put the exclusion back on every
-# path where it refuses after having dropped it.
 add_local_exclusion() {
   local exclude
   exclude=$(git_path info/exclude) || return 1
@@ -200,8 +166,6 @@ add_local_exclusion() {
   append_line "$exclude" '.idsd/'
 }
 
-# Stop excluding .idsd/ locally: drop the whole-line entry from .git/info/exclude (a no-op if absent).
-# Shared by `promote` (going durable) and `discard` (removing the scratch dir).
 drop_local_exclusion() {
   local exclude tmp status
   exclude=$(git_path info/exclude) || return 1
@@ -212,9 +176,8 @@ drop_local_exclusion() {
   }
   grep -vxF '.idsd/' "$exclude" >"$tmp"
   status=$?
-  # grep exits 1 when it prints nothing, which is the ordinary "the file held only that entry" case.
-  # 2+ means it could not read the file, and moving the empty temp over it would wipe every other
-  # local exclusion the repo has.
+  # grep exits 1 when it prints nothing — the file held only that entry. 2+ means it could not read
+  # the file, and moving the empty temp over it would wipe every other exclusion.
   [ "$status" -le 1 ] || {
     rm -f "$tmp"
     echo "error: could not read $exclude — left it untouched" >&2
@@ -227,9 +190,6 @@ require_report() {
   [ -f "$report" ] || refuse "error: no ship-report.md ($report)"
 }
 
-# How many open `- [ ]` the report holds, phrased for the human about to lose them. Never answers
-# "none" from a scan that did not run: todo-gate.sh exits 2 printing nothing, and a reader that
-# counts that as zero promises the human there is nothing to lose.
 open_items_phrase() {
   local items status
   items=$("$todo_gate" "$report")
@@ -241,17 +201,12 @@ open_items_phrase() {
   esac
 }
 
-# Run an awk program over the report and put the result back, atomically: on any failure the report
-# is left exactly as it was, and the caller sees a non-zero return. The program is the one argument.
-# The two failure messages are named, so that a call site reads without opening this function:
-# `no_temp=<what a failed mktemp leaves standing> no_write=<what a failed rewrite leaves standing>
-# rewrite_report '<program>'`. awk's own values ride the same environment
-# (`v=x rewrite_report … 'ENVIRON["v"]'`), never `-v`: awk's -v processes C escapes, so a backslash
-# in the value would be mangled.
+# Atomic: on any failure the report is left exactly as it was. The two failure messages ride the
+# environment — `no_temp=<what a failed mktemp leaves standing> no_write=<what a failed rewrite
+# leaves standing>` — as do awk's own values, never `-v`, which processes C escapes.
 rewrite_report() {
   local program="$1" tmp
-  # Refuse rather than let `set -u` kill the shell on an unset message: that exits 1, and 1 is a
-  # result to every caller of this script, not the "did not run" this is.
+  # Refuse rather than let `set -u` kill the shell: that exits 1, and 1 is a result to every caller.
   [ -n "${no_temp:-}" ] && [ -n "${no_write:-}" ] ||
     refuse "error: rewrite_report was called without no_temp/no_write — $report was NOT rewritten"
   tmp=$(mktemp) || {
@@ -265,12 +220,9 @@ rewrite_report() {
   }
 }
 
-# git add -A && git write-tree against a throwaway index — the fingerprint the freshness gate
-# compares. Never touches the human's staging area — a polluted real index carries whatever is
-# staged into the stamp.
-# Fails loudly rather than printing an empty tree: an empty fingerprint stamps as `reviewed-tree:`
-# (empty) and then matches the next equally-failed reading, so the freshness gate reports "tree
-# fresh" over a fingerprint that was never computed.
+# The fingerprint the freshness gate compares, against a throwaway index so the human's staging area
+# is untouched. Fails loudly rather than printing an empty tree, which would match the next
+# equally-failed reading and report "tree fresh".
 current_tree() {
   local tmp_index tree="" status
   tmp_index=$(mktemp) || {
@@ -293,11 +245,8 @@ reviewed_tree() {
   grep -m1 '^reviewed-tree:' "$report" 2>/dev/null | sed 's/^reviewed-tree:[[:space:]]*//'
 }
 
-# Every frontmatter value that means "no stamp stands here": absent, `pending` from invalidate, and
-# the template's own placeholders. One set, and every reader uses all of it. A reader that knows
-# only some of these values accepts what the others reject: a report carrying a real tree beside the
-# literal `<stages>` would then gate clean and route `ready` with no stage ever run. `init` holds
-# the template to this set.
+# Every frontmatter value meaning "no stamp stands here". One set, used whole by every reader — a
+# reader knowing only some accepts what the others reject. `init` holds the template to this set.
 unstamped() {
   case "$1" in
     "" | pending | "<hash>" | "<stages>") return 0 ;;
@@ -305,8 +254,7 @@ unstamped() {
   return 1
 }
 
-# Stage entries of the last stamp (comma-separated). Empty when never stamped with stages —
-# callers treat that as not-full (covers reports predating the stage record).
+# Empty when never stamped with stages — callers treat that as not-full.
 reviewed_stages() {
   grep -m1 '^reviewed-stages:' "$report" 2>/dev/null | sed 's/^reviewed-stages:[[:space:]]*//'
 }
@@ -328,14 +276,14 @@ case "${1:-}" in
       esac
     done
     [ -n "$intent_value" ] || refuse "usage: report.sh init \"<intent frontmatter value>\" [--force]"
-    # Frontmatter is single-line: collapse any CR/LF so the value can't inject extra frontmatter
-    # lines (e.g. a forged reviewed-tree) — matters now the intent may be seeded from a fetched ticket.
+    # Frontmatter is single-line: collapse CR/LF so a value seeded from a fetched ticket can't inject
+    # extra frontmatter lines (a forged reviewed-tree).
     intent_value=${intent_value//[$'\n\r']/ }
     [ ! -L "$template" ] ||
       refuse "error: template $template is a symlink — refusing to read the template through one; the report was NOT initialized"
     [ -f "$template" ] || refuse "error: template not found ($template)"
-    # gate and state never see the template, so a placeholder that drifts out of unstamped()'s set
-    # can only be caught here: it would stamp every brand-new report as already reviewed.
+    # gate and state never see the template, so a placeholder drifting out of unstamped()'s set can
+    # only be caught here: it would stamp every new report as already reviewed.
     grep -q '^intent:' "$template" ||
       refuse "error: template $template has no 'intent:' line to stamp — the report was NOT initialized"
     for field in reviewed-tree reviewed-stages; do
@@ -345,24 +293,18 @@ case "${1:-}" in
       unstamped "$placeholder" ||
         refuse "error: template $template writes '$field: $placeholder', which gate and state read as a completed review — every new report would gate clean. Restore a placeholder unstamped() knows, or add this one to it. The report was NOT initialized."
     done
-    # `-L` tests only the *final* component, so the directory check has to be its own: a `.idsd`
-    # that is itself a symlink slips past the report test below, and then every write here lands
-    # wherever it points — outside the repository, where check-ignore never applied and nothing
-    # downstream can see that the report is not where it says it is.
+    # `-L` tests only the *final* component, so a `.idsd` that is itself a symlink needs its own
+    # check: it slips past the report test below, and every write here then lands wherever it points.
     if [ -L "$root/.idsd" ]; then
       refuse "error: $root/.idsd is a symlink -> $(readlink "$root/.idsd") — the report was NOT initialized." \
         "  .idsd/ is always a real directory inside the repo. Remove the link, then re-run."
     fi
     # The report is never legitimately a symlink, and `--force` does not override this. A dangling
-    # link reads as absent to `-e`, so this `-L` test is the only one that catches it: unguarded,
-    # `cp` follows the link and writes wherever it points, and the `mv` below then replaces the link
-    # with a real file — leaving nothing here to record that a write landed outside the repository.
+    # link reads as absent to `-e`, so only `-L` catches it before `cp` follows it out of the repo.
     if [ -L "$report" ]; then
       refuse "error: $report is a symlink -> $(readlink "$report") — the report was NOT initialized." \
         "  the report is always a regular file. Remove the link, then re-run."
     fi
-    # Overwriting is a real path (a report recording a different intent), but it takes every
-    # unresolved `- [ ]` with it, so it has to be asked for.
     if { [ -e "$report" ] || [ -L "$report" ]; } && [ "$is_forced" -eq 0 ]; then
       existing_intent=$(grep -m1 '^intent:' "$report" 2>/dev/null)
       refuse "error: $report already exists — the report was NOT initialized." \
@@ -370,10 +312,6 @@ case "${1:-}" in
         "  a new report starts empty; this one holds $(open_items_phrase)." \
         "  Keep it and re-qualify (report.sh carry lists those items), or re-run with --force to start over it."
     fi
-    # `--force` supersedes rather than overwrites. What it drops are the open `- [ ]`, which is where
-    # a finding nobody has resolved yet lives — a count on stderr, printed after the file is already
-    # gone, is not something anyone can act on. So keep the file, and print the items themselves
-    # while they still exist. A second `--force` replaces this copy, so route them, don't bank them.
     replacing=""
     carried=""
     if [ -e "$report" ] || [ -L "$report" ]; then
@@ -384,8 +322,8 @@ case "${1:-}" in
     fi
     mkdir -p "$(dirname "$report")" ||
       refuse "error: could not create $(dirname "$report") — the report was NOT initialized"
-    # The copy must land before the intent is stamped: a failed one leaves the previous report's body
-    # standing, and the rewrite below then writes the new intent onto an old tree and old open items.
+    # The copy lands before the intent is stamped, or the rewrite writes the new intent onto the
+    # previous report's tree and open items.
     cp "$template" "$report" ||
       refuse "error: could not copy $template to $report — the report was NOT initialized${replacing:+; the previous report is at $superseded}"
     [ -z "$replacing" ] || {
@@ -406,17 +344,13 @@ case "${1:-}" in
     repo_mode
     ;;
 
-  # Recording a stage's findings is prose discipline, so this makes the omission mechanical: a report
-  # that lags the pass asserts stages ran with nothing to show. A marker holds the report's checksum
-  # as it stood when that stage returned, and the stamp demands the report have moved since.
-  # Checksums alone do not make that per-stage. The round's stages return together, so marks made
-  # back to back all hold one checksum and a single edit clears them all. Serialising the marks is
-  # what fixes it: only one stage may stand unrecorded, so the edit that clears it is that stage's.
+  # A marker holds the report's checksum as that stage returned, and the stamp demands the report
+  # have moved since. Serialising the marks is what makes that per-stage: the round's stages return
+  # together, so back-to-back marks share one checksum and one edit would clear them all.
   stage-returned)
     require_report
-    # `|| exit 2`: valid_stage's refusal ends the `$( )` subshell, not this script, so the call site
-    # has to check the status itself. Unchecked, an invalid stage leaves `stage` empty, aims the
-    # marker write at the directory rather than a file, and still prints "recorded return of".
+    # `|| exit 2`: valid_stage's refusal ends the `$( )` subshell, not this script. Unchecked, an
+    # invalid stage leaves `stage` empty and still prints "recorded return of".
     stage=$(valid_stage "${2:-}" stage-returned) || exit 2
     outstanding=$(outstanding_stage)
     [ -z "$outstanding" ] ||
@@ -425,11 +359,8 @@ case "${1:-}" in
     echo "recorded return of $stage — record its items, or report.sh no-items $stage, before taking the next stage's return"
     ;;
 
-  # The escape hatch for a stage that genuinely surfaced nothing. Without it the only way to clear a
-  # marker is to edit the report, and the report's own contract bans the per-stage line that would
-  # say "nothing to record". It clears a marker, so it demands one: "returned" and "surfaced nothing"
-  # are two points in time, and a stage with no marker never ran. Drop that demand and a pass that
-  # ran nothing can declare every stage empty and stamp.
+  # The escape hatch for a stage that genuinely surfaced nothing. It demands a marker: without that,
+  # a pass that ran nothing can declare every stage empty and stamp.
   no-items)
     require_report
     stage=$(valid_stage "${2:-}" no-items) || exit 2
@@ -454,9 +385,8 @@ USAGE
       exit 2
     }
     entries=$(printf '%s' "$entries" | tr -d '[:space:]')
-    # Validate: exactly the five pipeline stages, each once, against the closed reason vocabulary above.
-    # Free text must not be accepted — only `fast` reaches fast_trims, so any other word for a turnaround
-    # trim stamps a trimmed pass as full and walks it through the merge gate.
+    # Only `fast` reaches fast_trims, so any other word for a turnaround trim stamps a trimmed pass
+    # as full.
     validation_errors=$(printf '%s\n' "$entries" | tr ',' '\n' | awk '
       /^code-review$/ { seen["code-review"]++; next }
       /^refactor(:partial\((fast|cap)\))?$/ { seen["refactor"]++; next }
@@ -471,21 +401,15 @@ USAGE
       }')
     [ -z "$validation_errors" ] || refuse "error: invalid stage record" "$validation_errors"
     grep -q '^reviewed-tree:' "$report" || refuse "error: no 'reviewed-tree:' line in frontmatter"
-    # `invalidate` is what separates one pass from the next: it parks reviewed-tree at `pending` and
-    # drops the stage markers. Skip it and nothing has to happen for this stamp to succeed, because
-    # the previous pass's markers still validate against a report nothing has touched. An edited tree
-    # then restamps clean with no stage having run. This check comes before the per-stage one below,
-    # whose markers mean nothing until it is known which pass made them.
+    # `invalidate` is what separates one pass from the next, so it comes before the per-stage check
+    # below, whose markers mean nothing until it is known which pass made them.
     stamped=$(reviewed_tree)
     [ "$stamped" = pending ] ||
       refuse "error: this pass never invalidated — reviewed-tree still reads '${stamped:-<empty>}', not 'pending'. Run report.sh invalidate first, or the stamp and the stage markers standing here are the previous pass's, not this one's."
-    # Every stage this record says ran must also have been marked returned, with its items recorded
-    # since. The entry string cannot carry that on its own: `refactor,retro` is legally shaped
-    # whether or not either ran, and a stage that never marked itself looks exactly like one that
-    # had nothing to say.
+    # `refactor,retro` is legally shaped whether or not either ran, hence the per-stage check.
     block_reasons=$(printf '%s\n' "$entries" | tr ',' '\n' | while read -r entry; do
       # Leading `(` on the pattern: bash 3.2 — still macOS's /bin/bash — ends the enclosing `$( … )`
-      # at a bare case-arm `)`, so without it the whole script fails to parse there.
+      # at a bare case-arm `)`.
       case "$entry" in
         (*:skipped\(*) continue ;;
       esac
@@ -495,8 +419,8 @@ USAGE
     done)
     [ -z "$block_reasons" ] || refuse "error: these stages are recorded as having run, but:" "$block_reasons"
     tree=$(current_tree) || exit 2
-    # Rewrite frontmatter only (never a body line quoting a field): refresh reviewed-tree, write
-    # reviewed-stages next to it, retire any reviewed-mode line from before stages subsumed it.
+    # Frontmatter only, never a body line quoting a field: refresh reviewed-tree, write
+    # reviewed-stages beside it, retire any pre-stages reviewed-mode line.
     no_temp="nothing was stamped" \
       no_write="could not write the stamp into $report — reviewed-tree is unchanged" \
       entries="$entries" tree="$tree" rewrite_report \
@@ -531,9 +455,8 @@ USAGE
     fi
     todos=$("$todo_gate" "$report")
     todo_status=$?
-    # 0 = nothing open, 1 = items printed. Anything else (missing script, lost exec bit, bad args)
-    # yields empty output, which the -n test below would read as "no open TODOs" and pass the merge
-    # gate on a scan that never ran.
+    # 0 = nothing open, 1 = items printed. Anything else yields empty output, which the -n test below
+    # would read as "no open TODOs" and pass the merge gate on a scan that never ran.
     if [ "$todo_status" -gt 1 ]; then
       echo "BLOCK (open TODOs): the scan did not run — todo-gate.sh exited $todo_status. No override; fix the invocation." >&2
       blocked=1
@@ -550,15 +473,12 @@ USAGE
     require_report
     "$todo_gate" "$report"
     carry_status=$?
-    # Same reasoning as gate: a failed scan prints nothing, and nothing reads as "no prior items" —
-    # the one outcome that silently drops every carried `- [ ]`.
+    # As in gate: a failed scan prints nothing, and nothing reads as "no prior items".
     [ "$carry_status" -le 1 ] ||
       refuse "error: the carry scan did not run — todo-gate.sh exited $carry_status; prior open items are unknown."
     ;;
 
   invalidate)
-    # Clears the stamp at the start of a pass, so a stamp can never outlive the tree it describes —
-    # the merge gate must not read a review state the pass under way has already invalidated.
     require_report
     no_temp="the stamp was NOT cleared; it still describes an older tree" \
       no_write="could not clear the stamp in $report — it still describes an older tree" \
@@ -570,18 +490,16 @@ USAGE
       { print }
       NR == 1 { in_frontmatter = 1 }
     ' || exit 2
-    # Last pass's stage returns are not this pass's; left behind they would satisfy its stamp for free.
+    # Last pass's stage returns would otherwise satisfy this pass's stamp for free.
     rm -rf "$stage_returns"
     echo "invalidated reviewed-tree — restamp when the pass completes"
     ;;
 
   check-ignore)
     # Runs before anything else — init included, so it never requires the report to exist — and
-    # before any fingerprinting `git add -A` (stamp/gate), so nothing scratch is ever staged.
+    # before any fingerprinting `git add -A`, so nothing scratch is ever staged.
     if [ "$(repo_mode)" = committed ]; then
-      # committed idsd repo: these ignores are shared, committed with the rest of the idsd setup.
-      # A path already tracked also answers "not ignored" here, and that is the case most worth the
-      # warning — the file is sitting in the commits the entry was meant to keep it out of.
+      # A path already tracked also answers "not ignored" here — the case most worth the warning.
       unignored=$(ignore_surface | while read -r entry; do
         git -C "$root" check-ignore -q "$root/$entry" || printf " '%s'" "$entry"
       done)
@@ -592,8 +510,6 @@ USAGE
       echo "WARN: NOT gitignored:$unignored — add each to .gitignore (shared idsd setup)" >&2
       exit 1
     fi
-    # throwaway: exclude the *whole* .idsd/ locally so intents + report leave zero traces —
-    # .gitignore is never touched and `git add -A` skips the dir entirely.
     add_local_exclusion ||
       refuse "error: could not add '.idsd/' to $(git_path info/exclude) — the scratch dir is NOT excluded"
     echo "ok: throwaway run — .idsd/ excluded locally via .git/info/exclude (.gitignore untouched)"
@@ -601,50 +517,41 @@ USAGE
 
   promote)
     require_report
-    # throwaway → committed: keep .idsd/ durably. Drop the local exclusion, share the report ignore via
-    # a tracked .gitignore entry, and stage .idsd/. Never commits — the human/idsd-build owns that.
     if [ "$(repo_mode)" = committed ]; then
       echo "already committed — .idsd/ is tracked; nothing to promote"
       exit 0
     fi
     gitignore="$root/.gitignore"
-    # Refuse a symlinked .gitignore before anything is written, not after. Detection afterwards is
-    # already too late: the append has landed in whatever the link points at — a tracked file
-    # elsewhere in the repo, or a path outside it — and no refusal below undoes that write.
+    # Refuse a symlinked .gitignore before anything is written: afterwards the append has already
+    # landed in whatever the link points at, and no refusal below undoes that write.
     if [ -L "$gitignore" ]; then
       refuse "error: $gitignore is a symlink -> $(readlink "$gitignore") — not promoted, and nothing was written." \
         "  git ignores nothing it cannot read, so entries added through the link would take effect nowhere" \
         "  while this reported success and staged the report. Replace it with a regular file, then re-run."
     fi
     drop_local_exclusion || exit 2
-    # Each entry is guarded, and staging waits until every one of them is written. A promotion that
-    # reports success with one still missing lets that file reach a commit, which the mode forbids.
+    # Staging waits until every entry is written, or a promotion that reports success with one
+    # missing lets that file reach a commit.
     unwritten=$(ignore_surface | while read -r entry; do
       append_line "$gitignore" "$entry" || printf " '%s'" "$entry"
     done)
     [ -z "$unwritten" ] || {
-      # The exclusion is already dropped by the time a write can fail, so this refusal has to put it
-      # back for the same reason the one below does — otherwise an unwritable .gitignore hands the
-      # human a repo where the next `git add -A` stages the report.
+      # The exclusion is already dropped by the time a write can fail, so put it back.
       add_local_exclusion ||
         echo "error: could not restore the local .idsd/ exclusion — .idsd/ is now visible to 'git add -A'" >&2
       refuse "error: could not add$unwritten to $gitignore — not promoted." \
         "  Nothing was staged, so the report is not on its way into a commit."
     }
-    # Writing an entry is not the same as it taking effect, and only git can say which. So ask git,
-    # and ask it *which file* answered, with -v, because the plain question has three other sources.
-    # `core.excludesFile` and `.git/info/exclude` are this machine's alone: satisfied by either, the
-    # promotion reports a shared ignore that no teammate cloning the repo will have, and the report
-    # reaches a commit from their checkout. Only `.gitignore` at the root is the durable, shared
-    # answer this subcommand claims to have written.
+    # Writing an entry is not the same as it taking effect — ask git, and with -v, because
+    # `core.excludesFile` and `.git/info/exclude` answer the plain question too and are this machine's
+    # alone. Only root `.gitignore` is the shared answer this subcommand claims to have written.
     unignored=$(ignore_surface | while read -r entry; do
       source_file=$(git -C "$root" check-ignore -v "$root/$entry" 2>/dev/null | head -1)
       source_file=${source_file%%:*}
       [ "$source_file" = ".gitignore" ] || printf " '%s'" "$entry"
     done)
     [ -z "$unignored" ] || {
-      # Put the exclusion back before refusing. Without it the whole of .idsd/ is visible to the
-      # human's next `git add -A`.
+      # Put the exclusion back before refusing, as above.
       add_local_exclusion ||
         echo "error: could not restore the local .idsd/ exclusion — .idsd/ is now visible to 'git add -A'" >&2
       refuse "error: the entries are in $gitignore, but git still does not ignore:$unignored — not promoted." \
@@ -658,35 +565,25 @@ USAGE
 
   discard)
     require_report
-    # throwaway-only cleanup, run by `done` after the code has landed: a throwaway run promises zero
-    # traces, but `done` would otherwise leave the report + archived intent behind. Committed repos keep
-    # .idsd/ as their durable record, so refuse there.
     if [ "$(repo_mode)" = committed ]; then
       refuse "committed idsd repo — .idsd/ is the durable record; nothing to discard"
     fi
-    # Remove only this ship's intent file (both pre- and post-archive locations); a standalone
-    # `review:` intent has no slug and no file to remove.
+    # Only this ship's intent file (pre- and post-archive); a standalone `review:` has no slug.
     slug=$(intent_slug)
     [ -n "$slug" ] && rm -f "$root/.idsd/intents/$slug.md" "$root/.idsd/archive/$slug.md"
     rm -f "$report" "$superseded"
     # The stage markers are in the git dir, so removing .idsd/ below never reaches them.
     rm -rf "$stage_returns"
-    # If nothing remains, this ship was the last occupant: remove the whole scratch dir (regenerable
-    # roadmap and OS junk with it) and stop excluding it, leaving the repo pristine. What counts as
-    # remaining is named, never "the .idsd/ root is non-empty". A stray dotfile must not keep the dir
-    # alive. The other way round, a throwaway charter, constitution, language or playbook is the
-    # human's authored work rather than this ship's scratch, and no other copy of it exists, so
-    # `rm -rf` must not take it with the report. `decisions.md` is deliberately NOT on that list:
-    # `idsd-qualify/SKILL.md` → **The decision log** makes it throwaway scratch by design, and says
-    # anything that must outlive the ship is routed out of it rather than into it.
+    # What counts as remaining is named, never "the .idsd/ root is non-empty", so a stray dotfile
+    # cannot keep the dir alive. `decisions.md` is deliberately NOT on the list —
+    # `idsd-qualify/SKILL.md` → **The decision log** makes it throwaway scratch by design.
     rmdir "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null || true
     kept=""
     for durable in charter.md constitution.md language.md playbook.md; do
       [ -e "$root/.idsd/$durable" ] && kept="$kept $durable"
     done
-    # The guard stays conservative: anything at all under intents/ or archive/ keeps .idsd/ alive, so
-    # a file nobody anticipated is never deleted. The label counts what is actually there, because a
-    # stray `.DS_Store` reporting as "other intents" tells the human something untrue.
+    # Anything at all under intents/ or archive/ keeps .idsd/ alive, but the label counts what is
+    # actually there — "other intents" for a stray `.DS_Store` tells the human something untrue.
     if [ -n "$(ls -A "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null)" ]; then
       intents_left=$(find "$root/.idsd/intents" "$root/.idsd/archive" -maxdepth 1 -name '*.md' -type f 2>/dev/null | wc -l | tr -d ' ')
       if [ "$intents_left" -gt 0 ]; then
@@ -697,8 +594,8 @@ USAGE
     fi
     if [ -z "$kept" ]; then
       rm -rf "$root/.idsd"
-      # The exclusion lives in the shared .git/info/exclude — every worktree reads it, and a
-      # parallel throwaway ship's .idsd/ must stay excluded. Drop it only from the last worktree.
+      # .git/info/exclude is shared across worktrees, and a parallel throwaway ship's .idsd/ must stay
+      # excluded. Drop it only from the last worktree.
       if [ "$(git -C "$root" worktree list --porcelain 2>/dev/null | grep -c '^worktree ')" -gt 1 ]; then
         echo "discarded: removed .idsd/ scratch; kept the shared exclusion (other worktrees exist)"
       else
@@ -711,15 +608,12 @@ USAGE
     ;;
 
   state)
-    # Routing token for `idsd-ship continue` — one word to stdout. Derives where the change set
-    # stands from the same signals `gate` uses (reviewed-tree stamp, tree freshness, open TODOs)
-    # plus the intent's archive location.
     if [ ! -f "$report" ]; then
       echo "no-report"
       exit 0
     fi
-    # A built intent's file has been moved to archive/ (a standalone `review:` has no slug, so
-    # intent_slug is empty and this is skipped — it never reaches `done`).
+    # A built intent's file has moved to archive/ (a standalone `review:` has no slug, so this is
+    # skipped).
     slug=$(intent_slug)
     if [ -n "$slug" ] && [ -f "$root/.idsd/archive/$slug.md" ]; then
       echo "done"
@@ -735,8 +629,7 @@ USAGE
       echo "re-qualify" # reviewed once, tree moved since
       exit 0
     fi
-    # The same status check gate and carry make: a scan that could not run prints nothing, and
-    # nothing here reads as "no open items" — routing a change set with open `- [ ]` past `decide`.
+    # As in gate: a scan that could not run prints nothing, and nothing reads as "no open items".
     todos=$("$todo_gate" "$report")
     todo_status=$?
     [ "$todo_status" -le 1 ] ||

@@ -20,10 +20,8 @@ The reader understands the text on the first read, without backtracking — in *
 * Each line carries a fact unreachable from its surrounding context (code, types, siblings, the diff, …). Cut or link otherwise.
 * **One line per item: `<what was wrong> — <what changed>`.** No nesting, and no preamble above the items. Holds wherever you report several things, a reply included.
 * One home per fact ([ecosystem.md](ecosystem.md) → One home). Two statements that can't both hold get reconciled to one, never left to coexist.
-* Open your enumerations — mark an open set ("e.g.", "and similar"); enumerate plainly only when the set is genuinely fixed.
 * No backstory, hedging, or justification — describe what is true, not what we tried.
 * **Outward text** additionally follows [human-writing.md](human-writing.md), which wins over this section on conflict.
-* Before publishing finished prose, apply the retrofit lens whose description claims it — `kk-tighten` or `kk-humanize`. Prose an `idsd-qualify` pass already covered needs no separate one.
 
 ## Replying to a human
 

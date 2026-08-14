@@ -1,6 +1,6 @@
 ---
 name: idsd-retro
-description: Adversarial retrospective on how a run was conducted, never the change it produced — a fresh agent reads the run-log and diff cold and never self-grades. Use standalone, or as idsd-qualify's retro stage.
+description: Adversarial retrospective on how a run was conducted, never the change it produced. Use standalone, or as idsd-qualify's retro stage.
 argument-hint: "path to a run-log, or the run/session to reflect on"
 ---
 
@@ -8,7 +8,7 @@ Look back at **how a run was conducted**, not at the change it produced — revi
 
 ## Input
 
-- A **factual run-log** — what was asked, what each stage did, where the human corrected course, what was deferred, and any defect the run hit and how it surfaced. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit** — a log that has already judged itself is the surest way to make this pass agree with it. A caller (e.g. `idsd-qualify`) writes it; standalone, reconstruct it tersely from the session and `git` first.
+- A **factual run-log** — what was asked, what each stage did, where the human corrected course, what was deferred, and any defect the run hit and how it surfaced. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit.** A caller (e.g. `idsd-qualify`) writes it; standalone, reconstruct it tersely from the session and `git` first.
 - The **diff**, and any **skill / doc / prompt / script the run touched**.
 
 ## Lenses
@@ -26,7 +26,7 @@ Apply each; surface only what the run evidences:
 
 `findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run.
 
-**Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new. Bound it at roughly 50 lines, dropping the oldest `1x` entries first, or it grows into every future retro's context unread.
+**Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new. Bound it at roughly 50 lines, dropping the oldest `1x` entries first.
 
 Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses:
 

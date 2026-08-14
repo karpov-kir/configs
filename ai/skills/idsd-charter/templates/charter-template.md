@@ -13,7 +13,7 @@ The project's what & why — the level-0 intent. Read by `idsd-build` as Context
 ## Scope
 
 - **In:** <the high-level capabilities this project covers>
-- **Out (for now):** <what is deliberately excluded — the boundary that keeps scope honest>
+- **Out (for now):** <what is deliberately excluded>
 
 ## See also
 

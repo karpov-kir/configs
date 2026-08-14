@@ -1,8 +1,6 @@
 # Retro stage
 
-The pipeline's last stage, and the whole of it — `SKILL.md` → **Running a pass** carries only *when* it runs.
-
-Write a terse run-log — `idsd-retro`'s **Input** defines its content — then spawn `idsd-retro` **fresh**, building its prompt from `templates/retro-spawn-prompt.md` (this skill's dir) and filling only its slots. What the log omits becomes a blind spot. Writing it:
+Write a terse run-log — `idsd-retro`'s **Input** defines its content — then spawn `idsd-retro` **fresh**, building its prompt by filling the slots of `~/.kk-flavor/templates/spawn-prompt.md` plus the extra ones in `templates/retro-spawn-prompt.md` (this skill's dir), and nothing else. Writing it:
 
 - **The stage numbering in `~/.kk-flavor/standards/quality-pipeline.md` is not the execution order.** Stage 3's comment pass runs after stage 4: write the log once that pass has returned, and name it among the stages.
 - **State a defect the run hit and how it surfaced, as an event** — never grade the run or frame what a stage "should" have caught.

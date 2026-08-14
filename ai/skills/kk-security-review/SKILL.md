@@ -1,6 +1,6 @@
 ---
 name: kk-security-review
-description: Adversarially review the working-tree changes for exploitable vulnerabilities — injection, auth/access, secret exposure, unsafe input. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr-review's, functional bugs kk-code-review's. Works this skill's own threat model under skill-protocol's queue and verdict, which a same-named bundled reviewer does not.
+description: Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr-review's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 

@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# Offer cadence — idsd-ship offers a periodic pass at most once per interval, and this file owns both
-# the intervals and where each one's date is kept.
-#   usage: cadence.sh <topic> due     0 = offer one, 1 = not yet, 2 = undetermined
+# Offer cadence — idsd-ship offers a periodic pass at most once per interval; this file owns the
+# intervals and where each one's date is kept.
+#   usage: cadence.sh <topic> due     0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
 #          cadence.sh <topic> asked   record that the offer was made today, whatever the human answered
-# Topics, and why their records sit where they do:
-#   retro  how a run was conducted — a habit of the human's, not of one project, so the date lives
-#          in this skill's own directory, the one path that is identical from every repo.
-#          Git-ignored, so a ship run in another repo never dirties this one.
-#   audit  the .idsd/ intent set of THIS repo, so the date belongs to this repo. It goes under .git/,
-#          never in .idsd/: `report.sh discard` wipes a throwaway .idsd/ at the end of every ship, and
-#          a cadence the ship itself deletes can never come due.
-# Every path prints one line saying why. Exit 2 never means "not due" — it means nothing was decided.
+# The retro date lives in this skill's own directory, the one path identical from every repo; the
+# audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway `.idsd/`,
+# and a cadence the ship itself deletes can never come due.
 set -uo pipefail
 export LC_ALL=C
 
@@ -25,13 +20,13 @@ skill_dir=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || skill_dir=""
 
 interval_days=7
 # Dispatched on "${1:-}" rather than on $topic so kk-ecosystem's check.sh recognises this as the
-# top-level case and holds every arm to having a call site somewhere an agent reads.
+# top-level case and holds every arm to having a call site.
 case "${1:-}" in
   retro)
     state="$skill_dir/last-offer-retro.txt"
     ;;
   audit)
-    # --git-path resolves correctly from a worktree and a submodule too, where a hardcoded .git/ does not.
+    # --git-path resolves from a worktree and a submodule too, where a hardcoded .git/ does not.
     state=$(git rev-parse --git-path idsd-audit-offer 2>/dev/null) || state=""
     [ -n "$state" ] || {
       echo "cadence.sh: not inside a git repository, so there is no per-repo record — nothing was determined." >&2
@@ -44,16 +39,15 @@ case "${1:-}" in
     ;;
 esac
 
-# Days since 1970-01-01 for a YYYY-MM-DD date; prints nothing when the argument is not one. Done in
-# awk because neither `date -d` (GNU) nor `date -j -f` (BSD) is portable across the shells this
-# script runs in.
+# Days since 1970-01-01 for a YYYY-MM-DD date; prints nothing when the argument is not one. In awk
+# because neither `date -d` (GNU) nor `date -j -f` (BSD) is portable across the machines this runs on.
 day_number() {
   printf '%s\n' "$1" | awk '
     NR == 1 {
       if ($0 !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) exit 1
       y = substr($0, 1, 4) + 0; m = substr($0, 6, 2) + 0; d = substr($0, 9, 2) + 0
       if (m < 1 || m > 12 || d < 1 || d > 31) exit 1
-      # days-from-civil: shift the year to start in March, which puts the leap day at its end.
+      # days-from-civil: shift the year to start in March, putting the leap day at its end.
       if (m <= 2) y--
       era = int((y >= 0 ? y : y - 399) / 400)
       yoe = y - era * 400

@@ -2,15 +2,14 @@
 # Proves check-test.sh's cases can fail, by breaking one guard in check.sh at a time.
 #   usage: check-mutate.sh   # one line per mutation; exit 0 only when every one proved something
 #
-# Slow on purpose — one full suite run per mutation, and one fixture builds 65 files. Run it when a guard
-# or a case changes, not on every check.
-# It lives here rather than in a scratch directory because that is where it used to live, and three
-# mutations silently stopped matching while nothing kept them in step with the code.
+# Slow on purpose — one full suite run per mutation. Run it when a guard or a case changes.
+# It lives beside the code rather than in a scratch directory: nothing else keeps a mutation in step
+# with the guard it aims at.
 set -uo pipefail
 export LC_ALL=C
 
-# Physical, because the gate below compares it against a `pwd -P` of the mount. A logical `pwd` keeps the
-# symlink that mount *is*, so the two never agree and the gate refuses the very path its message names.
+# Physical, because the gate below compares it against a `pwd -P` of the mount: a logical `pwd` keeps
+# the symlink that mount *is*, and the gate would refuse the very path its message names.
 here="$(cd -P -- "$(dirname "$0")" && pwd -P)"
 target="$here/check.sh"
 suite="$here/check-test.sh"
@@ -18,10 +17,9 @@ for required in "$target" "$suite"; do
   [ -x "$required" ] || { echo "check-mutate: $required is not executable"; exit 1; }
 done
 
-# Only from the installed checkout. This executes the suite sitting beside it, once per mutation, and in a
-# review worktree that suite is the branch's own file — which would break the read-never-execute property
-# `check.sh` leans on to justify its shape. The safe run is also the only useful one: mutating a branch's
-# copy proves nothing about the guards that will actually run.
+# Only from the installed checkout. This executes the suite sitting beside it, and in a review worktree
+# that suite is the branch's own file — which would break the read-never-execute property `check.sh`
+# leans on. Mutating a branch's copy proves nothing about the guards that will actually run anyway.
 installed="$(cd -P -- "${HOME:-}/.claude/skills/kk-ecosystem/scripts" 2>/dev/null && pwd -P)"
 [ -n "$installed" ] && [ "$installed" = "$here" ] || {
   echo "check-mutate: run it as ~/.claude/skills/kk-ecosystem/scripts/check-mutate.sh — this copy is somewhere else" >&2
@@ -31,9 +29,9 @@ installed="$(cd -P -- "${HOME:-}/.claude/skills/kk-ecosystem/scripts" 2>/dev/nul
 
 # --- shared:mutation-runner ---
 # A mutation that no longer matches the code, or that breaks the script instead of its behaviour, reports
-# a pass it never earned — the stale-gate defect one level up, inside the verification. Both happened here,
-# three times between them, so both halves are asserted: the edit must change the file, and it must turn
-# at least one case red. Either failure makes the whole run exit non-zero.
+# a pass it never earned — the stale-gate defect one level up, inside the verification. So both halves
+# are asserted: the edit must change the file, and it must turn at least one case red. Either failure
+# makes the whole run exit non-zero.
 mutants_run=0
 mutants_bad=0
 
@@ -44,14 +42,10 @@ mutants_bad=0
 #   spread    — it changed more than one line, so it removed guards it was not aimed at
 #   truncated — the suite stopped early, so its FAIL lines are not a verdict on this guard
 #   applied   — a real one-line edit to a script that still runs
-# `spread` exists because `bash -n` only sees *shell* syntax: `/gsub/d` once deleted four lines across three
-# awk programs, one of them the drift comparator's `END {`, whose stderr check.sh sends to /dev/null. The
-# mutant parsed, a guard nobody aimed at went silently dead, and the aimed guard's case failed by luck.
-# `truncated` exists because a mutant that drives the script to exit 2 mid-suite leaves earlier FAIL lines
-# behind, which count as a kill while most cases never ran.
-# `broken` earns its own verdict because it is the trap that is easiest to mistake for success: a mutant
-# that cannot run fails cases in bulk, which looks exactly like a guard being caught. The kill count is
-# printed for the same reason — a number far above one is worth reading even when the verdict is clean.
+# The four failing verdicts all look like success from a distance: a mutant that cannot run, or one that
+# killed a guard nobody aimed at, fails cases in bulk. `bash -n` sees *shell* syntax only, so it does not
+# catch an edit that spreads across awk programs. The kill count is printed for the same reason — a
+# number far above one is worth reading even when the verdict is clean.
 judge_mutant() {
   mutants_run=$((mutants_run + 1))
   case "$2" in
@@ -72,9 +66,8 @@ report_mutants() {
   echo "$mutants_run mutation(s), $mutants_bad that proved nothing"
   [ "$mutants_bad" -eq 0 ]
 }
-# The baseline, before any mutation. Every verdict below means "this edit turned a green case red", which
-# says nothing if the case was already red — a runner that skips this reports a clean sweep over a broken
-# suite, which is the very failure it exists to catch, one level further up.
+# The baseline, before any mutation. Every verdict below means "this edit turned a green case red",
+# which says nothing if the case was already red.
 assert_baseline_green() {
   local out
   out="$("$1" 2>&1)" || {
@@ -86,29 +79,48 @@ assert_baseline_green() {
 }
 # --- end shared:mutation-runner ---
 
+# The suite refuses to run anywhere but `$HOME/.claude/skills/kk-ecosystem/scripts`, because it executes
+# the check.sh beside it and that gate is what keeps a branch's copy from being the code that runs. So the
+# sandbox *is* an installation: a throwaway `$HOME` whose mount path holds the mutant and a copy of the
+# suite, and nothing else. The gate holds unweakened and decides in favour of the mutant. Put the pair in
+# a bare `mktemp -d` instead and every mutant exits 2 with no trailer, so each one reads as `truncated`
+# and the whole harness proves nothing while reporting a full run.
+sandbox_root=""
+sandbox_mount=""
+new_sandbox() {
+  sandbox_root="$(mktemp -d)" || return 1
+  sandbox_mount="$sandbox_root/home/.claude/skills/kk-ecosystem/scripts"
+  mkdir -p "$sandbox_mount" || return 1
+  cp "$suite" "$sandbox_mount/"
+}
+
+# Nothing else goes in that `$HOME` — no `.kk-flavor`. Every case that needs check.sh to see a flavor
+# mount builds its own fake HOME per fixture and overrides this one.
+run_suite_in_sandbox() {
+  HOME="$sandbox_root/home" "$sandbox_mount/check-test.sh" 2>&1
+}
+
 # `sed` to a new file rather than `sed -i`, whose in-place flag spells differently on BSD and GNU.
 run_mutant() {
-  local label="$1" expr="$2" dir verdict touched out fails
-  dir="$(mktemp -d)" || { echo "  mktemp failed   $label"; mutants_bad=$((mutants_bad + 1)); return; }
-  cp "$suite" "$dir/"
-  if ! sed "$expr" "$target" >"$dir/check.sh" 2>/dev/null; then
+  local label="$1" expr="$2" verdict touched out fails
+  new_sandbox || { echo "  mktemp failed   $label"; mutants_bad=$((mutants_bad + 1)); return; }
+  if ! sed "$expr" "$target" >"$sandbox_mount/check.sh" 2>/dev/null; then
     verdict=invalid
-  elif cmp -s "$target" "$dir/check.sh"; then
+  elif cmp -s "$target" "$sandbox_mount/check.sh"; then
     verdict=inert
-  elif ! bash -n "$dir/check.sh" 2>/dev/null; then
+  elif ! bash -n "$sandbox_mount/check.sh" 2>/dev/null; then
     verdict=broken
   else
-    # Exactly one original line, or it removed a guard it was not aimed at. `/gsub/d` matched three awk
-    # programs; `/fence { next }/d` matched `in_fence { next }` as a substring too.
-    touched=$(diff "$target" "$dir/check.sh" | grep -c '^<' || true)
+    # Exactly one original line, or it removed a guard it was not aimed at.
+    touched=$(diff "$target" "$sandbox_mount/check.sh" | grep -c '^<' || true)
     if [ "$touched" = 1 ]; then verdict=applied; else verdict=spread; fi
   fi
-  chmod +x "$dir/check.sh" 2>/dev/null
+  chmod +x "$sandbox_mount/check.sh" 2>/dev/null
   fails=0
   if [ "$verdict" = applied ]; then
-    out="$("$dir/check-test.sh" 2>&1)"
-    # The trailer, not just the FAIL lines: a mutant that drives the suite to exit 2 part-way leaves the
-    # FAILs it already printed behind, and counting those alone reads a truncated run as a kill.
+    out="$(run_suite_in_sandbox)"
+    # The trailer, not just the FAIL lines: a mutant that drives the suite to exit 2 part-way leaves
+    # earlier FAILs behind, and counting those alone reads a truncated run as a kill.
     if printf '%s' "$out" | grep -qE '^[0-9]+ passed, [0-9]+ failed$'; then
       fails=$(printf '%s' "$out" | grep -c '^  FAIL' || true)
     else
@@ -116,10 +128,30 @@ run_mutant() {
     fi
   fi
   judge_mutant "$label" "$verdict" "$fails"
-  rm -rf "$dir"
+  rm -rf "$sandbox_root"
+}
+
+# The sandbox itself, asserted green on an *unmutated* copy before any mutation runs. `assert_baseline_green`
+# below proves the suite passes where it is installed; this proves the sandbox did not change what it
+# proves. Without it a sandbox that fails cases on its own credits every mutation with a kill it did not
+# earn — the same defect one level up that the verdicts above exist to catch.
+assert_sandbox_green() {
+  local out
+  new_sandbox || { echo "  SANDBOX BROKEN  mktemp gave no fixture dir"; exit 2; }
+  cp "$target" "$sandbox_mount/check.sh"
+  chmod +x "$sandbox_mount/check.sh"
+  out="$(run_suite_in_sandbox)"
+  rm -rf "$sandbox_root"
+  printf '%s' "$out" | grep -qE '^[0-9]+ passed, 0 failed$' || {
+    echo "  SANDBOX RED     the suite is not green on an unmutated copy of check.sh"
+    printf '%s\n' "$out" | grep -E '^  FAIL|^check-test:|passed,' | sed 's/^/      /'
+    echo "  Fix the sandbox first: every mutation below would credit itself with failures it did not cause."
+    exit 2
+  }
 }
 
 assert_baseline_green "$suite"
+assert_sandbox_green
 
 echo "check.sh — one guard removed at a time"
 
@@ -142,8 +174,8 @@ run_mutant "import: traversal passes the guard"        '/a traversal, not a bare
 run_mutant "import: subdirectory reported as a probe"  's|^    \*/\*) return 1 ;;$|    */*) import_refusal="a path"; return 1 ;;|'
 run_mutant "import: subdirectory name resolves"        's|^    \*/\*) return 1 ;;$|    */*) ;;|'
 run_mutant "import: no attempt cap"                    's|-lt 64|-lt 100000|'
-# `#` as the delimiter wherever the expression holds a pipe. Using `|` there made sed read a malformed
-# script once: the mutant failed 19 cases at a stroke and read as a spectacular kill.
+# `#` as the delimiter wherever the expression holds a pipe: with `|` there, sed reads a malformed
+# script and its bulk failures read as a spectacular kill.
 run_mutant "findings: tier not ranked within itself"   's#(line ~ /\^syntax: /) return 0#(line ~ /^syntax: /) return 3#'
 run_mutant "findings: mounted pattern unanchored"      's|/\^flavor mounted elsewhere/|/flavor mounted elsewhere/|'
 run_mutant "findings: did-not-run guard unranked"      '/(line ~ \/\^direction scan read no files\/) return 1/d'

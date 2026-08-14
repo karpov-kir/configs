@@ -43,7 +43,7 @@ Optional — include only when the outcome must encode an explicit list or table
 
 ## Follow-ups
 
-Optional, build-managed — open questions and cross-intent consequences surfaced during `idsd-build`, tracked as a checklist: an unchecked item is not yet addressed, a checked one carries a one-line resolution. Every item must be checked before archive; the checklist travels with the archived intent as the record.
+Optional, build-managed — open questions and cross-intent consequences surfaced during `idsd-build`, tracked as a checklist. Every item must be checked before archive.
 
 - [ ] <follow-up — open, not yet addressed>
 - [x] <follow-up> — <resolution: fixed … / moved to NNN / declined: …>

@@ -5,13 +5,9 @@
 # Prints one line per finding, plus two always-loaded budgets: the router's files, and every skill's
 # `description:`. Exits 1 with findings, 0 when clean, and 2 when it could not run at all — no resolvable
 # root, or no findings file. A check that did not run is not a clean one.
-# Long, and past `code-style.md`'s guidance on purpose. A split was judged and rejected: the halves would
-# have to reach each other by sourcing, which means executing a file from the tree under audit, or by a
-# second process, which breaks the single findings file, the bounded output path and the exit codes
-# its test suite asserts on. Reopen it with a design that keeps those three, not with a line count.
 # A change here needs a case in `~/.claude/skills/kk-ecosystem/scripts/check-test.sh`, and a scan you add
-# needs one that fails without it. `~/.claude/skills/kk-ecosystem/scripts/check-mutate.sh` is what shows a
-# case can fail rather than merely pass. Full paths: a bare name resolves against the reviewed tree first.
+# needs one that fails without it; `~/.claude/skills/kk-ecosystem/scripts/check-mutate.sh` is what shows a
+# case can fail. Full paths, because a bare name resolves against the reviewed tree first.
 set -uo pipefail
 export LC_ALL=C
 
@@ -32,21 +28,14 @@ fi
 flavor="$root/kk-flavor"
 skills="$root/skills"
 
-# Every check below appends to this file and nothing else carries their results, so an unset
-# `findings` sends all of them to `>>""` — each block fails, each error goes to stderr, and the
-# empty-file test at the bottom prints "wiring: clean". Exit 2 here instead.
 findings="$(mktemp)" || {
   echo "check.sh: mktemp gave no findings file — exit 2, nothing was checked." >&2
   exit 2
 }
 trap 'rm -f "$findings"' EXIT
 
-# A SKILL.md's `description:` value — the routing text, and the only part of a skill loaded in
-# every session. Prints nothing when the file has no frontmatter or no description line. Anchored to
-# line 1, so a `---` rule in the body does not open frontmatter; only the first `description:` counts.
-# stats.sh carries the same copy; the drift check below keeps the two budgets equal.
-# Each predicate is one awk, never `awk | grep -q`: grep -q exits on the first match, and under
-# `pipefail` awk's resulting SIGPIPE (141) turns that match into a miss.
+# A SKILL.md's `description:` value — the routing text, and the only part of a skill loaded in every
+# session. Anchored to line 1, so a `---` rule in the body does not open frontmatter.
 # --- shared:frontmatter-description ---
 frontmatter_description() {
   awk 'NR == 1 && !/^---[[:space:]]*$/ { exit }
@@ -55,8 +44,6 @@ frontmatter_description() {
 }
 # --- end shared:frontmatter-description ---
 
-# True when the skill opted out of model invocation, so its description never enters a context
-# window and costs nothing until the human types `/<name>`.
 # --- shared:opted-out-of-model-invocation ---
 opted_out_of_model_invocation() {
   awk 'NR == 1 && !/^---[[:space:]]*$/ { exit }
@@ -67,10 +54,7 @@ opted_out_of_model_invocation() {
 # --- end shared:opted-out-of-model-invocation ---
 
 # A path as prose writes it, resolved to a file under the root; prints it, or nothing when it
-# resolves nowhere or to more than one file. `~/.kk-flavor/...` and `~/.claude/skills/...` address
-# the two mounts directly and never fall back — a wrong path under either is a finding, not
-# something to go hunting for. Relative markdown links keep the stricter rule below: a link is a
-# click target, so it must resolve locally.
+# resolves nowhere or to more than one file.
 resolve_ref() {
   local dir="$1" ref="$2" matches
   case "$ref" in
@@ -83,15 +67,12 @@ resolve_ref() {
   esac
   if [ -n "$dir" ] && [ -e "$dir/$ref" ]; then echo "$dir/$ref"; return; fi
   if [ -e "$root/$ref" ]; then echo "$root/$ref"; return; fi
-  # Prose cites a standard by bare name (`ecosystem.md`) far more often than by a path that resolves
-  # from where the citing file sits. Accept that only when one file in the tree could be meant.
+  # A bare name is accepted only when one file in the tree could be meant.
   matches="$(find "$root" -path "*/$ref" -type f)"
   [ "$(printf '%s\n' "$matches" | grep -c .)" = 1 ] && echo "$matches"
 }
 
-# True when a cited path names at least one real file. resolve_ref prints nothing for a bare name
-# several files answer to; that ambiguity blocks a heading lookup but still proves the file is
-# there, which is all a path check asks.
+# True when a cited path names at least one real file, an ambiguous bare name included.
 ref_exists() {
   local dir="$1" ref="$2"
   [ -n "$(resolve_ref "$dir" "$ref")" ] && return 0
@@ -107,45 +88,31 @@ canonical_dir() {
 }
 # --- end shared:canonical-dir ---
 
-# Anything attacker-chosen that reaches a finding goes through this first. A committed path may hold a
-# newline — git stores one — and interpolating it raw emits a *second* line of text the branch wrote,
-# carrying no prefix of ours, into output an agent reads and drafts a PR comment from. It picks the text,
-# so it picks its rank in the ordering below too, which is how a forged line reaches the top of the list
-# wearing the most trusted class. One physical line per finding is what makes that ordering mean anything.
-# Every control byte goes, not only the two that split a line: a directory named with an ESC-CSI sequence
-# cannot forge a rank, but it *erases the real finding printed above it* in whatever terminal reads this.
-# `LC_ALL=C` so the class is bytes rather than the caller's locale; UTF-8 punctuation survives, and U+2028
-# survives too — accepted, since no consumer here treats it as a line ending.
+# Anything attacker-chosen that reaches a finding goes through this first: one physical line per
+# finding is what makes the ranking below mean anything. Every control byte goes, not only the two
+# that split a line — an ESC sequence erases the real finding printed above it.
 oneline() {
   printf '%s' "$1" | LC_ALL=C tr '[:cntrl:]' ' '
 }
 
-# Comparison form for a heading or a cited section name: markup dropped, spacing collapsed, case
-# folded. Capitalisation and decoration drift between the heading and the citation; the words don't.
+# Comparison form for a heading or a cited section name.
 plain_text() {
   tr '[:upper:]' '[:lower:]' | sed 's/[`*_]//g; s/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//'
 }
 
-# Every `#` heading in a markdown file, in comparison form. Fenced blocks are skipped — a `#` line
-# in an example is code, not a section anything can cite.
+# Every `#` heading in a markdown file, in comparison form. Fenced blocks are skipped.
 markdown_headings() {
   awk '/^```/ { in_fence = !in_fence; next }
        !in_fence && /^#+[[:space:]]/ { sub(/^#+[[:space:]]*/, ""); print }' "$1" | plain_text |
-    # A heading may carry a subtitle after an em dash, and a citation names only the run before it:
-    # `→ **Some section**` cites `## Some section — and its subtitle`. Emit that run as a second
-    # matchable form. Cut the *heading* at the em dash and nowhere else, and only its leading run.
-    # Emit a trailing run, or every word-by-word prefix, and half a heading satisfies a citation.
-    # (Trimming the *citation* is the caller's job and is safe, because a citation may run on into
-    # prose; a heading may not.) Keep the example synthetic: a real heading here would be a
-    # hand-sync pair nothing checks.
+    # A heading may carry a subtitle after an em dash and a citation names only the run before it, so
+    # emit that run too. Cut at the em dash and nowhere else: a trailing run, or a word-by-word
+    # prefix, would let half a heading satisfy a citation.
     awk '{ print }
          match($0, / — /) { print substr($0, 1, RSTART - 1) }'
 }
 
 # The mounts every `~/...` citation below is resolved through. Those citations are checked against
-# *this checkout*. So without this block, a checkout that is not the installed one (a clone, a
-# worktree, a moved repo) reports every one of them healthy, while an agent following any one of
-# them reads nothing. A finding rather than an exit: the rest of the check still earns its run there.
+# *this checkout*, so a checkout that is not the installed one would report every one of them healthy.
 flavor_want="$(canonical_dir "$flavor")"
 flavor_have="$(canonical_dir "${HOME:-}/.kk-flavor")"
 if [ -z "$flavor_have" ]; then
@@ -171,9 +138,7 @@ else
 fi
 
 # Relative markdown links, resolved against the linking file's own directory. A template's links
-# resolve where it is emitted (a project's `.idsd/`), not where the template sits, so a bare sibling
-# name is unverifiable from here and passes; one that climbs out of the emit root with `..` or is
-# absolute resolves nowhere in either place, and is a finding like any other.
+# resolve where it is emitted (a project's `.idsd/`), so a bare sibling name is unverifiable and passes.
 find "$root" -name '*.md' -type f -print0 | while IFS= read -r -d '' file; do
   case "$file" in */templates/*) is_template=1 ;; *) is_template=0 ;; esac
   grep -oE '\]\([^)]+\)' "$file" | sed 's/^](//; s/)$//' | while IFS= read -r link; do
@@ -186,61 +151,36 @@ find "$root" -name '*.md' -type f -print0 | while IFS= read -r -d '' file; do
   done
 done >>"$findings"
 
-# `~/.kk-flavor/...` and `~/.claude/skills/...` — how a skill reaches a standard, or another skill,
-# from outside its own directory. A glob (`~/.claude/skills/*/SKILL.md`) names no one file and is
-# not matched.
+# `~/.kk-flavor/...` and `~/.claude/skills/...` — how a skill reaches outside its own directory.
 grep -rhoE '~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+' "$root" --include='*.md' --include='*.sh' 2>/dev/null |
   sed 's#[.,;:]*$##' | sort -u | while IFS= read -r ref; do
   [ -n "$(resolve_ref "" "$ref")" ] || echo "dangling home ref: $(oneline "$ref")"
 done >>"$findings"
 
-# Direction: the shared layer never cites into a lane (ecosystem.md → **One home**). kk-flavor/ and the
-# root CLAUDE.md above it are read by skills with nothing else in common, so a path into one SKILL.md
-# makes all of them load a lane most aren't running.
-# Only a path matches, so a bare skill name stays legal, and so does a path to a file a skill owns that
-# isn't its body, say a template a caller substitutes. One name character is required before the slash,
-# which keeps a glob out: without it, the bare `/SKILL.md` tail of `skills/*/SKILL.md` matches.
-# Fences are not skipped, unlike in the scans that resolve a citation, where an example resolves nowhere
-# by design. A banned form steers its reader from inside a fence too, and prose banning it writes the
-# bare name that the path rule above exempts.
-# `find -type f`, not the `grep -r` above. GNU `grep -r` follows a symlink named on its own command line;
-# BSD grep doesn't, so this guards the CI runner and not the mac you're probably reading it on. Test the
-# claim here and it looks false. Both paths are attacker-authored when this runs as a PR review's stage: a
-# `CLAUDE.md` symlinked to a device never returns, and a `kk-flavor` symlinked to `/` prints the invoking
-# user's real paths into a drafted comment. `contained_in_root` refuses both, too far below to call here.
-# Listing the operands rather than suppressing with `2>/dev/null` keeps a root with no `CLAUDE.md` quiet
-# and a real error on stderr.
+# Direction: the shared layer never cites into a lane (ecosystem.md → **One home**).
+# Only a path matches, so a bare skill name stays legal; one name character is required before the
+# slash, or a glob's bare `/SKILL.md` tail matches. Fences are not skipped, unlike in the scans that
+# resolve a citation — a banned form steers its reader from inside one too.
+# `find -type f`, not the `grep -r` above: GNU `grep -r` follows a symlink named on its own command
+# line, and both operands are attacker-authored when this runs as a PR review's stage.
 # Process substitution, not a pipe: a pipe runs the loop in a subshell and loses the flag below.
 direction_targets=("$flavor")
 [ -f "$root/CLAUDE.md" ] && direction_targets+=("$root/CLAUDE.md")
 was_flavor_scanned=0
 while IFS= read -r -d '' file; do
-  # Set from flavor files alone, not from every file walked. `CLAUDE.md` is one named file, absent in
-  # some roots by design and reported by `refuse_budget_file` when it's a symlink. One flag over both
-  # tiers would let a readable `CLAUDE.md` stand in for the tree and mute the guard below.
+  # Set from flavor files alone: one flag over both tiers would let a readable `CLAUDE.md` stand in
+  # for the tree and mute the guard below.
   case "$file" in "$flavor"/*) was_flavor_scanned=1 ;; esac
   grep -noE '[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\.md' "$file" | while IFS= read -r hit; do
     echo "shared layer cites into a lane: $(oneline "$file"):$(oneline "$hit") — move the rule to a standard (ecosystem.md → One home)"
   done
 done >>"$findings" < <(find "${direction_targets[@]}" -name '*.md' -type f -print0)
-# Every other refusal in this file reports itself. This one can walk nothing and leave no trace: `-type f`
-# drops a symlinked `kk-flavor` silently, and the mount check above resolves `$HOME/.kk-flavor` through
-# that same link on the installed checkout, so it stays quiet wherever the link points — inside the root
-# or outside it. This guard is the only thing that catches the shape.
 [ "$was_flavor_scanned" = 1 ] ||
   echo "direction scan read no files under $flavor — a check that did not run is not a clean one" >>"$findings"
 
 # Backticked in-repo paths — `scripts/report.sh`, `templates/ice-template.md`, `AGENT-BRIEF.md`.
-# Markdown links are checked above; these are not, and they are what holds one skill to another
-# skill's tooling. Fenced blocks are skipped: a path in an example is illustration, not wiring.
-# The shapes are kept narrow, because a check that cries wolf gets ignored and the guard dies:
-#   - anything with a `/` in it, and every bare `*.sh` — scripts all live in this tree;
-#   - a bare `*.md` only when SHOUTY-with-a-hyphen (`AGENT-BRIEF.md`), this ecosystem's shape for a
-#     reference file. Bare lowercase names are as often a file a project owns or a run creates
-#     (`charter.md`, `findings.md`, `roadmap.md`), and the token alone does not tell those from
-#     `stats.md`;
-#   - `~/...` belongs to the scan above, and a leading `.` (`.idsd/charter.md`) names the emit root,
-#     which does not exist here to be found. A `<placeholder>` or a glob is excluded by the shapes.
+# Fenced blocks are skipped. The shapes stay narrow on purpose — a bare lowercase `*.md` is as often a
+# file a project owns (`charter.md`, `roadmap.md`), so only SHOUTY-with-a-hyphen is matched.
 find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 | while IFS= read -r -d '' file; do
   dir="$(dirname "$file")"
   # A skill cites its own tooling from the skill root (`scripts/report.sh`) even in a file that sits
@@ -249,14 +189,8 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 | while IFS= rea
   case "$file" in
     "$skills"/*) rest="${file#"$skills"/}"; skill_root="$skills/${rest%%/*}" ;;
   esac
-  # Split on the tick rather than matching pairs and shrinking the line: splitting on a separator is
-  # linear, where `line = substr(line, RSTART + RLENGTH)` rebuilds the tail on every hit and turns a
-  # long line dense in backticks into quadratic work — this runs over every file in the tree, so one
-  # committed multi-megabyte line stalls the whole check. Odd fields sit outside the ticks, even
-  # fields are the spans between a pair, and an empty one is the `` case. `part[k + 1]` is the span
-  # between tick k and tick k+1, and `k <= n - 2` requires the closing tick to exist — an
-  # unterminated trailing span is not a code span and is not emitted. An empty span cannot match, so
-  # its closing tick becomes the next opening one, which is why `k` moves by 1 there and by 2 on a hit.
+  # Split on the tick rather than shrinking the line: rebuilding the tail on every hit is quadratic in
+  # a line length the tree chooses, and one committed multi-megabyte line would stall the whole check.
   awk '/^```/ { in_fence = !in_fence; next }
        in_fence { next }
        { n = split($0, part, "`")
@@ -271,10 +205,9 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 | while IFS= rea
     done
 done >>"$findings"
 
-# The other half of a `<file> → <Section>` citation. The checks above prove the file is there;
-# nothing proved the heading still is, and headings move under every prose pass. An arrow counts as
-# a citation only when the text before it resolves to a real markdown file — that is what keeps
-# prose arrows ("intent → build", "throwaway → committed") out. awk finds them, the shell compares.
+# The other half of a `<file> → <Section>` citation: the heading it names must still be there. An
+# arrow counts only when the text before it resolves to a real markdown file, which keeps prose
+# arrows ("intent → build") out.
 find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
   while IFS= read -r -d '' file; do
     awk 'function last_tick(s,   i) { for (i = length(s); i > 0; i--) if (substr(s, i, 1) == "`") return i; return 0 }
@@ -283,11 +216,7 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
          {
            n = split($0, seg, "→")
            for (i = 2; i <= n; i++) {
-             # The cited file, taken from the end of the text before the arrow: a markdown link, a
-             # backticked path, or a bare filename. Anything not ending in a *named* `.md` has no
-             # headings to cite, so one test drops every prose arrow. It also drops the rule that
-             # documents this very citation form, because its `<file>.md` is a placeholder with no
-             # name in front of the extension.
+             # The cited file: a markdown link, a backticked path, or a bare filename.
              before = seg[i - 1]
              sub(/[[:space:]]+$/, "", before)
              path = ""
@@ -300,8 +229,6 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
              sub(/#.*$/, "", path)
              if (path !~ /[A-Za-z0-9]\.md$/) continue
 
-             # The section name: whatever the bold or backtick delimiters hold, else the run of text
-             # up to the first punctuation a heading cannot contain.
              after = seg[i]
              sub(/^[[:space:]]+/, "", after)
              sec = ""
@@ -324,21 +251,16 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
   done |
   while IFS="$(printf '\t')" read -r src line path section; do
     target="$(resolve_ref "$(dirname "$src")" "$path")"
-    # No target means the citation names no one file: missing, or a bare name several files answer
-    # to. Either way its heading goes unchecked, and skipping it silently leaves the whole citation
-    # unread. Say so, and let it be repointed at something that resolves.
     if [ -z "$target" ]; then
       echo "unresolvable citation path: $(oneline "$src"):$line -> $(oneline "$path")"
       continue
     fi
-    # Prose runs on past the heading it names ("→ Comments exempts that prose from…"), so drop a
-    # trailing word at a time and accept the longest leading run that is a heading.
+    # Prose runs on past the heading it names, so accept the longest leading run that is a heading.
     heads="$(markdown_headings "$target")"
     want="$(printf '%s\n' "$section" | plain_text)"
     while [ -n "$want" ]; do
-      # Here-string, never `printf … | grep -q` — under `pipefail` the writer's SIGPIPE (141) turns
-      # a match into a miss, so every heading in a file with more than a pipe buffer of them would
-      # report dangling.
+      # Here-string, never `printf … | grep -q`: under `pipefail` the writer's SIGPIPE (141) turns a
+      # match into a miss.
       grep -qxF "$want" <<<"$heads" && break
       case "$want" in *' '*) want="${want% *}" ;; *) want="" ;; esac
     done
@@ -353,12 +275,13 @@ grep -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 
 done >>"$findings"
 
 # A skill is its directory plus a SKILL.md; a directory without one is invisible to the loader.
+# No case covers this scan, which the header above requires of every one. The suite is green without
+# ever running it, so it is untested rather than proven — write the case before trusting it.
 find "$skills" -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' dir; do
   [ -f "$dir/SKILL.md" ] || echo "skill dir without SKILL.md: $(oneline "$dir")"
 done >>"$findings"
 
 # A skill's frontmatter name is how it is invoked; a mismatch with its directory makes it unreachable.
-# Its description is the only text the router matches on, so a skill without one is never selected.
 find "$skills" -name SKILL.md -type f -print0 | while IFS= read -r -d '' file; do
   declared="$(sed -n '2,10s/^name: *//p' "$file" | head -1)"
   expected="$(basename "$(dirname "$file")")"
@@ -370,18 +293,17 @@ done >>"$findings"
 # cannot run at all.
 find "$root" -name '*.sh' -type f -print0 | while IFS= read -r -d '' script; do
   [ -x "$script" ] || echo "script not executable: $(oneline "$script")"
-  # Parse under every bash `#!/usr/bin/env bash` could resolve to, not just the one first on PATH:
-  # macOS still ships 3.2 as /bin/bash, and it rejects constructs bash 5 accepts.
+  # Parse under every bash `#!/usr/bin/env bash` could resolve to: macOS still ships 3.2 as
+  # /bin/bash, and it rejects constructs bash 5 accepts.
   for bash_binary in bash /bin/bash; do
     command -v "$bash_binary" >/dev/null 2>&1 &&
       "$bash_binary" -n "$script" 2>&1 | LC_ALL=C tr '\001-\011\013-\037\177' ' ' | sed "s#^#syntax: #"
   done
 done >>"$findings"
 
-# Enforces ecosystem.md → **Prefer the mechanism**.
-# Case labels of a top-level `case "${1:-}" in` dispatch, each needing one `<script> <subcommand>`
-# somewhere an agent reads — a skill body, a sibling script, or the script's own message telling you
-# to run it. Labels are read at the case arm's own indentation, so nested `done)` is not one.
+# Enforces ecosystem.md → **Prefer the mechanism**: every case label of a top-level
+# `case "${1:-}" in` dispatch needs one `<script> <subcommand>` somewhere an agent reads. Labels are
+# read at the case arm's own indentation, so a nested `done)` is not one.
 find "$root" -name '*.sh' -type f -print0 | while IFS= read -r -d '' script; do
   base="$(basename "$script")"
   awk 'index($0, "case \"${1:-}\" in") == 1 { inside = 1; next }
@@ -390,23 +312,18 @@ find "$root" -name '*.sh' -type f -print0 | while IFS= read -r -d '' script; do
     grep -oE '^  [a-z][a-z0-9|_-]*\)$' | tr -d ' )' | tr '|' '\n' | sort -u |
     while IFS= read -r subcommand; do
       # Filters before the pattern, then `--`: a script named `-x.sh` puts a leading `-` in $base,
-      # which grep reads as a flag and exits 2, printing "no call site" for a subcommand that has
-      # one. `--` after the operands would instead demote --include to a filename.
+      # which grep would read as a flag.
       grep -rqF --include='*.md' --include='*.sh' --include='*.yaml' -- "$base $subcommand" "$root" ||
         echo "$(oneline "$base") subcommand with no call site: $(oneline "$subcommand")"
     done
 done >>"$findings"
 
 # Every budget file is contained under the root before it is read — `CLAUDE.md` and `inject.md`
-# included, not just the docs one of them lists. All three are attacker-authored whenever this runs
-# as a PR review's ecosystem stage (`quality-pipeline.md` → **The stages**), inside a worktree of a
-# branch someone else wrote, and either a `../../` target or a symlink at any of the three otherwise
-# puts a file the invoking user can read into the budget. The import scan below prints matched
-# substrings, so that file's content reaches a reviewing agent's context and from there a draft
-# PR comment.
-# A symlink is refused rather than resolved: `cd -P` canonicalises a *directory*, so it never sees
-# the final component, and a link committed at a budget path would walk straight through a check that
-# only tested its parent. Nothing under the flavor tree is a symlink, so refusing costs nothing here.
+# included, not just the docs one of them lists. All three are attacker-authored when this runs as a PR
+# review's ecosystem stage (`quality-pipeline.md` → **The stages**), and the import scan below prints
+# matched substrings, so a `../../` target reaches a reviewing agent's context.
+# A symlink is refused rather than resolved: `cd -P` canonicalises a *directory*, so it never sees the
+# final component, and a link at a budget path would walk through a check that only tested its parent.
 # --- shared:contained-in-root ---
 root_canon="$(canonical_dir "$root")"
 contained_in_root() {
@@ -414,23 +331,18 @@ contained_in_root() {
   [ -L "$1" ] && return 1
   # A regular file, or nothing. `-e` alone admits a FIFO or a device, which `cat` then blocks on
   # forever; a dangling symlink fails `-e` entirely, so callers enter on `-e || -L` and both become
-  # a refusal, not a silent drop. It also refuses a path that does not exist, so no caller can pass
-  # one through and inflate the file count.
+  # a refusal, not a silent drop.
   [ -f "$1" ] || return 1
-  # Readable too, not just regular. `-f` passes on a mode-000 file, and the read behind the figure
-  # then fails. Here that drops the file's words but still counts the file. In stats.sh an empty word
-  # count makes the arithmetic a syntax error, so bash abandons the block and stats.sh prints 0.
-  # Nothing records a refusal either. The guard that keeps a short figure out of the ledger never
-  # fires, so `--append` writes that 0 as a measurement.
+  # Readable too, not just regular: `-f` passes on a mode-000 file, and the read behind the figure
+  # then fails, leaving a file counted whose words are not.
   [ -r "$1" ] || return 1
   dir="$(canonical_dir "$(dirname "$1")")"
   [ -n "$root_canon" ] && [ -n "$dir" ] || return 1
   [ "$dir" = "$root_canon" ] || [ "${dir#"$root_canon"/}" != "$dir" ]
 }
 # --- end shared:contained-in-root ---
-# The refused file's *content* never reaches the message, but its **name** is attacker-chosen and is
-# printed, so both the name and the number of these lines are bounded. Unbounded, 200 symlinks named
-# in crafted prose put 36 KB of it on stdout — and stdout here becomes a comment drafted on a fork PR.
+# The refused file's **name** is attacker-chosen and is printed, so the name and the number of these
+# lines are both bounded.
 budget_refusals=0
 refuse_budget_file() {
   budget_refusals=$((budget_refusals + 1))
@@ -444,19 +356,10 @@ refuse_budget_file() {
 # everywhere that name appears. Two scripts in different skills duplicate these on purpose — a shared
 # file would make one skill's tooling depend on another's, and this script runs inside a worktree of
 # code it did not write, where sourcing a file is executing it. That tolerance holds only while drift
-# is *detected*, and a comment asking a reader to keep two copies in step detects nothing
-# ([ecosystem.md](../../../kk-flavor/standards/ecosystem.md) → **Prefer the mechanism**). A region
-# only one file carries is a marker that promises a counterpart nothing keeps.
-# One pass over the tree, never one pass per region name. Both the number of regions and the bytes
-# they span are chosen by whoever wrote the tree, so a loop that re-walks every script for each name
-# is quadratic in two attacker-controlled factors — 800 regions measured at 64s, and a script never
-# returning is the failure this whole file has no exit code for. The first awk emits one
-# `name<TAB>file<TAB>body` row per fenced block and the second groups them, so if `xargs` splits the
-# file list into batches the rows still meet in the same aggregator. The body is compared as the whole
-# remainder past the third tab, and the file name — which nothing downstream reads — has its own tabs
-# flattened first. Taking it as the fourth field instead would end the comparison at the first tab
-# inside a region body, so two copies differing only after that tab would compare equal: a byte-level
-# check silently downgraded to a prefix one, which is the drift this exists to catch.
+# is *detected* ([ecosystem.md](../../../kk-flavor/standards/ecosystem.md) → **Prefer the mechanism**).
+# One pass over the tree, never one per region name: both the region count and the bytes they span are
+# chosen by whoever wrote the tree. The body is compared as the whole remainder past the third tab —
+# taking it as the fourth field would end the comparison at the first tab inside a region body.
 find "$root" -name '*.sh' -type f -print0 |
   xargs -0 awk '
     FNR == 1 { region = "" }
@@ -469,16 +372,13 @@ find "$root" -name '*.sh' -type f -print0 |
     /^[[:space:]]*# --- end shared:[A-Za-z0-9_-]+ ---[[:space:]]*$/ { region = ""; next }
     region != "" {
       key = region SUBSEP FILENAME
-      # The body is never compared as a re-serialised string. Escaping first is what makes the join
-      # reversible: a body line is free to contain the separator, and a `\001` planted at the end of
-      # a comment inside a fenced region reads to bash as comment while an unescaped join reads it as
-      # a line break — two copies then compare equal with a security guard deleted from one of them.
+      # Escaping first is what makes the join reversible: an unescaped `\001` planted in a region body
+      # would let two copies compare equal with a guard deleted from one of them.
       line = $0
       gsub(/\\/, "\\\\", line); gsub(/\001/, "\\001", line); gsub(/\t/, "\\t", line)
-      # Bounded, because a region body is as attacker-controlled as the file it sits in and awk
-      # reallocates this string per line: 10 MB measured at 86s, and an *unterminated* fence swallows
-      # the rest of the file, so no closing marker is even needed. Past the cap the region is reported
-      # rather than compared — an unchecked region must never read as a matching one.
+      # Bounded: a region body is as attacker-controlled as the file it sits in, and an *unterminated*
+      # fence swallows the rest of the file. Past the cap the region is reported rather than compared —
+      # an unchecked region must never read as a matching one.
       if (length(body[key]) < 262144) body[key] = body[key] line "\001"
       else oversize[key] = 1
     }
@@ -518,12 +418,9 @@ if contained_in_root "$flavor/inject.md"; then
 else
   refuse_budget_file "$flavor/inject.md"
 fi
-# A listed doc that does not exist is skipped by name, not fed to `cat`: a bare `cat:` error explains
-# nothing, and counting the file anyway makes the printed file total disagree with what was measured.
-# The dangling-link check reports the reference itself; this keeps the budget honest about its inputs.
-# Guarded by the same test, because refusing to *count* a file this then reads anyway refuses
-# nothing: a symlinked `inject.md` pointed at `/dev/zero` or a FIFO blocks here forever, and pointed
-# at a regular file it hands over that file's Read-always list instead.
+# A listed doc that does not exist is skipped by name, not fed to `cat`, or the printed file total
+# disagrees with what was measured. Guarded by the same containment test as the count: refusing to
+# count a file this then reads anyway refuses nothing.
 if [ "$is_inject_in_root" -eq 1 ]; then
   while IFS= read -r doc; do
     if [ ! -e "$flavor/$doc" ] && [ ! -L "$flavor/$doc" ]; then
@@ -536,26 +433,14 @@ if [ "$is_inject_in_root" -eq 1 ]; then
   done < <(sed -n '/^## Read always/,/^## /p' "$flavor/inject.md" | grep -oE '\]\([^)#]+\)' |
     sed 's/^](//; s/)$//')
 fi
-# An `@path` import inside a budget file loads with it, so a budget blind to one under-reports the
-# tier it exists to measure. Imports resolve against the *installed* copy of the carrier: `CLAUDE.md`
-# is read at `~/.claude/`, not from this tree, so the target sits outside `$root` and the walk above
-# never sees it. It gets resolved at that mount below; whatever won't resolve there is named in the
-# figure instead. Any extension counts, not just `.md`: `@package.json` is Claude Code's own
-# documented example and loads into this same tier.
+# An `@path` import inside a budget file loads with it, so a budget blind to one under-reports the tier
+# it exists to measure. Imports resolve against the *installed* copy of the carrier, outside `$root`;
+# they are resolved at that mount below, and the rest are named in the figure. Any extension counts.
 # The required extension and the non-word character before the `@` are what keep `@param`, a package
-# scope and an email address out. Only the second test tells an import from `@bitmovin.com` in an
-# address. Each field is prefixed with a space so that test has something to read at position 1.
-# Fenced blocks and inline code spans are prose *about* imports, never imports. `fence` resets per
-# file: a budget file that ends inside a fence would blank the scan for every file after it, and the
-# two scripts list the budget in different orders, so one stray fence would blank different files in
-# each and make the two disagree.
-# Field by field rather than by shrinking the line, for the quadratic reason the backticked-path scan
-# above gives: one committed multi-megabyte line otherwise stalls the check. Two bounds keep it
-# linear without dropping a real import: a field longer than `PATH_MAX` is no path at all, and the
-# match loop stops after 64 hits in one field. `NAME_MAX` (255) is the wrong bound here. It limits
-# one *component*, and a nested path well past it opens fine, so a cap that low hides real imports.
-# A function rather than an inline pass, because one named file's imports are needed below as well as
-# the pool across all of them.
+# scope and an email address out; each field is prefixed with a space so that second test has something
+# to read at position 1. `fence` resets per file — a budget file ending inside one would otherwise blank
+# the scan for every file after it, and the two scripts list the budget in different orders, so they
+# would disagree. Two bounds keep it linear: `PATH_MAX` per field, and 64 matches in one field.
 # --- shared:import-scan ---
 imports_in() {
   awk 'FNR == 1 { fence = 0 }
@@ -582,29 +467,17 @@ fi
 
 # --- shared:import-at-mount ---
 # An import loads from beside the *installed* copy of the file carrying it, so `@RTK.md` in `CLAUDE.md`
-# is `~/.claude/RTK.md`. That file is **not** a tracked file this repo forgot: the rtk installer puts it
-# there and verifies it, so moving it into the tree fights the installer instead of versioning anything.
-# One pass tried and had to revert. The reason it looks like an oversight is that `~/.claude/CLAUDE.md` is
-# a symlink into this repo, so the import resolves beside the symlink rather than beside its source. Only `CLAUDE.md`'s own imports resolve here. The scan above pools every
-# budget file, and `sort -u` drops the carrier. An `inject.md` import loads from `~/.kk-flavor/`, so
-# resolving one of those here would count whatever file happens to share the name.
-# That set is read once, with the scan's own rules. Don't swap in a substring search: it sees the
-# fenced and backticked mentions the scan skips on purpose. A name this ecosystem's prose merely
-# *discusses* then passes as one `CLAUDE.md` imports. The search also costs a pass over the whole
-# file per name. A committed `CLAUDE.md` naming tens of thousands of them ran this check past a
-# review agent's timeout, killing it before it printed anything about the branch.
-# Depth 1: a resolved file joins the budget after the scan ran, so an import nested inside one is
-# neither counted nor named. Nothing imports at that depth today, and here is where a rescan would go.
-# Each refusal below has a precedent above. Bare filenames only: the name comes out of a budget file,
-# and `@../../.ssh/id_rsa` is the traversal this script has already had to close once. Resolution also
-# needs this checkout to be the installed one. Otherwise a branch someone else wrote names files in
-# the invoking user's real `~/.claude/` and folds their sizes into a number it also authored. The test
-# for that is the flavor mount, and it needs both halves. `cd -P` follows a symlinked *directory*, so
-# a branch committing `kk-flavor` as a symlink to the real install makes both sides agree and opens
-# the gate. Refusing a symlinked `$root/kk-flavor` is what closes it. At the target, a symlink or a
-# non-regular file is refused exactly as `contained_in_root` refuses one: a FIFO or a device would
-# block the counting `cat` forever. Unreadable goes too, since `-f` passes on a mode-000 file and the
-# read that then fails leaves the tier short, with nothing on stdout saying so.
+# is `~/.claude/RTK.md`. That file is **not** one this repo forgot: the rtk installer puts it there and
+# verifies it, so moving it into the tree fights the installer.
+# Only `CLAUDE.md`'s own imports resolve here — an `inject.md` import loads from `~/.kk-flavor/`, so
+# resolving one here would count whatever file shares the name. Don't swap the scan for a substring
+# search: it sees the fenced and backticked mentions the scan skips on purpose.
+# Depth 1: an import nested inside a resolved file is neither counted nor named.
+# Bare filenames only — `@../../.ssh/id_rsa` must not resolve.
+# Resolution also needs this checkout to be the installed one, or a branch someone else wrote names
+# files in the invoking user's real `~/.claude/` and folds their sizes into a number it also authored.
+# `cd -P` follows a symlinked *directory*, so refusing a symlinked `$root/kk-flavor` is what stops a
+# branch committing one to the real install and opening that gate.
 import_mount_is_installed=0
 if [ -n "${HOME:-}" ] && [ ! -L "$root/kk-flavor" ] && [ -n "$(canonical_dir "$root/kk-flavor")" ] &&
    [ "$(canonical_dir "${HOME}/.kk-flavor")" = "$(canonical_dir "$root/kk-flavor")" ]; then
@@ -616,28 +489,19 @@ if [ ! -L "$root/CLAUDE.md" ] && [ -f "$root/CLAUDE.md" ] && [ -r "$root/CLAUDE.
 fi
 import_newline='
 '
-# Sets `import_target` rather than printing it. A command substitution per name means a fork per name,
-# the same attacker-scaled cost as the read it replaced. The membership test below runs in the shell.
+# Sets `import_target` rather than printing it: a command substitution per name is a fork per name.
 import_target=""
-# What the gate deliberately does not defend: on the installed checkout it trusts the tree, so a name in a
-# budget file there reveals whether a file of that name exists under `~/.claude/` and roughly its size.
-# Accepted, not overlooked. Both hardenings that would close it — demand a clean tree, or the tracking
-# branch — refuse the normal case, because every quality pass runs dirty on a feature branch. Reaching it
-# needs a real import line committed in `CLAUDE.md` itself.
-# `import_refusal` carries a reason only for the shapes nothing legitimate produces. An import absent
-# from the mount, or a checkout that isn't the installed one, is the ordinary case anywhere. Those
-# stay quiet names in the note, and so does a plain subdirectory import, which is a legitimate form this
-# resolver simply does not handle. A traversal, a symlink planted at the mount path, or a file present and
-# deliberately unreadable are probes. This file's contract is that every refusal
-# reports itself, instead of blending into the drift a healthy run also produces.
+# `import_refusal` carries a reason only for the shapes nothing legitimate produces — a traversal, a
+# symlink planted at the mount path, a file present and deliberately unreadable. An import simply absent
+# from the mount, a checkout that isn't the installed one, and a subdirectory import this resolver does
+# not handle are the ordinary cases: they stay quiet names in the note.
 import_refusal=""
 resolve_import_at_mount() {
   import_target=""
   import_refusal=""
   [ "$import_mount_is_installed" -eq 1 ] || return 1
-  # Only a traversal earns a reported reason. `@dir/file.md` is a legitimate import form, so a plain
-  # subdirectory name is refused here — this resolves bare names only — but quietly, as an uncounted
-  # name. Reporting it would put a probe's finding on honest content and take the run to exit 1.
+  # `@dir/file.md` is a legitimate import form, so a plain subdirectory name is refused here — this
+  # resolves bare names only — but quietly: reporting it would take an honest run to exit 1.
   case "$1" in
     '') return 1 ;;
     '~'*|/*|../*|*/../*|*/..) import_refusal="a traversal, not a bare filename"; return 1 ;;
@@ -654,9 +518,6 @@ resolve_import_at_mount() {
 }
 # --- end shared:import-at-mount ---
 
-# These two steps are where the scripts differ, so they stay out of the shared region below. Counting
-# here is one pass over the whole array at the end, so a resolved import only has to join it. A
-# refusal goes on the bounded findings path, which already truncates and caps the attacker-chosen name.
 add_import_to_budget() {
   budget_files+=("$1")
 }
@@ -665,16 +526,11 @@ report_import_refusal() {
   echo "import refused ($2), named but not counted: $(oneline "$1" | cut -c1-80)" >>"$findings"
 }
 
-# Resolved imports join the budget before it is counted; the rest stay named in the note. Reassigning
-# `budget_imports` to the leftovers keeps the capping region below byte-identical in both scripts.
-# Attempts are capped, and past the cap every remaining name goes to the note instead. A committed
-# file naming thousands of imports then costs a bounded number of stat calls, and what was skipped
-# stays visible instead of dropping out of the figure silently.
+# Resolved imports join the budget before it is counted; the rest stay named in the note. Attempts are
+# capped, and past the cap every remaining name goes to the note rather than dropping out silently.
 # --- shared:import-resolution ---
-# Leftover names accumulate in a file, never in a shell string. `s="$s$name"` re-copies everything
-# gathered so far on every name, which is quadratic in a count the attacker picks: ~90k `@aNNN.md`
-# tokens in a committed `CLAUDE.md` took 235s that way, enough to run this past a review agent's
-# timeout so it reports nothing at all about the branch. Appending costs the same at any size.
+# Leftover names accumulate in a file, never in a shell string: `s="$s$name"` re-copies everything
+# gathered so far on every name, which is quadratic in a count the attacker picks.
 budget_uncounted=""
 budget_uncounted_file="$(mktemp)" || {
   echo "budget scan: mktemp gave no scratch file — exit 2, the import list cannot be bounded." >&2
@@ -684,9 +540,9 @@ if [ -n "$budget_imports" ]; then
   import_attempts=0
   while IFS= read -r budget_import; do
     [ -n "$budget_import" ] || continue
-    # Both, and here rather than only inside the resolver: past the cap the resolver is not called, so
-    # its own reset never runs and the last examined name's reason would be reported against a name
-    # nothing looked at — a refusal claimed for a file that would have counted.
+    # Reset here, not only inside the resolver: past the cap the resolver is not called, so its own
+    # reset never runs and the last examined name's reason would be reported against a name nothing
+    # looked at.
     import_target=""
     import_refusal=""
     if [ "$import_attempts" -lt 64 ]; then
@@ -702,24 +558,20 @@ if [ -n "$budget_imports" ]; then
   done <<EOF
 $budget_imports
 EOF
-  # Read back once. The capping region below wants one newline-separated string with no trailing
-  # newline, which is what the string form produced; `$(cat)` strips it the same way.
+  # The capping region below wants one newline-separated string with no trailing newline.
   budget_imports="$(cat "$budget_uncounted_file")"
 fi
 rm -f "$budget_uncounted_file"
 # --- end shared:import-resolution ---
 
 # Refusing every budget file above leaves the array empty, and under `set -u` bash 3.2 errors on
-# "${arr[@]}". That aborts the run and reports nothing, when the refusals are what needs reading.
+# "${arr[@]}" — which would abort the run when the refusals are what needs reading.
 budget_lines=0
 budget_words=0
 # Counted per file and summed, never `cat` over the array: concatenating glues the last word of a file
-# with no final newline onto the first word of the next. That made this script report one word fewer
-# than `stats.sh`, which sums per file. Two figures for one tree is the failure both scripts exist to
-# prevent, and `.editorconfig` won't rule it out: a budget member sits at `~/.claude/`, outside this repo.
-# Deduplicated first, and not only to bound the loop: `inject.md`'s Read-always list can name one real
-# in-root file any number of times, and counting it twice inflates the tier it is supposed to measure.
-# 2000 duplicate links cost 47s unbounded; the same list collapses to one file here.
+# with no final newline onto the first word of the next, and `stats.sh` sums per file, so the two would
+# report different figures for one tree. Deduplicated first — `inject.md`'s Read-always list can name
+# one file any number of times, and counting it twice inflates the tier it is supposed to measure.
 if [ ${#budget_files[@]} -gt 0 ]; then
   while IFS= read -r budget_file; do
     [ -n "$budget_file" ] || continue
@@ -729,10 +581,8 @@ if [ ${#budget_files[@]} -gt 0 ]; then
 $(printf '%s\n' "${budget_files[@]}" | sort -u)
 EOF
 fi
-# Capped in bytes, not just in entries. Everything above runs on a fork PR's own files and this line
-# rides the exit-0 path, so an uncapped list prints attacker-chosen text under `wiring: clean`; ten
-# crafted names alone reach a megabyte, and an entry cap that lets that through while printing "10"
-# hides the volume rather than bounding it. The count stays exact; only the naming is trimmed.
+# Capped in bytes, not just in entries: this line rides the exit-0 path, so an uncapped list prints
+# attacker-chosen text under `wiring: clean`. The count stays exact; only the naming is trimmed.
 budget_note=""
 if [ -n "$budget_imports" ]; then
 # --- shared:import-cap ---
@@ -746,8 +596,7 @@ fi
 echo "always-loaded: $budget_lines lines, $budget_words words across ${#budget_files[@]} files$budget_note"
 
 # Every skill's description loads in every session too: the same tier, held to the same bar, and the
-# only part of a skill no file in the router lists. A skill carrying `disable-model-invocation`
-# costs nothing until it is typed, so it stays out of this budget.
+# only part of a skill no file in the router lists.
 description_words=0
 routed_skills=0
 skill_total=0
@@ -761,32 +610,19 @@ done
 echo "always-loaded: $description_words words of skill description across $routed_skills of $skill_total skills"
 
 if [ -s "$findings" ]; then
-  # Bounded in line length and in line count before anything is printed. A finding quotes text this
-  # script did not choose — a link target, a filename, a cited section — and where the tree under
-  # check is someone else's branch, all of it is attacker-written. This output is read by an agent
-  # that drafts a PR comment, so an unbounded finding is an unbounded injection surface: 300 crafted
-  # link targets alone reach megabytes. Bounding here, on the one path every finding takes, keeps a
-  # check added later from reopening it.
+  # Bounded in line length and in line count before anything is printed: a finding quotes text this
+  # script did not choose, into output an agent drafts a PR comment from. Bounding here, on the one
+  # path every finding takes, keeps a check added later from reopening it.
   finding_total=$(sort -u "$findings" | wc -l | tr -d ' ')
-  # Ordered before it is cut, never alphabetically. `sort -u | head` shows one class until the cap runs
-  # out, so a branch committing 300 crafted `dangling link:` lines buries every finding whose text sorts
-  # after it — a `syntax:` error, a drifted shared region, a refused budget file. Those name a broken or
-  # tampered-with check rather than a broken reference, so they go first and the flood takes what is left.
-  # Ranked and anchored, not one flat priority class. Three separate ways a flat one failed. Every pattern
-  # is anchored at `^`, because an unanchored `not mounted:` promoted any line whose *link target* carried
-  # that substring — 300 links ending ` not mounted: filler` buried both `syntax:` and `script not
-  # executable`, a 14-byte suffix defeating the whole partition. The tier is ranked, because a tier that is
-  # only `sort -u` lets its cheapest class bury its gravest: 300 non-executable scripts hid a syntax error
-  # and a drifted region, since `syntax:` sorts last of the prefixes. And a finding meaning *this check did
-  # not check the tree you think* ranks above every reference finding, because a clean-looking run is the
-  # worse outcome — those three were missing entirely, so a plain link flood buried the did-not-run guard.
-  # Capped per class as well as in total. Ranking alone still let the gravest class bury the rest, because
-  # rank 0 is also the cheapest to mass-produce: 100 committed scripts with one broken line each emit 200
-  # `syntax:` lines — the two bashes word their errors differently, so `sort -u` keeps both — filling the
-  # global cap and printing a real `shared region … has drifted`, a guard deleted from one copy, not at all.
-  # So each rank shows at most 40 and says how many of its own it withheld, the way `refuse_budget_file`
-  # bounds itself. Two passes over one sorted file, because the per-class total has to be known before the
-  # first line of that class prints.
+  # Ordered before it is cut, never alphabetically: `sort -u | head` shows one class until the cap runs
+  # out, so a flood of crafted `dangling link:` lines would bury a `syntax:` error, a drifted shared
+  # region or a refused budget file — findings that name a broken or tampered-with check rather than a
+  # broken reference, and a finding meaning *this check did not check the tree you think* ranks above
+  # every reference finding. Every pattern is anchored at `^`, or a line whose *link target* merely
+  # carries the substring promotes itself.
+  # Capped per class as well as in total, because rank 0 is also the cheapest to mass-produce: each rank
+  # shows at most 40 and says how many of its own it withheld. Two passes over one sorted file, because
+  # the per-class total has to be known before the first line of that class prints.
   findings_sorted="$(mktemp)" || {
     echo "check.sh: mktemp gave no sort file — exit 2, the findings could not be bounded." >&2
     exit 2
@@ -816,9 +652,8 @@ if [ -s "$findings" ]; then
     }' "$findings_sorted" "$findings_sorted" |
     sort -s -k1,1n | cut -f2- | cut -c1-500 | head -200 >"$findings_sorted.bounded"
   cat "$findings_sorted.bounded"
-  # Counted from what was actually printed, never from the cap. Two mechanisms hide findings now — the
-  # per-class 40 and this global 200 — so arithmetic against either one alone contradicts the other: one
-  # run reported 210 further findings while the class notes accounted for 51.
+  # Counted from what was actually printed, never from either cap: two mechanisms hide findings, so
+  # arithmetic against one alone contradicts the other.
   findings_shown=$(grep -cv 'of this class, suppressed' "$findings_sorted.bounded" || true)
   [ "$finding_total" -gt "$findings_shown" ] &&
     echo "… and $((finding_total - findings_shown)) further finding(s) not shown — fix these and re-run"

@@ -23,7 +23,7 @@ You are one scoped agent in a campaign shrinking an ecosystem of agent instructi
 
 **De-duplication to zero**: two files each state a rule, each copy is deleted citing the other as its home, and the rule now exists nowhere.
 
-Before deleting anything because "another file covers it", **open that file at the moment you delete — not earlier — confirm the text is there, and confirm the plan does not also schedule it.** Another agent may be deleting its copy while you read yours, and an earlier read would have passed. If both copies are scheduled, keep one and say which.
+Before deleting anything because "another file covers it", **open that file at the moment you delete — not earlier — confirm the text is there, and confirm the plan does not also schedule it.** A concurrent agent may be deleting its copy while you read yours. If both copies are scheduled, keep one and say which.
 
 ## Move before you cut
 
