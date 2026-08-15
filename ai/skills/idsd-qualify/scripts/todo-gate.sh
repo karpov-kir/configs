@@ -2,6 +2,9 @@
 # Open-TODO gate — scan a markdown file for unchecked `- [ ]`, fence/comment-aware so an example
 # checkbox never reads as a real TODO. Prints each open item with its `## Section`; exits 1 if any
 # are found, 0 if none, 2 when the scan could not run — 2 prints nothing, so never read it as clean.
+# Covered only through its caller: the --force case in
+# `~/.claude/skills/idsd-qualify/scripts/report-test.sh`. Nothing pins the fence/comment awareness, nor
+# the calls from report.sh's gate, carry and state, nor idsd-build's over an intent file. All owed there.
 set -uo pipefail
 export LC_ALL=C
 

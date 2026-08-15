@@ -69,7 +69,7 @@ Stop when a round returns little and says so. Two rounds is usually enough; a th
 
 Cutting damages prose: it stitches sentences together, strands pronouns, leaves terms used before the line defining them, and compresses a rule past the point where its constraint survives. Spawn `kk-tighten` **last**, pointed at the readability floor rather than at volume, and hand it that list — expect it to *add* words.
 
-**Run the tests beside every script the campaign touched, per that script's own header** — which names both the case and the mutation run that proves the case can fail.
+**Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. **A header naming no `-test.sh` states `# untested: <why>` instead** (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**). Read that reason: this step covers such a script with nothing. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
 
 **Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh`** with no arguments, which scans the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start. A comment's bar is `~/.kk-flavor/standards/human-writing.md` → **Code comments**.
 

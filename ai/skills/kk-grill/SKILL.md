@@ -1,12 +1,12 @@
 ---
 name: kk-grill
-description: Grill the user relentlessly about a plan, decision, or idea. Use to stress-test their thinking, or on any 'grill' trigger phrase.
+description: Grill the user relentlessly about a plan, decision or idea — round by round. Use before anything is built, or on any 'grill' trigger phrase. Questions only, and it writes nothing: planning a feature into an ICE intent is idsd-intent's.
 argument-hint: "the plan, decision or idea to stress-test"
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map the topic as a **design tree**: every decision branches into the decisions that hang off it.
 
-Runs **inline**, never as a subagent — only the main thread reaches the user.
+Runs **inline**, never spawned — only the main thread reaches the user.
 
 Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled — the questions you can ask _now_ without guessing at answers you haven't heard yet. Ask the whole frontier in one round: number each question and give your recommended answer, then wait.
 

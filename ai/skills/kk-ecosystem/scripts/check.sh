@@ -8,6 +8,10 @@
 # A change here needs a case in `~/.claude/skills/kk-ecosystem/scripts/check-test.sh`, and a scan you add
 # needs one that fails without it; `~/.claude/skills/kk-ecosystem/scripts/check-mutate.sh` is what shows a
 # case can fail. Full paths, because a bare name resolves against the reviewed tree first.
+# Past code-style.md's ~450-line guidance deliberately: the halves of a split reach each other either
+# by sourcing (executing a file out of the tree under audit) or through a second process, which breaks
+# the single findings file, the bounded output and the exit codes the suite asserts on. Split it only
+# on a design that keeps those three, never on the line count alone.
 set -uo pipefail
 export LC_ALL=C
 
@@ -172,7 +176,7 @@ while IFS= read -r -d '' file; do
   # for the tree and mute the guard below.
   case "$file" in "$flavor"/*) was_flavor_scanned=1 ;; esac
   grep -noE '[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\.md' "$file" | while IFS= read -r hit; do
-    echo "shared layer cites into a lane: $(oneline "$file"):$(oneline "$hit") — move the rule to a standard (ecosystem.md → One home)"
+    echo "shared layer cites into a lane: $(oneline "$file"):$(oneline "$hit") — move the rule to a standard (ecosystem.md → **One home**)"
   done
 done >>"$findings" < <(find "${direction_targets[@]}" -name '*.md' -type f -print0)
 [ "$was_flavor_scanned" = 1 ] ||
@@ -236,6 +240,11 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
              else if (substr(after, 1, 1) == "`") { rest = substr(after, 2); k = index(rest, "`") }
              else k = 0
              if (k > 1) sec = substr(rest, 1, k - 1)
+             # Whether the name arrived inside `**`/backticks is the whole decision here: read exactly,
+             # or guessed at by the fallback below. An undelimited name truncates at the first comma, so
+             # half a heading satisfies the citation and a rename then breaks it in silence — which is
+             # why ecosystem.md → **Conventions a new file joins** requires the delimited form.
+             delimited = (sec != "")
              if (sec == "") {
                sec = after
                if (match(sec, /[():;,.!?"]/)) sec = substr(sec, 1, RSTART - 1)
@@ -245,23 +254,26 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
              gsub(/[`*]/, "", sec)
              sub(/^#+[[:space:]]*/, "", sec)
              sub(/^[[:space:]]+/, "", sec); sub(/[[:space:]]+$/, "", sec)
-             if (sec != "") printf "%s\t%d\t%s\t%s\n", FILENAME, FNR, path, sec
+             if (sec != "") printf "%s\t%d\t%s\t%s\t%d\n", FILENAME, FNR, path, sec, delimited
            }
          }' "$file"
   done |
-  while IFS="$(printf '\t')" read -r src line path section; do
+  while IFS="$(printf '\t')" read -r src line path section delimited; do
     target="$(resolve_ref "$(dirname "$src")" "$path")"
     if [ -z "$target" ]; then
       echo "unresolvable citation path: $(oneline "$src"):$line -> $(oneline "$path")"
       continue
     fi
+    # Reported even when the section resolves today: undelimited is how it stops resolving in silence.
+    [ "$delimited" = 1 ] ||
+      echo "undelimited section citation: $(oneline "$src"):$line -> $(oneline "$path") → $(oneline "$section") is not wrapped in ** or backticks"
     # Prose runs on past the heading it names, so accept the longest leading run that is a heading.
-    heads="$(markdown_headings "$target")"
+    headings="$(markdown_headings "$target")"
     want="$(printf '%s\n' "$section" | plain_text)"
     while [ -n "$want" ]; do
       # Here-string, never `printf … | grep -q`: under `pipefail` the writer's SIGPIPE (141) turns a
       # match into a miss.
-      grep -qxF "$want" <<<"$heads" && break
+      grep -qxF "$want" <<<"$headings" && break
       case "$want" in *' '*) want="${want% *}" ;; *) want="" ;; esac
     done
     [ -n "$want" ] || echo "dangling section ref: $(oneline "$src"):$line -> $(oneline "$path") → $(oneline "$section")"
@@ -275,8 +287,8 @@ grep -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 
 done >>"$findings"
 
 # A skill is its directory plus a SKILL.md; a directory without one is invisible to the loader.
-# No case covers this scan, which the header above requires of every one. The suite is green without
-# ever running it, so it is untested rather than proven — write the case before trusting it.
+# A case covers this scan, but no mutant yet proves that case can fail. Add one with the next change
+# here, as the header above asks.
 find "$skills" -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' dir; do
   [ -f "$dir/SKILL.md" ] || echo "skill dir without SKILL.md: $(oneline "$dir")"
 done >>"$findings"
@@ -316,6 +328,62 @@ find "$root" -name '*.sh' -type f -print0 | while IFS= read -r -d '' script; do
       grep -rqF --include='*.md' --include='*.sh' --include='*.yaml' -- "$base $subcommand" "$root" ||
         echo "$(oneline "$base") subcommand with no call site: $(oneline "$subcommand")"
     done
+done >>"$findings"
+
+# Also ecosystem.md → **Prefer the mechanism**: a script is prose turned into enforcement, so
+# something has to prove the enforcement still fires. Each script states its test position in its
+# header, either the `-test.sh` covering it or `# untested: <why>`, and that header is what
+# `kk-reduce`'s Phase 6 reads to pick what to run. Stating neither hides the script from that phase.
+# Naming a suite that is not there is the worse half: the phase finds nothing to run, and the script
+# counts as covered by a suite that does not exist.
+# The suite list is built once. A `find` per name turns one crafted header naming 3000 suites into
+# 3000 whole-tree walks, and this scan runs inside `kk-pr-review` over a branch that chose its own
+# contents. NUL-delimited and charset-filtered for the same reason: piped through `sed`, a file named
+# `x<LF>ghost-test.sh` contributes its second line as a bare suite name, and a header naming a
+# missing suite then passes the existence check.
+test_suites="$(find "$root" -name '*-test.sh' -type f -print0 |
+  while IFS= read -r -d '' suite_path; do
+    suite="${suite_path##*/}"
+    case "$suite" in
+      *[!A-Za-z0-9_.-]*) continue ;;
+    esac
+    printf '%s\n' "$suite"
+  done | sort -u)"
+find "$root" -name '*.sh' -type f -print0 | while IFS= read -r -d '' script; do
+  base="$(basename "$script")"
+  case "$base" in
+    *-test.sh | *-mutate.sh) continue ;;
+  esac
+  # Reading past the leading comment block would let a `-test.sh` named anywhere in the body clear the
+  # check. Bounded at 200 lines because the block is slurped whole and then read twice more through the
+  # here-strings below, so an all-comment file is held three times over.
+  header="$(awk 'NR == 1 && /^#!/ { next }
+                 NR > 200 { exit }
+                 /^#/ { print; next }
+                 { exit }' "$script")"
+  # Here-strings, never `printf | grep`, and `awk NR <= 8` rather than `head`: both would SIGPIPE the
+  # writer, and the note above the `dangling section ref` grep says why that registers as a miss under
+  # `pipefail`. Eight is what a real header takes, its suite and its mutation run. A header past the
+  # cap is reported rather than truncated in silence.
+  all_named="$(grep -oE '[A-Za-z0-9_.-]+-test\.sh' <<<"$header" | sort -u)"
+  named_tests="$(awk 'NR <= 8' <<<"$all_named")"
+  # The count is of the 200-line window, never of the file: past the bound nothing was read, so a
+  # header carrying thousands of names would report the window's total as if it were the file's.
+  named_count="$(grep -c . <<<"$all_named")"
+  if [ "$named_count" -gt 8 ]; then
+    echo "script names more suites than the scan reads: $(oneline "$base") names $named_count in its first 200 lines, of which 8 are read"
+  fi
+  if [ -n "$named_tests" ]; then
+    while IFS= read -r named_test; do
+      # `--`, as the `dangling section ref` grep does: the name comes from a header this script did not
+      # write, and `--test.sh` is a legal match grep would read as an option, aborting with a usage
+      # dump into the output an agent drafts review comments from.
+      grep -qxF -- "$named_test" <<<"$test_suites" ||
+        echo "script names a missing test: $(oneline "$base") names $(oneline "$named_test")"
+    done <<<"$named_tests"
+  elif ! grep -qE '^#[[:space:]]*untested:[[:space:]]*[^[:space:]]' <<<"$header"; then
+    echo "script declares no test position: $(oneline "$base") names no -test.sh and carries no '# untested: <why>'"
+  fi
 done >>"$findings"
 
 # Every budget file is contained under the root before it is read — `CLAUDE.md` and `inject.md`
@@ -531,7 +599,6 @@ report_import_refusal() {
 # --- shared:import-resolution ---
 # Leftover names accumulate in a file, never in a shell string: `s="$s$name"` re-copies everything
 # gathered so far on every name, which is quadratic in a count the attacker picks.
-budget_uncounted=""
 budget_uncounted_file="$(mktemp)" || {
   echo "budget scan: mktemp gave no scratch file — exit 2, the import list cannot be bounded." >&2
   exit 2
@@ -639,6 +706,8 @@ if [ -s "$findings" ]; then
       if (line ~ /^skill not mounted/) return 1
       if (line ~ /^skill mounted elsewhere/) return 1
       if (line ~ /^budget file refused/) return 2
+      if (line ~ /^script names a missing test/) return 2
+      if (line ~ /^script names more suites than the scan reads/) return 2
       if (line ~ /^script not executable/) return 3
       if (line ~ /^skill name\/dir mismatch/) return 3
       if (line ~ /^import refused/) return 4

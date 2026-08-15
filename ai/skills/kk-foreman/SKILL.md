@@ -2,6 +2,7 @@
 name: kk-foreman
 description: The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". The idsd-* intent workflow is its own door (idsd-ship).
 argument-hint: "what you want done (default: look at the working tree and recommend)"
+disable-model-invocation: true
 ---
 
 You **dispatch and do not do the work** — every stage is a skill that already exists, invoked per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
@@ -63,5 +64,5 @@ Spawn each stage per the protocol's default, in the order **Route** resolved. Re
 ## Rules
 
 - **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes.
-- Never narrow a stage's **lens**. Scope its files to the change set — that is the one narrowing the pipeline requires (`~/.kk-flavor/standards/quality-pipeline.md` → The round).
+- Never narrow a stage's **lens**. Scope its files to the change set — that is the one narrowing the pipeline requires (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 - A chain that stops early stops the chain. A later stage running on the output of a stage that failed is worse than not running it.

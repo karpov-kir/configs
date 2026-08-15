@@ -102,9 +102,9 @@ run_suite_in_sandbox() {
 
 # `sed` to a new file rather than `sed -i`, whose in-place flag spells differently on BSD and GNU.
 run_mutant() {
-  local label="$1" expr="$2" verdict touched out fails
+  local label="$1" sed_expression="$2" verdict touched out fails
   new_sandbox || { echo "  mktemp failed   $label"; mutants_bad=$((mutants_bad + 1)); return; }
-  if ! sed "$expr" "$target" >"$sandbox_mount/check.sh" 2>/dev/null; then
+  if ! sed "$sed_expression" "$target" >"$sandbox_mount/check.sh" 2>/dev/null; then
     verdict=invalid
   elif cmp -s "$target" "$sandbox_mount/check.sh"; then
     verdict=inert
@@ -183,5 +183,23 @@ run_mutant "findings: link emitter not one-lined"      's|echo "dangling link: $
 
 run_mutant "findings: no per-class cap"                's|shown\[r\] <= 40|shown[r] <= 100000|'
 run_mutant "findings: control bytes not stripped"      "s|LC_ALL=C tr '\[:cntrl:\]' ' '|cat|"
+
+# One mutant per guard in the script-test-position scan. Anchor each on the shortest stable fragment,
+# never on a whole line: a bound added to that scan leaves a whole-line anchor matching nothing, and
+# `inert` is the verdict that reports a guard as proven while testing it not at all.
+run_mutant "test position: harness not exempt"         's#\*-test.sh | \*-mutate.sh) continue ;;#*-test.sh | *-mutate.sh) ;;#'
+run_mutant "test position: named test never resolved"  's|grep -qxF -- "$named_test"|true|'
+run_mutant "test position: reason not required"        's|untested:\[\[:space:\]\]\*\[^\[:space:\]\]|untested:|'
+run_mutant "test position: header not bounded"         's|^                 { exit }|                 { next }|'
+run_mutant "test position: header read unbounded"      's|NR > 200|NR > 100000000|'
+run_mutant "test position: name cap not announced"     's|"$named_count" -gt 8|"$named_count" -gt 100000|'
+run_mutant "test position: suite charset unfiltered"   's#\*\[!A-Za-z0-9_.-\]\*) continue ;;#*[!A-Za-z0-9_.-]*) ;;#'
+run_mutant "test position: name not option-guarded"    's|grep -qxF -- "$named_test"|grep -qxF "$named_test"|'
+
+# Both directions off the delimited-citation guard's single decision point. Mutating it one way only
+# leaves the two `assert_does_not_report` cases unproven: a guard that reported *every* citation would
+# satisfy them without ever being wrong in the direction they test.
+run_mutant "citations: delimited form not required"    's|delimited = (sec != "")|delimited = 1|'
+run_mutant "citations: guard fires on every citation"  's|delimited = (sec != "")|delimited = 0|'
 
 report_mutants

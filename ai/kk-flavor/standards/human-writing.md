@@ -36,7 +36,7 @@ A note earns its place only by producing an edit, or an answer only the author c
 
 ## Code comments
 
-The existence bar and the published-surface exception to it are [code-style.md](code-style.md) → Comments. What that bar admits:
+The existence bar and the published-surface exception to it are [code-style.md](code-style.md) → **Comments**. What that bar admits:
 
 - Delete a comment whole when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for `kk-refactor`), when it justifies a decision no reader would question, or when a sibling covers it. True, unique content goes too — anecdotes, provenance, alternatives considered. Once a comment stays, shortening it never drops its constraint, invariant, or warning.
 - A published surface's contract prose carries what the types can't — call order, lifecycle, error modes, units, ranges, caller invariants.

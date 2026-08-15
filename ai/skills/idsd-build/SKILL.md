@@ -36,7 +36,7 @@ Wait for the human's OK, then set `status: approved`.
 
 ## Phase 3 — Implement & validate (bounded loop)
 
-1. Implement the smallest change that satisfies the goal within the constraints. **Where the change publishes a module surface, settle that surface first** — exports, types, and the contract prose beside them (`~/.kk-flavor/standards/architecture/core.md` → Module depth) — then write the body against it. An ordering, not a gate: don't stop and ask.
+1. Implement the smallest change that satisfies the goal within the constraints. **Where the change publishes a module surface, settle that surface first** — exports, types, and the contract prose beside them (`~/.kk-flavor/standards/architecture/core.md` → **Module depth**) — then write the body against it. An ordering, not a gate: don't stop and ask.
 2. Encode success/failure scenarios as real acceptance tests, e2e where a unit test cannot reach the behaviour. Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises (each supported value, threshold, edge branch), and the non-ASCII / special-character case wherever code lists or round-trips external names. When the deliverable is a mapping, produce the full table (code path → resulting state) and validate every row. Extend hand-written tests; don't clobber them.
 3. Run the gates and the scenario tests. On failure, fix and re-run — bounded to a few iterations; if stuck, stop and report rather than thrash.
 4. **Drive it**, once the gates and scenario tests are green — `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**, handing `kk-drive` this intent's scenarios. Here a divergence is a red result you fix and re-run, not a stop.
@@ -69,7 +69,7 @@ Approve on outcomes → proceed. Reject with feedback → back to Phase 3.
 
 **Then check this intent's `links:`** by the rules `idsd-audit` applies set-wide. A bad link blocks the archive; fix or route it first. Whole-set consistency stays `idsd-audit`'s job.
 
-Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (its resolved checklist travels with it as the record), and regenerate `.idsd/roadmap.md` if it exists — to `idsd-intent`'s format, which owns it. **Then** land everything in one approval-gated commit (`~/.kk-flavor/standards/git.md` → Commits).
+Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (its resolved checklist travels with it as the record), and regenerate `.idsd/roadmap.md` if it exists — to `idsd-intent`'s format, which owns it. **Then** land everything in one approval-gated commit (`~/.kk-flavor/standards/git.md` → **Commits**).
 
 ## Pipeline mode
 

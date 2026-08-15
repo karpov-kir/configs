@@ -8,10 +8,10 @@ Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
 
 **Quality, not correctness or security.** Functional bugs are `kk-code-review`'s, exploitable weaknesses `kk-security-review`'s, trimming prose for concision `kk-tighten`'s — never flag those here. A true comment attached to the wrong construct *is* yours; one whose content is false is `kk-code-review`'s.
 
-**Scope override — cross-file changes:** Core Principle 3 (surgical changes) does not apply here — refactoring *is* the task, so editing any file is in scope — under the gate in `skill-protocol.md` → Queue. Hunt, don't stumble:
+**Scope override — cross-file changes:** Core Principle 3 (surgical changes) does not apply here — refactoring *is* the task, so editing any file is in scope — under the gate in `skill-protocol.md` → **Queue**. Hunt, don't stumble:
 
 - **Duplication, generalization, and simplification reframes** (a remodel that deletes a branch or concept). Treat each reviewed file's functions, types, and non-trivial logic as search seeds, grep the codebase for the same shape, and fix every site at once.
-- **Shallowness, on the same footing** (`architecture/core.md` → Module depth): a module whose exports mirror its internal functions, a pass-through forwarding to a same-named method one layer down.
+- **Shallowness, on the same footing** (`architecture/core.md` → **Module depth**): a module whose exports mirror its internal functions, a pass-through forwarding to a same-named method one layer down.
 - **A duplicate split across two file kinds** — a doc and a script carrying the same command — is invisible to `dup-literals.sh`: make one point at the other.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below.

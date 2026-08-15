@@ -12,4 +12,4 @@ Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-i
 
 # Memory
 
-Keep memory here, never in `~/.claude/projects/*/memory/`. This section is a staging area: an entry stays only until it fits a standard or a skill, then it moves into that file. Entries here are authoritative — don't reorganize them.
+Keep memory here, never in `~/.claude/projects/*/memory/`. How this section works: `~/.kk-flavor/standards/ecosystem.md` → **Memory**.

@@ -257,7 +257,6 @@ report_import_refusal() {
 # --- shared:import-resolution ---
 # Leftover names accumulate in a file, never in a shell string: `s="$s$name"` re-copies everything
 # gathered so far on every name, which is quadratic in a count the attacker picks.
-budget_uncounted=""
 budget_uncounted_file="$(mktemp)" || {
   echo "budget scan: mktemp gave no scratch file — exit 2, the import list cannot be bounded." >&2
   exit 2

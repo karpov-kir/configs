@@ -3,7 +3,11 @@
 # lives here; the contract it serves (repo modes, what goes in the report, never commit it) is
 # `idsd-qualify/SKILL.md` → **Report**. idsd-ship calls it too (gate/state/promote/discard).
 # The report always lives at .idsd/ship-report.md. Portable: bash + git + awk/sed,
-# no project runtime. Subcommands:
+# no project runtime.
+# A change here needs a case in `~/.claude/skills/idsd-qualify/scripts/report-test.sh`.
+# One gap matters: no case reaches `discard`, which `rm -rf`s `.idsd/` and deletes the intent file.
+# Treat a change there as unguarded and write the case first.
+# Subcommands:
 #   init "<intent>" [--force]  scaffold .idsd/ + the report from the template, stamping its intent
 #                    line. Refuses over an existing report unless --force, which prints its open
 #                    `- [ ]` and keeps the file as ship-report.superseded.md. Refuses a symlink either way
@@ -473,7 +477,6 @@ USAGE
     require_report
     "$todo_gate" "$report"
     carry_status=$?
-    # As in gate: a failed scan prints nothing, and nothing reads as "no prior items".
     [ "$carry_status" -le 1 ] ||
       refuse "error: the carry scan did not run — todo-gate.sh exited $carry_status; prior open items are unknown."
     ;;
@@ -629,7 +632,6 @@ USAGE
       echo "re-qualify" # reviewed once, tree moved since
       exit 0
     fi
-    # As in gate: a scan that could not run prints nothing, and nothing reads as "no open items".
     todos=$("$todo_gate" "$report")
     todo_status=$?
     [ "$todo_status" -le 1 ] ||

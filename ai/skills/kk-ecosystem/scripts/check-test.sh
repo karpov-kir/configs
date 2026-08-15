@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Tests for four of check.sh's blocks: the direction scan (ecosystem.md → **One home**) with its
-# did-not-run guard, the `@import` resolved at the installed mount, the ranking that decides which
-# findings survive the output cap, and the rule that keeps every finding on one physical line.
+# Tests for check.sh's guards. The `echo` line above each group of cases names the block it covers.
 #   usage: check-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise
 #
 # A change to check.sh needs a case here, and `check-mutate.sh` is what proves a case can fail.
@@ -9,6 +7,9 @@
 # the guard fired.
 # No case asserts on the exit code — a fixture root legitimately has findings of its own, so
 # "clean" would pass every case for the wrong reason.
+# Past the ~450-line guidance deliberately: `check-mutate.sh` copies the one suite beside it into its
+# sandbox, so a split means teaching that harness to run several and to attribute a kill across them.
+# Split it once that is solved, never on the line count alone.
 set -uo pipefail
 export LC_ALL=C
 
@@ -54,6 +55,15 @@ new_root() {
   new_root_without_flavor
   mkdir -p "$root/kk-flavor/standards"
   printf '# Flavor\n' >"$root/kk-flavor/inject.md"
+}
+
+# check.sh refuses to walk a symlinked `kk-flavor`, so a case writes into `$root/real-flavor` and never
+# `$root/kk-flavor` — a write through the link is one check.sh can also see.
+new_root_with_symlinked_flavor() {
+  new_root_without_flavor
+  mkdir -p "$root/real-flavor/standards"
+  printf '# Flavor\n' >"$root/real-flavor/inject.md"
+  ln -s "$root/real-flavor" "$root/kk-flavor"
 }
 
 run_check() {
@@ -156,11 +166,8 @@ new_root
 printf '# Root\n' >"$root/CLAUDE.md"
 assert_does_not_report "$never_ran" "a root with no violation and no symlink does not trip the guard"
 
-new_root_without_flavor
-mkdir -p "$root/real-flavor/standards"
-printf '# Flavor\n' >"$root/real-flavor/inject.md"
+new_root_with_symlinked_flavor
 printf 'see `~/.claude/skills/kk-drive/SKILL.md`\n' >"$root/real-flavor/standards/x.md"
-ln -s "$root/real-flavor" "$root/kk-flavor"
 printf '# Root\n' >"$root/CLAUDE.md"
 assert_reports "$never_ran" "reports itself when a symlinked kk-flavor leaves it nothing to walk"
 assert_does_not_report "$cites" "and does not read the violation behind that symlink"
@@ -215,10 +222,7 @@ chmod 000 "$check_home/.claude/FOO.md"
 assert_reports "$uncounted" "refuses a file at the mount it cannot read"
 assert_reports "$refused" "and reports it, the shape that hid a short figure one tier down"
 
-new_root_without_flavor
-mkdir -p "$root/real-flavor"
-printf '# Flavor\n' >"$root/real-flavor/inject.md"
-ln -s "$root/real-flavor" "$root/kk-flavor"
+new_root_with_symlinked_flavor
 new_home_without_flavor_mount
 ln -s "$root/real-flavor" "$check_home/.kk-flavor"
 printf '# Root\n\n@FOO.md\n' >"$root/CLAUDE.md"
@@ -302,10 +306,7 @@ chmod 644 "$root/skills/notexec.sh"
 assert_ranks_above "script not executable" "flavor mounted elsewhere filler" \
   "ranks a real finding above a flood whose link targets forge a mount finding"
 
-new_root_without_flavor
-mkdir -p "$root/real-flavor/standards"
-printf '# Flavor\n' >"$root/real-flavor/inject.md"
-ln -s "$root/real-flavor" "$root/kk-flavor"
+new_root_with_symlinked_flavor
 {
   buried=1
   while [ "$buried" -le 300 ]; do printf '[x](nope%03d.md)\n' "$buried"; buried=$((buried + 1)); done
@@ -339,10 +340,7 @@ while [ "$buried_syntax" -le 300 ]; do
 done
 assert_reports "syntax: " "shows a syntax error under a flood of its own priority tier"
 
-new_root_without_flavor
-mkdir -p "$root/real-flavor/standards"
-printf '# Flavor\n' >"$root/real-flavor/inject.md"
-ln -s "$root/real-flavor" "$root/kk-flavor"
+new_root_with_symlinked_flavor
 flooded=1
 while [ "$flooded" -le 120 ]; do
   printf 'if then\n' >"$root/skills/broken$flooded.sh"
@@ -351,6 +349,153 @@ while [ "$flooded" -le 120 ]; do
 done
 assert_reports "$never_ran" "shows a rank-1 finding under a flood of the gravest class"
 assert_reports "of this class, suppressed" "and says how many of the flooding class it withheld"
+
+echo "check.sh — citations name their section in the delimited form"
+
+undelimited="undelimited section citation"
+
+# The cited name is a `%s` argument, never inline: the citation scan reads this file too, so a fixture
+# line carrying the citation whole becomes a finding against the repo. Split this way, the path the
+# scan extracts is `%s`, which is not a `.md`, and it is dropped before any finding.
+new_root
+printf '# Target\n\n## One home\n' >"$root/kk-flavor/standards/target.md"
+printf 'see [%s](%s) → One home for the rule\n' target.md target.md >"$root/kk-flavor/standards/citer.md"
+assert_reports "$undelimited" "fires on a citation whose section is not delimited"
+
+new_root
+printf '# Target\n\n## One home\n' >"$root/kk-flavor/standards/target.md"
+printf 'see [%s](%s) → **One home** for the rule\n' target.md target.md >"$root/kk-flavor/standards/citer.md"
+assert_does_not_report "$undelimited" "accepts the bolded form"
+
+new_root
+printf '# Target\n\n## One home\n' >"$root/kk-flavor/standards/target.md"
+printf 'see [%s](%s) → `One home` for the rule\n' target.md target.md >"$root/kk-flavor/standards/citer.md"
+assert_does_not_report "$undelimited" "accepts the backticked form, which the parser also reads exactly"
+
+# A shell comment cites the same way a document does, and the scan reads both.
+new_root
+printf '# Target\n\n## One home\n' >"$root/kk-flavor/standards/target.md"
+# Written inline, not through `new_script`, which this file defines further down: called above its own
+# definition it silently creates nothing, and the case passes on an empty fixture.
+printf '#!/usr/bin/env bash\n# untested: fixture\n# the rule is %s → One home\ntrue\n' target.md >"$root/skills/citer.sh"
+chmod +x "$root/skills/citer.sh"
+assert_reports "$undelimited" "fires on an undelimited citation inside a shell comment"
+
+# Each defect below makes a skill unreachable rather than merely mis-linked: the loader finds a skill by
+# its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
+echo "check.sh — the skill directory itself"
+
+new_root
+mkdir -p "$root/skills/orphan" "$root/skills/wrong-name" "$root/skills/no-desc"
+printf -- '---\nname: misnamed\ndescription: does a thing\n---\n' >"$root/skills/wrong-name/SKILL.md"
+printf -- '---\nname: no-desc\n---\n' >"$root/skills/no-desc/SKILL.md"
+assert_reports "skill dir without SKILL.md" "fires on a skill directory holding no SKILL.md"
+assert_reports "skill name/dir mismatch" "fires when the frontmatter name is not the directory name"
+assert_reports "skill without a description" "fires on a SKILL.md carrying no description"
+
+echo "check.sh — script test position"
+
+missing_test="script names a missing test"
+no_position="script declares no test position"
+
+new_script() {
+  printf '%s\n' "$2" >"$root/skills/$1"
+  chmod +x "$root/skills/$1"
+}
+
+new_root
+new_script "lonely.sh" '#!/usr/bin/env bash
+# Does a thing.
+true'
+assert_reports "$no_position" "fires on a script naming neither a test nor an untested reason"
+
+new_root
+new_script "claims.sh" '#!/usr/bin/env bash
+# A change here needs a case in claims-test.sh beside it.
+true'
+assert_reports "$missing_test" "fires on a header naming a -test.sh that is not in the tree"
+
+new_root
+new_script "covered.sh" '#!/usr/bin/env bash
+# A change here needs a case in covered-test.sh beside it.
+true'
+new_script "covered-test.sh" '#!/usr/bin/env bash
+true'
+assert_does_not_report "$missing_test" "accepts a header whose named test exists"
+assert_does_not_report "$no_position" "a named existing test is a declared position"
+
+new_root
+new_script "waived.sh" '#!/usr/bin/env bash
+# untested: a four-line wrapper whose only failure mode is the exec bit.
+true'
+assert_does_not_report "$no_position" "accepts an explicit untested: declaration with a reason"
+
+new_root
+new_script "bare.sh" '#!/usr/bin/env bash
+# untested:
+true'
+assert_reports "$no_position" "a bare untested: with no reason does not clear the check"
+
+# The harness is exempt: asking a test file to name its own test makes every one of them a finding.
+new_root
+new_script "harness-test.sh" '#!/usr/bin/env bash
+true'
+new_script "harness-mutate.sh" '#!/usr/bin/env bash
+true'
+assert_does_not_report "$no_position" "asks nothing of -test.sh and -mutate.sh themselves"
+
+# Header-scoped on purpose: a suite a script merely mentions in its body would read as coverage.
+new_root
+new_script "body.sh" '#!/usr/bin/env bash
+# Does a thing.
+set -u
+# see also body-test.sh
+true'
+assert_reports "$no_position" "a -test.sh named below the header does not count as declared"
+
+# The cap that keeps a crafted header from turning one scan into thousands of whole-tree walks. It has
+# to *report*, never quietly read less than it looks like it read.
+new_root
+new_script "greedy.sh" '#!/usr/bin/env bash
+# see n1-test.sh n2-test.sh n3-test.sh n4-test.sh n5-test.sh n6-test.sh
+# and n7-test.sh n8-test.sh n9-test.sh n10-test.sh n11-test.sh n12-test.sh
+true'
+assert_reports "names more suites than the scan reads" "reports a header naming more suites than it reads"
+
+# The bound on the header read. A declaration past 200 lines is not seen, which is correct, and it
+# still has to be *reported* rather than pass as declared.
+new_root
+{
+  printf '#!/usr/bin/env bash\n'
+  line=1
+  while [ "$line" -le 205 ]; do
+    printf '# padding %s\n' "$line"
+    line=$((line + 1))
+  done
+  printf '# untested: this reason sits past the 200-line bound and cannot clear the check\n'
+  printf 'true\n'
+} >"$root/skills/buried.sh"
+chmod +x "$root/skills/buried.sh"
+assert_reports "$no_position" "a declaration past the header bound does not clear the check"
+
+# The suite list is built from filenames the reviewed tree chose. A newline in one splits a basename
+# in two, the tail reads as a suite that exists, and a header naming an absent suite then passes. The
+# control case comes first: without the hostile file, the finding must be there to lose.
+new_root
+new_script "tool.sh" '#!/usr/bin/env bash
+# a change here needs a case in ghost-test.sh
+true'
+assert_reports "$missing_test" "reports a named suite that is absent (control for the case below)"
+printf 'not a suite\n' >"$root/skills/$(printf 'x\nghost-test.sh')"
+assert_reports "$missing_test" "a newline in a filename cannot forge the suite that satisfies a header"
+
+new_root
+new_script "dash.sh" '#!/usr/bin/env bash
+# a change here needs a case in --test.sh
+true'
+assert_reports "$missing_test" "a suite name starting with a dash is still checked"
+assert_does_not_report "unrecognized option" "and grep never dumps its usage into the findings"
+assert_does_not_report "Usage: grep" "nor its usage banner"
 
 echo "$passed passed, $failed failed"
 [ "$failed" = 0 ]

@@ -10,6 +10,8 @@
 # text files are scanned too; the index is never touched.
 # A targeting aid, not a bar: it counts ADDED lines, so rewording a comment the base already carried
 # moves it into the added set, and the ratio can rise across a pass that cut comments.
+# untested: no suite yet. The 0/1/2 exit contract and the path-argument refusal are owed here, the
+# same pair `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` owes, for the same readers.
 set -uo pipefail
 export LC_ALL=C
 
@@ -38,9 +40,34 @@ if [ "$#" -gt 0 ]; then
   done
 fi
 
+emit_untracked_as_diff() {
+  git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
+    # Binary = NUL in the first 8KB. if-guard, not &&: a skipped file must not fail the loop.
+    bytes="$(wc -c < "./$file" 2>/dev/null || echo 0)"
+    # A newline in the name would write a second line into this stream — the one forged header a
+    # tracked branch cannot produce. `$'\n'`, not `"$(printf '\n')"`: substitution strips the
+    # newline, the pattern collapses to `*`, and every untracked file is skipped.
+    case "$file" in
+      *$'\n'*)
+        echo "comment-density.sh: skipping an untracked path whose name contains a newline; it was NOT scanned." >&2
+        continue
+        ;;
+    esac
+    if [ "$bytes" -le "$max_file_bytes" ] &&
+      [ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd '\000' | wc -c)" -eq 0 ]; then
+      printf 'diff --git a/%s b/%s\n+++ b/%s\n' "$file" "$file" "$file"
+      # awk, not `sed 's/^/+/'`: sed passes a missing final newline through, fusing this file's
+      # last line with the next file's `diff --git` header so the anchor below never fires.
+      # || true: a file that vanished mid-scan contributes nothing.
+      awk '{ print "+" $0 }' "./$file" 2>/dev/null || true
+    fi
+  done
+}
+
 {
   # `|| exit 2`: this group's status is the trailing `if`'s, not git's, so without it a scan that
-  # never ran reads as clean. Safe — the group is a pipeline's left side, already a subshell.
+  # never ran reads as clean. Safe — the group is a pipeline's left side, already a subshell. The `if`
+  # stays an `if` for that same status: `&&` would leave the group at 1 whenever revisions were passed.
   # The flags pin the shape the awk keys off (`+++ b/<path>`, a leading `+`), which `diff.noprefix`,
   # `color.diff=always` or an external diff driver break. `core.quotePath=false`: else a non-ASCII
   # path arrives C-quoted and fails the `b/` test. `--text`: else `* -diff` in the PR author's
@@ -50,27 +77,7 @@ fi
     exit 2
   }
   if [ "$#" -eq 0 ]; then
-    git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
-      # Binary = NUL in the first 8KB. if-guard, not &&: a skipped file must not fail the loop.
-      bytes="$(wc -c < "./$file" 2>/dev/null || echo 0)"
-      # A newline in the name would write a second line into this stream — the one forged header a
-      # tracked branch cannot produce. `$'\n'`, not `"$(printf '\n')"`: substitution strips the
-      # newline, the pattern collapses to `*`, and every untracked file is skipped.
-      case "$file" in
-        *$'\n'*)
-          echo "comment-density.sh: skipping an untracked path whose name contains a newline; it was NOT scanned." >&2
-          continue
-          ;;
-      esac
-      if [ "$bytes" -le "$max_file_bytes" ] &&
-        [ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd '\000' | wc -c)" -eq 0 ]; then
-        printf 'diff --git a/%s b/%s\n+++ b/%s\n' "$file" "$file" "$file"
-        # awk, not `sed 's/^/+/'`: sed passes a missing final newline through, fusing this file's
-        # last line with the next file's `diff --git` header so the anchor below never fires.
-        # || true: a file that vanished mid-scan contributes nothing.
-        awk '{ print "+" $0 }' "./$file" 2>/dev/null || true
-      fi
-    done
+    emit_untracked_as_diff
   fi
 } | awk -v max_ratio="$max_ratio" -v min_lines="$min_lines" '
   # `diff --git` is the anchor: every line in a diff *body* carries a `+`, `-` or space prefix, so no

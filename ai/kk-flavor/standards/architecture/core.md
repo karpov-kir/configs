@@ -9,7 +9,7 @@ Follow this on a new project; otherwise match the project's existing architectur
 Organize the top level by feature, not by technical layer. A **slice** is one feature's folder, owning its boundary, business logic, and data access together. The top level: `features/` (the slices), `shared/` (cross-slice primitives, no feature logic), `entrypoints/` (inbound edges), `infra/` (cross-slice outbound plumbing and adapters).
 
 - A slice may use `shared`, never another slice's internals; cross-slice needs go through a published port or an event.
-- Keep a slice whole — its adapters, types, and helpers live with it; test placement is [testing.md](../testing.md) → Commands and file names.
+- Keep a slice whole — its adapters, types, and helpers live with it; test placement is [testing.md](../testing.md) → **Commands and file names**.
 
 ### Horizontal decoupling
 
@@ -43,7 +43,7 @@ A module's **interface** is everything a caller must learn to use it — its exp
 - **Adding capability inside must not widen the surface.**
 - **No pass-throughs.** A method that mostly forwards to a same-named method one layer down costs interface and hides nothing.
 - **No required sequences.** An interface the caller must drive in order — construct, then configure, then start — is shallow. Hide the order inside, or model the states so the wrong order can't be expressed.
-- **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open. The types carry what they can; contract prose carries the rest, which [code-style.md](../code-style.md) → Comments exempts from the no-comment default.
+- **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open. The types carry what they can; contract prose carries the rest, which [code-style.md](../code-style.md) → **Comments** exempts from the no-comment default.
 
 ## Per-side specifics
 
@@ -66,7 +66,7 @@ Validate structure with a **declarative schema** — never an unchecked cast or 
 
 ## Logging & events
 
-**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level; level set once from config ([project.md](../project.md) → Logging). Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
+**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level; level set once from config ([project.md](../project.md) → **Logging**). Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
 
 **Events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
 

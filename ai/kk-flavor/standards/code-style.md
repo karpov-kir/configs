@@ -1,5 +1,7 @@
 # Code Style
 
+**A script under a skill or `kk-flavor/` is also something agents read**, so [ecosystem.md](ecosystem.md) → **Prefer the mechanism** binds it on top of the rules below.
+
 ## Naming
 
 - Full, descriptive names; abbreviate only where the abbreviation is well established (`i` in a tight numeric loop is fine).
@@ -14,7 +16,7 @@
 
 ## Comments
 
-Comment form is [human-writing.md](human-writing.md) → Code comments. **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it.
+Comment form is [human-writing.md](human-writing.md) → **Code comments**. **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it.
 
 **A published surface is the exception, and it runs the other way** — state the contract the types don't carry. That text is interface, not commentary.
 
@@ -24,7 +26,7 @@ Comment form is [human-writing.md](human-writing.md) → Code comments. **The de
 - Prefer precise types over wide ones.
 - In TS/JS, absence is `undefined`, never `null` — one absence value per codebase.
 - Prefer enums (or named-enumeration constructs) that expose symbolic members at call sites — renames ripple through the type checker. A literal type alias doesn't satisfy this.
-- Inline single-use object/interface shapes; extract a named type only when referenced from 2+ places. The exception is a type crossing a module boundary, which earns its name at one call site ([architecture/core.md](architecture/core.md) → Module depth).
+- Inline single-use object/interface shapes; extract a named type only when referenced from 2+ places. The exception is a type crossing a module boundary, which earns its name at one call site ([architecture/core.md](architecture/core.md) → **Module depth**).
 
 ## Control Flow
 
@@ -34,7 +36,7 @@ Comment form is [human-writing.md](human-writing.md) → Code comments. **The de
 
 ## Logging
 
-Where log lines belong and what they say; the logger itself belongs to [architecture/core.md](architecture/core.md) → Logging & events and [project.md](project.md) → Logging. Review for *absence*: a boundary or handled failure with no log line breaks these rules as surely as a bad message does.
+Where log lines belong and what they say; the logger itself belongs to [architecture/core.md](architecture/core.md) → **Logging & events** and [project.md](project.md) → **Logging**. Review for *absence*: a boundary or handled failure with no log line breaks these rules.
 
 - Log at boundaries: inbound work accepted (request, job, message), outbound calls to other systems, process lifecycle (startup with resolved config, shutdown).
 - Every failure path that doesn't propagate must log: a caught-and-handled error, a retry, a fallback, a degraded mode.
@@ -59,4 +61,4 @@ Reach for a class (or a `newX` factory over private state) when operations share
 - Tolerate duplication at 1–2 sites; extract a shared helper on the 3rd. Earlier abstraction risks the wrong shape.
 - Don't extract tiny wrappers around self-evident code.
 - Keep files focused on a single responsibility — split when a file grows beyond ~450 lines or contains unrelated concepts. A flat command dispatch over one responsibility counts by its longest arm, not its total.
-- Avoid barrel/index files; import from the source module directly. A module's published surface file ([architecture/core.md](architecture/core.md) → Module depth) is not covered by this ban: it *declares* what it hands out rather than re-exporting symbols that live elsewhere. Never re-export a symbol through a module that isn't its home — a symbol has one home; update importers if that home moves.
+- Avoid barrel/index files; import from the source module directly. A module's published surface file ([architecture/core.md](architecture/core.md) → **Module depth**) is not covered by this ban. Never re-export a symbol through a module that isn't its home — a symbol has one home; update importers if that home moves.

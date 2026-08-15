@@ -10,6 +10,9 @@
 # git rejected the arguments. With no diff args, untracked text files are scanned too; the index is
 # never touched. Why revisions-only, why these `git diff` flags, and why the `|| exit 2` below:
 # `~/.claude/skills/kk-humanize/scripts/comment-density.sh`, which runs the same shape.
+# untested: no suite yet, and one is owed for the 0/1/2 exit contract, the path-argument refusal, the
+# `diff --git` anchor and the untracked-file scan. Three skills read exit 2 as "did not run, never
+# clean", and nothing proves this script still tells that apart from 0.
 set -uo pipefail
 export LC_ALL=C
 
@@ -34,22 +37,28 @@ if [ "$#" -gt 0 ]; then
   done
 fi
 
+emit_untracked_as_added_lines() {
+  git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
+    # Binary = NUL in the first 8KB. if-guard, not &&: a skipped file must not fail the loop.
+    bytes="$(wc -c < "./$file" 2>/dev/null || echo 0)"
+    if [ "$bytes" -le "$max_file_bytes" ] &&
+      [ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd '\000' | wc -c)" -eq 0 ]; then
+      # awk, not `sed 's/^/+/'`: sed passes a missing final newline through, fusing this file's
+      # last line with the next file's first, so neither is compared as the literal it is.
+      awk '{ print "+" $0 }' "./$file" 2>/dev/null || true
+    fi
+  done
+}
+
 {
+  # The `if` below stays an `if` for the group's exit status: `&&` would leave the group at 1 whenever
+  # revisions were passed, and under `pipefail` 1 is this script's "duplicates found".
   git diff --no-ext-diff --no-textconv --no-color --text "${@:-HEAD}" || {
     echo "dup-literals.sh: git rejected these arguments — exit 2, the scan did NOT run. Not a clean result." >&2
     exit 2
   }
   if [ "$#" -eq 0 ]; then
-    git ls-files --others --exclude-standard -z | while IFS= read -r -d '' file; do
-      # Binary = NUL in the first 8KB. if-guard, not &&: a skipped file must not fail the loop.
-      bytes="$(wc -c < "./$file" 2>/dev/null || echo 0)"
-      if [ "$bytes" -le "$max_file_bytes" ] &&
-        [ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd '\000' | wc -c)" -eq 0 ]; then
-        # awk, not `sed 's/^/+/'`: sed passes a missing final newline through, fusing this file's
-        # last line with the next file's first, so neither is compared as the literal it is.
-        awk '{ print "+" $0 }' "./$file" 2>/dev/null || true
-      fi
-    done
+    emit_untracked_as_added_lines
   fi
 } | awk -v min_length="$min_length" '
   # Skip the `+++` of a real header only: unanchored, this also drops any added line starting `++`,

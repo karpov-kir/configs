@@ -6,6 +6,8 @@
 # The retro date lives in this skill's own directory, the one path identical from every repo; the
 # audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway `.idsd/`,
 # and a cadence the ship itself deletes can never come due.
+# untested: a suite is owed for the three exit codes. 1 and 2 both end in "no offer made", so
+# returning the wrong one suppresses a periodic pass and looks identical from the outside.
 set -uo pipefail
 export LC_ALL=C
 
@@ -19,25 +21,16 @@ skill_dir=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || skill_dir=""
 }
 
 interval_days=7
-# Dispatched on "${1:-}" rather than on $topic so kk-ecosystem's check.sh recognises this as the
-# top-level case and holds every arm to having a call site.
-case "${1:-}" in
-  retro)
-    state="$skill_dir/last-offer-retro.txt"
-    ;;
-  audit)
-    # --git-path resolves from a worktree and a submodule too, where a hardcoded .git/ does not.
-    state=$(git rev-parse --git-path idsd-audit-offer 2>/dev/null) || state=""
-    [ -n "$state" ] || {
-      echo "cadence.sh: not inside a git repository, so there is no per-repo record — nothing was determined." >&2
-      exit 2
-    }
-    ;;
-  *)
-    echo "usage: cadence.sh {retro|audit} {due|asked}" >&2
-    exit 2
-    ;;
-esac
+
+usage() {
+  echo "usage: cadence.sh {retro|audit} {due|asked}" >&2
+  exit 2
+}
+
+undetermined() {
+  echo "undetermined: $* — nothing was determined; this is not a 'not due'." >&2
+  exit 2
+}
 
 # Days since 1970-01-01 for a YYYY-MM-DD date; prints nothing when the argument is not one. In awk
 # because neither `date -d` (GNU) nor `date -j -f` (BSD) is portable across the machines this runs on.
@@ -58,6 +51,39 @@ day_number() {
     }'
 }
 
+# Dispatched on "${1:-}" rather than on $topic so kk-ecosystem's check.sh recognises this as the
+# top-level case and holds every arm to having a call site.
+case "${1:-}" in
+  retro)
+    state="$skill_dir/last-offer-retro.txt"
+    ;;
+  audit)
+    # `--git-common-dir`, never `--git-path`: this record is per *repository*, and `--git-path` answers
+    # the per-worktree git dir, so a date written from the main tree is invisible in a linked worktree
+    # and the offer repeats in every one of them.
+    # Asked from the root and absolutized against it, because both forms answer relative to the
+    # caller's cwd in an ordinary repo.
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || repo_root=""
+    [ -n "$repo_root" ] || {
+      echo "cadence.sh: not inside a git repository, so there is no per-repo record — nothing was determined." >&2
+      exit 2
+    }
+    git_dir=$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null) || git_dir=""
+    [ -n "$git_dir" ] || {
+      echo "cadence.sh: could not resolve the repository's shared git dir — nothing was determined." >&2
+      exit 2
+    }
+    case "$git_dir" in
+      /*) ;;
+      *) git_dir="$repo_root/$git_dir" ;;
+    esac
+    state="$git_dir/idsd-audit-offer"
+    ;;
+  *)
+    usage
+    ;;
+esac
+
 case "$action" in
   due)
     if [ ! -e "$state" ]; then
@@ -65,25 +91,16 @@ case "$action" in
       exit 0
     fi
     if [ ! -r "$state" ] || ! recorded=$(head -n 1 "$state" 2>/dev/null); then
-      echo "undetermined: $state exists but could not be read — nothing was determined; this is not a 'not due'." >&2
-      exit 2
+      undetermined "$state exists but could not be read"
     fi
     stamp_day=$(day_number "$recorded")
-    [ -n "$stamp_day" ] || {
-      echo "undetermined: $state holds '$recorded', which is no YYYY-MM-DD date — nothing was determined; this is not a 'not due'." >&2
-      exit 2
-    }
+    [ -n "$stamp_day" ] || undetermined "$state holds '$recorded', which is no YYYY-MM-DD date"
     today=$(date +%Y-%m-%d)
     today_day=$(day_number "$today")
-    [ -n "$today_day" ] || {
-      echo "undetermined: date printed '$today', which is no YYYY-MM-DD date — nothing was determined; this is not a 'not due'." >&2
-      exit 2
-    }
+    [ -n "$today_day" ] || undetermined "date printed '$today', which is no YYYY-MM-DD date"
     elapsed=$((today_day - stamp_day))
-    [ "$elapsed" -ge 0 ] || {
-      echo "undetermined: the last $topic offer is recorded as $recorded, which is later than today — nothing was determined; this is not a 'not due'." >&2
-      exit 2
-    }
+    [ "$elapsed" -ge 0 ] ||
+      undetermined "the last $topic offer is recorded as $recorded, which is later than today"
     if [ "$elapsed" -ge "$interval_days" ]; then
       echo "due: $topic last offered $recorded, $elapsed days ago (interval $interval_days days)."
       exit 0
@@ -103,7 +120,6 @@ case "$action" in
     ;;
 
   *)
-    echo "usage: cadence.sh {retro|audit} {due|asked}" >&2
-    exit 2
+    usage
     ;;
 esac

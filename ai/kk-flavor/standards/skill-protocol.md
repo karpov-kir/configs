@@ -58,7 +58,7 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 
 - Skip files by labeling them — "trivial", "historical", "same as prior", or any shortcut meaning "less attention here".
 - Describe your own pass as quick, batched or skimmed, or use any phrasing that signals lowering the bar. (A skill may still *name* a verdict tier "Skim" — the ban is on describing your own work.)
-- Echo the queue, print progress summaries, or write transition filler; never merge files into one verdict or write anything after the verdict **in a file's message**. The run's own closing reply is [writing.md](writing.md) → Replying to a human.
+- Echo the queue, print progress summaries, or write transition filler; never merge files into one verdict or write anything after the verdict **in a file's message**. The run's own closing reply is [writing.md](writing.md) → **Replying to a human**.
 - Manufacture findings — `OK` with no edits is correct when nothing earns action.
 - Change anything your lens doesn't flag (no rewording for taste).
 

@@ -30,7 +30,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>"` — its usa
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent. Do not compare a bare `git write-tree`: that hashes the human's index, not the fingerprint `report.sh` computes against a throwaway one.
 
-**Report post-processing.** After stamping, when the report has items, apply `kk-tighten`'s lens inline over `.idsd/ship-report.md` before presenting — inline because its target is text you already hold, the exception that `skill-protocol.md` → Caller names. Its **lossless** license is the one that applies: every item and its stakes survive, and a `- [ ]` is never dropped or softened. `kk-humanize` does not apply — the audience is the human mid-run, so house style holds. (The report is check-ignored, so this never invalidates the stamp.)
+**Report post-processing.** After stamping, when the report has items, apply `kk-tighten`'s lens inline over `.idsd/ship-report.md` before presenting — inline because its target is text you already hold, the exception that `skill-protocol.md` → **Caller** names. Its **lossless** license is the one that applies: every item and its stakes survive, and a `- [ ]` is never dropped or softened. `kk-humanize` does not apply — the audience is the human mid-run, so house style holds. (The report is check-ignored, so this never invalidates the stamp.)
 
 ## Report
 

@@ -38,4 +38,4 @@ Check every artifact against all seven:
 ## Loop deltas
 
 - Apply cuts directly — tightening is routine. The one exception is a cut you can't settle against the license: flag it for your caller.
-- Editing a sibling to absorb a duplication is in scope, under `skill-protocol.md` → Queue.
+- Editing a sibling to absorb a duplication is in scope, under `skill-protocol.md` → **Queue**.

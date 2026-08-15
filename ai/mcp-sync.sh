@@ -4,6 +4,11 @@
 # when present — into Claude Code's user scope, so they reach every project and every launch method.
 # Edit either file, then re-run. It adds and updates but does not prune: a server you delete from a
 # file stays registered until `claude mcp remove <name> -s user`.
+# untested: every effect is a `claude mcp` call against the real user scope, and faking that CLI would
+# only assert the fake. Run it and read the server list instead.
+# A private server's config, secrets included, passes to `claude mcp add-json` as a positional
+# argument, where `ps` can read it for the length of the call. There's no stdin or file path to pass
+# it through: `add-json` takes `<name> <json>` and nothing else. Don't run this on a shared host.
 
 set -euo pipefail
 
