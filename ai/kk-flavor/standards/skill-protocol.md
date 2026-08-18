@@ -17,9 +17,10 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 - Skip deleted files; a rename queues the new path.
 - The queue grows only by appending — a sibling pulled in to absorb a fix, a file your own fix created — never by dropping a queued file. **Before touching a file outside the resolved list, describe the change and get your caller's confirmation**; a file already queued, or one your own fix created, needs none.
 - **A change that starts depending on an in-repo sibling puts that sibling's public surface in the queue.**
+- **Undoing an out-of-scope edit is the inverse of that edit, never a checkout.** Restoring the file to `HEAD` discards every other uncommitted change in it — a caller's own deliberate edit included, with nothing to say it went.
 - **Write each verdict to a ledger as you emit it**, at the path your caller names, or `<scratch>/<skill>-queue.md` standalone. One line per file, its path and its verdict. The scratch dir is **outside the repository**. On starting, read the ledger if it exists and resume at the first queued file without a verdict.
 - **One ledger per spawn, never per skill.** The scratch dir is per *session*, so an orchestrator spawning a skill more than once names a distinct path each time. Reusing it makes the second spawn adopt the first's completed queue, find no unverdicted file, and close having read nothing.
-- **A ledger is only a resume point for the tree it was written against.** Head it with the tree's fingerprint plus the resolved file list, and discard a ledger whose head does not match or does not parse. Fingerprint it with **`GIT_INDEX_FILE` pointed at a fresh `mktemp` path, on both commands** — `add -A`, then `write-tree`.
+- **A ledger is only a resume point for the tree it was written against.** Head it with the tree's fingerprint plus the resolved file list, and discard a ledger whose head does not match or does not parse. Fingerprint it with **`GIT_INDEX_FILE` pointed at a `mktemp` path you then delete, on both commands** — `add -A`, then `write-tree`. Deleting it first is not optional: `mktemp` leaves a 0-byte file behind and git rejects that as an index (`index file smaller than expected`).
 
 ## Loop
 
@@ -57,7 +58,7 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 ## Do not
 
 - Skip files by labeling them — "trivial", "historical", "same as prior", or any shortcut meaning "less attention here".
-- Describe your own pass as quick, batched or skimmed, or use any phrasing that signals lowering the bar. (A skill may still *name* a verdict tier "Skim" — the ban is on describing your own work.)
+- Describe your own pass as quick, batched or skimmed, or use any phrasing that signals lowering the bar.
 - Echo the queue, print progress summaries, or write transition filler; never merge files into one verdict or write anything after the verdict **in a file's message**. The run's own closing reply is [writing.md](writing.md) → **Replying to a human**.
 - Manufacture findings — `OK` with no edits is correct when nothing earns action.
 - Change anything your lens doesn't flag (no rewording for taste).

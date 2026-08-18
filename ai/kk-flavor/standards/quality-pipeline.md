@@ -4,7 +4,7 @@ The stages a quality pass runs over one change set. **Binding on whoever runs a 
 
 You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run — and whether retro runs at all — is the orchestrator's call**. Each stage below states its own trigger.
 
-**Each scanner lives with the lens it serves**, and you run it from there: `comment-density.sh` under `kk-humanize`, `dup-literals.sh` under `kk-refactor`. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits".
+**Each scanner lives with the lens it serves**, and you run it from there: `comment-density.sh` under `kk-humanize`, `dup-literals.sh` under `kk-refactor`. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A spawn prompt describes the tree you read, never the tree you intended** — a scanner result taken before a later edit, or a file state you assumed a stage had reached, is a stage sent to verify the wrong thing or to trust it.
 
 ## The round
 

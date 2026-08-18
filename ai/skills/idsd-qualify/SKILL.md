@@ -49,32 +49,25 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 ### Structure
 
 ```markdown
-# Read
-
-- `<path>` — <what it is: surface, scenario, migration, security edge> <optional line range>
-
-<one closing line: files and lines left unread, the surfaces behind them, the gauge covering them>
-
 # Decide
 
 <optional: context several items share, stated once here, never per item>
 
-- [ ] **<the decision, one line>** — recommend: <one clause>.
+- [ ] **<kind> —** <the action, one line>
   <the case: what it is, why it matters, the evidence>
 ```
 
 The report is **only the residue that needs the human — not a record of the run**:
 
-- **At most two groups**, each only when it has items: **Read** (what to open) and **Decide** (`- [ ]` actions) — no per-stage sections, no summary. **The test: if the human takes no action, it is not in the report.** A monitor-only observation goes to the decision log, and there is **never a monitor-only group**. Shrinking to nothing is the success case, with two exceptions: a fix the human might want to *reverse*, recorded to ratify or revert, and **a claim this pass falsified** — a `Decide` item, not a tidy-up.
+- **One group, `Decide`, holding `- [ ]` actions** — no per-stage sections, no summary, and no reading list: **if the human takes no action, it is not in the report.** A monitor-only observation goes to the decision log, and there is **never a monitor-only group**. Shrinking to nothing is the success case, with two exceptions: a fix the human might want to *reverse*, recorded to ratify or revert, and **a claim this pass falsified** — a `Decide` item, not a tidy-up.
 - **Order Decide by decision kind**: **forks** (a genuine choice still open), then **ratifications**, then **pending evidence** (blocked on a named signal). A blocking question is asked live, never recorded — except one you asked live and the human did not answer, which becomes a `Decide` item when the pass closes.
-- **Open each item with its kind and the action; the evidence follows** — inverting `~/.kk-flavor/standards/writing.md` → **Density**'s item form, because an item here is an action still open, not a change already made. `**Fork —** escape the filter values before interpolating`, then why. A `Recommendation:` on every item labels nothing: the kind is what varies, and what says whether a choice is theirs to make or a yes to give. **Having no recommendation is itself an opening** — `**Fork —** no recommendation; this is a product call` — which beats a hedge dressed as advice.
+- **Open each item with its kind and the action; the evidence follows** — inverting `~/.kk-flavor/standards/writing.md` → **Density**'s item form, because an item here is an action still open, not a change already made. A `Recommendation:` on every item labels nothing — the kind is what varies. **Having no recommendation is itself an opening** — `**Fork —** no recommendation; this is a product call` — which beats a hedge dressed as advice.
 - **Every item stands on its own within the report** — someone who never saw the run understands what it is and why it matters, and can act. Cut run-narration and command strings, never the stakes; when an item needs detail it can't carry, that detail belongs in a durable home, linked.
-- **A Read item answers *what must you open*, never *what did the pass read*.** One file, what it is, and the delta — which exports arrived, went or changed shape. Not a summary of it, not why the pass chose it, and **never a list of what went unread**. **A finding noticed while reading is a finding**: it goes to `Decide`, or to the stage that owns it — left inside a Read item, the one line the human had to act on reads as background. **Build the list from the reading tiers code-review returns** (`~/.claude/skills/kk-code-review/SKILL.md` → **Verdict**), demoting nothing on your own, and **promote across stages**: a file `kk-security-review` touched is `Read` whatever tier `kk-code-review` gave it.
-- **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area. The `# Read` list is rebuilt each pass, never carried.
+- **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass
 
-The closing message points at the report (`~/.kk-flavor/standards/writing.md` → **Replying to a human**): **one status line** — mode, repo mode, what there is to read, item count by decision kind — plus at most one live blocking question; no per-stage verdicts, no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too; in throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
+The closing message points at the report (`~/.kk-flavor/standards/writing.md` → **Replying to a human**): **one status line** — mode, repo mode, item count by decision kind — plus at most one live blocking question; no per-stage verdicts, no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too; in throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
 
 ## Rules
 

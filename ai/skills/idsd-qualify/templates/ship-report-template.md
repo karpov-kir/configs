@@ -6,6 +6,4 @@ reviewed-stages: <stages>
 
 <!-- Contract: `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. -->
 
-# Read
-
 # Decide

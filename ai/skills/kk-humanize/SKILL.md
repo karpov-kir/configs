@@ -17,13 +17,12 @@ Rewrite the text resolved from `$ARGUMENTS`. **Lossy by license** — you may dr
 Check every artifact against all three. `~/.kk-flavor/standards/writing.md` → **Readability floor** comes first; no lens below trades against it.
 
 1. **Tells** — scrub every pattern `human-writing.md`'s watch-list names, and anything else that reads manufactured: uniform rhythm, mirrored clause structure.
-2. **Budget** — run `human-writing.md`'s reader-action test over every sentence. Cut true-but-inert detail; lead with the answer; one concern per message; match the asker's altitude. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form there (change descriptions, review comments, code comments, …) runs under it; write a new form only when a class recurs.
+2. **Budget** — run `human-writing.md` → **Budget**'s keep test over every sentence. Cut true-but-inert detail; lead with the answer; one concern per message; match the asker's altitude. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form there (change descriptions, review comments, code comments, …) runs under it; write a new form only when a class recurs.
 3. **Voice** — like speech to a colleague: contractions, varied sentence and paragraph length, plain verbs, specific nouns, first person where natural. Vary length within the floor's sentence limit, never past it.
 
 ## Guardrails on the lossy license
 
-- Drop facts, never distort them: whatever stays must mean exactly what it meant, and never invent what the source doesn't carry. Numbers, names, commitments, and severity are never altered or softened.
-- A cut you're unsure the reader can spare → ask your caller.
+- Drop facts, never distort them: whatever stays means exactly what it meant, and never invent what the source doesn't carry. A number, name, commitment or severity is never dropped where its absence changes what the text commits to.
 
 ## Loop deltas
 

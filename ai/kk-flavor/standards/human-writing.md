@@ -4,9 +4,13 @@ The set this covers: anything a person reads as communication — PR/ticket desc
 
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
 
-## Budget — the reader-action test
+## Budget — the keep test
 
-**Name this artifact's reader and the action they'll take; a sentence earns its place only by changing that action.** Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
+**Name this artifact's reader and the one action they'll take.** Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed** — a tie is a cut.
+
+Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
+
+**Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line (**Change descriptions**, below); the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
 
 ## AI tells
 
@@ -18,7 +22,9 @@ A watch-list, not a complete set. What these tells share is manufactured polish 
 
 **Vocabulary** (unnaturally frequent) — delve, tapestry, underscore, harness, testament, leverage, utilize, robust, seamless, comprehensive, pivotal, crucial, foster, bolster, streamline, elevate, empower, unlock, game-changer, cutting-edge, landscape, realm, journey, navigate, myriad, plethora, holistic, synergy; "dive into" / "unpack" a topic; "plays a vital role".
 
-**Conversational** — sycophancy and throat-clearing ("Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up"); hedge frames ("It's important to note", "It's worth noting", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions", "Please don't hesitate"); narrating your own care ("I left the open questions in rather than guessing", "checked X rather than assuming").
+**Conversational** — sycophancy and throat-clearing ("Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up"); hedge frames ("It's important to note", "It's worth noting", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions", "Please don't hesitate").
+
+**Self-rating tails** — a clause appended to grade your own claim or effort, almost always in an "X rather than Y" frame: "inferred rather than observed", "checked rather than assumed", "I left the open questions in rather than guessing". State the thing, or drop it. Where a review lens demands the status of a claim, that label rides the finding it belongs to, never a clause loose in prose.
 
 ## Change descriptions (PRs)
 
@@ -32,7 +38,7 @@ The author's side, for a reviewer deciding approve-or-not, in order. **A linked 
 
 The reviewer's side, for an author deciding what to change. **Each note goes on the line it concerns; the body carries the verdict, any mismatch with what was asked, and nothing else a line could have held.**
 
-A note earns its place only by producing an edit, or an answer only the author can give. Drop the rest instead of marking it optional. What you ran is your business — no coverage accounting, and no reporting a concern you checked and cleared.
+Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting, and no concern you checked and cleared** — both are the reviewer writing about the review.
 
 ## Code comments
 

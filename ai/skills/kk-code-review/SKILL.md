@@ -12,13 +12,14 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 
 ## Review dimensions
 
-Check every changed file against all four:
+Check every changed file against all five:
 
 1. **Standards correctness rules** — violations (kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
    - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
 2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
 4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding. Placement is `kk-refactor`'s lane; content is yours.
+5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits, and a coverage percentage passes with the new branch untested. Name the behaviour that is unguarded; writing the test is `kk-refactor`'s gated testing lane.
 
 ## Loop deltas
 
@@ -29,16 +30,6 @@ Check every changed file against all four:
 - The final sweep hunts cross-file and interaction bugs.
 
 ## Verdict
-
-Record for each changed file how much of it a human needs to read — an **observation, not a finding**:
-
-- **Read** — a published surface or port, a type crossing a module boundary, a gherkin scenario, a migration or persisted-schema change, or a security-relevant edge. Also any body no behaviour test covers.
-- **Skim** — a body behind a published surface that is covered, but only incidentally: no test would fail on a behaviour change.
-- **Skip** — a body behind a published surface, imported nowhere outside its module, with a test at that surface that fails when it breaks.
-
-**Read is the default.** Skim and Skip are earned in one clause naming the surface the body sits behind and **the test file and assertion** that would fail if it broke — never a claim that coverage exists. A clause you can't complete leaves the file on Read.
-
-That tier is a verdict field — `File N/M <path> | <lines>L | read|skim|skip | OK`. A `skim` or `skip` puts its earning clause on the next line.
 
 Finding line: `<location>: <bug> — fixed | needs human: <decision>`
 
