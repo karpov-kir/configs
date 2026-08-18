@@ -4,7 +4,7 @@ description: "Ship one ICE intent end-to-end — author it if missing, build, qu
 argument-hint: "<arg> | done [<intent>] | qualify [fast|full] | continue [<intent>] | promote"
 ---
 
-You **orchestrate** existing skills, accumulating this intent's ship report — the digest of what needs the human's attention. On `ship <arg>`, build, qualify, and the gate message always run.
+You **orchestrate** existing skills, accumulating this intent's qualify report — the digest of what needs the human's attention. On `ship <arg>`, build, qualify, and the gate message always run.
 
 **Interactive first.** You run under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**. Ship's own seam: the sub-skills' clarify gates (e.g. `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1**) still fire — never suppress one by recording instead.
 
@@ -34,9 +34,9 @@ The report contract — the **committed vs throwaway** repo modes included — p
    - **The report belongs in the worktree Build works in.** If `idsd-build` places itself in a new one, run `check-ignore`/`init` from there, or place Build in this one. A report at the original root fingerprints a tree holding none of the build's changes.
 2. **Build** — **author the intent first if it's missing.** If no intent file matches `<arg>` — not in `.idsd/intents/` or the archive — run `idsd-intent` to author one. Seed it from the ticket when `<arg>` is a ticket ref and a connector is available, else from `<arg>` as the feature description. **That `NNN-<slug>` is step 1's trigger — open the report now.** Then run `idsd-build` for that intent in its **pipeline mode**. Both run **inline**, never spawned — each couples to the human continuously (intent grills; build's Phase 1 clarifies), and only this thread reaches the human. Before recording anything in the report, confirm idsd-build routed its follow-ups and constitution proposals as its own rules require. An unrouted follow-up is a build defect, not something the report absorbs.
    - Record as **Decide** items: deferrals to confirm, constraints that need human judgment, and decisions to ratify — each pointing to the durable home idsd-build already wrote. An ambiguity resolved with no open decision is not recorded.
-3. **Offer the retro** — here, *before* Qualify, never after: asking afterwards stamps `retro:skipped` for a stage that then runs. `cadence.sh retro due`; on a yes, pass the answer into the qualify invocation so the retro runs as its last stage.
-4. **Qualify** — invoke `idsd-qualify` **inline** in **full** mode over the build's changes. Blocking findings still reach the human live, in this thread.
-5. **Present the gate message** — this is where `ship <arg>` ends. It is the closing status line of `~/.claude/skills/idsd-qualify/SKILL.md` → **After the pass**, plus the two things only ship owns: every open `- [ ]` for the human to clear, and the next act — review the diff and the report, then run `idsd-ship done`. **Never merge here**; `done` owns that.
+3. **Qualify** — invoke `idsd-qualify` **inline** in **full** mode over the build's changes. Blocking findings still reach the human live, in this thread.
+   - **The retro offer is ship's; its moment is qualify's.** Run `cadence.sh retro due` where that skill places the ask — after the last review stage returns, before the stamp — so the human decides holding what the pass found, and the stamp still records the stage set that ran. Inline means one agent runs both skills' steps, so this is ordering, not plumbing.
+4. **Present the gate message** — this is where `ship <arg>` ends. It is the closing status line of `~/.claude/skills/idsd-qualify/SKILL.md` → **After the pass**, plus the two things only ship owns: every open `- [ ]` for the human to clear, and the next act — review the diff and the report, then run `idsd-ship done`. **Never merge here**; `done` owns that.
 
 ## `continue` — resume from current state
 
@@ -60,6 +60,6 @@ Reads the intent from the report's frontmatter; error with no report, or on one 
 
 1. **Gate.** Run `report.sh gate <intent>`; the human clears an open TODO first, by resolving it or routing it out of the report (to the ICE `## Follow-ups`, a backlog, a constitution proposal). Beyond the gate: the review is stale if the target branch advanced past this branch's base since `reviewed-tree` was stamped. Integrate the target and re-run `qualify full` (which re-stamps) before landing.
 2. On a clean gate — or freshness/stages overridden with no open `- [ ]` — hand to `~/.claude/skills/idsd-build/SKILL.md` → **Phase 5**, which runs unchanged through its approval-gated commit.
-   - **After the commit succeeds, `report.sh close <intent>`** — a report left standing is one `report.sh list` keeps offering as work in flight. **In throwaway mode, step 3's `discard` retires the report instead** — it reads the report `close` deletes, so `close` first makes it refuse and the `.idsd/` it was to clear stays standing. Run `close` there only if the human declines the discard.
+   - **After the commit succeeds, `report.sh close <intent>`** — a report left standing is one `report.sh list` keeps offering as work in flight. In throwaway mode step 3's `discard` then runs over the same ship; the two compose in either order.
 3. **Throwaway cleanup.** In throwaway repo mode (`report.sh repo-mode`) the local `.idsd/` outlives the ship and breaks the mode's zero-traces contract. **After** the commit succeeds — never before, or the intent is lost while the work is unlanded — **ask** whether to clear it (default yes). On yes, `report.sh discard <intent>`. Keeping a throwaway `.idsd/` instead is what `promote` (before `done`) is for.
 4. **Offer an audit** — committed repo mode only. `cadence.sh audit due`; invoke `idsd-audit` on a yes.

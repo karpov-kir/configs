@@ -2,7 +2,7 @@
 # Qualify report tool — the deterministic gates the skills must not execute by hand. The mechanism
 # lives here; the contract it serves (repo modes, what goes in the report, never commit it) is
 # `idsd-qualify/SKILL.md` → **Report**. idsd-ship calls it too (gate/state/promote/discard).
-# One report per intent, at .idsd/ship-reports/<intent>-ship-report.md, so two ships never share a
+# One report per intent, at .idsd/qualify-reports/<intent>-qualify-report.md, so two ships never share a
 # file. Portable: bash + git + awk/sed, no project runtime.
 # A change here needs a case in `~/.claude/skills/idsd-qualify/scripts/report-test.sh`.
 # One gap matters: no case reaches `discard`'s destructive path, which `rm -rf`s `.idsd/` and deletes
@@ -26,8 +26,8 @@
 #   gate             done-blocker: stale tree OR turnaround-trimmed stages (both human-overridable)
 #                    OR any open `- [ ]` (never overridable) → non-zero + reasons
 #   carry            print prior open `- [ ]` (with their section) so re-qualify loses none
-#   check-ignore     keep ship-reports/ out of the fingerprint, by the mechanism that fits the repo mode
-#   promote          throwaway → committed: stop excluding .idsd/, ignore ship-reports/ via .gitignore, stage
+#   check-ignore     keep qualify-reports/ out of the fingerprint, by the mechanism that fits the repo mode
+#   promote          throwaway → committed: stop excluding .idsd/, ignore qualify-reports/ via .gitignore, stage
 #   discard          throwaway only: remove this ship's local scratch (report, intent file, stage
 #                    markers), and the whole .idsd/ + its local exclusion when nothing else remains.
 #                    Another intent, or an authored charter/constitution/language/playbook, is
@@ -65,14 +65,14 @@ git_path() {
 # One report per intent, so two ships never share a file. Set by set_report_paths once the intent is
 # known. Empty until then, and `set -u` does not catch that — an initialized variable is set — so a
 # subcommand that reads one resolves it first, through require_report or resolve_report.
-reports_dir="$root/.idsd/ship-reports"
-report_suffix="-ship-report.md"
+reports_dir="$root/.idsd/qualify-reports"
+report_suffix="-qualify-report.md"
 report=""
 stage_returns_dir=""
 
 # The report's filename stem for an intent frontmatter value. Empty means unusable, and the caller
 # refuses: the value reaches a path here, so the slug charset is what stops a `../` escaping
-# ship-reports/. A standalone review has no slug and shares the one `review` stem.
+# qualify-reports/. A standalone review has no slug and shares the one `review` stem.
 report_name_for() {
   local value="$1" slug
   # Leading whitespace goes BEFORE the truncation. Without that, a value starting with a space
@@ -83,7 +83,7 @@ report_name_for() {
   case "$slug" in
     review:* | "") echo review ;;
     # A leading dot is refused outright, not merely made path-safe: the glob in report_names cannot
-    # match one, so `..-ship-report.md` would sit in the directory addressable by its own name and
+    # match one, so `..-qualify-report.md` would sit in the directory addressable by its own name and
     # invisible to every discovery path — a ship whose report stands open while `state` answers
     # `no-report` and `idsd-ship continue` starts a fresh one over it.
     .* | *[!0-9A-Za-z._-]*) ;;
@@ -138,7 +138,7 @@ resolve_report() {
 }
 
 skill_dir="$(cd "$(dirname "$0")/.." && pwd)"
-template="$skill_dir/templates/ship-report-template.md"
+template="$skill_dir/templates/qualify-report-template.md"
 todo_gate="$(cd "$(dirname "$0")" && pwd)/todo-gate.sh"
 NO_ITEMS="no-items"
 
@@ -146,12 +146,27 @@ NO_ITEMS="no-items"
 # changed has its report here, and the harm is silence: `state` answers no-report and a fresh ship
 # starts over live work. So every path that finds no report says so, on stderr — `state` still prints
 # exactly one token. `promote` is the exception: it refuses for want of anything durable, not a report.
-legacy_report="$root/.idsd/ship-report.md"
+# Every path a report has ever lived at, and none of them is this one. These are literal history, so
+# they never move with a rename: a repo whose ship was in flight across either change has its report
+# here, where nothing looks. The harm is silence — `state` answers no-report and a fresh ship starts
+# over live work — so every path that reports finding no report says these exist. Two entries, not one:
+# `.idsd/ship-report.md` predates per-intent scoping, `.idsd/ship-reports/` predates this rename.
+legacy_paths() {
+  printf '%s\n' "$root/.idsd/ship-report.md" "$root/.idsd/ship-reports"
+}
+
 legacy_note() {
-  [ -f "$legacy_report" ] || return 0
+  local path found=""
+  while read -r path; do
+    [ -e "$path" ] || continue
+    found="$found $path"
+  done <<EOF
+$(legacy_paths)
+EOF
+  [ -n "$found" ] || return 0
   printf '%s\n' \
-    "note: $legacy_report exists — the path reports used before they were scoped per intent, which nothing reads now." \
-    "  Move it to $reports_dir/<intent>-ship-report.md to resume that ship, or delete it." >&2
+    "note:$found — where qualify reports lived before they were scoped per intent and renamed. Nothing reads either now." \
+    "  Move what is still live to $reports_dir/<intent>-qualify-report.md, or delete it." >&2
 }
 
 report_checksum() {
@@ -296,14 +311,14 @@ require_report() {
   case $? in
     1)
       legacy_note
-      refuse "error: no ship report under $reports_dir — run report.sh init \"<intent>\" first"
+      refuse "error: no qualify report under $reports_dir — run report.sh init \"<intent>\" first"
       ;;
-    3) refuse "error: several ship reports are open — name which as the last argument:" \
+    3) refuse "error: several qualify reports are open — name which as the last argument:" \
       "$(printf '%s\n' "$ambiguous_names" | sed 's/^/  /')" ;;
   esac
   [ -f "$report" ] || {
     legacy_note
-    refuse "error: no ship report for that intent ($report)"
+    refuse "error: no qualify report for that intent ($report)"
   }
   # Readability is checked, never assumed: every frontmatter reader greps with `2>/dev/null`, and an
   # empty answer is in unstamped()'s set — so an unreadable report would report `resume`, an unstamped
@@ -465,7 +480,7 @@ assert_write_paths_are_real() {
   for write_dir in "$root/.idsd" "$reports_dir"; do
     if [ -L "$write_dir" ]; then
       refuse "error: $write_dir is a symlink -> $(readlink "$write_dir") — the report was NOT initialized." \
-        "  both .idsd/ and its ship-reports/ are always real directories inside the repo. Remove the link, then re-run."
+        "  both .idsd/ and its qualify-reports/ are always real directories inside the repo. Remove the link, then re-run."
     fi
   done
   # The report is never legitimately a symlink, and `--force` does not override this. The write is a
@@ -519,9 +534,14 @@ case "${1:-}" in
     fi
     mkdir -p "$(dirname "$report")" ||
       refuse "error: could not create $(dirname "$report") — the report was NOT initialized"
-    # Staged beside the report and renamed over it, never copied onto it: a `cp` that fails halfway
+    # Staged beside the report and renamed over it, never copied onto it: a write that dies partway
     # leaves a truncated report, and --force has already discarded the only other copy of those items.
-    # The temp name is deliberately not `*-ship-report.md`, so a leftover joins no listing.
+    # Only the `rm -f` below is pinned by a case (the .new-symlink one). The partial-write class itself
+    # is not: every `cp` failure that can be induced portably — an unreadable source, a directory, a
+    # short read — leaves the destination untouched, because `cp` opens the source before truncating.
+    # So this guards a class the suite cannot summon, and swapping the staging for a direct `cp` keeps
+    # every case green. Measured, not assumed. The temp name is deliberately not `*-qualify-report.md`,
+    # so a leftover joins no listing.
     staged_report="$report.new"
     # Removed before the copy, never guarded by a symlink refusal: this path is ours and transient, so
     # a link planted there is hostile (a committed one reaches us through someone else's branch) and a
@@ -708,7 +728,7 @@ USAGE
         git -C "$root" check-ignore -q "$root/$entry" || printf " '%s'" "$entry"
       done)
       if [ -z "$unignored" ]; then
-        echo "ok: ship-reports/ is gitignored (committed idsd repo)"
+        echo "ok: qualify-reports/ is gitignored (committed idsd repo)"
         exit 0
       fi
       echo "WARN: NOT gitignored:$unignored — add each to .gitignore (shared idsd setup)" >&2
@@ -723,7 +743,7 @@ USAGE
     # Promotion is about the whole .idsd/, so it names no single report — it only needs one to exist,
     # as the evidence that a ship happened here.
     [ -n "$(report_names)" ] ||
-      refuse "error: no ship report under $reports_dir — nothing to promote"
+      refuse "error: no qualify report under $reports_dir — nothing to promote"
     if [ "$(repo_mode)" = committed ]; then
       echo "already committed — .idsd/ is tracked; nothing to promote"
       exit 0
@@ -766,7 +786,7 @@ USAGE
       refuse "error: could not stage .idsd/ and .gitignore — not promoted"
     }
     # `git add` on a directory whose every file is ignored stages nothing and still exits 0, and
-    # ship-reports/ is ignored by the entry just written — so with nothing else under .idsd/, the add
+    # qualify-reports/ is ignored by the entry just written — so with nothing else under .idsd/, the add
     # is a no-op. Success is read from the mode for that reason, never from the add's exit: unpromoted,
     # the next check-ignore re-excludes .idsd/ and the whole promotion silently un-happens.
     [ "$(repo_mode)" = committed ] || {
@@ -775,20 +795,42 @@ USAGE
         "  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a constitution." \
         "  The .gitignore entry stays (it is wanted in both modes); the local exclusion is back."
     }
-    echo "promoted: .idsd/ staged, ship-reports/ ignored via .gitignore — commit when ready (not committed here)"
+    echo "promoted: .idsd/ staged, qualify-reports/ ignored via .gitignore — commit when ready (not committed here)"
     ;;
 
+  # Named, this runs with no report at all, so `close` and `discard` compose in either order. Before,
+  # `close` deleted the report `discard` reads, and the ordering had to be carried in prose that
+  # `idsd-ship` → `done` spent a paragraph on. The intent is the argument, so the report was never the
+  # only way to know which ship this is.
   discard)
-    require_report "${2:-}"
+    resolve_report "${2:-}"
+    case $? in
+      1)
+        legacy_note
+        refuse "error: nothing to discard — no qualify report under $reports_dir, and no intent named" \
+          "  Name the intent to discard a ship whose report is already closed."
+        ;;
+      3) refuse "error: several qualify reports are open — name which as the last argument:" \
+        "$(printf '%s\n' "$ambiguous_names" | sed 's/^/  /')" ;;
+    esac
     if [ "$(repo_mode)" = committed ]; then
       refuse "committed idsd repo — .idsd/ is the durable record; nothing to discard"
     fi
-    # Only this ship's intent file (pre- and post-archive); a standalone `review:` has no slug.
-    slug=$(intent_slug)
-    # The filename and the frontmatter must name the same ship before anything is deleted. Nothing
-    # writes that line after `init`, so a hand-edit or a bug is what puts them out of step — and what
-    # gets deleted then is another ship's in-flight intent file, which throwaway mode keeps no copy of.
+    # The filename is the ship's name here — it came from the caller, or from being the only report
+    # open. The frontmatter is read only to cross-check it, and only when there is a report left to
+    # read: a closed ship has none, and nothing about the deletion below needed it.
     stem=$(stem_of_report_path "$report")
+    slug=$stem
+    if [ -f "$report" ]; then
+      # A report that is present must be readable. Falling back to the filename for one we cannot open
+      # would skip the cross-check below on the single path that deletes another ship's intent file.
+      [ -r "$report" ] ||
+        refuse "error: $report cannot be read — nothing was discarded, because its intent cannot be cross-checked (permissions?)"
+      slug=$(intent_slug)
+    fi
+    # The two must name the same ship before anything is deleted. Nothing writes that line after
+    # `init`, so a hand-edit or a bug is what puts them out of step — and what gets deleted then is
+    # another ship's in-flight intent file, which throwaway mode keeps no copy of anywhere.
     [ -z "$slug" ] || [ "$slug" = "$stem" ] ||
       refuse "error: $report is named for '$stem' but records 'intent: $slug' — nothing was discarded." \
         "  Those are different ships, and discard deletes the intent file the frontmatter names." \
@@ -807,10 +849,10 @@ USAGE
       [ -e "$root/.idsd/$durable" ] && kept="$kept $durable"
     done
     # A parallel ship's report is another human's work in flight, so it keeps .idsd/ standing. Counted
-    # by re-globbing ship-reports/ once this ship's report is gone — the rmdir above only tidies the
+    # by re-globbing qualify-reports/ once this ship's report is gone — the rmdir above only tidies the
     # directory when it empties, and its status is discarded.
     reports_left=$(report_names | grep -c . )
-    [ "$reports_left" -eq 0 ] || kept="$kept $reports_left other ship report(s)"
+    [ "$reports_left" -eq 0 ] || kept="$kept $reports_left other qualify report(s)"
     # Anything at all under intents/ or archive/ keeps .idsd/ alive, but the label counts what is
     # actually there — "other intents" for a stray `.DS_Store` tells the human something untrue.
     if [ -n "$(ls -A "$root/.idsd/intents" "$root/.idsd/archive" 2>/dev/null)" ]; then
@@ -842,7 +884,7 @@ USAGE
     # Several open ships have no single state, and `continue` must not act on one of them picked at
     # random. `list` is what answers here, and the message names it.
     [ "$resolved" -ne 3 ] ||
-      refuse "error: several ship reports are open — no single state. Run report.sh list, then report.sh state <intent>:" \
+      refuse "error: several qualify reports are open — no single state. Run report.sh list, then report.sh state <intent>:" \
         "$(printf '%s\n' "$ambiguous_names" | sed 's/^/  /')"
     # The archive is read BEFORE the report's absence decides, because `close` retires a landed ship's
     # report and the archived intent file is then the only record that it landed. Absence alone routes

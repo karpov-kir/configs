@@ -20,7 +20,7 @@ Run the quality stages over one change set and leave only the residue that needs
 
 **Take one stage's return at a time**: `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items in the report — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor and retro included, not just the round's.
 
-**Retro runs here, and only when your caller or the human asks for one** — never on the pass's own initiative, and the asking happens **before** the pass starts, so the retro is a stage like any other and the stamp records it truthfully. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the run-log, the spawn, and what to do with the return live there and nowhere else. Its decision-log line is written before `report.sh stamp`, with the rest.
+**Retro runs last, after every review stage** — its input is a log of what this pass did, so it cannot run earlier. It runs **only when your caller or the human asks for one**, never on the pass's own initiative. **Ask between the last review stage's return and `report.sh stamp`.** Ask after the stamp and it already reads `retro:skipped` for a stage that then runs. Ask before the pass and the human commits with nothing to go on — by this point the run they would be retrospecting has actually happened. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the run-log, the spawn, and what to do with the return live there and nowhere else. Its decision-log line is written before `report.sh stamp`, with the rest.
 
 **A stale gate is a Decide item** (`quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
@@ -34,7 +34,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 ## Report
 
-**One report per intent**, at `.idsd/ship-reports/<intent>-ship-report.md`, **persisting across runs** — the working digest. `~/.claude/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
+**One report per intent**, at `.idsd/qualify-reports/<intent>-qualify-report.md`, **persisting across runs** — the working digest. `~/.claude/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
 
 **Two intents ship in parallel only in separate worktrees.** The freshness stamp fingerprints the **whole tree**, not the intent's files, so two ships in one worktree each stamp a tree holding the other's edits and invalidate each other's gate on every save.
 

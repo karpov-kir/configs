@@ -70,10 +70,10 @@ assert_refused() {
   if [ "$status" = 2 ]; then record_pass "$1"; else record_fail "$1 (exit $status, wanted 2)"; fi
 }
 
-# One report per intent, under ship-reports/, named after the intent slug. A standalone `review: …`
+# One report per intent, under qualify-reports/, named after the intent slug. A standalone `review: …`
 # has no slug and shares the one `review` stem, which is what most fixtures below use.
 report_path() {
-  printf '%s\n' "$repo/.idsd/ship-reports/${1:-review}-ship-report.md"
+  printf '%s\n' "$repo/.idsd/qualify-reports/${1:-review}-qualify-report.md"
 }
 
 # A copy of the whole skill dir — scripts beside templates, the layout report.sh derives its template and
@@ -83,10 +83,10 @@ new_skill_copy() {
   local copy="$base/skill$case_number"
   mkdir -p "$copy/scripts" "$copy/templates"
   cp "$here/report.sh" "$here/todo-gate.sh" "$copy/scripts/"
-  cp "$here/../templates/ship-report-template.md" "$copy/templates/"
+  cp "$here/../templates/qualify-report-template.md" "$copy/templates/"
   chmod +x "$copy/scripts/report.sh" "$copy/scripts/todo-gate.sh"
   copied_report_sh="$copy/scripts/report.sh"
-  copied_template="$copy/templates/ship-report-template.md"
+  copied_template="$copy/templates/qualify-report-template.md"
   copied_todo_gate="$copy/scripts/todo-gate.sh"
 }
 
@@ -169,7 +169,7 @@ fi
 echo "report.sh — init refuses rather than writing through a link"
 
 new_repo
-mkdir -p "$repo/.idsd/ship-reports" "$base/elsewhere$case_number"
+mkdir -p "$repo/.idsd/qualify-reports" "$base/elsewhere$case_number"
 ln -s "$base/elsewhere$case_number/stolen.md" "$(report_path)"
 run_report init "review: symlinked report"
 assert_refused "init refuses a symlinked report"
@@ -185,39 +185,39 @@ mkdir -p "$base/outside$case_number"
 ln -s "$base/outside$case_number" "$repo/.idsd"
 run_report init "review: symlinked idsd dir"
 assert_refused "init refuses a symlinked .idsd directory"
-if [ -e "$base/outside$case_number/ship-reports" ]; then
+if [ -e "$base/outside$case_number/qualify-reports" ]; then
   record_fail "init wrote the report outside the repo through .idsd"
 else
   record_pass "nothing was written outside the repo through .idsd"
 fi
 
-# ship-reports/ is the second directory every write goes through, and `-L` on the report file tests
+# qualify-reports/ is the second directory every write goes through, and `-L` on the report file tests
 # only its own final component — so the dir needs its own check or every write lands wherever it points.
 new_repo
 mkdir -p "$repo/.idsd" "$base/outside-reports$case_number"
-ln -s "$base/outside-reports$case_number" "$repo/.idsd/ship-reports"
+ln -s "$base/outside-reports$case_number" "$repo/.idsd/qualify-reports"
 run_report init "review: symlinked reports dir"
-assert_refused "init refuses a symlinked ship-reports directory"
-if [ -e "$base/outside-reports$case_number/review-ship-report.md" ]; then
-  record_fail "init wrote the report outside the repo through ship-reports"
+assert_refused "init refuses a symlinked qualify-reports directory"
+if [ -e "$base/outside-reports$case_number/review-qualify-report.md" ]; then
+  record_fail "init wrote the report outside the repo through qualify-reports"
 else
-  record_pass "nothing was written outside the repo through ship-reports"
+  record_pass "nothing was written outside the repo through qualify-reports"
 fi
 
-echo "report.sh — an intent value cannot name a file outside ship-reports/"
+echo "report.sh — an intent value cannot name a file outside qualify-reports/"
 
 # The report's filename is built from the intent, and an intent can be seeded from a fetched ticket.
 new_repo
 run_report init "../../escaped"
 assert_refused "init refuses an intent whose charset could escape the directory"
-# The escape lands at $repo/escaped-ship-report.md — two levels up from ship-reports/, not at $base.
+# The escape lands at $repo/escaped-qualify-report.md — two levels up from qualify-reports/, not at $base.
 # Asserting on $base and $repo/.. (the same directory) let a widened charset pass this case.
-if [ -e "$repo/escaped-ship-report.md" ] || [ -e "$repo/.idsd/escaped-ship-report.md" ] ||
-  [ -e "$base/escaped-ship-report.md" ]; then
+if [ -e "$repo/escaped-qualify-report.md" ] || [ -e "$repo/.idsd/escaped-qualify-report.md" ] ||
+  [ -e "$base/escaped-qualify-report.md" ]; then
   out="$(find "$base" -name 'escaped*' 2>/dev/null)"
-  record_fail "no report was written outside ship-reports/"
+  record_fail "no report was written outside qualify-reports/"
 else
-  record_pass "no report was written outside ship-reports/"
+  record_pass "no report was written outside qualify-reports/"
 fi
 
 # `*` never matches a leading dot, so a dot-named report is created, addressable by name, and invisible
@@ -228,10 +228,10 @@ for dot_intent in .. . .hidden; do
   assert_refused "init refuses the intent '$dot_intent', which no listing could ever see"
 done
 run_report list
-if grep -q '^no reports$' <<<"$out" && [ -z "$(ls -A "$repo/.idsd/ship-reports" 2>/dev/null)" ]; then
+if grep -q '^no reports$' <<<"$out" && [ -z "$(ls -A "$repo/.idsd/qualify-reports" 2>/dev/null)" ]; then
   record_pass "and no dot-named report was left on disk for list to miss"
 else
-  out="$(ls -a "$repo/.idsd/ship-reports" 2>&1)"
+  out="$(ls -a "$repo/.idsd/qualify-reports" 2>&1)"
   record_fail "and no dot-named report was left on disk for list to miss"
 fi
 
@@ -389,28 +389,28 @@ else
   record_fail "close reads --force as a flag, not as the intent name (exit $status)"
 fi
 
-echo "report.sh — check-ignore holds before ship-reports/ exists"
+echo "report.sh — check-ignore holds before qualify-reports/ exists"
 
 # The documented first step: `check-ignore` runs before the first write into `.idsd/`, and its exit 1
-# blocks that write. So it has to answer correctly while ship-reports/ does not exist yet — measured,
-# `git check-ignore -q .idsd/ship-reports` exits 1 without the trailing slash and 0 with it, so the
+# blocks that write. So it has to answer correctly while qualify-reports/ does not exist yet — measured,
+# `git check-ignore -q .idsd/qualify-reports` exits 1 without the trailing slash and 0 with it, so the
 # slash in ignore_surface is load-bearing exactly here. The suite otherwise only reached this branch
 # after promote, when the directory exists and both entry forms match.
 new_repo
-printf '.idsd/ship-reports/\n' >"$repo/.gitignore"
+printf '.idsd/qualify-reports/\n' >"$repo/.gitignore"
 mkdir -p "$repo/.idsd"
 printf '# durable\n' >"$repo/.idsd/charter.md"
 git -C "$repo" add .gitignore .idsd/charter.md
 git -C "$repo" -c user.email=t@t -c user.name=t commit -qm "committed idsd"
-if [ ! -d "$repo/.idsd/ship-reports" ] && [ "$(cd "$repo" && "$report_sh" repo-mode)" = committed ]; then
+if [ ! -d "$repo/.idsd/qualify-reports" ] && [ "$(cd "$repo" && "$report_sh" repo-mode)" = committed ]; then
   run_report check-ignore
   if [ "$status" = 0 ]; then
-    record_pass "check-ignore passes in committed mode before ship-reports/ is created"
+    record_pass "check-ignore passes in committed mode before qualify-reports/ is created"
   else
-    record_fail "check-ignore passes in committed mode before ship-reports/ is created (exit $status)"
+    record_fail "check-ignore passes in committed mode before qualify-reports/ is created (exit $status)"
   fi
 else
-  record_fail "fixture is not a committed repo with ship-reports/ absent"
+  record_fail "fixture is not a committed repo with qualify-reports/ absent"
 fi
 
 echo "report.sh — close on a clean report, the path 'done' runs"
@@ -531,7 +531,7 @@ chmod 644 "$(report_path 001-discarding)"
 
 echo "report.sh — promote reports the mode, not the add"
 
-# Measured: ship-reports/ is ignored by the entry promote itself writes, and `git add` on a directory
+# Measured: qualify-reports/ is ignored by the entry promote itself writes, and `git add` on a directory
 # whose every file is ignored stages nothing and exits 0. With nothing else under .idsd/, promote used
 # to print success while repo-mode still said throwaway — and the next check-ignore re-excluded .idsd/,
 # silently undoing it.
@@ -566,9 +566,9 @@ fi
 # writing an exclusion, and the only branch that can report the report as committable.
 run_report check-ignore
 if [ "$status" = 0 ] && grep -q 'gitignored' <<<"$out"; then
-  record_pass "committed mode confirms ship-reports/ is gitignored"
+  record_pass "committed mode confirms qualify-reports/ is gitignored"
 else
-  record_fail "committed mode confirms ship-reports/ is gitignored (exit $status)"
+  record_fail "committed mode confirms qualify-reports/ is gitignored (exit $status)"
 fi
 
 # And the warning fires when it is not: the entry is what keeps a report out of `git add -A`.
@@ -593,7 +593,7 @@ if [ -f "$(report_path 002-spaced)" ] && [ ! -f "$(report_path review)" ] &&
   grep -qx 'intent: 002-spaced' "$(report_path 002-spaced)"; then
   record_pass "a whitespace-led intent is filed and recorded under the same slug"
 else
-  out="$(ls "$repo/.idsd/ship-reports"; grep -h '^intent:' "$repo"/.idsd/ship-reports/*.md)"
+  out="$(ls "$repo/.idsd/qualify-reports"; grep -h '^intent:' "$repo"/.idsd/qualify-reports/*.md)"
   record_fail "a whitespace-led intent is filed and recorded under the same slug"
 fi
 run_report state 002-spaced
@@ -608,7 +608,7 @@ fi
 new_repo
 run_report init " "
 assert_refused "init refuses a whitespace-only intent"
-if [ -z "$(ls -A "$repo/.idsd/ship-reports" 2>/dev/null)" ]; then
+if [ -z "$(ls -A "$repo/.idsd/qualify-reports" 2>/dev/null)" ]; then
   record_pass "and wrote no report for it"
 else
   record_fail "and wrote no report for it"
@@ -689,6 +689,10 @@ echo "report.sh — the pre-scoping path is reported, never passed over in silen
 new_repo
 mkdir -p "$repo/.idsd"
 printf -- '---\nintent: 002-live\n---\n\n# Decide\n\n- [ ] a live decision\n' >"$repo/.idsd/ship-report.md"
+# The pre-rename directory is the second historical path, and it must be named too — a repo mid-ship
+# across the rename has its report there, and it is not `ship-report.md`.
+mkdir -p "$repo/.idsd/ship-reports"
+printf -- '---\nintent: 003-live\n---\n' >"$repo/.idsd/ship-reports/003-live-ship-report.md"
 run_report state
 if [ "$out" = "no-report" ]; then
   record_fail "state names the pre-scoping report rather than answering a bare no-report"
@@ -696,9 +700,10 @@ else
   record_pass "state names the pre-scoping report rather than answering a bare no-report"
 fi
 run_report list
-assert_reports "ship-report.md exists" "list names the pre-scoping report it cannot see"
+assert_reports "ship-report.md" "list names the pre-scoping report it cannot see"
+assert_reports "ship-reports" "and names the pre-rename directory too"
 run_report gate 002-live
-assert_reports "ship-report.md exists" "and so does a refusal for a named report that is not there"
+assert_reports "ship-report.md" "and so does a refusal for a named report that is not there"
 
 echo "report.sh — init's staged write is not a way out of the repo"
 
@@ -706,7 +711,7 @@ echo "report.sh — init's staged write is not a way out of the repo"
 # there (committable, so it arrives through someone else's branch) made `cp` overwrite the target and
 # `init` report success.
 new_repo
-mkdir -p "$repo/.idsd/ship-reports" "$base/victim$case_number"
+mkdir -p "$repo/.idsd/qualify-reports" "$base/victim$case_number"
 printf 'PRECIOUS\n' >"$base/victim$case_number/keep.md"
 ln -s "$base/victim$case_number/keep.md" "$(report_path review).new"
 run_report init "review: staged write"
@@ -935,6 +940,135 @@ else
   out="stdout was: $state_stdout"
   record_fail "state's stdout is one token even while it notes the pre-scoping report on stderr"
 fi
+
+echo "report.sh — discard's destructive path, which nothing has ever covered"
+
+# `report.sh`'s own header has said since this file was written that no case reaches here: discard
+# `rm -rf`s .idsd/ and deletes the intent file. The fixture that was supposedly missing is just a
+# throwaway repo, which new_repo already builds — the gap was never blocked, only unwritten. It has
+# since blocked two real improvements, which is the argument for closing it.
+new_repo
+run_report check-ignore
+run_report init "001-only-ship"
+mkdir -p "$repo/.idsd/intents"
+printf '# the intent\n' >"$repo/.idsd/intents/001-only-ship.md"
+run_report invalidate 001-only-ship
+run_report stage-returned code-review 001-only-ship
+markers_dir="$repo/.git/idsd-stage-returns/001-only-ship"
+run_report discard 001-only-ship
+if [ "$status" = 0 ] && [ ! -e "$repo/.idsd" ]; then
+  record_pass "discard removes the whole .idsd/ when this ship was the only thing in it"
+else
+  out="exit $status; .idsd/ holds: $(ls -A "$repo/.idsd" 2>/dev/null)"
+  record_fail "discard removes the whole .idsd/ when this ship was the only thing in it"
+fi
+# The stage markers live in the git dir, so removing .idsd/ cannot reach them — they need their own
+# removal, or the next ship for this intent inherits a completed stage record and stamps for free.
+if [ ! -e "$markers_dir" ]; then
+  record_pass "and the stage markers in the git dir, which removing .idsd/ never reaches"
+else
+  record_fail "and the stage markers in the git dir, which removing .idsd/ never reaches"
+fi
+# Zero traces means the local exclusion too, or .git/info/exclude keeps a line for a dir that is gone.
+if ! grep -qxF '.idsd/' "$repo/.git/info/exclude" 2>/dev/null; then
+  record_pass "and the local exclusion, so the throwaway leaves nothing at all"
+else
+  record_fail "and the local exclusion, so the throwaway leaves nothing at all"
+fi
+
+# A durable file is the human's, never this ship's scratch, so it keeps .idsd/ standing.
+new_repo
+run_report check-ignore
+run_report init "001-with-charter"
+printf '# charter\n' >"$repo/.idsd/charter.md"
+run_report discard 001-with-charter
+if [ "$status" = 0 ] && [ -f "$repo/.idsd/charter.md" ] && [ ! -f "$(report_path 001-with-charter)" ]; then
+  record_pass "discard keeps .idsd/ for a durable file while removing this ship's report"
+else
+  record_fail "discard keeps .idsd/ for a durable file while removing this ship's report (exit $status)"
+fi
+assert_reports "charter.md" "and names what kept it standing"
+if grep -qxF '.idsd/' "$repo/.git/info/exclude" 2>/dev/null; then
+  record_pass "and leaves the exclusion in place, since .idsd/ is still there to hide"
+else
+  record_fail "and leaves the exclusion in place, since .idsd/ is still there to hide"
+fi
+
+# A parallel ship is another human's work in flight. Deleting its report is the unrecoverable case.
+new_repo
+run_report check-ignore
+run_report init "001-going"
+run_report init "002-staying"
+mkdir -p "$repo/.idsd/intents"
+printf '# going\n' >"$repo/.idsd/intents/001-going.md"
+printf '# staying\n' >"$repo/.idsd/intents/002-staying.md"
+run_report discard 001-going
+if [ "$status" = 0 ] && [ -f "$(report_path 002-staying)" ] &&
+  [ -f "$repo/.idsd/intents/002-staying.md" ] && [ ! -f "$repo/.idsd/intents/001-going.md" ]; then
+  record_pass "discard removes only the named ship, leaving a parallel one whole"
+else
+  out="exit $status; reports: $(ls "$repo/.idsd/qualify-reports" 2>/dev/null); intents: $(ls "$repo/.idsd/intents" 2>/dev/null)"
+  record_fail "discard removes only the named ship, leaving a parallel one whole"
+fi
+assert_reports "other qualify report" "and names the parallel ship as what kept .idsd/ alive"
+
+# An intent that already built has its file in archive/, not intents/ — both are this ship's.
+new_repo
+run_report check-ignore
+run_report init "001-archived"
+mkdir -p "$repo/.idsd/archive"
+printf '# built\n' >"$repo/.idsd/archive/001-archived.md"
+run_report discard 001-archived
+if [ "$status" = 0 ] && [ ! -e "$repo/.idsd" ]; then
+  record_pass "discard removes the intent file from archive/ as well as intents/"
+else
+  out="exit $status; left: $(find "$repo/.idsd" 2>/dev/null)"
+  record_fail "discard removes the intent file from archive/ as well as intents/"
+fi
+
+# Committed mode: .idsd/ is the durable record, so there is nothing here to discard and the refusal
+# is the only thing standing between this subcommand and the human's tracked files.
+new_repo
+mkdir -p "$repo/.idsd/qualify-reports"
+printf '# durable\n' >"$repo/.idsd/charter.md"
+printf '.idsd/qualify-reports/\n' >"$repo/.gitignore"
+git -C "$repo" add .gitignore .idsd/charter.md
+git -C "$repo" -c user.email=t@t -c user.name=t commit -qm "committed idsd"
+run_report init "001-committed"
+run_report discard 001-committed
+assert_refused "discard refuses in committed mode, where .idsd/ is the durable record"
+if [ -f "$repo/.idsd/charter.md" ] && [ -f "$(report_path 001-committed)" ]; then
+  record_pass "and deleted nothing"
+else
+  record_fail "and deleted nothing"
+fi
+
+# `close` and `discard` compose in either order. Before, `close` deleted the report `discard` reads,
+# so `discard` refused and the .idsd/ it was to clear stayed standing — an ordering that had to be
+# carried in prose. The intent is the argument, so the report was never the only way to name the ship.
+new_repo
+run_report check-ignore
+run_report init "001-closed-then-discarded"
+mkdir -p "$repo/.idsd/intents"
+printf '# the intent\n' >"$repo/.idsd/intents/001-closed-then-discarded.md"
+run_report close 001-closed-then-discarded
+run_report discard 001-closed-then-discarded
+if [ "$status" = 0 ] && [ ! -e "$repo/.idsd" ]; then
+  record_pass "discard runs after close, with no report left to read"
+else
+  out="exit $status; left: $(find "$repo/.idsd" 2>/dev/null)"
+  record_fail "discard runs after close, with no report left to read"
+fi
+
+# Unnamed and with no report, there is nothing to identify — that refuses, and says naming the intent
+# is the way through, or a closed ship could never be discarded at all.
+new_repo
+run_report check-ignore
+run_report init "001-unnamed"
+run_report close 001-unnamed
+run_report discard
+assert_refused "discard refuses when no report is left and no intent is named"
+assert_reports "Name the intent" "and says naming the intent is what gets past it"
 
 echo "$passed passed, $failed failed"
 [ "$failed" = 0 ]
