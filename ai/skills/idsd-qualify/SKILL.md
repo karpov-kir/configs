@@ -20,7 +20,7 @@ Run the quality stages over one change set and leave only the residue that needs
 
 **Take one stage's return at a time**: `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items in the report — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor and retro included, not just the round's.
 
-**Retro runs last, after every review stage** — its input is a log of what this pass did, so it cannot run earlier. It runs **only when your caller or the human asks for one**, never on the pass's own initiative. **Ask between the last review stage's return and `report.sh stamp`.** Ask after the stamp and it already reads `retro:skipped` for a stage that then runs. Ask before the pass and the human commits with nothing to go on — by this point the run they would be retrospecting has actually happened. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the run-log, the spawn, and what to do with the return live there and nowhere else. Its decision-log line is written before `report.sh stamp`, with the rest.
+**Retro runs last, and only when your caller or the human asks for one** — never on the pass's own initiative. **Offer one once every other stage has returned, and before `report.sh stamp`**: earlier, the human decides holding nothing the pass found; later, the stamp already reads `retro:skipped` for a stage that then runs. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the run-log, the spawn, and what to do with the return live there and nowhere else.
 
 **A stale gate is a Decide item** (`quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
@@ -74,7 +74,7 @@ The report is **only the residue that needs the human — not a record of the ru
 
 ## After the pass
 
-The closing message points at the report (`~/.kk-flavor/standards/writing.md` → **Replying to a human**): **one status line** — mode, repo mode, item count by decision kind — plus at most one live blocking question; no per-stage verdicts, no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too; in throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
+The closing message points at the report (`~/.kk-flavor/standards/writing.md` → **Replying to a human**): **one status line** — mode, repo mode, item count by decision kind — plus at most one live blocking question; at most one line for a tooling improvement the retro proposed ([RETRO-STAGE.md](RETRO-STAGE.md) routes it here); no per-stage verdicts, no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too; in throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
 
 ## Rules
 
