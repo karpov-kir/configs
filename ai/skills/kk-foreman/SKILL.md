@@ -30,8 +30,8 @@ The chains below are the ones where order is load-bearing and an agent choosing 
 | The work | The chain |
 |---|---|
 | Code or tooling changed | `kk-drive`, then `kk-code-review` and `kk-security-review`, then `kk-refactor`, then `kk-humanize` over the comments. That order, each stage's own trigger, and what may be dropped are `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it** and → **The stages**; **`kk-refactor` is never dropped.** |
-| A PR | `kk-pr-review`. It drafts, and posts nothing until the human approves. |
-| Changes were requested on a PR | Make the edits, or name `idsd-ship` if the change is intent-shaped, then run the code row over what you changed. **`kk-pr-review` answers nothing**: it is never how a comment gets addressed, and exactly how the edits get re-reviewed once they are in. |
+| A PR | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. |
+| Changes were requested on a PR | Make the edits, or name `idsd-ship` if the change is intent-shaped, then run the code row over what you changed, before you push. **`kk-pr-review` answers nothing**: it is never how a comment gets addressed, and exactly how the edits get re-reviewed once they are in. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
 | Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
 | Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — it owns that lane end to end and spawns `kk-skillcraft` and `kk-tighten` itself, so queuing either beside it runs them twice and out of order. |
