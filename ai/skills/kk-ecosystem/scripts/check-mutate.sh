@@ -2,8 +2,8 @@
 # Proves check-test.sh's cases can fail, by breaking one guard in check.sh at a time.
 #   usage: check-mutate.sh   # one line per mutation; exit 0 only when every one proved something
 #
-# Slow on purpose — one full suite run per mutation, about two and a half minutes each, so a full run
-# is close to two hours. Run it when a guard or a case changes, and budget for that.
+# Slow on purpose — one full suite run per mutation. The suite is about 100 seconds, so the whole
+# harness is a little over an hour. Run it when a guard or a case changes, and budget for that.
 # It lives beside the code rather than in a scratch directory: nothing else keeps a mutation in step
 # with the guard it aims at.
 set -uo pipefail
