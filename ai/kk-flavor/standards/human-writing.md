@@ -6,7 +6,7 @@ The set this covers: anything a person reads as communication — PR/ticket desc
 
 ## Budget — the keep test
 
-**Name this artifact's reader and the one action they'll take.** Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed** — a tie is a cut.
+**Name this artifact's reader and the one action they'll take.** Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
 
 Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
 

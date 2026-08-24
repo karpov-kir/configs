@@ -163,30 +163,65 @@ done >>"$findings"
 
 # Direction: the shared layer never cites into a lane, and never names one (ecosystem.md → **One home**).
 # Two shapes are banned. A path into a skill needs one name character before the slash, or a glob's
-# bare `/SKILL.md` tail matches. A bare skill name counts only when a skill of that name exists, so
-# prose about a lane that has no skill stays legal and a rename cannot turn prose into a finding.
+# bare `/SKILL.md` tail matches. A bare skill name counts only when a skill of that name exists. That
+# gate is not a licence for the prose it lets through: every other `kk-*`/`idsd-*` token the shared
+# layer carries is already a finding from the `unknown skill referenced` scan below. A rename only
+# swaps which of the two fires.
 # Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 # reader from inside one too.
+# `-a` on both greps below, never dropped: one NUL byte anywhere in a file makes grep call that file
+# binary, and it then prints `Binary file … matches` (BSD grep) or nothing at all (GNU grep >= 3.5,
+# which sends that notice to stderr) in place of the matches. Both scans then read no violation out of
+# a file `find` did hand them, while `was_flavor_scanned` still counts it as scanned. One committed
+# byte turns a violating shared layer into `wiring: clean`.
 # `find -type f`, not the `grep -r` above: GNU `grep -r` follows a symlink named on its own command
 # line, and both operands are attacker-authored when this runs as a PR review's stage.
-# Process substitution, not a pipe: a pipe runs the loop in a subshell and loses the flag below.
+# Process substitution, not a pipe, for the file list and for each hit list inside the loop: a pipe runs
+# its loop in a subshell, so the flag and the two counters would reset at every boundary they exist to
+# outlive.
 direction_targets=("$flavor")
 [ -f "$root/CLAUDE.md" ] && direction_targets+=("$root/CLAUDE.md")
 was_flavor_scanned=0
+# Bounded per shape across the whole scan. Every emitted finding still costs a fork for its hit, and
+# the printer below shows at most 40 of this rank, so hits past the cap buy nothing: 20000 of them out
+# of one 100KB committed file hold this scan for over two minutes. A per-file bound does not bound the
+# scan: 41 hits in each of 500 files cost the same two minutes. The counters therefore sit out here and
+# span every file. Reported at the boundary, never silently
+# dropped: the notice leads with the file and a space, which sorts ahead of that file's own
+# `file:line:` hits, so the printer's per-rank cap below drops those hits before it drops the notice.
+cites_shown=0
+names_shown=0
 while IFS= read -r -d '' file; do
   # Set from flavor files alone: one flag over both tiers would let a readable `CLAUDE.md` stand in
   # for the tree and mute the guard below.
   case "$file" in "$flavor"/*) was_flavor_scanned=1 ;; esac
-  grep -noE '[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\.md' "$file" | while IFS= read -r hit; do
-    echo "shared layer cites into a lane: $(oneline "$file"):$(oneline "$hit") — move the rule to a standard (ecosystem.md → **One home**)"
-  done
-  grep -noE '\b(kk|idsd)-[a-z0-9-]+' "$file" | while IFS= read -r hit; do
+  # Sanitised once, not per hit: `$(oneline …)` is a fork, and `$file` does not change inside the loop.
+  safe_file="$(oneline "$file")"
+  while IFS= read -r hit; do
+    cites_shown=$((cites_shown + 1))
+    if [ "$cites_shown" -le 40 ]; then
+      echo "shared layer cites into a lane: $safe_file:$(oneline "$hit") — move the rule to a standard (ecosystem.md → **One home**)"
+    elif [ "$cites_shown" -eq 41 ]; then
+      echo "shared layer cites into a lane: $safe_file — 40 already shown across the shared layer; the rest are not listed"
+    fi
+  done < <(grep -a -noE '[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\.md' "$file")
+  while IFS= read -r hit; do
     named=${hit#*:}
+    # `grep -o` keeps the trailing hyphen a token ends on, as `kk-drive-*` in prose does, and the name
+    # would then match no skill directory.
     named=${named%-}
-    # No exclusion for `kk-flavor`: it is not a skill directory, so the test below already drops it.
+    # Excluded by name, never left to the test below: a reviewed tree can commit a `skills/kk-flavor/`
+    # of its own, and every mention of the shared layer inside its own standards would then be a
+    # finding. The tree-wide scan below excludes the same name for the same reason.
+    [ "$named" = "kk-flavor" ] && continue
     [ -f "$skills/$named/SKILL.md" ] || continue
-    echo "shared layer names a lane: $(oneline "$file"):$(oneline "$hit") — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
-  done
+    names_shown=$((names_shown + 1))
+    if [ "$names_shown" -le 40 ]; then
+      echo "shared layer names a lane: $safe_file:$(oneline "$hit") — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
+    elif [ "$names_shown" -eq 41 ]; then
+      echo "shared layer names a lane: $safe_file — 40 already shown across the shared layer; the rest are not listed"
+    fi
+  done < <(grep -a -noE '\b(kk|idsd)-[a-z0-9-]+' "$file")
 done >>"$findings" < <(find "${direction_targets[@]}" -name '*.md' -type f -print0)
 [ "$was_flavor_scanned" = 1 ] ||
   echo "direction scan read no files under $flavor — a check that did not run is not a clean one" >>"$findings"
@@ -296,8 +331,6 @@ grep -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 
 done >>"$findings"
 
 # A skill is its directory plus a SKILL.md; a directory without one is invisible to the loader.
-# A case covers this scan, but no mutant yet proves that case can fail. Add one with the next change
-# here, as the header above asks.
 find "$skills" -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' dir; do
   [ -f "$dir/SKILL.md" ] || echo "skill dir without SKILL.md: $(oneline "$dir")"
 done >>"$findings"
@@ -433,7 +466,7 @@ refuse_budget_file() {
 # everywhere that name appears. Two scripts in different skills duplicate these on purpose — a shared
 # file would make one skill's tooling depend on another's, and this script runs inside a worktree of
 # code it did not write, where sourcing a file is executing it. That tolerance holds only while drift
-# is *detected* ([ecosystem.md](../../../kk-flavor/standards/ecosystem.md) → **Prefer the mechanism**).
+# is *detected* (ecosystem.md → **Prefer the mechanism**).
 # One pass over the tree, never one per region name: both the region count and the bytes they span are
 # chosen by whoever wrote the tree. The body is compared as the whole remainder past the third tab —
 # taking it as the fourth field would end the comparison at the first tab inside a region body.
@@ -512,9 +545,9 @@ if [ "$is_inject_in_root" -eq 1 ]; then
 fi
 # An `@path` import inside a budget file loads with it, so a budget blind to one under-reports the tier
 # it exists to measure. Imports resolve against the *installed* copy of the carrier, outside `$root`;
-# they are resolved at that mount below, and the rest are named in the figure. Any extension counts.
-# The required extension and the non-word character before the `@` are what keep `@param`, a package
-# scope and an email address out; each field is prefixed with a space so that second test has something
+# they are resolved at that mount below, and the rest are named in the figure. Any extension counts,
+# but one is required: that and the non-word character before the `@` are what keep `@param`, a package
+# scope and an email address out. Each field is prefixed with a space so that second test has something
 # to read at position 1. `fence` resets per file — a budget file ending inside one would otherwise blank
 # the scan for every file after it, and the two scripts list the budget in different orders, so they
 # would disagree. Two bounds keep it linear: `PATH_MAX` per field, and 64 matches in one field.
@@ -692,10 +725,10 @@ if [ -s "$findings" ]; then
   finding_total=$(sort -u "$findings" | wc -l | tr -d ' ')
   # Ordered before it is cut, never alphabetically: `sort -u | head` shows one class until the cap runs
   # out, so a flood of crafted `dangling link:` lines would bury a `syntax:` error, a drifted shared
-  # region or a refused budget file — findings that name a broken or tampered-with check rather than a
-  # broken reference, and a finding meaning *this check did not check the tree you think* ranks above
-  # every reference finding. Every pattern is anchored at `^`, or a line whose *link target* merely
-  # carries the substring promotes itself.
+  # region or a refused budget file. Those name a broken or tampered-with check rather than a broken
+  # reference, and a finding meaning *this check did not check the tree you think* ranks above every
+  # reference finding. Every pattern is anchored at `^`, or a line whose *link target* merely carries
+  # the substring promotes itself.
   # Capped per class as well as in total, because rank 0 is also the cheapest to mass-produce: each rank
   # shows at most 40 and says how many of its own it withheld. Two passes over one sorted file, because
   # the per-class total has to be known before the first line of that class prints.

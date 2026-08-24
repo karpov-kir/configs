@@ -2,13 +2,14 @@
 # Tests for check.sh's guards. The `echo` line above each group of cases names the block it covers.
 #   usage: check-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise
 #
-# A change to check.sh needs a case here, and `check-mutate.sh` is what proves a case can fail.
-# Write a mutation and assert it landed where you aimed it, the same way these cases assert that
-# the guard fired.
+# A change to check.sh needs a case here, and `~/.claude/skills/kk-ecosystem/scripts/check-mutate.sh`
+# is what proves a case can fail. Write a mutation and assert it landed where you aimed it, the same
+# way these cases assert that the guard fired.
 # No case asserts on the exit code — a fixture root legitimately has findings of its own, so
 # "clean" would pass every case for the wrong reason.
-# Past the ~450-line guidance deliberately: `check-mutate.sh` copies the one suite beside it into its
-# sandbox, so a split means teaching that harness to run several and to attribute a kill across them.
+# Past the ~450-line guidance deliberately: `~/.claude/skills/kk-ecosystem/scripts/check-mutate.sh`
+# copies the one suite beside it into its sandbox, so a split means teaching that harness to run
+# several and to attribute a kill across them.
 # Split it once that is solved, never on the line count alone.
 set -uo pipefail
 export LC_ALL=C
@@ -58,12 +59,24 @@ new_root() {
 }
 
 # check.sh refuses to walk a symlinked `kk-flavor`, so a case writes into `$root/real-flavor` and never
-# `$root/kk-flavor` — a write through the link is one check.sh can also see.
+# `$root/kk-flavor`.
 new_root_with_symlinked_flavor() {
   new_root_without_flavor
   mkdir -p "$root/real-flavor/standards"
   printf '# Flavor\n' >"$root/real-flavor/inject.md"
   ln -s "$root/real-flavor" "$root/kk-flavor"
+}
+
+# A skill the bare-name half of the direction scan can resolve: it counts a name only when a skill
+# answers to it.
+new_mounted_skill() {
+  mkdir -p "$root/skills/$1"
+  printf '# %s\n' "$1" >"$root/skills/$1/SKILL.md"
+}
+
+new_script() {
+  printf '%s\n' "$2" >"$root/skills/$1"
+  chmod +x "$root/skills/$1"
 }
 
 run_check() {
@@ -156,7 +169,10 @@ new_root
   # `~/.claude/skills/...` it finds, fixture text like this included.
   printf 'a file the skill owns that is not its body: `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`\n'
 } >"$root/kk-flavor/standards/legal.md"
-assert_does_not_report "$cites" "stays quiet on the four legal forms"
+# The fourth form is not legal: ecosystem.md → **One home** bans a file the skill owns too. It is
+# quiet *here* only because this scan matches nothing but a path into a SKILL.md — the bare-name scan
+# below reports it in any tree that holds `idsd-qualify`.
+assert_does_not_report "$cites" "stays quiet on the four forms that are not a path into a SKILL.md"
 
 new_root
 printf 'see `~/.claude/skills/kk-drive/SKILL.md`\n' >"$base/outside.md"
@@ -164,23 +180,83 @@ ln -s "$base/outside.md" "$root/CLAUDE.md"
 assert_does_not_report "$cites" "does not read a violation through a symlinked CLAUDE.md"
 
 # The bare-name half of the same rule. A name counts only when a skill answers to it, so the fixture
-# has to mount one — and the negative case is the same prose with nothing mounted, which is what keeps
-# a rename from turning ordinary prose into a finding.
+# has to mount one. The negative case is the same prose with nothing mounted: it pins that gate, not
+# the prose's legality — check.sh's `unknown skill referenced` scan reports that prose anyway.
 new_root
-mkdir -p "$root/skills/kk-drive"
-printf '# Drive\n' >"$root/skills/kk-drive/SKILL.md"
+new_mounted_skill kk-drive
 printf 'spawn `kk-drive` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
 assert_reports "$names" "fires on a standard naming a skill that exists"
 
+# `grep -o` keeps the trailing hyphen a token ends on, which a glob in prose produces. Without the
+# strip the name matches no skill directory and the violation goes unreported.
 new_root
-printf 'spawn `kk-drive` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
-assert_does_not_report "$names" "stays quiet on a lane name no skill answers to"
+new_mounted_skill kk-drive
+printf 'every `kk-drive-*` invocation is the same lane\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$names" "strips the trailing hyphen a glob leaves on a lane name"
 
 new_root
-mkdir -p "$root/skills/kk-drive"
-printf '# Drive\n' >"$root/skills/kk-drive/SKILL.md"
+printf 'spawn `kk-drive` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$names" "the names scan stays quiet on a token no skill answers to"
+
+new_root
+new_mounted_skill kk-drive
 printf 'a template under `kk-flavor/` is this same layer, not a lane\n' >"$root/kk-flavor/standards/x.md"
 assert_does_not_report "$names" "stays quiet on kk-flavor, which is the shared layer itself"
+
+# One NUL byte makes grep call the file binary, and it prints `Binary file … matches` or, on GNU grep
+# >= 3.5, nothing at all. Without `-a` both halves of the scan then read no violation out of a file
+# `find` did hand them, and the did-not-run guard stays quiet because the file was still walked.
+# The NUL goes in through `tr`: `printf '\000'` is truncated at the NUL by some printfs.
+new_root
+new_mounted_skill kk-drive
+printf '# Rule\n' >"$root/kk-flavor/standards/x.md"
+printf 'X' | tr 'X' '\000' >>"$root/kk-flavor/standards/x.md"
+printf '\nspawn `kk-drive` before any lens reads it\n' >>"$root/kk-flavor/standards/x.md"
+assert_reports "$names" "reads a lane name past a NUL byte that makes grep call the file binary"
+
+new_root
+printf '# Rule\n' >"$root/kk-flavor/standards/x.md"
+printf 'X' | tr 'X' '\000' >>"$root/kk-flavor/standards/x.md"
+printf '\nthe mechanics are `~/.claude/skills/kk-drive/SKILL.md`\n' >>"$root/kk-flavor/standards/x.md"
+assert_reports 'kk-drive/SKILL.md — move the rule' "and reads a cited SKILL.md path past one too"
+
+# The bound on what each half of the scan emits. Every finding costs a fork to sanitise its hit, so an
+# unbounded emit lets one committed file turn this scan into tens of thousands of them.
+new_root
+new_mounted_skill kk-drive
+flooded_names=1
+while [ "$flooded_names" -le 45 ]; do
+  printf 'spawn `kk-drive` now\n' >>"$root/kk-flavor/standards/x.md"
+  flooded_names=$((flooded_names + 1))
+done
+# The file is pinned, not just the tail: leading with it is what sorts the notice ahead of that file's
+# own hits, so the printer's per-rank cap drops those before it drops the notice.
+assert_reports "$names: $root/kk-flavor/standards/x.md — 40 already shown" \
+  "bounds what the names half of the scan emits"
+
+# The same bound over two files, each holding fewer hits than the cap. It can only fire while the budget
+# outlives one file, which is what a hit list read by process substitution rather than through a pipe
+# into a subshell buys. Which of the two files the notice names depends on the order `find` hands them
+# over, so the assert leaves that free. The path carries no `kk-`/`idsd-` token, so the names half
+# stays at zero and this tail can only have come from the cites half. The path is a `%s` argument for
+# the reason the citation cases below give: written whole, it is a backticked in-repo path, and the
+# dangling-path-ref scan reads this file and reports it against the repo.
+new_root
+spread_cites=1
+while [ "$spread_cites" -le 45 ]; do
+  printf 'the mechanics are `%s/SKILL.md`\n' path/to/other \
+    >>"$root/kk-flavor/standards/x$((spread_cites % 2)).md"
+  spread_cites=$((spread_cites + 1))
+done
+assert_reports "— 40 already shown across the shared layer" \
+  "bounds the cites half across files, not once per file"
+
+# `kk-flavor` names the shared layer, not a lane. The reviewed tree picks what is in `skills/`, so the
+# exclusion cannot rest on no skill answering to that name.
+new_root
+new_mounted_skill kk-flavor
+printf 'a template under `kk-flavor/` is this same layer, not a lane\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$names" "excludes kk-flavor even when the tree commits a skill by that name"
 
 new_root
 printf '# Root\n' >"$root/CLAUDE.md"
@@ -395,10 +471,7 @@ assert_does_not_report "$undelimited" "accepts the backticked form, which the pa
 # A shell comment cites the same way a document does, and the scan reads both.
 new_root
 printf '# Target\n\n## One home\n' >"$root/kk-flavor/standards/target.md"
-# Written inline, not through `new_script`, which this file defines further down: called above its own
-# definition it silently creates nothing, and the case passes on an empty fixture.
-printf '#!/usr/bin/env bash\n# untested: fixture\n# the rule is %s → One home\ntrue\n' target.md >"$root/skills/citer.sh"
-chmod +x "$root/skills/citer.sh"
+new_script "citer.sh" "$(printf '#!/usr/bin/env bash\n# untested: fixture\n# the rule is %s → One home\ntrue' target.md)"
 assert_reports "$undelimited" "fires on an undelimited citation inside a shell comment"
 
 # Each defect below makes a skill unreachable rather than merely mis-linked: the loader finds a skill by
@@ -417,11 +490,6 @@ echo "check.sh — script test position"
 
 missing_test="script names a missing test"
 no_position="script declares no test position"
-
-new_script() {
-  printf '%s\n' "$2" >"$root/skills/$1"
-  chmod +x "$root/skills/$1"
-}
 
 new_root
 new_script "lonely.sh" '#!/usr/bin/env bash

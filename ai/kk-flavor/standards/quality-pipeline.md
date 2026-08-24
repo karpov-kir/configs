@@ -4,7 +4,7 @@ The stages a quality pass runs over one change set. **Binding on whoever runs a 
 
 You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger.
 
-**Each scanner lives with the lens it serves**, and you run it from there — each lane names its own. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; otherwise an outlier in a new file reaches the stage as an absence. **A spawn prompt describes the tree you read, never the tree you intended.** A scanner result taken before a later edit, or a file state you only assumed a stage reached, sends that stage to verify or trust the wrong thing.
+**Each scanner lives with the lens it serves**, and you run it from there — each lane names its own. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form. **A spawn prompt describes the tree you read, never the tree you intended.**
 
 ## The round
 
@@ -24,7 +24,7 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
-**The sequence after the round may run streamed instead** — the stages queue patches, you apply them in tier order and gate at each boundary. [streaming.md](streaming.md) is the whole delta for that path.
+**The sequence after the round may run streamed instead** — the stages queue patches as they find them and you apply each on arrival, the tier order deciding conflicts rather than the schedule. [streaming.md](streaming.md) is the whole delta for that path.
 
 ## Drive it before you review it
 
@@ -44,7 +44,7 @@ Spawn the round's stages **in one message** so they run concurrently.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or a constitution security invariant).
 3. **Tighten & comment pass** — *only if* the change added or changed standalone prose, or touched any comment.
    - **Where the change touched the agents' own instructions** — a skill, standard, prompt, template or `CLAUDE.md` — this stage is the **instruction lane** over those files instead. That lane owns shape and prose too and runs both itself, so queue neither beside it.
-   - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names; any file it hands off for **comments** waits for refactor, per the next bullet.
+   - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names.
    - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the comment-density scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
 4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run the duplication scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
 5. **Retro** — last when it runs; how it runs is the orchestrator's.

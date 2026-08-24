@@ -43,7 +43,7 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 **Partition by file, not by topic.** Two agents that share a file clobber each other; two with disjoint files run concurrently however related their themes. Sequence only where a real dependency exists — a fold that must land before the file it folds into is deleted, a hoist that must precede the skills it hoists from.
 
-**`check.sh` over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**). You run the wiring check between phases and at the end.
+**The wiring check over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**) — `~/.claude/skills/kk-ecosystem/scripts/check.sh`, by full path because a campaign runs from the human's own repo root, where a bare name resolves against the tree under audit first. Run it between phases and at the end.
 
 **You own the cross-scope queue**, at `<scratch>/reduce-cross-scope/` — where an agent files the edit another agent's file needs, as a patch (`AGENT-BRIEF.md` → **Scope discipline**). **Drain it as each patch arrives, not in Phase 4**: apply it or record why you declined, then resume its owner with what landed. A patch outliving its author can only be repaired by hand, which `~/.kk-flavor/standards/streaming.md` → **The caller's half** forbids. Phase 4 takes only what arrived after its owner finished. A *handoff* is not a cross-scope entry: it names a lane rather than an edit, and Phase 6 drains it (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 

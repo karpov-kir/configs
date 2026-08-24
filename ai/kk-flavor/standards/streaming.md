@@ -15,7 +15,9 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 
 ## The caller's half
 
-- **Apply in tier order, gate at each boundary, then resume every live stage with what landed.**
+- **Apply each patch as it arrives**, never when a tier completes. A queue holding applicable work while you wait for a stage to return is the batching this whole path exists to remove — and a tier is only complete when its stage returns, so waiting on one costs you the entire stage.
+- **The tier order resolves conflicts; it does not schedule.** A higher tier wins the lines it touches: back the lower tier's patch out by its inverse, apply the higher one, and send the loser to its author. Nothing waits on a conflict that may never happen.
+- **Gate and broadcast at the tier boundary, not per patch.** A suite run and a re-read for every patch costs more than the round trips it saves; a broadcast per tier is a handful.
 - **A patch that no longer applies goes back to its author** to recompute or withdraw. Repairing one by hand re-derives the work and leaves you owning the result unreviewed.
 - **An applied patch leaves the queue**, so what remains is what is outstanding and nothing lands twice. **Backing a tier out is the inverse of its patches, never a checkout** ([skill-protocol.md](skill-protocol.md) → **Queue**).
 - **A gate's result is never recalled from a resumed stage**; re-run it yourself.
@@ -24,7 +26,7 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 
 ## A quality pass's tiers
 
-**Full streams; fast does not** ([quality-pipeline.md](quality-pipeline.md) → **The stages**, for both modes). Full's refactor loop and the code-review between the round and refactor are the round trips this replaces; a fast pass has neither.
+**Streaming suits the full mode and not the fast one** ([quality-pipeline.md](quality-pipeline.md) → **The stages**, for both modes) — a recommendation, not a second mandate; whether to stream at all stays the caller's, above. Full's refactor loop and the code-review between the round and refactor are the round trips this replaces; a fast pass has neither.
 
 **Security, code-review, refactor, comments** — that order, not the stage numbering in [quality-pipeline.md](quality-pipeline.md) → **The stages**. **The resume is the re-review** that file owes for fixes applied between the round and refactor.
 

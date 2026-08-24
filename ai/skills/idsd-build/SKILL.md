@@ -8,7 +8,7 @@ The human approves **outcomes** at the checkpoint, not code.
 
 You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. **The lanes this build's own edits opened are queued like any handoff a return names** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**) — the comments and the prose it wrote included.
 
-Input: an intent file under `.idsd/intents/NNN-<slug>.md` — its parts are defined in [ice-template.md](../idsd-intent/templates/ice-template.md). If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
+Input: an intent file under `.idsd/intents/NNN-<slug>.md` — its parts are defined in `~/.claude/skills/idsd-intent/templates/ice-template.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
 
 ## Phase 1 — Restate & confirm (checkpoint 1)
 
@@ -45,7 +45,7 @@ Wait for the human's OK, then set `status: approved`.
 Re-run the gates yourself after any spawned subagent's edits land. **Then close the lanes this build's own edits opened**, before the checkpoint.
 
 Capture every decision, loose end and piece of operating knowledge in the artifact that owns it, never only in chat:
-- **How to operate this repo** — a command the human hands you that runs it in a mode, seeds a fixture, or drives a tool → `.idsd/playbook.md`, appended without asking. Record what the next agent needs rather than what you were told: the command, what it does, when to reach for it, verified by running it. Gate commands stay the constitution's — point at them. It accumulates across throwaway ships, so it is an appended record: `~/.kk-flavor/standards/records.md` is the whole delta for its counting, cap, promotion and pruning, and **its bound is roughly 40 lines**. An entry whose count keeps rising is how this repo is operated rather than a note about it, and belongs in the constitution or the project's own `CLAUDE.md`.
+- **How to operate this repo** — a command the human hands you that runs it in a mode, seeds a fixture, or drives a tool → `.idsd/playbook.md`, appended without asking. Record what the next agent needs rather than what you were told: the command, what it does, when to reach for it, verified by running it. Gate commands stay the constitution's — point at them. It accumulates across throwaway ships, so it is an appended record: `~/.kk-flavor/standards/records.md` is the whole delta, and **its bound is roughly 40 lines**. Its promotions land in the constitution or the project's own `CLAUDE.md`.
 - A contract change → its constraint or scenario in the ICE (via `idsd-intent`); ratification also advances `status: approved` / `approved-by`.
 - A durable standard the project inherits (a persistence layer, a protocol, a stale constitution gate command) → propose it to the constitution (never auto-edit) **and** record a `## Follow-ups` `- [ ]`, so the Phase 5 gate forces it before archive.
 - A change to a contract others consume (an API shape, a shared type, a wire protocol) → a `- [ ]` for **every** consumer, the project's own skills and tooling included — those read the contract from outside the codebase and won't show up in a code search.
@@ -91,4 +91,4 @@ Several intents may build at once, isolated by Phase 2's one worktree per intent
 ## Rules
 
 - Never relax a constraint or edit a scenario to make validation pass. If the intent is wrong, send it back to `idsd-intent`.
-- One intent at a time — a missing intent this work reveals, or any deferral or descope of THIS intent's goal or scenarios, goes to `## Follow-ups` and is routed before archive, never silently absorbed.
+- One intent's scope at a time — a missing intent this work reveals, or any deferral or descope of THIS intent's goal or scenarios, goes to `## Follow-ups` and is routed before archive, never silently absorbed.

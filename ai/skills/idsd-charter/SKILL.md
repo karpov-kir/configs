@@ -21,6 +21,6 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 
 ## Rules
 
-Curated, not generated: humans own the wording.
+Curated, not generated: humans own the wording. **So the prose lane does not run over this file** — a tightener rewriting the human's vision prose is the one edit "they own the wording" rules out, whatever it buys in words.
 
-**Both files this skill writes receive promotions from the records below them, so neither is bounded by size** — `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap** holds instead. Apply that test to the whole file on every edit, not only to what you are adding, and expect to delete: a scope line that rules out nothing, a term no artifact uses.
+**The charter receives promotions from the records below it, so it is not bounded by size** — `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap** holds instead.

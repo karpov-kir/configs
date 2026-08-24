@@ -48,7 +48,7 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update and confirm it. If there's no charter, don't create one here.
 
-**Keep `.idsd/language.md` current** — the project's ubiquitous language. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. It has no cadence of its own — it changes when an intent does, and `idsd-audit` is what notices when it stopped.
+**Keep `.idsd/language.md` current** — the project's ubiquitous language. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. It has no cadence of its own — it changes when an intent does, and `idsd-audit` is what notices when it stopped. **It receives promotions from the records below it, so it carries a test rather than a cap** (`~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap**): a term no artifact uses any longer is deleted here, not left for the audit to find.
 
 ## Rules
 

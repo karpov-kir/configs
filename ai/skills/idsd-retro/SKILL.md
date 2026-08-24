@@ -24,20 +24,18 @@ Apply each; surface only what the run evidences:
 
 ## The findings file
 
-`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta for its counting, cap, promotion and pruning. **Its bound is roughly 50 lines.**
+`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 50 lines.**
 
 **Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new.
 
-Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses, one line per finding, so a repeat is one grep away:
+Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses, one line per finding:
 
 ```
 - 1x | <YYYY-MM-DD> | <repo> | <target> | <the finding in a clause> -> <where it routed>
 ```
 
-**Carry a repeat's count into the finding you return**, and let that count argue for the durable fix.
-
 ## Output
 
 Bounded, **evidence-backed** findings; the cost of a fix is not a reason to drop one. Each states the improvement, its **target** (the skill / arch doc / prompt / pipeline / constitution / backlog it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
 
-**Caller.** Spawned by an orchestrator → return the findings as data, applying and routing nothing. Standalone → present them and let the human route. Either way the retro only flags: `findings.md` is the one file it writes, and it never edits the durable record.
+**Caller.** Spawned by an orchestrator → return the findings as data. Standalone → present them and let the human route. Either way the retro only flags: `findings.md` is the one file it writes, and it never edits the durable record.
