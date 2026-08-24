@@ -4,7 +4,7 @@ Write a terse run-log; `~/.claude/skills/idsd-retro/SKILL.md` → **Input** defi
 
 - **The run is everything that produced this change, not this pass.** Under `idsd-ship` it starts at the human's ask and takes in `idsd-intent`'s grilling and `idsd-build`'s clarify gate; a pass reached any other way starts wherever its own work did. Log that stretch too. `idsd-retro`'s friction lens judges round-trips and communication across the whole run, so a log that opens at the first quality stage hides the costliest ones and leaves that lens nothing to find. Draw it from the report's `Decide` items, the decision log and the session — never from memory alone.
 - **The stage numbering in `~/.kk-flavor/standards/quality-pipeline.md` is not the execution order.** Stage 3's comment pass runs after stage 4: write the log once that pass has returned, and name it among the stages.
-- **State a defect the run hit and how it surfaced, as an event** — never grade the run or frame what a stage "should" have caught.
+- **Never grade the run**, and never frame what a stage "should" have caught.
 - **For anything that appears in no diff** — server state above all — record the command and what it printed, not the conclusion you drew.
 - **Name each stage's *applied* changes, or point at them.**
 - **Name each *returned* finding with its disposition**, never a count.

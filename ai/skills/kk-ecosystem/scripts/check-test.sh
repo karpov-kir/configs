@@ -129,6 +129,7 @@ assert_ranks_above() {
 }
 
 cites="shared layer cites into a lane"
+names="shared layer names a lane"
 never_ran="direction scan read no files"
 refused="import refused"
 
@@ -161,6 +162,25 @@ new_root
 printf 'see `~/.claude/skills/kk-drive/SKILL.md`\n' >"$base/outside.md"
 ln -s "$base/outside.md" "$root/CLAUDE.md"
 assert_does_not_report "$cites" "does not read a violation through a symlinked CLAUDE.md"
+
+# The bare-name half of the same rule. A name counts only when a skill answers to it, so the fixture
+# has to mount one — and the negative case is the same prose with nothing mounted, which is what keeps
+# a rename from turning ordinary prose into a finding.
+new_root
+mkdir -p "$root/skills/kk-drive"
+printf '# Drive\n' >"$root/skills/kk-drive/SKILL.md"
+printf 'spawn `kk-drive` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$names" "fires on a standard naming a skill that exists"
+
+new_root
+printf 'spawn `kk-drive` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$names" "stays quiet on a lane name no skill answers to"
+
+new_root
+mkdir -p "$root/skills/kk-drive"
+printf '# Drive\n' >"$root/skills/kk-drive/SKILL.md"
+printf 'a template under `kk-flavor/` is this same layer, not a lane\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$names" "stays quiet on kk-flavor, which is the shared layer itself"
 
 new_root
 printf '# Root\n' >"$root/CLAUDE.md"

@@ -3,16 +3,14 @@
 # unrecoverable or silently stamps an unreviewed tree as reviewed.
 #   usage: report-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise
 #
-# The index group comes first because nothing undoes what it catches. `current_tree` fingerprints the
-# tree with `git add -A` against a throwaway `GIT_INDEX_FILE`. Drop that variable from the `add` and it
-# stages the human's whole working tree, wrecking the staged-versus-unstaged split they were keeping.
-# Git records nothing about what was staged before, so no later refusal puts it back
-# (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**). Drop it from the `write-tree` instead and
-# nothing is staged, but the fingerprint reads the real index and stops following the tree. Two cases
-# pin that: `gate`'s index isolation, and the fingerprint moving. The `init` case beside them cannot
-# fail for either, and does not claim to. `init` fingerprints nothing, so all it guards is that this
-# subcommand stays out of the index: it reads the index through `check-ignore` and the repo mode, and
-# what the case proves is that neither read writes.
+# The index group comes first because nothing undoes what it catches. `current_tree` delegates the recipe
+# to `~/.kk-flavor/scripts/tree-fingerprint.sh`, whose own failure modes are pinned in
+# `~/.kk-flavor/scripts/tree-fingerprint-test.sh`. What these cases pin is this side of the seam: that a
+# subcommand which fingerprints leaves the human's staged-versus-unstaged split exactly as they left it,
+# and that the fingerprint really follows the tree. Git records nothing about what was staged before, so
+# no later refusal puts a wrecked split back
+# (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**). `init` fingerprints nothing, so the case
+# beside them guards only that the subcommand stays out of the index.
 set -uo pipefail
 export LC_ALL=C
 
@@ -62,9 +60,16 @@ new_repo() {
     echo "report-test: $repo resolves to '$resolved_root', not itself — stopping before any destructive case runs"
     exit 1
   }
+  # Checked by its effect, not just by exit status: `git add -A` needs a HEAD to compare against, so a
+  # fixture whose commit never landed sends every case below down the unfingerprintable-tree path instead
+  # of the one it meant to test.
   printf 'base\n' >"$repo/tracked.txt"
-  git -C "$repo" add tracked.txt
-  git -C "$repo" -c user.email=t@t -c user.name=t commit -qm base
+  git -C "$repo" add tracked.txt &&
+    git -C "$repo" -c user.email=t@t -c user.name=t commit -qm base &&
+    git -C "$repo" diff --quiet HEAD -- tracked.txt || {
+    echo "report-test: could not commit the fixture in $repo — stopping before any destructive case runs"
+    exit 1
+  }
 }
 
 # Runs report.sh the way a skill does, from inside the repo, so `git rev-parse --show-toplevel`
@@ -168,7 +173,7 @@ new_committed_repo() {
 # Checked at the one place the state is built. A fixture whose commit did not land is a throwaway, and
 # the committed-mode branches its cases test (discard's refusal, check-ignore's warning, init's
 # acceptance) answer the same way in both modes. So every case above such a fixture passes while testing
-# nothing, all at once. That happened here, from a charter written before the directory that holds it.
+# nothing, all at once.
 assert_fixture_is_committed() {
   if [ "$(cd "$repo" && "$report_sh" repo-mode)" = committed ]; then
     # Named by fixture dir: this runs at four fixtures, and four identical pass lines could not be told
@@ -261,6 +266,32 @@ second -> ${second_tree:-<none>}"
   record_fail "the fingerprint moves when an untracked file changes"
 fi
 
+echo "report.sh — a missing fingerprint script refuses instead of recomputing"
+
+# `current_tree` delegates to a sibling script, and the one thing it must not do when that script is gone
+# is fingerprint the tree itself: a local copy of the recipe puts every untracked file's content in the
+# human's own object store, recoverable for good. The fixture is the positive control — with the
+# sibling reachable, `gate` gets past the fingerprint and blocks on freshness (exit 1), so the refusal
+# below is the missing script and not some earlier guard.
+new_repo
+run_report check-ignore
+run_report init "review: missing fingerprint"
+run_report gate
+if [ "$status" = 1 ]; then
+  record_pass "fixture: gate reaches the fingerprint and blocks on freshness while the sibling is installed"
+else
+  record_fail "fixture did not reach the fingerprint with the sibling installed (gate exited $status, wanted 1)"
+fi
+# The path is resolved through $HOME, so an empty one is how the script goes missing without touching the
+# real install.
+empty_home="$base/nohome$case_number"
+mkdir -p "$empty_home"
+out="$(cd "$repo" && HOME="$empty_home" "$report_sh" gate 2>&1)"
+status=$?
+assert_refused "gate refuses when the fingerprint script is not installed"
+assert_reports "tree-fingerprint.sh" "and names the path it wanted"
+assert_reports "no local fallback" "and says it will not fall back to a recipe of its own"
+
 echo "report.sh — init refuses rather than writing through a link"
 
 new_repo
@@ -308,15 +339,13 @@ echo "report.sh — an intent value cannot name a file outside qualify-reports/"
 new_repo
 run_report check-ignore
 # Two forms, because two separate rules refuse them: the leading dot stops `../../escaped` on its own,
-# so only a value that starts with a legal character reaches the charset. Measured with one form: adding
-# `/` to the charset left every case green while `ok/../../escaped` wrote the report to
-# $repo/.idsd/escaped-qualify-report.md.
+# so only a value that starts with a legal character reaches the charset.
 for escaping_intent in "../../escaped" "ok/../../escaped"; do
   run_report init "$escaping_intent"
   assert_refused "init refuses the intent '$escaping_intent', whose path could escape the directory"
 done
 # The escape lands at $repo/escaped-qualify-report.md, two levels up from qualify-reports/, not at $base.
-# Asserting on $base and $repo/.. (the same directory) let a widened charset pass this case.
+# Asserting only on $base, or on $repo/.. (the same directory), lets a widened charset through.
 if [ -e "$repo/escaped-qualify-report.md" ] || [ -e "$repo/.idsd/escaped-qualify-report.md" ] ||
   [ -e "$base/escaped-qualify-report.md" ]; then
   out="$(find "$base" -name 'escaped*' 2>/dev/null)"
@@ -401,6 +430,76 @@ run_report stage-returned security-review
 assert_refused "a second stage cannot be marked returned while the first's items are unrecorded"
 assert_reports "has not moved since" "and says the report has not moved"
 
+# The same guard, met by the one caller it must not stop: streaming resumes a stage and takes its return
+# again with nothing recorded in between, so the outstanding stage is the one being marked. The other four
+# are cleared first so the re-marked one is the only stage the stamp below can block on.
+new_repo
+run_report check-ignore
+run_report init "review: resumed stage"
+run_report invalidate
+for cleared_stage in security-review tighten refactor retro; do
+  run_report stage-returned "$cleared_stage"
+  run_report no-items "$cleared_stage"
+done
+run_report stage-returned code-review
+run_report stage-returned code-review
+if [ "$status" = 0 ]; then
+  record_pass "a resumed stage can be marked returned again"
+else
+  record_fail "a resumed stage can be marked returned again (exit $status)"
+fi
+# Exit 0 alone would also be satisfied by a re-mark that cleared the gate. What must survive the re-mark
+# is the stamp's demand that the stage's items reach the report: it rewrites the same checksum, so the
+# report still has not moved, and a stamp taken here would record a review whose findings were never
+# written down.
+run_report stamp "code-review,security-review,tighten,refactor,retro"
+assert_refused "and the re-mark leaves the stamp still gated on that stage's unrecorded items"
+assert_reports "unchanged since" "and names the unrecorded items as the reason"
+if grep -q '^reviewed-tree: pending$' "$(report_path)"; then
+  record_pass "and nothing was stamped over them"
+else
+  record_fail "and nothing was stamped over them"
+fi
+# The positive control for the refusal above: the same stamp lands once that one stage is accounted for,
+# so what blocked it was the unrecorded items and nothing else on the way.
+run_report no-items code-review
+run_report stamp "code-review,security-review,tighten,refactor,retro"
+if [ "$status" = 0 ] && ! grep -q '^reviewed-tree: pending$' "$(report_path)"; then
+  record_pass "and stamps once that stage's items are accounted for"
+else
+  record_fail "and stamps once that stage's items are accounted for (exit $status)"
+fi
+
+# The stamp's other per-stage refusal: an entry recorded as having run for a stage that was never marked
+# returned at all. `refactor,retro` is legally shaped whether or not either ran, so the grammar check
+# above cannot see this and only the per-stage marker can. Four of the five are marked, leaving `retro`
+# as the one thing between this pass and a stamp it never earned.
+new_repo
+run_report check-ignore
+run_report init "review: unmarked stage"
+run_report invalidate
+for cleared_stage in code-review security-review tighten refactor; do
+  run_report stage-returned "$cleared_stage"
+  run_report no-items "$cleared_stage"
+done
+run_report stamp "code-review,security-review,tighten,refactor,retro"
+assert_refused "stamp refuses a stage recorded as having run that was never marked returned"
+assert_reports "never marked returned" "and names the stage-returned call that never happened"
+if grep -q '^reviewed-tree: pending$' "$(report_path)"; then
+  record_pass "and stamped nothing for the pass that skipped it"
+else
+  record_fail "and stamped nothing for the pass that skipped it"
+fi
+# And the same stamp lands once that stage is marked too, so the refusal above was this guard alone.
+run_report stage-returned retro
+run_report no-items retro
+run_report stamp "code-review,security-review,tighten,refactor,retro"
+if [ "$status" = 0 ] && ! grep -q '^reviewed-tree: pending$' "$(report_path)"; then
+  record_pass "and stamps once every stage carries a marker"
+else
+  record_fail "and stamps once every stage carries a marker (exit $status)"
+fi
+
 echo "report.sh — two intents ship side by side"
 
 # The whole point of the per-intent path: a second intent's init is not a collision, so neither ship has
@@ -438,8 +537,8 @@ else
   record_fail "one intent's invalidate leaves the other's stage markers standing (exit $status)"
 fi
 
-# The state column is asserted by value, not by "a tab follows the name". The looser form was satisfied
-# by a listing that emitted an empty token for every ship, and by `BOGUS` where `resume` belongs. `list`
+# The state column is asserted by value, not by "a tab follows the name". The looser form is satisfied
+# by a listing that emits an empty token for every ship, or `BOGUS` where `resume` belongs. `list`
 # is the surface `idsd-ship continue` routes on with several ships in flight.
 run_report list
 first_state="$(grep '^001-first-intent[[:space:]]' <<<"$out" | cut -f2)"
@@ -500,10 +599,9 @@ fi
 echo "report.sh — check-ignore holds before qualify-reports/ exists"
 
 # `check-ignore` runs before the first write into `.idsd/`, and its exit 1 blocks that write. So it has to
-# answer correctly while qualify-reports/ does not exist yet. Measured: without the trailing slash,
-# `git check-ignore -q .idsd/qualify-reports` exits 1, and with it 0, so the slash in ignore_surface is
-# load-bearing exactly here. The suite otherwise only reached this branch after promote, when the
-# directory exists and both entry forms match.
+# answer correctly while qualify-reports/ does not exist yet, and that is where the trailing slash in
+# ignore_surface earns its keep: without it, `git check-ignore -q .idsd/qualify-reports` exits 1 on a
+# directory that is not there.
 new_committed_repo
 if [ ! -d "$repo/.idsd/qualify-reports" ] && [ "$(cd "$repo" && "$report_sh" repo-mode)" = committed ]; then
   run_report check-ignore
@@ -518,8 +616,7 @@ fi
 
 echo "report.sh — close on a clean report, the path 'done' runs"
 
-# Both close success cases passed --force, so the unforced path was never exercised. That is the one
-# `idsd-ship done` invokes, on a report whose items are all cleared.
+# The unforced path, the one `idsd-ship done` invokes, on a report whose items are all cleared.
 new_repo
 run_report check-ignore
 run_report init "001-landed"
@@ -631,10 +728,10 @@ chmod 644 "$(report_path 001-discarding)"
 
 echo "report.sh — promote reports the mode, not the add"
 
-# Measured: qualify-reports/ is ignored by the entry promote itself writes, and `git add` on a directory
-# whose every file is ignored stages nothing and exits 0. With nothing else under .idsd/, promote used
-# to print success while repo-mode still said throwaway, and the next check-ignore re-excluded .idsd/,
-# silently undoing it.
+# qualify-reports/ is ignored by the entry promote itself writes, and `git add` on a directory whose
+# every file is ignored stages nothing and exits 0. With nothing else under .idsd/, reading success off
+# that add leaves repo-mode still saying throwaway, and the next check-ignore re-excludes .idsd/,
+# silently undoing the promotion.
 new_repo
 run_report check-ignore
 run_report init "001-nothing-durable"
@@ -684,7 +781,7 @@ echo "report.sh — the filename and the frontmatter name the same ship"
 
 # The filename and the frontmatter have to name the same ship. When they differ, one intent gets two
 # reports so the ambiguity refusal never fires, `discard` deletes another ship's in-flight intent, and
-# `state` answers `done` for an open one. All three were measured, on a value that began with a space.
+# `state` answers `done` for an open one.
 new_repo
 run_report check-ignore
 run_report init "  002-spaced"
@@ -777,7 +874,7 @@ run_report init "001-unstamped"
 run_report init "002-unstamped"
 printf 'unreadable\n' >"$repo/blocker.txt"
 if made_unreadable "$repo/blocker.txt" "the priming case"; then
-  # "unfingerprintable" is the state under test, and nothing here established it: both ships are
+  # "unfingerprintable" is the state under test, and nothing else here establishes it: both ships are
   # unstamped, so they answer `resume` without the tree either way and the case passes on a perfectly
   # readable tree. `gate` is the shortest path that has to fingerprint, so its 2 is the failure to do so,
   # where a readable tree gives 1, the freshness block.
@@ -819,9 +916,9 @@ assert_reports "ship-report.md" "and so does a refusal for a named report that i
 
 echo "report.sh — init's staged write is not a way out of the repo"
 
-# The staged `cp` writes to `$report.new`, a path the symlink guard chain did not cover. A link planted
-# there is committable, so it arrives through someone else's branch, and it made `cp` overwrite the
-# target while `init` reported success.
+# The staged `cp` writes to `$report.new`, one more path the symlink guard chain has to cover. A link
+# planted there is committable, so it arrives through someone else's branch, and `cp` would overwrite
+# its target while `init` reported success.
 new_repo
 run_report check-ignore
 mkdir -p "$repo/.idsd/qualify-reports" "$base/victim$case_number"
@@ -1008,9 +1105,8 @@ fi
 
 echo "report.sh — no refusal leaves .idsd/ exposed to 'git add -A'"
 
-# `promote` drops the local exclusion first, so every refusal after that point owes a restore. The
-# `git add` one did not: reproduced with a stale index.lock, the exclusion was gone and `git status`
-# listed .idsd/.
+# `promote` drops the local exclusion first, so every refusal after that point owes a restore. Without
+# one on the `git add` refusal, the exclusion is gone and `git status` lists .idsd/.
 new_repo
 run_report check-ignore
 run_report init "001-promoting"
@@ -1025,7 +1121,8 @@ else
 fi
 rm -f "$repo/.git/index.lock"
 
-# promote needs one report as its evidence a ship happened here; it dropped require_report for that.
+# promote needs one report as its evidence a ship happened here, which is why it does not go through
+# require_report.
 new_repo
 run_report check-ignore
 run_report promote
@@ -1063,11 +1160,10 @@ else
   record_fail "state's stdout is one token even while it notes the pre-scoping report on stderr"
 fi
 
-echo "report.sh — discard's destructive path, which nothing has ever covered"
+echo "report.sh — discard's destructive path"
 
 # discard is the destructive path: `rm -rf` on .idsd/, plus the intent file, in the mode that keeps no
-# copy of either anywhere. These cases are its only coverage, and the fixture they need is nothing more
-# than the throwaway repo new_repo already builds.
+# copy of either anywhere.
 new_repo
 run_report check-ignore
 run_report init "001-only-ship"
@@ -1147,9 +1243,9 @@ else
   record_fail "and deleted nothing"
 fi
 
-# `discard` runs after `close`, the order `idsd-ship done` uses. Reversed, `close` finds no report and
-# refuses, so only this direction is covered. What it pins: `close` deletes the report `discard` reads,
-# and `discard` used to refuse on that, leaving the .idsd/ it was to clear standing.
+# `discard` runs after `close`, the order `idsd-ship done` uses; reversed, `close` finds no report and
+# refuses. `close` deletes the report `discard` reads, and a `discard` that refuses on that leaves the
+# .idsd/ it was to clear standing.
 new_repo
 run_report check-ignore
 run_report init "001-closed-then-discarded"
@@ -1170,10 +1266,9 @@ assert_reports "Name the intent" "and says naming the intent is what gets past i
 
 echo "report.sh — init will not write a report into its own fingerprint"
 
-# Skipping `check-ignore`, the documented first step, was silent. The report lands inside the tree it
+# Skipping `check-ignore`, the documented first step, is silent. The report lands inside the tree it
 # fingerprints, so `state` answers `re-qualify` straight after a complete five-stage stamp and `gate`
-# blocks on freshness with nothing that can clear it. Measured: 22 of this suite's own fixtures were in
-# that state and none of them noticed, which is what an unasserted precondition looks like.
+# blocks on freshness with nothing that can clear it.
 new_repo
 run_report init "001-unignored"
 assert_refused "init refuses when git does not ignore the reports directory"
@@ -1193,8 +1288,8 @@ fi
 echo "report.sh — init is where a legacy report gets mentioned"
 
 # init is the first command a pass runs, so it is the moment a report at an older path is worth knowing
-# about. Every other path emits the note only when it finds no report, and init finds none by definition,
-# so it used to say nothing at all.
+# about. Every other path emits the note only when it finds no report, and init finds none by
+# definition, so without this it says nothing at all.
 new_repo
 run_report check-ignore
 mkdir -p "$repo/.idsd"
@@ -1208,8 +1303,8 @@ fi
 assert_reports "ship-report.md" "and names the legacy report it is not reading"
 
 # The note names only the paths that exist, so its wording cannot claim a second one that is absent.
-# Asserted on the absent path's own name: the earlier form looked for the word `either`, which no
-# wording legacy_note has ever emitted, so it passed whether or not the note named both.
+# Asserted on the absent path's own name: looking for a word like `either`, which no wording
+# legacy_note emits, passes whether or not the note names both.
 if ! grep -q 'ship-reports' <<<"$out"; then
   record_pass "and does not speak of two paths when only one is there"
 else
@@ -1230,7 +1325,7 @@ new_intent_file 001-real
 run_report discard 002-nothing-of-mine
 assert_refused "discard refuses a slug that names no report and no intent file"
 # Asserted on the refusal's own effect, not on the sibling surviving: the sibling's report keeps .idsd/
-# alive either way, so "it is untouched" passed with the guard mutated away.
+# alive either way, so "it is untouched" holds with the guard gone.
 if [ ! -e "$repo/.idsd/intents/002-nothing-of-mine.md" ] && [ -d "$repo/.idsd/qualify-reports" ] &&
   [ -f "$repo/.idsd/intents/001-real.md" ]; then
   record_pass "and the reports directory it would have torn down still stands"
@@ -1240,7 +1335,7 @@ fi
 assert_reports "Looked for" "and names every path it looked in"
 
 # A typo must not tear down a directory. `decisions.md` alone does not keep .idsd/ alive by design, so
-# before the guard this reported "zero traces" for a ship that never existed.
+# without the guard this reports "zero traces" for a ship that never existed.
 new_repo
 run_report check-ignore
 mkdir -p "$repo/.idsd"
@@ -1277,8 +1372,8 @@ assert_idsd_removed "and a closed ship is still discardable, identified by its i
 
 echo "report.sh — the destructive path carries the guards the write path has"
 
-# An unreadable index made `git ls-files` fail, which read as "nothing tracked", so a committed repo
-# reported throwaway and discard's committed-mode refusal never fired.
+# An unreadable index fails `git ls-files`, which reads as "nothing tracked", so a committed repo
+# reports throwaway and discard's committed-mode refusal never fires.
 new_repo
 new_durable_charter
 new_intent_file 002-tracked
@@ -1300,8 +1395,8 @@ if made_unreadable "$repo/.git/index" "the unreadable-index case"; then
 fi
 chmod 644 "$repo/.git/index"
 
-# discard never carried init's symlink guard, so an untracked .idsd link let it delete through to a
-# target outside the repo.
+# Without init's symlink guard here, an untracked .idsd link lets discard delete through to a target
+# outside the repo.
 new_repo
 run_report check-ignore
 mkdir -p "$base/outside-discard$case_number/intents"
@@ -1318,8 +1413,8 @@ rm -f "$repo/.idsd"
 
 echo "report.sh — a global exclude does not count as ignoring the report"
 
-# `check-ignore -q`, and this suite's old assertion, are both satisfied by a `core.excludesFile`, which
-# belongs to one machine: a clone without it stages the report on the next `git add -A`. The report
+# `check-ignore -q` is satisfied by a `core.excludesFile`, which belongs to one machine: a clone
+# without it stages the report on the next `git add -A`. The report
 # carries a pass's security findings, so it is exactly the file that must not reach a commit.
 new_repo
 global_exclude="$base/global-exclude$case_number"
@@ -1336,9 +1431,9 @@ fi
 
 echo "report.sh — ignored means ignored for everyone, not just this machine"
 
-# The common global setup: `git config --global core.excludesFile ~/.gitignore`. The `*/.gitignore` arm
-# accepted it by name, so the guard against a machine-local exclude passed for the very configuration
-# most people have. Measured: `init` wrote the report and printed success.
+# The common global setup: `git config --global core.excludesFile ~/.gitignore`. A `*/.gitignore` arm
+# matches it by name, so the guard against a machine-local exclude would pass for the very configuration
+# most people have.
 new_repo
 home_gitignore="$base/home$case_number/.gitignore"
 mkdir -p "$(dirname "$home_gitignore")"
@@ -1397,8 +1492,9 @@ fi
 echo "report.sh — a standalone review can still be torn down after it is closed"
 
 # `review` is the one stem with no intent file, and idsd-qualify's SKILL.md tells the agent to run
-# `close review`, so this sequence is the documented one. It used to end in a permanent refusal, leaving
-# an empty .idsd/ and its exclusion standing in the mode whose whole contract is zero traces.
+# `close review`, so this sequence is the documented one. Without the `review` exception it ends in a
+# permanent refusal, leaving an empty .idsd/ and its exclusion standing in the mode whose whole contract
+# is zero traces.
 new_repo
 run_report check-ignore
 run_report init "review: a standalone pass"
@@ -1414,7 +1510,7 @@ fi
 
 echo "report.sh — the teardown reports the exclusion from the result, not the attempt"
 
-# `drop_local_exclusion`'s return was discarded, so "zero traces" printed at exit 0 over a surviving
+# With `drop_local_exclusion`'s return discarded, "zero traces" prints at exit 0 over a surviving
 # entry. That is the one claim here a human acts on without checking.
 new_repo
 run_report check-ignore
@@ -1437,8 +1533,7 @@ fi
 
 echo "report.sh — promote and check-ignore also refuse an unreadable index"
 
-# Only discard's assert_repo_mode_readable was pinned; deleting either of the other two left the suite
-# green. The mode decides whether .idsd/ is durable, so every caller that acts on it owes the check.
+# The mode decides whether .idsd/ is durable, so every caller that acts on it owes the check.
 new_repo
 run_report check-ignore
 run_report init "001-modes"

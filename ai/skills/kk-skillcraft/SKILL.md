@@ -1,6 +1,6 @@
 ---
 name: kk-skillcraft
-description: Review and refine skills as skills — how each one is triggered, whether its steps and reference material are split right, whether it steers the agent hard enough, and what in it is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy or prose (kk-tighten).
+description: Review and refine skills as skills — triggering, how steps and reference material are split, steering strength, and what in them is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy (kk-ecosystem) or prose (kk-tighten).
 argument-hint: "a skill dir, several, or the whole skills tree"
 ---
 
@@ -8,9 +8,9 @@ Judge a skill as a skill. Not whether its rules earn their place or reconcile ac
 
 A big skill is a symptom. Read it for the cause.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file, since three of the four lenses are about how its files divide. Read every file in it, scripts and reference files included: a lens about how files divide cannot run on `SKILL.md` alone. **This coarser unit replaces `file` throughout the protocol** — one directory per message, one verdict for the directory, and the queue, ledger and `N/M` all count directories.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it, scripts and reference files included: a lens about how files divide cannot run on `SKILL.md` alone. **This coarser unit replaces `file` throughout the protocol** — one directory per message, one verdict for the directory, and the queue, ledger and `N/M` all count directories.
 
-**Apply the fixes your lenses call for.** A split into two skills is a proposal, not an edit — it changes what the human types; so is a skill that should do *more*. A finding you return as a proposal is resolved by returning it: `WARN` once and move on, because the protocol's retry cannot converge what you have no license to change.
+**Apply the fixes your lenses call for.** A split into two skills is a proposal, not an edit — it changes what the human types; so is a skill that should do *more*. A finding you return as a proposal is resolved by returning it: `WARN` once and move on, because the protocol's retry cannot converge what you have no license to change. **A defect outside your lenses is named, never edited and never dropped** — `~/.kk-flavor/standards/skill-protocol.md` → **Do not** bars the edit, and silence loses what only this pass saw.
 
 ## 1. Trigger — how it gets invoked
 
@@ -26,7 +26,7 @@ A skill divides into **steps** (the procedure) and **reference** (templates, def
 
 Find the **branches** — the conditional paths a run may or may not take. A branch's material does not belong inline; it belongs in a file the skill names at the branch. Three tests, all of which must pass:
 
-1. Would an agent on the common path decide *worse* without having read it? If yes it stays.
+1. Does an agent on the common path decide just as well without having read it?
 2. Is the pointer unmissable, sited exactly where the branch is taken, and does it say the file is the whole delta for that path? A pointer the agent skims past leaves the rule both absent and unenforced.
 3. Does the extracted file stand alone, without re-reading the parent?
 
@@ -36,12 +36,12 @@ Fail any one and it stays inline. **A bad extraction is worse than none**, becau
 
 When an agent ignores an instruction, argue less and steer harder.
 
-- **Leading words.** A dense term the model already knows beats a paragraph describing the same thing. Hunt for paragraphs that describe a concept the language already names, and replace them with the name.
+- **Leading words.** A dense term the model already knows beats a paragraph describing the same thing — hunt those paragraphs and replace them with the name.
 - **Hide the next step.** An agent that can see the goal rushes the step in front of it — a skill told to *ask clarifying questions, then plan* barely asks. Split that skill in two, so the early phase is the whole task. Where you find one skill whose early phase is chronically thin, this is usually why.
 
 ## 4. Pruning — what is not doing anything
 
-- **No-ops.** Text that reads like an instruction but changes no output. Apply the deletion test: cut it, and ask whether a competent agent does the same thing anyway. A paragraph demanding a "clear, detailed commit message" is a no-op. These breed when an agent writes the skill.
+- **No-ops.** Text that reads like an instruction but changes no output. Apply the deletion test: cut it, and ask whether a competent agent does the same thing anyway. A paragraph demanding a "clear, detailed commit message" is a no-op.
 - **Sediment.** What accumulates when several people edit one file and nobody dares delete anyone else's rule. It reads as a flat list of equals; it is actually one live procedure plus somebody's old edge case. Move the niche rules into the branch that needs them and kill the stale ones.
 - **Repetition.** One home per instruction, within the skill and across its reference files.
 
@@ -52,6 +52,6 @@ Deleting is not the only fix — try the moves in ecosystem.md → **Move it bef
 Per the protocol, plus the cause:
 
 - Pass: `Skill N/M <dir> | <SKILL.md lines>L | OK`
-- Fail: the same line with `WARN`, then one line per finding, each naming its lens (`trigger` / `structure` / `steering` / `pruning`) and what an agent does wrong today.
+- Fail: the same line with `WARN`, then one line per finding, each naming its lens — one of `trigger` / `structure` / `steering` / `pruning`, or the lens that owns a defect outside them — and what an agent does wrong today.
 
 Close by stating plainly whether the skills are now sound, and name any you left large on purpose.

@@ -11,11 +11,13 @@ Runs **inline**, never spawned — the target is text you already hold (`~/.kk-f
 
 ## The reply, not the work
 
-Inspect nothing but the reply itself and the two sections **The shape** names, and reach no new conclusion. A fact absent from the original does not enter the re-answer now. Something you notice while re-answering goes after the re-answer as its own line, never folded in as though you had known it.
+Inspect nothing but the reply itself and the two sections **The shape** names, and reach no new conclusion. A fact absent from the original does not enter the re-answer now. Something you notice while re-answering goes on its own line above the close, never folded in as though you had known it.
 
 ## The shape
 
 `~/.kk-flavor/standards/writing.md` → **Replying to a human** and → **Density** own the shape entirely. Read both.
+
+**It comes back shorter.** A re-answer the same length in different words is a rewrite — you were asked to cut.
 
 ## Every open item survives
 

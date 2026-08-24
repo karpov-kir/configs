@@ -19,4 +19,6 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 
 ## Rules
 
+**This file receives promotions from the records below it, so it is not bounded by size** — `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap** holds instead. Apply that test to every existing principle and NFR on each edit, not only to what you are adding: one that rules out nothing another already rules out is deleted, never reworded.
+
 Gate commands must be **able to fail** — each exercises the thing its NFR or constraint names and exits non-zero when the threshold is breached. One that runs but can't fail (wrong target, no assertion, no server started) is worthless, not a gate.

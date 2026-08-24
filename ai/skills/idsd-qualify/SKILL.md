@@ -8,6 +8,21 @@ Run the quality stages over one change set and leave only the residue that needs
 
 **The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta, and the target is always the working tree.
 
+## Lanes
+
+That file names **lanes**, never skills — the shared layer never reaches down into one (`~/.kk-flavor/standards/ecosystem.md` → **One home**). These are the skills filling them, and the scanner each one owns:
+
+| Lane | Skill | Its scanner |
+|---|---|---|
+| drive gate | `kk-drive` | — |
+| code-review | `kk-code-review` | — |
+| security-review | `kk-security-review` | — |
+| prose | `kk-tighten` | — |
+| outward-text | `kk-humanize` | `comment-density.sh` |
+| instruction | `kk-ecosystem` | `check.sh` |
+| refactor | `kk-refactor` | `dup-literals.sh` |
+| retro | `idsd-retro` | — |
+
 ## Modes
 
 **Fast iterates; full is the verdict** — the pass that must precede a merge, and what `idsd-ship <intent>` runs. Bare `idsd-qualify` is fast.
@@ -15,12 +30,12 @@ Run the quality stages over one change set and leave only the residue that needs
 ## Running a pass
 
 1. **`~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore`**, before anything else (**Report**).
-2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo, or the cwd has drifted.
+2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo — a different path means the cwd drifted.
 3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have, because until then the stamp and the stage markers standing there are the previous pass's.
 
-**Take one stage's return at a time**: `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items in the report — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor and retro included, not just the round's.
+**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor and retro included, not just the round's.
 
-**Retro runs last, and only when your caller or the human asks for one** — never on the pass's own initiative. **Offer one once every other stage has returned, and before `report.sh stamp`**: earlier, the human decides holding nothing the pass found; later, the stamp already reads `retro:skipped` for a stage that then runs. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the run-log, the spawn, and what to do with the return live there and nowhere else.
+**Retro runs last, and only when your caller or the human asks for one.** **Offer one once every other stage has returned, and before `report.sh stamp`**: earlier, the human decides holding nothing the pass found; later, the stamp already reads `retro:skipped` for a stage that then runs. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the run-log, the spawn, and what to do with the return live there and nowhere else.
 
 **A stale gate is a Decide item** (`quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
@@ -28,7 +43,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **A skip's recorded reason follows *why* it was skipped, not the mode.** Stamp `retro:skipped(not-applicable)` when nobody asked for a retro; stamp `retro:skipped(fast)` when one that *was* asked for is skipped for turnaround. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, `kk-ecosystem`, or `kk-humanize` for the comment pass. **A refactor loop cut short by fast mode is `refactor:partial(fast)`**; `(cap)` is only full mode's iteration cap — in fast mode the single iteration *is* the cap.
 
-**A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent. Do not compare a bare `git write-tree`: that hashes the human's index, not the fingerprint `report.sh` computes against a throwaway one.
+**A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
 **Report post-processing.** After stamping, when the report has items, apply `kk-tighten`'s lens inline over this pass's report file before presenting — inline because its target is text you already hold, the exception that `skill-protocol.md` → **Caller** names. Its **lossless** license is the one that applies: every item and its stakes survive, and a `- [ ]` is never dropped or softened. `kk-humanize` does not apply — the audience is the human mid-run, so house style holds. (The report is check-ignored, so this never invalidates the stamp.)
 
@@ -40,7 +55,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **Every standalone `review: <description>` shares the one `review` stem**, so a worktree holds one open standalone review at a time.
 
-**A landed ship's report is retired, not left standing** — `report.sh close <intent>`, which `idsd-ship done` runs. **A standalone review has no `done`, so say in your closing message that `report.sh close review` retires it** — unsaid, `report.sh list` offers it as work in flight for good.
+**A landed ship's report is retired, not left standing** — `report.sh close <intent>`, which `idsd-ship done` runs. **A standalone review has no `done`** — `report.sh close review` retires it, and unsaid, `report.sh list` offers it as work in flight for good.
 
 **Before the first write into `.idsd/` — any file, by any skill — run `report.sh check-ignore`**: it is what keeps the directory out of the human's `git add -A`, and nothing else runs it. Its exit 1 blocks the write however its message is worded.
 
@@ -48,7 +63,9 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 ### The decision log
 
-`.idsd/decisions.md`. **Written for the next agent, not the human** — nothing here is presented, and the chat message never summarises it. It holds **decisions a stage settled without asking**, each with what determined it, and **standing observations** — monitor-only notes and pointers to follow-ups routed out of the report. `~/.kk-flavor/standards/skill-protocol.md` owns the companion rule, **a decision record is never a home for an open question**.
+`.idsd/decisions.md`. **Written for the next agent, not the human** — nothing here is presented. It holds **decisions a stage settled without asking**, each with what determined it, and **standing observations** — monitor-only notes and pointers to follow-ups routed out of the report. `~/.kk-flavor/standards/skill-protocol.md` owns the companion rule, **a decision record is never a home for an open question**.
+
+It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta for its entry shape, its cap, and how an entry leaves — upward by promotion or downward by eviction. **Its bound is roughly 40 lines**, tighter than a retro's findings file because this one is read at *every* pass start and so costs context on every pass.
 
 Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale. **Read it at pass start**: its standing observations are re-evaluated each pass.
 
@@ -67,7 +84,7 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 The report is **only the residue that needs the human — not a record of the run**:
 
 - **One group, `Decide`, holding `- [ ]` actions** — no per-stage sections, no summary, and no reading list: **if the human takes no action, it is not in the report.** A monitor-only observation goes to the decision log, and there is **never a monitor-only group**. Shrinking to nothing is the success case, but **a claim this pass falsified** is a `Decide` item, not a tidy-up.
-- **An item earns its place by the report-item test** in `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** — read it. **An applied fix is not an item.** The diff is its record, and asking the human to bless one is the pass seeking cover rather than the human needing a decision. Where the fix traded something they may weigh differently — behaviour they relied on, a cost, a constraint they wrote — the open question is *which way*. That is a fork, and its default is what the tree now does. **Where the losing branch names no belief the human could hold, it is not a fork either** — keep-it-or-revert clears the test on a technicality, since the two answers do lead to different acts, while being no choice at all.
+- **An item earns its place by the report-item test** in `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** — read it. **An applied fix is not an item.** The diff is its record, and asking the human to bless one is the pass seeking cover rather than the human needing a decision. Where the fix traded something they may weigh differently — behaviour they relied on, a cost, a constraint they wrote — the open question is *which way*. That is a fork, and its default is what the tree now does. **Where the losing branch names no belief the human could hold, it is not a fork either** — keep-it-or-revert clears the test on a technicality: the two answers do lead to different acts, but it is no choice at all.
 - **Order Decide by decision kind**: **falsified** (a claim this pass disproved) first, because it can change the answer to everything under it; then **forks** (a genuine choice still open); then **pending evidence** (blocked on a named signal). **A falsified item has no branch to lose to**, so its line closes on what now needs re-deciding because the claim was false; where that is nothing and only the wording was wrong, the correction is a tidy-up and there is no item. A blocking question is asked live, never recorded — except one you asked live and the human did not answer, which becomes a `Decide` item when the pass closes.
 - **The item's shape is the block above** — inverting `~/.kk-flavor/standards/writing.md` → **Density**'s item form, because an item here is an action still open, not a change already made. **The recommendation closes the item on its own line**; buried mid-paragraph, it is one the human has to hunt for. **Having none is itself an opening**: `**Recommend:** nothing — this is a product call` beats a hedge dressed as advice.
 - **Every item stands on its own within the report** — someone who never saw the run understands what it is and why it matters, and can act. Cut run-narration and command strings, never the stakes; when an item needs detail it can't carry, that detail belongs in a durable home, linked.
@@ -75,9 +92,9 @@ The report is **only the residue that needs the human — not a record of the ru
 
 ## After the pass
 
-The closing message points at the report (`~/.kk-flavor/standards/writing.md` → **Replying to a human**): **one status line** — mode, repo mode, item count by decision kind — plus at most one live blocking question; at most one line for a tooling improvement the retro proposed ([RETRO-STAGE.md](RETRO-STAGE.md) routes it here); no per-stage verdicts, no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too; in throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
+The closing message points at the report (`~/.kk-flavor/standards/writing.md` → **Replying to a human**): **one status line** — mode, repo mode, item count by decision kind — plus at most one live blocking question; at most one line for a tooling improvement the retro proposed ([RETRO-STAGE.md](RETRO-STAGE.md) routes it here); no per-stage verdicts, no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too; after a standalone review, one line saying `report.sh close review` retires it (**Report**); in throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
 
 ## Rules
 
 - **Never commits or pushes** — fixes stay in the tree; committing is the caller's or the human's act. Any verification that reads a ref runs against the stamped `reviewed-tree`, not the remote.
-- **While a stage is live, the tree it was told to read must not move under it** — no rebase, cherry-pick, reset, branch switch or base change until it returns. Finish the stage, or abandon it, do the maintenance, then `report.sh invalidate <intent>` and spawn it fresh against the new HEAD; a separate worktree is the only safe overlap.
+- **While a stage is live, the history under it must not move** — until it returns, nothing that rewrites or repoints it: rebase, cherry-pick, reset, amend, branch switch, base change. A working-tree edit is a different thing, already answered by `~/.kk-flavor/standards/skill-protocol.md` → **Loop**, and it is what lets a caller apply patches beneath a live stage (`~/.kk-flavor/standards/streaming.md`). Finish the stage, or abandon it, do the maintenance, then `report.sh invalidate <intent>` and spawn it fresh against the new HEAD; a separate worktree is the only safe overlap.

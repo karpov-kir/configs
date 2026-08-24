@@ -15,9 +15,9 @@ Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — withou
 
 **Start from a committed tree** — git is this campaign's undo, and on a dirty tree the human's own work reverts with the cuts. Dirty → they commit or stash before Phase 1. A clean start also scopes Phase 6's comment scan, which reads the diff against `HEAD`.
 
-**Open the ledger row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what is about to run>, start"`. Phase 7 closes it; `stats.md` owns everything else about that file.
+**Open the `stats.md` row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what is about to run>, start"`. Phase 7 closes it; `stats.md` owns everything else about that file.
 
-**Take Phase 1's target from the ledger**, not from a number you invent. How far the tree drifted since the last closing row is what there is to give back. Reach for ≥40% only where the ledger holds no comparable pair.
+**Take Phase 1's target from `stats.md`**, not from a number you invent. How far the tree drifted since the last closing row is what there is to give back. Reach for ≥40% only where that file holds no comparable pair.
 
 ## 1. Over-cut
 
@@ -45,7 +45,7 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 **`check.sh` over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**). You run the wiring check between phases and at the end.
 
-**You own the cross-scope ledger**, at `<scratch>/reduce-cross-scope.md`. Agents return an edit another agent's file needs in their `CROSS-SCOPE:` line; you append them, relay each to the owning agent if it is still running, and **drain the ledger in Phase 4** — every entry applied, or recorded with why it was declined. A *handoff* is not a cross-scope entry: it names a lane rather than an edit, and Phase 6 drains it (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
+**You own the cross-scope queue**, at `<scratch>/reduce-cross-scope/` — where an agent files the edit another agent's file needs, as a patch (`AGENT-BRIEF.md` → **Scope discipline**). **Drain it as each patch arrives, not in Phase 4**: apply it or record why you declined, then resume its owner with what landed. A patch outliving its author can only be repaired by hand, which `~/.kk-flavor/standards/streaming.md` → **The caller's half** forbids. Phase 4 takes only what arrived after its owner finished. A *handoff* is not a cross-scope entry: it names a lane rather than an edit, and Phase 6 drains it (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
 **Keep a campaign record beside it** — the plan path, each theme's scope, whether its agent finished, and every return verbatim. Without it an interrupted campaign leaves a half-cut tree with no way to tell which themes landed.
 
@@ -53,7 +53,7 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 The checks below need the whole tree at once, which no Phase 3 agent had.
 
-- **One home, and no home.** Reconcile rules living in several files. Then grep-verify **every `DELETED:` line every agent returned** — open the file each names as still covering the rule and confirm the text is there — not only what the plan rescued, since two agents can each confirm the other's copy exists and each delete its own. A line whose named home no longer holds it is a rule deleted twice; restore one copy.
+- **One home, and no home.** Reconcile rules living in several files. Then grep-verify **every `DELETED:` line every agent returned** — open the file each names as still covering the rule and confirm the text is there — not only what the plan rescued: **de-duplication to zero** survives the plan when two agents each delete their own copy. A line whose named home no longer holds it is a rule deleted twice; restore one copy.
 - **Stale claims.** A wiring check proves the path and the heading a citation names; nothing proves that section still says the thing. Read every citation into a file that was heavily cut.
 - **Prefer the mechanism.** Move prose a script can assert into the script (ecosystem.md → **Prefer the mechanism**).
 - **Trace the real runs.** Walk each end-to-end path as the agent would, loading files in order, and find where the instruction runs out: a step naming something no file defines, an invocation whose receiving skill no longer expects what the sender sends, a contract with one half deleted.
@@ -63,13 +63,13 @@ The checks below need the whole tree at once, which no Phase 3 agent had.
 
 Fresh agents over the largest remaining scopes, told nothing of what was already cut — only what is protected (**Rules**, below). **Tell them a short return is the correct answer to a converged tree** — an agent measured on findings will manufacture them and undo work that was already argued.
 
-Stop when a round returns little and says so. Two rounds is usually enough; a third produces noise.
+Stop when a round returns little and says so. Two rounds is usually enough.
 
 ## 6. Repair and verify
 
 Cutting damages prose: it stitches sentences together, strands pronouns, leaves terms used before the line defining them, and compresses a rule past the point where its constraint survives. Spawn `kk-tighten` **last**, pointed at the readability floor rather than at volume, and hand it that list — expect it to *add* words.
 
-**Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. **A header naming no `-test.sh` states `# untested: <why>` instead** (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**). Read that reason: this step covers such a script with nothing. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
+**Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. A header stating `# untested:` instead (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**) leaves this step covering that script with nothing; read its reason. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
 
 **Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh`** with no arguments, which scans the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start. A comment's bar is `~/.kk-flavor/standards/human-writing.md` → **Code comments**.
 
@@ -85,7 +85,7 @@ Its deltas: the entrypoint is a fresh agent reading the shrunk tree, and what it
 
 A `DIVERGED` scenario stops the campaign as a red gate does. Restore the instruction it names, **re-enter Phase 6 over the files you touched** — a restoration made here is otherwise unrepaired and unscanned — then re-drive.
 
-**Close the ledger row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what ran>"`. **An open item does not live in the note.** Put it where whoever trips over it will read it — a comment at the site, a rule in the file that owns it — and let the note name it in a clause.
+**Close the `stats.md` row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what ran>"`. **An open item does not live in the note.** Put it where whoever trips over it will read it — a comment at the site, a rule in the file that owns it — and let the note name it in a clause.
 
 ## Rules
 

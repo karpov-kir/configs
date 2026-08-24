@@ -9,7 +9,7 @@ Look back at **how a run was conducted**, not at the change it produced — revi
 ## Input
 
 - A **factual run-log** — what was asked, what each stage did, where the human corrected course, what was deferred, and any defect the run hit and how it surfaced. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit.** A caller (e.g. `idsd-qualify`) writes it; standalone, reconstruct it tersely from the session and `git` first.
-- The **diff**, and any **skill / doc / prompt / script the run touched**.
+- The **diff**, and **anything the run touched outside it** — a skill, a standard, a prompt, a script.
 
 ## Lenses
 
@@ -20,27 +20,24 @@ Apply each; surface only what the run evidences:
 3. **Docs** — straying from the project's standards or architecture.
 4. **Missed-late** — what a stage should have caught that only surfaced later.
 5. **Friction** — avoidable churn, rework, or round-trips, communication included: when the human had to re-read a message or ask back about a report, that cost a round. Judge the run's messages against `~/.kk-flavor/standards/writing.md` → **Readability floor**.
-6. **Tooling ergonomics** — when the run changed its own tooling (a skill, standard, prompt or shared script), judge it against `~/.kk-flavor/standards/ecosystem.md`. **Bloat is a finding here** — nothing else in the pipeline looks for it.
+6. **Tooling ergonomics** — when the run changed its own tooling (a skill, standard, prompt or shared script), judge it against `~/.kk-flavor/standards/ecosystem.md`. **Bloat the run itself added is a finding here** — the tree's standing bloat is `kk-ecosystem`'s lane, not this lens's.
 
-## The findings ledger
+## The findings file
 
-`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run.
+`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta for its counting, cap, promotion and pruning. **Its bound is roughly 50 lines.**
 
-**Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new. Bound it at roughly 50 lines, dropping the oldest `1x` entries first.
+**Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new.
 
-Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses:
+Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses, one line per finding, so a repeat is one grep away:
 
-- A **new** finding gets one line, in this shape, so a repeat is one grep away:
+```
+- 1x | <YYYY-MM-DD> | <repo> | <target> | <the finding in a clause> -> <where it routed>
+```
 
-  ```
-  - 1x | 2026-08-07 | <repo> | <target> | <the finding in a clause> -> <where it routed>
-  ```
-
-- A finding **already on file** bumps that line's count and date instead of adding a line — carry the count into the finding you return and let it argue for a durable fix.
-- A line whose improvement **landed** is deleted; a ledger of solved problems buries the open ones.
+**Carry a repeat's count into the finding you return**, and let that count argue for the durable fix.
 
 ## Output
 
-Bounded, **evidence-backed** findings; cost is not a reason to narrow them. Each states the improvement, its **target** (the skill / arch doc / prompt / pipeline / constitution / backlog it concerns), **where the fix routes**, **what evidences it**, and its ledger count when this is not the first time.
+Bounded, **evidence-backed** findings; the cost of a fix is not a reason to drop one. Each states the improvement, its **target** (the skill / arch doc / prompt / pipeline / constitution / backlog it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
 
-**Caller.** Spawned by an orchestrator → return the findings as data, applying and routing nothing. Standalone → present them and let the human route. Either way the retro only flags: the ledger is the one file it writes, and it never edits the durable record.
+**Caller.** Spawned by an orchestrator → return the findings as data, applying and routing nothing. Standalone → present them and let the human route. Either way the retro only flags: `findings.md` is the one file it writes, and it never edits the durable record.

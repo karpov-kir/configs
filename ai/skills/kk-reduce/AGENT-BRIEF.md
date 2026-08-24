@@ -25,7 +25,7 @@ You are one scoped agent in a campaign shrinking an ecosystem of agent instructi
 
 Before deleting anything because "another file covers it", **open that file at the moment you delete — not earlier — confirm the text is there, and confirm the plan does not also schedule it.** A concurrent agent may be deleting its copy while you read yours. If both copies are scheduled, keep one and say which.
 
-## Move before you cut
+## Move it before you cut it
 
 Prefer a move (`~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it**) to a deletion
 you would have to argue for.
@@ -38,7 +38,7 @@ into a script are still there. A comment's bar is `~/.kk-flavor/standards/human-
 ## Scope discipline
 
 - Edit **only** your listed files. Other agents own the rest and run concurrently.
-- A change another file needs is a `CROSS-SCOPE`, not a reach outside your scope.
+- A change another file needs is a **patch in the cross-scope queue your caller names**, never a reach outside your scope and never prose in your return — described instead of patched, its owner re-derives the work. One patch per file, `<your theme>-<seq>.patch` plus a sibling `.md` carrying its case (`~/.kk-flavor/standards/streaming.md` → **The stage's half**; no tier, since no two scopes here share a file).
 - **Skip `kk-ecosystem`'s wiring check over the root** (its first and last steps) — that is your orchestrator's. Other agents are mid-edit and their in-flight state reads as findings; fixing it would clobber files you do not own.
 - **Skip its shape and prose stages too** — it spawns `kk-skillcraft` and `kk-tighten`, and the campaign runs both later over what survived. Rule economy is the whole of your pass.
 - Never delete a file unless your scope says to.
@@ -46,7 +46,7 @@ into a script are still there. A comment's bar is `~/.kk-flavor/standards/human-
 
 ## On the target
 
-Your word target is an **aim, not a quota**. Missing it and showing the arithmetic is a better outcome than hitting it by cutting instruction; the target itself may simply be wrong. Never reach a target by deleting something rescued.
+Your word target is an **aim, not a quota**. Missing it and showing the arithmetic is a better outcome than hitting it by cutting instruction; the target itself may be wrong. Never reach a target by deleting something rescued.
 
 ## Return contract
 
@@ -58,7 +58,7 @@ WORDS: <before> -> <after> (saved N)
 DELETED: one line per rule removed, each naming what still covers it — or plainly "nothing did"
 MOVED: what you split, extracted, or gave one home, and where the pointer sits
 RESCUED-KEPT: one line per plan-rescued passage, confirming it survives and where
-CROSS-SCOPE: changes another file needs (path + what) — or "none"
+CROSS-SCOPE: the patches you queued, by filename — or "none"
 HANDOFF: each lane your edits opened (skill + the files that opened it) — never kk-skillcraft or kk-tighten, the campaign runs those — or "none"
 PROPOSAL: additions you did not make — or "none"
 BROKEN: references your edits invalidated — or "none"

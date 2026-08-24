@@ -22,3 +22,5 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 ## Rules
 
 Curated, not generated: humans own the wording.
+
+**Both files this skill writes receive promotions from the records below them, so neither is bounded by size** — `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap** holds instead. Apply that test to the whole file on every edit, not only to what you are adding, and expect to delete: a scope line that rules out nothing, a term no artifact uses.

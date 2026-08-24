@@ -2,7 +2,7 @@
 
 Rules for editing what agents read: skills, standards, prompts, templates, `CLAUDE.md`. Every line here is context each future run pays for. The bar is never "is this true" — it is "does this change what an agent does".
 
-These rules bind any edit, however small. Run `/kk-ecosystem` after a batch of edits here.
+These rules bind any edit, however small. Run the ecosystem lane after a batch of edits here.
 
 ## Earn the place
 
@@ -21,15 +21,15 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 
 **Ownership is stated in the owned file, never broadcast to the files that do not own it.**
 
-**The shared layer — a standard, a template under `kk-flavor/`, `CLAUDE.md` — never cites a section inside a skill.** Naming a skill is fine; move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
+**The shared layer — a standard, a template under `kk-flavor/`, `CLAUDE.md` — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. The dependency runs one way. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
 
 ## Conventions a new file joins
 
-- **A skill authored in this tree joins one of two families.** `kk-*` works in any repo; `idsd-*` belongs to the intent workflow and carries its `.idsd/` machinery. An installed tool skill is a skill outside this tree, not a third family inside it.
+- **A skill authored in this tree joins one of two families**, by prefix: one works in any repo, the other belongs to a single workflow and carries that workflow's own on-disk machinery. An installed tool skill is a skill outside this tree, not a third family inside it.
 - **A skill the human always initiates carries `disable-model-invocation: true`**, which drops its description out of every session's context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.claude/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
-- **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it; `~/.claude/skills/kk-ecosystem/scripts/check.sh` proves the mount — run it as the last step of adding one, never as a later tidy-up.
+- **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it, and **the mount is proven by running the ecosystem lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script.
 
 ## Move it before you cut it
 

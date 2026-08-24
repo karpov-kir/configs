@@ -1,6 +1,6 @@
 ---
 name: kk-ecosystem
-description: Refine what agents read — skills, standards, prompts, templates, CLAUDE.md — against the bar in ecosystem.md, checking the wiring and cutting what no longer earns its place. Use for "refine the ecosystem", "de-bloat".
+description: Refine what agents read — skills, standards, prompts, templates, CLAUDE.md — cutting what no longer earns its place and checking the wiring. Use for "refine the ecosystem", "de-bloat". Runs the shape (kk-skillcraft) and prose (kk-tighten) stages itself.
 argument-hint: "the ecosystem root, a subset of it, or the change to refine (default: the whole ecosystem)"
 ---
 
@@ -8,11 +8,9 @@ Refine the ecosystem. The product is a **smaller** set of instructions that stee
 
 **The bar is `~/.kk-flavor/standards/ecosystem.md`** — read it first; every judgment below is its.
 
-**Protocol.** You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` — its Caller and orchestrator rules bind you; the per-file queue and loop belong to the subagents you spawn.
+**Protocol.** You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Caller** and → **Orchestrators — interactive first**; the per-file queue and loop belong to the subagents you spawn.
 
 **You own this whole lane, in this order: rule economy (yours), then shape (`kk-skillcraft`), then prose (`kk-tighten`).** Reversing any pair wastes the earlier one: prose tightened before the cut that deletes it, or before the shape pass that moves it, was tightened for nothing.
-
-**Economy runs first, so nothing a later stage adds has been through it — and shape writes into the priciest tier.** A `description:` lengthened for a trigger is always-loaded and never met your bar. Before step 7's accounting, hold every `description:` this lane's stages touched to ecosystem.md → **Earn the place**, and say what each addition bought.
 
 ## 1. Check the wiring
 
@@ -41,7 +39,7 @@ Spawn `kk-tighten` over the resolved artifact set, plus whatever the two stages 
 
 ## 6. Hand off the scripts
 
-A script this pass edited is code no stage of this lane reviews. Hand it off per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**, carrying exactly the scripts this pass changed.
+A script this pass edited is code no stage of this lane reviews. Hand it off per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**.
 
 ## 7. Account for it
 
@@ -50,6 +48,7 @@ Report, in this order:
 - every rule **deleted**, and what still covers it — or plainly that nothing did;
 - every rule **added**, and which one it replaced;
 - the always-loaded budget, before and after;
+- every `description:` this lane's stages touched, and what its addition bought — one lengthened for a trigger never went through step 3 (ecosystem.md → **Earn the place**);
 - total lines, before and after;
 - the handoff step 6 named, or plainly that this pass changed no script.
 

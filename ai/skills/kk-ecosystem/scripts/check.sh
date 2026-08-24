@@ -161,10 +161,12 @@ grep -rhoE '~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+' "$root" --include='*
   [ -n "$(resolve_ref "" "$ref")" ] || echo "dangling home ref: $(oneline "$ref")"
 done >>"$findings"
 
-# Direction: the shared layer never cites into a lane (ecosystem.md → **One home**).
-# Only a path matches, so a bare skill name stays legal; one name character is required before the
-# slash, or a glob's bare `/SKILL.md` tail matches. Fences are not skipped, unlike in the scans that
-# resolve a citation — a banned form steers its reader from inside one too.
+# Direction: the shared layer never cites into a lane, and never names one (ecosystem.md → **One home**).
+# Two shapes are banned. A path into a skill needs one name character before the slash, or a glob's
+# bare `/SKILL.md` tail matches. A bare skill name counts only when a skill of that name exists, so
+# prose about a lane that has no skill stays legal and a rename cannot turn prose into a finding.
+# Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
+# reader from inside one too.
 # `find -type f`, not the `grep -r` above: GNU `grep -r` follows a symlink named on its own command
 # line, and both operands are attacker-authored when this runs as a PR review's stage.
 # Process substitution, not a pipe: a pipe runs the loop in a subshell and loses the flag below.
@@ -177,6 +179,13 @@ while IFS= read -r -d '' file; do
   case "$file" in "$flavor"/*) was_flavor_scanned=1 ;; esac
   grep -noE '[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\.md' "$file" | while IFS= read -r hit; do
     echo "shared layer cites into a lane: $(oneline "$file"):$(oneline "$hit") — move the rule to a standard (ecosystem.md → **One home**)"
+  done
+  grep -noE '\b(kk|idsd)-[a-z0-9-]+' "$file" | while IFS= read -r hit; do
+    named=${hit#*:}
+    named=${named%-}
+    # No exclusion for `kk-flavor`: it is not a skill directory, so the test below already drops it.
+    [ -f "$skills/$named/SKILL.md" ] || continue
+    echo "shared layer names a lane: $(oneline "$file"):$(oneline "$hit") — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
   done
 done >>"$findings" < <(find "${direction_targets[@]}" -name '*.md' -type f -print0)
 [ "$was_flavor_scanned" = 1 ] ||

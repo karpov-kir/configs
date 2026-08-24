@@ -2,9 +2,9 @@
 
 The stages a quality pass runs over one change set. **Binding on whoever runs a pass or any single stage of one.**
 
-You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run — and whether retro runs at all — is the orchestrator's call**. Each stage below states its own trigger.
+You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger.
 
-**Each scanner lives with the lens it serves**, and you run it from there: `comment-density.sh` under `kk-humanize`, `dup-literals.sh` under `kk-refactor`. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A spawn prompt describes the tree you read, never the tree you intended** — a scanner result taken before a later edit, or a file state you assumed a stage had reached, is a stage sent to verify the wrong thing or to trust it.
+**Each scanner lives with the lens it serves**, and you run it from there — each lane names its own. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; otherwise an outlier in a new file reaches the stage as an absence. **A spawn prompt describes the tree you read, never the tree you intended.** A scanner result taken before a later edit, or a file state you only assumed a stage reached, sends that stage to verify or trust the wrong thing.
 
 ## The round
 
@@ -16,7 +16,7 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **A handoff a stage returns joins this round at the receiving skill's own stage number** ([skill-protocol.md](skill-protocol.md) → **Finish in the lanes your edits opened**).
 
-**Fixes you apply between the round and refactor** get one fresh `kk-code-review` scoped to the files they changed, before refactor.
+**Fixes you apply between the round and refactor** get one fresh pass of the code-review lane, scoped to the files they changed, before refactor.
 
 **Reconcile contradictions empirically** — two stages opposing on one location, or a claim against an observation: re-run the check yourself rather than trust either side's word.
 
@@ -24,11 +24,13 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
+**The sequence after the round may run streamed instead** — the stages queue patches, you apply them in tier order and gate at each boundary. [streaming.md](streaming.md) is the whole delta for that path.
+
 ## Drive it before you review it
 
 **Use the change the way its user will, wherever it has observable behaviour, and do it before any lens reads it.**
 
-**Spawn `kk-drive`, handed only the scenarios the change was asked to satisfy and how to run the project — withhold the diff.** You own that it ran.
+**Spawn the drive lane, handed only the scenarios the change was asked to satisfy and how to run the project — withhold the diff.** You own that it ran.
 
 **This is a gate, not a stage** — a divergence stops the pipeline as a red gate does. **A dropped step is carried, with its reason, into the pass's own output.**
 
@@ -36,16 +38,16 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 ## The stages
 
-**Decide** and the decision log named below are `idsd-qualify`'s homes for a stage's residue; an orchestrator without them maps each onto its own equivalent.
+**Decide** and the decision log named below are one orchestrator's homes for a stage's residue, and **fast**/**full** one orchestrator's pass modes; without them, map each onto your own equivalent.
 
-1. **Code-review** — `kk-code-review` on the change set. Ask live for blocking findings; record the others.
+1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings; record the others.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or a constitution security invariant).
 3. **Tighten & comment pass** — *only if* the change added or changed standalone prose, or touched any comment.
-   - **Where the change touched the agents' own instructions** — a skill, standard, prompt, template or `CLAUDE.md` — this stage is `kk-ecosystem` over those files instead. It owns that whole lane and spawns `kk-skillcraft` and `kk-tighten` itself, so queue neither.
-   - **Standalone prose** joins the round via `kk-tighten`, scoped to the change set's prose *plus the prose this pass itself wrote*. Prose that reaches no diff-scoped stage — an open PR's body, a working file the orchestrator keeps outside the repo — is **named explicitly in the spawn prompt's scope slot**. `kk-tighten`'s handoff is queued here too, not deferred: spawn `kk-humanize` over the outward-text files it names. Any file it hands off for its **comments** waits for refactor, per the next bullet.
-   - **Comment blocks** wait for refactor, then go to `kk-humanize` directly, never `kk-tighten` first. Run `comment-density.sh` **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
-4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run `kk-refactor`, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run `dup-literals.sh` before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
-5. **Retro** — always last; how it runs is the orchestrator's.
+   - **Where the change touched the agents' own instructions** — a skill, standard, prompt, template or `CLAUDE.md` — this stage is the **instruction lane** over those files instead. That lane owns shape and prose too and runs both itself, so queue neither beside it.
+   - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names; any file it hands off for **comments** waits for refactor, per the next bullet.
+   - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the comment-density scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
+4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run the duplication scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
+5. **Retro** — last when it runs; how it runs is the orchestrator's.
 
 ## Gates
 

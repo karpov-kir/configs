@@ -24,6 +24,8 @@ A watch-list, not a complete set. What these tells share is manufactured polish 
 
 **Conversational** — sycophancy and throat-clearing ("Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up"); hedge frames ("It's important to note", "It's worth noting", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions", "Please don't hesitate").
 
+**Register** — writing to a peer as though you were their assistant. Grading their reasoning ("your instinct holds", "good catch", "agreed"); asking permission you do not need ("your call", "say the word", "if you'd like", "happy to"); a closing line handing back a decision they already hold. State the finding and what follows from it. Where a choice really is theirs, name it once, in the same voice as everything else — the deference is the tell, not the fact.
+
 **Self-rating tails** — a clause appended to grade your own claim or effort, almost always in an "X rather than Y" frame: "inferred rather than observed", "checked rather than assumed", "I left the open questions in rather than guessing". State the thing, or drop it. Where a review lens demands the status of a claim, that label rides the finding it belongs to, never a clause loose in prose.
 
 ## Change descriptions (PRs)
@@ -44,5 +46,5 @@ Drop a note that fails **Budget**'s keep test rather than marking it optional. *
 
 The existence bar and the published-surface exception to it are [code-style.md](code-style.md) → **Comments**. What that bar admits:
 
-- Delete a comment whole when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for `kk-refactor`), when it justifies a decision no reader would question, or when a sibling covers it. True, unique content goes too — anecdotes, provenance, alternatives considered. Once a comment stays, shortening it never drops its constraint, invariant, or warning.
+- Delete a comment whole when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when a sibling covers it. True, unique content goes too — anecdotes, provenance, alternatives considered. Once a comment stays, shortening it never drops its constraint, invariant, or warning.
 - A published surface's contract prose carries what the types can't — call order, lifecycle, error modes, units, ranges, caller invariants.
