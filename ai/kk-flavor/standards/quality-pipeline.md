@@ -4,7 +4,7 @@ The stages a quality pass runs over one change set. **Binding on whoever runs a 
 
 You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger.
 
-**Each scanner lives with the lens it serves**, and you run it from there — each lane names its own. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form. **A spawn prompt describes the tree you read, never the tree you intended.**
+**Each scanner lives with the lens it serves**, and you run it from there — each lane names its own. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; a change set already committed is seen only by naming the range. **A spawn prompt describes the tree you read, never the tree you intended.**
 
 ## The round
 
@@ -18,7 +18,7 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **Fixes you apply between the round and refactor** get one fresh pass of the code-review lane, scoped to the files they changed, before refactor.
 
-**Reconcile contradictions empirically** — two stages opposing on one location, or a claim against an observation: re-run the check yourself rather than trust either side's word.
+**Reconcile contradictions empirically** — two stages opposing on one location, or a claim against an observation: re-run the check yourself rather than trust either side's word. **A claim you cannot verify has an author**: `git log` the line before you replace it with an inference.
 
 **Settle design once.** Scoping narrows *files*, never which rules a stage applies. A change reworking a **shared or cross-repo primitive** settles its target shape with the human in one pass *before* iterating.
 

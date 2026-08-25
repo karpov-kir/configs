@@ -25,4 +25,4 @@ Inspect nothing but the reply itself and the two sections **The shape** names, a
 
 ## Output
 
-The re-answer, and nothing else — bar a line for something you noticed (**The reply, not the work**). No apology, no account of what the first reply got wrong, no note that you re-answered.
+The re-answer in the shape **The shape** names, its closing line included. Its one addition is a line for something you noticed (**The reply, not the work**). No apology, no account of what the first reply got wrong, no note that you re-answered.

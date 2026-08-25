@@ -8,6 +8,7 @@ Follow this on a new project or one that already does; otherwise match the proje
 2. **Treat test code as production code**, doubles and helpers included.
 3. **No mocks.** Reach for fakes, drivers, and builders instead (§3).
 4. **Cheapest level first.** Push each behaviour down to the cheapest level that can prove it: edge cases and branches in fast unit tests; only wiring and real-infrastructure risk need the slow levels.
+5. **A test that reimplements the behaviour it asserts agrees with itself, not with the code.** Import the real thing and drive it.
 
 ## 2. Test taxonomy
 

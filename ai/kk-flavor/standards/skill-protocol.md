@@ -17,7 +17,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 - Skip deleted files; a rename queues the new path.
 - The queue grows only by appending — a sibling pulled in to absorb a fix — never by dropping a queued file. **Before touching a file outside the resolved list, describe the change and get your caller's confirmation**; a file already queued, or one your own fix created, needs none.
 - **A change that starts depending on an in-repo sibling puts that sibling's public surface in the queue.**
-- **Undoing an out-of-scope edit is the inverse of that edit, never a checkout.** Restoring the file to `HEAD` discards every other uncommitted change in it — a caller's own deliberate edit included, with nothing to say it went.
+- **Undoing an out-of-scope edit is the inverse of that edit, never a checkout.** Restoring the file to `HEAD` discards every other uncommitted change in it — a caller's own deliberate edit included, with nothing to say it went. Copy the file into the scratch dir first and restore from that copy, or apply and undo the edit as a patch — a copy left in the tree moves the fingerprint and discards the ledger by the rule two bullets down.
 - **Write each verdict to a ledger as you emit it**, at the path your caller names, or `<scratch>/<skill>-queue.md` standalone. One entry per file: its path and its verdict as emitted. The scratch dir is **outside the repository**. On starting, read the ledger if it exists and resume at the first queued file without a verdict.
 - **One ledger per spawn, never per skill.** The scratch dir is per *session*, so an orchestrator spawning a skill more than once names a distinct path each time. Reusing it makes the second spawn adopt the first's completed queue, find no unverdicted file, and close having read nothing.
 - **A ledger is only a resume point for the tree it was written against.** Head it with the tree's fingerprint plus the resolved file list, and discard a ledger whose head does not match or does not parse. **Fingerprint it with `~/.kk-flavor/scripts/tree-fingerprint.sh`**, never by hand — a half-right hand-rolled form stages the caller's whole tree against their real index, a destructive act with no prompt.
@@ -39,6 +39,8 @@ The last thing in the message, searchable by its fixed prefix:
 - Fail: the same line with `WARN`, then one line per finding.
 
 `<Unit>` is the skill's counter noun (`File`, `Artifact`). `M` is the current queue length — it grows on append; `N` is the file's stable position. `<lines>L` is the file's real line count. A skill may add a field or fix the shape of the finding line; those are its deltas.
+
+**The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
 ## Your own fixes are unreviewed code
 
@@ -65,7 +67,7 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 
 ## Orchestrators — interactive first
 
-Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn.
+Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn — which re-reads what it already read.
 
 **Build every spawn prompt from `~/.kk-flavor/templates/spawn-prompt.md`**, which states its own constraints.
 
@@ -74,3 +76,5 @@ Prefer asking the human live over deferring to a digest. Ask a blocking decision
 Fail either test — that override aside — and you do not ask: decide it, and record **what determined it**. Not being able to name what determined it is the signal it was never determined, so it becomes an ask. **A decision record is never a home for an open question** — one you still have is a live ask or a report item.
 
 **A report item is the blocking test one notch down, not an exemption from it.** Deferring to a digest still spends the human's attention: **their answer has to change what happens next.** Name the branch your recommendation loses to, and what they would have to believe for it to win. Where every answer leads to the same act, you settled it — record what determined it and route the follow-up. **A choice nothing reaches yet is one of those**: it keeps until something calls the code, so it belongs to whatever first does.
+
+**And the next act has to be theirs — both limbs, or it is not an item.** Their answer changing what happens next is not enough when what happens next is your own edit: an item whose recommended branch is *yours* to carry out is one you carry out, then record. What survives is the act that is not yours, whether or not you could perform it: a question for a person, a message someone has to send, an owner someone has to find, a publication, a deletion that loses reasoning — and anything your license bars (**Caller**), which you can do and may not.
