@@ -32,7 +32,9 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **Spawn the drive lane, handed only the scenarios the change was asked to satisfy and how to run the project — withhold the diff.** You own that it ran.
 
-**This is a gate, not a stage** — a divergence stops the pipeline as a red gate does. **A dropped step is carried, with its reason, into the pass's own output.**
+**This is a gate, not a stage** — a divergence stops the pipeline as a red gate does.
+
+**A step nobody could drive is an ask, and only after they have been asked may it be dropped** — recording it as something the pass is waiting on is that drop taken without them. The drive lane owns the rest of this, including what a dropped step owes its return.
 
 **A runtime-behaviour claim the round returns comes back here**: drive the scenario it predicts, or let it land labelled an **unverified inference**.
 
