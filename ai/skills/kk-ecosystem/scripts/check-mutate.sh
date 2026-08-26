@@ -2,8 +2,9 @@
 # Proves check-test.sh's cases can fail, by breaking one guard in check.sh at a time.
 #   usage: check-mutate.sh   # one line per mutation; exit 0 only when every one proved something
 #
-# Slow on purpose — one full suite run per mutation. The suite is about 100 seconds, so the whole
-# harness is a little over an hour. Run it when a guard or a case changes, and budget for that.
+# Slow on purpose — one full suite run per mutation. The suite is about 100 seconds, so multiply that
+# by the length of the list below for the wall clock: an hour and a half as it stands, and rising with
+# every mutation added. Run it when a guard or a case changes, and budget for that.
 # It lives beside the code rather than in a scratch directory: nothing else keeps a mutation in step
 # with the guard it aims at.
 set -uo pipefail
@@ -162,15 +163,32 @@ run_mutant "direction scan: flag set from every file"  's/case "\$file" in "\$fl
 run_mutant "direction scan: no leading-char anchor"    's/\[A-Za-z0-9._~-\]\[A-Za-z0-9._\/~-\]\*\/SKILL/[A-Za-z0-9._\/~-]*\/SKILL/'
 # An `assert_does_not_report` case is only proven by a mutation that makes the scan fire where it must
 # stay quiet, so some of these mutate toward over-reporting rather than under-reporting.
-run_mutant "direction scan: trailing-hyphen strip removed" 's#${named%-}#${named}#'
+run_mutant "direction scan: trailing run trimmed to the hyphen alone" 's|%"${named##\*\[!._-\]}"|%-|'
+run_mutant "direction scan: trailing strip removed"    's|%"${named##\*\[!._-\]}"||'
 run_mutant "direction scan: cites budget reset per file" 's#  safe_file="$(oneline "$file")"#  safe_file="$(oneline "$file")"; cites_shown=0#'
-run_mutant "direction scan: cites budget uncapped"     's#cites_shown" -le 40#cites_shown" -le 100000#'
-run_mutant "direction scan: names budget uncapped"     's#names_shown" -le 40#names_shown" -le 100000#'
-run_mutant "direction scan: cites grep drops -a"       's#-a -noE '"'"'\[A-Za-z0-9#-noE '"'"'[A-Za-z0-9#'
-run_mutant "direction scan: names grep drops -a"       's#-a -noE '"'"'\\b(kk#-noE '"'"'\\b(kk#'
-run_mutant "direction scan: kk-flavor not excluded"    's#\[ "$named" = "kk-flavor" \] && continue#true#'
+run_mutant "direction scan: cites budget uncapped"     's#cites_shown" -le "\$finding_cap"#cites_shown" -le 100000#'
+# Anchored on the `[ "` too, never on `names_shown` alone: `basenames_shown` carries that name as a
+# substring, so the shorter anchor edits both budgets and lands as `spread`.
+run_mutant "direction scan: names budget uncapped"     's#\[ "$names_shown" -le "\$finding_cap"#[ "$names_shown" -le 100000#'
+run_mutant "direction scan: cites grep drops -a"       's#grep -a -noE "\[A-Za-z0-9#grep -noE "[A-Za-z0-9#'
+run_mutant "direction scan: names grep drops -a"       's#grep -a -noE "\\\\b(#grep -noE "\\\\b(#'
+run_mutant "direction scan: basename grep drops -a"    's#grep -a -noE "(\^|#grep -noE "(^|#'
+run_mutant "direction scan: kk-flavor not excluded"    's#\[ "$lane_name" = "kk-flavor" \] && continue#true#'
 run_mutant "direction scan: unmounted name still reported" '\#\[ -f "$skills/$named/SKILL.md" \] \|\| continue#d'
 run_mutant "direction scan: symlinked target walked"   's#-type f -print0)#-print0)#'
+run_mutant "direction scan: lane name matched by prefix" 's#\\\$^})\[A-Za-z0-9._-\]\*"#\\\$^})"#'
+run_mutant "direction scan: no lane names collected"   's#\[ -f "\$skill_dir/SKILL.md" \] || continue#continue#'
+run_mutant "direction scan: cited path echoed truncated" 's#(/\[A-Za-z0-9._-\]+)+#/[A-Za-z0-9._-]+#'
+# The basename half. Its gate is `uniq -u`, so the mutation that matters most drops the `-u`: every
+# basename then counts, `SKILL.md` included, and the scan reports the whole shared layer.
+run_mutant "direction scan: basename set not uniqued"  's#| sort | uniq -u#| sort | uniq#'
+run_mutant "direction scan: basename set split on newlines" 's#-print0 2>/dev/null#2>/dev/null#'
+run_mutant "direction scan: basename charset unfiltered" 's#case "$lane_basename" in \*\[!A-Za-z0-9._-\]\*) continue ;; esac#true#'
+run_mutant "direction scan: basename gate removed"     '\#case "\$lane_basenames_padded" in#d'
+run_mutant "direction scan: subtracted name not reported" '\#case "\$lane_ambiguous_padded" in#d'
+run_mutant "direction scan: unchecked notice uncapped" 's#ambiguous_shown" -le "\$finding_cap"#ambiguous_shown" -le 100000#'
+run_mutant "direction scan: basename boundary admits a slash" 's#\[^/~A-Za-z0-9._-\]#[^~A-Za-z0-9._-]#'
+run_mutant "direction scan: basename budget uncapped"  's#basenames_shown" -le "\$finding_cap"#basenames_shown" -le 100000#'
 run_mutant "skill dir: SKILL.md never required"        's#\[ -f "$dir/SKILL.md" \] \|\|#[ -d "$dir" ] \|\|#'
 run_mutant "import: no installed-checkout gate"        '/import_mount_is_installed" -eq 1 \] || return 1/d'
 run_mutant "import: no symlinked-kk-flavor term"       's|\[ ! -L "\$root/kk-flavor" \] && ||'

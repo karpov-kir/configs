@@ -162,16 +162,21 @@ grep -rhoE '~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+' "$root" --include='*
 done >>"$findings"
 
 # Direction: the shared layer never cites into a lane, and never names one (ecosystem.md → **One home**).
-# Two shapes are banned. A path into a skill needs one name character before the slash, or a glob's
+# Three shapes are banned. A path into a skill needs one name character before the slash, or a glob's
 # bare `/SKILL.md` tail matches. A bare skill name counts only when a skill of that name exists. That
 # gate is not a licence for the prose it lets through: every other `kk-*`/`idsd-*` token the shared
 # layer carries is already a finding from the `unknown skill referenced` scan below. A rename only
-# swaps which of the two fires.
+# swaps which of those two scans fires.
+# The third is a lane file named by its basename alone — `report.sh`, `check.sh`. It carries neither a
+# lane name nor a path, so the two scans above both miss it, and it steers its reader into a lane just
+# the same. Its message deliberately does not extend `shared layer names a lane`: check-test.sh matches
+# a finding by fixed substring, so a message carrying another's whole text would satisfy that other
+# one's `assert_does_not_report` cases and turn them into silent passes.
 # Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 # reader from inside one too.
-# `-a` on both greps below, never dropped: one NUL byte anywhere in a file makes grep call that file
-# binary, and it then prints `Binary file … matches` (BSD grep) or nothing at all (GNU grep >= 3.5,
-# which sends that notice to stderr) in place of the matches. Both scans then read no violation out of
+# `-a` on all three greps below, never dropped: one NUL byte anywhere in a file makes grep call that
+# file binary, and it then prints `Binary file … matches` (BSD grep) or nothing at all (GNU grep >= 3.5,
+# which sends that notice to stderr) in place of the matches. Those scans then read no violation out of
 # a file `find` did hand them, while `was_flavor_scanned` still counts it as scanned. One committed
 # byte turns a violating shared layer into `wiring: clean`.
 # `find -type f`, not the `grep -r` above: GNU `grep -r` follows a symlink named on its own command
@@ -182,6 +187,20 @@ done >>"$findings"
 direction_targets=("$flavor")
 [ -f "$root/CLAUDE.md" ] && direction_targets+=("$root/CLAUDE.md")
 was_flavor_scanned=0
+# The lane names come from the tree, never from the `kk-`/`idsd-` families. Nothing enforces that
+# naming rule, so keying on the prefix would trust a convention no scan checks, and a skill named
+# outside it could be cited and named freely. A name outside the characters below would reach `grep -E`
+# as a metacharacter and match text no skill owns.
+lane_names=""
+for skill_dir in "$skills"/*/; do
+  [ -f "$skill_dir/SKILL.md" ] || continue
+  lane_name="$(basename "$skill_dir")"
+  # `kk-flavor` is the shared layer itself, so a reviewed tree committing `skills/kk-flavor/` would turn
+  # every mention of that layer inside its own standards into a finding.
+  [ "$lane_name" = "kk-flavor" ] && continue
+  case "$lane_name" in *[!A-Za-z0-9._-]*) continue ;; esac
+  lane_names="${lane_names:+$lane_names|}$(printf '%s' "$lane_name" | sed 's/\./\\./g')"
+done
 # Bounded per shape across the whole scan. Every emitted finding still costs a fork for its hit, and
 # the printer below shows at most 40 of this rank, so hits past the cap buy nothing: 20000 of them out
 # of one 100KB committed file hold this scan for over two minutes. A per-file bound does not bound the
@@ -191,6 +210,66 @@ was_flavor_scanned=0
 # `file:line:` hits, so the printer's per-rank cap below drops those hits before it drops the notice.
 cites_shown=0
 names_shown=0
+# The basenames that name exactly one file under `$skills` — resolved once, because the alternative is
+# a `find` per token per file. `uniq -u` is the whole gate: a basename several lanes carry names the
+# *kind* of file rather than one of them, which is why `SKILL.md` (every lane has one) does not fire
+# while `report.sh` (one lane has it) does.
+# NUL-delimited and charset-filtered, never `find | sed`: a committed filename holding a newline reaches
+# `sed` as two lines and hands the reviewed tree both halves of a forgery. The tail is a basename no
+# lane carries, so a standard naming a file nothing under `skills/` holds is reported against a file the
+# branch never touched. The head is a second copy of a real basename, so `uniq -u` drops it and a
+# genuine violation goes quiet. The `-test.sh` scan below refuses the same shape for the same reason.
+basenames_under() {
+  find "$@" -type f \( -name '*.sh' -o -name '*.md' \) -print0 2>/dev/null |
+    while IFS= read -r -d '' basename_path; do
+      lane_basename="${basename_path##*/}"
+      case "$lane_basename" in *[!A-Za-z0-9._-]*) continue ;; esac
+      printf '%s\n' "$lane_basename"
+    done
+}
+lane_basenames="$(basenames_under "$skills" | sort | uniq -u)"
+# A name the shared layer also carries is ambiguous — the reviewed tree fills `$skills`, so one committed
+# file under a lane named after a standard would otherwise report every standard citing that sibling,
+# findings aimed at files the branch never touched. Those names are not dropped from the set above and
+# subtracted; the loop below tests this set first and `continue`s, so they never reach the violation
+# test. Subtracting them as well was unreachable, and the mutation harness is what proved it: the mutant
+# aimed at that subtraction killed nothing, because removing it changed no output byte.
+# **The ordering below is therefore load-bearing**, and it is the guard, not a convenience: test the
+# violation set first and every ambiguous name becomes a forged finding. `subtracted name not reported`
+# is the mutant that holds it.
+# Silence here would be the cheapest mute the reviewed tree has — commit any `.md` under `kk-flavor/`
+# named after a lane file and every mention of that file stops being checked, while no other scan names
+# the file the branch committed. A narrowed scan reports that it narrowed.
+lane_basenames_ambiguous="$(grep -xF -f <(basenames_under "${direction_targets[@]}" | sort -u) <<<"$lane_basenames")"
+# Padded once for the `case` the gate below runs, never a `grep -qxF` per token: that gate is reached by
+# every `.sh`/`.md`-shaped token the shared layer carries, not by the few that pass it, so a fork there is
+# a fork per token — the one cost the emit counters above cannot bound. One 190KB committed file of them
+# holds this scan for two minutes with nothing to show, because no hit ever reaches the cap.
+lane_newline='
+'
+lane_basenames_padded="$lane_newline$lane_basenames$lane_newline"
+lane_ambiguous_padded="$lane_newline$lane_basenames_ambiguous$lane_newline"
+basenames_shown=0
+ambiguous_shown=0
+# The bound every finding here reports under, and the notice each of them ends on. Both sit in one
+# place so raising the bound is one edit, and a finding added later cannot drift into its own wording.
+# The test itself stays at each call site: a hit past the bound must not pay for the forks a finding
+# costs, and an argument is evaluated whether the function it is passed to prints it or not.
+finding_cap=40
+report_bound_reached() {
+  echo "$1: $2 — $finding_cap already shown across the shared layer; the rest are not listed"
+}
+# A function, so the call site stays one line: deleting a multi-line `case` to prove this guard fires
+# leaves a fragment that does not parse, and a mutant that cannot run proves nothing about the guard.
+report_unchecked_basename() {
+  local reported_file="$1" reported_line="$2" reported_name="$3"
+  ambiguous_shown=$((ambiguous_shown + 1))
+  if [ "$ambiguous_shown" -le "$finding_cap" ]; then
+    echo "basename not checked: $reported_file:$reported_line — $(oneline "$reported_name") names a file under both a lane and the shared layer, so this scan cannot tell which was meant; rename one of them (ecosystem.md → **One home**)"
+  elif [ "$ambiguous_shown" -eq $((finding_cap + 1)) ]; then
+    report_bound_reached "basename not checked" "$reported_file"
+  fi
+}
 while IFS= read -r -d '' file; do
   # Set from flavor files alone: one flag over both tiers would let a readable `CLAUDE.md` stand in
   # for the tree and mute the guard below.
@@ -199,29 +278,50 @@ while IFS= read -r -d '' file; do
   safe_file="$(oneline "$file")"
   while IFS= read -r hit; do
     cites_shown=$((cites_shown + 1))
-    if [ "$cites_shown" -le 40 ]; then
+    if [ "$cites_shown" -le "$finding_cap" ]; then
       echo "shared layer cites into a lane: $safe_file:$(oneline "$hit") — move the rule to a standard (ecosystem.md → **One home**)"
-    elif [ "$cites_shown" -eq 41 ]; then
-      echo "shared layer cites into a lane: $safe_file — 40 already shown across the shared layer; the rest are not listed"
+    elif [ "$cites_shown" -eq $((finding_cap + 1)) ]; then
+      report_bound_reached "shared layer cites into a lane" "$safe_file"
     fi
-  done < <(grep -a -noE '[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\.md' "$file")
+    # `(/seg)+`, not `/seg`: one segment stops the echoed path at `.../kk-drive/scripts` and drops the
+    # file the citation was actually about, which is the half a reader needs to find and move it.
+  done < <(grep -a -noE "[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/SKILL\\.md|[A-Za-z0-9._~-][A-Za-z0-9._/~-]*/(${lane_names:-\$^})(/[A-Za-z0-9._-]+)+" "$file")
   while IFS= read -r hit; do
     named=${hit#*:}
-    # `grep -o` keeps the trailing hyphen a token ends on, as `kk-drive-*` in prose does, and the name
-    # would then match no skill directory.
-    named=${named%-}
-    # Excluded by name, never left to the test below: a reviewed tree can commit a `skills/kk-flavor/`
-    # of its own, and every mention of the shared layer inside its own standards would then be a
-    # finding. The tree-wide scan below excludes the same name for the same reason.
-    [ "$named" = "kk-flavor" ] && continue
+    # The trailing run of `.`, `_` and `-` is punctuation the token ends on, not part of the name. The
+    # suffix class below carries all three, so `grep -o` keeps the hyphen a `kk-drive-*` glob ends on and
+    # the full stop of a sentence that ends on the lane name alike, and either would then match no skill
+    # directory. Trimmed as a run, never one character: a token can end on more than one.
+    named="${named%"${named##*[!._-]}"}"
+    # The whole token is tested, not the alternation's own match: `kk-drive-verified` starts with a real
+    # lane name and is not one, so matching the prefix alone would report a skill that does not exist as
+    # a lane the shared layer names.
     [ -f "$skills/$named/SKILL.md" ] || continue
     names_shown=$((names_shown + 1))
-    if [ "$names_shown" -le 40 ]; then
+    if [ "$names_shown" -le "$finding_cap" ]; then
       echo "shared layer names a lane: $safe_file:$(oneline "$hit") — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
-    elif [ "$names_shown" -eq 41 ]; then
-      echo "shared layer names a lane: $safe_file — 40 already shown across the shared layer; the rest are not listed"
+    elif [ "$names_shown" -eq $((finding_cap + 1)) ]; then
+      report_bound_reached "shared layer names a lane" "$safe_file"
     fi
-  done < <(grep -a -noE '\b(kk|idsd)-[a-z0-9-]+' "$file")
+  done < <(grep -a -noE "\\b(${lane_names:-\$^})[A-Za-z0-9._-]*" "$file")
+  [ -n "$lane_basenames$lane_basenames_ambiguous" ] && while IFS= read -r hit; do
+    named=${hit#*:}
+    # The leading boundary character comes back with the match; a token starts on `[A-Za-z0-9]`, so a
+    # first character outside that set is the boundary and never part of the name.
+    case "$named" in [!A-Za-z0-9]*) named="${named#?}" ;; esac
+    case "$lane_ambiguous_padded" in *"$lane_newline$named$lane_newline"*) report_unchecked_basename "$safe_file" "${hit%%:*}" "$named"; continue ;; esac
+    case "$lane_basenames_padded" in *"$lane_newline$named$lane_newline"*) ;; *) continue ;; esac
+    basenames_shown=$((basenames_shown + 1))
+    if [ "$basenames_shown" -le "$finding_cap" ]; then
+      # `${hit%%:*}` is the line number alone: echoing the match would carry the boundary character the
+      # grep consumed, so the finding would show an unbalanced tick for a name written `` `doit.sh` ``.
+      echo "shared layer reaches into a lane by basename: $safe_file:${hit%%:*} — $(oneline "$named") is $(oneline "$(find "$skills" -path "*/$named" -type f)"); move the rule to a standard (ecosystem.md → **One home**)"
+    elif [ "$basenames_shown" -eq $((finding_cap + 1)) ]; then
+      report_bound_reached "shared layer reaches into a lane by basename" "$safe_file"
+    fi
+    # The boundary excludes `/` and `~`, so a token inside a path the cites scan already reported does
+    # not come back here as a second finding for the same text.
+  done < <(grep -a -noE "(^|[^/~A-Za-z0-9._-])[A-Za-z0-9][A-Za-z0-9._-]*\\.(sh|md)" "$file")
 done >>"$findings" < <(find "${direction_targets[@]}" -name '*.md' -type f -print0)
 [ "$was_flavor_scanned" = 1 ] ||
   echo "direction scan read no files under $flavor — a check that did not run is not a clean one" >>"$findings"
@@ -327,7 +427,11 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
 grep -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 2>/dev/null |
   sed 's/-$//' | sort -u | while IFS= read -r name; do
   [ "$name" = "kk-flavor" ] && continue
-  [ -f "$skills/$name/SKILL.md" ] || echo "unknown skill referenced: $(oneline "$name")"
+  # Two readings, and the scan cannot tell them apart: a misspelled skill, or prose that happens to wear
+  # the family's shape (`kk-drive-verified`). Suppressing a token whose prefix is a real skill would mask
+  # the first — `kk-drives` is exactly that shape — so the message carries both readings instead.
+  [ -f "$skills/$name/SKILL.md" ] ||
+    echo "unknown skill referenced: $(oneline "$name") — no skills/$(oneline "$name")/SKILL.md. If this is prose rather than a skill, reword it so it does not read as one"
 done >>"$findings"
 
 # A skill is its directory plus a SKILL.md; a directory without one is invisible to the loader.
@@ -750,6 +854,7 @@ if [ -s "$findings" ]; then
       if (line ~ /^budget file refused/) return 2
       if (line ~ /^script names a missing test/) return 2
       if (line ~ /^script names more suites than the scan reads/) return 2
+      if (line ~ /^basename not checked/) return 2
       if (line ~ /^script not executable/) return 3
       if (line ~ /^skill name\/dir mismatch/) return 3
       if (line ~ /^import refused/) return 4

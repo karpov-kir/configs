@@ -74,9 +74,34 @@ new_mounted_skill() {
   printf '# %s\n' "$1" >"$root/skills/$1/SKILL.md"
 }
 
+# A committed filename holding a newline — the shape every forgery case here turns on. Writing a plain
+# name instead would satisfy the assertion while testing nothing, so a filesystem that refuses one stops
+# the run rather than leaving the case to pass on a fixture it never got.
+# `2>/dev/null` goes before the redirect it silences, never after: redirections are applied left to
+# right, so a trailing one is opened after the failure it was meant to swallow has already been printed.
+new_file_with_newline_name() {
+  printf '%s\n' "$2" 2>/dev/null >"$1" || {
+    echo "check-test: this filesystem refused a newline in a filename — $3 cannot run here"
+    exit 1
+  }
+}
+
 new_script() {
+  # `mkdir -p` on the parent, so a case can place a script under `<skill>/scripts/` — the real layout —
+  # without the redirect failing and leaving the case asserting against a tree that has no script in it.
+  mkdir -p "$(dirname "$root/skills/$1")"
   printf '%s\n' "$2" >"$root/skills/$1"
   chmod +x "$root/skills/$1"
+}
+
+# The lane fixture the citation and basename cases share: one mounted skill holding one script. The
+# path it is cited by is written once, here, and passed as a `%s` argument at every use — check.sh
+# scans every file under the root, this suite among them, so a cited path that does not resolve in the
+# real checkout is a dangling-home-ref finding against the checkout itself.
+lane_script_ref='~/.claude/skills/kk-humanize/scripts/comment-density.sh'
+new_lane_with_script() {
+  new_mounted_skill kk-humanize
+  new_script kk-humanize/scripts/comment-density.sh 'true'
 }
 
 run_check() {
@@ -141,8 +166,20 @@ assert_ranks_above() {
   fi
 }
 
+# One line repeated past a scan's own bound — what every budget case here needs and nothing else does.
+flood_with_line() {
+  local target="$1" remaining="$2" line="$3"
+  while [ "$remaining" -gt 0 ]; do
+    printf '%s\n' "$line" >>"$target"
+    remaining=$((remaining - 1))
+  done
+}
+
 cites="shared layer cites into a lane"
 names="shared layer names a lane"
+# Carries no other finding's text whole — check.sh's direction-scan comment says why.
+basenames="shared layer reaches into a lane by basename"
+unchecked="basename not checked"
 never_ran="direction scan read no files"
 refused="import refused"
 
@@ -170,8 +207,8 @@ new_root
   printf 'a file the skill owns that is not its body: `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`\n'
 } >"$root/kk-flavor/standards/legal.md"
 # The fourth form is not legal: ecosystem.md → **One home** bans a file the skill owns too. It is
-# quiet *here* only because this scan matches nothing but a path into a SKILL.md — the bare-name scan
-# below reports it in any tree that holds `idsd-qualify`.
+# quiet *here* only because the fixture mounts no skill — in any tree that holds `idsd-qualify`, this
+# scan reports the path and the bare-name scan below reports the name.
 assert_does_not_report "$cites" "stays quiet on the four forms that are not a path into a SKILL.md"
 
 new_root
@@ -194,6 +231,14 @@ new_mounted_skill kk-drive
 printf 'every `kk-drive-*` invocation is the same lane\n' >"$root/kk-flavor/standards/x.md"
 assert_reports "$names" "strips the trailing hyphen a glob leaves on a lane name"
 
+# The suffix class carries `.` as well, so `grep -o` keeps the full stop of a sentence that ends on the
+# lane name — the commonest way prose names one. The hyphen case above does not reach it: the strip has
+# to take the whole trailing run, or the name matches no skill directory and the violation goes quiet.
+new_root
+new_mounted_skill kk-drive
+printf 'the lane that owns this one is kk-drive.\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$names" "strips the full stop a sentence ending on a lane name leaves"
+
 new_root
 printf 'spawn `kk-drive` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
 assert_does_not_report "$names" "the names scan stays quiet on a token no skill answers to"
@@ -203,8 +248,25 @@ new_mounted_skill kk-drive
 printf 'a template under `kk-flavor/` is this same layer, not a lane\n' >"$root/kk-flavor/standards/x.md"
 assert_does_not_report "$names" "stays quiet on kk-flavor, which is the shared layer itself"
 
+new_root
+new_mounted_skill sonar-api
+printf 'route it through `sonar-api`\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$names" "fires on a skill named outside the kk-* and idsd-* families"
+
+# The case above already covers a lane named outside the `kk-*`/`idsd-*` families. No script is mounted
+# at the cited path here: this scan matches the shape of a path, it never resolves one.
+new_root
+new_mounted_skill kk-humanize
+printf 'read `%s`\n' "$lane_script_ref" >"$root/kk-flavor/standards/x.md"
+assert_reports "$cites" "fires on a path into a lane that is not a SKILL.md"
+
+new_root
+new_mounted_skill kk-drive
+printf 'a `kk-drive-verified` claim is not a lane\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$names" "stays quiet on a hyphenated compound built off a real lane name"
+
 # One NUL byte makes grep call the file binary, and it prints `Binary file … matches` or, on GNU grep
-# >= 3.5, nothing at all. Without `-a` both halves of the scan then read no violation out of a file
+# >= 3.5, nothing at all. Without `-a` every grep in the scan then reads no violation out of a file
 # `find` did hand them, and the did-not-run guard stays quiet because the file was still walked.
 # The NUL goes in through `tr`: `printf '\000'` is truncated at the NUL by some printfs.
 new_root
@@ -220,15 +282,113 @@ printf 'X' | tr 'X' '\000' >>"$root/kk-flavor/standards/x.md"
 printf '\nthe mechanics are `~/.claude/skills/kk-drive/SKILL.md`\n' >>"$root/kk-flavor/standards/x.md"
 assert_reports 'kk-drive/SKILL.md — move the rule' "and reads a cited SKILL.md path past one too"
 
-# The bound on what each half of the scan emits. Every finding costs a fork to sanitise its hit, so an
+# The third grep needs its own case: the two above cover the cites and names greps, and `-a` is per-grep,
+# so dropping it from this one alone would leave both of them green.
+new_root
+new_lane_with_script
+printf '# Rule\n' >"$root/kk-flavor/standards/x.md"
+printf 'X' | tr 'X' '\000' >>"$root/kk-flavor/standards/x.md"
+printf '\nrun `comment-density.sh` before any lens reads it\n' >>"$root/kk-flavor/standards/x.md"
+assert_reports "$basenames" "and reads a lane basename past one too"
+
+# The cited path is echoed whole. One trailing segment stops it at `.../kk-humanize/scripts` and drops
+# the file the citation was about, which is the half that says what to go and move.
+# Every path below resolves in the real checkout, for the reason `lane_script_ref` gives — and **run
+# `check.sh` over this repo after editing this file, not before**: an invented fixture path is a finding
+# against the checkout itself, and a run from before the edit cannot see it.
+new_root
+new_lane_with_script
+printf 'read `%s`\n' "$lane_script_ref" >"$root/kk-flavor/standards/x.md"
+assert_reports 'kk-humanize/scripts/comment-density.sh — move the rule' "echoes a cited path whole, not truncated at one segment"
+
+# The third shape: a lane's file named by basename alone, carrying neither a lane name nor a path.
+new_root
+new_lane_with_script
+printf 'run `comment-density.sh` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$basenames" "fires on a lane's file named by its basename alone"
+
+# `uniq -u` is the gate. A basename every lane carries names the kind of file, not one lane's copy, so
+# two mounted skills are the fixture: with one, `SKILL.md` resolves uniquely and this case cannot fail.
+new_root
+new_mounted_skill kk-drive
+new_mounted_skill kk-humanize
+printf 'a bare name is not a path: run it per its SKILL.md\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$basenames" "stays quiet on a basename more than one lane carries"
+
+# A name the shared layer carries is not in the set. Here nothing under skills/ carries it either, so it
+# never enters the set; the subtraction case below covers the half where a lane does carry it.
+new_root
+new_mounted_skill kk-drive
+printf '# Writing\n' >"$root/kk-flavor/standards/writing.md"
+printf 'the shape is `writing.md`\n' >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$basenames" "stays quiet on a shared-layer sibling's own basename"
+
+new_root
+new_lane_with_script
+printf 'read `%s`\n' "$lane_script_ref" >"$root/kk-flavor/standards/x.md"
+assert_does_not_report "$basenames" "does not report a basename that reached it inside a cited path"
+
+# The basename set is built from NUL-delimited paths, never `find | sed`: a committed filename holding a
+# newline splits in two, and each half is a forgery the reviewed tree chose. This is the muting half —
+# the head becomes a second copy of a real basename, `uniq -u` drops it, and a genuine violation goes
+# quiet. The control comes first: without the hostile file, the finding must be there to lose.
+new_root
+new_lane_with_script
+printf 'run `comment-density.sh` before any lens reads it\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$basenames" "reports a lane's basename (control for the case below)"
+new_file_with_newline_name "$root/skills/kk-humanize/scripts/$(printf 'x\ncomment-density.sh')" \
+  'not a script' 'the basename forgery cases'
+assert_reports "$basenames" "a newline in a committed filename cannot mute a real basename finding"
+
+# The forging half of the same split: the tail is a basename no lane carries, so a standard naming a file
+# nothing under skills/ holds is reported against a file the branch never touched. The name is one the
+# shared layer does not carry either, or the subtraction case below would silence this one for free.
+new_root
+new_mounted_skill kk-drive
+printf 'run `report.sh` at the close\n' >"$root/kk-flavor/standards/x.md"
+new_file_with_newline_name "$root/skills/kk-drive/$(printf 'q\nreport.sh')" x 'the basename forgery cases'
+assert_does_not_report "$basenames" "a newline in a committed filename cannot forge a basename finding"
+
+# The shared layer's own basenames are subtracted from the set. The reviewed tree fills skills/, so one
+# committed file named after a standard would otherwise report every standard citing that sibling.
+# Control first, again: the same lane file fires while the shared layer carries no file by that name.
+new_root
+new_mounted_skill kk-drive
+mkdir -p "$root/skills/kk-drive/notes"
+printf '# notes\n' >"$root/skills/kk-drive/notes/writing.md"
+printf 'the shape is `writing.md`\n' >"$root/kk-flavor/standards/x.md"
+assert_reports "$basenames" "reports a lane file the shared layer has no counterpart for (control)"
+assert_does_not_report "$unchecked" "and calls nothing unchecked while one tier alone carries the name"
+printf '# Writing\n' >"$root/kk-flavor/standards/writing.md"
+assert_does_not_report "$basenames" "a lane file cannot forge a finding against a standard citing its own sibling"
+# Subtracting the name narrows the scan, and a narrowing nothing says out loud is the mute this reports:
+# any `.md` committed under kk-flavor/ named after a lane file would otherwise buy silence for free.
+assert_reports "$unchecked" "and says the name went unchecked instead of going quiet"
+
+# The unchecked-name notice is bounded like every other shape here: the tree picks how many times an
+# ambiguous name appears, and each mention costs a fork to sanitise it.
+new_root
+new_mounted_skill kk-drive
+mkdir -p "$root/skills/kk-drive/notes"
+printf '# notes\n' >"$root/skills/kk-drive/notes/writing.md"
+printf '# Writing\n' >"$root/kk-flavor/standards/writing.md"
+flood_with_line "$root/kk-flavor/standards/x.md" 45 'the shape is `writing.md`'
+assert_reports "$unchecked: $root/kk-flavor/standards/x.md — 40 already shown" \
+  "bounds what the unchecked-name notice emits"
+
+# This half emits a `find` per finding on top of the fork every hit costs, so its bound is the one that
+# matters most of the three.
+new_root
+new_lane_with_script
+flood_with_line "$root/kk-flavor/standards/x.md" 45 'run `comment-density.sh` now'
+assert_reports "$basenames: $root/kk-flavor/standards/x.md — 40 already shown" \
+  "bounds what the basename half of the scan emits"
+
+# The bound on what each shape of the scan emits. Every finding costs a fork to sanitise its hit, so an
 # unbounded emit lets one committed file turn this scan into tens of thousands of them.
 new_root
 new_mounted_skill kk-drive
-flooded_names=1
-while [ "$flooded_names" -le 45 ]; do
-  printf 'spawn `kk-drive` now\n' >>"$root/kk-flavor/standards/x.md"
-  flooded_names=$((flooded_names + 1))
-done
+flood_with_line "$root/kk-flavor/standards/x.md" 45 'spawn `kk-drive` now'
 # The file is pinned, not just the tail: leading with it is what sorts the notice ahead of that file's
 # own hits, so the printer's per-rank cap drops those before it drops the notice.
 assert_reports "$names: $root/kk-flavor/standards/x.md — 40 already shown" \
@@ -237,8 +397,8 @@ assert_reports "$names: $root/kk-flavor/standards/x.md — 40 already shown" \
 # The same bound over two files, each holding fewer hits than the cap. It can only fire while the budget
 # outlives one file, which is what a hit list read by process substitution rather than through a pipe
 # into a subshell buys. Which of the two files the notice names depends on the order `find` hands them
-# over, so the assert leaves that free. The path carries no `kk-`/`idsd-` token, so the names half
-# stays at zero and this tail can only have come from the cites half. The path is a `%s` argument for
+# over, so the assert leaves that free. The fixture mounts no skill, so the names half stays at zero
+# and this tail can only have come from the cites half. The path is a `%s` argument for
 # the reason the citation cases below give: written whole, it is a backticked in-repo path, and the
 # dangling-path-ref scan reads this file and reports it against the repo.
 new_root
@@ -412,12 +572,7 @@ assert_reports "$never_ran" "surfaces the did-not-run guard under a flood that s
 new_root
 forged="$root/kk-flavor/standards/a
 syntax: FORGED.md"
-# No fallback here: writing a plain filename instead would satisfy the assertion while testing
-# nothing.
-printf '[x](nowhere.md)\n' >"$forged" 2>/dev/null || {
-  echo "check-test: this filesystem refused a newline in a filename — the forgery case cannot run here"
-  exit 1
-}
+new_file_with_newline_name "$forged" '[x](nowhere.md)' 'the forged-finding-line case'
 run_check "newline in a committed path cannot forge a finding line"
 if [ "$(grep -c '^syntax: FORGED' <<<"$check_output")" = 0 ]; then
   record_pass "a newline in a committed path cannot start a forged finding line"
@@ -574,7 +729,7 @@ new_script "tool.sh" '#!/usr/bin/env bash
 # a change here needs a case in ghost-test.sh
 true'
 assert_reports "$missing_test" "reports a named suite that is absent (control for the case below)"
-printf 'not a suite\n' >"$root/skills/$(printf 'x\nghost-test.sh')"
+new_file_with_newline_name "$root/skills/$(printf 'x\nghost-test.sh')" 'not a suite' 'the forged-suite-name case'
 assert_reports "$missing_test" "a newline in a filename cannot forge the suite that satisfies a header"
 
 new_root

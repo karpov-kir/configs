@@ -4,8 +4,10 @@ Appended by `kk-reduce` alone, via `scripts/stats.sh --append <note>` beside it:
 campaign, whose note ends `, start`, and one after. **A delta across that pair is the campaign's own
 cut, not drift** — drift is measured from a closing row forward.
 
-`kk-reduce`'s own SKILL.md writes each row and defines what its note carries. **A column is a
-measurement and is never edited.**
+`kk-reduce`'s own SKILL.md defines what each row's note carries. **A column is a measurement and is
+never edited — however that edit is authorised**
+(`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): every delta is read off the rows below it,
+so one corrected figure silently restates every campaign since.
 
 **A `+` on a row's always-loaded figure makes it a lower bound**: `stats.sh` named an `@import` it
 could not resolve and left it uncounted. Read the delta between two marked rows as "at least this
