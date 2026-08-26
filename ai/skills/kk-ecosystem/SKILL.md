@@ -22,9 +22,9 @@ Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and
 
 ## 3. Cut, or move
 
-Work the two things no per-file pass can see:
+Work the two things a lens reading one file at a time will not reach:
 
-- **Contradictions** — two claims that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them two ways.** By inbound reference: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. And **inside every file this pass changed** — read the sentences either side of each edit, because a clause added next to an older one contradicts it at reading distance, with no reference to follow and no second file to open. That half is the one a scope-based hunt cannot reach, and it is where they survive. Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
+- **Contradictions** — two claims that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them two ways.** By inbound reference: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. And **within each file the change set under review touched** — read the clauses either side of every one of its edits, not only your own (`~/.kk-flavor/standards/ecosystem.md` binds those). A pass that reads a file, judges the new rule sound and never tests it against the sentence twenty words to its left has missed one here before. Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
 - **Restatements** — one rule living in several files (ecosystem.md → **One home**): keep the copy whose file owns that lane, cross-reference the rest. A rule with two homes is a contradiction that has not happened yet.
 
 Before calling a rule dead, read ecosystem.md → **Move it before you cut it** and try **each** move it names. Hunt candidates deliberately: the largest file's rarely-reached sections, a procedure written out in more than two skills, prose restating what a script already prints. Report a move you judged and rejected — that it was considered is the finding.

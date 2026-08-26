@@ -4,6 +4,8 @@ Rules for editing what agents read: skills, standards, prompts, templates, `CLAU
 
 These rules bind any edit, however small. Run the instruction lane after a batch of edits here.
 
+**Read the sentences either side of your own edit before you leave it.** A clause added beside an older one contradicts it at reading distance — no reference to follow, no second file to open — and every scoped hunt looks past it, because the file was never the thing under review.
+
 ## Earn the place
 
 - **Delete before you rephrase.** Keep what is essential, plus the supporting detail that makes it unambiguous. Drop the rest.
