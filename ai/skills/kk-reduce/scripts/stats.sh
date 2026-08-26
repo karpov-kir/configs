@@ -393,14 +393,26 @@ history="$history_dir/stats.md"
 }
 [ -f "$history" ] || {
   {
-    # Kept to the table and the one legend a reader cannot reconstruct from the columns: prose here is
-    # a second home for what the real `stats.md` says, hand-synced across a `.md`/`.sh` pair the shared
-    # region check cannot cover — it scans `*.sh` only.
+    # `stats.md` owns these rules — `kk-reduce`'s SKILL.md says so, and its reader arrives at the file,
+    # not at the skill — so a fresh one has to carry them or it begins life with none of the protection
+    # the ledger exists to have. This block had already drifted out of all three: no `, start`, no
+    # campaign-cut-versus-drift, no never-edited absolute. It is a `.md`/`.sh` pair the shared-region
+    # scan cannot cover, so `stats-test.sh` compares this output against the live file instead.
     echo "# Ecosystem size"
     echo
-    echo "Appended by \`scripts/stats.sh --append <note>\`, one row before a campaign and one after."
-    echo "A \`+\` on the always-loaded figure makes it a lower bound: an \`@import\` went unresolved"
-    echo "and uncounted."
+    echo "Appended by \`kk-reduce\` alone, via \`scripts/stats.sh --append <note>\` beside it: one row before a"
+    echo "campaign, whose note ends \`, start\`, and one after. **A delta across that pair is the campaign's own"
+    echo "cut, not drift** — drift is measured from a closing row forward."
+    echo
+    echo "\`kk-reduce\`'s own SKILL.md defines what each row's note carries. **A column is a measurement and is"
+    echo "never edited — however that edit is authorised**"
+    echo "(\`~/.kk-flavor/standards/skill-protocol.md\` → **Caller**): every delta is read off the rows below it,"
+    echo "so one corrected figure silently restates every campaign since."
+    echo
+    echo "**A \`+\` on a row's always-loaded figure makes it a lower bound**: \`stats.sh\` named an \`@import\` it"
+    echo "could not resolve and left it uncounted. Read the delta between two marked rows as \"at least this"
+    echo "much\". From a marked row to an unmarked one, part of the rise is \`stats.sh\` resolving more rather"
+    echo "than the tree growing. The unmarked row's note says how much."
     echo
     echo "| date | prose | scripts | always-loaded | skills | what ran |"
     echo "|---|---|---|---|---|---|"

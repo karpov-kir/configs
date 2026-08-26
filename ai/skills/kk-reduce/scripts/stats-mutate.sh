@@ -143,6 +143,9 @@ run_mutant "in-tree mounts not excluded"       stats 's|"$root_canon"/\*) contin
 run_mutant "ledger symlink followed on write"   stats 's|^\[ -L "$history" \] && {|[ -L "" ] \&\& {|'
 
 run_mutant "fresh ledger loses the + legend"   stats '/makes it a lower bound/d'
+# The absolute the seed had lost entirely, so a fresh install carried no protection for the column at
+# all. Nothing but the seed-vs-live case notices: this path runs only where there is no ledger yet.
+run_mutant "fresh ledger loses the measurement absolute" stats '/never edited — however that edit is authorised/d'
 run_mutant "fresh ledger loses its columns"    stats '/| date | prose | scripts | always-loaded | skills | what ran |/d'
 
 report_mutants

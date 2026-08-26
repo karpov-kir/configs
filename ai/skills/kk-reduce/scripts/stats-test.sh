@@ -293,5 +293,22 @@ else
     "the decoy was written: $(cat "$base/decoy-target.md")"
 fi
 
+# The seed and the live ledger are a `.md`/`.sh` pair, which the shared-region scan cannot cover — it
+# reads `*.sh` only. They had already drifted: the seed carried none of the three rules the real file
+# owns, so a fresh install started with no protection for the column. Nothing but this case notices,
+# because the seed path runs only when there is no ledger — never on the tree that would show it.
+new_root
+mkdir -p "$root/skills/kk-reduce/scripts"
+cp "$stats" "$root/skills/kk-reduce/scripts/stats.sh"
+"$root/skills/kk-reduce/scripts/stats.sh" --append 'seed, start' "$root" >/dev/null 2>&1
+seeded_prose="$(awk '/^\| date \|/ { exit } { print }' "$root/skills/kk-reduce/stats.md" 2>/dev/null)"
+live_prose="$(awk '/^\| date \|/ { exit } { print }' "$here/../stats.md" 2>/dev/null)"
+if [ -n "$seeded_prose" ] && [ "$seeded_prose" = "$live_prose" ]; then
+  record_pass "the seeded ledger says what the live one says"
+else
+  record_fail "the seeded ledger says what the live one says" \
+    "$(diff <(printf '%s\n' "$live_prose") <(printf '%s\n' "$seeded_prose") | head -20)"
+fi
+
 echo "$passed passed, $failed failed"
 [ "$failed" = 0 ]
