@@ -9,7 +9,7 @@ func (c *checker) scanMounts() {
 	case flavorHave == "":
 		c.add("flavor not mounted: $HOME/.kk-flavor is not a directory — every ~/.kk-flavor/ citation dangles at run time")
 	case flavorHave != flavorWant:
-		c.add("flavor mounted elsewhere: $HOME/.kk-flavor -> " + flavorHave + ", not " + oneline(flavorWant))
+		c.add("flavor mounted elsewhere: $HOME/.kk-flavor -> " + oneline(flavorHave) + ", not " + oneline(flavorWant))
 	}
 
 	skillsMount := join(c.home, ".claude/skills")

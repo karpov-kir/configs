@@ -145,6 +145,20 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(basenames)
 	})
 
+	// The scans outside the direction block need to read past a NUL just as much, and the shell
+	// version's greps had no `-a`: one committed NUL made BSD grep answer `Binary file X matches`,
+	// which both replaced the real finding and put a tree-chosen path inside the text of one. An agent
+	// drafts PR comments from these, so that is an injection, not only a miss. Two scans stand for the
+	// four, one per grep shape the shell version used.
+	t.Run("reads a markdown link past a NUL byte", func(t *testing.T) {
+		f := newNulByteFile(t)
+		f.reports("dangling link: " + f.root + "/kk-flavor/standards/nul.md -> nowhere.md")
+	})
+
+	t.Run("and reads a skill name past one, rather than reporting grep's own notice as the name", func(t *testing.T) {
+		newNulByteFile(t).reports("unknown skill referenced: kk-nonesuch")
+	})
+
 	// The cited path is echoed whole. One trailing segment stops it at `.../kk-humanize/scripts` and
 	// drops the file the citation was about, which is the half that says what to go and move.
 	t.Run("echoes a cited path whole, not truncated at one segment", func(t *testing.T) {
@@ -327,6 +341,14 @@ func newSubtractionFixture(t *testing.T, sharedCarriesTheName bool) *fixture {
 	if sharedCarriesTheName {
 		f.write(f.root+"/kk-flavor/standards/writing.md", "# Writing\n")
 	}
+	return f
+}
+
+// One standard carrying a dangling link and an unknown skill name, with a NUL byte after both.
+func newNulByteFile(t *testing.T) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.write(f.root+"/kk-flavor/standards/nul.md", "see [x](nowhere.md) and kk-nonesuch\n\x00\n")
 	return f
 }
 

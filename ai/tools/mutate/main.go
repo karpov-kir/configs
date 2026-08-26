@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -80,7 +81,7 @@ func applyMutant(target, expr, dest string) (verdict string) {
 	if err != nil {
 		return "invalid"
 	}
-	out, err := exec.Command("sed", expr, target).Output()
+	out, err := exec.Command("sed", "--", expr, target).Output()
 	if err != nil {
 		return "invalid"
 	}
@@ -131,8 +132,14 @@ func runSuite(mountDir, homeDir string) (kills int, sawTrailer bool) {
 		return 0, false
 	}
 	cmd.Stderr = cmd.Stdout
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		return 0, false
+	}
+	killGroup := func() {
+		// Negative pid is the group. The suite spawns a checker per case, each spawning find and grep;
+		// killing the leader alone orphans all of them, and early exit makes that every mutant.
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 256*1024), 4*1024*1024)
@@ -140,7 +147,7 @@ func runSuite(mountDir, homeDir string) (kills int, sawTrailer bool) {
 		line := scanner.Text()
 		if failLine.MatchString(line) {
 			kills++
-			_ = cmd.Process.Kill()
+			killGroup()
 			_ = cmd.Wait()
 			return kills, true
 		}
@@ -172,6 +179,47 @@ func newSandbox(suite string) (root, mount string, err error) {
 	return root, mount, os.WriteFile(filepath.Join(mount, filepath.Base(suite)), body, 0o755)
 }
 
+// Every path this tool touches is executed, one way or another: the harness is joined into a `bash -c`
+// script, the suite is run directly, and the target is copied into a sandbox the suite then executes.
+// So all three must be the installed copies, never a branch's. Without this a reviewed branch commits
+// its own `check-mutate.sh` carrying `run_mutant "$(…)" …` and running the gate from that worktree
+// executes it — while preflight reports every expression applying cleanly. This is the gate the shell
+// harness states as "where it runs from decides whose code executes"; it is not optional here either.
+func refuseUncontrolledPath(label, path string) string {
+	home := os.Getenv("HOME")
+	if home == "" {
+		fmt.Fprintln(os.Stderr, "mutate: no $HOME, so the installed mount cannot be identified — exit 2, nothing ran.")
+		os.Exit(2)
+	}
+	// Both sides canonicalised, never the mount path compared literally: each skill under the mount is
+	// a symlink into the checkout, so an installed script's real path *is* the repo path. Comparing the
+	// unresolved mount would refuse every legitimate run, and comparing the unresolved input would admit
+	// any copy. The shell harness settles it the same way, with `cd -P` on both.
+	installed := map[string]bool{}
+	entries, err := os.ReadDir(filepath.Join(home, ".claude", "skills"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mutate: %s is not a directory — exit 2, nothing ran.\n", filepath.Join(home, ".claude", "skills"))
+		os.Exit(2)
+	}
+	for _, e := range entries {
+		real, err := filepath.EvalSymlinks(filepath.Join(home, ".claude", "skills", e.Name(), "scripts"))
+		if err == nil {
+			installed[real] = true
+		}
+	}
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mutate: %s (%s) does not resolve — exit 2, nothing ran.\n", label, path)
+		os.Exit(2)
+	}
+	if !installed[filepath.Dir(real)] {
+		fmt.Fprintf(os.Stderr, "mutate: %s resolves to %s, which is no installed skill's scripts directory — exit 2, nothing ran.\n", label, real)
+		fmt.Fprintln(os.Stderr, "mutate: this tool executes all three of its inputs, so each must be the installed copy and not a branch's.")
+		os.Exit(2)
+	}
+	return real
+}
+
 func main() {
 	target := flag.String("target", "", "the script to mutate")
 	suite := flag.String("suite", "", "the suite that proves each mutation")
@@ -187,6 +235,9 @@ func main() {
 	if *harness == "" {
 		*harness = filepath.Join(filepath.Dir(*target), strings.TrimSuffix(filepath.Base(*target), ".sh")+"-mutate.sh")
 	}
+	*target = refuseUncontrolledPath("-target", *target)
+	*suite = refuseUncontrolledPath("-suite", *suite)
+	*harness = refuseUncontrolledPath("-harness", *harness)
 	if *jobs <= 0 {
 		*jobs = runtime.NumCPU() - 2
 		if *jobs < 1 {
@@ -246,7 +297,7 @@ func main() {
 	}
 	if kills, sawTrailer := runSuite(sbMount, filepath.Join(sbRoot, "home")); kills > 0 || !sawTrailer {
 		fmt.Println("  SANDBOX RED     the suite is not green on an unmutated copy — every mutant below would credit itself with failures it did not cause")
-		os.Remove(sbRoot)
+		os.RemoveAll(sbRoot)
 		os.Exit(2)
 	}
 	os.RemoveAll(sbRoot)

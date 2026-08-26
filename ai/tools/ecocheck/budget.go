@@ -281,7 +281,10 @@ func uncountedNote(uncounted []string) string {
 	}
 	var joined strings.Builder
 	for _, name := range shown {
-		joined.WriteString(cutBytes(name, 60))
+		// Sanitised like every other name a finding echoes, even though the import pattern's charset
+		// admits no control byte today: this line rides the exit-0 path, so a scan added later that
+		// widens that charset must not reopen the injection here.
+		joined.WriteString(cutBytes(oneline(name), 60))
 		joined.WriteString(" ")
 	}
 	names := strings.TrimSuffix(cutBytes(joined.String(), 200), " ")

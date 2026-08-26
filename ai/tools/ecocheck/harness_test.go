@@ -187,10 +187,18 @@ func (f *fixture) chmod(path string, mode os.FileMode) {
 // No case asserts on the exit code: a fixture root legitimately has findings of its own, so "clean"
 // would pass every case for the wrong reason. Exit 2 is the exception, because then nothing was
 // checked at all.
+// A case is parallelised here rather than at each t.Run, because the one thing that decides it is the
+// one thing this function knows: HOME is process-global, so a case that needs its own mount has to run
+// alone, and every other case can run alongside the rest. Splitting the decision across 83 call sites
+// is what would let the two sets drift — and t.Parallel is called *after* the fixture is built, so a
+// case pays only its scan in the parallel phase. A fixture that later grows a mount panics in
+// t.Setenv instead of quietly racing one.
 func (f *fixture) run() string {
 	f.t.Helper()
 	if f.home != "" {
 		f.t.Setenv("HOME", f.home)
+	} else {
+		f.t.Parallel()
 	}
 	var output bytes.Buffer
 	if status := ecocheck.Run(f.root, &output, &output); status == 2 {

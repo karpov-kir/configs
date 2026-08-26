@@ -22,7 +22,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The
 
 **What counts as watching** is `~/.kk-flavor/standards/live-systems.md` → **Verify the effect, not the report of it**.
 
-**Never fill a gap with a guess — however that guess is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): an invented session, a fabricated fixture or an assumed navigation path produces an observation of nothing. Stuck on a step, **ask scoped to that step**, naming what you already tried — that ask is the route an instruction takes here. Whether a step you cannot pass may be dropped at all is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**; what a dropped one owes is this lane's: **name it, with its reason, in what you return** — silent, it reads as a pass.
+**Never fill a gap with a guess — however that guess is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): an invented session, a fabricated fixture or an assumed navigation path produces an observation of nothing. Stuck on a step, **ask scoped to that step**, naming what you already tried — that ask is the route an instruction takes here. Whether a step you cannot pass may be dropped at all is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**. What a dropped step owes is this lane's: **name it, with its reason, in what you return** — silent, it reads as a pass.
 
 ## What you drive against
 
