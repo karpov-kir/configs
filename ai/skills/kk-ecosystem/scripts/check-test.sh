@@ -291,6 +291,21 @@ printf 'X' | tr 'X' '\000' >>"$root/kk-flavor/standards/x.md"
 printf '\nrun `comment-density.sh` before any lens reads it\n' >>"$root/kk-flavor/standards/x.md"
 assert_reports "$basenames" "and reads a lane basename past one too"
 
+# The scans outside the direction block need `-a` just as much, and had none: one committed NUL made
+# BSD grep answer `Binary file X matches`, which both replaced the real finding and put a tree-chosen
+# path inside the text of one. An agent drafts PR comments from these, so that is an injection, not
+# only a miss. Two scans stand for the four, one per grep shape (`-oE` per file, `-rhoE` over the tree).
+new_root
+{
+  printf 'see [x](nowhere.md) and kk-nonesuch\n'
+  printf 'X' | tr 'X' '\000'
+  printf '\n'
+} >"$root/kk-flavor/standards/nul.md"
+assert_reports 'dangling link: '"$root"'/kk-flavor/standards/nul.md -> nowhere.md' \
+  "reads a markdown link past a NUL byte"
+assert_reports 'unknown skill referenced: kk-nonesuch' \
+  "and reads a skill name past one, rather than reporting grep's own notice as the name"
+
 # The cited path is echoed whole. One trailing segment stops it at `.../kk-humanize/scripts` and drops
 # the file the citation was about, which is the half that says what to go and move.
 # Every path below resolves in the real checkout, for the reason `lane_script_ref` gives — and **run

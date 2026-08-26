@@ -145,7 +145,7 @@ fi
 # resolve where it is emitted (a project's `.idsd/`), so a bare sibling name is unverifiable and passes.
 find "$root" -name '*.md' -type f -print0 | while IFS= read -r -d '' file; do
   case "$file" in */templates/*) is_template=1 ;; *) is_template=0 ;; esac
-  grep -oE '\]\([^)]+\)' "$file" | sed 's/^](//; s/)$//' | while IFS= read -r link; do
+  grep -a -oE '\]\([^)]+\)' "$file" | sed 's/^](//; s/)$//' | while IFS= read -r link; do
     case "$link" in http*|mailto:*|'#'*|'~'*) continue ;; esac
     [ -e "$(dirname "$file")/${link%%#*}" ] && continue
     if [ "$is_template" = 1 ]; then
@@ -156,7 +156,7 @@ find "$root" -name '*.md' -type f -print0 | while IFS= read -r -d '' file; do
 done >>"$findings"
 
 # `~/.kk-flavor/...` and `~/.claude/skills/...` — how a skill reaches outside its own directory.
-grep -rhoE '~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+' "$root" --include='*.md' --include='*.sh' 2>/dev/null |
+grep -a -rhoE '~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+' "$root" --include='*.md' --include='*.sh' 2>/dev/null |
   sed 's#[.,;:]*$##' | sort -u | while IFS= read -r ref; do
   [ -n "$(resolve_ref "" "$ref")" ] || echo "dangling home ref: $(oneline "$ref")"
 done >>"$findings"
@@ -424,7 +424,7 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
   done >>"$findings"
 
 # Our own skill namespaces — a name in prose must be a skill that exists.
-grep -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 2>/dev/null |
+grep -a -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 2>/dev/null |
   sed 's/-$//' | sort -u | while IFS= read -r name; do
   [ "$name" = "kk-flavor" ] && continue
   # Two readings, and the scan cannot tell them apart: a misspelled skill, or prose that happens to wear
@@ -471,7 +471,7 @@ find "$root" -name '*.sh' -type f -print0 | while IFS= read -r -d '' script; do
     while IFS= read -r subcommand; do
       # Filters before the pattern, then `--`: a script named `-x.sh` puts a leading `-` in $base,
       # which grep would read as a flag.
-      grep -rqF --include='*.md' --include='*.sh' --include='*.yaml' -- "$base $subcommand" "$root" ||
+      grep -a -rqF --include='*.md' --include='*.sh' --include='*.yaml' -- "$base $subcommand" "$root" ||
         echo "$(oneline "$base") subcommand with no call site: $(oneline "$subcommand")"
     done
 done >>"$findings"

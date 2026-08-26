@@ -173,6 +173,10 @@ run_mutant "direction scan: names budget uncapped"     's#\[ "$names_shown" -le 
 run_mutant "direction scan: cites grep drops -a"       's#grep -a -noE "\[A-Za-z0-9#grep -noE "[A-Za-z0-9#'
 run_mutant "direction scan: names grep drops -a"       's#grep -a -noE "\\\\b(#grep -noE "\\\\b(#'
 run_mutant "direction scan: basename grep drops -a"    's#grep -a -noE "(\^|#grep -noE "(^|#'
+# The scans outside the direction block. One committed NUL made BSD grep answer `Binary file X
+# matches`, which replaced the real finding and carried a tree-chosen path into the text of one.
+run_mutant "dangling-link grep drops -a"               's#grep -a -oE .\\]#grep -oE \x27\\]#'
+run_mutant "unknown-skill grep drops -a"               's#grep -a -rhoE .\\b(kk#grep -rhoE \x27\\b(kk#'
 run_mutant "direction scan: kk-flavor not excluded"    's#\[ "$lane_name" = "kk-flavor" \] && continue#true#'
 run_mutant "direction scan: unmounted name still reported" '\#\[ -f "$skills/$named/SKILL.md" \] \|\| continue#d'
 run_mutant "direction scan: symlinked target walked"   's#-type f -print0)#-print0)#'
