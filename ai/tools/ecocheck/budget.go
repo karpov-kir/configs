@@ -61,7 +61,7 @@ func (c *checker) budgetFiles() []string {
 	// A listed doc that does not exist is skipped by name, not read, or the printed file total
 	// disagrees with what was measured. Guarded by the same containment test as the count: refusing
 	// to count a file this then reads anyway refuses nothing.
-	injectLines, _ := readLines(inject)
+	injectLines, _ := c.readLines(inject)
 	for _, doc := range readAlwaysTargets(injectLines) {
 		listed := join(c.flavor, doc)
 		switch {
@@ -131,7 +131,7 @@ func (c *checker) refuseBudgetFile(name string) {
 // tier it exists to measure. Resolved ones join the budget before it is counted; the rest come back
 // to be named in the census note.
 func (c *checker) resolveImports(files *[]string) []string {
-	imports := importsIn(*files)
+	imports := c.importsIn(*files)
 	if len(imports) == 0 {
 		return nil
 	}
@@ -188,7 +188,7 @@ func (c *checker) newImportMount() importMount {
 	declared := map[string]bool{}
 	claudeMd := join(c.root, "CLAUDE.md")
 	if !isSymlink(claudeMd) && isRegularFile(claudeMd) && isReadable(claudeMd) {
-		for _, name := range importsIn([]string{claudeMd}) {
+		for _, name := range c.importsIn([]string{claudeMd}) {
 			declared[name] = true
 		}
 	}
@@ -232,10 +232,10 @@ func (m importMount) resolve(name string) (target, refusal string) {
 // Every `@name.ext` outside a fence and outside backticks, across the given files, byte-sorted and
 // deduplicated. Two bounds keep it linear in text the tree chose: a field length cap, and a match
 // cap within one field.
-func importsIn(files []string) []string {
+func (c *checker) importsIn(files []string) []string {
 	var found []string
 	for _, file := range files {
-		lines, err := readLines(file)
+		lines, err := c.readLines(file)
 		if err != nil {
 			continue
 		}

@@ -1,6 +1,7 @@
 package ecocheck
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,7 +105,25 @@ func baseName(path string) string {
 // newline. Bytes come back untouched — Go has no notion of a binary file, so the `-a` the shell
 // version needed on every grep is gone with the hazard it guarded: one committed NUL byte could
 // make a scan read no violation out of a file it had been handed.
-func readLines(path string) ([]string, error) {
+// The reviewed tree chooses this file's size, so the read is bounded: a committed 64 MiB of newlines
+// is 408 KB packed and took 2.48 GB of resident memory, against the 7.5 MB the streaming shell version
+// used, and half a gigabyte of it OOM-kills the review stage outright. The bound is far above any real
+// instruction file — the largest in this tree is under 60 KB — so hitting it is a statement about the
+// branch, not about the tree growing.
+// Over the bound the file is **reported and not read**. Truncating it instead would leave an unchecked
+// file indistinguishable from a checked one, which is the failure `check.sh` names three times over.
+const maxFileBytes = 8 << 20
+
+func (c *checker) readLines(path string) ([]string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxFileBytes {
+		c.add(fmt.Sprintf("file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT checked",
+			oneline(path), info.Size(), maxFileBytes))
+		return nil, nil
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

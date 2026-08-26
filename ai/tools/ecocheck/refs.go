@@ -26,7 +26,7 @@ var (
 func (c *checker) scanDanglingLinks() {
 	for _, file := range c.filesNamed(c.root, "*.md") {
 		isTemplate := strings.Contains(file, "/templates/")
-		lines, err := readLines(file)
+		lines, err := c.readLines(file)
 		if err != nil {
 			continue
 		}
@@ -60,7 +60,7 @@ func isTraversal(target string) bool {
 func (c *checker) scanHomeRefs() {
 	var refs []string
 	for _, file := range c.filesNamed(c.root, "*.md", "*.sh") {
-		lines, err := readLines(file)
+		lines, err := c.readLines(file)
 		if err != nil {
 			continue
 		}
@@ -84,7 +84,7 @@ func (c *checker) scanHomeRefs() {
 // a file a project owns (`charter.md`, `roadmap.md`), so only SHOUTY-with-a-hyphen is matched.
 func (c *checker) scanPathRefs() {
 	for _, file := range c.filesNamed(c.root, "*.md", "*.sh") {
-		lines, err := readLines(file)
+		lines, err := c.readLines(file)
 		if err != nil {
 			continue
 		}
@@ -154,7 +154,7 @@ type citation struct {
 // arrows ("intent → build") out.
 func (c *checker) scanCitations() {
 	for _, file := range c.filesNamed(c.root, "*.md", "*.sh") {
-		lines, err := readLines(file)
+		lines, err := c.readLines(file)
 		if err != nil {
 			continue
 		}
@@ -178,7 +178,7 @@ func (c *checker) reportCitation(cited citation) {
 		c.add("undelimited section citation: " + position + " -> " + oneline(cited.path) +
 			" → " + oneline(cited.section) + " is not wrapped in ** or backticks")
 	}
-	headings := markdownHeadings(target)
+	headings := c.markdownHeadings(target)
 	// Prose runs on past the heading it names, so accept the longest leading run that is a heading.
 	want := plainText(cited.section)
 	for want != "" {
@@ -195,9 +195,9 @@ func (c *checker) reportCitation(cited citation) {
 }
 
 // Every `#` heading in a markdown file, in comparison form. Fenced blocks are skipped.
-func markdownHeadings(path string) map[string]bool {
+func (c *checker) markdownHeadings(path string) map[string]bool {
 	headings := map[string]bool{}
-	lines, err := readLines(path)
+	lines, err := c.readLines(path)
 	if err != nil {
 		return headings
 	}
@@ -312,7 +312,7 @@ func citedSection(after string) (section string, isDelimited bool) {
 func (c *checker) scanUnknownSkills() {
 	var names []string
 	for _, file := range c.filesNamed(c.root, "*.md", "*.yaml") {
-		lines, err := readLines(file)
+		lines, err := c.readLines(file)
 		if err != nil {
 			continue
 		}

@@ -56,7 +56,7 @@ func (c *checker) scanDirection() {
 			if strings.HasPrefix(file, c.flavor+"/") {
 				wasFlavorScanned = true
 			}
-			lines, err := readLines(file)
+			lines, err := c.readLines(file)
 			if err != nil {
 				continue
 			}

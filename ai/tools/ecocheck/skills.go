@@ -27,7 +27,7 @@ func (c *checker) scanSkillDirectories() {
 	// A skill's frontmatter name is how it is invoked; a mismatch with its directory makes it
 	// unreachable.
 	for _, file := range c.filesNamed(c.skills, "SKILL.md") {
-		lines, _ := readLines(file)
+		lines, _ := c.readLines(file)
 		declared := declaredSkillName(lines)
 		if declared != baseName(dirName(file)) {
 			c.add("skill name/dir mismatch: " + oneline(file) + " declares '" + oneline(declared) + "'")
@@ -108,7 +108,7 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 			continue
 		}
 		skillTotal++
-		lines, _ := readLines(file)
+		lines, _ := c.readLines(file)
 		if isOptedOutOfModelInvocation(lines) {
 			continue
 		}

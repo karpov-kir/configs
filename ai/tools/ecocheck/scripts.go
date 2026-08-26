@@ -112,7 +112,7 @@ func (c *checker) scanSubcommandCallSites() {
 	var wanted []callSite
 	queries := map[string]bool{}
 	for _, script := range c.filesNamed(c.root, "*.sh") {
-		lines, err := readLines(script)
+		lines, err := c.readLines(script)
 		if err != nil {
 			continue
 		}
@@ -188,7 +188,7 @@ func (c *checker) scanTestPositions() {
 		if strings.HasSuffix(base, "-test.sh") || strings.HasSuffix(base, "-mutate.sh") {
 			continue
 		}
-		lines, err := readLines(script)
+		lines, err := c.readLines(script)
 		if err != nil {
 			continue
 		}
@@ -263,7 +263,7 @@ func anyMatch(lines []string, pattern *regexp.Regexp) bool {
 func (c *checker) scanSharedRegions() {
 	copies := map[string][]regionBody{}
 	for _, script := range c.filesNamed(c.root, "*.sh") {
-		lines, err := readLines(script)
+		lines, err := c.readLines(script)
 		if err != nil {
 			continue
 		}
