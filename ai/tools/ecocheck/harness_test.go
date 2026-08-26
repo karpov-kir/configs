@@ -189,7 +189,7 @@ func (f *fixture) chmod(path string, mode os.FileMode) {
 // checked at all.
 // A case is parallelised here rather than at each t.Run, because the one thing that decides it is the
 // one thing this function knows: HOME is process-global, so a case that needs its own mount has to run
-// alone, and every other case can run alongside the rest. Splitting the decision across 83 call sites
+// alone, and every other case can run alongside the rest. Splitting the decision across every t.Run
 // is what would let the two sets drift — and t.Parallel is called *after* the fixture is built, so a
 // case pays only its scan in the parallel phase. A fixture that later grows a mount panics in
 // t.Setenv instead of quietly racing one.
