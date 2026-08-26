@@ -6,7 +6,7 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 
 ## The stage's half
 
-- **Emit each proposed change as you find it**, to `<queue>/<tier>-<skill>-<seq>.patch`, with a sibling `.md` carrying its case. Nothing waits for your return. The queue sits in the scratch dir, **outside the repository** ([skill-protocol.md](skill-protocol.md) → **Queue**) — a patch file written inside it joins the change set every later stage then reviews.
+- **Emit each proposed change as you find it**, to `<queue>/<tier>-<skill>-<seq>.patch`, with a sibling `.md` carrying its case. Nothing waits for your return. **Write the `.md` first**: the caller applies on arrival, so a patch that lands before its case is one judged without it. The queue sits in the scratch dir, **outside the repository** ([skill-protocol.md](skill-protocol.md) → **Queue**) — a patch file written inside it joins the change set every later stage then reviews.
 - **`<seq>` never restarts.** A resumed stage carries on its own numbering, or it overwrites the patches it already queued.
 - **A file, never a message.** A message's envelope names only its sender's subagent *type*, so two stages of one type are indistinguishable at the receiver. No tier order can rest on a sender that self-reports.
 - **A patch, not a description.** "Extract these ten sites, with these call-site rewrites" does not survive prose, and a caller re-deriving it is doing the work rather than applying it.
