@@ -31,7 +31,33 @@ type span struct {
 	key  map[string]bool
 }
 
-var boldPattern = regexp.MustCompile(`\*\*([^*]{12,})\*\*`)
+// Under this a match is a phrase, not a rule.
+const minRuleChars = 12
+
+type boldSpan struct {
+	start int // byte offset of the opening `**`
+	text  string
+}
+
+// Markdown pairs `**` in order down the line, so the delimiters alternate open, close, open, close.
+// The regexp this replaced paired them by proximity instead, and any bold under the length floor —
+// `**lossy**` — left its own closing delimiter free to pair with the next opening one. The plain
+// prose between two real rules then came back as a third rule, matched against every file in the
+// tree.
+func boldSpans(line string) []boldSpan {
+	var spans []boldSpan
+	parts := strings.Split(line, "**")
+	offset := 0
+	for i, part := range parts {
+		// The last part has no closing delimiter, so an odd count of `**` drops its tail rather than
+		// reading an unterminated span as a rule.
+		if i%2 == 1 && i < len(parts)-1 {
+			spans = append(spans, boldSpan{start: offset - 2, text: part})
+		}
+		offset += len(part) + len("**")
+	}
+	return spans
+}
 
 // Words carrying no discrimination. A rule pair sharing only these shares nothing.
 var common = map[string]bool{
@@ -83,13 +109,16 @@ func collect(root string) ([]span, error) {
 			if inFence {
 				continue
 			}
-			for _, m := range boldPattern.FindAllStringIndex(line, -1) {
-				text := strings.TrimSpace(line[m[0]+2 : m[1]-2])
+			for _, b := range boldSpans(line) {
+				text := strings.TrimSpace(b.text)
+				if len(text) < minRuleChars {
+					continue
+				}
 				// A bold span after an arrow is a citation naming another file's section — the
 				// cross-reference `ecosystem.md` → **One home** requires, and the opposite of the
 				// restatement this looks for. Without this the tool reports the tree's own compliance
 				// as its finding, which is most of what it found on the first run.
-				if before := strings.TrimSpace(line[:m[0]]); strings.HasSuffix(before, "→") {
+				if before := strings.TrimSpace(line[:b.start]); strings.HasSuffix(before, "→") {
 					continue
 				}
 				k := keyOf(text)
