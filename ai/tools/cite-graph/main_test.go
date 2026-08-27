@@ -139,3 +139,16 @@ func TestHeadingAliasBeforeAnEmDash(t *testing.T) {
 		t.Fatalf("edges = %+v, want one entering at Budget", edges)
 	}
 }
+
+// A bolded list item matches the `→ **Section**` shape and is not a heading, so a citation naming one
+// resolves to nothing. Counting it adds a door to a section that does not exist.
+func TestCitationToABoldedListItemIsNotADoor(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/t.md", "# T\n\n## 1. Core philosophy\n\n4. **Cheapest level first.** Push it down.\n")
+	write(t, root, "caller.md", "see `std/t.md` → **Cheapest level first.** and `std/t.md` → **1. Core philosophy**\n")
+
+	_, edges := graph(t, root)
+	if len(edges) != 1 || edges[0].section != "1. Core philosophy" {
+		t.Fatalf("edges = %+v, want only the real heading", edges)
+	}
+}

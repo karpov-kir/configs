@@ -55,6 +55,29 @@ type edge struct {
 // into one node — and the graph then reports chains that run through a file nobody cited, built out
 // of edges belonging to twenty-two different files. The first version of this did exactly that and
 // printed an eleven-hop chain through `SKILL.md` that no consumer walks.
+// Whether a cited name enters a real heading, by check.sh's rule rather than a stricter one of our
+// own: prose runs on past the heading it names, so a citation naming a leading run of one resolves.
+// `→ **Phase 2 — Assemble Context**` enters `## Phase 2 — Assemble Context (progressive)`.
+//
+// Matching stricter than check.sh is worse than matching wrong: two detectors disagreeing about what
+// resolves is invisible until someone reads both, and the first version of this guard reported a live
+// citation as dangling on exactly this heading.
+func entersAHeading(headings map[string]bool, section string) bool {
+	if headings[section] {
+		return true
+	}
+	for h := range headings {
+		if strings.HasPrefix(h, section) && len(h) > len(section) {
+			// A word boundary, so half a word cannot satisfy a citation.
+			switch h[len(section)] {
+			case ' ', '\t':
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func relOf(root, p string) string {
 	if r, err := filepath.Rel(root, p); err == nil {
 		return r
@@ -160,9 +183,18 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 	for _, c := range raw {
 		to := resolve(root, c, defined, byBase)
 		// A file citing its own section is navigation, not a dependency.
-		if to != "" && to != c.from {
-			edges = append(edges, edge{c.from, to, c.section, readsWhole[c.from+">"+to]})
+		if to == "" || to == c.from {
+			continue
 		}
+		// A bolded list item matches the citation shape and resolves to no heading, so counting it
+		// would add a door to a section that does not exist and inflate the very number this tool
+		// reports. check.sh reports the dangling reference; this refuses to measure it.
+		if !entersAHeading(defined[to], c.section) {
+			fmt.Fprintf(os.Stderr, "no such section: %s cites %s → **%s**, which is no heading there — NOT counted\n",
+				shell.Oneline(c.from), shell.Oneline(to), shell.Oneline(c.section))
+			continue
+		}
+		edges = append(edges, edge{c.from, to, c.section, readsWhole[c.from+">"+to]})
 	}
 	return defined, edges, err
 }
