@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"kk-flavor/tools/shell"
+	ecoroot "kk-flavor/tools/eco-root"
 )
 
 func (s *stats) alwaysLoaded() int { return s.alwaysLoadedWords + s.descriptionWords }
@@ -23,7 +23,7 @@ func (s *stats) budgetNote() string {
 	if len(s.uncounted) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("  (+ %d uncounted import(s): %s)", len(s.uncounted), shell.UncountedNames(s.uncounted))
+	return fmt.Sprintf("  (+ %d uncounted import(s): %s)", len(s.uncounted), ecoroot.UncountedNames(s.uncounted))
 }
 
 func (s *stats) report(out io.Writer) {

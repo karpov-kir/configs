@@ -41,8 +41,12 @@ func BaseName(path string) string {
 }
 
 // The `[ -e ]`, `[ -d ]` and `[ -f ]` of the shell version, which follow a symlink, and the `[ -L ]`
-// that does not. The `[ -r ]` below stays internal: it opens the file to answer, which is a different
-// question from the one access(2) answers, and only the containment test above wants this one.
+// that does not.
+//
+// There is deliberately no `[ -r ]` here. It has two answers — open(2)'s and access(2)'s — and they
+// differ for root and for a mode-000 file, so each caller keeps the one it means: ecoroot's
+// containment test opens the file, and ecoreport asks access(2) because its suite skips its
+// permission cases on exactly that answer. A shared one here would be picked by import order.
 func PathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
@@ -56,15 +60,6 @@ func IsDir(path string) bool {
 func IsRegularFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
-}
-
-func isReadable(path string) bool {
-	file, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	file.Close()
-	return true
 }
 
 func IsSymlink(path string) bool {
@@ -92,29 +87,6 @@ func CanonicalDir(path string) string {
 }
 
 // --- end shared:canonical-dir ---
-
-// --- shared:contained-in-root ---
-// True when a path's directory sits at or under rootCanon, which is CanonicalDir of the root.
-//
-// A symlink is refused rather than resolved: CanonicalDir canonicalises a *directory*, so it never
-// sees the final component, and a link at a budget path would walk through a check that only tested
-// its parent. A regular file, or nothing: existence alone admits a FIFO or a device, which a read
-// then blocks on forever, and a dangling symlink fails existence entirely — so callers enter on
-// exists-or-is-a-symlink and both become a refusal, not a silent drop. Readable too, not just
-// regular: a mode-000 file passes every type test, and the read behind the figure then fails,
-// leaving a file counted whose words are not.
-func ContainedInRoot(rootCanon, path string) bool {
-	if IsSymlink(path) || !IsRegularFile(path) || !isReadable(path) {
-		return false
-	}
-	dir := CanonicalDir(DirName(path))
-	if rootCanon == "" || dir == "" {
-		return false
-	}
-	return dir == rootCanon || strings.HasPrefix(dir, rootCanon+"/")
-}
-
-// --- end shared:contained-in-root ---
 
 // Fnmatch is fnmatch as find(1)'s -name and -path use it: no FNM_PATHNAME, so `*` spans `/` too, and
 // no FNM_PERIOD, so it matches a leading dot.

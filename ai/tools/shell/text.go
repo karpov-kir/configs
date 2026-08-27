@@ -27,9 +27,14 @@ func CutBytes(text string, n int) string {
 	return text[:n]
 }
 
+// SpaceBytes is the C-locale `[[:space:]]` as a cutset, for the strings.Trim family. IsSpaceByte is
+// the same set as a predicate, and reads it, so a scan that trims whitespace and a scan that tests
+// for it cannot come to different answers about a byte.
+const SpaceBytes = " \t\n\v\f\r"
+
 // IsSpaceByte is the C-locale `[[:space:]]`, which is what every scan was compared against.
 func IsSpaceByte(b byte) bool {
-	return b == ' ' || b == '\t' || b == '\n' || b == '\v' || b == '\f' || b == '\r'
+	return strings.IndexByte(SpaceBytes, b) >= 0
 }
 
 // SplitLines is one file as the line-oriented tools saw it: split on \n, with no empty record for a

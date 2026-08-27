@@ -9,6 +9,10 @@ import (
 )
 
 var (
+	// Wider than shell.LinkTargets, which this package also uses one file away in budget.go: that one
+	// excludes `#` because a budget target with a fragment names no file to count, while a citation
+	// with one names a file *and* a section, both of which are checked here — so this admits the
+	// fragment and cuts it off itself below. Two readings of one form, on purpose.
 	markdownLinkPattern = regexp.MustCompilePOSIX(`\]\([^)]+\)`)
 	homeRefPattern      = regexp.MustCompilePOSIX(`~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+`)
 	backtickedPathToken = regexp.MustCompilePOSIX(`^([A-Za-z0-9][A-Za-z0-9._/-]*/[A-Za-z0-9._-]+\.(sh|md)|[A-Za-z0-9][A-Za-z0-9._-]*\.sh|[A-Z][A-Z0-9]*(-[A-Z0-9]+)+\.md)$`)
@@ -123,7 +127,7 @@ func backtickedSpans(lines []string) []string {
 	var spans []string
 	inFence := false
 	for _, line := range lines {
-		if strings.HasPrefix(line, "```") {
+		if shell.IsFenceDelimiter(line) {
 			inFence = !inFence
 			continue
 		}
@@ -214,7 +218,7 @@ func (c *checker) markdownHeadings(path string) map[string]bool {
 	}
 	inFence := false
 	for _, line := range lines {
-		if strings.HasPrefix(line, "```") {
+		if shell.IsFenceDelimiter(line) {
 			inFence = !inFence
 			continue
 		}
@@ -237,7 +241,7 @@ func citationsIn(file string, lines []string) []citation {
 	var found []citation
 	inFence := false
 	for lineNumber, line := range lines {
-		if strings.HasPrefix(line, "```") {
+		if shell.IsFenceDelimiter(line) {
 			inFence = !inFence
 			continue
 		}
@@ -269,7 +273,7 @@ func citationsIn(file string, lines []string) []citation {
 // The cited file: a markdown link, a backticked path, or a bare filename. Empty unless it is a
 // markdown file, which is what keeps a prose arrow out.
 func citedPath(before string) string {
-	before = strings.TrimRight(before, " \t\n\v\f\r")
+	before = strings.TrimRight(before, shell.SpaceBytes)
 	path := ""
 	switch {
 	case trailingLinkTarget.MatchString(before):
@@ -294,7 +298,7 @@ func citedPath(before string) string {
 // guessed at by the fallback. ecosystem.md → **Conventions a new file joins** requires the
 // delimited form for that reason.
 func citedSection(after string) (section string, isDelimited bool) {
-	after = strings.TrimLeft(after, " \t\n\v\f\r")
+	after = strings.TrimLeft(after, shell.SpaceBytes)
 	if rest, ok := strings.CutPrefix(after, "**"); ok {
 		if end := strings.Index(rest, "**"); end > 0 {
 			section = rest[:end]
@@ -316,7 +320,7 @@ func citedSection(after string) (section string, isDelimited bool) {
 	}
 	section = strings.NewReplacer("`", "", "*", "").Replace(section)
 	section = headingMarker.ReplaceAllString(section, "")
-	return strings.Trim(section, " \t\n\v\f\r"), isDelimited
+	return strings.Trim(section, shell.SpaceBytes), isDelimited
 }
 
 // Our own skill namespaces — a name in prose must be a skill that exists.

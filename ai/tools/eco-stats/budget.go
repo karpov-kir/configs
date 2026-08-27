@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
 )
 
@@ -40,7 +41,12 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 			file := shell.Join(s.root.Flavor(), target)
 			switch {
 			case !shell.PathExists(file) && !shell.IsSymlink(file):
-				fmt.Fprintf(errOut, "stats.sh: inject.md lists '%s' under Read always, but %s does not exist\n", target, file)
+				// Sanitised like every other name from the tree: the Read-always list is
+				// attacker-authored when this runs over a branch someone else wrote, and an ESC byte
+				// in a link target erases whatever this message was printed beside. ecocheck puts the
+				// same name through Oneline, and so do both shell scripts.
+				fmt.Fprintf(errOut, "stats.sh: inject.md lists '%s' under Read always, but %s does not exist\n",
+					shell.Oneline(target), shell.Oneline(file))
 			case !s.root.Contains(file):
 				s.refuseBudgetFile(errOut, "inject.md Read-always target "+target)
 			default:
@@ -95,20 +101,19 @@ func (s *stats) refuseBudgetFile(errOut io.Writer, name string) {
 // An import refusal is not a budget refusal: a probe-shaped name was never a member of the tier, so
 // the figure is not short and no row is withheld.
 func (s *stats) resolveImports(budget []string, errOut io.Writer) {
-	imports := shell.ImportsIn(readLines, budget)
-	if len(imports) == 0 {
-		return
-	}
-	s.uncounted = shell.ResolveImports(imports, s.mount,
-		func(target string) {
+	s.uncounted = s.root.ResolveImports(ecoroot.ImportScan{
+		Files: budget,
+		Read:  readLines,
+		Resolved: func(target string) {
 			words := wordsInFile(target)
 			s.alwaysLoadedWords += words
 			s.importResolvedWords += words
 		},
-		func(name, reason string) {
+		Refused: func(name, reason string) {
 			fmt.Fprintf(errOut, "stats.sh: import refused (%s), named but not counted: %s\n",
 				reason, shell.CutBytes(shell.Oneline(name), 80))
-		})
+		},
+	})
 }
 
 // Every skill description the router keeps in context, and how many of the tree's skills are routed
@@ -134,7 +139,7 @@ func (s *stats) census() {
 // mounts resolve to the *installed* checkout, the exclusion below matches nothing, and the figure
 // publishes the reviewer's own local skill inventory into something an agent may quote.
 func (s *stats) mountedOutside() {
-	if !s.mount.IsInstalled() {
+	if !s.root.IsInstalled() {
 		return
 	}
 	for _, file := range skillFiles(s.root.SkillsMount()) {

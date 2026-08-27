@@ -54,9 +54,10 @@ func isNonEmptyFile(path string) bool { // -s
 	return err == nil && info.Size() > 0
 }
 
-// -r and -x, which stay here rather than take a readability test from the shell package: that one
-// opens the file, and these have to ask access(2), the question the shell's own test builtins asked.
-// Root reads anything, and the suite skips its permission cases on exactly that answer.
+// -r and -x as access(2) answers them, which is the question the shell's own test builtins asked.
+// `shell` deliberately holds no readability test, because there are two answers and they differ:
+// ecoroot's containment test opens the file, and these must not, since root reads anything and the
+// suite skips its permission cases on exactly that answer.
 func isReadable(path string) bool { return syscall.Access(path, 0x4) == nil }
 
 func isExecutable(path string) bool { return syscall.Access(path, 0x1) == nil }

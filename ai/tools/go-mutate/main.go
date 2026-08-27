@@ -31,9 +31,9 @@ import (
 type mutant struct {
 	label string
 	file  string
-	// The suite that has to notice. It is not always the package the edit lands in: the shared shell
-	// package is read by both ports, and a figure ecocheck alone prints is asserted by the agreement
-	// cases, which live in ecostats' suite.
+	// The suite that has to notice. It is not always the package the edit lands in: shell and ecoroot
+	// are read by both ports, and a figure ecocheck alone prints is asserted by the agreement cases,
+	// which live in ecostats' suite.
 	suite string
 	from  string
 	to    string
@@ -53,14 +53,16 @@ var mutants = []mutant{
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "shell.Oneline(flavorHave)", "flavorHave"},
 	// The rest live outside ecocheck/. A mutant names its file relative to that directory, and the
 	// overlay reaches a dependency, or a sibling package, as readily as the package under test.
-	{"imports: name cut a fixed two bytes past the boundary", "../shell/imports.go", "./eco-check/", "token[at[0]+boundary+1:at[1]]", "token[at[0]+boundary*0+2:at[1]]"},
-	{"imports: uncounted name left unsanitised", "../shell/imports.go", "./eco-check/", "CutBytes(Oneline(name), 60)", "CutBytes(name, 60)"},
+	// ecoroot holds the `@import` scan and the mount: they are facts about one checkout, not shell
+	// primitives, so they sit with the root every path is built from.
+	{"imports: name cut a fixed two bytes past the boundary", "../eco-root/imports.go", "./eco-check/", "token[at[0]+boundary+1:at[1]]", "token[at[0]+boundary*0+2:at[1]]"},
+	{"imports: uncounted name left unsanitised", "../eco-root/imports.go", "./eco-check/", "shell.CutBytes(shell.Oneline(name), 60)", "shell.CutBytes(name, 60)"},
 
 	// stats-mutate.sh's list, against the ports of the two scripts it mutated. Its first two entries
 	// were the same edit made twice, once per script, because `contained_in_root` was two copies of
 	// one region; here it is one, so it is one mutant — and it is ecostats' suite that holds both the
 	// case for the refusal and the case that the other tool refuses it too.
-	{"contained-in-root: readability test removed", "../shell/path.go", "./eco-stats/", " || !isReadable(path) {", " {"},
+	{"contained-in-root: readability test removed", "../eco-root/contained.go", "./eco-stats/", " || !isReadable(path) {", " {"},
 	// `* 0` rather than a bare 0, or `words` goes unused and the mutant does not compile — which is a
 	// `broken` verdict, and says nothing about the guard.
 	{"ecocheck: budget words not counted", "budget.go", "./eco-stats/", "budgetWords += words", "budgetWords += words * 0"},
@@ -70,10 +72,13 @@ var mutants = []mutant{
 	{"stats: no pipe escaping in the note", "../eco-stats/eco-stats.go", "./eco-stats/", "strings.ReplaceAll(note, \"|\", `\\|`)", "strings.ReplaceAll(note, \"|\", \"|\")"},
 	{"stats: no note-length bar", "../eco-stats/eco-stats.go", "./eco-stats/", "words > noteWordCap", "words > 100000"},
 	{"stats: import refusals unreported", "../eco-stats/budget.go", "./eco-stats/", `fmt.Fprintf(errOut, "stats.sh: import refused`, `fmt.Fprintf(io.Discard, "stats.sh: import refused`},
+	// The name and the path both, because the path is built from the name: sanitising one and printing
+	// the other through would leave the ESC byte on the line anyway.
+	{"stats: Read-always target left unsanitised", "../eco-stats/budget.go", "./eco-stats/", "shell.Oneline(target), shell.Oneline(file))", "target, file)"},
 	{"stats: ledger not taken out of prose", "../eco-stats/measure.go", "./eco-stats/", "s.prose -= s.ledgerWords", "s.prose -= 0"},
 	{"stats: ledger figure unreported", "../eco-stats/report.go", "./eco-stats/", `fmt.Fprintf(out, "ledger:`, `fmt.Fprintf(io.Discard, "ledger:`},
 	{"stats: mounted-outside unreported", "../eco-stats/report.go", "./eco-stats/", `fmt.Fprintf(out, "mounted outside:`, `fmt.Fprintf(io.Discard, "mounted outside:`},
-	{"stats: mounted-outside gate removed", "../eco-stats/budget.go", "./eco-stats/", "if !s.mount.IsInstalled() {", "if false {"},
+	{"stats: mounted-outside gate removed", "../eco-stats/budget.go", "./eco-stats/", "if !s.root.IsInstalled() {", "if false {"},
 	{"stats: in-tree mounts not excluded", "../eco-stats/budget.go", "./eco-stats/", "if s.root.HoldsSkillFile(file) {", "if false {"},
 	{"stats: ledger symlink followed on write", "../eco-stats/ledger.go", "./eco-stats/", "if shell.IsSymlink(history) {", "if false {"},
 	{"stats: fresh ledger loses the + legend", "../eco-stats/ledger.go", "./eco-stats/", "makes it a lower bound", "makes it a lower limit"},

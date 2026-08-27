@@ -28,6 +28,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"kk-flavor/tools/shell"
 )
 
 const maxFileBytes = 8 << 20
@@ -46,8 +48,6 @@ type edge struct {
 	// The citer holds the target whole, so this citation names which rule rather than opening a door.
 	precision bool
 }
-
-func baseOf(p string) string { return filepath.Base(p) }
 
 // Sections a file defines, by heading, keyed on the path relative to the root.
 //
@@ -80,7 +80,7 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 			return nil
 		}
 		if fi.Size() > maxFileBytes {
-			fmt.Fprintf(os.Stderr, "too large to read: %s — it was NOT scanned\n", p)
+			fmt.Fprintf(os.Stderr, "file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n", shell.Oneline(p), fi.Size(), maxFileBytes)
 			return nil
 		}
 		body, err := os.ReadFile(p)
@@ -193,7 +193,9 @@ func resolve(root string, c rawCite, defined map[string]map[string]bool, byBase 
 	case 0:
 		return ""
 	default:
-		fmt.Fprintf(os.Stderr, "ambiguous: %s cites %s, which %d files answer to — NOT counted\n", c.from, base, len(hits))
+		// Both are names the tree chose. Printed raw, a newline in one forges a line of this tool's own
+		// report, and that line is the only signal a citation was dropped.
+		fmt.Fprintf(os.Stderr, "ambiguous: %s cites %s, which %d files answer to — NOT counted\n", shell.Oneline(c.from), shell.Oneline(base), len(hits))
 		return ""
 	}
 }

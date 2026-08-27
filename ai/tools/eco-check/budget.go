@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
 )
 
@@ -105,16 +106,14 @@ func (c *checker) refuseBudgetFile(name string) {
 // tier it exists to measure. Resolved ones join the budget before it is counted; the rest come back
 // to be named in the census note.
 func (c *checker) resolveImports(files *[]string) []string {
-	imports := shell.ImportsIn(c.readLines, *files)
-	if len(imports) == 0 {
-		return nil
-	}
-	mount := c.root.NewImportMount(c.readLines)
-	return shell.ResolveImports(imports, mount,
-		func(target string) { *files = append(*files, target) },
-		func(name, reason string) {
+	return c.root.ResolveImports(ecoroot.ImportScan{
+		Files:    *files,
+		Read:     c.readLines,
+		Resolved: func(target string) { *files = append(*files, target) },
+		Refused: func(name, reason string) {
 			c.add("import refused (" + reason + "), named but not counted: " + shell.CutBytes(shell.Oneline(name), 80))
-		})
+		},
+	})
 }
 
 // Capped in bytes, not just in entries: this line rides the exit-0 path, so an uncapped list prints
@@ -123,5 +122,5 @@ func uncountedNote(uncounted []string) string {
 	if len(uncounted) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" + %d uncounted import(s): %s", len(uncounted), shell.UncountedNames(uncounted))
+	return fmt.Sprintf(" + %d uncounted import(s): %s", len(uncounted), ecoroot.UncountedNames(uncounted))
 }

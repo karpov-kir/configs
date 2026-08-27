@@ -1,12 +1,44 @@
 package shell
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
+
+// What the line-oriented tools read out of a markdown file: the link targets on a line, and the
+// frontmatter block a SKILL.md opens with. The exact edges are the contract — which link forms the
+// `grep -oE` matched, which `---` counts as a delimiter — so each is stated here once rather than
+// re-derived wherever the question is put.
+//
+// Nothing here knows what a link or a description *means* to the ecosystem: which block of a file to
+// scan, and where an `@import` resolves, belong to the tool asking.
 
 var (
+	// The link form `grep -oE '\]\([^)#]+\)'` matched, with the `sed 's/^](//; s/)$//'` behind it.
+	linkTarget = regexp.MustCompilePOSIX(`\]\([^)#]+\)`)
+
 	frontmatterRule    = regexp.MustCompilePOSIX(`^---[[:space:]]*$`)
 	descriptionField   = regexp.MustCompilePOSIX(`^description:[[:space:]]*`)
 	modelInvocationOff = regexp.MustCompilePOSIX(`^disable-model-invocation:[[:space:]]*(true|yes|on|1)[[:space:]]*$`)
 )
+
+// LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
+// is applied to is the caller's: check.sh reads a sed range, stats.sh an awk flag, and the two select
+// different boundary lines on purpose.
+func LinkTargets(line string) []string {
+	var targets []string
+	for _, match := range linkTarget.FindAllString(line, -1) {
+		targets = append(targets, strings.TrimSuffix(strings.TrimPrefix(match, "]("), ")"))
+	}
+	return targets
+}
+
+// IsFenceDelimiter is the ```-opened line — the `/^```/` every scan toggled its fence state on. The
+// marker only, never the skipping: whether what a fence encloses is read is the caller's question,
+// and ecocheck's direction scan reads inside one on purpose.
+func IsFenceDelimiter(line string) bool {
+	return strings.HasPrefix(line, "```")
+}
 
 // IsFrontmatterDelimiter is `/^---[[:space:]]*$/` — the delimiter line itself, and nothing that
 // merely starts with one. Every reader that walks a frontmatter block asks this, so a `----` rule or

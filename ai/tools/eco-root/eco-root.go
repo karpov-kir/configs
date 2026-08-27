@@ -1,10 +1,22 @@
 // Package ecoroot is the checkout both ecosystem tools measure: the directory holding kk-flavor/ and
-// skills/, the paths derived from it, and the mount those paths are compared against.
+// skills/, the paths derived from it, the mount those paths are compared against, and the `@import`
+// names that load alongside them.
 //
 // It exists because check.sh and stats.sh resolve that directory the same way on purpose — each
 // tool's report describes a tree, and two tools describing different trees for one invocation is a
 // disagreement neither of them can report. The shell side keeps its copies honest by hand; the Go
 // side had two, so a candidate added to one would have been a silent divergence.
+//
+// The whole surface is a Root and what you can ask one:
+//
+//   - New(name) — resolve a checkout, or report that the directory is not one.
+//   - Named, Flavor, Skills — the root as it was spelled, and the two directories that made it one.
+//   - FlavorMount, SkillsMount — where an installed checkout is mounted; IsInstalled — whether this
+//     is that checkout.
+//   - Contains, HoldsSkillFile — whether a file may be read as part of this tree, and whether a
+//     skill found at the mount is one of the tree's own.
+//   - ResolveImports(ImportScan) — the `@import` names the budget declares, resolved at the mount.
+//     UncountedNames renders the ones that did not resolve for a message.
 //
 // Nothing here holds state between calls or writes to a stream. A Root is a value: resolving one
 // answers whether the directory is an ecosystem checkout at all, and every path a caller then builds
@@ -25,7 +37,22 @@ const (
 	skillsDir = "skills"
 )
 
-var candidates = []string{".", "./ai"}
+// ReadLines is how a caller hands this package a file: its lines, or an error that means "skip it".
+// It is supplied rather than read here because the two tools read a file under different bounds, and
+// which bound applies is the caller's decision — ecocheck reports a file over its bound and skips it,
+// ecostats has no such report to make and reads unbounded.
+type ReadLines func(path string) ([]string, error)
+
+// ImportScan is one resolution pass: the files whose `@import` lines are scanned, how to read one,
+// and what to do with each outcome. Resolved is handed the file an import loads from; Refused is
+// handed only the shapes nothing legitimate produces, because it rides a path that has to stay quiet
+// on an ordinary miss.
+type ImportScan struct {
+	Files    []string
+	Read     ReadLines
+	Resolved func(target string)
+	Refused  func(name, reason string)
+}
 
 type Root struct {
 	// The root exactly as it was named, because every message a tool prints echoes a path built
@@ -38,6 +65,11 @@ type Root struct {
 	canon string
 	home  string
 }
+
+// --- shared:default-root ---
+// The shell twin is the `default-root` block both scripts fence: the same two candidates, tried in
+// the same order, so a bare invocation of either tool lands on the same tree.
+var candidates = []string{".", "./ai"}
 
 // New resolves the root a tool was pointed at. An empty name means the two candidates the shell
 // version tried, in order. The second return is false when no candidate holds both directories,
@@ -68,6 +100,8 @@ func holdsBoth(dir string) bool {
 	return shell.IsDir(shell.Join(dir, flavorDir)) && shell.IsDir(shell.Join(dir, skillsDir))
 }
 
+// --- end shared:default-root ---
+
 // Named is the root as the caller spelled it; Flavor and Skills are the two directories that made it
 // one. Every path a tool prints is built from these, so they are concatenated rather than cleaned.
 func (r Root) Named() string { return r.named }
@@ -83,10 +117,26 @@ func (r Root) FlavorMount() string { return shell.Join(r.home, ".kk-flavor") }
 
 func (r Root) SkillsMount() string { return shell.Join(r.home, ".claude/skills") }
 
-// Contains reports whether a file may be read as part of this tree — see shell.ContainedInRoot for
-// what a refusal covers and why existence alone is not enough.
+// IsInstalled reports whether this checkout is the one $HOME mounts — the gate on every figure that
+// would otherwise be taken from outside the tree. Anywhere else — a clone, or a PR review's worktree
+// — the mounts resolve to the *installed* checkout, so a branch someone else wrote names files in the
+// invoking user's real `~/.claude/` and folds their sizes into a number it also authored.
+//
+// Canonicalising follows a symlinked *directory*, so refusing a symlinked `$root/kk-flavor` is what
+// stops a branch committing one to the real install and opening that gate.
+func (r Root) IsInstalled() bool {
+	if r.home == "" || shell.IsSymlink(r.flavor) {
+		return false
+	}
+	flavorCanon := shell.CanonicalDir(r.flavor)
+	return flavorCanon != "" && shell.CanonicalDir(r.FlavorMount()) == flavorCanon
+}
+
+// Contains reports whether a file may be read as part of this tree. A refusal covers more than
+// "outside the root" — see containedInRoot for the shapes it turns away and why existence alone is
+// not enough.
 func (r Root) Contains(file string) bool {
-	return shell.ContainedInRoot(r.canon, file)
+	return containedInRoot(r.canon, file)
 }
 
 // HoldsSkillFile reports whether a skill file found at the mount is one of this tree's own, so that
@@ -94,12 +144,4 @@ func (r Root) Contains(file string) bool {
 // the directory compared is the skill's own, which is never the root itself.
 func (r Root) HoldsSkillFile(file string) bool {
 	return strings.HasPrefix(shell.CanonicalDir(shell.DirName(file)), r.canon+"/")
-}
-
-// NewImportMount is shell.NewImportMount over this root's own kk-flavor and CLAUDE.md. The two
-// arguments are what decide whether imports resolve at all, so they are spelled here rather than at
-// each tool: a tool passing a different pair would resolve a different set and report a budget the
-// other tool cannot reproduce.
-func (r Root) NewImportMount(read shell.ReadLines) shell.ImportMount {
-	return shell.NewImportMount(r.home, r.flavor, shell.Join(r.named, "CLAUDE.md"), read)
 }

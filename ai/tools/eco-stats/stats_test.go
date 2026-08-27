@@ -112,6 +112,29 @@ func TestAProbeShapedImportIsReportedNotHidden(t *testing.T) {
 	})
 }
 
+func TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw(t *testing.T) {
+	// The name comes out of inject.md, which a reviewed branch writes. `\x1b[2K` erases the line it
+	// lands on, so an unsanitised name deletes whatever the run printed beside it. Both tools report
+	// this same missing target, so both are held to it.
+	t.Run("an ESC byte in a Read-always target is stripped by both tools", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/inject.md",
+			"# Flavor\n\n## Read always\n\n- [core](standards/be\x1b[2Kfore.md)\n")
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+		_, fromStats, _ := f.run(f.root)
+		fromCheck := f.checkOutput()
+
+		// The message must still have fired: a run that reported nothing carries no ESC byte either,
+		// and would pass the byte count alone while saying nothing about sanitising.
+		for _, said := range []struct{ tool, output string }{{"stats", fromStats}, {"check", fromCheck}} {
+			if !strings.Contains(said.output, "under Read always") || strings.Contains(said.output, "\x1b") {
+				t.Errorf("%s said:\n%s", said.tool,
+					indent(strings.ReplaceAll(said.output, "\x1b", "<ESC>")))
+			}
+		}
+	})
+}
+
 func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 	// The fixture skill lives beside the root, not under it: a mount resolving inside the root is
 	// excluded.

@@ -56,7 +56,7 @@ func (s *stats) appendRow(self, note string, out, errOut io.Writer) int {
 	}
 	history := shell.Join(historyDir, "stats.md")
 
-	// Refused as a symlink on write, the way ContainedInRoot refuses one on read: following one
+	// Refused as a symlink on write, the way Root.Contains refuses one on read: following one
 	// appends the row to whatever it points at, and a dangling one creates that file outright.
 	if shell.IsSymlink(history) {
 		fmt.Fprintf(errOut, "stats.sh: %s is a symlink — exit 2, no row was appended.\n", shell.Oneline(history))

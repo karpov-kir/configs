@@ -15,8 +15,7 @@ import (
 type stats struct {
 	// The checkout being measured, which holds the root exactly as it was named: the refusal
 	// messages echo a path built from it.
-	root  ecoroot.Root
-	mount shell.ImportMount
+	root ecoroot.Root
 
 	prose       int
 	proseFiles  int
@@ -60,9 +59,7 @@ func (s *stats) measure(errOut io.Writer) {
 	s.scripts = wordsAcross(findFiles(s.root.Named(), "*.sh", noDepthLimit))
 	s.skills = wcLines(findFiles(s.root.Skills(), "SKILL.md", 2))
 
-	budget := s.budgetFiles(errOut)
-	s.mount = s.root.NewImportMount(readLines)
-	s.resolveImports(budget, errOut)
+	s.resolveImports(s.budgetFiles(errOut), errOut)
 	s.census()
 	s.mountedOutside()
 }
