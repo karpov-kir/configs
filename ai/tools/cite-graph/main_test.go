@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -132,11 +135,16 @@ func TestHeadingAliasBeforeAnEmDash(t *testing.T) {
 	write(t, root, "caller.md", "run `std/hw.md` → **Budget** over every sentence\n")
 
 	defined, edges := graph(t, root)
-	if !defined["std/hw.md"]["Budget"] || !defined["std/hw.md"]["Budget — the keep test"] {
-		t.Fatalf("both the heading and its alias must be defined: %v", defined["std/hw.md"])
+	// The alias resolves to the heading and is NOT a section of its own. Registering it as one keyed
+	// the edge on the alias, so the real heading stayed reported UNENTERED while files entered it.
+	if defined["std/hw.md"]["Budget"] {
+		t.Error("the alias was registered as a section in its own right")
 	}
-	if len(edges) != 1 || edges[0].section != "Budget" {
-		t.Fatalf("edges = %+v, want one entering at Budget", edges)
+	if !defined["std/hw.md"]["Budget — the keep test"] {
+		t.Fatalf("the heading itself is missing: %v", defined["std/hw.md"])
+	}
+	if len(edges) != 1 || edges[0].section != "Budget — the keep test" {
+		t.Fatalf("edges = %+v, want one keyed on the heading it matched", edges)
 	}
 }
 
@@ -209,5 +217,124 @@ func TestRouterReadAlwaysFilesAreHeldWholeByEveryone(t *testing.T) {
 	}
 	if len(edges) != 3 {
 		t.Fatalf("edges = %+v, want 3", edges)
+	}
+}
+
+// The tool's own stderr during one read, which is where the difference lives: a kind and a genuine
+// ambiguity both resolve to nothing, and only the notice tells them apart.
+func graphWithStderr(t *testing.T, root string) ([]edge, string) {
+	t.Helper()
+	real := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	_, edges, readErr := read(root)
+	os.Stderr = real
+	w.Close()
+	var captured bytes.Buffer
+	if _, err := io.Copy(&captured, r); err != nil {
+		t.Fatal(err)
+	}
+	r.Close()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	return edges, captured.String()
+}
+
+// "Run the skill in full, per its SKILL.md" names the kind of file, not one of them. check.sh drops
+// such a basename before it reports anything, and this printed five dangling-reference notices for
+// the same references — two detectors disagreeing about what resolves, which is invisible until
+// someone reads both.
+func TestABasenameEveryLaneCarriesNamesAKindNotAFile(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "skills/one/SKILL.md", "# One\n")
+	write(t, root, "skills/two/SKILL.md", "# Two\n")
+	write(t, root, "kk-flavor/templates/spawn.md", "Run the skill in full, per its `SKILL.md` → **Steps**\n")
+
+	edges, stderr := graphWithStderr(t, root)
+	if len(edges) != 0 {
+		t.Fatalf("a kind names no file, so it opens no door: %+v", edges)
+	}
+	if strings.Contains(stderr, "ambiguous") {
+		t.Errorf("a generic reference was reported as a dangling one: %s", stderr)
+	}
+}
+
+// The other side of the same gate, and the reason it is "every lane" rather than "more than one
+// file": with a single lane, that lane's whole contents would qualify as kinds, and a name shared
+// between it and the shared layer is exactly the ambiguity worth reporting.
+func TestOneLaneIsNotEveryLane(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "skills/only/notes.md", "# Only\n")
+	write(t, root, "kk-flavor/notes.md", "# Shared\n\n## Density\n")
+	write(t, root, "caller.md", "see `notes.md` → **Density**\n")
+
+	edges, stderr := graphWithStderr(t, root)
+	if len(edges) != 0 {
+		t.Fatalf("an ambiguous name must not be guessed: %+v", edges)
+	}
+	if !strings.Contains(stderr, "ambiguous") {
+		t.Errorf("a name two files answer to is ambiguous, not a kind: %s", stderr)
+	}
+}
+
+// The whole-file read and the section citation on one line — "You run under `<file>` as an
+// orchestrator (→ **Orchestrators**); read it". The citer holds the file whole, so the citation is
+// precision rather than a door. A crude scan gets this wrong by treating any line with an arrow as
+// carrying no bare mention, which silently turns every such citer into surface.
+func TestTheWholeFileReadAndItsCitationShareOneLine(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/proto.md", "# P\n\n## Caller\n")
+	write(t, root, "door.md", "You run under `std/proto.md` as an orchestrator: `std/proto.md` → **Caller**; read it.\n")
+
+	_, edges := graph(t, root)
+	if len(edges) != 1 || edges[0].section != "Caller" {
+		t.Fatalf("edges = %+v, want one entering at Caller", edges)
+	}
+	if !edges[0].precision {
+		t.Error("the bare mention shares the citation's line, so the citer holds the file whole")
+	}
+}
+
+// check.sh truncates the CITATION to find a heading. Extending the citation to reach a longer heading
+// is the inverse and accepts what check.sh refuses. Both directions accept the em-dash case, which is
+// how the inversion sat behind a comment claiming it implemented check.sh's rule.
+func TestCitationIsTruncatedToAHeadingNotExtended(t *testing.T) {
+	headings := map[string]bool{"Caller": true, "Phase 2": true}
+
+	if got, ok := entersAHeading(headings, "Phase 2 — Assemble Context"); !ok || got != "Phase 2" {
+		t.Errorf("truncation: got %q %v, want \"Phase 2\" true", got, ok)
+	}
+	// Prose runs on past the heading it names, so check.sh accepts this and the old code refused it.
+	if got, ok := entersAHeading(headings, "Caller of a skill"); !ok || got != "Caller" {
+		t.Errorf("truncation: got %q %v, want \"Caller\" true", got, ok)
+	}
+	// The inverse: a citation SHORTER than the heading. The old code extended it and resolved; check.sh
+	// cannot, because truncating "Phase" reaches nothing.
+	if got, ok := entersAHeading(headings, "Phase"); ok {
+		t.Errorf("extension: %q resolved to %q, which check.sh cannot reach", "Phase", got)
+	}
+	if _, ok := entersAHeading(headings, "Call"); ok {
+		t.Error("half a word satisfied a citation")
+	}
+}
+
+// An edge keys on the heading matched, not the string cited. Keyed on the citation, a section reached
+// through truncation or the em-dash alias is reported UNENTERED while files are entering it — which
+// is what `human-writing.md` → **Budget** did while three files cited it.
+func TestEdgeKeysOnTheHeadingNotTheCitation(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/h.md", "# H\n\n## Budget — the keep test\n")
+	write(t, root, "caller.md", "run `std/h.md` → **Budget** over every sentence\n")
+
+	_, edges := graph(t, root)
+	if len(edges) != 1 {
+		t.Fatalf("edges = %+v, want 1", edges)
+	}
+	if edges[0].section != "Budget — the keep test" {
+		t.Fatalf("edge keyed on %q, want the heading it matched", edges[0].section)
 	}
 }

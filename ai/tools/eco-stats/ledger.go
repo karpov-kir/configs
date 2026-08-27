@@ -21,7 +21,7 @@ import (
 // the tree that would show it had drifted.
 const ledgerSeed = "# Ecosystem size\n" +
 	"\n" +
-	"Appended by `kk-reduce` alone, via `scripts/stats.sh --append <note>` beside it: one row before a\n" +
+	"Appended by `kk-reduce` alone, via `~/.claude/skills/kk-reduce/scripts/stats.sh --append <note>`: one row before a\n" +
 	"campaign, whose note ends `, start`, and one after. **A delta across that pair is the campaign's own\n" +
 	"cut, not drift** — drift is measured from a closing row forward.\n" +
 	"\n" +

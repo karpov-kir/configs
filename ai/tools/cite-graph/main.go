@@ -62,20 +62,36 @@ type edge struct {
 // Matching stricter than check.sh is worse than matching wrong: two detectors disagreeing about what
 // resolves is invisible until someone reads both, and the first version of this guard reported a live
 // citation as dangling on exactly this heading.
-func entersAHeading(headings map[string]bool, section string) bool {
+func entersAHeading(headings map[string]bool, section string) (string, bool) {
 	if headings[section] {
-		return true
+		return section, true
 	}
+	// Truncate the CITATION to find a heading, which is check.sh's direction. Extending the citation
+	// to reach a longer heading is the inverse, and it accepts what check.sh refuses:
+	// `→ **Caller of a skill**` against `## Caller` resolves here and nowhere else. Both directions
+	// happen to accept the em-dash case, which is why the inversion sat unnoticed behind a comment
+	// claiming it implemented check.sh's rule.
+	//
+	// Longest run first, so a citation naming a real heading never resolves to a shorter one.
+	// The run before an em dash is how a heading is cited when it carries a subtitle — `**Budget**`
+	// for `## Budget — the keep test`. It resolves to the heading, and is not a section of its own:
+	// registering it as one keyed the edge on the alias and left the real heading reported UNENTERED
+	// while three files were entering it.
 	for h := range headings {
-		if strings.HasPrefix(h, section) && len(h) > len(section) {
-			// A word boundary, so half a word cannot satisfy a citation.
-			switch h[len(section)] {
-			case ' ', '\t':
-				return true
-			}
+		if before, _, found := strings.Cut(h, " — "); found && strings.TrimSpace(before) == section {
+			return h, true
 		}
 	}
-	return false
+	for cut := len(section); cut > 0; cut-- {
+		if cut < len(section) && section[cut] != ' ' && section[cut] != '\t' {
+			continue // a word boundary, so half a word cannot satisfy a citation
+		}
+		run := strings.TrimRight(section[:cut], " \t")
+		if run != "" && headings[run] {
+			return run, true
+		}
+	}
+	return "", false
 }
 
 // The files `inject.md` lists under its read-always heading. Read from the router rather than named
@@ -170,9 +186,7 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 				// so a tool that does not reports three live citations as entering nothing and the
 				// section itself as unentered. Cut at the em dash and nowhere else: a trailing run, or a
 				// word-by-word prefix, would let half a heading satisfy a citation.
-				if before, _, found := strings.Cut(heading, " — "); found {
-					defined[self][strings.TrimSpace(before)] = true
-				}
+
 			}
 			spans := citePattern.FindAllStringIndex(line, -1)
 			lastNamed := ""
@@ -219,14 +233,15 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 	// because inject.md loaded it. Without this the always-read set reads as the widest surface in the
 	// tree, which is the opposite of what being always-read means.
 	alwaysRead := readAlwaysSet(root, defined)
+	kinds := kindBasenames(defined)
 	readsWhole := map[string]bool{}
 	for _, b := range bare {
-		if to := resolve(root, b, defined, byBase); to != "" && to != b.from {
+		if to := resolve(root, b, defined, byBase, kinds); to != "" && to != b.from {
 			readsWhole[b.from+">"+to] = true
 		}
 	}
 	for _, c := range raw {
-		to := resolve(root, c, defined, byBase)
+		to := resolve(root, c, defined, byBase, kinds)
 		// A file citing its own section is navigation, not a dependency.
 		if to == "" || to == c.from {
 			continue
@@ -234,20 +249,63 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 		// A bolded list item matches the citation shape and resolves to no heading, so counting it
 		// would add a door to a section that does not exist and inflate the very number this tool
 		// reports. check.sh reports the dangling reference; this refuses to measure it.
-		if !entersAHeading(defined[to], c.section) {
+		heading, ok := entersAHeading(defined[to], c.section)
+		if !ok {
 			fmt.Fprintf(os.Stderr, "no such section: %s cites %s → **%s**, which is no heading there — NOT counted\n",
 				shell.Oneline(c.from), shell.Oneline(to), shell.Oneline(c.section))
 			continue
 		}
-		edges = append(edges, edge{c.from, to, c.section, readsWhole[c.from+">"+to] || alwaysRead[to]})
+		// The heading matched, never the string cited. Keyed on the citation, a section reached
+		// through the truncation rule or the em-dash alias is reported UNENTERED while files enter it.
+		edges = append(edges, edge{c.from, to, heading, readsWhole[c.from+">"+to] || alwaysRead[to]})
 	}
 	return defined, edges, err
+}
+
+// The basenames every skill lane carries. Such a name is the *kind* of file rather than one of them
+// — "run the skill in full, per its SKILL.md" names no file — so a citation naming one is a generic
+// reference, not a dangling one to report. check.sh drops these before it reports anything, and two
+// detectors disagreeing about what resolves is invisible until someone reads both.
+//
+// Every lane, not merely several: a basename two or three files answer to is genuinely ambiguous and
+// stays reported, because nothing about it says which of them was meant. Below two lanes there is no
+// "every lane" to speak of — one lane's whole contents would qualify, and a name shared between that
+// lane and the shared layer is exactly the ambiguity worth reporting.
+func kindBasenames(defined map[string]map[string]bool) map[string]bool {
+	lanes := map[string]bool{}
+	carriedBy := map[string]map[string]bool{}
+	for file := range defined {
+		rest, underSkills := strings.CutPrefix(file, "skills/")
+		if !underSkills {
+			continue
+		}
+		lane, _, nested := strings.Cut(rest, "/")
+		if !nested {
+			continue
+		}
+		lanes[lane] = true
+		base := filepath.Base(file)
+		if carriedBy[base] == nil {
+			carriedBy[base] = map[string]bool{}
+		}
+		carriedBy[base][lane] = true
+	}
+	kinds := map[string]bool{}
+	if len(lanes) < 2 {
+		return kinds
+	}
+	for base, carrying := range carriedBy {
+		if len(carrying) == len(lanes) {
+			kinds[base] = true
+		}
+	}
+	return kinds
 }
 
 // Which file a citation names. A path resolves as one; a bare basename resolves only when exactly one
 // file answers to it, and an ambiguous one is reported rather than guessed — guessing is what welds
 // twenty-two SKILL.md files into a node.
-func resolve(root string, c rawCite, defined map[string]map[string]bool, byBase map[string][]string) string {
+func resolve(root string, c rawCite, defined map[string]map[string]bool, byBase map[string][]string, kinds map[string]bool) string {
 	if strings.ContainsRune(c.target, '/') {
 		cleaned := strings.TrimPrefix(strings.TrimPrefix(c.target, "~/"), "./")
 		for _, candidate := range []string{
@@ -270,6 +328,10 @@ func resolve(root string, c rawCite, defined map[string]map[string]bool, byBase 
 	case 0:
 		return ""
 	default:
+		// A kind names no one file, so there is nothing here to guess at and nothing to report.
+		if kinds[base] {
+			return ""
+		}
 		// Both are names the tree chose. Printed raw, a newline in one forges a line of this tool's own
 		// report, and that line is the only signal a citation was dropped.
 		fmt.Fprintf(os.Stderr, "ambiguous: %s cites %s, which %d files answer to — NOT counted\n", shell.Oneline(c.from), shell.Oneline(base), len(hits))
