@@ -44,6 +44,8 @@ The reviewer's side, for an author deciding what to change. **Each note goes on 
 
 Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting, and no concern you checked and cleared** — both are the reviewer writing about the review.
 
+**A reply in a thread is a review comment and every rule here binds it.** Measured across one PR: 34 comments, 46 words on average and a tail past 130, and the long ones were replies. Two things make them long, both already named above and both easy to think exempt in a conversation. They open by grading — "you're right about", "good catch" — which is **Register**. And they re-derive the diagnosis for someone who has been in the thread throughout, which is **Budget**: the reader already holds it. **Under 50 words, opening on what changes** — the finding, the evidence, or the edit you made. Agreement is shown by the change, not stated before it.
+
 ## Code comments
 
 The existence bar and the published-surface exception to it are [code-style.md](code-style.md) → **Comments**. What that bar admits:
