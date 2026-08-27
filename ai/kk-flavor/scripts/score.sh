@@ -4,15 +4,17 @@
 # judgment, so the caller scores and this decides what that score buys.
 #
 # Usage: score.sh threshold <lane>
-#        score.sh cut <lane> <what a 10 is here>   # reads `<score><TAB><label>` lines on stdin
+#        score.sh cut [--kept-all <why>] <lane> <what a 10 is here>
+#            reads `<score><TAB><label>` lines on stdin; exit 3 if nothing fell below the line
 #
-# Prints to stdout, or exits 2 with a reason.
+# Prints to stdout. Exit 2 means it did not run; exit 3 means it ran and refuses the result.
 #
-# Two things here are the enforcement rather than the convenience. An unknown lane exits instead of
+# Three things here are the enforcement rather than the convenience. An unknown lane exits instead of
 # falling back to `default`, because a caller that cannot find its number invents one, and an invented
-# threshold is indistinguishable in the output from the ruled one. And `cut` refuses to run without
-# the anchor argument, which is the only half of "name what a 10 is here first" a script can hold: it
-# cannot judge the anchor, but it can make the caller write one before any score is read.
+# threshold is indistinguishable in the output from the ruled one. `cut` refuses to run without the
+# anchor argument, which makes the caller write what a 10 is before any score is read. And a run that
+# cuts nothing exits 3, because that is what scoring against no anchor produces and the anchor
+# refusal cannot see it — the anchor is a free string written before the scores exist.
 #
 # tested by: score-test.sh
 set -euo pipefail
@@ -25,6 +27,13 @@ config="$here/../thresholds.conf"
 die() {
   printf 'score.sh: %s\n' "$1" >&2
   exit 2
+}
+
+# Exit 3 is "the scan ran and its result is refused", against 2's "the scan did not run". A caller
+# that cannot tell those apart treats a refusal as a broken tool and moves on.
+die3() {
+  printf 'score.sh: %s\n' "$1" >&2
+  exit 3
 }
 
 # The config is read by this one function, and read with a redirect rather than a pipe or a command
@@ -64,9 +73,17 @@ case "$1" in
     threshold_for "$2"
     ;;
   cut)
-    [ $# -ge 3 ] || die "cut needs the anchor: what a 10 is for this artifact, in your own words"
-    lane="$2"
-    shift 2
+    shift
+    kept_all_why=
+    if [ "${1:-}" = --kept-all ]; then
+      [ $# -ge 2 ] && [ -n "${2//[[:space:]]/}" ] ||
+        die "--kept-all needs the reason nothing fell below the line, in your own words"
+      kept_all_why="$2"
+      shift 2
+    fi
+    [ $# -ge 2 ] || die "cut needs the anchor: what a 10 is for this artifact, in your own words"
+    lane="$1"
+    shift
     anchor="$*"
     # Whitespace, not just absence: `cut prose ""` satisfies an argument count and anchors nothing,
     # which is the refusal above defeated while still reading as enforced.
@@ -104,10 +121,18 @@ case "$1" in
       fi
     done
     printf '\n%s kept, %s cut\n' "$kept" "$gone"
-    # Everything clearing the bar is the signature of scoring against no anchor, so it is reported
-    # rather than left for the caller to notice it never cut anything.
-    [ "$gone" -gt 0 ] || [ "$kept" -eq 0 ] ||
-      printf 'nothing scored at or below %s — re-read the anchor above and score against it\n' "$level"
+    # Everything clearing the bar is what scoring against no anchor looks like — the scale never gets
+    # used, every item lands mid-band, and the run reads as a pass. The anchor refusal cannot catch
+    # it, because the anchor is a free string written before the scores exist. This can, and it must
+    # exit rather than print: a notice at the end of a list is the one thing a caller skims.
+    #
+    # A tight artifact really can cut nothing, so the exit is refusable — but only by writing down
+    # why, which is the judgment the score was avoiding. Exit 3, never 2: the scan ran.
+    if [ "$gone" -eq 0 ] && [ "$kept" -gt 0 ]; then
+      [ -n "$kept_all_why" ] ||
+        die3 "nothing scored at or below $level. Re-score against the anchor, or re-run with --kept-all '<why nothing fell below it>'"
+      printf 'nothing cut, accepted: %s\n' "${kept_all_why//[[:cntrl:]]/ }"
+    fi
     ;;
   *) die "unknown command '$1' — threshold or cut" ;;
 esac

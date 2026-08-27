@@ -10,7 +10,7 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs c
 
 ## Two licenses, by what the artifact carries
 
-- **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar, and holds the deletion tests — read it before the pass. **Score what survives them** (`~/.kk-flavor/standards/writing.md` → **Score what survives**), one score per rule.
+- **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar, and holds the deletion tests — read it before the pass. **Score what survives them** (`~/.kk-flavor/standards/writing.md` → **Score what survives**) on its `instruction` lane, one score per rule.
 - **Everything else** — a design doc, an investigation, an ICE, a report: **lossless**, and never scored. Cut only what the surrounding context recovers — adjacent text, the code it documents, sibling artifacts, the diff. Unsure a cut loses meaning → keep it.
 
 **What `~/.kk-flavor/standards/human-writing.md` covers is `kk-humanize`'s — code comments and docstrings included — and barred to your lens.** Hand off every queued artifact carrying such text, edited or not, per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened** — a code file goes for its comments alone, even when the change set holds no outward text. Barred means leaving one out strands it.

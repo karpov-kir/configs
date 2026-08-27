@@ -25,15 +25,17 @@ The reader understands the text on the first read, without backtracking — in *
 
 ## Score what survives
 
-A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per thing they act on separately — and under 6 it goes**, wherever the lane sends what it cuts.
+A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per thing they act on separately.** What a score has to beat is per lane; **at or below** that number the thing goes, wherever the lane sends what it cuts.
 
-**Name what a 10 is here before you score anything**, or every score lands mid-band and nothing goes. **A number the human names replaces 6 for that run.**
+**Score through `~/.kk-flavor/scripts/score.sh cut <lane> "<what a 10 is here>"`** — it holds the numbers, and it refuses the runs that only look like passes. **A non-zero exit is not a result you may keep**; do what it says. **A number the human names replaces the lane's for that run.**
+
+**Name what a 10 is here before you score anything**, or every score lands mid-band and nothing goes.
 
 ## Replying to a human
 
-Your own reply in the session, not a message you compose for someone else ([human-writing.md](human-writing.md)).
+Your own reply in the session, not a message you compose for someone else. [human-writing.md](human-writing.md) → **AI tells** still binds here — a tell marks manufactured writing, whoever reads it.
 
-* Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do.
+* Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do — then score what is left, lane `reply` (`writing.md` → **Score what survives**).
 * **No headings, and no bold lead-in restating its own line.**
 * **Order it so they can stop early** — chronological where the content is a sequence, otherwise what they must decide before what they only need to know.
 * Substance with a durable home (a report, a ticket, a commit) is pointed at, never restated.

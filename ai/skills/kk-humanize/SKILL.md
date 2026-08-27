@@ -6,7 +6,7 @@ argument-hint: "file, git scope (\"the changes\", \"staged\"), or the text itsel
 
 Rewrite the text resolved from `$ARGUMENTS`. **Lossy by license** — you may drop true, unique facts that don't serve this reader.
 
-**Scope.** Outward text — the set `~/.kk-flavor/standards/human-writing.md` defines — and **code comments, which are for humans first**. Internal agent-facing artifacts are `kk-tighten`'s. Never code logic, and never the content of quoted text, code blocks, or command output.
+**Scope.** Outward text — the set `~/.kk-flavor/standards/human-writing.md` defines — and **code comments, which are for humans first**. Internal agent-facing artifacts are `kk-tighten`'s. Never code logic, and never the content of quoted text, code blocks, command output, …
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`; deltas below.
 
@@ -18,7 +18,7 @@ Check every artifact against all three. `~/.kk-flavor/standards/writing.md` → 
 
 1. **Tells** — scrub every pattern `human-writing.md`'s watch-list names, and anything else that reads manufactured: uniform rhythm, mirrored clause structure.
 2. **Budget** — run `human-writing.md` → **Budget**: its keep test over every sentence, then its score over what survives. Cut true-but-inert detail; lead with the answer; one concern per message; match the asker's altitude. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form there (change descriptions, review comments, code comments, …) runs under it; write a new form only when a class recurs.
-3. **Voice** — like speech to a colleague: contractions, varied sentence and paragraph length, plain verbs, specific nouns, first person where natural. Vary length within the floor's sentence limit, never past it.
+3. **Voice** — like speech to a colleague: contractions, varied sentence and paragraph length, plain verbs, specific nouns, first person where natural.
 
 ## Guardrails on the lossy license
 

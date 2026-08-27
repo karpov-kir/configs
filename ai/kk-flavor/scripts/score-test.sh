@@ -113,8 +113,25 @@ run_stdin "$(printf '6\tsix stays\n5\tfive goes\n')" cut outward-text "anchor"
 expect_out "the level itself is cut" "CUT    5  five goes"
 expect_out "one above the level stays" "keep   6  six stays"
 
+# Scoring against no anchor produces exactly this: nothing reaches the bar. The anchor refusal cannot
+# see it, so this is the only mechanical catch there is — and it has to exit, because a notice at the
+# end of a list is what a caller skims past.
 run_stdin "$(printf '9\tone\n8\ttwo\n')" cut outward-text "anchor"
-expect_out "a run that cuts nothing says so" "nothing scored at or below"
+expect_status "a run that cuts nothing exits 3, not 0" 3
+expect_out "and says how to answer it" "--kept-all"
+
+run_stdin "$(printf '9\tone\n8\ttwo\n')" cut --kept-all "both items are the whole ask" outward-text "anchor"
+expect_status "a written reason accepts the all-keeps run" 0
+expect_out "and the reason is printed over the list it excuses" "nothing cut, accepted: both items are the whole ask"
+
+run_stdin "$(printf '9\tone\n')" cut --kept-all "   " outward-text "anchor"
+expect_status "a blank reason is refused like a blank anchor" 2
+
+# Exit 3 is refusal, not breakage. A caller that reads it as 2 treats a live refusal as a dead tool.
+run_stdin "$(printf '3\tcut me\n')" cut outward-text "anchor"
+expect_status "a run that cuts something needs no reason" 0
+run_stdin "" cut outward-text "anchor"
+expect_status "an empty list is not an all-keeps run" 0
 
 run_stdin "$(printf '10\tten\n0\tzero\n')" cut outward-text "anchor"
 expect_status "the scale ends accept 0 and 10" 0
