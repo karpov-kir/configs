@@ -8,6 +8,13 @@ var (
 	modelInvocationOff = regexp.MustCompilePOSIX(`^disable-model-invocation:[[:space:]]*(true|yes|on|1)[[:space:]]*$`)
 )
 
+// IsFrontmatterDelimiter is `/^---[[:space:]]*$/` — the delimiter line itself, and nothing that
+// merely starts with one. Every reader that walks a frontmatter block asks this, so a `----` rule or
+// a `--- x` line is admitted or refused the same way wherever the question is put.
+func IsFrontmatterDelimiter(line string) bool {
+	return frontmatterRule.MatchString(line)
+}
+
 // --- shared:frontmatter-description ---
 // FrontmatterDescription is a SKILL.md's `description:` value — the routing text, and the only part
 // of a skill loaded in every session. Anchored to line 1, so a `---` rule in the body does not open
@@ -31,7 +38,7 @@ func FrontmatterDescription(lines []string) string {
 // cost no context in a session that never invokes it.
 func IsOptedOutOfModelInvocation(lines []string) bool {
 	return scanFrontmatter(lines, func(line string) bool {
-		return modelInvocationOff.MatchString(AsciiLower(line))
+		return modelInvocationOff.MatchString(asciiLower(line))
 	})
 }
 
@@ -41,10 +48,10 @@ func IsOptedOutOfModelInvocation(lines []string) bool {
 // did. The block opens on line 1 and nowhere else, so a `---` rule in the body cannot start one.
 func scanFrontmatter(lines []string, accept func(string) bool) bool {
 	for i, line := range lines {
-		if i == 0 && !frontmatterRule.MatchString(line) {
+		if i == 0 && !IsFrontmatterDelimiter(line) {
 			return false
 		}
-		if i > 0 && frontmatterRule.MatchString(line) {
+		if i > 0 && IsFrontmatterDelimiter(line) {
 			return false
 		}
 		if accept(line) {

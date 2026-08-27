@@ -107,7 +107,7 @@ func NewImportMount(home, flavorInRoot, claudeMd string, read ReadLines) ImportM
 		CanonicalDir(Join(home, ".kk-flavor")) == CanonicalDir(flavorInRoot)
 
 	declared := map[string]bool{}
-	if !IsSymlink(claudeMd) && IsRegularFile(claudeMd) && IsReadable(claudeMd) {
+	if !IsSymlink(claudeMd) && IsRegularFile(claudeMd) && isReadable(claudeMd) {
 		for _, name := range ImportsIn(read, []string{claudeMd}) {
 			declared[name] = true
 		}
@@ -119,12 +119,12 @@ func NewImportMount(home, flavorInRoot, claudeMd string, read ReadLines) ImportM
 // whether skills mounted from outside the tree can be told apart from the tree's own.
 func (m ImportMount) IsInstalled() bool { return m.isInstalled }
 
-// Resolve returns the file an import name loads from, or the reason it was refused. A reason is
+// resolve returns the file an import name loads from, or the reason it was refused. A reason is
 // carried only for the shapes nothing legitimate produces — a traversal, a symlink planted at the
 // mount path, a file present and deliberately unreadable. An import simply absent from the mount, a
 // checkout that isn't the installed one, and a subdirectory import this resolver does not handle are
 // the ordinary cases: they stay quiet names in the note.
-func (m ImportMount) Resolve(name string) (target, refusal string) {
+func (m ImportMount) resolve(name string) (target, refusal string) {
 	if !m.isInstalled || name == "" {
 		return "", ""
 	}
@@ -148,7 +148,7 @@ func (m ImportMount) Resolve(name string) (target, refusal string) {
 	if !IsRegularFile(mounted) {
 		return "", ""
 	}
-	if !IsReadable(mounted) {
+	if !isReadable(mounted) {
 		return "", "unreadable at the mount"
 	}
 	return mounted, ""
@@ -177,7 +177,7 @@ func ResolveImports(names []string, mount ImportMount, resolved func(target stri
 		target, refusal := "", ""
 		if attempts < 64 {
 			attempts++
-			target, refusal = mount.Resolve(name)
+			target, refusal = mount.resolve(name)
 		}
 		if target != "" {
 			resolved(target)

@@ -22,9 +22,9 @@ package ecostats
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
 )
 
@@ -44,18 +44,18 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	if len(rest) > 0 {
 		root = rest[0]
 	}
-	root, ok = resolveRoot(root)
+	resolved, ok := ecoroot.New(root)
 	if !ok {
 		fmt.Fprintln(errOut, "stats.sh: no root holding both kk-flavor/ and skills/")
 		fmt.Fprintln(errOut, "stats.sh: exit 2 — nothing was measured. Fix the invocation; do not read this as no change.")
 		return 2
 	}
 
-	s := &stats{root: root, rootCanon: shell.CanonicalDir(root), home: os.Getenv("HOME")}
+	s := &stats{root: resolved}
 	s.measure(errOut)
 
 	if s.prose <= 0 {
-		fmt.Fprintf(errOut, "stats.sh: measured 0 words of prose under %s — the scan did not work\n", root)
+		fmt.Fprintf(errOut, "stats.sh: measured 0 words of prose under %s — the scan did not work\n", s.root.Named())
 		return 2
 	}
 	// The refusals were named above as they happened; this is the one place their count decides
@@ -111,20 +111,4 @@ func sanitiseNote(note string) string {
 	}, note)
 	note = strings.ReplaceAll(note, `\`, `\\`)
 	return strings.ReplaceAll(note, "|", `\|`)
-}
-
-// Resolved the way check.sh resolves it, so both tools always describe the same tree.
-func resolveRoot(root string) (string, bool) {
-	if root == "" {
-		for _, candidate := range []string{".", "./ai"} {
-			if shell.IsDir(shell.Join(candidate, "kk-flavor")) && shell.IsDir(shell.Join(candidate, "skills")) {
-				root = candidate
-				break
-			}
-		}
-	}
-	if root == "" || !shell.IsDir(shell.Join(root, "kk-flavor")) || !shell.IsDir(shell.Join(root, "skills")) {
-		return "", false
-	}
-	return root, true
 }

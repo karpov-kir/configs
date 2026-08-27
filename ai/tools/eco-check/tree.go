@@ -115,21 +115,21 @@ func (c *checker) filesNamed(start string, globs ...string) []string {
 // to more than one file.
 func (c *checker) resolveRef(dir, ref string) string {
 	if rest, ok := strings.CutPrefix(ref, "~/.kk-flavor/"); ok {
-		return existingOrEmpty(shell.Join(c.flavor, rest))
+		return existingOrEmpty(shell.Join(c.root.Flavor(), rest))
 	}
 	if rest, ok := strings.CutPrefix(ref, "~/.claude/skills/"); ok {
-		return existingOrEmpty(shell.Join(c.skills, rest))
+		return existingOrEmpty(shell.Join(c.root.Skills(), rest))
 	}
 	if dir != "" && shell.PathExists(shell.Join(dir, ref)) {
 		return shell.Join(dir, ref)
 	}
-	if shell.PathExists(shell.Join(c.root, ref)) {
-		return shell.Join(c.root, ref)
+	if shell.PathExists(shell.Join(c.root.Named(), ref)) {
+		return shell.Join(c.root.Named(), ref)
 	}
 	// A bare name is accepted only when one file in the tree could be meant. Counted in lines
 	// rather than in paths, as the shell version counted them: a committed directory name holding a
 	// newline splits one match across two lines, and reading that as ambiguous is the safe half.
-	joined := strings.Join(c.walkTree(c.root).matchPath(ref), "\n")
+	joined := strings.Join(c.walkTree(c.root.Named()).matchPath(ref), "\n")
 	if countNonEmptyLines(joined) == 1 {
 		return joined
 	}
@@ -148,13 +148,13 @@ func (c *checker) refExists(dir, ref string) bool {
 	if c.resolveRef(dir, ref) != "" {
 		return true
 	}
-	return len(c.walkTree(c.root).matchPath(ref)) > 0
+	return len(c.walkTree(c.root.Named()).matchPath(ref)) > 0
 }
 
 // The entries of skills/ that stat as directories, dotfiles excluded and byte-sorted the way the
 // shell's `"$skills"/*/` glob produced them.
 func (c *checker) skillDirNames() []string {
-	entries, err := os.ReadDir(c.skills)
+	entries, err := os.ReadDir(c.root.Skills())
 	if err != nil {
 		return nil
 	}
@@ -163,7 +163,7 @@ func (c *checker) skillDirNames() []string {
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		if shell.IsDir(shell.Join(c.skills, entry.Name())) {
+		if shell.IsDir(shell.Join(c.root.Skills(), entry.Name())) {
 			names = append(names, entry.Name())
 		}
 	}

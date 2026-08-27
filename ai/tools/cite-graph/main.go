@@ -222,14 +222,15 @@ func cycles(adj map[string][]string, nodes []string) [][]string {
 					}
 				}
 				loop := append(append([]string{}, path[at:]...), next)
-				key := strings.Join(loop, ">")
-				sorted := append([]string{}, loop...)
+				// The key drops the repeated endpoint before sorting. With it in, `a → b → a` and
+				// `b → a → b` — one cycle entered from two sides — produce different keys and get
+				// reported twice, which inflates the count by roughly the cycle's length.
+				sorted := append([]string{}, loop[:len(loop)-1]...)
 				sort.Strings(sorted)
-				if !reported[strings.Join(sorted, ">")] {
-					reported[strings.Join(sorted, ">")] = true
+				if key := strings.Join(sorted, ">"); !reported[key] {
+					reported[key] = true
 					found = append(found, loop)
 				}
-				_ = key
 				continue
 			}
 			onPath[next] = true

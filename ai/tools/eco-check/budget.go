@@ -35,16 +35,16 @@ func (c *checker) reportBudget(out io.Writer) {
 // matched substrings, so a `../../` target reaches a reviewing agent's context.
 func (c *checker) budgetFiles() []string {
 	var files []string
-	claudeMd := shell.Join(c.root, "CLAUDE.md")
+	claudeMd := shell.Join(c.root.Named(), "CLAUDE.md")
 	if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {
-		if c.isContainedInRoot(claudeMd) {
+		if c.root.Contains(claudeMd) {
 			files = append(files, claudeMd)
 		} else {
 			c.refuseBudgetFile(claudeMd)
 		}
 	}
-	inject := shell.Join(c.flavor, "inject.md")
-	if !c.isContainedInRoot(inject) {
+	inject := shell.Join(c.root.Flavor(), "inject.md")
+	if !c.root.Contains(inject) {
 		c.refuseBudgetFile(inject)
 		return files
 	}
@@ -55,12 +55,12 @@ func (c *checker) budgetFiles() []string {
 	// to count a file this then reads anyway refuses nothing.
 	injectLines, _ := c.readLines(inject)
 	for _, doc := range readAlwaysTargets(injectLines) {
-		listed := shell.Join(c.flavor, doc)
+		listed := shell.Join(c.root.Flavor(), doc)
 		switch {
 		case !shell.PathExists(listed) && !shell.IsSymlink(listed):
-			c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.flavor + "/" +
+			c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
 				shell.Oneline(doc) + " does not exist")
-		case !c.isContainedInRoot(listed):
+		case !c.root.Contains(listed):
 			c.refuseBudgetFile("inject.md Read-always target " + doc)
 		default:
 			files = append(files, listed)
@@ -89,16 +89,12 @@ func readAlwaysTargets(lines []string) []string {
 	return targets
 }
 
-func (c *checker) isContainedInRoot(path string) bool {
-	return shell.ContainedInRoot(c.rootCanon, path)
-}
-
 // The refused file's **name** is attacker-chosen and is printed, so the name and the number of these
 // lines are both bounded.
 func (c *checker) refuseBudgetFile(name string) {
 	c.budgetRefusals++
 	if c.budgetRefusals <= 5 {
-		c.add("budget file refused (symlink, unreadable, or resolves outside " + c.root +
+		c.add("budget file refused (symlink, unreadable, or resolves outside " + c.root.Named() +
 			") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), 80))
 	} else if c.budgetRefusals == 6 {
 		c.add("further budget-file refusals suppressed; the count above is not the total")
@@ -113,7 +109,7 @@ func (c *checker) resolveImports(files *[]string) []string {
 	if len(imports) == 0 {
 		return nil
 	}
-	mount := shell.NewImportMount(c.home, shell.Join(c.root, "kk-flavor"), shell.Join(c.root, "CLAUDE.md"), c.readLines)
+	mount := c.root.NewImportMount(c.readLines)
 	return shell.ResolveImports(imports, mount,
 		func(target string) { *files = append(*files, target) },
 		func(name, reason string) {

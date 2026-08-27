@@ -14,9 +14,9 @@ import (
 // everything below it is shared with that script rather than written twice.
 func (s *stats) budgetFiles(errOut io.Writer) []string {
 	var files []string
-	claudeMd := shell.Join(s.root, "CLAUDE.md")
+	claudeMd := shell.Join(s.root.Named(), "CLAUDE.md")
 	if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {
-		if shell.ContainedInRoot(s.rootCanon, claudeMd) {
+		if s.root.Contains(claudeMd) {
 			s.alwaysLoadedWords += wordsInFile(claudeMd)
 			files = append(files, claudeMd)
 		} else {
@@ -24,12 +24,12 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 		}
 	}
 
-	inject := shell.Join(s.root, "kk-flavor/inject.md")
+	inject := shell.Join(s.root.Flavor(), "inject.md")
 	switch {
 	// Entered on exists-or-is-a-symlink, not on `[ -f ]`: a symlink to a FIFO is neither, and would
 	// fall through both branches, dropping inject.md and every target it lists from the budget in
 	// silence.
-	case (shell.PathExists(inject) || shell.IsSymlink(inject)) && !shell.ContainedInRoot(s.rootCanon, inject):
+	case (shell.PathExists(inject) || shell.IsSymlink(inject)) && !s.root.Contains(inject):
 		s.refuseBudgetFile(errOut, inject)
 	case shell.IsRegularFile(inject):
 		lines, _ := readLines(inject)
@@ -37,11 +37,11 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 			if target == "" {
 				continue
 			}
-			file := shell.Join(shell.Join(s.root, "kk-flavor"), target)
+			file := shell.Join(s.root.Flavor(), target)
 			switch {
 			case !shell.PathExists(file) && !shell.IsSymlink(file):
 				fmt.Fprintf(errOut, "stats.sh: inject.md lists '%s' under Read always, but %s does not exist\n", target, file)
-			case !shell.ContainedInRoot(s.rootCanon, file):
+			case !s.root.Contains(file):
 				s.refuseBudgetFile(errOut, "inject.md Read-always target "+target)
 			default:
 				s.alwaysLoadedWords += wordsInFile(file)
@@ -81,7 +81,7 @@ func (s *stats) refuseBudgetFile(errOut io.Writer, name string) {
 	s.budgetRefusals++
 	if s.budgetRefusals <= 5 {
 		fmt.Fprintf(errOut, "stats.sh: budget file refused (symlink, unreadable, or resolves outside %s) — not read, not counted: %s\n",
-			s.root, shell.CutBytes(shell.Oneline(name), 80))
+			s.root.Named(), shell.CutBytes(shell.Oneline(name), 80))
 	} else if s.budgetRefusals == 6 {
 		fmt.Fprintln(errOut, "stats.sh: further budget-file refusals suppressed; the count in the exit message is the total")
 	}
@@ -114,7 +114,7 @@ func (s *stats) resolveImports(budget []string, errOut io.Writer) {
 // Every skill description the router keeps in context, and how many of the tree's skills are routed
 // at all. Read exactly as check.sh reads it, because that script reports this same budget.
 func (s *stats) census() {
-	for _, file := range skillFiles(shell.Join(s.root, "skills")) {
+	for _, file := range skillFiles(s.root.Skills()) {
 		// A SKILL.md that cannot be read still counts as routed, with no description words: the awk
 		// behind the shell version failed to open it and its `&&` fell through to exactly that. Read as
 		// a skip instead, the "R of T skills" figure would quietly shrink on a file the tree can see.
@@ -137,8 +137,8 @@ func (s *stats) mountedOutside() {
 	if !s.mount.IsInstalled() {
 		return
 	}
-	for _, file := range skillFiles(shell.Join(s.home, ".claude/skills")) {
-		if strings.HasPrefix(shell.CanonicalDir(shell.DirName(file)), s.rootCanon+"/") {
+	for _, file := range skillFiles(s.root.SkillsMount()) {
+		if s.root.HoldsSkillFile(file) {
 			continue
 		}
 		lines, _ := readLines(file)

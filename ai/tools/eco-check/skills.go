@@ -13,8 +13,8 @@ var declaredNameField = regexp.MustCompilePOSIX(`^name: *`)
 // by its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
 func (c *checker) scanSkillDirectories() {
 	// A skill is its directory plus a SKILL.md; a directory without one is invisible to the loader.
-	for _, entry := range c.walkTree(c.skills).entries {
-		if !entry.mode.IsDir() || shell.DirName(entry.path) != c.skills {
+	for _, entry := range c.walkTree(c.root.Skills()).entries {
+		if !entry.mode.IsDir() || shell.DirName(entry.path) != c.root.Skills() {
 			continue
 		}
 		if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {
@@ -23,7 +23,7 @@ func (c *checker) scanSkillDirectories() {
 	}
 	// A skill's frontmatter name is how it is invoked; a mismatch with its directory makes it
 	// unreachable.
-	for _, file := range c.filesNamed(c.skills, "SKILL.md") {
+	for _, file := range c.filesNamed(c.root.Skills(), "SKILL.md") {
 		lines, _ := c.readLines(file)
 		declared := declaredSkillName(lines)
 		if declared != shell.BaseName(shell.DirName(file)) {
@@ -52,7 +52,7 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 	routedSkills := 0
 	skillTotal := 0
 	for _, name := range c.skillDirNames() {
-		file := shell.Join(shell.Join(c.skills, name), "SKILL.md")
+		file := shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
 		if !shell.IsRegularFile(file) {
 			continue
 		}

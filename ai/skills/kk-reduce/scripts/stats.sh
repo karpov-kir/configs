@@ -33,14 +33,18 @@ case "${1:-}" in
 esac
 root="${1:-}"
 
-# Resolve the same way check.sh does, so both tools always describe the same tree.
+# Resolves the same way check.sh does, so both tools always describe the same tree — held to that by
+# the shared-region scan rather than by this sentence.
+# --- shared:default-root ---
 if [ -z "$root" ]; then
-  if [ -d "./kk-flavor" ] && [ -d "./skills" ]; then
-    root="."
-  elif [ -d "./ai/kk-flavor" ] && [ -d "./ai/skills" ]; then
-    root="./ai"
-  fi
+  for candidate in . ./ai; do
+    if [ -d "$candidate/kk-flavor" ] && [ -d "$candidate/skills" ]; then
+      root="$candidate"
+      break
+    fi
+  done
 fi
+# --- end shared:default-root ---
 [ -n "$root" ] && [ -d "$root/kk-flavor" ] && [ -d "$root/skills" ] || {
   echo "stats.sh: no root holding both kk-flavor/ and skills/" >&2
   echo "stats.sh: exit 2 — nothing was measured. Fix the invocation; do not read this as no change." >&2
@@ -54,9 +58,11 @@ words_in_tree() {
 
 # Anything attacker-chosen that reaches a message goes through this first. Every control byte, not only
 # the two that end a line: an ESC sequence among them rewrites whatever read this.
+# --- shared:oneline ---
 oneline() {
   printf '%s' "$1" | LC_ALL=C tr '[:cntrl:]' ' '
 }
+# --- end shared:oneline ---
 
 # Words in one file. The `tr` drops the padding BSD `wc` writes.
 words_in_file() {
@@ -142,7 +148,10 @@ elif [ -f "$inject" ]; then
     [ -n "$target" ] || continue
     file="$root/kk-flavor/$target"
     if [ ! -e "$file" ] && [ ! -L "$file" ]; then
-      echo "stats.sh: inject.md lists '$target' under Read always, but $file does not exist" >&2
+      # Sanitised like every other name from the tree: the Read-always list is attacker-authored when
+      # this runs over a branch someone else wrote, and an ESC byte in a link target erases whatever
+      # this message was printed beside. `check.sh` puts the same name through its own `oneline`.
+      echo "stats.sh: inject.md lists '$(oneline "$target")' under Read always, but $(oneline "$file") does not exist" >&2
     elif ! contained_in_root "$file"; then
       refuse_budget_file "inject.md Read-always target $target"
     else

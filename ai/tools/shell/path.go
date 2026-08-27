@@ -40,8 +40,9 @@ func BaseName(path string) string {
 	return trimmed
 }
 
-// The `[ -e ]`, `[ -d ]`, `[ -f ]` and `[ -r ]` of the shell version, which follow a symlink, and the
-// `[ -L ]` that does not.
+// The `[ -e ]`, `[ -d ]` and `[ -f ]` of the shell version, which follow a symlink, and the `[ -L ]`
+// that does not. The `[ -r ]` below stays internal: it opens the file to answer, which is a different
+// question from the one access(2) answers, and only the containment test above wants this one.
 func PathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
@@ -57,7 +58,7 @@ func IsRegularFile(path string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-func IsReadable(path string) bool {
+func isReadable(path string) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		return false
@@ -103,7 +104,7 @@ func CanonicalDir(path string) string {
 // regular: a mode-000 file passes every type test, and the read behind the figure then fails,
 // leaving a file counted whose words are not.
 func ContainedInRoot(rootCanon, path string) bool {
-	if IsSymlink(path) || !IsRegularFile(path) || !IsReadable(path) {
+	if IsSymlink(path) || !IsRegularFile(path) || !isReadable(path) {
 		return false
 	}
 	dir := CanonicalDir(DirName(path))

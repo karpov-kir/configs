@@ -10,29 +10,15 @@ import (
 // The report's frontmatter: the three lines every later reader greps, and the two rewrites that
 // write them. Both rewrites are atomic — on any failure the report is left exactly as it was.
 
-// `grep -m1 '^<field>:' | sed 's/^<field>:[[:space:]]*//'`, and an unreadable file answers empty,
-// which is in the unstamped set. That is deliberate at every call site: an unreadable report is
-// refused before it is read, so nothing here has to distinguish the two.
+// `grep -m1 '^<prefix>'` — the whole line, not its value: `init` quotes the existing `intent:` line
+// back when it refuses over a report, and what the human recognises is the line as they wrote it.
+// An unreadable file answers empty, which is in the unstamped set. That is deliberate at every call
+// site: an unreadable report is refused before it is read, so nothing here has to distinguish the
+// two.
 //
 // Go reads the file whole where grep read it as text. A committed NUL byte made BSD grep answer
 // "Binary file … matches" instead of the line, and that answer reached the frontmatter readers as a
 // value; here the line comes back as it was written.
-func fieldValue(path, field string) string {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	prefix := field + ":"
-	for _, line := range shell.SplitLines(string(content)) {
-		if rest, ok := strings.CutPrefix(line, prefix); ok {
-			return trimLeadingSpace(rest)
-		}
-	}
-	return ""
-}
-
-// The whole line, not its value: `init` quotes the existing `intent:` line back when it refuses over
-// a report, and what the human recognises is the line as they wrote it.
 func firstLineWithPrefix(path, prefix string) string {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -46,17 +32,14 @@ func firstLineWithPrefix(path, prefix string) string {
 	return ""
 }
 
+// `sed 's/^<field>:[[:space:]]*//'` over that line.
+func fieldValue(path, field string) string {
+	prefix := field + ":"
+	return trimLeadingSpace(strings.TrimPrefix(firstLineWithPrefix(path, prefix), prefix))
+}
+
 func hasField(path, field string) bool {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	for _, line := range shell.SplitLines(string(content)) {
-		if strings.HasPrefix(line, field+":") {
-			return true
-		}
-	}
-	return false
+	return firstLineWithPrefix(path, field+":") != ""
 }
 
 func (r *run) reviewedTree() string { return fieldValue(r.report, "reviewed-tree") }
@@ -161,7 +144,7 @@ func mapFrontmatter(lines []string, rewrite func(inFrontmatter bool, line string
 	out := make([]string, 0, len(lines)+1)
 	inFrontmatter := false
 	for i, line := range lines {
-		if i > 0 && isFrontmatterDelimiter(line) {
+		if i > 0 && shell.IsFrontmatterDelimiter(line) {
 			inFrontmatter = false
 		}
 		out = append(out, rewrite(inFrontmatter, line)...)

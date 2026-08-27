@@ -54,9 +54,9 @@ func isNonEmptyFile(path string) bool { // -s
 	return err == nil && info.Size() > 0
 }
 
-// -r and -x, which stay here rather than take shell.IsReadable: that one opens the file, and these
-// have to ask access(2), the question the shell's own test builtins asked. Root reads anything, and
-// the suite skips its permission cases on exactly that answer.
+// -r and -x, which stay here rather than take a readability test from the shell package: that one
+// opens the file, and these have to ask access(2), the question the shell's own test builtins asked.
+// Root reads anything, and the suite skips its permission cases on exactly that answer.
 func isReadable(path string) bool { return syscall.Access(path, 0x4) == nil }
 
 func isExecutable(path string) bool { return syscall.Access(path, 0x1) == nil }
@@ -135,20 +135,6 @@ func joinRecords(lines []string) []byte {
 		out.WriteString("\n")
 	}
 	return []byte(out.String())
-}
-
-// `/^---[[:space:]]*$/` — the frontmatter delimiter, and nothing that merely starts with one.
-func isFrontmatterDelimiter(line string) bool {
-	rest, ok := strings.CutPrefix(line, "---")
-	if !ok {
-		return false
-	}
-	for i := 0; i < len(rest); i++ {
-		if !shell.IsSpaceByte(rest[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 // `printf '%s\n' "$text" | wc -l`, which counts the newline printf adds — so a one-line value is 1

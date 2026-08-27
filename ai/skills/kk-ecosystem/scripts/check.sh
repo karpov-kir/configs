@@ -16,6 +16,10 @@ set -uo pipefail
 export LC_ALL=C
 
 root="${1:-}"
+# `stats.sh` reports the same always-loaded tier and must always describe the same tree, so the default
+# is a shared region rather than a claim in a comment: the two cannot resolve differently without the
+# drift scan below saying so.
+# --- shared:default-root ---
 if [ -z "$root" ]; then
   for candidate in . ./ai; do
     if [ -d "$candidate/kk-flavor" ] && [ -d "$candidate/skills" ]; then
@@ -24,6 +28,7 @@ if [ -z "$root" ]; then
     fi
   done
 fi
+# --- end shared:default-root ---
 if [ -z "$root" ] || [ ! -d "$root/kk-flavor" ] || [ ! -d "$root/skills" ]; then
   echo "check.sh: no root holding both kk-flavor/ and skills/ (tried '${1:-. and ./ai}')" >&2
   echo "check.sh: exit 2 — nothing was checked. Fix the invocation; do not read this as clean." >&2
@@ -95,9 +100,11 @@ canonical_dir() {
 # Anything attacker-chosen that reaches a finding goes through this first: one physical line per
 # finding is what makes the ranking below mean anything. Every control byte goes, not only the two
 # that split a line — an ESC sequence erases the real finding printed above it.
+# --- shared:oneline ---
 oneline() {
   printf '%s' "$1" | LC_ALL=C tr '[:cntrl:]' ' '
 }
+# --- end shared:oneline ---
 
 # Comparison form for a heading or a cited section name.
 plain_text() {

@@ -60,7 +60,7 @@ var mutants = []mutant{
 	// were the same edit made twice, once per script, because `contained_in_root` was two copies of
 	// one region; here it is one, so it is one mutant — and it is ecostats' suite that holds both the
 	// case for the refusal and the case that the other tool refuses it too.
-	{"contained-in-root: readability test removed", "../shell/path.go", "./eco-stats/", " || !IsReadable(path) {", " {"},
+	{"contained-in-root: readability test removed", "../shell/path.go", "./eco-stats/", " || !isReadable(path) {", " {"},
 	// `* 0` rather than a bare 0, or `words` goes unused and the mutant does not compile — which is a
 	// `broken` verdict, and says nothing about the guard.
 	{"ecocheck: budget words not counted", "budget.go", "./eco-stats/", "budgetWords += words", "budgetWords += words * 0"},
@@ -74,7 +74,7 @@ var mutants = []mutant{
 	{"stats: ledger figure unreported", "../eco-stats/report.go", "./eco-stats/", `fmt.Fprintf(out, "ledger:`, `fmt.Fprintf(io.Discard, "ledger:`},
 	{"stats: mounted-outside unreported", "../eco-stats/report.go", "./eco-stats/", `fmt.Fprintf(out, "mounted outside:`, `fmt.Fprintf(io.Discard, "mounted outside:`},
 	{"stats: mounted-outside gate removed", "../eco-stats/budget.go", "./eco-stats/", "if !s.mount.IsInstalled() {", "if false {"},
-	{"stats: in-tree mounts not excluded", "../eco-stats/budget.go", "./eco-stats/", `if strings.HasPrefix(shell.CanonicalDir(shell.DirName(file)), s.rootCanon+"/") {`, "if false {"},
+	{"stats: in-tree mounts not excluded", "../eco-stats/budget.go", "./eco-stats/", "if s.root.HoldsSkillFile(file) {", "if false {"},
 	{"stats: ledger symlink followed on write", "../eco-stats/ledger.go", "./eco-stats/", "if shell.IsSymlink(history) {", "if false {"},
 	{"stats: fresh ledger loses the + legend", "../eco-stats/ledger.go", "./eco-stats/", "makes it a lower bound", "makes it a lower limit"},
 	// The absolute the seed had lost entirely, so a fresh install carried no protection for the column
@@ -82,6 +82,12 @@ var mutants = []mutant{
 	// no ledger yet.
 	{"stats: fresh ledger loses the measurement absolute", "../eco-stats/ledger.go", "./eco-stats/", "never edited — however that edit is authorised", "never edited"},
 	{"stats: fresh ledger loses its columns", "../eco-stats/ledger.go", "./eco-stats/", "| date | prose | scripts | always-loaded | skills | what ran |", "| date | prose | scripts | always-loaded | skills |"},
+
+	// The root both tools resolve through. It was a copy per tool until this package took it, and
+	// neither tool's suite reaches it: every fixture there names its root outright, so a candidate
+	// dropped from the list would have gone unnoticed in both.
+	{"ecoroot: the ./ai candidate dropped", "../eco-root/eco-root.go", "./eco-root/", `var candidates = []string{".", "./ai"}`, `var candidates = []string{"."}`},
+	{"ecoroot: a root needs only one of the two directories", "../eco-root/eco-root.go", "./eco-root/", "&& shell.IsDir(shell.Join(dir, skillsDir))", ""},
 }
 
 // Every suite a mutant names, in first-named order — what the baseline has to be green over.
@@ -95,6 +101,19 @@ func suitesNamed() []string {
 		}
 	}
 	return suites
+}
+
+// Where a mutant's anchor is, and how many times it matches there. Exactly once, or the mutant is
+// ambiguous: a string matching twice edits a guard it was not aimed at, and one matching zero times
+// is the stale anchor the shell harness kept producing. Preflight and the run itself both ask, and
+// they ask here so they cannot come to different answers about one mutant.
+func (m mutant) anchor(pkgDir string) (path, source string, count int, err error) {
+	path = filepath.Join(pkgDir, m.file)
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return path, "", 0, err
+	}
+	return path, string(body), strings.Count(string(body), m.from), nil
 }
 
 // The overlay is how one file's content changes without the tree changing: `go build` and `go test`
@@ -121,20 +140,17 @@ func run(pkgDir string, m mutant, runFilter string) (verdict string, elapsed tim
 	}
 	defer os.RemoveAll(work)
 
-	realPath := filepath.Join(pkgDir, m.file)
-	source, err := os.ReadFile(realPath)
+	realPath, source, matches, err := m.anchor(pkgDir)
 	if err != nil {
 		return "invalid", time.Since(at)
 	}
-	// Exactly once, or the mutant is ambiguous: a string matching twice edits a guard it was not aimed
-	// at, and one matching zero times is the stale anchor the shell harness kept producing.
-	if n := strings.Count(string(source), m.from); n != 1 {
-		return fmt.Sprintf("anchor x%d", n), time.Since(at)
+	if matches != 1 {
+		return fmt.Sprintf("anchor x%d", matches), time.Since(at)
 	}
 	// Base, not the mutant's own relative path: a file named `../shell/x.go` would otherwise write
 	// outside the temp dir. Each mutant has its own work dir, so two basenames cannot collide.
 	mutated := filepath.Join(work, filepath.Base(m.file))
-	if err := os.WriteFile(mutated, []byte(strings.Replace(string(source), m.from, m.to, 1)), 0o644); err != nil {
+	if err := os.WriteFile(mutated, []byte(strings.Replace(source, m.from, m.to, 1)), 0o644); err != nil {
 		return "invalid", time.Since(at)
 	}
 	overlay, err := writeOverlay(work, realPath, mutated)
@@ -184,14 +200,14 @@ func main() {
 	started := time.Now()
 	stale := 0
 	for _, m := range mutants {
-		source, err := os.ReadFile(filepath.Join(pkgDir, m.file))
+		_, _, matches, err := m.anchor(pkgDir)
 		if err != nil {
 			fmt.Printf("  missing file    %s (%s)\n", m.label, m.file)
 			stale++
 			continue
 		}
-		if n := strings.Count(string(source), m.from); n != 1 {
-			fmt.Printf("  anchor x%-6d %s\n", n, m.label)
+		if matches != 1 {
+			fmt.Printf("  anchor x%-6d %s\n", matches, m.label)
 			stale++
 		}
 	}

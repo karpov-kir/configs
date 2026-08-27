@@ -68,8 +68,8 @@ func SortUnique(values []string) []string {
 	return unique
 }
 
-// AsciiLower is awk's tolower under LC_ALL=C, which touches ASCII and nothing else.
-func AsciiLower(text string) string {
+// asciiLower is awk's tolower under LC_ALL=C, which touches ASCII and nothing else.
+func asciiLower(text string) string {
 	out := []byte(text)
 	for i, b := range out {
 		if b >= 'A' && b <= 'Z' {

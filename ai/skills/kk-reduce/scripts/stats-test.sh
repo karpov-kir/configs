@@ -172,6 +172,54 @@ else
   record_fail "reports a path-shaped import name instead of leaving it to read as drift" "$probe_output"
 fi
 
+echo "stats.sh — the default root resolves both arms"
+
+# check.sh and stats.sh carry this block as one shared region, so the drift scan holds the two copies
+# identical. What it cannot say is that either one is right, and every other case in this file passes
+# `$root` explicitly — so until now nothing here ran the no-argument path at all.
+new_root
+printf 'one two three\n' >"$root/CLAUDE.md"
+explicit_root_prose="$(figure_from_stats prose)"
+from_inside="$(cd "$root" && "$stats" 2>/dev/null | sed -n 's/^prose: *\([0-9]*\) words.*/\1/p')"
+# The `./ai` arm: the same tree one level down, entered from its parent.
+wrapper="$base/wrap$case_number"
+mkdir -p "$wrapper"
+cp -R "$root" "$wrapper/ai"
+from_parent="$(cd "$wrapper" && "$stats" 2>/dev/null | sed -n 's/^prose: *\([0-9]*\) words.*/\1/p')"
+if [ -n "$explicit_root_prose" ] && [ "$from_inside" = "$explicit_root_prose" ] &&
+   [ "$from_parent" = "$explicit_root_prose" ]; then
+  record_pass "resolves . and ./ai with no argument, agreeing with the explicit root"
+else
+  record_fail "resolves . and ./ai with no argument, agreeing with the explicit root" \
+    "explicit root: '$explicit_root_prose'" "from inside the root: '$from_inside'" \
+    "from the parent of ai/: '$from_parent'"
+fi
+
+echo "stats.sh — a missing Read-always target cannot reach the terminal raw"
+
+# The name comes out of inject.md, which a reviewed branch writes. `\033[2K` erases the line it lands
+# on, so an unsanitised name deletes whatever the run printed beside it. Both scripts report this same
+# missing target, so both are held to it — check.sh has always sanitised here and this pins that.
+new_root
+printf '# Flavor\n\n## Read always\n\n- [core](standards/be\033[2Kfore.md)\n' >"$root/kk-flavor/inject.md"
+printf 'one two\n' >"$root/CLAUDE.md"
+escape_from_stats="$("$stats" "$root" 2>&1 >/dev/null)"
+escape_from_check="$("$check" "$root" 2>&1)"
+stats_escapes=$(printf '%s' "$escape_from_stats" | tr -cd '\033' | wc -c | tr -d ' ')
+check_escapes=$(printf '%s' "$escape_from_check" | tr -cd '\033' | wc -c | tr -d ' ')
+# The message must still have fired: a run that reported nothing carries no ESC byte either, and would
+# pass the count alone while saying nothing about sanitising.
+if printf '%s' "$escape_from_stats" | grep -qF 'under Read always' && [ "$stats_escapes" = 0 ] &&
+   printf '%s' "$escape_from_check" | grep -qF 'under Read always' && [ "$check_escapes" = 0 ]; then
+  record_pass "an ESC byte in a Read-always target is stripped by both scripts"
+else
+  record_fail "an ESC byte in a Read-always target is stripped by both scripts" \
+    "ESC bytes from stats.sh: $stats_escapes (want 0)" \
+    "ESC bytes from check.sh: $check_escapes (want 0)" \
+    "stats.sh said: $(printf '%s' "$escape_from_stats" | tr -d '\033')" \
+    "check.sh said: $(printf '%s' "$escape_from_check" | tr -d '\033')"
+fi
+
 echo "stats.sh — a skill mounted from outside the tree is reported apart"
 
 # The fixture skill lives beside the root, not under it: a mount resolving inside `$root` is excluded.

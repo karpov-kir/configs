@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
 )
 
@@ -12,11 +13,10 @@ import (
 // counters that decide whether a row is withheld live here beside them rather than in a package
 // variable, so two runs in one process cannot see each other's.
 type stats struct {
-	// The root exactly as it was named, because the refusal messages echo a path built from it.
-	root      string
-	rootCanon string
-	home      string
-	mount     shell.ImportMount
+	// The checkout being measured, which holds the root exactly as it was named: the refusal
+	// messages echo a path built from it.
+	root  ecoroot.Root
+	mount shell.ImportMount
 
 	prose       int
 	proseFiles  int
@@ -41,7 +41,7 @@ type stats struct {
 }
 
 func (s *stats) measure(errOut io.Writer) {
-	prose := findFiles(s.root, "*.md", noDepthLimit)
+	prose := findFiles(s.root.Named(), "*.md", noDepthLimit)
 	s.prose = wordsAcross(prose)
 	s.proseFiles = wcLines(prose)
 
@@ -51,17 +51,17 @@ func (s *stats) measure(errOut io.Writer) {
 	// Guarded like a budget file rather than with a bare `[ -f ]`: prose is measured with
 	// `find -type f`, which does not walk a symlink, while `-f` follows one — so a symlink here would
 	// subtract words the total never held.
-	ledger := shell.Join(s.root, "skills/kk-reduce/stats.md")
-	if shell.ContainedInRoot(s.rootCanon, ledger) {
+	ledger := shell.Join(s.root.Skills(), "kk-reduce/stats.md")
+	if s.root.Contains(ledger) {
 		s.ledgerWords = wordsInFile(ledger)
 		s.prose -= s.ledgerWords
 		s.proseFiles--
 	}
-	s.scripts = wordsAcross(findFiles(s.root, "*.sh", noDepthLimit))
-	s.skills = wcLines(findFiles(shell.Join(s.root, "skills"), "SKILL.md", 2))
+	s.scripts = wordsAcross(findFiles(s.root.Named(), "*.sh", noDepthLimit))
+	s.skills = wcLines(findFiles(s.root.Skills(), "SKILL.md", 2))
 
 	budget := s.budgetFiles(errOut)
-	s.mount = shell.NewImportMount(s.home, shell.Join(s.root, "kk-flavor"), shell.Join(s.root, "CLAUDE.md"), readLines)
+	s.mount = s.root.NewImportMount(readLines)
 	s.resolveImports(budget, errOut)
 	s.census()
 	s.mountedOutside()

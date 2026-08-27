@@ -26,7 +26,7 @@ var (
 // resolve where it is emitted (a project's `.idsd/`), so a bare sibling name is unverifiable and
 // passes; only a traversal out of the emitted directory is checkable there.
 func (c *checker) scanDanglingLinks() {
-	for _, file := range c.filesNamed(c.root, "*.md") {
+	for _, file := range c.filesNamed(c.root.Named(), "*.md") {
 		isTemplate := strings.Contains(file, "/templates/")
 		lines, err := c.readLines(file)
 		if err != nil {
@@ -61,7 +61,7 @@ func isTraversal(target string) bool {
 // `~/.kk-flavor/...` and `~/.claude/skills/...` — how a skill reaches outside its own directory.
 func (c *checker) scanHomeRefs() {
 	var refs []string
-	for _, file := range c.filesNamed(c.root, "*.md", "*.sh") {
+	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh") {
 		lines, err := c.readLines(file)
 		if err != nil {
 			continue
@@ -85,7 +85,7 @@ func (c *checker) scanHomeRefs() {
 // Fenced blocks are skipped. The shapes stay narrow on purpose: a bare lowercase `*.md` is as often
 // a file a project owns (`charter.md`, `roadmap.md`), so only SHOUTY-with-a-hyphen is matched.
 func (c *checker) scanPathRefs() {
-	for _, file := range c.filesNamed(c.root, "*.md", "*.sh") {
+	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh") {
 		lines, err := c.readLines(file)
 		if err != nil {
 			continue
@@ -94,9 +94,9 @@ func (c *checker) scanPathRefs() {
 		// A skill cites its own tooling from the skill root (`scripts/report.sh`) even in a file
 		// that sits under `scripts/`, so resolve from both.
 		skillRoot := dir
-		if rest, ok := strings.CutPrefix(file, c.skills+"/"); ok {
+		if rest, ok := strings.CutPrefix(file, c.root.Skills()+"/"); ok {
 			first, _, _ := strings.Cut(rest, "/")
-			skillRoot = shell.Join(c.skills, first)
+			skillRoot = shell.Join(c.root.Skills(), first)
 		}
 		var tokens []string
 		for _, span := range backtickedSpans(lines) {
@@ -155,7 +155,7 @@ type citation struct {
 // arrow counts only when the text before it resolves to a real markdown file, which keeps prose
 // arrows ("intent → build") out.
 func (c *checker) scanCitations() {
-	for _, file := range c.filesNamed(c.root, "*.md", "*.sh") {
+	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh") {
 		lines, err := c.readLines(file)
 		if err != nil {
 			continue
@@ -322,7 +322,7 @@ func citedSection(after string) (section string, isDelimited bool) {
 // Our own skill namespaces — a name in prose must be a skill that exists.
 func (c *checker) scanUnknownSkills() {
 	var names []string
-	for _, file := range c.filesNamed(c.root, "*.md", "*.yaml") {
+	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.yaml") {
 		lines, err := c.readLines(file)
 		if err != nil {
 			continue
@@ -335,7 +335,7 @@ func (c *checker) scanUnknownSkills() {
 	}
 	for _, name := range shell.SortUnique(names) {
 		// `kk-flavor` is the shared layer, not a skill.
-		if name == "kk-flavor" || shell.IsRegularFile(shell.Join(shell.Join(c.skills, name), "SKILL.md")) {
+		if name == "kk-flavor" || shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {
 			continue
 		}
 		// Two readings, and the scan cannot tell them apart: a misspelled skill, or prose that

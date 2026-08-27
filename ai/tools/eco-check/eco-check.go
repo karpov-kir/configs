@@ -18,9 +18,8 @@ package ecocheck
 import (
 	"fmt"
 	"io"
-	"os"
 
-	"kk-flavor/tools/shell"
+	ecoroot "kk-flavor/tools/eco-root"
 )
 
 // The bound each shape of the direction scan emits under, and the per-class bound the printer
@@ -28,12 +27,9 @@ import (
 const findingCap = 40
 
 type checker struct {
-	// The root exactly as it was named, because every finding echoes a path built from it.
-	root      string
-	flavor    string
-	skills    string
-	rootCanon string
-	home      string
+	// The checkout under review, which holds the root exactly as it was named: every finding
+	// echoes a path built from it.
+	root ecoroot.Root
 
 	findings []string
 	trees    map[string]*tree
@@ -77,25 +73,11 @@ func Run(root string, out, errOut io.Writer) int {
 }
 
 func newChecker(root string) (*checker, bool) {
-	if root == "" {
-		for _, candidate := range []string{".", "./ai"} {
-			if shell.IsDir(shell.Join(candidate, "kk-flavor")) && shell.IsDir(shell.Join(candidate, "skills")) {
-				root = candidate
-				break
-			}
-		}
-	}
-	if root == "" || !shell.IsDir(shell.Join(root, "kk-flavor")) || !shell.IsDir(shell.Join(root, "skills")) {
+	resolved, ok := ecoroot.New(root)
+	if !ok {
 		return nil, false
 	}
-	return &checker{
-		root:      root,
-		flavor:    shell.Join(root, "kk-flavor"),
-		skills:    shell.Join(root, "skills"),
-		rootCanon: shell.CanonicalDir(root),
-		home:      os.Getenv("HOME"),
-		trees:     map[string]*tree{},
-	}, true
+	return &checker{root: resolved, trees: map[string]*tree{}}, true
 }
 
 func (c *checker) add(finding string) {

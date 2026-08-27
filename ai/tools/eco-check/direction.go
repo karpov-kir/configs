@@ -39,9 +39,9 @@ type directionCounters struct {
 // Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 // reader from inside one too.
 func (c *checker) scanDirection() {
-	targets := []string{c.flavor}
-	if shell.IsRegularFile(shell.Join(c.root, "CLAUDE.md")) {
-		targets = append(targets, shell.Join(c.root, "CLAUDE.md"))
+	targets := []string{c.root.Flavor()}
+	if shell.IsRegularFile(shell.Join(c.root.Named(), "CLAUDE.md")) {
+		targets = append(targets, shell.Join(c.root.Named(), "CLAUDE.md"))
 	}
 
 	lanes := c.laneAlternation()
@@ -55,7 +55,7 @@ func (c *checker) scanDirection() {
 		for _, file := range c.filesNamed(target, "*.md") {
 			// Set from flavor files alone: one flag over both tiers would let a readable CLAUDE.md
 			// stand in for the tree and mute the guard below.
-			if strings.HasPrefix(file, c.flavor+"/") {
+			if strings.HasPrefix(file, c.root.Flavor()+"/") {
 				wasFlavorScanned = true
 			}
 			lines, err := c.readLines(file)
@@ -71,7 +71,7 @@ func (c *checker) scanDirection() {
 		}
 	}
 	if !wasFlavorScanned {
-		c.add("direction scan read no files under " + c.flavor + " — a check that did not run is not a clean one")
+		c.add("direction scan read no files under " + c.root.Flavor() + " — a check that did not run is not a clean one")
 	}
 }
 
@@ -82,7 +82,7 @@ func (c *checker) scanDirection() {
 func (c *checker) laneNames() []string {
 	var names []string
 	for _, name := range c.skillDirNames() {
-		if !shell.IsRegularFile(shell.Join(shell.Join(c.skills, name), "SKILL.md")) {
+		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {
 			continue
 		}
 		// `kk-flavor` is the shared layer itself, so a reviewed tree committing `skills/kk-flavor/`
@@ -149,7 +149,7 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 		// The whole token is tested, not the alternation's own match: `kk-drive-verified` starts
 		// with a real lane name and is not one, so matching the prefix alone would report a skill
 		// that does not exist as a lane the shared layer names.
-		if !shell.IsRegularFile(shell.Join(shell.Join(c.skills, named), "SKILL.md")) {
+		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {
 			continue
 		}
 		counters.names++
@@ -185,7 +185,7 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 			// The line number alone, never the match: echoing it would carry the boundary character
 			// the pattern consumed, so the finding would show an unbalanced tick for a name written
 			// `` `doit.sh` ``.
-			owner := strings.Join(c.walkTree(c.skills).matchPath(named), "\n")
+			owner := strings.Join(c.walkTree(c.root.Skills()).matchPath(named), "\n")
 			c.add("shared layer reaches into a lane by basename: " + safeFile + ":" + lineNumber +
 				" — " + shell.Oneline(named) + " is " + shell.Oneline(owner) +
 				"; move the rule to a standard (ecosystem.md → **One home**)")
@@ -234,7 +234,7 @@ func (c *checker) reportBoundReached(class, file string) {
 // quiet.
 func (c *checker) laneBasenames(sharedTargets []string) (lane, ambiguous map[string]bool) {
 	counts := map[string]int{}
-	for _, path := range c.filesNamed(c.skills, "*.sh", "*.md") {
+	for _, path := range c.filesNamed(c.root.Skills(), "*.sh", "*.md") {
 		if name := shell.BaseName(path); isCleanBasename(name) {
 			counts[name]++
 		}

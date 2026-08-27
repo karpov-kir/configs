@@ -32,7 +32,7 @@ type parseResult struct {
 // cannot run at all. And a script is parsed under every bash `#!/usr/bin/env bash` could resolve to:
 // macOS still ships 3.2 as /bin/bash, and it rejects constructs bash 5 accepts.
 func (c *checker) scanScriptsParse() {
-	scripts := c.filesNamed(c.root, "*.sh")
+	scripts := c.filesNamed(c.root.Named(), "*.sh")
 	for _, script := range scripts {
 		if !isExecutable(script) {
 			c.add("script not executable: " + shell.Oneline(script))
@@ -109,7 +109,7 @@ func (c *checker) scanSubcommandCallSites() {
 	type callSite struct{ script, subcommand string }
 	var wanted []callSite
 	queries := map[string]bool{}
-	for _, script := range c.filesNamed(c.root, "*.sh") {
+	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
 		lines, err := c.readLines(script)
 		if err != nil {
 			continue
@@ -125,7 +125,7 @@ func (c *checker) scanSubcommandCallSites() {
 	}
 	// One pass over the tree for every subcommand at once. The shell version walked the whole tree
 	// per label, which is the shape that turns a script with many arms into many whole-tree walks.
-	for _, file := range c.filesNamed(c.root, "*.md", "*.sh", "*.yaml") {
+	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh", "*.yaml") {
 		body, err := os.ReadFile(file)
 		if err != nil {
 			continue
@@ -175,12 +175,12 @@ func (c *checker) scanTestPositions() {
 	// would otherwise contribute its second line as a bare suite name, and a header naming a missing
 	// suite would then pass the existence check.
 	suites := map[string]bool{}
-	for _, path := range c.filesNamed(c.root, "*-test.sh") {
+	for _, path := range c.filesNamed(c.root.Named(), "*-test.sh") {
 		if name := shell.BaseName(path); isCleanBasename(name) {
 			suites[name] = true
 		}
 	}
-	for _, script := range c.filesNamed(c.root, "*.sh") {
+	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
 		base := shell.BaseName(script)
 		// The harness is exempt: asking a test file to name its own test makes every one a finding.
 		if strings.HasSuffix(base, "-test.sh") || strings.HasSuffix(base, "-mutate.sh") {
@@ -260,7 +260,7 @@ func anyMatch(lines []string, pattern *regexp.Regexp) bool {
 // drift is *detected* (ecosystem.md → **Prefer the mechanism**).
 func (c *checker) scanSharedRegions() {
 	copies := map[string][]regionBody{}
-	for _, script := range c.filesNamed(c.root, "*.sh") {
+	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
 		lines, err := c.readLines(script)
 		if err != nil {
 			continue

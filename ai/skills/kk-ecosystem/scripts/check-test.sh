@@ -778,5 +778,68 @@ assert_reports "$missing_test" "a suite name starting with a dash is still check
 assert_does_not_report "unrecognized option" "and grep never dumps its usage into the findings"
 assert_does_not_report "Usage: grep" "nor its usage banner"
 
+echo "check.sh — shared-region drift"
+
+# This scan is the whole reason two skills may carry byte-identical copies of a function instead of
+# sharing a file: the tolerance in check.sh's own note holds only while drift is *detected*. Nothing
+# here asserted that it fires, so the tolerance was resting on an unrun check.
+drifted="has drifted"
+one_copy="the marker names a counterpart no file carries"
+unchecked_region="was NOT checked for drift"
+
+# Every fixture marker below is assembled at run time and never written as a literal line here. check.sh
+# scans every `.sh` under the root, this suite among them, so a marker at the start of a line in this
+# file becomes a region *of this file* — and a one-copy finding against the real checkout, from a case
+# that passes. It is the same shape `lane_script_ref` uses, for the same reason: a fixture must not also
+# be readable as real content. `assert_no_marker_literals` at the end of this group is the mechanism.
+new_shared_script() {
+  printf '#!/usr/bin/env bash\n# --- shared:%s ---\n%s\n# --- end shared:%s ---' "$1" "$2" "$1"
+}
+
+# The control comes first: two copies that agree must stay silent, or the drift case below passes on a
+# scan that reports every region it sees. This is also the case that pins the arm's one false-positive
+# shape — `2 copies, 1 distinct` is not drift and must never be reported as it.
+new_root
+new_script "a/scripts/one.sh" "$(new_shared_script demo 'demo() { echo same; }')"
+new_script "b/scripts/two.sh" "$(new_shared_script demo 'demo() { echo same; }')"
+assert_does_not_report "$drifted" "two byte-identical copies of a region report no drift (control)"
+
+# One byte apart, inside the fence. The bodies are the same length, so what is compared is content and
+# not a size.
+new_root
+new_script "a/scripts/one.sh" "$(new_shared_script demo 'demo() { echo same; }')"
+new_script "b/scripts/two.sh" "$(new_shared_script demo 'demo() { echo diff; }')"
+assert_reports "$drifted" "one byte of drift inside a fence is reported"
+
+# A marker with no counterpart is the shape a rename leaves: the region reads as shared while nothing
+# holds it to anything.
+new_root
+new_script "a/scripts/lonely.sh" "$(new_shared_script orphan 'orphan() { echo alone; }')"
+assert_reports "$one_copy" "a region named in one file only is reported, not passed over"
+
+# An unterminated fence swallows the rest of the file, so the body is bounded — and past the bound the
+# region must be reported rather than compared. Silence here would be the cheapest mute available: open
+# a fence, never close it, and two genuinely drifted copies read as clean.
+new_root
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '# --- shared:%s ---\n' huge
+  flood_with_line /dev/stdout 4200 "# $(awk 'BEGIN { while (i++ < 62) printf "x" }')"
+} >"$root/skills/huge.sh"
+chmod +x "$root/skills/huge.sh"
+new_script "b/scripts/small.sh" "$(new_shared_script huge 'huge() { echo small; }')"
+assert_reports "$unchecked_region" "an oversize region is reported as unchecked, never as matching"
+
+# The trap the group above exists inside, made mechanical. A fixture marker written as a literal line
+# here is invisible in a green suite and shows up only as a finding against the real checkout, which is
+# somebody else's run. The pattern is check.sh's own, anchored the same way.
+if grep -qE '^[[:space:]]*# --- (end )?shared:' "$here/check-test.sh"; then
+  check_output="$(grep -nE '^[[:space:]]*# --- (end )?shared:' "$here/check-test.sh")"
+  record_fail "this suite writes no shared-region marker into its own source"
+else
+  check_output=""
+  record_pass "this suite writes no shared-region marker into its own source"
+fi
+
 echo "$passed passed, $failed failed"
 [ "$failed" = 0 ]
