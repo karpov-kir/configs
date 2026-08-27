@@ -1,6 +1,6 @@
 # Human Writing (outward text)
 
-The set this covers: anything a person reads as communication — PR/ticket descriptions and comments, review replies, commit messages, chat, email, announcements, README-grade docs, … **Code comments** take the form below; everything above it applies to them too.
+Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments** take the form at the end; everything above binds them too.
 
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
 
@@ -10,33 +10,35 @@ The set this covers: anything a person reads as communication — PR/ticket desc
 
 Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
 
-**Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line (**Change descriptions**, below); the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
+**Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
+
+**Length is the one tell you can measure, and it has a single cause: explaining why you are right.** Reporting is short because it stops at what they act on. Defending is long because it anticipates a disagreement nobody voiced — so the surplus is always the case restated, the design justified, the alternative pre-refuted. **Cut to what they act on**; if it will not compress, you have not decided what you are asking them. Under a screen, and one thing said once.
 
 ## AI tells
 
-A watch-list, not a complete set. What these tells share is manufactured polish and symmetry.
+A watch-list, not a complete set. What they share is manufactured polish and symmetry.
 
 **Typography & structure** — em dashes stitching clauses (use commas or periods); bold-prefixed parallel bullets ("**Speed:** …"); emoji headers; Title Case Headings; bullets where two sentences would do.
 
-**Templates** — negative reframes ("not just X, it's Y"); the rule of three (triple adjectives, triple bullets, escalating triads); an intro previewing the text, or any recap of what you already said ("In conclusion", "Overall", "In summary"); "In today's fast-paced / ever-evolving …"; "from X to Y" false ranges; "Whether you're X or Y"; rhetorical questions as transitions.
+**Templates** — negative reframes ("not just X, it's Y"); the rule of three (triple adjectives, triple bullets, escalating triads); an intro previewing the text, or any recap of what you already said ("In conclusion", "Overall"); "In today's fast-paced …"; "from X to Y" false ranges; "Whether you're X or Y"; rhetorical questions as transitions.
 
 **Vocabulary** (unnaturally frequent) — delve, tapestry, underscore, harness, testament, leverage, utilize, robust, seamless, comprehensive, pivotal, crucial, foster, bolster, streamline, elevate, empower, unlock, game-changer, cutting-edge, landscape, realm, journey, navigate, myriad, plethora, holistic, synergy; "dive into" / "unpack" a topic; "plays a vital role".
 
-**Conversational** — sycophancy and throat-clearing ("Great question!", "I hope this email finds you well", "I wanted to reach out", "I just wanted to follow up"); hedge frames ("It's important to note", "It's worth noting", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions", "Please don't hesitate").
+**Conversational** — sycophancy and throat-clearing ("Great question!", "I wanted to reach out"); hedge frames ("It's important to note", "That said"); sentence-initial "Moreover / Furthermore / Additionally"; boilerplate closers ("Let me know if you have any questions").
 
-**Register** — writing to a peer as though you were their assistant. Grading their reasoning ("your instinct holds", "good catch", "agreed"); asking permission you do not need ("your call", "say the word", "if you'd like", "happy to"); a closing line handing back a decision they already hold. State the finding and what follows from it. Where a choice really is theirs, name it once, in the same voice as everything else — the deference is the tell, not the fact.
+**Register** — writing to a peer as though you were their assistant. Grading their reasoning ("your instinct holds", "good catch", "you're right"); asking permission you do not need ("your call", "say the word", "happy to"); a closing line handing back a decision they already hold. State the finding and what follows from it. Where a choice really is theirs, name it once, in the same voice as everything else — the deference is the tell, not the fact.
 
-**Self-rating tails** — a clause appended to grade your own claim or effort, almost always in an "X rather than Y" frame: "inferred rather than observed", "checked rather than assumed", "I left the open questions in rather than guessing". State the thing, or drop it. Where a review lens demands the status of a claim, that label rides the finding it belongs to, never a clause loose in prose.
+**Self-rating tails** — a clause appended to grade your own claim or effort, almost always in an "X rather than Y" frame: "inferred rather than observed", "checked rather than assumed". State the thing, or drop it. Where a review lens demands the status of a claim, that label rides the finding it belongs to, never a clause loose in prose.
 
 ## Change descriptions (PRs)
 
-The author's side, for a reviewer deciding approve-or-not, in order. **A linked ticket owns the incident, the evidence and the timeline** (**Budget**), so the description carries the change and its review and nothing about how the problem was found.
+The author's side, for a reviewer deciding approve-or-not, in order. **A linked ticket owns the incident, the evidence and the timeline**, so the description carries the change and its review and nothing about how the problem was found.
 
 - **What changes and why** — a few sentences, leading with the outcome.
 - **Review focus** — the risky parts and each deliberate trade-off, led by the **surface delta**: which exports arrived, went, or changed shape.
 - **Verification** — what ran and what it showed: links and counts, not narration. Only what CI and the diff don't already show.
 
-**Around 150 words for the three together.** One measured here ran to 419, and the excess was not padding — it was design reasoning, well written, that no reviewer needed before opening the diff. That is the failure mode to expect: **a body grows by explaining why the code is right, and a reviewer's job is to decide that.** Every sentence still owes the consequence named at the top of this file, and "so they understand the design" is not one — it is the diff's job, or a comment's, or the ticket's.
+**Not why the code is right** — deciding that is the reviewer's job, and taking it from them is what makes a body long.
 
 ## Review comments
 
@@ -44,7 +46,7 @@ The reviewer's side, for an author deciding what to change. **Each note goes on 
 
 Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting, and no concern you checked and cleared** — both are the reviewer writing about the review.
 
-**A reply in a thread is a review comment and every rule here binds it.** Measured across one PR: 34 comments, 46 words on average and a tail past 130, and the long ones were replies. Two things make them long, both already named above and both easy to think exempt in a conversation. They open by grading — "you're right about", "good catch" — which is **Register**. And they re-derive the diagnosis for someone who has been in the thread throughout, which is **Budget**: the reader already holds it. **Under 50 words, opening on what changes** — the finding, the evidence, or the edit you made. Agreement is shown by the change, not stated before it.
+**A reply is a review comment**, and opens on what changes rather than on agreeing — the thread already holds the case, and the change shows the agreement.
 
 ## Code comments
 
