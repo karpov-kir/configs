@@ -30,13 +30,13 @@ here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
 tools="$here/../../../tools"
 
 [ $# -ge 1 ] || die "usage: ruleecho.sh <root> [file ...]"
-[ -d "$tools/ruleecho" ] ||
-  die "no rule-echo source at $tools/ruleecho — this skill is mounted from a checkout that does not ship it, and NO restatement scan ran"
+[ -d "$tools/rule-echo" ] ||
+  die "no rule-echo source at $tools/rule-echo — this skill is mounted from a checkout that does not ship it, and NO restatement scan ran"
 command -v go >/dev/null 2>&1 ||
   die "go is not installed, so the restatement scan did NOT run — it is not clean, it is unchecked"
 
 mkdir -p "$tools/bin" || die "cannot create $tools/bin"
-(CDPATH= cd "$tools" && go build -o bin/ruleecho ./ruleecho/) ||
+(CDPATH= cd "$tools" && go build -o bin/rule-echo ./rule-echo/) ||
   die "the rule-echo tool did not build, so NO restatement scan ran"
 
-exec "$tools/bin/ruleecho" "$@"
+exec "$tools/bin/rule-echo" "$@"

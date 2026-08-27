@@ -29,6 +29,21 @@ import (
 	"time"
 )
 
+// The environment every child of this tool gets, and nothing else. All three inputs are executed —
+// the harness through `bash -c`, the target through sed, the suite directly — so handing them the
+// invoking environment whole hands a reviewed branch's code every token, key and agent-session
+// variable the caller happened to export. PATH so the children find their binaries, TMPDIR because
+// the suite builds its fixtures there, LC_ALL=C because every comparison downstream is byte-wise.
+func childEnv(extra ...string) []string {
+	env := []string{"LC_ALL=C"}
+	for _, name := range []string{"PATH", "TMPDIR"} {
+		if value, ok := os.LookupEnv(name); ok {
+			env = append(env, name+"="+value)
+		}
+	}
+	return append(env, extra...)
+}
+
 type mutant struct {
 	label string
 	expr  string
@@ -59,7 +74,9 @@ func readMutants(harness string) ([]mutant, error) {
 		return nil, fmt.Errorf("no run_mutant lines in %s — nothing to run, which is not the same as nothing to prove", harness)
 	}
 	script := "run_mutant() { printf '%s\\000%s\\000' \"$1\" \"$2\"; }\n" + strings.Join(calls, "\n")
-	out, err := exec.Command("bash", "-c", script).Output()
+	read := exec.Command("bash", "-c", script)
+	read.Env = childEnv()
+	out, err := read.Output()
 	if err != nil {
 		return nil, fmt.Errorf("bash could not read the mutant list: %w", err)
 	}
@@ -81,7 +98,9 @@ func applyMutant(target, expr, dest string) (verdict string) {
 	if err != nil {
 		return "invalid"
 	}
-	out, err := exec.Command("sed", "--", expr, target).Output()
+	edit := exec.Command("sed", "--", expr, target)
+	edit.Env = childEnv()
+	out, err := edit.Output()
 	if err != nil {
 		return "invalid"
 	}
@@ -91,7 +110,9 @@ func applyMutant(target, expr, dest string) (verdict string) {
 	if err := os.WriteFile(dest, out, 0o755); err != nil {
 		return "invalid"
 	}
-	if exec.Command("bash", "-n", dest).Run() != nil {
+	parse := exec.Command("bash", "-n", dest)
+	parse.Env = childEnv()
+	if parse.Run() != nil {
 		return "broken"
 	}
 	// Exactly one original line, or it removed a guard it was not aimed at.
@@ -126,7 +147,7 @@ var trailer = regexp.MustCompile(`^[0-9]+ passed, [0-9]+ failed$`)
 // cannot unprove it — so the trailer is only needed on the path where nothing went red.
 func runSuite(mountDir, homeDir string) (kills int, sawTrailer bool) {
 	cmd := exec.Command(filepath.Join(mountDir, "check-test.sh"))
-	cmd.Env = append(os.Environ(), "HOME="+homeDir)
+	cmd.Env = childEnv("HOME=" + homeDir)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, false
@@ -281,7 +302,9 @@ func main() {
 	// The baseline, before any mutation: every verdict below means "this edit turned a green case red",
 	// which says nothing if the case was already red. Then the sandbox on an unmutated copy, or a
 	// sandbox that fails on its own credits every mutant with a kill it did not earn.
-	if out, err := exec.Command(*suite).CombinedOutput(); err != nil {
+	baseline := exec.Command(*suite)
+	baseline.Env = childEnv("HOME=" + os.Getenv("HOME"))
+	if out, err := baseline.CombinedOutput(); err != nil {
 		fmt.Println("  BASELINE RED    the suite does not pass where it is installed")
 		fmt.Println(indent(lastLines(string(out), 12)))
 		os.Exit(2)
