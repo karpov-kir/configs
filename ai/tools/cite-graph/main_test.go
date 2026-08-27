@@ -104,3 +104,21 @@ func TestPathCitationResolvesByPath(t *testing.T) {
 		t.Fatalf("edges = %+v, want one to std/writing.md", edges)
 	}
 }
+
+// `X → **A** and → **B**` makes two claims and names the file once. Counting one made the target's
+// door surface read narrower than it is — and the second claim is the one a reader is most likely to
+// miss, because nothing repeats the file name in front of it.
+func TestChainedSectionBelongsToTheFileAlreadyNamed(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/proto.md", "# P\n\n## Caller\n\n## Queue\n")
+	write(t, root, "door.md", "Run under `std/proto.md` → **Caller** and → **Queue**.\n")
+
+	_, edges := graph(t, root)
+	got := map[string]bool{}
+	for _, e := range edges {
+		got[e.section] = true
+	}
+	if len(edges) != 2 || !got["Caller"] || !got["Queue"] {
+		t.Fatalf("edges = %+v, want both Caller and Queue", edges)
+	}
+}

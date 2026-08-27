@@ -36,6 +36,9 @@ const maxFileBytes = 8 << 20
 // whole signal: it is what separates naming a file from entering one at a named door.
 var citePattern = regexp.MustCompile("`?([A-Za-z0-9._/~-]+\\.md)`?[^\\n]{0,4}→\\s*\\*\\*([^*]+)\\*\\*")
 
+// `and → **Section**` running on from a citation that already named the file.
+var chainPattern = regexp.MustCompile(`^\s*(?:and|or|,)?\s*→\s*\*\*([^*]+)\*\*`)
+
 var headingPattern = regexp.MustCompile(`^#{2,}\s+(.+?)\s*$`)
 
 type edge struct {
@@ -101,8 +104,16 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 				defined[self][strings.TrimSpace(strings.Trim(m[1], "*"))] = true
 			}
 			spans := citePattern.FindAllStringIndex(line, -1)
-			for _, c := range citePattern.FindAllStringSubmatch(line, -1) {
+			lastNamed := ""
+			for i, c := range citePattern.FindAllStringSubmatch(line, -1) {
+				lastNamed = c[1]
 				raw = append(raw, rawCite{from: self, fromDir: filepath.Dir(p), target: c[1], section: strings.TrimSpace(c[2])})
+				// A second section chained onto the first — `X → **A** and → **B**` — names no file of
+				// its own, so the pattern above sees one citation where the line makes two claims. Both
+				// bind, and counting one made the target's door surface read narrower than it is.
+				for _, extra := range chainPattern.FindAllStringSubmatch(line[spans[i][1]:], -1) {
+					raw = append(raw, rawCite{from: self, fromDir: filepath.Dir(p), target: lastNamed, section: strings.TrimSpace(extra[1])})
+				}
 			}
 			// Whether the citer also holds the file whole. Without this the metric inverts: the more
 			// precisely a skill cites a file it has already read — which is exactly what
@@ -309,8 +320,9 @@ func main() {
 			r.file, r.doorSections, r.doors, r.precisionRef)
 	}
 
-	fmt.Println("\nUNENTERED  defined, but no file names it — reachable only by reading the whole file")
-	unentered := 0
+	fmt.Println("\nUNENTERED  defined, but no file names it. In a skill that is normal — its sections are")
+	fmt.Println("           its own. In a standard it means a rule no other file can name.")
+	unentered, unenteredShared := 0, 0
 	for _, f := range nodes {
 		var dead []string
 		for s := range defined[f] {
@@ -319,14 +331,20 @@ func main() {
 			}
 		}
 		sort.Strings(dead)
-		if len(dead) > 0 {
-			unentered += len(dead)
-			fmt.Printf("  %-28s %s\n", f, strings.Join(dead, ", "))
+		if len(dead) == 0 {
+			continue
+		}
+		unentered += len(dead)
+		if !strings.HasPrefix(f, "skills/") {
+			unenteredShared += len(dead)
+			fmt.Printf("  shared  %-34s %s\n", f, strings.Join(dead, ", "))
 		}
 	}
 
 	if loops := cycles(adj, nodes); len(loops) > 0 {
-		fmt.Printf("\nCYCLES  %d — a rule reached by following one is a rule with no home\n", len(loops))
+		fmt.Printf("\nCYCLES  %d. Between peers this is a cross-reference, not a defect —\n"+
+			"        two standards may each be useful at the other's point of use. It is a defect\n"+
+			"        only where the two are meant to be layered.\n", len(loops))
 		for _, l := range loops {
 			fmt.Printf("  %s\n", strings.Join(l, " → "))
 		}
@@ -336,6 +354,6 @@ func main() {
 	if len(rows) > 0 {
 		widest = rows[0].doorSections // sorted widest-first above
 	}
-	fmt.Printf("\ndepth %d, widest door surface %d section(s), %d unentered section(s)\n",
-		len(deepest)-1, widest, unentered)
+	fmt.Printf("\ndepth %d, widest door surface %d section(s), %d unentered section(s) of which %d are in the shared layer\n",
+		len(deepest)-1, widest, unentered, unenteredShared)
 }
