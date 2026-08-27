@@ -78,6 +78,45 @@ func entersAHeading(headings map[string]bool, section string) bool {
 	return false
 }
 
+// The files `inject.md` lists under its read-always heading. Read from the router rather than named
+// here, so a file promoted into or out of that tier is picked up without editing this.
+func readAlwaysSet(root string, defined map[string]map[string]bool) map[string]bool {
+	set := map[string]bool{}
+	var injectPath string
+	for f := range defined {
+		if filepath.Base(f) == "inject.md" {
+			injectPath = f
+			break
+		}
+	}
+	if injectPath == "" {
+		return set
+	}
+	body, err := os.ReadFile(filepath.Join(root, injectPath))
+	if err != nil {
+		return set
+	}
+	inSection := false
+	for _, line := range strings.Split(string(body), "\n") {
+		if strings.HasPrefix(line, "#") {
+			inSection = strings.Contains(strings.ToLower(line), "read always")
+			continue
+		}
+		if !inSection {
+			continue
+		}
+		for _, m := range linkPattern.FindAllStringSubmatch(line, -1) {
+			target := relOf(root, filepath.Join(filepath.Dir(filepath.Join(root, injectPath)), m[1]))
+			if _, ok := defined[target]; ok {
+				set[target] = true
+			}
+		}
+	}
+	return set
+}
+
+var linkPattern = regexp.MustCompile(`\]\(([^)]+\.md)\)`)
+
 func relOf(root, p string) string {
 	if r, err := filepath.Rel(root, p); err == nil {
 		return r
@@ -174,6 +213,12 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 	for f := range defined {
 		byBase[filepath.Base(f)] = append(byBase[filepath.Base(f)], f)
 	}
+	// A file the router marks read-always is held whole by every reader on every task, so no citation
+	// into it is a door — the reader already has it and the citation only says which rule. Detecting
+	// "reads whole" from a bare mention in the citer cannot see this: nothing mentions the file,
+	// because inject.md loaded it. Without this the always-read set reads as the widest surface in the
+	// tree, which is the opposite of what being always-read means.
+	alwaysRead := readAlwaysSet(root, defined)
 	readsWhole := map[string]bool{}
 	for _, b := range bare {
 		if to := resolve(root, b, defined, byBase); to != "" && to != b.from {
@@ -194,7 +239,7 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 				shell.Oneline(c.from), shell.Oneline(to), shell.Oneline(c.section))
 			continue
 		}
-		edges = append(edges, edge{c.from, to, c.section, readsWhole[c.from+">"+to]})
+		edges = append(edges, edge{c.from, to, c.section, readsWhole[c.from+">"+to] || alwaysRead[to]})
 	}
 	return defined, edges, err
 }

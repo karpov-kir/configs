@@ -182,3 +182,32 @@ func TestADoorEnteringSeveralSectionsIsDistinguishable(t *testing.T) {
 		t.Fatalf("deep citer entered %d sections, want 2", len(reach["deep.md"]))
 	}
 }
+
+// A file the router marks read-always is held whole by every reader on every task, so no citation
+// into it is a door. Read-whole detection from a bare mention in the citer cannot see that — nothing
+// mentions the file, because the router loaded it — so without this the always-read set reads as the
+// widest surface in the tree, which is the opposite of what being always-read means.
+func TestRouterReadAlwaysFilesAreHeldWholeByEveryone(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "kk-flavor/inject.md", "# inject\n\n## Read always\n\n- [standards/w.md](standards/w.md)\n\n## Read on trigger\n\n- [standards/t.md](standards/t.md)\n")
+	write(t, root, "kk-flavor/standards/w.md", "# W\n\n## Alpha\n\n## Beta\n")
+	write(t, root, "kk-flavor/standards/t.md", "# T\n\n## Gamma\n")
+	write(t, root, "caller.md", "`standards/w.md` → **Alpha**, `standards/w.md` → **Beta**, `standards/t.md` → **Gamma**\n")
+
+	_, edges := graph(t, root)
+	for _, e := range edges {
+		switch filepath.Base(e.to) {
+		case "w.md":
+			if !e.precision {
+				t.Errorf("a read-always file was entered as a door at **%s**", e.section)
+			}
+		case "t.md":
+			if e.precision {
+				t.Errorf("a trigger-loaded file was counted as held whole at **%s**", e.section)
+			}
+		}
+	}
+	if len(edges) != 3 {
+		t.Fatalf("edges = %+v, want 3", edges)
+	}
+}
