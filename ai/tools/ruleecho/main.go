@@ -34,6 +34,15 @@ type span struct {
 // Under this a match is a phrase, not a rule.
 const minRuleChars = 12
 
+// How much of a rule a report line carries.
+const maxReportRunes = 110
+
+// The tool reads whole files, and the tree supplying them is the tree under review. Prose documents
+// are kilobytes; anything past this is not a rule file, and reading it costs memory the scan has no
+// way to give back. The bound reports rather than skips, so a file nothing read is never mistaken for
+// a file that held no rules.
+const maxFileBytes = 8 << 20
+
 type boldSpan struct {
 	start int // byte offset of the opening `**`
 	text  string
@@ -94,6 +103,21 @@ func collect(root string) ([]span, error) {
 	var spans []span
 	err := filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
 		if err != nil || fi.IsDir() || !strings.HasSuffix(p, ".md") {
+			return nil
+		}
+		// `Walk` uses `Lstat`, so a directory symlink is already not followed — but `os.ReadFile`
+		// follows a file one, and the tree supplying the name is the tree under review. A committed
+		// `notes.md -> ~/private/notes.md` would come back reported under its in-tree path, and the
+		// matcher would be an oracle over content the author never showed the tool. Reported rather
+		// than skipped, the way a citation target that is not a regular file already is: a scan that
+		// narrowed says so, or the narrowing is indistinguishable from a clean read.
+		if !fi.Mode().IsRegular() {
+			fmt.Fprintf(os.Stderr, "not a regular file: %s — it was NOT read\n", stripControl(p))
+			return nil
+		}
+		if fi.Size() > maxFileBytes {
+			fmt.Fprintf(os.Stderr, "file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n",
+				oneline(p), fi.Size(), maxFileBytes)
 			return nil
 		}
 		body, err := os.ReadFile(p)
@@ -190,7 +214,8 @@ func main() {
 
 	for _, p := range pairs {
 		fmt.Printf("rule stated twice (%d words shared):\n  %s:%d — %s\n  %s:%d — %s\n",
-			p.shared, p.a.file, p.a.line, oneline(p.a.text), p.b.file, p.b.line, oneline(p.b.text))
+			p.shared, stripControl(p.a.file), p.a.line, oneline(p.a.text),
+			stripControl(p.b.file), p.b.line, oneline(p.b.text))
 	}
 	fmt.Printf("%d bolded rule(s) read, %d pair(s) stating the same thing in two files\n", len(spans), len(pairs))
 	if len(pairs) > 0 {
@@ -198,7 +223,10 @@ func main() {
 	}
 }
 
-func oneline(s string) string {
+// A path is as much the tree's own text as the rule is: a filename may carry any byte but `/` and NUL,
+// so a newline in one forges a whole line of this tool's output — and the line worth forging is the
+// summary below, which a caller reads to decide whether anything was found at all.
+func stripControl(s string) string {
 	var b strings.Builder
 	for _, r := range s {
 		if r < 0x20 || r == 0x7f {
@@ -207,9 +235,16 @@ func oneline(s string) string {
 		}
 		b.WriteRune(r)
 	}
-	out := b.String()
-	if len(out) > 110 {
-		return out[:110] + "…"
+	return b.String()
+}
+
+// Truncation counts runes, not bytes. Rules here are prose and the tree carries `→`, `…` and em
+// dashes, so a byte slice at a fixed offset lands mid-rune and the report ends in a replacement
+// character — on the exact input the bound exists to handle.
+func oneline(s string) string {
+	out := []rune(stripControl(s))
+	if len(out) > maxReportRunes {
+		return string(out[:maxReportRunes]) + "…"
 	}
-	return out
+	return string(out)
 }
