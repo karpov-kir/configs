@@ -23,6 +23,12 @@ The reader understands the text on the first read, without backtracking — in *
 * No backstory, hedging, or justification — describe what is true, not what we tried.
 * **Outward text**: [human-writing.md](human-writing.md) wins over this section on conflict.
 
+## Score what survives
+
+A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per thing they act on separately — and under 6 it goes**, wherever the lane sends what it cuts.
+
+**Name what a 10 is here before you score anything**, or every score lands mid-band and nothing goes. **A number the human names replaces 6 for that run.**
+
 ## Replying to a human
 
 Your own reply in the session, not a message you compose for someone else ([human-writing.md](human-writing.md)).

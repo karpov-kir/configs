@@ -10,6 +10,8 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
 
+**Then score what survived** ([writing.md](writing.md) → **Score what survives**) — one score per point, never per sentence; under the threshold it takes those same two exits.
+
 **Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
 
 **Length is the one tell you can measure, and it has a single cause: explaining why you are right.** Reporting is short because it stops at what they act on. Defending is long because it anticipates a disagreement nobody voiced — so the surplus is always the case restated, the design justified, the alternative pre-refuted. **Cut to what they act on**; if it will not compress, you have not decided what you are asking them. Under a screen, and one thing said once.

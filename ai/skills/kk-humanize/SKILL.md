@@ -1,7 +1,7 @@
 ---
 name: kk-humanize
 description: Rewrite outward text — PR/ticket text, commit messages, chat, email, README-grade docs — and code comments so they read as a person wrote them. Use for "humanize", "de-AI this", "make the comments readable". The outward counterpart to kk-tighten; a comment on the wrong construct is kk-refactor's, a false one kk-code-review's.
-argument-hint: "file, git scope (\"the changes\", \"staged\"), or the text itself"
+argument-hint: "file, git scope (\"the changes\", \"staged\"), or the text itself; plus an optional score threshold"
 ---
 
 Rewrite the text resolved from `$ARGUMENTS`. **Lossy by license** — you may drop true, unique facts that don't serve this reader.
@@ -17,7 +17,7 @@ Rewrite the text resolved from `$ARGUMENTS`. **Lossy by license** — you may dr
 Check every artifact against all three. `~/.kk-flavor/standards/writing.md` → **Readability floor** comes first; no lens below trades against it.
 
 1. **Tells** — scrub every pattern `human-writing.md`'s watch-list names, and anything else that reads manufactured: uniform rhythm, mirrored clause structure.
-2. **Budget** — run `human-writing.md` → **Budget**'s keep test over every sentence. Cut true-but-inert detail; lead with the answer; one concern per message; match the asker's altitude. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form there (change descriptions, review comments, code comments, …) runs under it; write a new form only when a class recurs.
+2. **Budget** — run `human-writing.md` → **Budget**: its keep test over every sentence, then its score over what survives. Cut true-but-inert detail; lead with the answer; one concern per message; match the asker's altitude. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form there (change descriptions, review comments, code comments, …) runs under it; write a new form only when a class recurs.
 3. **Voice** — like speech to a colleague: contractions, varied sentence and paragraph length, plain verbs, specific nouns, first person where natural. Vary length within the floor's sentence limit, never past it.
 
 ## Guardrails on the lossy license
