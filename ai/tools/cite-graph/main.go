@@ -101,7 +101,16 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 				continue
 			}
 			if m := headingPattern.FindStringSubmatch(line); m != nil {
-				defined[self][strings.TrimSpace(strings.Trim(m[1], "*"))] = true
+				heading := strings.TrimSpace(strings.Trim(m[1], "*"))
+				defined[self][heading] = true
+				// A heading may carry a subtitle after an em dash, and a citation names only the run
+				// before it — `**Budget**` for `## Budget — the keep test`. check.sh accepts that alias,
+				// so a tool that does not reports three live citations as entering nothing and the
+				// section itself as unentered. Cut at the em dash and nowhere else: a trailing run, or a
+				// word-by-word prefix, would let half a heading satisfy a citation.
+				if before, _, found := strings.Cut(heading, " — "); found {
+					defined[self][strings.TrimSpace(before)] = true
+				}
 			}
 			spans := citePattern.FindAllStringIndex(line, -1)
 			lastNamed := ""

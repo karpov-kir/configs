@@ -122,3 +122,20 @@ func TestChainedSectionBelongsToTheFileAlreadyNamed(t *testing.T) {
 		t.Fatalf("edges = %+v, want both Caller and Queue", edges)
 	}
 }
+
+// check.sh accepts the run before an em dash as an alias for the whole heading, so a citation writing
+// `**Budget**` resolves against `## Budget — the keep test`. Without the alias here, three live
+// citations read as entering nothing and the section reads as unentered.
+func TestHeadingAliasBeforeAnEmDash(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/hw.md", "# HW\n\n## Budget — the keep test\n")
+	write(t, root, "caller.md", "run `std/hw.md` → **Budget** over every sentence\n")
+
+	defined, edges := graph(t, root)
+	if !defined["std/hw.md"]["Budget"] || !defined["std/hw.md"]["Budget — the keep test"] {
+		t.Fatalf("both the heading and its alias must be defined: %v", defined["std/hw.md"])
+	}
+	if len(edges) != 1 || edges[0].section != "Budget" {
+		t.Fatalf("edges = %+v, want one entering at Budget", edges)
+	}
+}
