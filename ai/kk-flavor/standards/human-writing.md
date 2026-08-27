@@ -46,7 +46,7 @@ The author's side, for a reviewer deciding approve-or-not, in order. **A linked 
 
 The reviewer's side, for an author deciding what to change. **Each note goes on the line it concerns; the body carries the verdict, any mismatch with what was asked, and nothing else a line could have held.**
 
-Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting, and no concern you checked and cleared** — both are the reviewer writing about the review.
+Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting** — the reviewer writing about the review, which **Budget** already bars.
 
 **A reply is a review comment**, and opens on what changes rather than on agreeing — the thread already holds the case, and the change shows the agreement.
 

@@ -14,10 +14,11 @@ Load lazily — read a doc only when its trigger below matches what you're doing
 | writing or refactoring code | [standards/code-style.md](standards/code-style.md) |
 | designing modules, layers or boundaries; wiring dependencies | [standards/architecture/core.md](standards/architecture/core.md) |
 | writing or reviewing tests, **or changing behaviour that should have one** | [standards/testing.md](standards/testing.md) |
-| writing outward text — anything a person reads as communication (PR/ticket text, chat, email, …) | [standards/human-writing.md](standards/human-writing.md) |
+| writing outward text — anything a person reads as communication | [standards/human-writing.md](standards/human-writing.md) |
 | setting up env, scripts, local dev / Docker; **writing a schema migration; adding or upgrading a dependency** | [standards/project.md](standards/project.md) |
 | committing, pushing, opening a PR | [standards/git.md](standards/git.md) |
 | editing a skill, standard, prompt, template or `CLAUDE.md` | [standards/ecosystem.md](standards/ecosystem.md) |
 | invoking another skill, or orchestrating a run of them | [standards/skill-protocol.md](standards/skill-protocol.md) |
 | running a multi-stage quality pass over one change set | [standards/quality-pipeline.md](standards/quality-pipeline.md) |
+| driving a browser — a page, a running app, a signed-in site | [standards/browser.md](standards/browser.md) |
 | touching a running system — a deploy, live data, an external write API, infrastructure | [standards/live-systems.md](standards/live-systems.md) |

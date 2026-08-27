@@ -26,8 +26,6 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 
 ## Logging
 
-The logger itself is [architecture/core.md](architecture/core.md) → **Logging & events**; call-site rules are [code-style.md](code-style.md) → **Logging**. Here, only its configuration:
-
 - **Format and level are explicit, never derived from the environment** — so any environment (production included) runs locally with readable logs. `LOG_FORMAT` is `pretty` or `json`; `LOG_LEVEL` is one of the levels in [code-style.md](code-style.md) → **Logging**.
 
 ## Scripts

@@ -9,7 +9,7 @@ Follow this on a new project or one that already does; otherwise match the proje
 3. **No mocks.** Reach for fakes, drivers, and builders instead (§3).
 4. **Cheapest level first.** Push each behaviour down to the cheapest level that can prove it: edge cases and branches in fast unit tests; only wiring and real-infrastructure risk need the slow levels.
 5. **A test that reimplements the behaviour it asserts agrees with itself, not with the code.** Import the real thing and drive it.
-6. **A suite slow enough to schedule around stops being run.** Under a second is the working bar; tens of seconds is the ceiling, and past it a pass starts deferring the suite to "later" and shipping on the assumption it would have passed. The cost is almost never the assertions: it is process spawns and fixture I/O, and both come out. One suite here went from 110s to 3.3s by building fixtures in-process and calling the code instead of executing it, and its mutation gate from two hours to seconds a mutant by the same move — **measure where the time goes before optimising anything**, because the answer is rarely where it feels.
+6. **A suite slow enough to schedule around stops being run.** Under a second is the working bar; tens of seconds is the ceiling, and past it a pass starts deferring the suite to "later" and shipping on the assumption it would have passed. The cost is almost never the assertions: it is process spawns and fixture I/O, and both come out — build fixtures in-process and call the code instead of executing it. **Measure where the time goes before optimising anything**, because the answer is rarely where it feels.
 
 ## 2. Test taxonomy
 

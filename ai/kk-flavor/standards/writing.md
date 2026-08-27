@@ -29,13 +29,11 @@ A keep test says only that a thing *may* stay, so alone it keeps whatever can be
 
 **Score through `~/.kk-flavor/scripts/score.sh cut <lane> "<what a 10 is here>"`** — it holds the numbers, and it refuses the runs that only look like passes. **A non-zero exit is not a result you may keep**; do what it says. **A number the human names replaces the lane's for that run.**
 
-**Name what a 10 is here before you score anything**, or every score lands mid-band and nothing goes.
-
 ## Replying to a human
 
 Your own reply in the session, not a message you compose for someone else. [human-writing.md](human-writing.md) → **AI tells** still binds here — a tell marks manufactured writing, whoever reads it.
 
-* Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do — then score what is left, lane `reply` (`writing.md` → **Score what survives**).
+* Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do — then score what is left, lane `reply`.
 * **No headings, and no bold lead-in restating its own line.**
 * **Order it so they can stop early** — chronological where the content is a sequence, otherwise what they must decide before what they only need to know.
 * Substance with a durable home (a report, a ticket, a commit) is pointed at, never restated.

@@ -23,7 +23,6 @@ Comment form is [human-writing.md](human-writing.md) → **Code comments**. **Th
 ## Type Safety
 
 - Never bypass the type system with escape hatches — `any`/`@ts-ignore` (TS), `unsafe` (Rust), unchecked or non-null assertions anywhere. Narrow the type first, or pass a guaranteed value explicitly.
-- Prefer precise types over wide ones.
 - In TS/JS, absence is `undefined`, never `null` — one absence value per codebase.
 - Prefer enums (or named-enumeration constructs) that expose symbolic members at call sites — renames ripple through the type checker. A literal type alias doesn't satisfy this.
 - Inline single-use object/interface shapes; extract a named type only when referenced from 2+ places. The exception is a type crossing a module boundary, which earns its name at one call site ([architecture/core.md](architecture/core.md) → **Module depth**).
@@ -36,7 +35,7 @@ Comment form is [human-writing.md](human-writing.md) → **Code comments**. **Th
 
 ## Logging
 
-Where log lines belong and what they say; the logger itself belongs to [architecture/core.md](architecture/core.md) → **Logging & events** and [project.md](project.md) → **Logging**. Review for *absence*: a boundary or handled failure with no log line breaks these rules.
+Where log lines belong and what they say; how you obtain a logger is [architecture/core.md](architecture/core.md) → **Logging & events**. Review for *absence*: a boundary or handled failure with no log line breaks these rules.
 
 - Log at boundaries: inbound work accepted (request, job, message), outbound calls to other systems, process lifecycle (startup with resolved config, shutdown).
 - Every failure path that doesn't propagate must log: a caught-and-handled error, a retry, a fallback, a degraded mode.
