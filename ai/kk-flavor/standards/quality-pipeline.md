@@ -1,6 +1,6 @@
 # Quality Pipeline
 
-The stages a quality pass runs over one change set. **Binding on whoever runs a pass or any single stage of one.**
+The stages a quality pass runs over one change set. **Binding on whoever runs a pass, any single stage of one, or one of its lanes on its own** — a lane invoked standalone is still that lane, and the rules here that bind it say so.
 
 You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger.
 
