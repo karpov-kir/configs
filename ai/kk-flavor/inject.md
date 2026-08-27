@@ -20,5 +20,6 @@ Load lazily — read a doc only when its trigger below matches what you're doing
 | editing a skill, standard, prompt, template or `CLAUDE.md` | [standards/ecosystem.md](standards/ecosystem.md) |
 | invoking another skill, or orchestrating a run of them | [standards/skill-protocol.md](standards/skill-protocol.md) |
 | running a multi-stage quality pass over one change set | [standards/quality-pipeline.md](standards/quality-pipeline.md) |
+| appending to a record kept across runs — a decision log, a findings file, a playbook | [standards/records.md](standards/records.md) |
 | driving a browser — a page, a running app, a signed-in site | [standards/browser.md](standards/browser.md) |
 | touching a running system — a deploy, live data, an external write API, infrastructure | [standards/live-systems.md](standards/live-systems.md) |
