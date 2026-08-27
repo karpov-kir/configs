@@ -152,3 +152,33 @@ func TestCitationToABoldedListItemIsNotADoor(t *testing.T) {
 		t.Fatalf("edges = %+v, want only the real heading", edges)
 	}
 }
+
+// The distinction that decides whether a door is debt. Cutting a restatement replaces restated text
+// with a citation, and a citation from a file that does not hold the target whole is a door — so
+// de-duplication raises the door count by design. A citer entering one section wants one rule from a
+// file it need not load; a citer entering several uses the file enough to read it whole, and only
+// that one is debt. Counting them together made a correct de-duplication look like a regression.
+func TestADoorEnteringSeveralSectionsIsDistinguishable(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/p.md", "# P\n\n## Alpha\n\n## Beta\n")
+	write(t, root, "spot.md", "one rule: `std/p.md` → **Alpha**\n")
+	write(t, root, "deep.md", "`std/p.md` → **Alpha** and `std/p.md` → **Beta**\n")
+
+	_, edges := graph(t, root)
+	reach := map[string]map[string]bool{}
+	for _, e := range edges {
+		if e.precision {
+			t.Fatalf("neither citer holds the file whole: %+v", e)
+		}
+		if reach[e.from] == nil {
+			reach[e.from] = map[string]bool{}
+		}
+		reach[e.from][e.section] = true
+	}
+	if len(reach["spot.md"]) != 1 {
+		t.Fatalf("spot citer entered %d sections, want 1", len(reach["spot.md"]))
+	}
+	if len(reach["deep.md"]) != 2 {
+		t.Fatalf("deep citer entered %d sections, want 2", len(reach["deep.md"]))
+	}
+}

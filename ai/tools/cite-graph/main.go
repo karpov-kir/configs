@@ -305,6 +305,8 @@ func main() {
 	doorSections := map[string]map[string]bool{}
 	doorCiters := map[string]map[string]bool{}
 	precisionCiters := map[string]map[string]bool{}
+	// Per target, how many distinct sections each door citer enters.
+	doorReach := map[string]map[string]map[string]bool{}
 	for _, e := range edges {
 		if !seenEdge[e.from+">"+e.to] {
 			seenEdge[e.from+">"+e.to] = true
@@ -325,6 +327,13 @@ func main() {
 		}
 		doorSections[e.to][e.section] = true
 		doorCiters[e.to][e.from] = true
+		if doorReach[e.to] == nil {
+			doorReach[e.to] = map[string]map[string]bool{}
+		}
+		if doorReach[e.to][e.from] == nil {
+			doorReach[e.to][e.from] = map[string]bool{}
+		}
+		doorReach[e.to][e.from][e.section] = true
 	}
 
 	var nodes []string
@@ -343,15 +352,24 @@ func main() {
 	}
 	fmt.Printf("DEPTH  longest chain is %d hop(s):\n  %s\n\n", len(deepest)-1, strings.Join(deepest, "\n    → "))
 
-	fmt.Println("FAN-OUT  doors are citers that do NOT hold the file whole — that is the real surface.")
-	fmt.Println("         A citer that reads it whole is being precise about which rule, not entering.")
+	fmt.Println("FAN-OUT  doors are citers that do NOT hold the file whole. A citer that reads it whole is")
+	fmt.Println("         being precise about which rule, not entering. Of the doors, a DEEP one enters more")
+	fmt.Println("         than one section — it uses the file enough to read it whole, and that is the debt.")
+	fmt.Println("         A door entering one section wants one rule from a file it need not load; that is")
+	fmt.Println("         what cutting a restatement correctly produces, and it is not debt.")
 	type row struct {
-		file                              string
-		doorSections, doors, precisionRef int
+		file                                    string
+		doorSections, doors, deep, precisionRef int
 	}
 	var rows []row
 	for f := range enteredAt {
-		rows = append(rows, row{f, len(doorSections[f]), len(doorCiters[f]), len(precisionCiters[f])})
+		deep := 0
+		for _, sections := range doorReach[f] {
+			if len(sections) > 1 {
+				deep++
+			}
+		}
+		rows = append(rows, row{f, len(doorSections[f]), len(doorCiters[f]), deep, len(precisionCiters[f])})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].doorSections != rows[j].doorSections {
@@ -360,8 +378,8 @@ func main() {
 		return rows[i].file < rows[j].file
 	})
 	for _, r := range rows {
-		fmt.Printf("  %-42s %2d door section(s) / %2d door(s), %2d precision citer(s)\n",
-			r.file, r.doorSections, r.doors, r.precisionRef)
+		fmt.Printf("  %-42s %2d door section(s) / %2d door(s), %d of them deep, %2d precision citer(s)\n",
+			r.file, r.doorSections, r.doors, r.deep, r.precisionRef)
 	}
 
 	fmt.Println("\nUNENTERED  defined, but no file names it. In a skill that is normal — its sections are")

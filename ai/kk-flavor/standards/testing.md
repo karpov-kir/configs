@@ -11,6 +11,8 @@ Follow this on a new project or one that already does; otherwise match the proje
 5. **A test that reimplements the behaviour it asserts agrees with itself, not with the code.** Import the real thing and drive it.
 6. **A suite slow enough to schedule around stops being run.** Under a second is the working bar; tens of seconds is the ceiling, and past it a pass starts deferring the suite to "later" and shipping on the assumption it would have passed. The cost is almost never the assertions: it is process spawns and fixture I/O, and both come out — build fixtures in-process and call the code instead of executing it. **Measure where the time goes before optimising anything**, because the answer is rarely where it feels.
 
+7. **Two cases a scenario list routinely misses.** The non-ASCII or special-character one, wherever code lists or round-trips a name from outside the system. And where the deliverable is a **mapping**, every row of it — produce the full table, input to resulting state, and validate each row rather than the ones a scenario happened to name.
+
 ## 2. Test taxonomy
 
 | Level | Verifies | Real collaborators / infra |
