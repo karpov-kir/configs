@@ -122,7 +122,7 @@ flavor_have="$(canonical_dir "${HOME:-}/.kk-flavor")"
 if [ -z "$flavor_have" ]; then
   echo "flavor not mounted: \$HOME/.kk-flavor is not a directory — every ~/.kk-flavor/ citation dangles at run time" >>"$findings"
 elif [ "$flavor_have" != "$flavor_want" ]; then
-  echo "flavor mounted elsewhere: \$HOME/.kk-flavor -> $flavor_have, not $(oneline "$flavor_want")" >>"$findings"
+  echo "flavor mounted elsewhere: \$HOME/.kk-flavor -> $(oneline "$flavor_have"), not $(oneline "$flavor_want")" >>"$findings"
 fi
 skills_mount="${HOME:-}/.claude/skills"
 if [ ! -d "$skills_mount" ]; then
@@ -411,6 +411,14 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
     # Reported even when the section resolves today: undelimited is how it stops resolving in silence.
     [ "$delimited" = 1 ] ||
       echo "undelimited section citation: $(oneline "$src"):$line -> $(oneline "$path") → $(oneline "$section") is not wrapped in ** or backticks"
+    # `resolve_ref` tests with `-e`, which follows a symlink, so the cited path resolved to whatever
+    # the reviewed tree pointed it at: `evil.md -> /dev/zero` or a committed FIFO makes the read below
+    # never return. Reported rather than skipped — a target nothing read must not be indistinguishable
+    # from a checked one.
+    if [ ! -f "$target" ]; then
+      echo "citation target is not a regular file: $(oneline "$src"):$line -> $(oneline "$path") — it was NOT read"
+      continue
+    fi
     # Prose runs on past the heading it names, so accept the longest leading run that is a heading.
     headings="$(markdown_headings "$target")"
     want="$(printf '%s\n' "$section" | plain_text)"

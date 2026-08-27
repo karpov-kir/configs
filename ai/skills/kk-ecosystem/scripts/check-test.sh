@@ -500,6 +500,17 @@ printf '# Root\n\n@FOO.md\n' >"$root/CLAUDE.md"
 printf 'one two three\n' >"$check_home/.claude/FOO.md"
 assert_reports "$uncounted" "refuses a kk-flavor symlinked to the install, which would open the gate"
 
+# The resolved mount path reaches the finding, so a control byte in it reaches the terminal. Paired:
+# the first proves the branch runs at all, without which the second passes on output that was never
+# produced.
+new_root
+new_home_without_flavor_mount
+mount_elsewhere="$root/elsewhere$(printf '\033')dir"
+mkdir -p "$mount_elsewhere"
+ln -s "$mount_elsewhere" "$check_home/.kk-flavor"
+assert_reports "flavor mounted elsewhere" "reports a flavor mounted somewhere else"
+assert_does_not_report "$(printf '\033')" "and prints its resolved path with no control byte"
+
 new_root
 printf '# Root\n' >"$root/CLAUDE.md"
 printf '@BAR.md\n' >>"$root/kk-flavor/inject.md"
@@ -643,6 +654,18 @@ new_root
 printf '# Target\n\n## One home\n' >"$root/kk-flavor/standards/target.md"
 new_script "citer.sh" "$(printf '#!/usr/bin/env bash\n# untested: fixture\n# the rule is %s → One home\ntrue' target.md)"
 assert_reports "$undelimited" "fires on an undelimited citation inside a shell comment"
+
+# A cited path is resolved with `-e`, which follows a symlink, so what it names is whatever the
+# reviewed tree pointed it at: `evil.md -> /dev/zero`, or a committed FIFO, made `markdown_headings`
+# read a stream that never ends. /dev/null stands in here — the same class of target, and the one that
+# cannot hang this suite on the day someone takes the guard back out.
+not_regular="citation target is not a regular file"
+new_root
+ln -s /dev/null "$root/kk-flavor/standards/evil.md"
+printf 'see [%s](%s) → **X** for the rule\n' evil.md evil.md >"$root/kk-flavor/standards/citer.md"
+assert_reports "$not_regular" "fires on a cited path that resolves to a device"
+# The half that matters: a target nothing read must never be indistinguishable from a checked one.
+assert_reports "it was NOT read" "and says it was not read rather than reading part of it"
 
 # Each defect below makes a skill unreachable rather than merely mis-linked: the loader finds a skill by
 # its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
