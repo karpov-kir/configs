@@ -409,7 +409,7 @@ history="$history_dir/stats.md"
     # scan cannot cover, so `stats-test.sh` compares this output against the live file instead.
     echo "# Ecosystem size"
     echo
-    echo "Appended by \`kk-reduce\` alone, via \`scripts/stats.sh --append <note>\` beside it: one row before a"
+    echo "Appended by \`kk-reduce\` alone, via \`~/.claude/skills/kk-reduce/scripts/stats.sh --append <note>\`: one row before a"
     echo "campaign, whose note ends \`, start\`, and one after. **A delta across that pair is the campaign's own"
     echo "cut, not drift** — drift is measured from a closing row forward."
     echo
