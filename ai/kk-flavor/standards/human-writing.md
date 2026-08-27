@@ -36,6 +36,8 @@ The author's side, for a reviewer deciding approve-or-not, in order. **A linked 
 - **Review focus** — the risky parts and each deliberate trade-off, led by the **surface delta**: which exports arrived, went, or changed shape.
 - **Verification** — what ran and what it showed: links and counts, not narration. Only what CI and the diff don't already show.
 
+**Around 150 words for the three together.** One measured here ran to 419, and the excess was not padding — it was design reasoning, well written, that no reviewer needed before opening the diff. That is the failure mode to expect: **a body grows by explaining why the code is right, and a reviewer's job is to decide that.** Every sentence still owes the consequence named at the top of this file, and "so they understand the design" is not one — it is the diff's job, or a comment's, or the ticket's.
+
 ## Review comments
 
 The reviewer's side, for an author deciding what to change. **Each note goes on the line it concerns; the body carries the verdict, any mismatch with what was asked, and nothing else a line could have held.**
