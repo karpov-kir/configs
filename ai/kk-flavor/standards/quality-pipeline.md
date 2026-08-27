@@ -34,6 +34,8 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **This is a gate, not a stage** — a divergence stops the pipeline as a red gate does.
 
+**A caller whose own loop builds the thing to drive runs the gate inside that loop instead** — after its work rather than before any lens, and a divergence there is a red result it fixes and re-runs. It says where it departs. Nothing to drive yet is the only reason that holds.
+
 **A step nobody could drive is an ask, and only after they have been asked may it be dropped** — recording it as something the pass is waiting on is that drop taken without them. The drive lane owns the rest of this, including what a dropped step owes its return.
 
 **A runtime-behaviour claim the round returns comes back here**: drive the scenario it predicts, or let it land labelled an **unverified inference**.
@@ -47,11 +49,11 @@ Spawn the round's stages **in one message** so they run concurrently.
 **Both review stages are local**: neither posts to GitHub nor runs `gh`. And **a pre-existing defect outside the change is neither fixed nor blocked on** — a serious one is surfaced once, as a separate non-blocking note for the human to route, never folded into the change's findings and never dropped silently. One the change makes reachable or worse is in scope.
 
 1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings; record the others.
-2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or a constitution security invariant).
+2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or an invariant the project's own standards mark security-critical).
 3. **Tighten & comment pass** — *only if* the change added or changed standalone prose, or touched any comment.
    - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names.
-   - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the comment-density scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
-4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run the duplication scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
+   - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the outward-text lane's scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
+4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run the refactor lane's scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
 5. **Retro** — last when it runs; how it runs is the orchestrator's.
 
 **A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or `CLAUDE.md` goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.

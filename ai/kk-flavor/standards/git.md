@@ -2,7 +2,7 @@
 
 ## Branches
 
-Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`, `chore`, `docs`, `test`, or `style`; drop the ticket when there's none.
+Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`, `chore`, `docs`, `test` or `style`, or the prefix a workflow that owns the branch's whole lifecycle defines for itself; drop the ticket when there's none.
 
 ## Commits
 
