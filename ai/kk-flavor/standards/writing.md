@@ -25,9 +25,9 @@ The reader understands the text on the first read, without backtracking — in *
 
 ## Score what survives
 
-A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per thing they act on separately.** What a score has to beat is per lane; **at or below** that number the thing goes, wherever the lane sends what it cuts.
+A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per thing they act on separately.** What a score has to beat is per lane, and **at or below** that number the thing goes where that lane sends it.
 
-**Score through `~/.kk-flavor/scripts/score.sh cut <lane> "<what a 10 is here>"`** — it holds the numbers, and it refuses the runs that only look like passes. **A non-zero exit is not a result you may keep**; do what it says. **A number the human names replaces the lane's for that run.**
+**Score through `~/.kk-flavor/scripts/score.sh cut`** — it holds the numbers, and it refuses the runs that only look like passes. **A non-zero exit is not a result you may keep**; do what it says. **A number the human names replaces the lane's for that run.**
 
 ## Replying to a human
 
