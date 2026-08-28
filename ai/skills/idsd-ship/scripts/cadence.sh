@@ -6,8 +6,9 @@
 # The retro date lives in this skill's own directory, the one path identical from every repo; the
 # audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway `.idsd/`,
 # and a cadence the ship itself deletes can never come due.
-# untested: a suite is owed for the three exit codes. 1 and 2 both end in "no offer made", so
-# returning the wrong one suppresses a periodic pass and looks identical from the outside.
+# tested by: cadence-test.sh. 72 of its 73 cases are proven able to fail by shell-mutate.sh, one
+# guard broken at a time in a copy; the 73rd asserts the fixture root rather than this script, and
+# reddens when that root is put inside a repository.
 set -uo pipefail
 export LC_ALL=C
 

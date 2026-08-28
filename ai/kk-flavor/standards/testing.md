@@ -68,3 +68,28 @@ Acceptance composes the whole toolkit: the real system via the composition root,
 **Include all of `src`; don't hand-list globs.** Mark each exception in the file itself, with the tool's ignore directive and a reason.
 
 **Exclude only what no level should cover** — e.g. a type-only module or a constant table. A file that does real work earns a test, not an exclusion.
+
+## 7. What a suite reports
+
+A runner that finds suites by filename cannot tell one that asserted nothing from one that passed — both exit 0 and both enter the glob. **The suite's last line settles it, and the counts carry the meaning, never the wording.**
+
+**The last line is `<N> passed, <M> failed`, and `, <K> skipped` after them where the suite can skip.** A caller reads a count by the name that follows it, never by matching the line, so a suite that grows a field keeps parsing.
+
+Four outcomes, and the suite declares which one it is:
+
+| The suite | Reports | Exits |
+|---|---|---|
+| ran, all good | `<N> passed, 0 failed`, `N` above 0 | 0 |
+| ran, something failed | `<M> failed` above 0 | 1 |
+| ran, declined named cases | its counts, `<K> skipped` above 0 | 0 while `M` is 0 |
+| did not measure | why, on stderr; no summary line | 2 |
+
+**The skipped field is conditional, and its presence is the information.** A suite holding cases it can decline must report the count — without it, two machines that checked different sets print the same line, which is the difference this section exists to make visible. A suite where every case runs everywhere reports two fields, and that is an assertion rather than an omission: it says there are no conditional cases. A permanent `0 skipped` on such a suite is a number that can never read otherwise, and a gate keying off it learns as little as the reader does.
+
+**A suite must not carry a counter it never increments.** That is the general rule the skipped field is one instance of, and the one worth grepping for: a `record_skip` defined once and called nowhere, behind a field that can only ever print `0`, is decoration wearing the shape of a measurement — the same defect as a case that cannot fail, one level up.
+
+**Exit 2 means the measurement did not happen, and a caller may never read it as a pass.** A suite that cannot reach its fixtures, the script it covers, or any case at all exits 2 and says which — the same reading the ecosystem's checks give the code. A suite that gets partway and then loses a fixture exits 2 as well, and prints no summary line: the passes already behind it are real, and the run they belong to is still not a result. Exiting 1 there would say the code under test is broken, which is a different claim and a false one.
+
+**Zero passed and zero skipped is vacuous, and a gate fails it**: the suite ran, claimed success and asserted nothing. **Zero passed with a skip count is a different fact** — the cases are there and this machine declined them.
+
+**A skip names the case and states why**, because the alternative is two machines checking different sets and reporting the same thing. Whether a permission fixture denies this process is one such difference (§4).

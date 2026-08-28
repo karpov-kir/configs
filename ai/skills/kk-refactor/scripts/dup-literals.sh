@@ -10,9 +10,8 @@
 # git rejected the arguments. With no diff args, untracked text files are scanned too; the index is
 # never touched. Why revisions-only, why these `git diff` flags, and why the `|| exit 2` below:
 # `~/.claude/skills/kk-humanize/scripts/comment-density.sh`, which runs the same shape.
-# untested: no suite yet, and one is owed for the 0/1/2 exit contract, the path-argument refusal, the
-# `diff --git` anchor and the untracked-file scan. Three skills read exit 2 as "did not run, never
-# clean", and nothing proves this script still tells that apart from 0.
+# tested by: dup-literals-test.sh, whose 65 cases are each proven able to fail by shell-mutate.sh —
+# one guard broken at a time in a copy, the named case required to redden and nothing else with it.
 set -uo pipefail
 export LC_ALL=C
 

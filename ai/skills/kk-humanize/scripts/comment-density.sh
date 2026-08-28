@@ -10,8 +10,8 @@
 # text files are scanned too; the index is never touched.
 # A targeting aid, not a bar: it counts ADDED lines, so rewording a comment the base already carried
 # moves it into the added set, and the ratio can rise across a pass that cut comments.
-# untested: no suite yet. The 0/1/2 exit contract and the path-argument refusal are owed here, the
-# same pair `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` owes, for the same readers.
+# tested by: comment-density-test.sh, whose 66 cases are each proven able to fail by shell-mutate.sh
+# — one guard broken at a time in a copy, the named case required to redden and nothing else with it.
 set -uo pipefail
 export LC_ALL=C
 
