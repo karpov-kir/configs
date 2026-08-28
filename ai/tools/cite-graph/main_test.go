@@ -338,3 +338,26 @@ func TestEdgeKeysOnTheHeadingNotTheCitation(t *testing.T) {
 		t.Fatalf("edge keyed on %q, want the heading it matched", edges[0].section)
 	}
 }
+
+// An unentered section is a finding only where readers enter by section. Every file the router names
+// is entered whole on its trigger, so its unentered sections say nothing — and listing them buried
+// the one file that is reached by citation alone under thirty-nine that are not.
+func TestRouterLoadedFilesAreNotReportedUnentered(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "kk-flavor/inject.md", "# inject\n\n## Read on trigger\n\n| when | read |\n| --- | --- |\n| coding | [standards/routed.md](standards/routed.md) |\n")
+	write(t, root, "kk-flavor/standards/routed.md", "# R\n\n## Never Cited\n")
+	write(t, root, "kk-flavor/standards/delta.md", "# D\n\n## Also Never Cited\n")
+
+	defined, _ := graph(t, root)
+	_, routed := routerSets(root, defined)
+
+	if !routed["kk-flavor/standards/routed.md"] {
+		t.Error("a file named in the trigger table was not counted as router-loaded")
+	}
+	if routed["kk-flavor/standards/delta.md"] {
+		t.Error("a file the router never names was counted as router-loaded")
+	}
+	if !routed["kk-flavor/inject.md"] {
+		t.Error("the router itself must not report its own headings as unentered")
+	}
+}

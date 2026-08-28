@@ -96,8 +96,8 @@ func entersAHeading(headings map[string]bool, section string) (string, bool) {
 
 // The files `inject.md` lists under its read-always heading. Read from the router rather than named
 // here, so a file promoted into or out of that tier is picked up without editing this.
-func readAlwaysSet(root string, defined map[string]map[string]bool) map[string]bool {
-	set := map[string]bool{}
+func routerSets(root string, defined map[string]map[string]bool) (always, routed map[string]bool) {
+	always, routed = map[string]bool{}, map[string]bool{}
 	var injectPath string
 	for f := range defined {
 		if filepath.Base(f) == "inject.md" {
@@ -106,29 +106,33 @@ func readAlwaysSet(root string, defined map[string]map[string]bool) map[string]b
 		}
 	}
 	if injectPath == "" {
-		return set
+		return always, routed
 	}
 	body, err := os.ReadFile(filepath.Join(root, injectPath))
 	if err != nil {
-		return set
+		return always, routed
 	}
-	inSection := false
+	// Every file the router names is entered whole on its trigger, read-always or not. That decides
+	// what an unentered section means in it: nothing, because its readers never enter by section.
+	isAlways := false
 	for _, line := range strings.Split(string(body), "\n") {
 		if strings.HasPrefix(line, "#") {
-			inSection = strings.Contains(strings.ToLower(line), "read always")
-			continue
-		}
-		if !inSection {
+			isAlways = strings.Contains(strings.ToLower(line), "read always")
 			continue
 		}
 		for _, m := range linkPattern.FindAllStringSubmatch(line, -1) {
 			target := relOf(root, filepath.Join(filepath.Dir(filepath.Join(root, injectPath)), m[1]))
-			if _, ok := defined[target]; ok {
-				set[target] = true
+			if _, ok := defined[target]; !ok {
+				continue
+			}
+			routed[target] = true
+			if isAlways {
+				always[target] = true
 			}
 		}
 	}
-	return set
+	routed[injectPath] = true // the router itself: nothing cites a router's own headings
+	return always, routed
 }
 
 var linkPattern = regexp.MustCompile(`\]\(([^)]+\.md)\)`)
@@ -232,7 +236,7 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 	// "reads whole" from a bare mention in the citer cannot see this: nothing mentions the file,
 	// because inject.md loaded it. Without this the always-read set reads as the widest surface in the
 	// tree, which is the opposite of what being always-read means.
-	alwaysRead := readAlwaysSet(root, defined)
+	alwaysRead, _ := routerSets(root, defined)
 	kinds := kindBasenames(defined)
 	readsWhole := map[string]bool{}
 	for _, b := range bare {
@@ -443,6 +447,9 @@ func main() {
 		doorReach[e.to][e.from][e.section] = true
 	}
 
+	// The router's own view, for the unentered report: a file it loads is entered whole.
+	_, routed := routerSets(os.Args[1], defined)
+
 	var nodes []string
 	for f := range defined {
 		nodes = append(nodes, f)
@@ -489,8 +496,10 @@ func main() {
 			r.file, r.doorSections, r.doors, r.deep, r.precisionRef)
 	}
 
-	fmt.Println("\nUNENTERED  defined, but no file names it. In a skill that is normal — its sections are")
-	fmt.Println("           its own. In a standard it means a rule no other file can name.")
+	fmt.Println("\nUNENTERED  defined, but no file names it — a finding only where readers enter by section.")
+	fmt.Println("           A file the router loads is entered whole on its trigger, and a skill's sections")
+	fmt.Println("           are its own, so neither is listed. What remains is a file reached only by")
+	fmt.Println("           citation, holding a rule nothing reaches.")
 	unentered, unenteredShared := 0, 0
 	for _, f := range nodes {
 		var dead []string
@@ -504,7 +513,7 @@ func main() {
 			continue
 		}
 		unentered += len(dead)
-		if !strings.HasPrefix(f, "skills/") {
+		if !strings.HasPrefix(f, "skills/") && !routed[f] {
 			unenteredShared += len(dead)
 			fmt.Printf("  shared  %-34s %s\n", f, strings.Join(dead, ", "))
 		}
