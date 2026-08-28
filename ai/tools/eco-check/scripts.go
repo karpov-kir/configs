@@ -1,6 +1,7 @@
 package ecocheck
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,6 +27,28 @@ type parseResult struct {
 	script   string
 	findings []string
 }
+
+// Every (binary, script content) pair already seen to parse clean. `bash -n` reads the file and
+// nothing else, so under a fixed binary and a fixed locale it is a function of the script's bytes: a
+// file whose content another file has already parsed clean needs no process of its own.
+//
+// Only the clean answer is held. A parse *error* quotes the failing script's own path back, so a
+// second file with that content is parsed again to get its own message — which costs a fork exactly
+// where a run is already going to fail.
+//
+// Held for the process rather than the run, which is where the saving is: one check of this tree forks
+// 58 times over 29 distinct scripts and this memo cannot help it, while the suite drives the checker
+// once per case over fixtures that write the same four-line script again and again. Two runs sharing
+// this map cannot see each other, because a hit is keyed on the bytes and returns what the fork would
+// have returned for them.
+//
+// Keyed on SHA-256 and not on a cheaper digest: the reviewed tree writes the scripts, and a digest it
+// could collide would let a broken script inherit a clean one's answer.
+//
+// Unbounded in entries, deliberately. One entry costs a digest and a path, and one *miss* costs a
+// process — so a tree big enough to make this map matter has already spent hours forking, and a bound
+// here would be a guard nothing could ever observe.
+var cleanParses sync.Map
 
 // Skills reach their scripts by path (`scripts/report.sh …`), so a lost exec bit is a stage that
 // cannot run at all. And a script is parsed under every bash `#!/usr/bin/env bash` could resolve to:
@@ -67,10 +90,25 @@ func (c *checker) scanScriptsParse() {
 
 func parseErrors(binaries []string, script string) []string {
 	var findings []string
+	digest := scriptDigest(script)
 	for _, binary := range binaries {
+		key := binary + "\x00" + digest
+		if digest != "" {
+			if _, isClean := cleanParses.Load(key); isClean {
+				continue
+			}
+		}
 		command := exec.Command(binary, "-n", script)
 		command.Env = append(os.Environ(), "LC_ALL=C")
 		output, _ := command.CombinedOutput()
+		// Stored only when the parse was clean and the digest is one this process held: an error
+		// quotes the failing path back, so the next file with these bytes needs its own message.
+		if len(output) == 0 {
+			if digest != "" {
+				cleanParses.Store(key, struct{}{})
+			}
+			continue
+		}
 		// A parse error is reported over several lines and each becomes its own finding, so the
 		// split comes first and Oneline then sanitises what is left. One definition of a control
 		// byte, the same one every other finding is echoed through: this message quotes the
@@ -82,9 +120,23 @@ func parseErrors(binaries []string, script string) []string {
 	return findings
 }
 
-// Both are run even when they resolve to the same file, as the shell version ran them: the
-// duplicate findings collapse in the sort, and dropping one would silently stop checking the older
-// bash on a machine where PATH happens to hold it.
+// The content digest a memo entry is keyed on, or empty for a file this process will not hold in
+// memory — one over the read bound is parsed by its own process every time, exactly as before.
+func scriptDigest(script string) string {
+	info, err := os.Stat(script)
+	if err != nil || info.Size() > maxFileBytes {
+		return ""
+	}
+	content, err := os.ReadFile(script)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(content)
+	return string(sum[:])
+}
+
+// Both are run even when they resolve to the same file: the duplicate findings collapse in the sort,
+// and dropping one would silently stop checking the older bash on a machine where PATH holds it.
 func bashBinaries() []string {
 	var found []string
 	if path, err := exec.LookPath("bash"); err == nil {
@@ -111,16 +163,23 @@ func (c *checker) scanTestPositions() {
 	// Built once, and from basenames the reviewed tree cannot forge: a filename holding a newline
 	// would otherwise contribute its second line as a bare suite name, and a header naming a missing
 	// suite would then pass the existence check.
+	//
+	// Two maps over one walk, because a header writes its suite as a basename and this scan has to
+	// answer two different questions about that name. `suites` answers whether any file answers to it
+	// at all. `carriers` answers *which*, and that is the half a basename alone cannot: two lanes both
+	// carrying `report-test.sh` weld into one name, and a header naming it is then satisfied by a
+	// suite in the other lane that never sees this script.
 	suites := map[string]bool{}
+	carriers := map[string][]string{}
 	for _, path := range c.filesNamed(c.root.Named(), "*-test.sh") {
 		if name := shell.BaseName(path); isCleanBasename(name) {
 			suites[name] = true
+			carriers[name] = append(carriers[name], path)
 		}
 	}
 	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
-		base := shell.BaseName(script)
 		// The harness is exempt: asking a test file to name its own test makes every one a finding.
-		if strings.HasSuffix(base, "-test.sh") || strings.HasSuffix(base, "-mutate.sh") {
+		if isTestHarness(script) {
 			continue
 		}
 		lines, err := c.readLines(script)
@@ -131,9 +190,13 @@ func (c *checker) scanTestPositions() {
 		named := shell.SortUnique(allMatches(header, namedTestSuite))
 		// The count is of the 200-line window, never of the file: past that bound nothing was read,
 		// so a header carrying thousands of names would report the window's total as the file's.
+		//
+		// Every finding below names the script by its path and not by the basename it used to. Two
+		// lanes carrying one basename produced byte-identical findings, and identical findings collapse
+		// in the sort, so one of the two scripts went unmentioned by the check that had just found it.
 		if len(named) > 8 {
 			c.add(fmt.Sprintf("script names more suites than the scan reads: %s names %d in its first 200 lines, of which 8 are read",
-				shell.Oneline(base), len(named)))
+				shell.Oneline(script), len(named)))
 		}
 		if len(named) > 8 {
 			named = named[:8]
@@ -141,16 +204,49 @@ func (c *checker) scanTestPositions() {
 		if len(named) > 0 {
 			for _, suite := range named {
 				if !suites[suite] {
-					c.add("script names a missing test: " + shell.Oneline(base) + " names " + shell.Oneline(suite))
+					c.add("script names a missing test: " + shell.Oneline(script) + " names " + shell.Oneline(suite))
+					continue
+				}
+				if suiteIsAmbiguous(script, suite, carriers[suite]) {
+					c.add(fmt.Sprintf("script names an ambiguous test: %s names %s, which %d files answer to and none of them sits beside it — nothing here says which one covers it",
+						shell.Oneline(script), shell.Oneline(suite), len(carriers[suite])))
 				}
 			}
 			continue
 		}
 		if !anyMatch(header, untestedDeclared) {
-			c.add("script declares no test position: " + shell.Oneline(base) +
+			c.add("script declares no test position: " + shell.Oneline(script) +
 				" names no -test.sh and carries no '# untested: <why>'")
 		}
 	}
+}
+
+// Whether a suite name in a header names no one file. A file of that name sitting beside the script
+// resolves it — "a case in <suite> beside it" is what the header says, and the tree answers it. So
+// does a name only one file anywhere under the root carries. What is left is two or more files under
+// one basename with none of them a sibling, and nothing in the tree says which of them covers this
+// script: kk-reduce's Phase 6 reads this header to pick what to run, and picking by nothing is how a
+// script comes to count as covered by a suite that never sees it. Reported, never chosen between.
+func suiteIsAmbiguous(script, suite string, carriers []string) bool {
+	if len(carriers) < 2 {
+		return false
+	}
+	sibling := shell.Join(shell.DirName(script), suite)
+	for _, path := range carriers {
+		if path == sibling {
+			return false
+		}
+	}
+	return true
+}
+
+// A script the tree treats as harness rather than as instruction: a suite, and the mutation list that
+// drives one. Held in one predicate because two scans turn on it and they must not drift into
+// different ideas of what a harness is — the test-position scan asks nothing of these files, and the
+// citation scan tells their author what to do about a fixture it just read as a citation.
+func isTestHarness(path string) bool {
+	base := shell.BaseName(path)
+	return strings.HasSuffix(base, "-test.sh") || strings.HasSuffix(base, "-mutate.sh")
 }
 
 // Reading past the leading comment block would let a `-test.sh` named anywhere in the body clear the
@@ -191,10 +287,10 @@ func anyMatch(lines []string, pattern *regexp.Regexp) bool {
 }
 
 // A block fenced `# --- shared:<name> ---` … `# --- end shared:<name> ---` must be byte-identical
-// everywhere that name appears. Two scripts in different skills duplicate these on purpose — a
-// shared file would make one skill's tooling depend on another's, and this runs inside a worktree of
-// code it did not write, where sourcing a file is executing it. That tolerance holds only while
-// drift is *detected* (ecosystem.md → **Prefer the mechanism**).
+// everywhere that name appears. Two scripts in different skills duplicate these on purpose: a shared
+// file would make one skill's tooling depend on another's, and this runs inside a worktree of code it
+// did not write, where sourcing a file is executing it. That tolerance holds only while drift is
+// *detected* (ecosystem.md → **Prefer the mechanism**).
 func (c *checker) scanSharedRegions() {
 	copies := map[string][]regionBody{}
 	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
@@ -252,7 +348,7 @@ func regionsIn(lines []string) map[string]regionBody {
 		current := found[region]
 		// Bounded: a region body is as attacker-controlled as the file it sits in, and an
 		// *unterminated* fence swallows the rest of the file. Past the cap the region is reported
-		// rather than compared — an unchecked region must never read as a matching one.
+		// rather than compared: an unchecked region must never read as a matching one.
 		if len(current.body) >= 262144 {
 			current.isOversize = true
 			found[region] = current

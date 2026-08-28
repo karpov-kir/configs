@@ -31,9 +31,13 @@ const (
 	uncounted   = "uncounted import"
 	undelimited = "undelimited section citation"
 	missingTest = "script names a missing test"
+	welded      = "script names an ambiguous test"
 	noPosition  = "script declares no test position"
 	notRegular  = "citation target is not a regular file"
 	bareRule    = "bare rule-ID citation"
+	dangling    = "dangling section ref"
+	unresolved  = "unresolvable citation path"
+	uncheckable = "uncheckable citation"
 )
 
 // The lane fixture the citation and basename cases share cites its script by this path. It is a
@@ -121,6 +125,18 @@ func (f *fixture) newLaneWithScript() {
 	f.newScript("kk-humanize/scripts/comment-density.sh", "true")
 }
 
+// Two mounted lanes, one of them holding a script the other does not. Both halves of the basename
+// scan's uniqueness gate are then live on one tree: `SKILL.md` is a name two lanes carry, and
+// `comment-density.sh` is a name one lane carries. A tree with only the first has no unique lane
+// basename at all, and the scan the case is written against never runs.
+func newTwoLaneTree(t *testing.T) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.newLaneWithScript()
+	f.newMountedSkill("kk-drive")
+	return f
+}
+
 // A committed filename holding a newline — the shape every forgery case here turns on. Writing a
 // plain name instead would satisfy the assertion while testing nothing, so a filesystem that refuses
 // one stops the case rather than leaving it to pass on a fixture it never got.
@@ -197,11 +213,35 @@ func (f *fixture) chmod(path string, mode os.FileMode) {
 // t.Setenv instead of quietly racing one.
 func (f *fixture) run() string {
 	f.t.Helper()
+	f.isolate()
+	return f.check()
+}
+
+// The same tree checked twice in one process, and the second check's output. Nothing the checker
+// carries between runs is meant to change what it reports, and the `bash -n` memo is the one piece
+// held across them: a case about what that memo holds cannot be written against a single run, because
+// within one run the parse workers reach both copies of a script before either has stored anything.
+func (f *fixture) runTwice() string {
+	f.t.Helper()
+	f.isolate()
+	f.check()
+	return f.check()
+}
+
+// HOME is process-global, so a case that needs its own mount has to run alone and every other case
+// can run alongside the rest. That decision is made once per case, here, because a case running twice
+// may call neither t.Setenv nor t.Parallel a second time.
+func (f *fixture) isolate() {
+	f.t.Helper()
 	if f.home != "" {
 		f.t.Setenv("HOME", f.home)
-	} else {
-		f.t.Parallel()
+		return
 	}
+	f.t.Parallel()
+}
+
+func (f *fixture) check() string {
+	f.t.Helper()
 	var output bytes.Buffer
 	if status := ecocheck.Run(f.root, &output, &output); status == 2 {
 		f.t.Fatalf("Run exited 2 — nothing was checked, so this case cannot be trusted\n%s", indent(output.String()))
@@ -224,6 +264,24 @@ func (f *fixture) doesNotReport(needle string) {
 	output := f.run()
 	if strings.Contains(output, needle) {
 		f.t.Errorf("expected no finding containing %q\n%s", needle, indent(output))
+	}
+}
+
+// The same two assertions against a second check of the same tree — what the run before it left
+// behind must not change what this one says.
+func (f *fixture) reportsOnASecondRun(needle string) {
+	f.t.Helper()
+	output := f.runTwice()
+	if !strings.Contains(output, needle) {
+		f.t.Errorf("expected a second run to still report %q\n%s", needle, indent(output))
+	}
+}
+
+func (f *fixture) doesNotReportOnASecondRun(needle string) {
+	f.t.Helper()
+	output := f.runTwice()
+	if strings.Contains(output, needle) {
+		f.t.Errorf("expected a second run to still report nothing containing %q\n%s", needle, indent(output))
 	}
 }
 

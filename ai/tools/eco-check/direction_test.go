@@ -29,17 +29,43 @@ func TestDirectionScan(t *testing.T) {
 		f.reportedViaFindings(cites)
 	})
 
-	// The fourth form is not legal: ecosystem.md → **One home** bans a file the skill owns too. It is
-	// quiet *here* only because the fixture mounts no skill — in any tree that holds `idsd-qualify`,
-	// this scan reports the path and the bare-name scan below reports the name.
-	t.Run("stays quiet on the four forms that are not a path into a SKILL.md", func(t *testing.T) {
+	// The four forms that wear the shape of a path into a lane, one case each. Written as four cases
+	// and not as one file carrying four lines, because merged they hid two defects that a reader cannot
+	// see and a single assertion cannot separate: a form quiet for no reason at all is
+	// indistinguishable from one a guard keeps quiet, and a form quiet because the fixture was too thin
+	// to reach the scan is indistinguishable from both. Each case below goes red when its own guard is
+	// removed, and nothing else here does that work for it.
+	//
+	// The two path-shaped forms turn on one guard: the run before `/SKILL.md` must open on a name
+	// character, or a glob's or a placeholder's bare `/SKILL.md` tail matches on its own.
+	t.Run("stays quiet on a glob over the lanes, which names no one lane", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/legal.md",
-			"a glob names the set: `~/.claude/skills/*/SKILL.md`\n"+
-				"a bare name is not a path: run it per its SKILL.md\n"+
-				"a placeholder: `~/.claude/skills/<skill name>/SKILL.md`\n"+
-				"a file the skill owns that is not its body: `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`\n")
+		f.write(f.root+"/kk-flavor/standards/legal.md", "a glob names the set: `~/.claude/skills/*/SKILL.md`\n")
 		f.doesNotReport(cites)
+	})
+
+	t.Run("stays quiet on a placeholder segment, which names no lane either", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/standards/legal.md", "a placeholder: `~/.claude/skills/<skill name>/SKILL.md`\n")
+		f.doesNotReport(cites)
+	})
+
+	// The third form, a bare `SKILL.md`, carries no path at all, so the cites scan is not what governs
+	// it and asserting against that scan observes nothing. The basename scan is, and its own guard is
+	// uniqueness: "stays quiet on a basename more than one lane carries" below is that form's case,
+	// with the control that says its fixture reaches the scan.
+	//
+	// The fourth form, which the merged case asserted silence for and should not have: ecosystem.md →
+	// **One home** bans a path into a lane whatever the file at the end of it is — "not a section, not
+	// a file it owns, not a script it ships" — and a template is a file the lane owns. It was quiet
+	// only because that fixture mounted no skill, so the assertion held on a tree where the rule had
+	// nothing to be broken against, and went on holding while every real tree broke it.
+	t.Run("fires on a path into a template a lane owns", func(t *testing.T) {
+		f := newRoot(t)
+		f.newMountedSkill("idsd-qualify")
+		f.write(f.root+"/kk-flavor/standards/x.md",
+			"the prompt is `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`\n")
+		f.reports(cites)
 	})
 
 	t.Run("does not read a violation through a symlinked CLAUDE.md", func(t *testing.T) {
@@ -173,13 +199,20 @@ func TestDirectionScan(t *testing.T) {
 
 	// Uniqueness is the gate. A basename every lane carries names the kind of file, not one lane's
 	// copy, so two mounted skills are the fixture: with one, `SKILL.md` resolves uniquely and this
-	// case cannot fail.
+	// case cannot fail. The third lane file is what makes the fixture reach the scan at all — the scan
+	// is entered only where some lane basename is unique, and a tree of nothing but `SKILL.md` has
+	// none, so without it this case is quiet because no basename was looked at. The control after it
+	// is what says otherwise.
 	t.Run("stays quiet on a basename more than one lane carries", func(t *testing.T) {
-		f := newRoot(t)
-		f.newMountedSkill("kk-drive")
-		f.newMountedSkill("kk-humanize")
+		f := newTwoLaneTree(t)
 		f.write(f.root+"/kk-flavor/standards/x.md", "a bare name is not a path: run it per its SKILL.md\n")
 		f.doesNotReport(basenames)
+	})
+
+	t.Run("while firing on this same tree's unique lane basename (control for the case above)", func(t *testing.T) {
+		f := newTwoLaneTree(t)
+		f.write(f.root+"/kk-flavor/standards/x.md", "the density gate is `comment-density.sh`\n")
+		f.reports(basenames)
 	})
 
 	// A name the shared layer carries is not in the set. Here nothing under skills/ carries it either,

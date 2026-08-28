@@ -37,8 +37,14 @@ func rank(line string) int {
 		{"skill mounted elsewhere", 1},
 		{"budget file refused", 2},
 		{"script names a missing test", 2},
+		{"script names an ambiguous test", 2},
 		{"script names more suites than the scan reads", 2},
 		{"basename not checked", 2},
+		{"subcommand call sites not checked", 2},
+		// The bound this scan withheld subcommands under. It reached the screen before only because it
+		// sorted ahead of the basename its own findings led with, which is byte order and not a rank: a
+		// tree whose stub is named `alpha.sh` buried it under the findings it exists to qualify.
+		{"subcommand call-site scan is at its", 2},
 		{"script not executable", 3},
 		{"skill name/dir mismatch", 3},
 		{"import refused", 4},

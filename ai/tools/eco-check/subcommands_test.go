@@ -1,10 +1,8 @@
 package ecocheck_test
 
-// Every subcommand a dispatch accepts has a documented call site — and the scan says so when it cannot
-// tell what a dispatch accepts. The shell-to-Go migration moved report.sh's `case` dispatch into a Go
-// switch behind a 57-line stub, and the scan then found no `case` in any stub and reported nothing for
-// all fourteen of its subcommands. Silence is the failure these cases exist to keep out: a scan that
-// reports nothing where it used to report reads to every caller as a pass it did not earn.
+// Every subcommand a dispatch accepts has a documented call site, and the scan says so when it cannot
+// tell what a dispatch accepts. Silence is the failure these cases exist to keep out: a scan that
+// reports nothing reads to every caller as a pass it did not earn.
 
 import (
 	"fmt"
@@ -14,7 +12,8 @@ import (
 
 const (
 	noCallSite      = "subcommand with no call site"
-	unreadable      = "cannot read toy.sh's dispatch"
+	weldedName      = "subcommand call sites not checked"
+	unreadable      = "/skills/toy.sh's dispatch"
 	acceptsUnnamed  = "accepts a subcommand its usage does not name"
 	namesUnaccepted = "usage names a subcommand its dispatch does not accept"
 )
@@ -70,8 +69,6 @@ func TestGoDispatchSubcommandCallSites(t *testing.T) {
 		f.doesNotReport(noCallSite + ": beta")
 	})
 
-	// The half the stub broke. Both lists are read off the tree, so a subcommand present in either
-	// has to be checked — and neither list may be the only one that ever answers.
 	t.Run("reads a grammar wrapped across comment lines", func(t *testing.T) {
 		newWrappedGrammarStub(t).reports(noCallSite + ": gamma")
 	})
@@ -90,8 +87,8 @@ func TestGoDispatchSubcommandCallSites(t *testing.T) {
 	})
 }
 
-// The regression itself: the scan could not enumerate, and returned nothing. Either way it could fail
-// to read a dispatch, it has to say which way — and then check what it does know rather than nothing.
+// Either way the scan can fail to read a dispatch, it has to say which way, and then check what it
+// does know rather than nothing.
 func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
 	t.Run("fires when the tool ships no source to read a dispatch out of", func(t *testing.T) {
 		newStubWithoutSource(t).reports(unreadable)
@@ -113,8 +110,8 @@ func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
 		newStubWithUnmarkedSource(t).reports("no switch under")
 	})
 
-	// A stub that names no grammar and a tool that holds no dispatch takes no subcommand: check.sh
-	// and stats.sh each take a root and nothing else. That is a determination, not a failure.
+	// A stub naming no grammar over a tool holding no dispatch takes no subcommand. That is a
+	// determination, not a failure.
 	t.Run("stays quiet on a stub whose tool takes no subcommand at all", func(t *testing.T) {
 		f := newRoot(t)
 		f.mkdirAll(f.root + "/tools/toy")
@@ -140,9 +137,7 @@ func TestUsageAndDispatchAreHeldAgainstEachOther(t *testing.T) {
 	})
 }
 
-// The bound on how many subcommands one scan carries: each costs a substring test per file, and the
-// dispatch they were read from is a file the reviewed branch wrote. It has to *report*, never quietly
-// check fewer than it looks like it checked.
+// The bound has to *report* what it dropped, never quietly check fewer than it looks like it checked.
 func TestSubcommandCountIsBounded(t *testing.T) {
 	// The usage names every arm the dispatch has, deliberately: a fixture where the two lists disagree
 	// floods the one finding class both cases read out of, and the control below would then fail on
@@ -166,14 +161,75 @@ func TestSubcommandCountIsBounded(t *testing.T) {
 		newFloodedDispatch(t).reports("were NOT checked")
 	})
 
+	// Presence alone is not enough here, and it was all this pinned: the notice reached the screen
+	// because it sorted ahead of the basename the findings led with, and the day those findings led
+	// with a path instead, the per-class cap dropped the one line saying the scan had stopped checking.
+	t.Run("and ranks that notice above the findings it qualifies", func(t *testing.T) {
+		newFloodedDispatch(t).ranksAbove("were NOT checked", noCallSite)
+	})
+
 	// Without this the case above passes on a run that checked none of them.
 	t.Run("and carries the ones up to the bound (control for the case above)", func(t *testing.T) {
 		newFloodedDispatch(t).reports(noCallSite + ": s001")
 	})
 }
 
-// A stub reaching a Go tool, and that tool's source — the shape report.sh and eco-report have had since
-// the shell implementation moved into Go. The stub is a stub: what it declares is the tool it execs.
+// A call site is written as a basename, so that is the search token; the attribution is not. Two
+// scripts under one name had their dispatches read into a single set, and a call site for either then
+// answered for both — the cheapest mute the scan has, since committing a second `report.sh` anywhere
+// under the root silently stops every subcommand of the first from being checked.
+func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
+	newSharedScriptName := func(t *testing.T) *fixture {
+		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
+		f.newScript("other/scripts/toy.sh", "#!/usr/bin/env bash\n# untested: fixture\ntrue")
+		return f
+	}
+
+	t.Run("reports the scripts sharing a name", func(t *testing.T) {
+		newSharedScriptName(t).reports(weldedName)
+	})
+
+	// The count is what says how many, because the printer bounds the line and the last path on a long
+	// one can be cut; the first is in a fixed position and is asserted whole.
+	t.Run("and names how many and which", func(t *testing.T) {
+		f := newSharedScriptName(t)
+		f.reports("2 scripts are named toy.sh (" + f.root + "/skills/other/scripts/toy.sh, ")
+	})
+
+	// The report replaces the check rather than sitting beside it. A finding that cannot be attributed
+	// to one of two files is not printed against either.
+	t.Run("and withholds the finding it can no longer attribute", func(t *testing.T) {
+		newSharedScriptName(t).doesNotReport(noCallSite + ": beta")
+	})
+
+	// Without this the case above passes on a fixture whose dispatch was never read.
+	t.Run("while one script of that name is checked as before (control)", func(t *testing.T) {
+		newToolStub(t, "toy.sh {alpha|beta}", toyDispatch).reports(noCallSite + ": beta")
+	})
+
+	t.Run("and names that one by path, not by basename", func(t *testing.T) {
+		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
+		f.reports(f.root + "/skills/toy.sh " + noCallSite + ": beta")
+	})
+
+	// The findings that go on being printed for a welded name. Each is about one stub's own grammar,
+	// so each still fires, and each used to lead with the basename: two of them then read identically
+	// and collapsed in the sort, leaving one line for two files and no way to tell which. The scan has
+	// no answer here, so the finding says how many rather than naming the first and calling it fact.
+	t.Run("says a dispatch finding names one of several files rather than guessing", func(t *testing.T) {
+		f := newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch)
+		f.newScript("other/scripts/toy.sh", "#!/usr/bin/env bash\n# untested: fixture\ntrue")
+		f.reports("toy.sh (one of the 2 files of that name — which is not in the tree) " + namesUnaccepted)
+	})
+
+	// Without this the case above passes on a tree where the two stubs never disagreed at all.
+	t.Run("while one script of that name is named by its path (control)", func(t *testing.T) {
+		f := newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch)
+		f.reports(f.root + "/skills/toy.sh " + namesUnaccepted)
+	})
+}
+
+// A stub reaching a Go tool, and that tool's source: the shape report.sh and eco-report have.
 func newToolStub(t *testing.T, usage, source string) *fixture {
 	t.Helper()
 	f := newRoot(t)

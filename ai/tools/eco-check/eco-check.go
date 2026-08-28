@@ -34,6 +34,15 @@ type checker struct {
 	findings []string
 	trees    map[string]*tree
 
+	// Which file holds each heading in the tree, built on the first dangling citation and never for
+	// a clean tree. It names the one dangling variant the cited file's own contents cannot: the
+	// section is real and the file moved.
+	headingOwners map[string]string
+
+	// Every script under the root, by the basename a call site names it with. A basename is not a
+	// file, so a finding reached through one resolves it back to a path here, or says it cannot.
+	scriptOwners map[string][]string
+
 	// The refused budget files are named in their findings, so their count is bounded too.
 	budgetRefusals int
 }

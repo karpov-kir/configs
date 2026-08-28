@@ -4,6 +4,8 @@ package ecocheck_test
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -107,6 +109,74 @@ func TestScriptTestPosition(t *testing.T) {
 	})
 }
 
+// A header writes its suite as a basename, and the scan has to reach a file from it. Two lanes
+// carrying one `-test.sh` name weld into a name that answers for both, and a header naming it was
+// then satisfied by a suite in the other lane that never sees this script — the same defect as naming
+// a suite that does not exist, one step subtler, because the phase that runs it does find something.
+func TestANamedSuiteResolvesToAFileAndNotToABasename(t *testing.T) {
+	// The script naming the suite sits beside neither carrier, so only the basename connects them.
+	newSharedSuiteName := func(t *testing.T, withSecondCarrier bool) *fixture {
+		f := newRoot(t)
+		f.newScript("one/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
+		if withSecondCarrier {
+			f.newScript("two/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
+		}
+		f.newScript("three/scripts/tool.sh", "#!/usr/bin/env bash\n# a change here needs a case in shared-test.sh\ntrue")
+		return f
+	}
+
+	// Without this the case below passes on a scan that calls every named suite ambiguous.
+	t.Run("accepts a suite name only one file answers to (control for the case below)", func(t *testing.T) {
+		newSharedSuiteName(t, false).doesNotReport(welded)
+	})
+
+	t.Run("reports one two files answer to rather than picking either", func(t *testing.T) {
+		newSharedSuiteName(t, true).reports(welded)
+	})
+
+	// Not reported as missing: the name does answer to files, and a reader sent to write a suite that
+	// is already there twice would look for a defect that is not the one there is.
+	t.Run("and does not call that name missing", func(t *testing.T) {
+		newSharedSuiteName(t, true).doesNotReport(missingTest)
+	})
+
+	// The sibling is what "a case in <suite> beside it" names, so the tree answers which file was
+	// meant and there is nothing left to report — even while another lane carries the same name.
+	t.Run("resolves a shared name through the suite sitting beside the script", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("one/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
+		f.newScript("two/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
+		f.newScript("two/scripts/tool.sh", "#!/usr/bin/env bash\n# a change here needs a case in shared-test.sh\ntrue")
+		f.doesNotReport(welded)
+	})
+}
+
+// Every finding of this scan names the script by path. Named by basename, two lanes' findings were
+// byte-identical, and identical findings collapse in the sort: one of the two scripts went unmentioned
+// by the check that had just found it.
+func TestATestPositionFindingNamesTheScriptByPath(t *testing.T) {
+	newTwoScriptsUnderOneName := func(t *testing.T) *fixture {
+		f := newRoot(t)
+		for _, lane := range []string{"one", "two"} {
+			f.newScript(lane+"/scripts/claims.sh",
+				"#!/usr/bin/env bash\n# a change here needs a case in claims-test.sh beside it.\ntrue")
+		}
+		return f
+	}
+
+	t.Run("reports both scripts, not one of them twice", func(t *testing.T) {
+		f := newTwoScriptsUnderOneName(t)
+		if count, output := f.countLinesStartingWith("script names a missing test:"); count != 2 {
+			t.Errorf("expected one finding per script, got %d\n%s", count, indent(output))
+		}
+	})
+
+	t.Run("and names a path a reader can open", func(t *testing.T) {
+		f := newTwoScriptsUnderOneName(t)
+		f.reports("script names a missing test: " + f.root + "/skills/one/scripts/claims.sh names claims-test.sh")
+	})
+}
+
 // `bash -n` quotes the script's path and its own text back, and the path is a filename the reviewed
 // tree chose. That is the one message built from bytes this checker did not write, and it went through
 // a hand-rolled control-byte range rather than the definition every other message uses.
@@ -125,6 +195,73 @@ func TestParseErrorsCarryNoControlByte(t *testing.T) {
 	t.Run("and no control byte reaches the output", func(t *testing.T) {
 		newEscapedScriptName(t).doesNotReport("\x1b")
 	})
+}
+
+// `bash -n` reads the script and nothing else, so two files holding the same bytes have the same
+// answer and the second needs no process of its own. What must never follow from that is a broken
+// script inheriting a clean one's silence, which is why only the clean answer is held.
+//
+// Every case here checks the tree twice, because the memo is held for the process and one run cannot
+// observe it: the parse workers reach both copies of a script at once, and neither has stored
+// anything yet. Every fixture carries a marker line of its own for the same reason — the cases share
+// one memo, so a fixture reusing another's bytes would pass on the answer that case's fork left.
+func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
+	// The half that would be a silent hole. Both copies are reported by their own path on a run where
+	// the bytes have been seen before, or a tree hides a broken script behind a clean one.
+	t.Run("reports a broken script on a run that has already parsed its bytes", func(t *testing.T) {
+		f := newRepeatedScript(t, "repeated-broken", "if then")
+		f.reportsOnASecondRun(f.root + "/skills/second.sh: line 2")
+	})
+
+	t.Run("and reports the first copy of it too", func(t *testing.T) {
+		f := newRepeatedScript(t, "repeated-broken-b", "if then")
+		f.reportsOnASecondRun(f.root + "/skills/first.sh: line 2")
+	})
+
+	// Keyed on the whole content, not on a stand-in for it. The two scripts below are the same length
+	// and differ by their last byte, so a memo keyed on anything coarser answers for both.
+	t.Run("parses a script differing from a clean one by its last byte alone", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("clean.sh", "# marker: one-byte\ntrue; :")
+		f.newScript("broken.sh", "# marker: one-byte\ntrue; (")
+		f.reportsOnASecondRun("syntax: ")
+	})
+
+	// The other direction: the saving must not become a finding of its own.
+	t.Run("stays quiet on two copies of a script that parses", func(t *testing.T) {
+		newRepeatedScript(t, "repeated-clean", "# untested: fixture\ntrue").doesNotReportOnASecondRun("syntax: ")
+	})
+}
+
+// Two scripts holding the same bytes, marked so no other case's fork can answer for them.
+func newRepeatedScript(t *testing.T, marker, body string) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.newScript("first.sh", "# marker: "+marker+"\n"+body)
+	f.newScript("second.sh", "# marker: "+marker+"\n"+body)
+	return f
+}
+
+// A script is parsed under every bash `#!/usr/bin/env bash` could resolve to, because macOS still
+// ships 3.2 as /bin/bash and it rejects what bash 5 accepts. The memo is per binary for that reason,
+// and this is the case that says so: `|&` parses under bash 4 and later and is a syntax error before
+// it, so one binary answering for the other loses the finding entirely.
+func TestEachBashVersionIsAskedSeparately(t *testing.T) {
+	if !refusesTheBash4Pipe(t, "/bin/bash") || refusesTheBash4Pipe(t, "bash") {
+		t.Skip("this machine has no pair of bash binaries that disagree about `|&`, so nothing here separates them")
+	}
+	f := newRoot(t)
+	f.newScript("v4.sh", "# untested: fixture\ntrue |& cat")
+	f.reportsOnASecondRun("syntax: ")
+}
+
+func refusesTheBash4Pipe(t *testing.T, binary string) bool {
+	t.Helper()
+	path := t.TempDir() + "/probe.sh"
+	if err := os.WriteFile(path, []byte("true |& cat\n"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	return exec.Command(binary, "-n", path).Run() != nil
 }
 
 func newCoveredScript(t *testing.T) *fixture {
