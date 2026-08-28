@@ -58,16 +58,20 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "stats.sh: measured 0 words of prose under %s — the scan did not work\n", s.root.Named())
 		return 2
 	}
+	// Reported before the refusal below, not after it: prose, scripts, the ledger and skills all
+	// measured, and withholding four sound figures to protect the one short figure leaves the caller
+	// nothing to read at all. The always-loaded line states its own shortfall.
+	s.report(out)
+
 	// The refusals were named above as they happened; this is the one place their count decides
-	// anything. Nothing is printed and no row is appended, because the always-loaded figure is short
-	// by an amount nothing here can state.
+	// anything. No row is appended, because the always-loaded figure is short by an amount nothing
+	// here can state — what a refusal withholds is the record, not the reading.
 	if s.budgetRefusals != 0 {
 		fmt.Fprintf(errOut, "stats.sh: %d budget file(s) refused above — exit 2, the always-loaded figure is short by an unknown amount and no row was appended.\n",
 			s.budgetRefusals)
 		return 2
 	}
 
-	s.report(out)
 	if note == "" {
 		return 0
 	}
@@ -102,13 +106,13 @@ func noteFrom(args []string, errOut io.Writer) (note string, rest []string, ok b
 // The note is stats.md's last table cell: a newline in it forges a whole row, a bare `|` forges extra
 // columns, and a later pass reads either as a measurement. Backslashes before pipes, never the other
 // way round, or the escape added here is escaped in turn and the pipe comes back through.
+//
+// Every control byte goes, not only the two that forge rows. The note is committed, read back by a
+// later pass, and printed to a terminal on the way past, so an ESC left in it edits the display of
+// everyone who later reads the ledger. shell.Oneline is the guard the reported names already get:
+// a byte barred from a message has no claim to the record.
 func sanitiseNote(note string) string {
-	note = strings.Map(func(r rune) rune {
-		if r == '\n' || r == '\r' {
-			return ' '
-		}
-		return r
-	}, note)
+	note = shell.Oneline(note)
 	note = strings.ReplaceAll(note, `\`, `\\`)
 	return strings.ReplaceAll(note, "|", `\|`)
 }

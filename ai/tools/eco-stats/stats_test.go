@@ -45,24 +45,49 @@ func TestAgreementWithCheck(t *testing.T) {
 }
 
 func TestAShortFigureNeverReachesTheLedger(t *testing.T) {
-	t.Run("exits 2 and says why, on an unreadable budget file", func(t *testing.T) {
-		f := newUnreadableBudgetFile(t)
-		stdout, stderr, status := f.run(f.root)
-		if status != 2 || !strings.Contains(stdout+stderr, "budget file refused") {
-			t.Errorf("status: %d\n%s", status, indent(stdout+stderr))
-		}
-	})
+	for _, fixture := range refusedBudgetFixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Run("exits 2 and says why, on a refused budget file", func(t *testing.T) {
+				f := fixture.build(t)
+				stdout, stderr, status := f.run(f.root)
+				if status != 2 || !strings.Contains(stdout+stderr, "budget file refused") {
+					t.Errorf("status: %d\n%s", status, indent(stdout+stderr))
+				}
+			})
 
-	// This can't be an agreement case: nothing prints a figure at all on an exit 2, so the comparison
-	// would put ecocheck's number against an empty string and go red whatever ecocheck did — saying
-	// nothing about the refusal asserted here.
-	t.Run("and check.sh refuses it too, rather than counting a file it cannot read", func(t *testing.T) {
-		f := newUnreadableBudgetFile(t)
-		output := f.checkOutput()
-		if !strings.Contains(output, "budget file refused") {
-			t.Errorf("%s", indent(output))
-		}
-	})
+			// Both tools print their figure on this path, so the agreement is meaningful here: each is
+			// short by the same refused file, and a disagreement is one of them counting a file it
+			// could not read.
+			t.Run("and check.sh refuses it too, reporting the same router figure rather than counting it", func(t *testing.T) {
+				f := fixture.build(t)
+				output := f.checkOutput()
+				if !strings.Contains(output, "budget file refused") {
+					t.Errorf("%s", indent(output))
+				}
+				f.assertScriptsAgree()
+			})
+		})
+	}
+}
+
+func TestAShortFigureIsStillReported(t *testing.T) {
+	// Withholding the row is not withholding the reading. Prose, scripts, the ledger and skills all
+	// measured, and a caller handed an empty report cannot tell a refused budget file from a tree
+	// that vanished.
+	for _, fixture := range refusedBudgetFixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Run("a refused budget file still prints every figure, and marks the short one apart from `+`", func(t *testing.T) {
+				f := fixture.build(t)
+				stdout, _, status := f.run(f.root)
+				// `uncounted import` is the `+` lower-bound note. A refusal supports no lower bound, so
+				// borrowing that wording here would teach a reader to read a floor off a figure that has none.
+				if status != 2 || !strings.Contains(stdout, "prose:") ||
+					!strings.Contains(stdout, "SHORT:") || strings.Contains(stdout, "uncounted import") {
+					t.Errorf("status: %d (want 2)\n%s", status, indent(stdout))
+				}
+			})
+		})
+	}
 }
 
 func TestTheLedgerIsMeasuredApartFromTheInstructions(t *testing.T) {
@@ -205,6 +230,29 @@ func TestTheNoteCannotForgeALedgerRow(t *testing.T) {
 	})
 }
 
+func TestTheNoteCannotCarryAControlByteIntoTheLedger(t *testing.T) {
+	// The note is written by whoever ran the skill, committed, and read back by a later pass. `\x1b[2K`
+	// erases the line it lands on, so an ESC left in it edits the terminal of everyone who later reads
+	// the ledger — the byte TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw bars from a message,
+	// barred here from the record.
+	t.Run("an ESC in the note reaches neither the ledger nor the terminal", func(t *testing.T) {
+		f := newRoot(t)
+		ledger := f.newLedger("| date | prose | scripts | always-loaded | skills | what ran |\n|---|---|---|---|---|---|\n")
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+		before := rowsIn(t, ledger)
+		stdout, stderr, status := f.run("--append", "ran a pass\x1b[2K and stopped", f.root)
+		written := readFile(t, ledger)
+		appended := rowsIn(t, ledger) - before
+
+		// The row has to have landed: a run that appended nothing carries no ESC either, and would
+		// pass a byte check while saying nothing about sanitising.
+		if appended != 1 || strings.Contains(written+stdout+stderr, "\x1b") {
+			t.Errorf("status: %d\nrows appended: %d (want 1)\n%s", status, appended,
+				indent(strings.ReplaceAll(written+stdout+stderr, "\x1b", "<ESC>")))
+		}
+	})
+}
+
 func TestAMissingLedgerIsOpenedWithAHeaderAReaderCanUse(t *testing.T) {
 	// The only case that leaves stats.md out of the fixture, so it is the only one that reaches the
 	// header written when the ledger does not exist. Every other --append case creates the file first
@@ -262,12 +310,66 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 // The tree's own ledger, from the package directory `go test` runs in.
 const liveLedger = "../../skills/kk-reduce/stats.md"
 
+// The two ways a budget file gets refused, run through the same cases. `containedInRoot` refuses a
+// symlink, a non-regular file and an unreadable one with one message, so either builder reaches the
+// refusal — but only the second can be built by every process. Both are here rather than only the
+// portable one: the mode-000 file is the sole cover for the `isReadable` limb, and dropping it would
+// leave that limb passing on its neighbours.
+var refusedBudgetFixtures = []struct {
+	name  string
+	build func(*testing.T) *fixture
+}{
+	{"unreadable by mode", newUnreadableBudgetFile},
+	{"a directory where the budget file belongs", newRefusedBudgetFile},
+}
+
+// True when a mode of 000 actually stops this process reading. Probed rather than compared against
+// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
+// carry the bit behave the same way, and all three make the fixture below a file the tool reads
+// happily. Answering by observation means this needs no list of the environments that lie.
+func modeDeniesRead(t *testing.T) bool {
+	t.Helper()
+	probe := t.TempDir() + "/probe"
+	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
+		t.Fatalf("write probe: %v", err)
+	}
+	if err := os.Chmod(probe, 0o000); err != nil {
+		t.Fatalf("chmod probe: %v", err)
+	}
+	file, err := os.Open(probe)
+	if err != nil {
+		return true
+	}
+	file.Close()
+	return false
+}
+
+// The `isReadable` limb of the refusal: a regular file, in the root, that the process cannot open.
+// Root reads a mode-000 file regardless of the mode, so on a root runner this condition does not
+// exist to be built — and no construction substitutes, because every other way of making a read fail
+// (a directory, a dangling symlink, a missing path) is refused by an earlier limb and never reaches
+// this one. Hence a skip rather than a rewrite: the refusal itself stays covered on those runners by
+// newRefusedBudgetFile, and only the limb that is genuinely unreachable goes unasserted.
 func newUnreadableBudgetFile(t *testing.T) *fixture {
 	t.Helper()
+	if !modeDeniesRead(t) {
+		t.Skip("this process reads a mode-000 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so a budget file it cannot read cannot be built here — the refusal stays covered by the directory fixture beside this one")
+	}
 	f := newRoot(t)
 	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n")
 	f.write(f.root+"/kk-flavor/standards/core.md", "alpha beta gamma\n")
 	f.chmod(f.root+"/kk-flavor/standards/core.md", 0o000)
+	return f
+}
+
+// The same refusal reached with no mode bit involved, so it holds for every user root included: a
+// directory standing where the Read-always target should be a file. It exists, so it is not the
+// missing-target branch, and it is not regular, so containment refuses it.
+func newRefusedBudgetFile(t *testing.T) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n")
+	f.mkdirAll(f.root + "/kk-flavor/standards/core.md")
 	return f
 }
 

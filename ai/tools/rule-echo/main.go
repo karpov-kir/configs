@@ -13,6 +13,14 @@
 // one home and a cross-reference, or the restatement `ecosystem.md` → **One home** exists to stop.
 // Matching is deliberately loose — rules get reworded as they drift, and an exact-match tool would
 // go quiet precisely when the drift became worth reporting.
+//
+// A clean run is proof of no bolded duplication, not of no duplication. A rule written as a heading,
+// or stated in plain prose, is structurally invisible here — read a clean exit as "nothing bolded
+// twice", never as "one home holds every rule".
+//
+// Anything this prints to stderr means the read was partial. A narrowing that says nothing cannot be
+// told apart from a clean read, so every file skipped or read under relaxed rules is named there, and
+// the summary below counts only what was actually scanned.
 package main
 
 import (
@@ -34,8 +42,19 @@ type span struct {
 // Under this a match is a phrase, not a rule.
 const minRuleChars = 12
 
+// The discriminating words a span needs before a match means anything, and the same floor the
+// dependency test below applies to what is left after the names are removed. One constant because the
+// two are compared against each other: drifted apart, a pair could clear the match and fail the test
+// for a reason no reader could see.
+const minDiscriminatingWords = 4
+
 // How much of a rule a report line carries.
 const maxReportRunes = 110
+
+// The fence delimiter, at the start of a line. Widening it to indented fences or to `~~~` would be
+// flexibility nobody asked for: neither occurs in a single one of this tree's markdown files, and
+// every widening adds another way for the scan to fall silent over content it should have read.
+const fenceMarker = "```"
 
 // The tool reads whole files, and the tree supplying them is the tree under review. Prose documents
 // are kilobytes; anything past this is not a rule file, and reading it costs memory the scan has no
@@ -89,6 +108,32 @@ func keyOf(text string) map[string]bool {
 	return key
 }
 
+var backticked = regexp.MustCompile("`[^`]*`")
+
+// The words a span carries only because it names something in backticks — a path, a command, a file.
+// Two consumers declaring the same dependency at their own point of use share all of this vocabulary
+// without stating the same rule, and cutting either leaves that file not naming what it runs.
+func namedWords(text string) map[string]bool {
+	named := map[string]bool{}
+	for _, quoted := range backticked.FindAllString(text, -1) {
+		for w := range keyOf(quoted) {
+			named[w] = true
+		}
+	}
+	return named
+}
+
+// The overlap that survives once the words both spans owe to a name they both cite are removed.
+func overlapBeyond(a, b, named map[string]bool) int {
+	n := 0
+	for w := range a {
+		if b[w] && !named[w] {
+			n++
+		}
+	}
+	return n
+}
+
 func overlap(a, b map[string]bool) int {
 	n := 0
 	for w := range a {
@@ -97,6 +142,56 @@ func overlap(a, b map[string]bool) int {
 		}
 	}
 	return n
+}
+
+// Markdown pairs fences in order down the file, so an odd count leaves the last one open and the scan
+// off from that line to the end. Counted before the lines are read rather than discovered at the end,
+// because by then the spans below the fence have already been dropped.
+func fencesClosed(lines []string) bool {
+	markers := 0
+	for _, line := range lines {
+		if strings.HasPrefix(line, fenceMarker) {
+			markers++
+		}
+	}
+	return markers%2 == 0
+}
+
+// What one candidate pair turns out to be.
+type verdict int
+
+const (
+	unrelated verdict = iota
+	// The same rule stated in two files: what this tool exists to find, and what fails the run.
+	restatement
+	// Two files naming the same thing — a path, a command — and agreeing on nothing else. Reported
+	// apart from a restatement because the answer is already known: two consumers declaring the same
+	// dependency at their own point of use, where cutting either leaves that file not naming what it
+	// runs. The `→` filter in collect is this same case caught earlier, when the citation is written
+	// after an arrow rather than as prose.
+	sharedName
+)
+
+func classify(a, b span) (v verdict, shared, beyond int) {
+	shared = overlap(a.key, b.key)
+	smaller := len(a.key)
+	if len(b.key) < smaller {
+		smaller = len(b.key)
+	}
+	// Most of the shorter rule's discriminating words, so a long rule cannot drag in every short one
+	// that happens to share vocabulary with part of it.
+	if shared < minDiscriminatingWords || shared*100 < smaller*70 {
+		return unrelated, shared, 0
+	}
+	named := namedWords(a.text)
+	for w := range namedWords(b.text) {
+		named[w] = true
+	}
+	beyond = overlapBeyond(a.key, b.key, named)
+	if beyond < minDiscriminatingWords {
+		return sharedName, shared, beyond
+	}
+	return restatement, shared, beyond
 }
 
 func collect(root string) ([]span, error) {
@@ -116,17 +211,33 @@ func collect(root string) ([]span, error) {
 			return nil
 		}
 		if fi.Size() > maxFileBytes {
+			// stripControl like the refusal above it, not oneline: a path is not a quoted rule, and
+			// cutting one to the report's rune bound names a file the reader cannot open.
 			fmt.Fprintf(os.Stderr, "file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n",
-				oneline(p), fi.Size(), maxFileBytes)
+				stripControl(p), fi.Size(), maxFileBytes)
 			return nil
 		}
 		body, err := os.ReadFile(p)
 		if err != nil {
 			return nil
 		}
+		lines := strings.Split(string(body), "\n")
+		// A fence toggles the scan off, so one nobody closed silences every rule below it — for the
+		// rest of the file, and without a word. That is the quiet this tool exists to remove, arriving
+		// through a typo. Unbalanced, the file is read with fencing off and the narrowing is
+		// announced: a fenced sample reported as a rule costs a reader one glance, while a rule that
+		// was never read costs the pass the finding.
+		closed := fencesClosed(lines)
+		if !closed {
+			// stripControl, not oneline: oneline's bound is sized for a rule quoted in a report, and a
+			// path cut to it names a file the reader cannot open — which is the whole use of this line.
+			// Control bytes still go, because that is the hazard; length is only a nuisance.
+			fmt.Fprintf(os.Stderr, "unclosed fence in %s — it was read with fencing off, so a fenced sample may be reported as a rule\n",
+				stripControl(p))
+		}
 		inFence := false
-		for i, line := range strings.Split(string(body), "\n") {
-			if strings.HasPrefix(line, "```") {
+		for i, line := range lines {
+			if closed && strings.HasPrefix(line, fenceMarker) {
 				inFence = !inFence
 				continue
 			}
@@ -146,8 +257,8 @@ func collect(root string) ([]span, error) {
 					continue
 				}
 				k := keyOf(text)
-				// Under four discriminating words a match is a coincidence, not a restatement.
-				if len(k) >= 4 {
+				// Under the floor a match is a coincidence, not a restatement.
+				if len(k) >= minDiscriminatingWords {
 					spans = append(spans, span{file: p, line: i + 1, text: text, key: k})
 				}
 			}
@@ -188,8 +299,13 @@ func main() {
 	type pair struct {
 		a, b   span
 		shared int
+		beyond int
 	}
-	var pairs []pair
+	// Restatements and the pairs that share only a name they both cite. The second kind is printed
+	// rather than dropped: silencing it would make this tool's own narrowing invisible, and a real
+	// rule whose prose is short beside a long path would vanish with it. Printed and set apart, an
+	// accepted pair costs a reader one glance instead of an adjudication they have already made.
+	var pairs, naming []pair
 	for i := range spans {
 		for j := i + 1; j < len(spans); j++ {
 			if spans[i].file == spans[j].file {
@@ -198,26 +314,38 @@ func main() {
 			if !scoped(spans[i].file) && !scoped(spans[j].file) {
 				continue
 			}
-			shared := overlap(spans[i].key, spans[j].key)
-			smaller := len(spans[i].key)
-			if len(spans[j].key) < smaller {
-				smaller = len(spans[j].key)
-			}
-			// Most of the shorter rule's discriminating words, so a long rule cannot drag in every
-			// short one that happens to share vocabulary with part of it.
-			if shared >= 4 && shared*100 >= smaller*70 {
-				pairs = append(pairs, pair{spans[i], spans[j], shared})
+			verdict, shared, beyond := classify(spans[i], spans[j])
+			switch verdict {
+			case restatement:
+				pairs = append(pairs, pair{spans[i], spans[j], shared, beyond})
+			case sharedName:
+				naming = append(naming, pair{spans[i], spans[j], shared, beyond})
 			}
 		}
 	}
-	sort.Slice(pairs, func(x, y int) bool { return pairs[x].shared > pairs[y].shared })
+	byShared := func(group []pair) func(x, y int) bool {
+		return func(x, y int) bool { return group[x].shared > group[y].shared }
+	}
+	sort.Slice(pairs, byShared(pairs))
+	sort.Slice(naming, byShared(naming))
 
 	for _, p := range pairs {
 		fmt.Printf("rule stated twice (%d words shared):\n  %s:%d — %s\n  %s:%d — %s\n",
 			p.shared, stripControl(p.a.file), p.a.line, oneline(p.a.text),
 			stripControl(p.b.file), p.b.line, oneline(p.b.text))
 	}
-	fmt.Printf("%d bolded rule(s) read, %d pair(s) stating the same thing in two files\n", len(spans), len(pairs))
+	for _, p := range naming {
+		fmt.Printf("same dependency named twice, not a rule (%d words shared, %d beyond the name):\n  %s:%d — %s\n  %s:%d — %s\n",
+			p.shared, p.beyond, stripControl(p.a.file), p.a.line, oneline(p.a.text),
+			stripControl(p.b.file), p.b.line, oneline(p.b.text))
+	}
+	fmt.Printf("%d bolded rule(s) read, %d pair(s) stating the same thing in two files", len(spans), len(pairs))
+	if len(naming) > 0 {
+		fmt.Printf(", %d naming the same dependency", len(naming))
+	}
+	fmt.Println()
+	// Only a restatement fails the run. A pair that shares nothing but a cited name is reported for
+	// the reader, never held against the tree.
 	if len(pairs) > 0 {
 		os.Exit(1)
 	}
