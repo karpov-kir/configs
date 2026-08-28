@@ -78,3 +78,35 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 		worktree.t.Logf("skip  git worktree add unavailable — the absolute-info/exclude case cannot run")
 	}
 }
+
+func TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
+	t.Parallel()
+	// `check-ignore` is run at the start of every pass, so the exclusion is appended over and over to
+	// a file the human also keeps their own rules in. Two things can go wrong in that append and both
+	// are silent: the entry accumulating one copy per pass, and the entry fusing onto a last line with
+	// no newline — after which neither the human's rule nor the entry matches anything.
+	f := newRepo(t)
+	exclude := f.repo + "/.git/info/exclude"
+	// A rule of the human's own, deliberately left unterminated. git init writes an exclude file whose
+	// last line is a comment with a newline, so the unterminated state has to be built here.
+	f.write(exclude, "# theirs\n*.scratch")
+
+	f.runReport("check-ignore")
+	f.record("check-ignore appends the exclusion as its own line, not onto an unterminated one",
+		containsLine(f.read(exclude), ".idsd/") && containsLine(f.read(exclude), "*.scratch"),
+		"exclude now reads:\n"+f.read(exclude))
+	// git is the authority on whether the append took effect: a fused line is still a line, and only
+	// git's own answer distinguishes a rule that matches from one that reads like it should.
+	_, ignored := f.git("check-ignore", "-q", ".idsd/")
+	_, theirs := f.git("check-ignore", "-q", "keep.scratch")
+	f.record("and git ignores both .idsd/ and the rule that was already there",
+		ignored == 0 && theirs == 0, "check-ignore .idsd/ exited "+itoa(ignored)+", keep.scratch exited "+itoa(theirs))
+
+	// Every pass runs check-ignore again. One entry per pass would grow the file without bound and
+	// leave the human reading their own rules out of a wall of duplicates.
+	f.runReport("check-ignore")
+	f.runReport("check-ignore")
+	f.record("and three runs leave exactly one '.idsd/' line",
+		countLinesEqual(f.read(exclude), ".idsd/") == 1,
+		itoa(countLinesEqual(f.read(exclude), ".idsd/"))+" copies:\n"+f.read(exclude))
+}

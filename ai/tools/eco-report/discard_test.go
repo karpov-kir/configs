@@ -251,3 +251,96 @@ func TestTheTeardownReportsTheExclusionFromTheResultNotTheAttempt(t *testing.T) 
 	f.record("discard does not claim zero traces when the exclusion could not be removed",
 		f.status != 0 && !strings.Contains(f.out, "zero traces"), "exit "+itoa(f.status)+"; said: "+f.out)
 }
+
+func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
+	t.Parallel()
+	// The durable four are a table in the source, and what a row buys is that .idsd/ survives this
+	// ship's discard: those files are the human's own, never the ship's scratch. A row dropped from
+	// that list deletes the file it names and reports zero traces, so every row gets a fixture.
+	for _, durable := range []string{"charter.md", "constitution.md", "language.md", "playbook.md"} {
+		f := newRepo(t)
+		f.runReport("check-ignore")
+		f.runReport("init", "001-durable")
+		f.write(f.repo+"/.idsd/"+durable, "# the human's own\n")
+		f.runReport("discard", "001-durable")
+		f.record(durable+" alone keeps .idsd/ standing through a discard",
+			f.status == 0 && f.isFile(f.repo+"/.idsd/"+durable) && !f.isFile(f.reportPath("001-durable")),
+			"exit "+itoa(f.status)+"; left: "+joinLines(f.find(f.repo+"/.idsd"))+"\n"+f.out)
+		f.assertReports(durable, "and discard names "+durable+" as what kept it")
+	}
+
+	// Another ship's intent file is the only thing under .idsd/ that identifies that ship once its own
+	// report is closed, and throwaway mode keeps no copy of it anywhere. Nothing else here survives
+	// this discard, so the intents/-and-archive/ arm is the only thing standing between the two.
+	sibling := newRepo(t)
+	sibling.runReport("check-ignore")
+	sibling.runReport("init", "001-going")
+	sibling.newIntentFile("001-going")
+	sibling.newIntentFile("002-still-in-flight")
+	sibling.runReport("discard", "001-going")
+	sibling.record("another ship's intent file keeps .idsd/ standing",
+		sibling.status == 0 && sibling.isFile(sibling.repo+"/.idsd/intents/002-still-in-flight.md") &&
+			!sibling.isFile(sibling.repo+"/.idsd/intents/001-going.md"),
+		"exit "+itoa(sibling.status)+"; left: "+joinLines(sibling.find(sibling.repo+"/.idsd"))+"\n"+sibling.out)
+	sibling.assertReports("1 other intent(s)", "and counts it as an intent rather than as stray content")
+
+	// The label is the whole deliverable for what is left below: .idsd/ stands either way, and what
+	// differs is what the human is told is in it. "1 other intent(s)" for a stray .DS_Store says
+	// another ship is in flight when none is.
+	stray := newRepo(t)
+	stray.runReport("check-ignore")
+	stray.runReport("init", "001-stray")
+	stray.newIntentFile("001-stray")
+	stray.write(stray.repo+"/.idsd/intents/.DS_Store", "not an intent\n")
+	stray.runReport("discard", "001-stray")
+	stray.record("a stray file under intents/ keeps .idsd/ standing",
+		stray.status == 0 && stray.exists(stray.repo+"/.idsd/intents"), "exit "+itoa(stray.status)+"\n"+stray.out)
+	stray.assertReports("unrecognised content under intents/", "and is reported as unrecognised, never counted as an intent")
+	stray.record("and no number of intents is claimed for it",
+		!strings.Contains(stray.out, "other intent(s)"), stray.out)
+
+	// `find -type f` semantics: a symlink to an intent file is not one. Counted as one, the label
+	// claims a ship in flight for a link that points at nothing.
+	linked := newRepo(t)
+	linked.runReport("check-ignore")
+	linked.runReport("init", "001-linked")
+	linked.newIntentFile("001-linked")
+	linked.symlink(linked.base+"/no-such-intent.md", linked.repo+"/.idsd/intents/002-link.md")
+	linked.runReport("discard", "001-linked")
+	linked.record("a symlink named like an intent keeps .idsd/ standing",
+		linked.status == 0 && linked.exists(linked.repo+"/.idsd/intents"), "exit "+itoa(linked.status)+"\n"+linked.out)
+	linked.assertReports("unrecognised content under intents/", "and a symlink is not counted as an intent file")
+	linked.record("and no number of intents is claimed for a link",
+		!strings.Contains(linked.out, "other intent(s)"), linked.out)
+}
+
+func TestASecondWorktreeKeepsTheSharedExclusion(t *testing.T) {
+	t.Parallel()
+	// .git/info/exclude is one file for every worktree of a repository, so only the last discard may
+	// drop the '.idsd/' line. Dropped from the first, a parallel throwaway ship's .idsd/ becomes
+	// visible to the next `git add -A` in the other worktree, which is how it reaches a commit.
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	f.runReport("init", "001-shared")
+	f.mustGit("worktree", "add", "-q", f.base+"/second-worktree", "-b", "second")
+	// The fixture's own precondition: with one worktree the case below passes on a discard that never
+	// consults the count at all.
+	f.record("fixture: git reports two worktrees",
+		countLinesWithPrefix(f.mustGit("worktree", "list", "--porcelain"), "worktree ") == 2, "")
+
+	f.runReport("discard", "001-shared")
+	f.record("discard removes this ship's .idsd/ with a second worktree open",
+		f.status == 0 && !f.exists(f.repo+"/.idsd"), "exit "+itoa(f.status)+"\n"+f.out)
+	f.record("and keeps the exclusion the other worktree shares", f.hasLocalExclusion(), "")
+	f.assertReports("kept the shared exclusion", "and says so rather than claiming zero traces")
+
+	// The positive control: the same discard does drop the exclusion once this is the only worktree
+	// left, so what kept it above was the count and not a discard that never drops it.
+	f.mustGit("worktree", "remove", f.base+"/second-worktree")
+	f.runReport("check-ignore")
+	f.runReport("init", "002-last")
+	f.runReport("discard", "002-last")
+	f.record("and the last worktree's discard drops it, leaving zero traces",
+		f.status == 0 && !f.hasLocalExclusion(), "exit "+itoa(f.status)+"\n"+f.out)
+	f.assertReports("zero traces", "and claims zero traces only there")
+}

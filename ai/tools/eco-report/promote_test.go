@@ -102,3 +102,100 @@ func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 	}
 	f.chmod(f.repo+"/.git/index", 0o644)
 }
+
+func TestCheckIgnoreRefusesWhenTheExclusionCannotBeWritten(t *testing.T) {
+	t.Parallel()
+	// The whole pass proceeds on this command's ok line: `init` writes the report next, and a report
+	// git does not ignore sits inside its own fingerprint, so every stamp after it is stale on
+	// arrival. An ok printed over a write that failed is the one answer here that costs the pass.
+	f := newRepo(t)
+	// Unwritable by construction, never by a mode bit: .git/info is a regular file, so the mkdir the
+	// append needs fails with ENOTDIR for every user, root included.
+	f.remove(f.repo + "/.git/info")
+	f.write(f.repo+"/.git/info", "not a directory\n")
+	f.runReport("check-ignore")
+	f.assertRefused("check-ignore refuses when it cannot write the exclusion")
+	f.assertReports("NOT excluded", "and says the scratch dir is not excluded")
+	f.record("and reports no ok line the pass could proceed on", !strings.Contains(f.out, "ok:"), f.out)
+
+	// The positive control: the same command on the same fixture writes the exclusion and reports ok
+	// once .git/info is a directory again, so what refused above was this guard and not the fixture.
+	f.remove(f.repo + "/.git/info")
+	f.mkdirAll(f.repo + "/.git/info")
+	f.runReport("check-ignore")
+	f.record("and the same command succeeds once the exclude file can be written",
+		f.status == 0 && f.hasLocalExclusion(), "exit "+itoa(f.status)+"\n"+f.out)
+}
+
+func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
+	t.Parallel()
+	// `promote` is run by hand and by `idsd-ship`, so it meets repos already promoted. Past the mode
+	// check it drops the local exclusion, appends to .gitignore and runs `git add` — and over an
+	// already-durable .idsd/ that add is the human's own staging area being written for nothing.
+	f := newCommittedRepo(t)
+	f.runReport("check-ignore")
+	f.runReport("init", "001-already-durable")
+	// An unstaged edit to a tracked file under .idsd/, which is what `git add .idsd` would sweep up.
+	// It is the human's work, and nothing here asked for it to be staged.
+	f.appendTo(f.repo+"/.idsd/charter.md", "a line the human has not staged\n")
+	before := f.indexState()
+
+	f.runReport("promote")
+	f.record("promote reports the repo already committed and exits 0",
+		f.status == 0 && strings.Contains(f.out, "already committed"), "exit "+itoa(f.status)+"\n"+f.out)
+	f.record("and stages nothing, leaving the human's index as it was",
+		f.indexState() == before, "before:\n"+before+"\nafter:\n"+f.indexState())
+}
+
+func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
+	t.Parallel()
+	// promote claims two things: .gitignore names qualify-reports/, and git acts on it. Three ways
+	// that claim fails, each of which would otherwise be reported as a promotion that happened — a
+	// link that takes the write out of the repo, a write that cannot land, and an entry git does not
+	// act on. The last is the one that matters most: it leaves the report stageable.
+	linked := newRepo(t)
+	linked.runReport("check-ignore")
+	linked.runReport("init", "001-linked-gitignore")
+	linked.newIntentFile("001-linked-gitignore")
+	outside := linked.base + "/outside.gitignore"
+	linked.write(outside, "# not the repo's\n")
+	linked.symlink(outside, linked.repo+"/.gitignore")
+	linked.runReport("promote")
+	linked.assertRefused("promote refuses a symlinked .gitignore")
+	linked.assertReports("is a symlink", "and names the link rather than the git answer downstream of it")
+	linked.record("and wrote nothing through it, so the file outside the repo is untouched",
+		linked.read(outside) == "# not the repo's\n", "it now reads:\n"+linked.read(outside))
+	linked.record("and left the local exclusion standing", linked.hasLocalExclusion(), "")
+
+	// A write that cannot land, by construction rather than by a mode bit: .gitignore is a directory,
+	// so the append fails with EISDIR for every user, root included.
+	unwritable := newRepo(t)
+	unwritable.runReport("check-ignore")
+	unwritable.runReport("init", "001-unwritable-gitignore")
+	unwritable.newIntentFile("001-unwritable-gitignore")
+	unwritable.mkdirAll(unwritable.repo + "/.gitignore")
+	unwritable.runReport("promote")
+	unwritable.assertRefused("promote refuses when the .gitignore entry cannot be written")
+	// The message carries this one: without the guard promote runs on to the next check, which also
+	// refuses, for a reason that sends the human to look at git rather than at the failed write.
+	unwritable.assertReports("could not add", "and names the write that failed")
+	unwritable.record("and put the local exclusion back", unwritable.hasLocalExclusion(), "")
+
+	// An entry written that git does not act on. The instance the guard names is a .gitignore git
+	// cannot read, which cannot be built without a mode bit; a nested negation reaches the same state
+	// by construction — the entry is in the root .gitignore and the surface is stageable anyway.
+	unread := newRepo(t)
+	unread.runReport("check-ignore")
+	unread.runReport("init", "001-negated")
+	unread.newIntentFile("001-negated")
+	unread.write(unread.repo+"/.idsd/.gitignore", "!qualify-reports/\n")
+	unread.runReport("promote")
+	unread.assertRefused("promote refuses when the entry is written but git still does not ignore the surface")
+	unread.assertReports("git still does not ignore", "and says the entry landed without taking effect")
+	// The harm, asserted where it lands. The report carries the pass's security findings, and a
+	// promotion taken here puts it in the index on its way to a commit.
+	staged, _ := unread.git("diff", "--cached", "--name-only")
+	unread.record("and staged nothing, the report included",
+		!strings.Contains(staged, "qualify-report.md"), "staged:\n"+staged)
+	unread.record("and put the local exclusion back", unread.hasLocalExclusion(), "")
+}

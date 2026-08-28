@@ -211,3 +211,65 @@ func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {
 	noted.record("state's stdout is one token even while it notes the pre-scoping report on stderr",
 		stdout == "no-report", "stdout was: "+stdout)
 }
+
+func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
+	t.Parallel()
+	// `idsd-ship continue` routes on this one word, so the deliverable is the whole mapping rather
+	// than the tokens a scenario happened to reach: every token, and the state that earns it. Answered
+	// for the wrong state, one of these sends `continue` past a live gate or starts a fresh ship over
+	// work already merged.
+	none := newRepo(t)
+	none.runReport("state")
+	none.record("no-report where no ship has started", none.out == "no-report", "said '"+none.out+"'")
+
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	f.runReport("init", "001-token")
+	f.runReport("state", "001-token")
+	f.record("resume for a report that has never been stamped", f.out == "resume", "said '"+f.out+"'")
+
+	f.stampFullPass("001-token")
+	f.runReport("state", "001-token")
+	f.record("ready for a full pass on a fresh tree with nothing open", f.out == "ready", "said '"+f.out+"'")
+
+	// The report is git-ignored, so editing it moves nothing the fingerprint reads: the freshness arm
+	// stays clear and the open item is the only thing that can change the answer.
+	f.appendTo(f.reportPath("001-token"), "- [ ] an item nobody routed\n")
+	f.runReport("state", "001-token")
+	f.record("decide for a full pass still holding an open item", f.out == "decide", "said '"+f.out+"'")
+	f.dropLines(f.reportPath("001-token"), "- [ ] an item")
+
+	// The fingerprint covers untracked content too, so a new file is enough to move the tree. Ordered
+	// after `decide` deliberately: with the tree moved, freshness answers first and would mask it.
+	f.write(f.repo+"/moved.txt", "the tree has moved since the stamp\n")
+	f.runReport("state", "001-token")
+	f.record("re-qualify for a stamped pass whose tree moved since", f.out == "re-qualify", "said '"+f.out+"'")
+
+	trimmed := newRepo(t)
+	trimmed.runReport("check-ignore")
+	trimmed.runReport("init", "001-trimmed-token")
+	trimmed.runReport("invalidate", "001-trimmed-token")
+	for _, stage := range []string{"code-review", "tighten", "refactor", "retro"} {
+		trimmed.runReport("stage-returned", stage, "001-trimmed-token")
+		trimmed.runReport("no-items", stage, "001-trimmed-token")
+	}
+	trimmed.runReport("stamp", "code-review,security-review:skipped(fast),tighten,refactor,retro", "001-trimmed-token")
+	trimmed.runReport("state", "001-trimmed-token")
+	trimmed.record("finalize for a fresh pass with a stage trimmed for turnaround",
+		trimmed.out == "finalize", "said '"+trimmed.out+"'")
+
+	// An intent file that has moved to archive/ is the only record a landed ship leaves once its
+	// report is closed. Read through `list` as well as `state`: `list` is the surface that reaches the
+	// token's own archive arm, since `state` answers from the report's filename a step earlier, and the
+	// two are different ships whenever the frontmatter names a slug the filename does not.
+	archived := newRepo(t)
+	archived.runReport("check-ignore")
+	archived.runReport("init", "001-landed")
+	archived.mkdirAll(archived.repo + "/.idsd/archive")
+	archived.write(archived.repo+"/.idsd/archive/001-landed.md", "# built, and merged\n")
+	archived.runReport("list")
+	archived.record("done for a ship whose intent file has reached archive/",
+		stateOf(archived.out, "001-landed") == "done", archived.out)
+	archived.runReport("state", "001-landed")
+	archived.record("and state answers done for it too", archived.out == "done", "said '"+archived.out+"'")
+}

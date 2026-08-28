@@ -10,6 +10,7 @@ package ecoreport_test
 // beside them guards only that the subcommand stays out of the index.
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -80,6 +81,47 @@ func TestAMissingFingerprintScriptRefusesInsteadOfRecomputing(t *testing.T) {
 	f.assertRefused("gate refuses when the fingerprint script is not installed")
 	f.assertReports("tree-fingerprint.sh", "and names the path it wanted")
 	f.assertReports("no local fallback", "and says it will not fall back to a recipe of its own")
+
+	// Present but not executable is the other half of the same guard, and it is asserted on the words
+	// rather than on the exit: both arms refuse with 2 and both name the script, so exit and path
+	// together cannot tell them apart. Weaken the `-x` to a test for mere existence and the tool execs
+	// a file the kernel refuses, then reports that exec's status — "exited 126 without a tree" — which
+	// is a refusal earned by the wrong thing. Only this phrase separates them.
+	f.home = f.base + "/home"
+	shim := f.fingerprintScriptIn(f.home)
+	f.chmod(shim, 0o644)
+	if info, err := os.Stat(shim); err == nil && info.Mode()&0o111 != 0 {
+		// A filesystem that keeps no execute bit to drop leaves the script runnable, and the assertions
+		// below would then go red for the fixture rather than for the tool.
+		t.Logf("skip  this filesystem does not hold the execute bit — the unexecutable case cannot run")
+	} else {
+		f.runReport("gate")
+		f.assertRefused("gate refuses a fingerprint script that is there but not executable")
+		f.assertReports("is missing or not executable",
+			"and refuses it for that, not for what running it returned")
+	}
+	// Back to 0755, so a later case in this fixture does not inherit an unrunnable script.
+	f.chmod(shim, 0o755)
+}
+
+// The suite once reached the fingerprint script through the developer's own `$HOME` — the copy
+// install.sh puts under `~/.kk-flavor`, which is not in this repository. Every machine that had
+// installed the skills passed, and ubuntu-latest, where release-tools.yml runs `go test ./...`,
+// failed 41 cases across 12 tests. No case on a developer's machine can notice that, because the
+// thing that hides it is the developer's machine. So this one takes it away.
+func TestTheSuiteNeedsNothingInstalledOnTheMachineRunningIt(t *testing.T) {
+	// The one case here that must not be parallel: t.Setenv is process-global, and what makes it safe
+	// to the rest is that `go test` holds every parallel case until the sequential ones have finished.
+	t.Setenv("HOME", t.TempDir())
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	f.runReport("init", "review: nothing installed")
+	// Exit 1 is freshness, which is the guard *after* the fingerprint, so reaching it is the assertion:
+	// a fixture that had gone looking under this HOME would refuse with exit 2 instead, the way the
+	// case above refuses. Exit 2 here means the suite is reading the machine again.
+	f.runReport("gate")
+	f.record("a HOME holding no .kk-flavor still gets past the fingerprint",
+		f.status == 1, "gate exited "+itoa(f.status)+", wanted 1 (freshness)\n"+f.out)
 }
 
 func currentTreeIn(output string) string {

@@ -176,6 +176,57 @@ func stateOf(listing, name string) string {
 	return ""
 }
 
+// The report split at its frontmatter delimiters, so a case can say which half a line is in. Line 1
+// opens the frontmatter and the next `---` closes it, which is the rule the rewrites apply.
+func frontmatterAndBody(report string) (frontmatter, body string) {
+	lines := strings.Split(report, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", report
+	}
+	for i, line := range lines[1:] {
+		if strings.TrimSpace(line) == "---" {
+			return strings.Join(lines[1:i+1], "\n"), strings.Join(lines[i+2:], "\n")
+		}
+	}
+	return strings.Join(lines[1:], "\n"), ""
+}
+
+func countLinesWithPrefix(text, prefix string) int {
+	count := 0
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			count++
+		}
+	}
+	return count
+}
+
+// `cksum <file>` reduced to the two fields a stage marker holds. False means cksum(1) is not on this
+// machine, and the case that compares against it is skipped rather than failed.
+func posixCksum(path string) (string, bool) {
+	out, err := exec.Command("cksum", path).Output()
+	if err != nil {
+		return "", false
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) < 2 {
+		return "", false
+	}
+	return fields[0] + " " + fields[1], true
+}
+
+// A marker's value beside cksum(1)'s own answer for the same file. False means cksum(1) is not on
+// this machine, and the comparison is skipped rather than failed.
+func (f *fixture) markerAgainstCksum(marker, report string) (held, want string, ok bool) {
+	f.t.Helper()
+	want, ok = posixCksum(report)
+	if !ok {
+		f.t.Logf("skip  cksum(1) is not on this machine — the digest comparison cannot run")
+		return "", "", false
+	}
+	return strings.TrimRight(f.read(marker), "\n"), want, true
+}
+
 func countNonEmptyLines(text string) int {
 	count := 0
 	for _, line := range strings.Split(text, "\n") {

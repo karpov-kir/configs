@@ -32,6 +32,12 @@ import (
 // checkout lays them out.
 const skillSource = "../../skills/idsd-qualify"
 
+// This checkout's kk-flavor, reached the same way, and the source of the one script the tool execs
+// out of HOME. Never the developer's own `~/.kk-flavor`: that copy is what install.sh puts there, it
+// is not part of this repository, and a suite reading it passes on a machine that has installed the
+// skills and fails on every machine that has not — release-tools.yml's ubuntu-latest among them.
+const flavorSource = "../../kk-flavor"
+
 // One case's tree.
 type fixture struct {
 	t    *testing.T
@@ -42,7 +48,8 @@ type fixture struct {
 	// checkout's own, and one copy per case means no mutation carries. It holds no report.sh —
 	// nothing reads that path, only the directory above it.
 	skill string
-	home  string
+	// The HOME the tool runs against, built by newFlavorHome. Never the machine's own: see there.
+	home string
 
 	out    string // the last run's stdout and stderr, merged, with trailing newlines stripped
 	status int
@@ -51,8 +58,9 @@ type fixture struct {
 func newRepo(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
-	f := &fixture{t: t, base: base, repo: base + "/r", home: os.Getenv("HOME")}
+	f := &fixture{t: t, base: base, repo: base + "/r"}
 	f.mkdirAll(f.repo)
+	f.newFlavorHome()
 	f.newSkillCopy()
 	f.mustGit("init", "-q")
 	// Compared physically: on macOS the temp dir sits under /var, a symlink to /private/var, and git
@@ -194,16 +202,24 @@ func (f *fixture) hasLocalExclusion() bool {
 	return containsLine(string(content), ".idsd/")
 }
 
-// Drive a ship to a stamped, tree-fresh state. Unstamped, the state token answers `resume` without
-// reading the tree at all, so a case that pins anything past the freshness checks has to come
-// through here.
-func (f *fixture) stampFullPass(ship string) {
+// Everything a stamp demands short of the stamp itself: this pass invalidated, and every stage
+// marked returned and then empty. Invalidate comes first because a marker means nothing until it is
+// known which pass made it.
+func (f *fixture) armFullPass(ship string) {
 	f.t.Helper()
 	f.runReport("invalidate", ship)
 	for _, stage := range []string{"code-review", "security-review", "tighten", "refactor", "retro"} {
 		f.runReport("stage-returned", stage, ship)
 		f.runReport("no-items", stage, ship)
 	}
+}
+
+// Drive a ship to a stamped, tree-fresh state. Unstamped, the state token answers `resume` without
+// reading the tree at all, so a case that pins anything past the freshness checks has to come
+// through here.
+func (f *fixture) stampFullPass(ship string) {
+	f.t.Helper()
+	f.armFullPass(ship)
 	f.runReport("stamp", "code-review,security-review,tighten,refactor,retro", ship)
 }
 
@@ -224,6 +240,23 @@ func (f *fixture) newDurableCharter() {
 }
 
 // A copy of the skill dir the tool resolves its two neighbours from.
+// The HOME every case runs against: a fixture directory holding the one script the tool execs out of
+// HOME, copied in from this checkout. A copy rather than the installed one, for the reason above
+// flavorSource, and a copy rather than a symlink so a case may chmod it without reaching this
+// checkout's own.
+func (f *fixture) newFlavorHome() {
+	f.t.Helper()
+	f.home = f.base + "/home"
+	f.mkdirAll(f.home + "/.kk-flavor/scripts")
+	f.copyIn(flavorSource+"/scripts/tree-fingerprint.sh", f.fingerprintScriptIn(f.home), 0o755)
+}
+
+// Where a HOME holds the fingerprint script. One expression of the layout eco-report.go derives
+// r.fingerprintBin from, so the fixture and the tool cannot drift apart about it.
+func (f *fixture) fingerprintScriptIn(home string) string {
+	return home + "/.kk-flavor/scripts/tree-fingerprint.sh"
+}
+
 func (f *fixture) newSkillCopy() {
 	f.t.Helper()
 	f.skill = f.base + "/skill"
@@ -268,14 +301,17 @@ func (f *fixture) indexState() string {
 // version counted `write-tree` calls through a `git` shim on PATH; PATH is process-global, and a
 // suite that runs its cases in parallel cannot have one. The seam moves out one script, and what it
 // counts is the same thing: how many times this tool walked the tree for one `list`.
+//
+// It wraps the script in the HOME the fixture already had rather than naming a source of its own, so
+// there is one answer in this suite to where that script comes from.
 func (f *fixture) newCountingFingerprintHome() string {
 	f.t.Helper()
+	wrapped := f.fingerprintScriptIn(f.home)
 	home := f.base + "/counting-home"
 	log := home + "/fingerprints.log"
 	f.mkdirAll(home + "/.kk-flavor/scripts")
-	shim := home + "/.kk-flavor/scripts/tree-fingerprint.sh"
-	f.write(shim, "#!/bin/sh\nprintf '%s\\n' \"$*\" >>\""+log+"\"\nexec \""+
-		os.Getenv("HOME")+"/.kk-flavor/scripts/tree-fingerprint.sh\" \"$@\"\n")
+	shim := f.fingerprintScriptIn(home)
+	f.write(shim, "#!/bin/sh\nprintf '%s\\n' \"$*\" >>\""+log+"\"\nexec \""+wrapped+"\" \"$@\"\n")
 	f.chmod(shim, 0o755)
 	f.home = home
 	return log
