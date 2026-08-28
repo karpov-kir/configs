@@ -10,7 +10,9 @@ Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`,
 
 Short, imperative, one-line subject (~50 chars); a body only when the *why* isn't obvious from the diff. Frame it for the repo's consumer — the user-visible effect, not the internal mechanism.
 
-**Re-form the change set after any review pass.** Run `git add -A` after the final pass, and never re-present a commit command formed earlier in the run.
+**Re-form the change set after any review pass**, and never re-present a commit command formed earlier in the run.
+
+**Stage by explicit path, never `-A`, wherever anything else may be writing the tree** — another agent, another session, a watcher. `-A` commits whatever it finds, so a file someone else is mid-edit lands in your change set under your message, and neither of you sees it happen. **A stage left sitting is the same hazard from the other side**: `git add` can succeed and the commit then abort, and the next writer's `-A` sweeps what you staged. Confirm the commit landed, and unstage what it did not take.
 
 Match the recent style on the branch (`git log` first). Use semantic prefixes (`feat:`, `fix:`, …) only when the branch already does and commits land directly; PR branches default to plain.
 
