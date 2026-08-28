@@ -42,7 +42,6 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 ## The stages
 
-**Decide** and the decision log named below are one orchestrator's homes for a stage's residue, and **fast**/**full** one orchestrator's pass modes; without them, map each onto your own equivalent.
 
 **The numbering is not the execution order** — stage 3's comment pass runs after stage 4.
 
@@ -54,7 +53,7 @@ Spawn the round's stages **in one message** so they run concurrently.
    - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names.
    - **A comment finding splits by placement and content**: a true comment on the wrong construct is the refactor lane's, a false claim about the code is the code-review lane's. Each lane states only its own side.
    - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the outward-text lane's scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
-4. **Refactor** — a loop to compliance in full mode (max 3 iterations), one iteration in fast. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is a **Decide** item with what's open, and duplication deferred under the extract threshold goes to the decision log. Run the refactor lane's scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
+4. **Refactor** — a loop to compliance, iterating where the pass has the budget for it and once where it does not. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane, which reports whether the change is compliant; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is residue for the human with what's open, and duplication deferred under the extract threshold goes to whatever record the pass appends its settled decisions to. Run the refactor lane's scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
 5. **Retro** — last when it runs; how it runs is the orchestrator's.
 
 **A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or `CLAUDE.md` goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.
