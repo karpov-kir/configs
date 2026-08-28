@@ -1,2 +1,12 @@
 bin/
 dist/
+
+# `go build ./` inside a main package's own directory drops the binary beside the source, named after
+# that directory — so the three tools whose main sits in cmd/ drop a file called `cmd`, not the tool
+# name. bin/ and dist/ cover neither. Left untracked, a `git add -A` in any session commits a ~3MB
+# binary. gitignore cannot say "a file named after its directory", so this list is written out, and
+# gitignore_test.go is what notices when a tool is added and this list is not.
+**/cmd/cmd
+/cite-graph/cite-graph
+/go-mutate/go-mutate
+/rule-echo/rule-echo

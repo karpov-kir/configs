@@ -1,6 +1,6 @@
 // The release workflow names the tools it builds. Nothing else does, so nothing else could notice a
-// tool added here and not added there — and the way that failure surfaces is a machine with no Go
-// toolchain getting exit 2 from a skill, long after the release it was missing from.
+// tool added here and not added there. That failure surfaces as a machine with no Go toolchain
+// getting exit 2 from a skill, long after the release it was missing from.
 package tools_test
 
 import (
@@ -43,42 +43,18 @@ func TestEveryShippedToolIsInTheReleaseWorkflow(t *testing.T) {
 
 // The tool names a release should carry: one per directory holding a `package main`, named by the
 // directory, or by its parent where main sits in a cmd/ subdirectory so the package beside it can be
-// driven in-process by its suite.
+// driven in-process by its suite. The walk itself is gitignore_test.go's, which needs the same
+// directories under a different name.
 func mainPackages(t *testing.T) []string {
 	t.Helper()
 	found := map[string]bool{}
-	err := filepath.WalkDir(".", func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			// bin/ holds build output, and a stray checkout under it would otherwise be read as source.
-			if entry.Name() == "bin" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if !isPackageMain(string(body)) {
-			return nil
-		}
-		dir := filepath.Dir(path)
+	for _, dir := range mainPackageDirs(t) {
 		if filepath.Base(dir) == "cmd" {
 			dir = filepath.Dir(dir)
 		}
 		if name := filepath.Base(dir); !developerOnly[name] {
 			found[name] = true
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking the module: %v", err)
 	}
 	var names []string
 	for name := range found {
@@ -86,16 +62,6 @@ func mainPackages(t *testing.T) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// The clause only, so a `package main` inside a comment or a string does not count as one.
-func isPackageMain(body string) bool {
-	for _, line := range strings.Split(body, "\n") {
-		if strings.TrimSpace(line) == "package main" {
-			return true
-		}
-	}
-	return false
 }
 
 func shippedInWorkflow(t *testing.T) map[string]bool {
