@@ -2,10 +2,10 @@
 // skills/, the paths derived from it, the mount those paths are compared against, and the `@import`
 // names that load alongside them.
 //
-// It exists because check.sh and stats.sh resolve that directory the same way on purpose — each
+// It exists because ecocheck and ecostats resolve that directory the same way on purpose — each
 // tool's report describes a tree, and two tools describing different trees for one invocation is a
-// disagreement neither of them can report. The shell side keeps its copies honest by hand; the Go
-// side had two, so a candidate added to one would have been a silent divergence.
+// disagreement neither of them can report. Each tool had its own copy, so a candidate added to one
+// would have been a silent divergence.
 //
 // The whole surface is a Root and what you can ask one:
 //
@@ -66,9 +66,8 @@ type Root struct {
 	home  string
 }
 
-// --- shared:default-root ---
-// The shell twin is the `default-root` block both scripts fence: the same two candidates, tried in
-// the same order, so a bare invocation of either tool lands on the same tree.
+// The same two candidates, tried in the same order for both tools, so a bare invocation of either
+// lands on the same tree.
 var candidates = []string{".", "./ai"}
 
 // New resolves the root a tool was pointed at. An empty name means the two candidates the shell
@@ -99,8 +98,6 @@ func New(named string) (Root, bool) {
 func holdsBoth(dir string) bool {
 	return shell.IsDir(shell.Join(dir, flavorDir)) && shell.IsDir(shell.Join(dir, skillsDir))
 }
-
-// --- end shared:default-root ---
 
 // Named is the root as the caller spelled it; Flavor and Skills are the two directories that made it
 // one. Every path a tool prints is built from these, so they are concatenated rather than cleaned.

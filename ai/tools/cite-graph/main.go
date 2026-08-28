@@ -87,8 +87,25 @@ func entersAHeading(headings map[string]bool, section string) (string, bool) {
 			continue // a word boundary, so half a word cannot satisfy a citation
 		}
 		run := strings.TrimRight(section[:cut], " \t")
-		if run != "" && headings[run] {
+		if run == "" {
+			continue
+		}
+		if headings[run] {
 			return run, true
+		}
+		// A truncation landing on a heading's em-dash prefix resolves too, because that is what
+		// `ecocheck` accepts: its heading set carries the prefix as an alias. This tool deliberately
+		// does not register the alias — registering it keys the edge on the alias and leaves the real
+		// heading reported UNENTERED — so the alias is matched here and the FULL heading returned.
+		//
+		// Without this the two disagree on what resolves, and this tool calls a compliant citation
+		// broken: `**Phase 2 — Assemble Context**` against `## Phase 2 — Assemble Context
+		// (progressive)`. A citation naming a section that truly does not exist is still refused,
+		// because no heading's prefix answers to it.
+		for h := range headings {
+			if before, _, found := strings.Cut(h, " — "); found && strings.TrimSpace(before) == run {
+				return h, true
+			}
 		}
 	}
 	return "", false
@@ -115,7 +132,7 @@ func routerSets(root string, defined map[string]map[string]bool) (always, routed
 	// Every file the router names is entered whole on its trigger, read-always or not. That decides
 	// what an unentered section means in it: nothing, because its readers never enter by section.
 	isAlways := false
-	for _, line := range strings.Split(string(body), "\n") {
+	for _, line := range shell.SplitLines(string(body)) {
 		if strings.HasPrefix(line, "#") {
 			isAlways = strings.Contains(strings.ToLower(line), "read always")
 			continue
@@ -174,8 +191,8 @@ func read(root string) (defined map[string]map[string]bool, edges []edge, err er
 			defined[self] = map[string]bool{}
 		}
 		inFence := false
-		for _, line := range strings.Split(string(body), "\n") {
-			if strings.HasPrefix(line, "```") {
+		for _, line := range shell.SplitLines(string(body)) {
+			if shell.IsFenceDelimiter(line) {
 				inFence = !inFence
 				continue
 			}

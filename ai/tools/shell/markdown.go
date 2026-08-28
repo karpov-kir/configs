@@ -23,7 +23,7 @@ var (
 )
 
 // LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
-// is applied to is the caller's: check.sh reads a sed range, stats.sh an awk flag, and the two select
+// is applied to is the caller's: ecocheck reads a sed range, ecostats an awk flag, and the two select
 // different boundary lines on purpose.
 func LinkTargets(line string) []string {
 	var targets []string
@@ -47,7 +47,6 @@ func IsFrontmatterDelimiter(line string) bool {
 	return frontmatterRule.MatchString(line)
 }
 
-// --- shared:frontmatter-description ---
 // FrontmatterDescription is a SKILL.md's `description:` value — the routing text, and the only part
 // of a skill loaded in every session. Anchored to line 1, so a `---` rule in the body does not open
 // frontmatter.
@@ -63,9 +62,6 @@ func FrontmatterDescription(lines []string) string {
 	return value
 }
 
-// --- end shared:frontmatter-description ---
-
-// --- shared:opted-out-of-model-invocation ---
 // True when a skill's frontmatter takes it out of the router, which is what makes its description
 // cost no context in a session that never invokes it.
 func IsOptedOutOfModelInvocation(lines []string) bool {
@@ -73,8 +69,6 @@ func IsOptedOutOfModelInvocation(lines []string) bool {
 		return modelInvocationOff.MatchString(asciiLower(line))
 	})
 }
-
-// --- end shared:opted-out-of-model-invocation ---
 
 // Walks the frontmatter block and stops at the first line the reader accepts, reporting whether one
 // did. The block opens on line 1 and nowhere else, so a `---` rule in the body cannot start one.

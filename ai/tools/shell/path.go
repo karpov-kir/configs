@@ -67,7 +67,6 @@ func IsSymlink(path string) bool {
 	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
-// --- shared:canonical-dir ---
 // The directory a real path resolves to, symlinks followed — the `cd -P … && pwd -P` the shell
 // version used. Empty when the path is not a directory or cannot be resolved, and every caller reads
 // that emptiness as "not there".
@@ -85,8 +84,6 @@ func CanonicalDir(path string) string {
 	}
 	return resolved
 }
-
-// --- end shared:canonical-dir ---
 
 // Fnmatch is fnmatch as find(1)'s -name and -path use it: no FNM_PATHNAME, so `*` spans `/` too, and
 // no FNM_PERIOD, so it matches a leading dot.

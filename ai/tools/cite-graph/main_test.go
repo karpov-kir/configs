@@ -361,3 +361,18 @@ func TestRouterLoadedFilesAreNotReportedUnentered(t *testing.T) {
 		t.Error("the router itself must not report its own headings as unentered")
 	}
 }
+
+// The two tools have to agree on what resolves. `ecocheck` registers a heading's em-dash prefix as an
+// accepted alias, so a citation truncating down to it resolves there; this tool does not register the
+// alias, so the same truncation used to find nothing and a compliant citation was reported broken.
+func TestCitationTruncatingToAnEmDashPrefixResolves(t *testing.T) {
+	headings := map[string]bool{"phase 2 — assemble context (progressive)": true}
+	got, ok := entersAHeading(headings, "phase 2 — assemble context")
+	if !ok || got != "phase 2 — assemble context (progressive)" {
+		t.Fatalf("entersAHeading = %q, %v — want the full heading", got, ok)
+	}
+	// A section that truly does not exist is still refused: no heading's prefix answers to it.
+	if _, ok := entersAHeading(headings, "phase 9 — invented"); ok {
+		t.Fatal("resolved a section no heading answers to")
+	}
+}

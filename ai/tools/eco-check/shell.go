@@ -49,7 +49,7 @@ func isAlnumByte(b byte) bool {
 // instruction file — the largest in this tree is under 60 KB — so hitting it is a statement about the
 // branch, not about the tree growing.
 // Over the bound the file is **reported and not read**. Truncating it instead would leave an unchecked
-// file indistinguishable from a checked one, which is the failure `check.sh` names three times over.
+// file indistinguishable from a checked one, which is the failure this checker names three times over.
 const maxFileBytes = 8 << 20
 
 func (c *checker) readLines(path string) ([]string, error) {

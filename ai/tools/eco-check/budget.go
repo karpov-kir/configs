@@ -16,7 +16,7 @@ func (c *checker) reportBudget(out io.Writer) {
 	uncounted := c.resolveImports(&files)
 
 	// Counted per file and summed, never over a concatenation: gluing the files together fuses the
-	// last word of one that has no final newline onto the first word of the next, and stats.sh sums
+	// last word of one that has no final newline onto the first word of the next, and ecostats sums
 	// per file, so the two would report different figures for one tree. Deduplicated first —
 	// inject.md's Read-always list can name one file any number of times, and counting it twice
 	// inflates the tier it exists to measure.
@@ -71,7 +71,7 @@ func (c *checker) budgetFiles() []string {
 }
 
 // The block sed read as `/^## Read always/,/^## /` — from the heading to the next one, the closing
-// heading included. stats.sh selects the block with an awk flag instead and takes neither boundary
+// heading included. ecostats selects the block with an awk flag instead and takes neither boundary
 // line, so this is the one part of the budget scan the two do not share.
 func readAlwaysTargets(lines []string) []string {
 	var targets []string

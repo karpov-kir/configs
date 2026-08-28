@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	caseLabel         = regexp.MustCompilePOSIX(`^  [a-z][a-z0-9|_-]*\)$`)
 	namedTestSuite    = regexp.MustCompilePOSIX(`[A-Za-z0-9_.-]+-test\.sh`)
 	untestedDeclared  = regexp.MustCompilePOSIX(`^#[[:space:]]*untested:[[:space:]]*[^[:space:]]`)
 	sharedRegionOpen  = regexp.MustCompilePOSIX(`^[[:space:]]*# --- shared:[A-Za-z0-9_-]+ ---[[:space:]]*$`)
@@ -102,69 +101,7 @@ func isExecutable(path string) bool {
 	return err == nil && info.Mode()&0o111 != 0
 }
 
-// Enforces ecosystem.md → **Prefer the mechanism**: every case label of a top-level
-// `case "${1:-}" in` dispatch needs one `<script> <subcommand>` somewhere an agent reads. Labels are
-// read at the case arm's own indentation, so a nested `done)` is not one.
-func (c *checker) scanSubcommandCallSites() {
-	type callSite struct{ script, subcommand string }
-	var wanted []callSite
-	queries := map[string]bool{}
-	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
-		lines, err := c.readLines(script)
-		if err != nil {
-			continue
-		}
-		base := shell.BaseName(script)
-		for _, subcommand := range dispatchLabels(lines) {
-			wanted = append(wanted, callSite{script: base, subcommand: subcommand})
-			queries[base+" "+subcommand] = false
-		}
-	}
-	if len(queries) == 0 {
-		return
-	}
-	// One pass over the tree for every subcommand at once. The shell version walked the whole tree
-	// per label, which is the shape that turns a script with many arms into many whole-tree walks.
-	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh", "*.yaml") {
-		body, err := os.ReadFile(file)
-		if err != nil {
-			continue
-		}
-		text := string(body)
-		for query, seen := range queries {
-			if !seen && strings.Contains(text, query) {
-				queries[query] = true
-			}
-		}
-	}
-	for _, site := range wanted {
-		if !queries[site.script+" "+site.subcommand] {
-			c.add(shell.Oneline(site.script) + " subcommand with no call site: " + shell.Oneline(site.subcommand))
-		}
-	}
-}
-
-func dispatchLabels(lines []string) []string {
-	var labels []string
-	inside := false
-	for _, line := range lines {
-		if strings.HasPrefix(line, `case "${1:-}" in`) {
-			inside = true
-			continue
-		}
-		if inside && strings.HasPrefix(line, "esac") {
-			break
-		}
-		if !inside || !caseLabel.MatchString(line) {
-			continue
-		}
-		trimmed := strings.NewReplacer(" ", "", ")", "").Replace(line)
-		labels = append(labels, strings.Split(trimmed, "|")...)
-	}
-	return shell.SortUnique(labels)
-}
-
-// Also ecosystem.md → **Prefer the mechanism**: a script is prose turned into enforcement, so
+// ecosystem.md → **Prefer the mechanism**: a script is prose turned into enforcement, so
 // something has to prove the enforcement still fires. Each script states its test position in its
 // header, either the `-test.sh` covering it or `# untested: <why>`, and that header is what
 // kk-reduce's Phase 6 reads to pick what to run. Stating neither hides the script from that phase;

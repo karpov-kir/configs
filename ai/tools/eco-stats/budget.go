@@ -11,8 +11,8 @@ import (
 )
 
 // The always-loaded tier, in two parts: the router's own "Read always" targets, and every skill
-// description the harness keeps in context. check.sh counts the same tier and the two must agree, so
-// everything below it is shared with that script rather than written twice.
+// description the harness keeps in context. ecocheck counts the same tier and the two must agree, so
+// what decides membership is shared with it rather than written twice.
 func (s *stats) budgetFiles(errOut io.Writer) []string {
 	var files []string
 	claudeMd := shell.Join(s.root.Named(), "CLAUDE.md")
@@ -44,7 +44,7 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 				// Sanitised like every other name from the tree: the Read-always list is
 				// attacker-authored when this runs over a branch someone else wrote, and an ESC byte
 				// in a link target erases whatever this message was printed beside. ecocheck puts the
-				// same name through Oneline, and so do both shell scripts.
+				// same name through Oneline where it reports the same missing target.
 				fmt.Fprintf(errOut, "stats.sh: inject.md lists '%s' under Read always, but %s does not exist\n",
 					shell.Oneline(target), shell.Oneline(file))
 			case !s.root.Contains(file):
@@ -61,9 +61,9 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 }
 
 // The block awk selected with `/^## Read always/{f=1;next} /^## /{f=0} f` — between the headings,
-// neither one included. check.sh selects the same block with a sed range, which takes both boundary
-// lines, so this is the one part of the budget scan the two scripts do not share: a link on either
-// heading line is inside check.sh's block and outside this one.
+// neither one included. ecocheck selects the same block with a sed range, which takes both boundary
+// lines, so this is the one part of the budget scan the two tools do not share: a link on either
+// heading line is inside ecocheck's block and outside this one.
 func readAlwaysTargets(lines []string) []string {
 	var targets []string
 	inBlock := false
@@ -117,7 +117,7 @@ func (s *stats) resolveImports(budget []string, errOut io.Writer) {
 }
 
 // Every skill description the router keeps in context, and how many of the tree's skills are routed
-// at all. Read exactly as check.sh reads it, because that script reports this same budget.
+// at all. Read exactly as ecocheck reads it, because that tool reports this same budget.
 func (s *stats) census() {
 	for _, file := range skillFiles(s.root.Skills()) {
 		// A SKILL.md that cannot be read still counts as routed, with no description words: the awk

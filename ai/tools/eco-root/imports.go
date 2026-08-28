@@ -22,7 +22,6 @@ var (
 	importToken = regexp.MustCompilePOSIX(`[^A-Za-z0-9_]@[~A-Za-z0-9._/-]+\.[A-Za-z0-9]+`)
 )
 
-// --- shared:import-scan ---
 // Every `@name.ext` outside a fence and outside backticks, across the given files, byte-sorted and
 // deduplicated. Two bounds keep it linear in text the tree chose: a field length cap, and a match cap
 // within one field.
@@ -69,9 +68,6 @@ func importsIn(read ReadLines, files []string) []string {
 	return shell.SortUnique(found)
 }
 
-// --- end shared:import-scan ---
-
-// --- shared:import-at-mount ---
 // An import loads from beside the *installed* copy of the file carrying it, so `@RTK.md` in CLAUDE.md
 // is `~/.claude/RTK.md`. That file is **not** one this repo forgot: the rtk installer puts it there
 // and verifies it, so moving it into the tree fights the installer.
@@ -135,9 +131,6 @@ func (m importMount) resolve(name string) (target, refusal string) {
 	return mounted, ""
 }
 
-// --- end shared:import-at-mount ---
-
-// --- shared:import-resolution ---
 // ResolveImports scans the given files for `@import` names, hands each one the mount holds to
 // Resolved, each name of a shape nothing legitimate produces to Refused, and returns the rest for the
 // caller to name in its note. Scanning and mounting are one step because their order is not the
@@ -177,9 +170,6 @@ func (r Root) ResolveImports(scan ImportScan) []string {
 	return uncounted
 }
 
-// --- end shared:import-resolution ---
-
-// --- shared:import-cap ---
 // UncountedNames is the naming half of the uncounted-import note: capped in bytes as well as in
 // entries, because that note rides the exit-0 path, so an uncapped list prints attacker-chosen text
 // under a clean report. The count stays exact and is the caller's to print; only the naming is
@@ -203,5 +193,3 @@ func UncountedNames(uncounted []string) string {
 	}
 	return names
 }
-
-// --- end shared:import-cap ---

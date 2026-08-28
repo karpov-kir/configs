@@ -7,7 +7,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// --- shared:contained-in-root ---
 // True when a path's directory sits at or under rootCanon, which is shell.CanonicalDir of the root.
 //
 // A symlink is refused rather than resolved: CanonicalDir canonicalises a *directory*, so it never
@@ -27,8 +26,6 @@ func containedInRoot(rootCanon, path string) bool {
 	}
 	return dir == rootCanon || strings.HasPrefix(dir, rootCanon+"/")
 }
-
-// --- end shared:contained-in-root ---
 
 // `[ -r ]` answered by opening the file, which is the question containment asks: a file admitted here
 // is one whose words the figure behind it can actually read, and access(2) says yes where the open

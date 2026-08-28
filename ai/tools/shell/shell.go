@@ -2,9 +2,10 @@
 // `check.sh` and `stats.sh` reached for through `tr`, `sed`, `basename`, `find` and `wc`, plus what
 // their line-oriented scans read out of a markdown file.
 //
-// It exists because the shell side keeps its copies byte-identical under a drift scan and the Go side
-// has none: that scan reads `*.sh` only, so a second Go copy of one of these could drift with nothing
-// to notice. One implementation, every caller.
+// It exists because three Go tools read the same primitives, and a second copy of one of them could
+// drift with nothing to notice: the wiring check's shared-region scan reads `*.sh` only, and the
+// scripts are now stubs that hold no implementation to be twinned with. One implementation, every
+// caller — enforced by there being only one, not by a scan.
 //
 // Nothing here knows anything about the ecosystem, and that is the boundary. A checkout, the mount it
 // is compared against, and the `@import` names that load alongside it are facts about one tree rather
