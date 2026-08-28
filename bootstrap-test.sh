@@ -256,6 +256,38 @@ expect_out "and says why verify was skipped" "already inside a verify run"
   record_pass "and does not re-enter the suite runner" ||
   record_fail "and does not re-enter the suite runner" "the runner ran inside a verify run"
 
+# A missing runner, which is what a fresh clone had while `ai/run-tests.sh` was untracked. Without a
+# guard the call exits 127 and the failing-suite arm blames the suites for a file that was never
+# there — a false diagnosis pointing at code that is fine, which costs more than the silence would.
+# The two `expect_not_out` assertions are the load-bearing half: the exit alone cannot tell a missing
+# runner from a failing one, so only the wording separates them, and this suite is the only thing
+# holding them apart. Nothing here may pass because the real repository happens to have the runner —
+# the fixture removes it outright, which is why this case survives a clone and the others did not.
+rm -f "$verify_repo/ai/run-tests.sh"
+
+fresh_home
+out=$(HOME="$home" bash "$verify_repo/bootstrap.sh" --skip-brew --skip-tools --skip-mcp 2>&1)
+status=$?
+expect_status "a checkout without the suite runner exits 1" 1
+expect_out "and says the runner is missing" "is not in this checkout"
+expect_out "and says that is not a pass" "not the same as passing"
+expect_not_out "and does not blame the suites" "reported a failing suite"
+
+# A dry run that says ok over a repository where the real run cannot work is the same lie one step
+# earlier, so the guard sits ahead of the dry-run arm rather than beside the call.
+fresh_home
+out=$(HOME="$home" bash "$verify_repo/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --dry-run 2>&1)
+status=$?
+expect_status "a dry run without the suite runner exits 1" 1
+expect_not_out "and does not report ok" "bootstrap: ok"
+
+cat >"$verify_repo/ai/run-tests.sh" <<STUB
+#!/usr/bin/env bash
+printf 'ran\n' >>"\$MARKER"
+exit 0
+STUB
+chmod +x "$verify_repo/ai/run-tests.sh"
+
 # --- a repository missing its own contents --------------------------------------------------------
 
 # The script resolves its sources from its own location, so a copy in a skeleton directory is how the

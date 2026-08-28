@@ -215,6 +215,12 @@ if [ -n "${BOOTSTRAP_VERIFYING:-}" ]; then
   say "verify (skipped: already inside a verify run)"
 elif $skip_verify; then
   say "verify (skipped)"
+elif [ ! -x "$repo/ai/run-tests.sh" ]; then
+  # A missing runner must not be reported as a failing suite. Without this the call exits 127 and the
+  # arm below blames the suites for a file that was never there — a false diagnosis pointing at code
+  # that is fine, which costs more than the silence would. Checked in the dry run too: a dry run that
+  # says "ok" over a repository where the real run cannot work is the same lie one step earlier.
+  refuse "ai/run-tests.sh is not in this checkout — the suites were not run, which is not the same as passing"
 elif $dry_run; then
   say "verify: would run ai/run-tests.sh"
 else
