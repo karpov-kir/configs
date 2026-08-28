@@ -2,7 +2,7 @@
 
 Write a terse run-log; `~/.claude/skills/idsd-retro/SKILL.md` → **Input** defines its content. Then spawn `idsd-retro` **fresh**, with a prompt built from the slots of `~/.kk-flavor/templates/spawn-prompt.md` plus the extra ones in `templates/retro-spawn-prompt.md` (this skill's dir), and nothing else. Writing the log:
 
-- **The run is everything that produced this change, not this pass.** Under `idsd-ship` it starts at the human's ask and takes in `idsd-intent`'s grilling and `idsd-build`'s clarify gate; a pass reached any other way starts wherever its own work did. `idsd-retro`'s friction lens judges round-trips and communication across the whole run. A log that opens at the first quality stage hides the costliest ones. Draw it from the report's `Decide` items, the decision log and the session — never from memory alone.
+- **The run is everything that produced this change, not this pass.** Under `idsd-ship` it starts at the human's ask and takes in `idsd-intent`'s grilling and `idsd-build`'s clarify gate; a pass reached any other way starts wherever its own work did. A log that opens at the first quality stage hides the costliest ones. Draw it from the report's `Decide` items, the decision log and the session — never from memory alone.
 - **Write the log once the comment pass has returned**, and name it among the stages (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**).
 - **Never grade the run**, and never frame what a stage "should" have caught.
 - **For anything that appears in no diff** — server state above all — record the command and what it printed, not the conclusion you drew.

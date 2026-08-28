@@ -4,6 +4,6 @@ reviewed-tree: <hash>
 reviewed-stages: <stages>
 ---
 
-<!-- Contract: `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. -->
+<!-- Document shape: `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. -->
 
 # Decide
