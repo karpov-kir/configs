@@ -7,6 +7,18 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 script="$here/score.sh"
 
+# One temp root for the whole suite, and one EXIT trap: a second `trap ... EXIT` added later replaces
+# this one rather than adding to it, and leaks whatever the first had created.
+tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+
+# The machine-local override resolves under XDG_CONFIG_HOME, so the suite pins that at a directory
+# holding none. Left alone, every baseline level below would move with whatever this machine has in
+# ~/.config/kk-flavor — the suite would then pass or fail on the developer's own tuning, and the
+# tracked thresholds it exists to protect would be the one thing it stopped checking.
+export XDG_CONFIG_HOME="$tmp/no-override"
+mkdir -p "$XDG_CONFIG_HOME"
+
 passed=0
 failed=0
 
@@ -184,10 +196,91 @@ expect_status "cut takes no pattern either" 2
 run bogus outward-text
 expect_status "an unknown command exits 2" 2
 
+# The machine-local override. It is untracked by design, so these cases build one under a second
+# XDG_CONFIG_HOME instead of writing to whatever the developer has in their real one.
+ovr="$tmp/with-override/kk-flavor"
+mkdir -p "$ovr"
+write_override() { printf '%s\n' "$@" >"$ovr/thresholds.conf"; }
+
+run_ovr() {
+  out=$(XDG_CONFIG_HOME="$tmp/with-override" "$script" "$@" </dev/null 2>&1)
+  status=$?
+}
+
+run_stdin_ovr() {
+  local input="$1"
+  shift
+  out=$(printf '%s' "$input" | XDG_CONFIG_HOME="$tmp/with-override" "$script" "$@" 2>&1)
+  status=$?
+}
+
+write_override 'outward-text cut <= 8'
+
+run_ovr threshold outward-text
+expect_status "an override resolves" 0
+# Both numbers, not just the new one: a note saying only "8" cannot be checked against the bar the
+# tracked file states, which is the whole point of announcing it.
+expect_out "the note names both the ruled level and the one in effect" "5 ruled, 8 in effect"
+expect_out "and names the file that moved it" "$ovr/thresholds.conf"
+
+# The overlay is per lane. Whole-file replacement would detach every lane the override omits from the
+# file that rules them, and the omission is invisible in the output — the number still reads as ruled.
+out=$(XDG_CONFIG_HOME="$tmp/with-override" "$script" threshold instruction 2>&1)
+status=$?
+expect_exactly "a lane the override omits keeps its tracked level" "6"
+
+# `threshold` mode's stdout is read straight back as the number, so the announcement must not be on
+# it — concatenated, it becomes part of the number every caller reads. Exact, and stderr discarded:
+# substring would pass on the note alone.
+out=$(XDG_CONFIG_HOME="$tmp/with-override" "$script" threshold outward-text 2>/dev/null)
+expect_exactly "the announcement stays off threshold's stdout" "8"
+
+# The bar has to move, not merely be reported as moved. Without this the note could be right while
+# every item was still judged against the tracked number.
+run_stdin_ovr "$(printf '8\teight goes\n9\tnine stays\n')" cut outward-text "anchor"
+expect_status "an overridden cut exits 0" 0
+expect_out "the overridden level itself is cut" "CUT    8  eight goes"
+expect_out "one above the overridden level stays" "keep   9  nine stays"
+
+# Under `cut` the note goes the other way — into the report on stdout, because a caller piping the
+# report to a file keeps stdout and loses stderr, and the bar belongs beside the verdict it ruled.
+out=$(printf '8\tx\n' | XDG_CONFIG_HOME="$tmp/with-override" "$script" cut outward-text "anchor" 2>/dev/null)
+expect_out "cut carries the override in the report body, not only on stderr" "5 ruled, 8 in effect"
+
+# The hole this closes: an override free to name its own lane hands a caller a threshold no tracked
+# file states, which is the unknown-lane exit defeated by another door. A typo is the likely way in —
+# `instructions` for `instruction` — and it has to be loud, because the quiet version tunes nothing
+# while the developer believes it is live.
+write_override 'instructions cut <= 2'
+run_ovr threshold instruction
+expect_status "an override naming a lane the tracked config does not rule exits 2" 2
+expect_out "and says an override cannot add one" "never adds one"
+
+# Malformed in the override is as fatal as malformed in the tracked file, for the same reason: the
+# skip-it alternative falls back to the tracked number while the tuning reads as applied.
+write_override 'outward-text cut 8'
+run_ovr threshold outward-text
+expect_status "a malformed override line exits 2" 2
+expect_out "and the message names the override, not the tracked config" "$ovr/thresholds.conf"
+
+write_override 'outward-text cut <= 11'
+run_ovr threshold outward-text
+expect_status "an override over the 0-10 scale exits 2" 2
+
+write_override 'outward-text cut <= x'
+run_ovr threshold outward-text
+expect_status "a non-numeric override level exits 2" 2
+
+# An override that exists and rules nothing is not an error: commenting a tweak out is how one gets
+# parked, and every lane must land back on its tracked number when it is.
+write_override '# parked: outward-text cut <= 8'
+out=$(XDG_CONFIG_HOME="$tmp/with-override" "$script" threshold outward-text 2>&1)
+status=$?
+expect_exactly "an override ruling no lane leaves the tracked level alone" "5"
+
 # The one case that needs its own config, because it is about the config's last byte. The script
 # resolves its config from its own location, so the copy carries the fixture with it.
-fixture=$(mktemp -d) || exit 1
-trap 'rm -rf "$fixture"' EXIT
+fixture="$tmp/fixture"
 mkdir -p "$fixture/scripts"
 cp "$script" "$fixture/scripts/score.sh"
 printf 'first cut <= 4\nlast cut <= 9' >"$fixture/thresholds.conf" # deliberately unterminated

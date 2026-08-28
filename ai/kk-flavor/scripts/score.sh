@@ -9,12 +9,20 @@
 #
 # Prints to stdout. Exit 2 means it did not run; exit 3 means it ran and refuses the result.
 #
-# Three things here are the enforcement rather than the convenience. An unknown lane exits instead of
+# Thresholds come from `../thresholds.conf`, which is tracked, overlaid per lane by an untracked
+# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/thresholds.conf` where that exists — so a bar can be tuned
+# on one machine without dirtying the repo. An override in effect is always announced: a bar moved
+# locally produces a verdict no other machine reproduces, and silence about it is the whole hazard.
+#
+# Four things here are the enforcement rather than the convenience. An unknown lane exits instead of
 # falling back to `default`, because a caller that cannot find its number invents one, and an invented
 # threshold is indistinguishable in the output from the ruled one. `cut` refuses to run without the
-# anchor argument, which makes the caller write what a 10 is before any score is read. And a run that
+# anchor argument, which makes the caller write what a 10 is before any score is read. A run that
 # cuts nothing exits 3, because that is what scoring against no anchor produces and the anchor
-# refusal cannot see it — the anchor is a free string written before the scores exist.
+# refusal cannot see it — the anchor is a free string written before the scores exist. And the
+# override may only move a lane the tracked file rules, malformed lines in it being as fatal as
+# anywhere else: an override allowed to add a lane, or quietly skipped when unreadable, would put the
+# invented threshold back by another door.
 #
 # tested by: score-test.sh
 set -euo pipefail
@@ -23,6 +31,14 @@ set -euo pipefail
 # directory it landed on, so `here` comes back two lines long and the config resolves nowhere.
 here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 config="$here/../thresholds.conf"
+# Machine-local overrides, outside the repo so tweaking a bar is never a dirty working tree — and
+# outside `~/.kk-flavor`, which is a symlink into it. Absent is the common case and costs one stat.
+# It may only move a lane the tracked config already rules; see the allow-list in `scan_config`.
+override="${XDG_CONFIG_HOME:-$HOME/.config}/kk-flavor/thresholds.conf"
+
+# Set by `scan_config` and `threshold_for` rather than printed, because a caller reading them through
+# `$(...)` would put the config loop in a subshell — see `scan_config`.
+lanes= found= level= override_note=
 
 die() {
   printf 'score.sh: %s\n' "$1" >&2
@@ -36,32 +52,67 @@ die3() {
   exit 3
 }
 
-# The config is read by this one function, and read with a redirect rather than a pipe or a command
+# Either config is read by this one function, and read with a redirect rather than a pipe or a command
 # substitution: either of those puts the loop in a subshell, where `die` exits that subshell and the
 # caller carries on with an empty result. A malformed config would then be reported as a missing lane.
+# It sets `found` and appends to `lanes` rather than printing them for that same reason — a caller
+# reading the result back through `$(...)` would reintroduce the subshell it avoids.
 #
-# Field-by-field, never a pattern built from the config or from `$want`: a lane name is data, and
-# reaching a regexp it would be metacharacters.
-threshold_for() {
-  local want="$1" name verb op level rest found= known=
+# Field-by-field, never a pattern built from a config or from `$want`: a lane name is data, and
+# reaching a regexp it would be metacharacters. That is also why `$name` stays quoted inside the
+# `case` patterns below — unquoted, a lane named `*` would match every lane there is.
+#
+# `allow`, when set, is the lane list the tracked config rules, and a lane outside it is refused. An
+# override free to add a lane would defeat the unknown-lane exit this script exists for: the caller
+# would receive a threshold no tracked file states. It also makes a typo loud — `instructions` for
+# `instruction` would otherwise tune nothing at all, silently, which is the one failure a local
+# override is most likely to have.
+scan_config() {
+  local path="$1" want="$2" allow="${3-}" name verb op lvl rest
+  found=
   # `|| [ -n "$name" ]` for the same reason the stdin loop carries it: a config whose last lane has no
   # trailing newline would otherwise lose that lane, and the failure reads as "no lane 'x'" — a
   # missing-lane message for a lane that is right there.
-  while read -r name verb op level rest || [ -n "$name" ]; do
+  while read -r name verb op lvl rest || [ -n "$name" ]; do
     case "$name" in '' | '#'*) continue ;; esac
     [ "$verb" = cut ] && [ "$op" = '<=' ] && [ -z "$rest" ] ||
-      die "$config: cannot read the line naming '$name' — the form is '<lane> cut <= <n>'"
-    case "$level" in
-      '' | *[!0-9]*) die "$config: '$name' has a non-numeric level" ;;
+      die "$path: cannot read the line naming '$name' — the form is '<lane> cut <= <n>'"
+    case "$lvl" in
+      '' | *[!0-9]*) die "$path: '$name' has a non-numeric level" ;;
     esac
-    [ "$level" -le 10 ] || die "$config: '$name' is $level, over the 0-10 scale"
-    known="$known $name"
-    if [ "$name" = "$want" ]; then
-      found="$level"
+    [ "$lvl" -le 10 ] || die "$path: '$name' is $lvl, over the 0-10 scale"
+    if [ -n "$allow" ]; then
+      case " $allow " in
+        *" $name "*) ;;
+        *) die "$path: '$name' is not a lane $config rules — an override moves a lane, never adds one" ;;
+      esac
     fi
-  done <"$config"
-  [ -n "$found" ] || die "no lane '$want' in $config — it lists:$known"
-  printf '%s\n' "$found"
+    lanes="$lanes $name"
+    if [ "$name" = "$want" ]; then
+      found="$lvl"
+    fi
+  done <"$path"
+}
+
+# Resolves one lane into `level`, and into `override_note` when the machine-local file moved it. The
+# note is built here and printed by the caller, because where it can go differs: `threshold` mode's
+# stdout is the bare number a caller reads back, so it goes to stderr there and into the report body
+# under `cut`, where the verdict it governs is what a reader keeps.
+threshold_for() {
+  local want="$1" ruled=
+  lanes= found= level= override_note=
+  scan_config "$config" "$want"
+  [ -n "$found" ] || die "no lane '$want' in $config — it lists:$lanes"
+  level="$found"
+  [ -f "$override" ] || return 0
+  ruled="$lanes"
+  lanes=
+  scan_config "$override" "$want" "$ruled"
+  # A lane the override does not name keeps the tracked number: the overlay is per lane, so tuning
+  # one bar never silently detaches the rest from the file that rules them.
+  [ -n "$found" ] || return 0
+  override_note="lane $want overridden by $override: $level ruled, $found in effect"
+  level="$found"
 }
 
 [ -f "$config" ] || die "no threshold config at $config"
@@ -71,6 +122,9 @@ case "$1" in
   threshold)
     [ $# -eq 2 ] || die "threshold takes one lane"
     threshold_for "$2"
+    # stderr, never stdout: this mode's stdout is the number, read straight back by its caller.
+    [ -z "$override_note" ] || printf 'score.sh: %s\n' "$override_note" >&2
+    printf '%s\n' "$level"
     ;;
   cut)
     shift
@@ -89,8 +143,12 @@ case "$1" in
     # which is the refusal above defeated while still reading as enforced.
     [ -n "${anchor//[[:space:]]/}" ] ||
       die "the anchor is blank — write what a 10 is for this artifact before any score is read"
-    level="$(threshold_for "$lane")"
-    printf 'lane %s, cutting at or below %s\n10 here means: %s\n\n' "$lane" "$level" "$anchor"
+    threshold_for "$lane"
+    printf 'lane %s, cutting at or below %s\n' "$lane" "$level"
+    # In the report body here, not on stderr: the bar a verdict was judged against belongs beside the
+    # verdict, and stderr is exactly what a caller piping this report to a file loses.
+    [ -z "$override_note" ] || printf '%s\n' "$override_note"
+    printf '10 here means: %s\n\n' "$anchor"
     kept=0 gone=0
     # `|| [ -n "$line" ]`: at EOF without a trailing newline `read` fills the variable and still
     # returns non-zero, so the plain form drops the last item — and a caller piping a heredoc has no
