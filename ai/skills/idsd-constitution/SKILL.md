@@ -11,7 +11,7 @@ Read the repo first: `CLAUDE.md` and `PROJECT_CODE_STYLE.md` (if one is missing 
 
 ## Phase 2 — Grill the gaps only
 
-Invoke `kk-grill` over the sections of `templates/constitution-template.md`. Its legwork here is Phase 1's inventory, so every gate command is confirmed from there, never invented. Cover only what isn't already written down.
+Invoke `kk-grill` **inline** over the sections of `templates/constitution-template.md`. Its legwork here is Phase 1's inventory, so every gate command is confirmed from there, never invented. Cover only what isn't already written down.
 
 ## Phase 3 — Emit
 
@@ -19,6 +19,6 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 
 ## Rules
 
-**This file receives promotions from the records below it, so it is not bounded by size** — `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap** holds instead, a baseline NFR included.
+Its bound is `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap**, never a line count — a baseline NFR included.
 
-Gate commands must be **able to fail** — each exercises the thing its NFR or constraint names and exits non-zero when the threshold is breached. One that runs but can't fail (wrong target, no assertion, no server started) is worthless, not a gate.
+Gate commands must be **able to fail** — each exercises the thing its NFR or constraint names and exits non-zero when the threshold is breached. Don't write one that is a stale gate (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**).

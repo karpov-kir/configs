@@ -5,15 +5,15 @@ argument-hint: "the ecosystem root (default: the kk-flavor + skills tree)"
 disable-model-invocation: true
 ---
 
-Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — without losing what steers an agent. This is a **campaign** — many agents, each with a clean context, coordinated by you.
+Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — without losing what steers an agent.
 
-**You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. Read `~/.kk-flavor/standards/skill-protocol.md` (Caller and orchestrator rules) and `~/.kk-flavor/standards/ecosystem.md` (the bar every agent judges against) before Phase 1.
+**You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); read it and `~/.kk-flavor/standards/ecosystem.md`, the bar every agent judges against, before Phase 1.
 
 **Every agent below is spawned**, per the protocol's default — a second opinion from a context that already holds your conclusions is not a second opinion. Hand `~/.claude/skills/kk-reduce/AGENT-BRIEF.md` verbatim to every agent that **edits** — Phases 3–5, and only those; it carries their invariants and return contract, so your prompt carries only that agent's scope and delta.
 
 ## 0. Baseline
 
-**Start from a committed tree** — git is this campaign's undo, and on a dirty tree the human's own work reverts with the cuts. Dirty → they commit or stash before Phase 1. A clean start also scopes Phase 6's comment scan, which reads the diff against `HEAD`.
+**Start from a committed tree** — git is this campaign's undo, and on a dirty tree the human's own work reverts with the cuts. Dirty → they commit or stash before Phase 1.
 
 **Open the `stats.md` row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what is about to run>, start"`. Phase 7 closes it; `stats.md` owns everything else about that file.
 
@@ -31,7 +31,7 @@ Three things it must do:
 
 - **Verify against the real files.** The cutter will have misquoted, inflated counts, double-counted spans, and named passages that do not exist.
 - **Apply the rescue test** — *name the specific wrong action an agent takes without this text*. Not "this is true", not "this is useful". A passage that cannot fill that sentence loses.
-- **Catch de-duplication to zero** — the pair of items that each delete a rule citing the other as its home. This is the failure mode of the whole method.
+- **Catch de-duplication to zero** (`AGENT-BRIEF.md` → **The one failure mode that matters**) — here, the pair of *items* that each delete a rule citing the other as its home.
 
 It returns themed scopes, ordered so an earlier theme never invalidates a later one, and writes the plan to `<scratch>/reduce-plan.md` — **outside the repository**, like every campaign file here (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**).
 
@@ -55,7 +55,7 @@ The checks below need the whole tree at once, which no Phase 3 agent had.
 
 - **One home, and no home.** Reconcile rules living in several files. Then grep-verify **every `DELETED:` line every agent returned** — open the file each names as still covering the rule and confirm the text is there — not only what the plan rescued: **de-duplication to zero** survives the plan when two agents each delete their own copy. A line whose named home no longer holds it is a rule deleted twice; restore one copy.
 - **Stale claims.** A wiring check proves the path and the heading a citation names; nothing proves that section still says the thing. Read every citation into a file that was heavily cut.
-- **Prefer the mechanism.** Move prose a script can assert into the script (ecosystem.md → **Prefer the mechanism**).
+- **Prefer the mechanism.** Move prose a script can assert into the script (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**).
 - **Trace the real runs.** Walk each end-to-end path as the agent would, loading files in order, and find where the instruction runs out: a step naming something no file defines, an invocation whose receiving skill no longer expects what the sender sends, a contract with one half deleted.
 - **Skill shape**, where skills were cut — invoke `kk-skillcraft`. Run it here and not in Phase 3: what to extract depends on what survived.
 
@@ -85,10 +85,10 @@ Its deltas: the entrypoint is a fresh agent reading the shrunk tree, and what it
 
 A `DIVERGED` scenario stops the campaign as a red gate does. Restore the instruction it names, **re-enter Phase 6 over the files you touched** — a restoration made here is otherwise unrepaired and unscanned — then re-drive.
 
-**Close the `stats.md` row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what ran>"`. **An open item does not live in the note.** Put it where whoever trips over it will read it — a comment at the site, a rule in the file that owns it — and let the note name it in a clause.
+**Close the `stats.md` row** — `~/.claude/skills/kk-reduce/scripts/stats.sh --append "<what ran>"`. **An open item does not live in the note** (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). Put it where whoever trips over it will read it — a comment at the site, a rule in the file that owns it — and let the note name it in a clause.
 
 ## Rules
 
 - **The target is an aim, not a quota** (`AGENT-BRIEF.md` → **On the target**) — accept the first return, and never send an agent back for the number alone.
-- **Report the honest total.** Scripts grow when prose becomes enforcement; show that separately rather than netting it out. A comment is not that growth — it is prose in a `.sh` and belongs in the prose total, so only executable lines count as a win.
+- **Report the honest total.** Scripts grow when prose becomes enforcement; show that separately rather than netting it out. A comment is not that growth — it is prose in a `.sh`, so only executable lines count as a win.
 - Deliberately-argued restorations accumulate across phases. Carry them into every later brief as protected, or the next agent cuts them again with the same reasoning that cut them the first time.

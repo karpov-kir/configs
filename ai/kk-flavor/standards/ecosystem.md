@@ -37,7 +37,7 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 
 - **Split** a branch not every run takes into a file the skill names at that branch. The pointer must sit where the branch is taken and say the file is the whole delta for that path.
 - **Extract** a rule a script can assert into the script (**Prefer the mechanism**, below).
-- **Reuse** — where two files state the same procedure, one skill owns it and the others invoke it, naming only their own delta.
+- **Reuse** — where two files state the same procedure, one skill owns it and the others invoke it, naming only their own delta. **Where neither can own it**, because each carries a scope the other must not inherit, the shared part becomes a new file both stack on. **That extraction pays only once the copies it replaced are gone** — until then it is a third home, and a routing surface on top.
 - **Demote** a rule that fires for one activity out of an always-read file into that activity's standard.
 
 A move is only a win when the common path genuinely never needs the text — a rule that silently shapes behaviour on every run stays, however rarely it is quoted.

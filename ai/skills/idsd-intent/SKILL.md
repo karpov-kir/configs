@@ -4,9 +4,7 @@ description: Author or refine an ICE intent — what to build and why, never how
 argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
-Capture **what** to build and **why** as an **ICE** — Intent · Context · Expectations — never **how**. You author Intent and Expectations (goal, constraints, scenarios); `idsd-build` assembles Context, resolves the gate commands that check the constraints (its Phase 2), and owns implementation.
-
-Where this fits: `idsd-charter` (optional) → `idsd-constitution` (optional) → **`idsd-intent`** → `idsd-audit` (optional) → `idsd-build`.
+Capture **what** to build and **why** as an **ICE** — Intent · Context · Expectations — never **how**. You author Intent and Expectations (goal, constraints, scenarios); `idsd-build` assembles Context and owns implementation.
 
 ## Phase 0 — Detect scope
 
@@ -18,15 +16,13 @@ If refining, read the named intent file, grill only the gaps, and preserve its b
 
 ## Phase 1 — Grill
 
-Invoke `kk-grill` over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, the constitution, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
+Invoke `kk-grill` **inline** over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, the constitution, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
 
 Cover only what's unclear — the heuristic per part:
 
 1. **Goal** — one outcome. An "and" is a smell, not an automatic split: two facets of one outcome → name that outcome; independently shippable → split (horizontal decomposition — more intents, not deeper). When the goal's outcome word is broader than the symptom the request names, settle which outcome is wanted before approving — in outcome terms, never by reaching for a mechanism.
 2. **Constraints** — prefer measurable ones, since `idsd-build` gates those automatically. Each must constrain THIS outcome, not how another component consumes its output (that belongs in their intent).
-3. **Scenarios** — one success and one failure scenario are the floor (`templates/ice-template.md`); add one per distinct behaviour, path, or failure mode worth proving — never pad with near-duplicates.
-
-**Goal** and **scenarios** are the plain-language contract a non-dev collaborator can shape; **constraints** are the technical must-holds.
+3. **Scenarios** — one success and one failure scenario are the floor; add one per distinct behaviour, path, or failure mode worth proving — never pad with near-duplicates.
 
 For a **project map**, also decompose into one ICE per independently-shippable slice and tag each `milestone` (`mvp`, `vnext`, …); parked vNext intents are real files at `status: draft`.
 
@@ -48,7 +44,7 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update and confirm it. If there's no charter, don't create one here.
 
-**Keep `.idsd/language.md` current** — the project's ubiquitous language. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. It has no cadence of its own — it changes when an intent does, and `idsd-audit` is what notices when it stopped. **It receives promotions from the records below it, so it carries a test rather than a cap** (`~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap**): a term no artifact uses any longer is deleted here, not left for the audit to find.
+**Keep `.idsd/language.md` current** — the project's ubiquitous language. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. Its bound is `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap**, never a line count — so a term no artifact uses any longer is deleted here, not left for the audit to find.
 
 ## Rules
 

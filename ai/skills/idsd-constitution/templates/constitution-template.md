@@ -1,6 +1,6 @@
 # <Project> Constitution
 
-Long-term memory for IDSD. Read by `idsd-build` as Context. Lean — link out, don't restate code style.
+Long-term memory for IDSD: the project's principles, baseline NFRs and gate commands.
 
 ## References
 

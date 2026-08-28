@@ -1,6 +1,6 @@
 # <Project> Charter
 
-The project's what & why — the level-0 intent. Read by `idsd-build` as Context. Lean and curated — link out for detail.
+The project's what & why — the level-0 intent above the feature intents.
 
 ## Vision
 

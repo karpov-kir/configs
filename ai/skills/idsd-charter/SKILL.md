@@ -3,7 +3,7 @@ name: idsd-charter
 description: Write or edit .idsd/charter.md — an IDSD project's what & why. Use for "set the project vision/charter", "define scope". Safe with a non-technical collaborator; the technical how is idsd-constitution's.
 ---
 
-Write `.idsd/charter.md` — the project's **what & why**, the level-0 intent above the feature intents. Don't list features (that's the roadmap), restate principles or standards (the constitution), or detail behaviour (the intents) — link to them.
+Write `.idsd/charter.md`. Don't list features (that's the roadmap), restate principles or standards (the constitution), or detail behaviour (the intents) — link to them.
 
 ## Phase 1 — Inventory what exists
 
@@ -13,7 +13,7 @@ Write `.idsd/charter.md` — the project's **what & why**, the level-0 intent ab
 
 ## Phase 2 — Grill the gaps only
 
-Invoke `kk-grill` at project scope, over the sections of `templates/charter-template.md`. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear, and push until the boundaries are sharp — hardest on what is explicitly **out** for now.
+Invoke `kk-grill` **inline**, at project scope, over the sections of `templates/charter-template.md`. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear, and push until the boundaries are sharp — hardest on what is explicitly **out** for now.
 
 ## Phase 3 — Emit
 
@@ -21,6 +21,6 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 
 ## Rules
 
-Curated, not generated: humans own the wording. **So the prose lane does not run over this file** — a tightener rewriting the human's vision prose is the one edit "they own the wording" rules out, whatever it buys in words.
+Curated, not generated: humans own the wording. **So you open no prose-lane handoff for this file.**
 
-**The charter receives promotions from the records below it, so it is not bounded by size** — `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap** holds instead.
+Its bound is `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap**, never a line count.

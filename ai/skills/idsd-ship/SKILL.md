@@ -4,9 +4,7 @@ description: "Ship one ICE intent end-to-end — author it if missing, build, qu
 argument-hint: "<arg> | done [<intent>] | qualify [fast|full] | continue [<intent>] | promote"
 ---
 
-You **orchestrate** existing skills, accumulating this intent's qualify report — the digest of what needs the human's attention. On `ship <arg>`, build, qualify, and the gate message always run.
-
-**Interactive first.** You run under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**. Ship's own seam: the sub-skills' clarify gates (e.g. `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1**) still fire — never suppress one by recording instead.
+You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**). You run `~/.claude/skills/idsd-build/SKILL.md` and `~/.claude/skills/idsd-qualify/SKILL.md`, so read both whole rather than entering them a section at a time. Ship's own seam: the sub-skills' clarify gates (e.g. `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1**) still fire — never suppress one by recording instead.
 
 **Offer cadence.** Both periodic offers below go through `~/.claude/skills/idsd-ship/scripts/cadence.sh <topic> due`, whose usage line carries the exit codes. On exit 2, make the offer anyway and say the cadence could not be read. Then `cadence.sh <topic> asked` once the answer is settled — on no immediately, on yes only after the stage returns.
 
@@ -30,7 +28,7 @@ The report contract — the **committed vs throwaway** repo modes included — p
 
 ## Build, then qualify
 
-1. **`report.sh check-ignore`, then open the report the moment you hold the `NNN-<slug>`** — now, for an existing intent; after step 2 authors one, for a ticket ref. `report.sh init "<intent>"` on the first pass over this change set, per `~/.claude/skills/idsd-qualify/SKILL.md` → **Running a pass**. The slug names the report *file*, so one opened under a ticket ref keeps that name whatever its frontmatter later says. Either way it precedes Build, so Build's decisions have a home the moment they surface.
+1. **`report.sh check-ignore`, then open the report the moment you hold the `NNN-<slug>`.** `report.sh init "<intent>"` on the first pass over this change set, per `~/.claude/skills/idsd-qualify/SKILL.md` → **Running a pass**. The slug names the report *file*, so one opened under a ticket ref keeps that name whatever its frontmatter later says. Either way it precedes Build, so Build's decisions have a home the moment they surface.
    - **The report belongs in the worktree Build works in.** If `idsd-build` places itself in a new one, run `check-ignore`/`init` from there, or place Build in this one. A report at the original root fingerprints a tree holding none of the build's changes.
 2. **Build** — **author the intent first if it's missing.** If no intent file matches `<arg>` — not in `.idsd/intents/` or the archive — run `idsd-intent` to author one. Seed it from the ticket when `<arg>` is a ticket ref and a connector is available, else from `<arg>` as the feature description. **That `NNN-<slug>` is step 1's trigger — open the report now.** Then run `idsd-build` for that intent in its **pipeline mode**. Both run **inline**, never spawned — each couples to the human continuously (intent grills; build's Phase 1 clarifies), and only this thread reaches the human. Before recording anything in the report, confirm idsd-build routed its follow-ups and constitution proposals as its own rules require. An unrouted follow-up is a build defect, not something the report absorbs.
    - Record as **Decide** items, each pointing to the durable home idsd-build already wrote: deferrals to confirm, constraints that need human judgment, and any choice Build settled that the human may still overturn — a **fork** whose default is what Build did. An ambiguity resolved with no open decision is not recorded.

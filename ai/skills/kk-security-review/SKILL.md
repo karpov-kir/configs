@@ -44,5 +44,5 @@ Finding line: `<severity> CWE-XXX <location>: <weakness>. Exploit: <one sentence
 
 ## Do not
 
-- Post to GitHub or run `gh` — this is a local review.
-- Re-audit, fix, or block on a pre-existing weakness outside the change; surface a serious one as a separate non-blocking note. Anything carrying one of the three labels above is in scope, **newly reachable** included.
+- Post to GitHub or run `gh` — `~/.kk-flavor/standards/quality-pipeline.md` owns that rule and binds every stage, this one run standalone included.
+- **Re-audit** a pre-existing weakness outside the change — this lane's addition to that file's pre-existing-defect rule, which otherwise binds unchanged. **Anything carrying one of the three labels above is in scope**, **newly reachable** included.

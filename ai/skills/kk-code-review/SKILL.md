@@ -1,6 +1,6 @@
 ---
 name: kk-code-review
-description: Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (idsd-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.
+description: Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (kk-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
@@ -18,7 +18,7 @@ Check every changed file against all five:
    - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
 2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
-4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding. Placement is `kk-refactor`'s lane; content is yours.
+4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding.
 5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits, and a coverage percentage passes with the new branch untested. Name the behaviour that is unguarded; writing the test is `kk-refactor`'s gated testing lane.
 
 ## Loop deltas
@@ -35,6 +35,5 @@ Finding line: `<location>: <bug> — fixed | needs human: <decision>`
 
 ## Do not
 
-- Post to GitHub or run `gh` — this is a local review.
+- Post to GitHub, run `gh`, or fix or block on a pre-existing defect outside the change — both rules are `~/.kk-flavor/standards/quality-pipeline.md`'s, and they bind every stage, this one run standalone included.
 - Build, typecheck, run tests, or flag nitpicks and anything a linter / typechecker / test catches — assume CI runs them.
-- Fix or block on a pre-existing bug outside the change — surface a serious one once as a separate non-blocking note for the human to route, never folded into the change's findings and never dropped silently. (One the change makes reachable or worse is in scope.)

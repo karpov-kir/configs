@@ -5,7 +5,7 @@ argument-hint: "what was wrong with it, or which earlier reply to re-answer (def
 disable-model-invocation: true
 ---
 
-Re-answer your last reply — or the earlier one `$ARGUMENTS` names. Where `$ARGUMENTS` says what was wrong instead, fix that first. **The reply's content is already decided; only its shape is wrong.**
+Re-answer your last reply — or the earlier one `$ARGUMENTS` names. Where `$ARGUMENTS` says what was wrong instead, fix that first.
 
 Runs **inline**, never spawned — the target is text you already hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 
@@ -25,4 +25,4 @@ Inspect nothing but the reply itself and the two sections **The shape** names, a
 
 ## Output
 
-The re-answer in the shape **The shape** names, its closing line included. Its one addition is a line for something you noticed (**The reply, not the work**). No apology, no account of what the first reply got wrong, no note that you re-answered.
+No apology, no account of what the first reply got wrong, no note that you re-answered.

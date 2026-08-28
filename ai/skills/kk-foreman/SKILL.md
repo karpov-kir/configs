@@ -11,17 +11,9 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 **That mount is the candidate set.** Not every skill you can invoke sits on it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Off that mount, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
 
-## 1. Read the state before choosing
+## 1. Route
 
-**Only when the work touches the agent instruction tree** — skills, standards, prompts, templates, `CLAUDE.md`. `stats.sh` measures that tree and nothing else, so in any other repo there is nothing to read: go straight to **Route**.
-
-Run `~/.claude/skills/kk-reduce/scripts/stats.sh` and read `~/.claude/skills/kk-reduce/stats.md`. On exit 2, fix what the script names; never treat it as no change.
-
-Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it.
-
-## 2. Route
-
-**Start at the smallest skill that covers the work, and escalate only on evidence.** One `kk-*` skill run directly — whichever description matches — is the common answer, and three touched lines get one of those, not a chain: say which skill and run it, without ceremony.
+**Start at the smallest skill that covers the work, and escalate only on evidence.** Three touched lines get one skill, whichever description matches, not a chain: say which and run it, without ceremony.
 
 Escalate on something you can name: the change crosses several lanes at once, a scoped pass already ran and left the problem standing, or `stats.md` shows drift no single pass reaches. "It might find more" is not evidence — it is how every request becomes the most expensive one.
 
@@ -29,17 +21,17 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 | The work | The answer |
 |---|---|
-| Code or tooling changed | `kk-drive`, then `kk-code-review` and `kk-security-review`, then `kk-refactor`, then `kk-humanize` over the comments. That order, each stage's own trigger, and what may be dropped are `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it** and → **The stages**; **`kk-refactor` is never dropped.** |
+| Code or tooling changed | `kk-qualify`, alone — it owns the stage order and what each stage's trigger is. Queuing those stages here instead runs the pipeline without its round. |
 | A PR to review | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. |
 | Changes were requested on a PR | Make the edits, or name `idsd-ship` if the change is intent-shaped, then run the code row over what you changed, before you push. **`kk-pr-review` answers nothing**: it is never how a comment gets addressed, and exactly how the edits get re-reviewed once they are in. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
 | Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
 | Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-tighten` beside it runs them twice and out of order. |
-| The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. |
-| A plan or a decision, with nothing built yet | `kk-grill`, alone. Every row above reviews something that exists; this is the only one that reaches a choice while it is still cheap to change. |
-| Nothing named, or a periodic check | Recommend from what changed, plus `stats.md`'s trend where step 1 read it. Recommending nothing is a valid outcome. |
+| The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. Measure that before you claim it: `~/.claude/skills/kk-reduce/scripts/stats.sh`, then `~/.claude/skills/kk-reduce/stats.md`. Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it. |
+| A plan or a decision, with nothing built yet | `kk-grill`, alone. |
+| Nothing named, or a periodic check | Recommend from what changed — plus the row above's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
 
-**The `idsd-*` suite is a workflow the human enters deliberately and stays inside.** When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it: `idsd-qualify` writes a report and stamps a merge gate, which no chain here reproduces.
+**The `idsd-*` suite is a workflow the human enters deliberately and stays inside.** When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it.
 
 **More than one row will often match** — a change set that touches skills and their scripts matches two. Run them as one chain rather than one after the other: stages whose file sets are disjoint go concurrently, and where the sets overlap the rows keep their own order. Two full chains run back to back review the same files twice and let the second undo the first.
 
@@ -51,20 +43,19 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 **An MCP server acts in an outside system too, and is not a skill.** Its tools are that system's sanctioned interface, not the raw call the line above rules out. Where a skill and an MCP server both reach one system, **the human names which**.
 
-**The send goes last**, by a skill or an MCP tool, and the ordering is `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act** — a create is an external write, which is that file's trigger. Here it means draft the ticket body, run the prose lane, show the human, then create.
+**The send goes last**, by a skill or an MCP tool: draft the ticket body, run the prose lane, show the human, then create (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**).
 
 **A tool skill is an action; the `kk-*` skills are lanes over its text.** Its return is text you now own, and it re-enters **Route** like any other prose.
 
-## 3. Run
+## 2. Run
 
-Spawn each stage in the order **Route** resolved. Relay a stage's blocking question to the human live — you hold the thread and it does not.
+Spawn each stage in the order **Route** resolved.
 
 **Where a chain's stages are live at once over one change set, run it streamed instead** — `~/.kk-flavor/standards/streaming.md` → **The caller's half** is yours, and that file is the whole delta for the path.
 
-**A handoff a stage returns is placed by Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**): one naming a skill already queued merges into that row rather than running twice.
+**A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
 ## Rules
 
 - **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes.
-- Never narrow a stage's **lens**. Scope its files to the change set — that is the one narrowing the pipeline requires (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
-- A chain that stops early stops the chain. A later stage running on the output of a stage that failed is worse than not running it.
+- **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).

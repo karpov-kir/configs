@@ -30,10 +30,8 @@ Before deleting anything because "another file covers it", **open that file at t
 Prefer a move (`~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it**) to a deletion
 you would have to argue for.
 
-**Extracting a rule into a script owes two things.** The case in the `<name>-test.sh` beside it that
-the script's own header requires — an extraction nothing exercises is a rule that now fires nowhere.
-And honesty in `WORDS`: a comment is prose that changed file, not prose you saved, so words you moved
-into a script are still there. A comment's bar is `~/.kk-flavor/standards/human-writing.md` → **Code comments**.
+**Extracting a rule into a script owes honesty in `WORDS`** — a comment is prose that changed file,
+not prose you saved. What else that extraction owes is `~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**.
 
 ## Scope discipline
 
@@ -59,7 +57,7 @@ DELETED: one line per rule removed, each naming what still covers it — or plai
 MOVED: what you split, extracted, or gave one home, and where the pointer sits
 RESCUED-KEPT: one line per plan-rescued passage, confirming it survives and where
 CROSS-SCOPE: the patches you queued, by filename — or "none"
-HANDOFF: each lane your edits opened (skill + the files that opened it) — never kk-skillcraft or kk-tighten, the campaign runs those — or "none"
+HANDOFF: each lane your edits opened (skill + the files that opened it) — never kk-skillcraft or kk-tighten (**Scope discipline**) — or "none"
 PROPOSAL: additions you did not make — or "none"
 BROKEN: references your edits invalidated — or "none"
 ```

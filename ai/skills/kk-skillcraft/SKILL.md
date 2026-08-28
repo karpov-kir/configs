@@ -8,7 +8,7 @@ Judge a skill as a skill. Not whether its rules earn their place or reconcile ac
 
 A big skill is a symptom. Read it for the cause.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it, scripts and reference files included: a lens about how files divide cannot run on `SKILL.md` alone. **This coarser unit replaces `file` throughout the protocol** — one directory per message, one verdict for the directory, and the queue, ledger and `N/M` all count directories.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one directory per message, one verdict for the directory, and the queue, ledger and `N/M` all count directories.
 
 **Apply the fixes your lenses call for.** A split into two skills is a proposal, not an edit — it changes what the human types; so is a skill that should do *more*. A finding you return as a proposal is resolved by returning it: `WARN` once and move on, because the protocol's retry cannot converge what you have no license to change. **A defect outside your lenses is named, never edited and never dropped** — `~/.kk-flavor/standards/skill-protocol.md` → **Do not** bars the edit, and silence loses what only this pass saw.
 
@@ -27,7 +27,7 @@ A skill divides into **steps** (the procedure) and **reference** (templates, def
 Find the **branches** — the conditional paths a run may or may not take. A branch's material does not belong inline; it belongs in a file the skill names at the branch. Three tests, all of which must pass:
 
 1. Does an agent on the common path decide just as well without having read it?
-2. Is the pointer unmissable, sited exactly where the branch is taken, and does it say the file is the whole delta for that path? A pointer the agent skims past leaves the rule both absent and unenforced.
+2. Is the pointer unmissable, sited exactly where the branch is taken, and does it say the file is the whole delta for that path?
 3. Does the extracted file stand alone, without re-reading the parent?
 
 Fail any one and it stays inline. **A bad extraction is worse than none**, because it converts a rule the agent reads into a rule the agent is merely told about.
@@ -41,11 +41,10 @@ When an agent ignores an instruction, argue less and steer harder.
 
 ## 4. Pruning — what is not doing anything
 
-- **No-ops.** Text that reads like an instruction but changes no output. Apply the deletion test: cut it, and ask whether a competent agent does the same thing anyway. A paragraph demanding a "clear, detailed commit message" is a no-op.
+- **No-ops.** Text that reads like an instruction but changes no output. Apply the deletion test: cut it, and ask whether a competent agent does the same thing anyway.
 - **Sediment.** What accumulates when several people edit one file and nobody dares delete anyone else's rule. It reads as a flat list of equals; it is actually one live procedure plus somebody's old edge case. Move the niche rules into the branch that needs them and kill the stale ones.
-- **Repetition.** One home per instruction, within the skill and across its reference files.
 
-Deleting is not the only fix — try the moves in ecosystem.md → **Move it before you cut it** first.
+Deleting is not the only fix — try the moves in `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** first.
 
 ## Verdict
 

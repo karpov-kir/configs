@@ -6,13 +6,13 @@ argument-hint: "the scenarios to drive, plus how to run the project"
 
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The unit is a **scenario**, not a file: the queue is the scenarios you were handed, and each one gets an outcome. And you change no code, so nothing here is a fix — a `DIVERGED` scenario is resolved by returning it. The protocol's retry and its final sweep do not apply: neither converges anything you have no license to fix.
 
-**You were handed the scenarios and how to run the project. Don't go looking for the diff** — not `git diff`, not a commit's changes, not the implementation of the thing you are driving. Read how it was done and you will confirm the code does what it does, which is the one thing this lane cannot be for. **Handed no scenarios, take them from the ask** — an intent's scenarios, the ticket, or your caller (`skill-protocol.md` → **Caller**) — never from the diff.
+**You were handed the scenarios and how to run the project. Don't go looking for the diff** — not `git diff`, not a commit's changes, not the implementation of the thing you are driving. Read how it was done and you will confirm the code does what it does, which is the one thing this lane cannot be for. **Handed no scenarios, take them from the ask** — an intent's scenarios, the ticket, or your caller (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**) — never from the diff.
 
 ## Name the entrypoint and the driver
 
 **Discovery is part of the check.** How to run this project is recorded somewhere in the repo — e.g. its manifest scripts, its README, its CI config, a `.idsd/playbook.md`, a project `verify` skill. Read those, then **name the entrypoint and the driver before you use either** — e.g. a browser for a UI, an HTTP client for an endpoint, its own command for a CLI.
 
-**A recorded result from a run that already drove this change satisfies a scenario** — read it and name what you read rather than driving it again. **A claim that it passed is not a record, and neither is a green gate** (Core Principle 5): a PR's Verification section, a commit message, a CI run tells you which scenarios to run, never that they ran. A record is someone's account of driving *this* scenario — what they did, what they observed, and the evidence.
+**A recorded result from a run that already drove this change satisfies a scenario** — read it and name what you read rather than driving it again. **A claim that it passed is not a record, and neither is a green gate** (`~/.kk-flavor/standards/core-principles.md` → **5. Verify the effect, not the report of it**): a PR's Verification section, a commit message, a CI run tells you which scenarios to run, never that they ran. A record is someone's account of driving *this* scenario — what they did, what they observed, and the evidence.
 
 ## The sequence
 
@@ -30,7 +30,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The
 
 **Where no fixture can be seeded** — the change reads its state from a service you don't run — drive the least-live environment holding usable data, **never production**. Leave any record you borrowed as you found it, and **name the environment and the record you drove**.
 
-**No runnable entrypoint yet is not grounds to skip** — a throwaway harness is the expected way, and it goes when the drive does. **Standing up that harness is not modifying the change** — create it outside the code under test and say you did. **Needing to edit the change itself before it will run is a finding**, not a step.
+**No runnable entrypoint yet is not grounds to skip** — a throwaway harness is the expected way. **Standing up that harness is not modifying the change** — create it outside the code under test and say you did. **Needing to edit the change itself before it will run is a finding**, not a step.
 
 **A real credential you were not given is an ask, never a hunt** — not out of a keychain, a vault CLI, a shell profile or another project's config.
 
