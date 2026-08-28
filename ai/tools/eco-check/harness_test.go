@@ -1,13 +1,13 @@
 package ecocheck_test
 
-// The fixture builders and the four assertions the cases in check_test.go are written against, ported
-// one for one from `~/.claude/skills/kk-ecosystem/scripts/check-test.sh`. Each builder keeps the name
-// and the meaning its shell counterpart had, because that suite is still the cross-check: a case here
-// and the case of the same name there have to be the same case.
+// The fixture builders and the four assertions the cases in check_test.go are written against. They
+// were ported one for one from a shell suite that no longer exists — it was deleted once the skills
+// switched to this binary, and git history is where the pairing can still be read. This is now the
+// only suite over these scans, so a case removed here is coverage gone rather than coverage moved.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out — the forks were
-// the whole cost of the shell suite, and the mutation harness above this one multiplies that cost by
-// the length of its mutation list.
+// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out: the forks were
+// the whole cost of the shell suite, and a mutation harness multiplies that cost by the length of its
+// mutation list. `ai/tools/go-mutate` is what shows a case here can fail.
 
 import (
 	"bytes"

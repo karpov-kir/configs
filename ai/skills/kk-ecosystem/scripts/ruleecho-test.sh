@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Cases for ruleecho.sh. The one that must not be weakened is "runs from an unrelated cwd": that is
-# the defect the wrapper exists for, and it fails silently — the scan reports nothing and nothing
+# Cases for ruleecho.sh, covering what is specific to rule-echo: that it really reads a tree and finds
+# a restatement in it. The one that must not be weakened is "runs from an unrelated cwd": that is the
+# defect the wrapper exists for, and it fails silently — the scan reports nothing and nothing
 # distinguishes that from a tree with nothing to report.
+#
+# How the wrapper reaches its binary is not tested here. That body is the shared tool-stub region, and
+# its own cases are in tool-stub-test.sh; every way the resolver behind it can fail to produce a
+# binary is in resolve-test.sh, which builds fixtures for each branch instead of depending on what
+# this machine happens to have installed.
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -61,30 +67,16 @@ out=$("$script" 2>&1)
 status=$?
 expect_status "no root exits 2" 2
 
-# Each of these is a way the scan does not run. All three must exit 2 and say so, because exit 0 with
-# no pairs is what a clean tree looks like.
-# A PATH holding everything the script needs to reach its `go` check, and no `go`. Emptying PATH
-# outright breaks `#!/usr/bin/env bash` before the script starts; leaving out `dirname` kills it at
-# self-resolution. Either way it still exits 2, so the exit assertion passes while the case proves
-# nothing about `go` — which is what the negative control caught.
-bare="$base/bare-path"
-mkdir -p "$bare"
-for needed in bash dirname mkdir; do
-  ln -s "$(command -v "$needed")" "$bare/$needed"
-done
-out=$(PATH="$bare" "$script" "$root" 2>&1)
-status=$?
-expect_status "no go toolchain exits 2 rather than reporting clean" 2
-expect_out "and says the scan did not run" "did NOT run"
-
-# A checkout that mounts the skill without shipping the tool.
+# A checkout that mounts the skill without shipping the tools directory: still exit 2, because exit 0
+# with no pairs is what a clean tree looks like.
 orphan="$base/orphan/skills/kk-ecosystem/scripts"
 mkdir -p "$orphan"
 cp "$script" "$orphan/ruleecho.sh"
+chmod 755 "$orphan/ruleecho.sh"
 out=$("$orphan/ruleecho.sh" "$root" 2>&1)
 status=$?
 expect_status "a checkout without the tool exits 2" 2
-expect_out "and names what is missing" "does not ship it"
+expect_out "and names what is missing" "does not ship ai/tools/"
 
 echo
 echo "$passed passed, $failed failed"

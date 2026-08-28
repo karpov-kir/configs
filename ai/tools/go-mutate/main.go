@@ -65,10 +65,11 @@ var mutants = []mutant{
 	{"imports: name cut a fixed two bytes past the boundary", "../eco-root/imports.go", "./eco-check/", "token[at[0]+boundary+1:at[1]]", "token[at[0]+boundary*0+2:at[1]]"},
 	{"imports: uncounted name left unsanitised", "../eco-root/imports.go", "./eco-check/", "shell.CutBytes(shell.Oneline(name), 60)", "shell.CutBytes(name, 60)"},
 
-	// stats-mutate.sh's list, against the ports of the two scripts it mutated. Its first two entries
-	// were the same edit made twice, once per script, because `contained_in_root` was two copies of
-	// one region; here it is one, so it is one mutant — and it is ecostats' suite that holds both the
-	// case for the refusal and the case that the other tool refuses it too.
+	// Carried over from the shell mutation harness for the stats side, against the ports of the two
+	// scripts it mutated. Its first two entries were the same edit made twice, once per script,
+	// because `contained_in_root` was two copies of one region; here it is one, so it is one mutant —
+	// and it is ecostats' suite that holds both the case for the refusal and the case that the other
+	// tool refuses it too.
 	{"contained-in-root: readability test removed", "../eco-root/contained.go", "./eco-stats/", " || !isReadable(path) {", " {"},
 	// `* 0` rather than a bare 0, or `words` goes unused and the mutant does not compile — which is a
 	// `broken` verdict, and says nothing about the guard.

@@ -13,10 +13,10 @@
 // that did not run is not a zero, and a figure known to be short must not reach the ledger, because
 // every delta a later pass reads is taken off the rows below it.
 //
-// The shared regions it holds byte-identical with check.sh live in kk-flavor/tools/shell, one copy
-// for both ports. A change here needs a case in `~/.claude/skills/kk-reduce/scripts/stats-test.sh`
-// and its twin in stats_test.go beside it, and a mutation in gomutate is what shows that case can
-// fail.
+// What it once held byte-identical with check.sh through a shared region now lives in
+// kk-flavor/tools/shell and kk-flavor/tools/eco-root, one copy for both tools. A change here needs a
+// case in stats_test.go beside it, and a mutation in go-mutate is what shows that case can fail.
+// `stats.sh` in kk-reduce's scripts/ is the stub that reaches this binary.
 package ecostats
 
 import (

@@ -1,12 +1,11 @@
 package ecostats_test
 
-// The cases of `~/.claude/skills/kk-reduce/scripts/stats-test.sh`, one for one and under the same
-// names, driven in-process. That suite is still the cross-check: a case here and the case of the same
-// name there have to be the same case, so a change to one is a change to both.
+// The measurement cases, driven in-process. They were ported one for one from a shell suite that no
+// longer exists; git history is where the pairing can still be read.
 //
 // The agreement cases at the top hold the invariant that matters: for one tree, both tools report the
-// same router figure. They run ecocheck rather than shelling out to check.sh, for the same reason
-// everything else here is in-process.
+// same router figure. They call into ecocheck directly rather than running its binary, for the same
+// reason everything else here is in-process.
 
 import (
 	"fmt"

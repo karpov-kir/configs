@@ -32,9 +32,9 @@ type directionCounters struct {
 // carries is already a finding from the unknown-skill scan. The third is a lane file named by its
 // basename alone — `report.sh`, `check.sh`: it carries neither a lane name nor a path, so the first
 // two miss it, and it steers its reader into a lane just the same. Its message deliberately does
-// not extend `shared layer names a lane`, because check-test.sh matches a finding by fixed
-// substring and a message carrying another's whole text would satisfy that other one's
-// assert_does_not_report cases and turn them into silent passes.
+// not extend `shared layer names a lane`, because the suite matches a finding by fixed substring and
+// a message carrying another's whole text would satisfy that other one's does-not-report cases and
+// turn them into silent passes.
 //
 // Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 // reader from inside one too.

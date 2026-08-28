@@ -2,7 +2,8 @@ package ecocheck_test
 
 // The direction scan: the shared layer never cites into a lane, never names one, and never reaches
 // into one by basename — plus the guard that fires when a symlinked kk-flavor left it nothing to walk.
-// Two cases here cover scans outside that block, where check-test.sh puts them.
+// Two cases here cover scans outside that block, kept beside it because that is where the shell suite
+// this was ported from grouped them.
 
 import (
 	"fmt"

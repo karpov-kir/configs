@@ -10,9 +10,9 @@
 // Most of the density below is hardening against a hostile tree, because this runs as kk-pr-review's
 // stage over a branch that chose its own contents: NUL bytes in files, newlines in committed
 // filenames, symlinks at every path it touches, control bytes in anything echoed into a finding,
-// unbounded emit counts, and paths that resolve outside the root. A change here needs a case in
-// `~/.claude/skills/kk-ecosystem/scripts/check-test.sh`, and a scan you add needs one that fails
-// without it.
+// unbounded emit counts, and paths that resolve outside the root. A change here needs a case in the
+// suite beside it, and a scan you add needs one that fails without it — `ai/tools/go-mutate` is what
+// shows a case can fail. `check.sh` in kk-ecosystem's scripts/ is the stub that reaches this binary.
 package ecocheck
 
 import (

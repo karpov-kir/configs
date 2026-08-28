@@ -1,10 +1,11 @@
 package ecoreport_test
 
-// The fixture builders and the assertions the cases are written against, ported one for one from
-// `~/.claude/skills/idsd-qualify/scripts/report-test.sh`. Each builder keeps the name and the meaning
-// its shell counterpart had, and every subtest carries its shell case's name exactly, because that
-// suite is still the cross-check: a case here and the case of the same name there have to be the
-// same case.
+// The fixture builders and the assertions the cases are written against. They were ported one for
+// one from a shell suite that no longer exists — it was deleted once the skills switched to this
+// binary, and git history is where the pairing can still be read. This is now the only suite over
+// these gates, so a case removed here is coverage gone rather than coverage moved. It is also the
+// only coverage of `todo-gate.sh`'s caller side: newSkillCopy copies that script in for real, and one
+// case stubs it to exit 3.
 //
 // Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out — the forks were
 // the cost of the shell suite — but the repository itself is made by git, because what several cases

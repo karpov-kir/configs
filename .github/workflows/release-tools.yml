@@ -1,0 +1,90 @@
+# Cross-compile the shipped Go tools and attach them to the release for their tag.
+#
+# Why a release and not a commit: a binary per commit measured at ~54MB/month against a 16MB repo.
+# Release assets live in GitHub's release storage rather than the git object store, so the repo stays
+# the size it is however many releases accumulate.
+#
+# Why prebuilt and not build-on-install: installing these skills would otherwise require a Go
+# toolchain on every machine that mounts them.
+#
+# The gate runs before any binary is built. A release whose tools fail their own suite is worse than
+# a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
+# beside it and every machine would take the broken one.
+name: release-tools
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# The upload needs to write release assets. Nothing here reads another repository.
+permissions:
+  contents: write
+
+jobs:
+  release-tools:
+    runs-on: ubuntu-latest
+    env:
+      # The tools that ship. `go-mutate` and `mutate` are developer harnesses and stay out
+      # deliberately — tools-shipped_test.go fails if this list and that judgement drift apart.
+      SHIPPED: eco-check eco-stats eco-report rule-echo cite-graph
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # From go.mod, so the release is built by the toolchain the module declares.
+          go-version-file: ai/tools/go.mod
+
+      # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+      - name: Gate
+        working-directory: ai/tools
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would rewrite:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+          go vet ./...
+          go test -count=1 ./...
+
+      # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is
+      # consulted, so darwin binaries built here are the same bytes a darwin host would produce.
+      # -trimpath drops the runner's checkout path out of the binary; -s -w drop the symbol table
+      # and DWARF, which is about a third of the size and nothing a user of these tools reads.
+      - name: Cross-compile
+        working-directory: ai/tools
+        run: |
+          set -eu
+          mkdir -p dist
+          for tool in $SHIPPED; do
+            package="./$tool/"
+            [ -d "$tool/cmd" ] && package="./$tool/cmd/"
+            for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
+              goos=${target%/*}
+              goarch=${target#*/}
+              echo "building $tool for $goos/$goarch"
+              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+                go build -trimpath -ldflags="-s -w" -o "dist/$tool-$goos-$goarch" "$package"
+            done
+          done
+          # Named by basename so the file verifies from whatever directory the assets land in.
+          (cd dist && sha256sum ./* > SHA256SUMS)
+          ls -l dist
+
+      # `create` when the tag has no release yet, `upload --clobber` when it does — the tag can be
+      # pushed before or after the release is drafted, and re-running this workflow must not fail on
+      # assets it uploaded itself.
+      - name: Attach to the release
+        working-directory: ai/tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --generate-notes
+          fi

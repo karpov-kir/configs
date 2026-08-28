@@ -15,10 +15,9 @@ import (
 // the ledger exists to have. The shell version's copy had already drifted out of all three: no
 // `, start`, no campaign-cut-versus-drift, no never-edited absolute.
 //
-// This and the live stats.md are a .md/source pair, which no drift check covers — check.sh's
-// shared-region scan reads `*.sh` — so a case in stats_test.go compares the two directly, as the case
-// of the same name in stats-test.sh does. It runs only where there is no ledger yet, which is never
-// the tree that would show it had drifted.
+// This and the live stats.md are a .md/source pair, which no drift check covers — the shared-region
+// scan reads `*.sh` — so a case in stats_test.go compares the two directly. It runs only where there
+// is no ledger yet, which is never the tree that would show it had drifted.
 const ledgerSeed = "# Ecosystem size\n" +
 	"\n" +
 	"Appended by `kk-reduce` alone, via `~/.claude/skills/kk-reduce/scripts/stats.sh --append <note>`: one row before a\n" +

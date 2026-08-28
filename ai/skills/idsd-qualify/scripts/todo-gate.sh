@@ -2,10 +2,13 @@
 # Open-TODO gate — scan a markdown file for unchecked `- [ ]`, fence/comment-aware so an example
 # checkbox never reads as a real TODO. Prints each open item with its `## Section`; exits 1 if any
 # are found, 0 if none, 2 when the scan could not run — 2 prints nothing, so never read it as clean.
-# Covered only through its caller, `~/.claude/skills/idsd-qualify/scripts/report-test.sh`, which pins
-# the --force listing and — by stubbing this script to exit 3 — that report.sh's state, carry and close
-# refuse rather than read a failed scan as clean. Still unpinned there: the fence/comment awareness,
-# gate's call, and idsd-build's over an intent file. Owed.
+# The scan itself — fence and comment awareness, section attribution, both refusals — is pinned by
+# `~/.claude/skills/idsd-qualify/scripts/todo-gate-test.sh`. The caller's side is pinned by the Go
+# suite in `ai/tools/eco-report/`, which copies this script into each fixture and also stubs it to
+# exit 3, so report.sh's state, carry and close refuse rather than read a failed scan as clean.
+# Still unpinned: gate's call, and idsd-build's over an intent file. Owed.
+#
+# tested by: todo-gate-test.sh
 set -uo pipefail
 export LC_ALL=C
 
