@@ -60,6 +60,7 @@ func Run(root string, out, errOut io.Writer) int {
 	c.scanDirection()
 	c.scanPathRefs()
 	c.scanCitations()
+	c.scanBareRuleIDs()
 	c.scanUnknownSkills()
 	c.scanSkillDirectories()
 	c.scanScriptsParse()

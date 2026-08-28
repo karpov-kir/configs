@@ -33,6 +33,7 @@ const (
 	missingTest = "script names a missing test"
 	noPosition  = "script declares no test position"
 	notRegular  = "citation target is not a regular file"
+	bareRule    = "bare rule-ID citation"
 )
 
 // The lane fixture the citation and basename cases share cites its script by this path. It is a

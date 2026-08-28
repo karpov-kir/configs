@@ -667,6 +667,39 @@ assert_reports "$not_regular" "fires on a cited path that resolves to a device"
 # The half that matters: a target nothing read must never be indistinguishable from a checked one.
 assert_reports "it was NOT read" "and says it was not read rather than reading part of it"
 
+echo "check.sh — rules cited by number"
+
+bare_rule="bare rule-ID citation"
+# Every piece of the fixture below is a variable, and the resolving form is built from the same two the
+# fixture is: check.sh scans `.md` under the fixture root and this file is not one, but the phrase is
+# one widened scan away from being read here, and the citation the quiet case writes would then resolve
+# against the real checkout instead of the fixture. `lane_script_ref` above is the same rule.
+rule_phrase='Core Principle'
+principles_name=core-principles.md
+principles_heading='3. Surgical changes'
+resolving_form="$(printf '%s → **%s**' "$principles_name" "$principles_heading")"
+
+new_root
+printf '## %s\n' "$principles_heading" >"$root/kk-flavor/standards/$principles_name"
+printf 'follow %s 3 when you touch a file\n' "$rule_phrase" >"$root/kk-flavor/standards/citer.md"
+assert_reports "$bare_rule" "fires on a rule cited by its number"
+# The half a reader acts on: the finding has to carry the citation they should have written.
+assert_reports "$resolving_form" "and names the heading that number opens"
+
+# The same citation in a tree holding no heading of that number. It is still dangling, so the finding
+# names the form rather than going quiet.
+new_root
+printf 'follow %s 3 when you touch a file\n' "$rule_phrase" >"$root/kk-flavor/standards/citer.md"
+assert_reports "<the numbered heading>" "names the form when no heading of that number resolves"
+
+# The form the finding above recommends, in a tree where it resolves — the scan must not report the
+# thing it asks for.
+new_root
+printf '## %s\n' "$principles_heading" >"$root/kk-flavor/standards/$principles_name"
+printf 'the rule is [%s](%s) → **%s**\n' "$principles_name" "$principles_name" "$principles_heading" \
+  >"$root/kk-flavor/standards/citer.md"
+assert_does_not_report "$bare_rule" "stays quiet on the citation form that resolves"
+
 # Each defect below makes a skill unreachable rather than merely mis-linked: the loader finds a skill by
 # its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
 echo "check.sh — the skill directory itself"

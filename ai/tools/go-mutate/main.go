@@ -49,6 +49,13 @@ var mutants = []mutant{
 	{"report: per-class cap removed", "report.go", "./eco-check/", "shown[r] <= findingCap", "shown[r] <= 100000"},
 	{"shell: per-file byte bound removed", "shell.go", "./eco-check/", "info.Size() > maxFileBytes", "info.Size() > (1 << 62)"},
 	{"refs: citation target read with no regular-file test", "refs.go", "./eco-check/", "if !shell.IsRegularFile(target) {", "if false {"},
+	// Both directions off the bare-rule-ID scan's single pattern, which is why they share an anchor.
+	// The second is aimed at the quiet case alone: it widens the separator and the phrase just far
+	// enough to swallow the delimited citation that finding recommends writing, and leaves the three
+	// cases that assert a finding green. A mutant that also broke those would let their failure stand
+	// in for the quiet one's, which proves nothing about it.
+	{"refs: bare rule-ID scan never fires", "refs.go", "./eco-check/", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
+	{"refs: bare rule-ID scan reports the form it recommends", "refs.go", "./eco-check/", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
 	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", `"syntax: "+shell.Oneline(line)`, `"syntax: "+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "shell.Oneline(flavorHave)", "flavorHave"},
 	// The rest live outside ecocheck/. A mutant names its file relative to that directory, and the

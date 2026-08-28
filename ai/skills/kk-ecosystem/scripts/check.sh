@@ -438,6 +438,73 @@ find "$root" -type f \( -name '*.md' -o -name '*.sh' \) -print0 |
     [ -n "$want" ] || echo "dangling section ref: $(oneline "$src"):$line -> $(oneline "$path") → $(oneline "$section")"
   done >>"$findings"
 
+# A rule cited by its number — `Core Principle 3`. The list those citations were written against
+# carries `##` headings now, so each rule has a name and a citation to it has the form the scan above
+# resolves. The numbered form resolves in no file: nothing checks it, a renumbering silently repoints
+# it, and a reader who follows it finds no heading of that name (writing.md → **Readability floor**).
+# So the finding names the heading to write instead — a finding a reader has to research first is one
+# they park.
+# One phrase, deliberately, and only in `.md`. `Phase 3`, `step 2` and `rule 4` are how skills cite
+# their own headings and list items, all legitimate, so any shape wide enough to catch a bare number
+# reports them; here a false positive costs more than the citations a wider net would catch. `.sh` is
+# out because the pattern below would then match this file's own source, and check.sh would report
+# itself.
+# Fences are not skipped, as in the direction scan above: the wrong form steers its reader from inside
+# one too. The headings read *out of* the principles file do skip them, because a heading inside a
+# fence is not one the citation scan resolves, and the form this finding names has to resolve.
+principles_ref=core-principles.md
+principles_file="$(resolve_ref "" "$principles_ref")"
+# Read only when it is a regular file: `resolve_ref` tests with `-e`, so a committed
+# `core-principles.md -> /dev/zero` would make the read below never return — the trap the citation scan
+# above refuses its own target on. Every finding then falls back to naming the form.
+[ -f "$principles_file" ] || principles_file=/dev/null
+# The field separator, resolved once: `IFS="$(printf '\t')"` on the read below is a fork per file, and
+# this scan reads every `.md` in the tree.
+principles_tab="$(printf '\t')"
+find "$root" -name '*.md' -type f -print0 | while IFS= read -r -d '' file; do
+  # Sanitised once, not per hit, as the direction scan does: `$(oneline …)` is a fork.
+  safe_file="$(oneline "$file")"
+  # The separator inside the phrase is a literal space, never `[[:space:]]`: that class carries the tab
+  # this awk delimits its own fields with, so a citation written with one would split into an extra
+  # field and the finding would report a line number the reviewed tree chose.
+  awk -v principles="$principles_file" '
+    BEGIN {
+      while ((getline heading_line < principles) > 0) {
+        if (heading_line ~ /^```/) { in_fence = !in_fence; continue }
+        if (in_fence || heading_line !~ /^#+[[:space:]]+[0-9]+\./) continue
+        # Bounded, because the reviewed tree chose this file: one committed 8MB of numbered headings
+        # is otherwise held in memory to answer a lookup that has at most a handful of answers.
+        if (stored >= 64) continue
+        text = heading_line
+        sub(/^#+[[:space:]]+/, "", text)
+        number = text
+        sub(/\..*$/, "", number)
+        if (number in heading) continue
+        heading[number] = text
+        stored++
+      }
+      close(principles)
+    }
+    {
+      rest = $0
+      while (match(rest, /[Cc]ore [Pp]rinciples? +#?[0-9]+/)) {
+        hit = substr(rest, RSTART, RLENGTH)
+        rest = substr(rest, RSTART + RLENGTH)
+        number = hit
+        gsub(/[^0-9]/, "", number)
+        form = ""
+        if (number in heading) form = heading[number]
+        printf "%d\t%s\t%s\n", FNR, hit, form
+      }
+    }' "$file" |
+    while IFS="$principles_tab" read -r hit_line hit resolving; do
+      # The placeholder is what a tree holding no heading of that number gets. The citation is still
+      # dangling there, and a finding that cannot name the heading must still name the form.
+      [ -n "$resolving" ] || resolving="<the numbered heading>"
+      echo "bare rule-ID citation: $safe_file:$hit_line — $(oneline "$hit") resolves in no file; cite it as $principles_ref → **$(oneline "$resolving")** (writing.md → **Readability floor**)"
+    done
+done >>"$findings"
+
 # Our own skill namespaces — a name in prose must be a skill that exists.
 grep -a -rhoE '\b(kk|idsd)-[a-z0-9-]+' "$root" --include='*.md' --include='*.yaml' 2>/dev/null |
   sed 's/-$//' | sort -u | while IFS= read -r name; do

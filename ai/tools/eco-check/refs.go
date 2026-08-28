@@ -24,7 +24,21 @@ var (
 	trailingBarePath   = regexp.MustCompilePOSIX(`[A-Za-z0-9._/-]+$`)
 	markdownFileTail   = regexp.MustCompilePOSIX(`[A-Za-z0-9]\.md$`)
 	sectionCutPoint    = regexp.MustCompilePOSIX(`[():;,.!?"]`)
+	// A rule named by its number, and the `##` heading that number opens. The separator inside the
+	// phrase is a literal space, never `[[:space:]]`: the shell version delimits its own fields with a
+	// tab, so a citation written with one would split into an extra field there and the two ports
+	// would disagree.
+	bareRuleIDPattern   = regexp.MustCompilePOSIX(`[Cc]ore [Pp]rinciples? +#?[0-9]+`)
+	numberedHeadingLine = regexp.MustCompilePOSIX(`^#+[[:space:]]+[0-9]+\.`)
+	digitsRun           = regexp.MustCompilePOSIX(`[0-9]+`)
 )
+
+// The file whose rules those numbers belong to, named the way a citation names it.
+const principlesRef = "core-principles.md"
+
+// The form a finding falls back to when the tree holds no heading of the cited number. The citation
+// is still dangling there, and a finding that cannot name the heading must still name the form.
+const unresolvedHeading = "<the numbered heading>"
 
 // Relative markdown links, resolved against the linking file's own directory. A template's links
 // resolve where it is emitted (a project's `.idsd/`), so a bare sibling name is unverifiable and
@@ -321,6 +335,82 @@ func citedSection(after string) (section string, isDelimited bool) {
 	section = strings.NewReplacer("`", "", "*", "").Replace(section)
 	section = headingMarker.ReplaceAllString(section, "")
 	return strings.Trim(section, shell.SpaceBytes), isDelimited
+}
+
+// A rule cited by its number — `Core Principle 3`. The list those citations were written against
+// carries `##` headings now, so each rule has a name and a citation to it has the form scanCitations
+// resolves. The numbered form resolves in no file: nothing checks it, a renumbering silently repoints
+// it, and a reader who follows it finds no heading of that name (writing.md → **Readability floor**).
+// So the finding names the heading to write instead — a finding a reader has to research first is one
+// they park.
+//
+// One phrase, deliberately, and only in `.md`. `Phase 3`, `step 2` and `rule 4` are how skills cite
+// their own headings and list items, all legitimate, so any shape wide enough to catch a bare number
+// reports them; here a false positive costs more than the citations a wider net would catch. `.sh` is
+// out because the pattern would then match check.sh's own source and report that file against itself.
+//
+// Fences are not skipped, as in the direction scan: the wrong form steers its reader from inside one
+// too. The headings read *out of* the principles file do skip them, because a heading inside a fence
+// is not one scanCitations resolves, and the form this finding names has to resolve.
+func (c *checker) scanBareRuleIDs() {
+	headings := c.numberedHeadings()
+	for _, file := range c.filesNamed(c.root.Named(), "*.md") {
+		lines, err := c.readLines(file)
+		if err != nil {
+			continue
+		}
+		safeFile := shell.Oneline(file)
+		for _, hit := range grepNumbered(lines, bareRuleIDPattern) {
+			lineNumber, matched, _ := strings.Cut(hit, ":")
+			resolving := headings[digitsRun.FindString(matched)]
+			if resolving == "" {
+				resolving = unresolvedHeading
+			}
+			c.add("bare rule-ID citation: " + safeFile + ":" + lineNumber + " — " + shell.Oneline(matched) +
+				" resolves in no file; cite it as " + principlesRef + " → **" + shell.Oneline(resolving) +
+				"** (writing.md → **Readability floor**)")
+		}
+	}
+}
+
+// The numbered `##` headings of the principles file, by the number each one opens — the resolving
+// form a finding names. The first heading of a number wins, and at most 64 are held: the reviewed
+// tree chose this file, and one committed 8 MB of numbered headings is otherwise carried in memory to
+// answer a lookup that has a handful of answers.
+//
+// Read only when it is a regular file: resolveRef tests with a stat that follows symlinks, so a
+// committed `core-principles.md -> /dev/zero` would make the read never return — the trap
+// reportCitation refuses its own target on.
+//
+// The variable is not named `target`, and the mutation harness is why: `refs: citation target read
+// with no regular-file test` anchors on reportCitation's identical line, and an anchor matching twice
+// stops that harness from running at all.
+func (c *checker) numberedHeadings() map[string]string {
+	principles := c.resolveRef("", principlesRef)
+	if !shell.IsRegularFile(principles) {
+		return nil
+	}
+	lines, err := c.readLines(principles)
+	if err != nil {
+		return nil
+	}
+	headings := map[string]string{}
+	inFence := false
+	for _, line := range lines {
+		if shell.IsFenceDelimiter(line) {
+			inFence = !inFence
+			continue
+		}
+		if inFence || !numberedHeadingLine.MatchString(line) || len(headings) >= 64 {
+			continue
+		}
+		text := headingMarker.ReplaceAllString(line, "")
+		number, _, _ := strings.Cut(text, ".")
+		if _, seen := headings[number]; !seen {
+			headings[number] = text
+		}
+	}
+	return headings
 }
 
 // Our own skill namespaces — a name in prose must be a skill that exists.

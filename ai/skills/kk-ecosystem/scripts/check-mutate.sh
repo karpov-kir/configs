@@ -237,4 +237,12 @@ run_mutant "test position: name not option-guarded"    's|grep -qxF -- "$named_t
 run_mutant "citations: delimited form not required"    's|delimited = (sec != "")|delimited = 1|'
 run_mutant "citations: guard fires on every citation"  's|delimited = (sec != "")|delimited = 0|'
 
+# Both directions off the bare-rule-ID scan's single pattern, the same way the pair above works one
+# decision point twice. The second is aimed at the quiet case alone: it widens the separator and the
+# phrase just far enough to swallow the delimited citation that finding recommends writing, and leaves
+# the three cases that assert a finding green. A mutant that also broke those would let their failure
+# stand in for the quiet one's, which proves nothing about it.
+run_mutant "bare rule-ID: scan never fires"            's|\[Cc\]ore \[Pp\]rinciples? +#?\[0-9\]+|[Zz]ore [Pp]rinciples? +#?[0-9]+|'
+run_mutant "bare rule-ID: scan reports the form it recommends" 's|\[Cc\]ore \[Pp\]rinciples? +#?\[0-9\]+|[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+|'
+
 report_mutants
