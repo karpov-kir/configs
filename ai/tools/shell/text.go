@@ -43,6 +43,12 @@ func Oneline(text string) string {
 
 // CutBytes is `cut -c1-n` under LC_ALL=C, which is bytes. Used where a message quotes a name the
 // tree chose, so the bound has to be on what is printed, not on what a locale calls a character.
+//
+// n is non-negative. A negative bound panics on the slice, and nothing guards it, by choice: every
+// caller passes a compile-time constant, so the input that reaches the panic does not exist. A guard
+// has to pick between clamping to empty and returning the whole string, and that pick is a contract
+// for a caller nobody has. Stating the bound instead leaves the choice to whoever first passes a
+// computed n.
 func CutBytes(text string, n int) string {
 	if len(text) <= n {
 		return text

@@ -138,6 +138,9 @@ func TestSplitLinesCountsLinesTheWayALineOrientedToolDoes(t *testing.T) {
 		{"no text is no lines", "", nil},
 		{"a line without its newline", "a", []string{"a"}},
 		{"a trailing newline adds no empty record", "a\n", []string{"a"}},
+		// "Bytes come back untouched" covers the CR of a CRLF file: only the final \n is a terminator,
+		// so the line keeps its \r, which is what every line-oriented tool hands over.
+		{"a CRLF line keeps its carriage return", "a\r\n", []string{"a\r"}},
 		{"two lines", "a\nb", []string{"a", "b"}},
 		{"two lines, terminated", "a\nb\n", []string{"a", "b"}},
 		{"a blank line between two is kept", "a\n\nb\n", []string{"a", "", "b"}},
