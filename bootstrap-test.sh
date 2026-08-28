@@ -14,6 +14,62 @@ script="$here/bootstrap.sh"
 tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
+# Resolved physically once, because `mktemp -d` hands back `/var/folders/…` on macOS while `/var` is
+# itself a symlink to `/private/var`. Comparing an unresolved root against resolved paths would make
+# the containment check below refuse everything, and a guard that always fires gets deleted.
+tmp_real=$(cd -P "$tmp" && pwd -P) || exit 1
+
+# Every fixture write goes through `fixture_write` or `fixture_link`, and this is why.
+#
+# The cases below run the *real* `bootstrap.sh`, which derives its repository from its own location,
+# so a run leaves `$home/.config/nvim` pointing at this checkout's `nvim/`. That is correct behaviour
+# and harmless while each case gets its own home. It stops being harmless the moment two cases share
+# one: the second case's `mkdir -p "$home/.config/nvim"` then finds a live symlink into the checkout
+# and succeeds, and the fixture write that follows goes straight through it into a real config file.
+#
+# That is not hypothetical. An earlier `fresh_home` was called as `home=$(fresh_home)`, which
+# incremented its counter inside a subshell and handed every case the same home. It overwrote
+# `nvim/init.lua` and `starship/starship.toml` in the working tree and left a stray symlink in
+# `nvim/`. The suite reported it, too — a case failed saying something had been written where nothing
+# should be — and the report was read as a harness bug without asking what the broken run had already
+# written to disk.
+#
+# So the containment is asserted before each write rather than noticed after: the parent is resolved
+# physically, following any symlink in the path, and anything landing outside `$tmp` aborts the whole
+# suite. A guard that reports afterwards has still lost the file.
+refuse_fixture() {
+  printf 'bootstrap-test.sh: refusing to write %s — %s\n' "$1" "$2" >&2
+  printf '  the suite may only write under %s; this is the containment guard, not a failing case\n' "$tmp_real" >&2
+  exit 2
+}
+
+contained_parent() {
+  local path="$1" parent
+  parent=$(cd -P "$(dirname -- "$path")" 2>/dev/null && pwd -P) ||
+    refuse_fixture "$path" "its parent directory does not resolve"
+  case "$parent/" in
+    "$tmp_real"/*) printf '%s' "$parent" ;;
+    *) refuse_fixture "$path" "its parent resolves to $parent" ;;
+  esac
+}
+
+fixture_write() {
+  local path="$1" body="$2"
+  contained_parent "$path" >/dev/null
+  printf '%s\n' "$body" >|"$path"
+}
+
+fixture_link() {
+  local source="$1" target="$2"
+  contained_parent "$target" >/dev/null
+  # `ln -s X Y` where Y already exists as a symlink to a directory creates the link *inside* Y rather
+  # than replacing it, which is how a stray link ends up in the checkout. Refused rather than forced:
+  # every fixture link in this suite is meant to be the first thing at its path.
+  [ ! -L "$target" ] ||
+    refuse_fixture "$target" "it already exists as a symlink to $(readlink "$target")"
+  ln -s "$source" "$target"
+}
+
 passed=0
 failed=0
 
@@ -142,7 +198,7 @@ expect_not_out "and relinks nothing" "linked   $home/.kk-flavor"
 # would still fail here.
 fresh_home
 mkdir -p "$home/.config/nvim"
-printf 'my real config\n' >"$home/.config/nvim/init.lua"
+fixture_write "$home/.config/nvim/init.lua" 'my real config'
 run_boot "$home"
 expect_status "a real directory at a target exits 1" 1
 expect_out "and says what to do about it" "exists and is not a symlink"
@@ -154,7 +210,7 @@ expect_file_body "and the real config is still there, byte for byte" "$home/.con
 # A real file is the same hazard in the other shape, and takes the other branch of `-e`.
 fresh_home
 mkdir -p "$home/.config"
-printf 'hand-written prompt\n' >"$home/.config/starship.toml"
+fixture_write "$home/.config/starship.toml" 'hand-written prompt'
 run_boot "$home"
 expect_status "a real file at a target exits 1" 1
 expect_file_body "and the real file survives" "$home/.config/starship.toml" "hand-written prompt"
@@ -169,7 +225,7 @@ expect_link_to "and the other links are still made" "$home/.kk-flavor" "$here/ai
 fresh_home
 mkdir -p "$home/.claude/skills"
 first_skill=$(find "$here/ai/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)
-ln -s "$first_skill/" "$home/.claude/skills/$(basename "$first_skill")"
+fixture_link "$first_skill/" "$home/.claude/skills/$(basename "$first_skill")"
 run_boot "$home"
 expect_out "a link differing only by a trailing slash is left alone" "  ok       $home/.claude/skills/$(basename "$first_skill")"
 expect_not_out "and is not rewritten" "repointed $home/.claude/skills/$(basename "$first_skill")"
@@ -180,7 +236,7 @@ expect_not_out "and is not rewritten" "repointed $home/.claude/skills/$(basename
 # where writing over an existing target is correct, and it is what an older layout leaves behind.
 fresh_home
 mkdir -p "$home/.config"
-ln -s "$tmp/somewhere-else" "$home/.config/nvim"
+fixture_link "$tmp/somewhere-else" "$home/.config/nvim"
 run_boot "$home"
 expect_status "a stale symlink does not refuse" 0
 expect_link_to "and is repointed at the repository" "$home/.config/nvim" "$here/nvim"
