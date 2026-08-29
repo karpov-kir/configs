@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# Cases for ruleecho.sh, covering what is specific to rule-echo: that it really reads a tree and finds
-# a restatement in it. The one that must not be weakened is "runs from an unrelated cwd": that is the
-# defect the wrapper exists for, and it fails silently — the scan reports nothing and nothing
-# distinguishes that from a tree with nothing to report.
-#
-# How the wrapper reaches its binary is not tested here. That body is the shared tool-stub region, and
-# its own cases are in tool-stub-test.sh; every way the resolver behind it can fail to produce a
-# binary is in resolve-test.sh, which builds fixtures for each branch instead of depending on what
-# this machine happens to have installed.
+# Cases specific to rule-echo: it reads a real tree and finds a restatement in it. A broken wrapper
+# reports no pairs, and so does a clean tree, so nothing here can rest on exit 0 alone.
+# Never weaken "runs from an unrelated cwd". That is the defect the wrapper exists for.
+# The wrapper's body is covered by tool-stub-test.sh, the resolver behind it by resolve-test.sh.
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -28,8 +23,8 @@ record_fail() {
   echo "  FAIL  $1  — $2"
 }
 
-# A root holding one restatement, so a run that works reports exactly one pair and a run that silently
-# did nothing reports zero. Without content to find, every case below would pass on a broken wrapper.
+# The fixture has to really hold a restatement. With nothing to find, every case below passes on a
+# broken wrapper.
 root="$base/root"
 mkdir -p "$root/a" "$root/b"
 rule='a shared rule stating several discriminating words plainly'
@@ -53,7 +48,6 @@ expect_out() {
 
 echo "ruleecho.sh"
 
-# The regression, driven from a directory that is neither the repo nor the root under scan.
 out=$(CDPATH= cd "$base" && "$script" "$root" 2>&1)
 status=$?
 expect_status "runs from an unrelated cwd and finds the pair" 1
@@ -67,8 +61,6 @@ out=$("$script" 2>&1)
 status=$?
 expect_status "no root exits 2" 2
 
-# A checkout that mounts the skill without shipping the tools directory: still exit 2, because exit 0
-# with no pairs is what a clean tree looks like.
 orphan="$base/orphan/skills/kk-ecosystem/scripts"
 mkdir -p "$orphan"
 cp "$script" "$orphan/ruleecho.sh"
