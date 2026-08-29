@@ -40,6 +40,16 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	reports.assertRefused("init refuses a symlinked qualify-reports directory")
 	reports.record("nothing was written outside the repo through qualify-reports",
 		!reports.exists(reports.base+"/outside-reports/review-qualify-report.md"), "")
+	// Asserted on which refusal it is, because the exit alone cannot tell them apart: git refuses any
+	// pathspec beyond a symbolic link, so without this directory's own link test the ignore check
+	// refuses instead — for want of an ignore rule, naming `check-ignore` as the remedy.
+	reports.assertReports("is a symlink", "and names the link rather than blaming the ignore rules")
+	// And that remedy is already satisfied, so the other refusal is a loop with no exit: check-ignore
+	// reports ok, changes nothing about the link, and init refuses again on the next run.
+	reports.runReport("check-ignore")
+	reports.record("the step that other refusal would name reports ok and leaves the link standing",
+		reports.status == 0 && strings.HasPrefix(reports.out, "ok:") && reports.isSymlink(reports.repo+"/.idsd/qualify-reports"),
+		"exit "+itoa(reports.status)+"\n"+reports.out)
 }
 
 func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
@@ -123,6 +133,12 @@ func TestTheFilenameAndTheFrontmatterNameTheSameShip(t *testing.T) {
 		strings.Join(f.entries(f.repo+"/.idsd/qualify-reports"), "\n"))
 	f.runReport("state", "002-spaced")
 	f.record("and it is addressable by the slug it recorded", f.out == "resume", "said '"+f.out+"'")
+	// And by the value `init` was given, whitespace and all — the name reaches a subcommand from the
+	// same place the intent reached init. Truncated before the whitespace is trimmed it names nothing,
+	// falls to the `review` stem, and `state` answers `no-report` for a ship that is open: the token
+	// `idsd-ship continue` routes to "start ship <intent>", rebuilding work already in flight.
+	f.runReport("state", "  002-spaced")
+	f.record("and by the value init was given, leading whitespace and all", f.out == "resume", "said '"+f.out+"'")
 
 	// Asserted on disk as well as on the exit: the harm is the scaffolded report, whose blank `intent:`
 	// every reader treats as a standalone review.
@@ -153,6 +169,21 @@ func TestInitStagedWriteIsNotAWayOutOfTheRepo(t *testing.T) {
 		strings.HasPrefix(f.read(f.base+"/victim/keep.md"), "PRECIOUS"), "")
 	f.record("and still initialized the report itself",
 		f.isFile(f.reportPath("")) && strings.Contains(f.read(f.reportPath("")), "review: staged write"), "")
+
+	// That clearing is `rm -f`, which takes a leftover file and refuses a directory — and `init` reads
+	// the refusal as "something is in the way". os.Remove is not `rm -f`: it takes an empty directory
+	// happily, so a directory there would be removed and the report written over ground `init` never
+	// looked at. Empty by construction, since a directory with anything in it fails the removal too
+	// and the case would pass on a mutation that changed the answer.
+	occupied := newRepo(t)
+	occupied.runReport("check-ignore")
+	occupied.mkdirAll(occupied.reportPath("") + ".new")
+	occupied.runReport("init", "review: a directory in the staged path")
+	occupied.assertRefused("init refuses when a directory sits where it stages its copy")
+	occupied.assertReports("could not clear", "and names the path it could not clear")
+	occupied.record("and wrote no report over it",
+		!occupied.isFile(occupied.reportPath("")) && occupied.exists(occupied.reportPath("")+".new"),
+		joinLines(occupied.entries(occupied.repo+"/.idsd/qualify-reports")))
 }
 
 func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {

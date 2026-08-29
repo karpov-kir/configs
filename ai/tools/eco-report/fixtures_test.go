@@ -118,7 +118,15 @@ func (f *fixture) entries(dir string) []string {
 
 func (f *fixture) git(args ...string) (string, int) {
 	f.t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", f.repo}, args...)...)
+	return f.gitIn(f.repo, args...)
+}
+
+// The same question asked from another directory, for the linked-worktree cases: a worktree is its
+// own root, and what git answers there — its git dir above all — is not what it answers in the repo
+// that created it.
+func (f *fixture) gitIn(dir string, args ...string) (string, int) {
+	f.t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	status := 0

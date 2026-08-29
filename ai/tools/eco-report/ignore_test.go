@@ -77,6 +77,30 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 	} else {
 		worktree.t.Logf("skip  git worktree add unavailable — the absolute-info/exclude case cannot run")
 	}
+
+	// Init above only reads that path; this writes through it. Prefix the root onto an absolute git
+	// dir and the exclusion lands in a directory built out of it *inside the worktree*, so the append
+	// succeeds, `check-ignore` reports ok, and git ignores nothing — the next `git add -A` there
+	// stages the report. Its own repo, never the one above: `check-ignore` has already run there, and
+	// info/exclude is shared, so the entry would be in place whatever the worktree did with it.
+	writing := newRepo(t)
+	writingWorktree := writing.base + "/wt-writing"
+	writing.mustGit("worktree", "add", "-q", writingWorktree, "-b", "wt-writing-branch")
+	if writing.exists(writingWorktree) {
+		writing.runReportIn(writingWorktree, "check-ignore")
+		_, ignored := writing.gitIn(writingWorktree, "check-ignore", "-q", ".idsd/")
+		// git is the authority, as it is above: an entry written where nothing reads it is still an
+		// entry, and only git's own answer tells the two apart.
+		writing.record("check-ignore in a linked worktree excludes .idsd/ where git itself reads it",
+			writing.status == 0 && ignored == 0,
+			"exit "+itoa(writing.status)+"; git check-ignore .idsd/ exited "+itoa(ignored)+"\n"+writing.out)
+		writing.record("and wrote the entry into the git dir, not into a tree built under the worktree",
+			containsLine(writing.read(writing.repo+"/.git/info/exclude"), ".idsd/") &&
+				len(writing.filesContaining(writingWorktree, ".idsd/")) == 0,
+			"left under the worktree: "+joinLines(writing.filesContaining(writingWorktree, ".idsd/")))
+	} else {
+		writing.t.Logf("skip  git worktree add unavailable — the absolute-git-dir write case cannot run")
+	}
 }
 
 func TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
