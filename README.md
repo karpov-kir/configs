@@ -2,7 +2,7 @@
 
 Config files for the tools I use:
 
-`./bootstrap.sh` does the steps below on a fresh machine, bar those that write files this repository does not own — `rtk init -g` stays yours to run. `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands still matter when a step fails.
+`./bootstrap.sh` does the steps below on a fresh machine, bar the four that write outside what this repository owns: the two `git clone`s, `mise use --global`, and `rtk init -g`. Those stay yours to run. `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands still matter when a step fails.
 
 - [ZSH](https://zsh.org)
   - It's already installed by default on MacOS

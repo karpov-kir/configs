@@ -401,6 +401,38 @@ expect_status "a checkout missing its configs exits 1" 1
 expect_out "and names a missing source" "is missing from the repository"
 expect_out "and refuses an empty skills directory rather than mounting nothing" "nothing was mounted"
 
+# --- the brew list and the README cannot drift apart --------------------------------------------
+
+# bootstrap.sh hardcodes its formulae and README.md lists them separately. They agree today, and
+# nothing held them there: adding a formula to the README would silently stop it being installed,
+# with every case still passing. Read from the real files rather than a fixture, so the shipped ones
+# cannot drift to a form this never sees.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+boot_formulae="$(sed -n 's/^  for formula in \(.*\); do$/\1/p' "$repo_root/bootstrap.sh" | tr ' ' '\n' | sort -u)"
+boot_casks="$(sed -n 's/^  for cask in \(.*\); do$/\1/p' "$repo_root/bootstrap.sh" | tr ' ' '\n' | sort -u)"
+readme_formulae="$(grep -oE '`brew install [a-z0-9-]+`' "$repo_root/README.md" | sed 's/.*brew install //; s/`//' | sort -u)"
+readme_casks="$(grep -oE '`brew install --cask [a-z0-9-]+`' "$repo_root/README.md" | sed 's/.*--cask //; s/`//' | sort -u)"
+
+if [ -n "$boot_formulae" ] && [ -n "$readme_formulae" ]; then
+  record_pass "control: both formula lists were found, so this case is comparing something"
+else
+  record_fail "control: both formula lists were found, so this case is comparing something" \
+    "bootstrap='$boot_formulae' readme='$readme_formulae'"
+fi
+
+if [ "$boot_formulae" = "$readme_formulae" ]; then
+  record_pass "every formula README installs is one bootstrap installs"
+else
+  record_fail "every formula README installs is one bootstrap installs" \
+    "only in bootstrap: $(comm -23 <(printf '%s\n' "$boot_formulae") <(printf '%s\n' "$readme_formulae") | tr '\n' ' ')| only in README: $(comm -13 <(printf '%s\n' "$boot_formulae") <(printf '%s\n' "$readme_formulae") | tr '\n' ' ')"
+fi
+
+if [ "$boot_casks" = "$readme_casks" ]; then
+  record_pass "and the casks agree too"
+else
+  record_fail "and the casks agree too" "bootstrap='$boot_casks' readme='$readme_casks'"
+fi
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]
