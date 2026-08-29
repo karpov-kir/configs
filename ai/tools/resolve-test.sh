@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Cases for resolve.sh. The ones that must not be weakened are the three ways a tool fails to be
 # reached: no binary and no source, no binary and no Go, and a binary that cannot be executed. Each
-# has to exit 2, because these tools report findings and exit 0 with none is what clean looks like —
-# a resolver that returned quietly would turn every unreachable tool into a clean bill of health.
+# has to exit 2: these tools report findings, so a resolver that returned quietly would turn every
+# unreachable tool into a clean bill of health.
 #
-# Every path below is built from a variable. A literal skill or tool path in this file would be read
-# by the wiring check as a citation and reported against the real checkout, which is not what this
-# suite is about.
+# Every path below is built from a variable: a literal skill or tool path here would be read by the
+# wiring check as a citation and reported against the real checkout.
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -42,8 +41,26 @@ expect_out() {
   esac
 }
 
-# A tools directory of the same shape as the real one: the resolver beside a go.mod, a package
-# directory it can build, and a bin/ it writes into. Built per case so nothing carries.
+# Every refusal below goes through this rather than through expect_status. Each one of them exits 2,
+# so the code says a refusal happened and never which — a case asserting only the code passes on
+# whatever the fixture broke first, and reads as proof of the cause in its own name. The needle has to
+# be wording no other refusal shares. `command not found` is a stripped PATH killing the script before
+# it reaches any check at all, which the resolver itself never writes and no case ever means.
+expect_refusal() { # <name> <the wording only this cause produces>, over $status and $out
+  local name="$1" want="$2"
+  if [ "$status" -ne 2 ]; then
+    record_fail "$name" "exit $status, wanted 2 — output: $out"
+    return
+  fi
+  case "$out" in
+    *"command not found"* | *": not found"*)
+      record_fail "$name" "a missing command produced this refusal, not '$want' — output: $out" ;;
+    *"$want"*) record_pass "$name" ;;
+    *) record_fail "$name" "wanted '$want' in: $out" ;;
+  esac
+}
+
+# A tools directory shaped like the real one, built per case so nothing carries between them.
 tool=widget
 new_tools() {
   local dir="$1"
@@ -54,10 +71,9 @@ new_tools() {
   printf 'package main\n\nfunc main() {}\n' >"$dir/$tool/main.go"
 }
 
-# A PATH holding what the resolver needs to reach its `go` check, and no `go`. Emptying PATH outright
-# breaks `#!/usr/bin/env bash` before the script starts, and leaving out `dirname` kills it at
-# self-resolution — either way it still exits 2, so the exit assertion would pass while proving
-# nothing about `go`.
+# A PATH holding what the resolver needs to reach its `go` check, and no `go`. An empty PATH breaks
+# `#!/usr/bin/env bash` before the script starts and a missing `dirname` kills it at self-resolution;
+# both still exit 2, which is why the cases that use it assert on the wording of the refusal.
 bare="$base/bare-path"
 mkdir -p "$bare" || exit 1
 for needed in bash dirname mkdir mv rm; do
@@ -79,16 +95,16 @@ else
   record_fail "and prints a path that is executable" "not executable: $out"
 fi
 # Compared against the physically resolved directory, because that is what the resolver prints: on
-# macOS the temp directory is reached through a symlinked /var, and the resolver following it is the
-# behaviour that lets a skill find its tools through the symlink it is mounted by.
+# macOS the temp dir is reached through a symlinked /var, and following it is what lets a skill find
+# its tools through its own mount symlink.
 one_real=$(CDPATH= cd -P "$one" && pwd -P)
 case "$out" in
   "$one_real/bin/$tool") record_pass "and puts it in bin/ under the tools directory" ;;
   *) record_fail "and puts it in bin/ under the tools directory" "got $out, wanted $one_real/bin/$tool" ;;
 esac
 
-# The binary the case above built is now present, so this one proves the first branch is taken
-# without a toolchain at all — which is the whole reason a release install needs no Go.
+# The binary the case above built is now present, so this one proves the first branch is taken with
+# no toolchain at all: the whole reason a release install needs no Go.
 out=$(PATH="$bare" "$one/resolve.sh" "$tool" 2>&1)
 status=$?
 expect_status "reuses an existing binary with no Go on PATH" 0
@@ -96,19 +112,24 @@ expect_status "reuses an existing binary with no Go on PATH" 0
 # And the override still refuses, so the branch above is a preference rather than the only path.
 out=$(PATH="$bare" ECO_TOOLS_BUILD=1 "$one/resolve.sh" "$tool" 2>&1)
 status=$?
-expect_status "ECO_TOOLS_BUILD=1 skips that binary and needs Go" 2
+expect_refusal "ECO_TOOLS_BUILD=1 skips that binary and needs Go" "go is not installed"
 expect_out "and says the tool did not run" "did NOT run"
 
-# Driven from a directory that is neither the repo nor any root under scan, against a checkout that
-# ships no source and no binary. This is the shape a skill mounted from an incomplete checkout has.
+# A checkout that ships no source and no binary, driven from an unrelated cwd: the shape a skill
+# mounted from an incomplete checkout has.
 two="$base/two"
 mkdir -p "$two"
 cp "$resolver" "$two/resolve.sh"
 chmod 755 "$two/resolve.sh"
 out=$(CDPATH= cd "$base" && "$two/resolve.sh" "$tool" 2>&1)
 status=$?
-expect_status "no binary and no source exits 2 from an unrelated cwd" 2
-expect_out "and names both of the things that were missing" "ships neither"
+expect_refusal "no binary and no source exits 2 from an unrelated cwd" "ships neither"
+# One glob over both halves, because a refusal naming only the binary reads as a bad install when the
+# fix is a whole checkout.
+case "$out" in
+  *"no prebuilt binary at"*"no source at"*) record_pass "and names both of the things that were missing" ;;
+  *) record_fail "and names both of the things that were missing" "output: $out" ;;
+esac
 
 # Source present, no toolchain. Distinct from the case above because the fix is different, and
 # because this is the one that would otherwise read as clean on a machine without Go.
@@ -116,11 +137,10 @@ three="$base/three"
 new_tools "$three"
 out=$(PATH="$bare" "$three/resolve.sh" "$tool" 2>&1)
 status=$?
-expect_status "source but no Go exits 2" 2
+expect_refusal "source but no Go exits 2" "go is not installed"
 expect_out "and says so rather than reporting clean" "unchecked, not clean"
 
-# A half-finished install: the file arrived without its exec bit. Reported rather than built over,
-# because building needs Go and would hide the broken install on the machine it was meant for.
+# A half-finished install: the file arrived without its exec bit, and is reported, not built over.
 four="$base/four"
 new_tools "$four"
 mkdir -p "$four/bin"
@@ -128,7 +148,7 @@ mkdir -p "$four/bin"
 chmod 644 "$four/bin/$tool"
 out=$("$four/resolve.sh" "$tool" 2>&1)
 status=$?
-expect_status "a non-executable binary exits 2" 2
+expect_refusal "a non-executable binary exits 2" "is not executable"
 expect_out "and says the install did not complete" "did not complete"
 
 # A directory left where the binary goes. `-x` alone is true for a directory, so without the
@@ -138,8 +158,7 @@ new_tools "$five"
 mkdir -p "$five/bin/$tool"
 out=$("$five/resolve.sh" "$tool" 2>&1)
 status=$?
-expect_status "a directory where the binary goes exits 2" 2
-expect_out "and says it is not a regular file" "not a regular file"
+expect_refusal "a directory where the binary goes exits 2" "not a regular file"
 
 # A build that cannot succeed. The source is there and so is Go, so this is the branch that would
 # otherwise print a path to a binary that was never written.
@@ -148,7 +167,7 @@ new_tools "$six"
 printf 'package main\n\nfunc main() { this is not Go }\n' >"$six/$tool/main.go"
 out=$("$six/resolve.sh" "$tool" 2>&1)
 status=$?
-expect_status "a build failure exits 2" 2
+expect_refusal "a build failure exits 2" "did not build"
 expect_out "and says the tool did not run" "did NOT run"
 if [ -e "$six/bin/$tool" ]; then
   record_fail "and leaves no binary behind" "$six/bin/$tool exists after a failed build"
@@ -156,23 +175,24 @@ else
   record_pass "and leaves no binary behind"
 fi
 
-# Names that must never become a path. A tool name is a directory entry here, so anything that could
-# climb out of the tools directory is refused before it is joined to one.
+# Names that must never become a path, refused before they are joined to the tools directory. Each of
+# these also fails to be a tool that exists, so the refusal has to be the name check's own: with that
+# check deleted the resolver still exits 2 on all four, saying it ships neither source nor binary.
 seven="$base/seven"
 new_tools "$seven"
 for bad in "../$tool" "sub/$tool" "$tool;true" ""; do
   out=$("$seven/resolve.sh" "$bad" 2>&1)
   status=$?
-  expect_status "refuses the tool name '$bad'" 2
+  expect_refusal "refuses the tool name '$bad'" "is not a tool name"
 done
 
 out=$("$seven/resolve.sh" 2>&1)
 status=$?
-expect_status "no tool name exits 2" 2
+expect_refusal "no tool name exits 2" "usage: resolve.sh"
 
 out=$("$seven/resolve.sh" "$tool" extra 2>&1)
 status=$?
-expect_status "a second argument exits 2" 2
+expect_refusal "a second argument exits 2" "usage: resolve.sh"
 
 # stdout carries the path and nothing else, or the caller execs a string with a build log in it.
 eight="$base/eight"

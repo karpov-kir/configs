@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Cases for install.sh's decisions: which asset this machine needs, which tools a release carries, and
 # which hash each one is checked against. The download itself is a `gh` call against a real release
-# and is not faked here — install.sh's header says why.
+# and is not faked here; install.sh's header says why.
 #
 # The controls that make the rest mean something: asset_suffix must FAIL on a platform the release
 # does not carry, and recorded_sha256 must return nothing for an absent name. Both would otherwise
 # hand the installer a plausible-looking wrong answer, and a wrong asset installs a binary that
 # cannot execute while a missing hash installs one that was never verified.
 #
-# Sourcing install.sh reaches the functions without downloading anything — the guard in that script is
+# Sourcing install.sh reaches the functions without downloading anything; the guard in that script is
 # what makes sourcing safe.
 set -uo pipefail
 export LC_ALL=C
@@ -38,6 +38,25 @@ expect_eq() {
   [ "$got" = "$want" ] &&
     record_pass "$name" ||
     record_fail "$name" "got '$got', wanted '$want'"
+}
+
+# A refusal asserted on what it says, never on its exit code alone: every refusal install.sh has exits
+# 2, so the code says one happened and never which — a case checking only the code passes on whatever
+# the fixture broke first, while its name claims the cause. The needle has to be wording no other
+# refusal shares. `command not found` is a stripped PATH killing the script before it reaches any check
+# at all, which install.sh never writes and no case ever means.
+expect_refusal() { # <name> <the wording only this cause produces>, over $status and $out
+  local name="$1" want="$2"
+  if [ "$status" -ne 2 ]; then
+    record_fail "$name" "exit $status, wanted 2 — output: $out"
+    return
+  fi
+  case "$out" in
+    *"command not found"* | *": not found"*)
+      record_fail "$name" "a missing command produced this refusal, not '$want' — output: $out" ;;
+    *"$want"*) record_pass "$name" ;;
+    *) record_fail "$name" "wanted '$want' in: $out" ;;
+  esac
 }
 
 echo "install.sh"
@@ -116,8 +135,8 @@ else
 fi
 
 # The refusal a machine without gh gets. A PATH holding only what install.sh needs to reach its gh
-# check: without `dirname` it dies at self-resolution instead, and the case would pass while proving
-# nothing about gh.
+# check: without `dirname` it dies at self-resolution instead, which exits 2 as well, so the case is
+# asserted on the wording rather than the code.
 bare="$base/bare-path"
 mkdir -p "$bare"
 for needed in bash dirname; do
@@ -125,17 +144,11 @@ for needed in bash dirname; do
 done
 out=$(PATH="$bare" "$here/install.sh" 2>&1)
 status=$?
-if [ "$status" -eq 2 ]; then
-  record_pass "a machine without gh exits 2"
-else
-  record_fail "a machine without gh exits 2" "exit $status — output: $out"
-fi
+expect_refusal "a machine without gh exits 2" "gh is not installed"
+# One glob over both halves. `go build` on its own is in the refusal for an unsupported platform too,
+# so alone it passes on that one and claims the gh refusal carries a way out when it may not.
 case "$out" in
-  *"gh is not installed"*) record_pass "and says which tool is missing" ;;
-  *) record_fail "and says which tool is missing" "output: $out" ;;
-esac
-case "$out" in
-  *"go build"*) record_pass "and names the way out that needs no gh" ;;
+  *"gh is not installed"*"go build"*) record_pass "and names the way out that needs no gh" ;;
   *) record_fail "and names the way out that needs no gh" "output: $out" ;;
 esac
 

@@ -10,9 +10,9 @@
 # needed.
 #
 # Verifies each download against the release's own SHA256SUMS before it becomes executable. A binary
-# that fails the check is deleted rather than installed — these run over the human's repositories.
+# that fails the check is deleted rather than installed: these run over the human's repositories.
 #
-# tested by: install-test.sh, which covers the platform mapping, the tool list, and the refusals.
+# tested by: install-test.sh
 # untested: the download itself, which is a `gh release download` against a real release. Faking gh
 # would only assert the fake, so run it and read what lands in bin/.
 set -uo pipefail

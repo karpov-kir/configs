@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 # Print the path to a runnable binary for <tool>, or exit 2 saying which way it could not be reached.
 #
-# Usage: resolve.sh <tool>            # <tool> is a directory name under ai/tools
+#   usage: resolve.sh <tool>          # <tool> is a directory name under ai/tools
 #
-# Callers are the stubs in each skill's scripts/ directory. They pass the tool name, take the path
-# from stdout, and exec it. Everything about *finding* a binary lives here so the stubs stay a name
-# and an exec.
+# Callers are the stubs in each skill's scripts/ directory. Everything about *finding* a binary lives
+# here, so a stub stays a tool name and an exec.
 #
 # Order: a binary already at bin/<tool>, then a local `go build` when the source is here. The first
-# branch is what a release install lands on, and it is why installing these skills does not need a Go
-# toolchain. Set ECO_TOOLS_BUILD=1 to skip it — a downloaded binary is preferred over source that may
-# be newer, because git does not preserve mtimes and a fresh clone would otherwise rebuild every
-# tool on a machine that has no Go.
+# branch is what a release install lands on, and why installing these skills needs no Go toolchain.
+# ECO_TOOLS_BUILD=1 skips it. A prebuilt binary is preferred over source that may be newer because
+# git does not preserve mtimes, so a fresh clone would otherwise rebuild every tool on a machine with
+# no Go.
 #
-# Every failure exits 2 and names what did not happen. These tools report findings, and exit 0 with
-# no findings is what a clean tree looks like, so a tool that could not run must never reach a caller
-# as silence. Printing nothing on stdout is not enough: the caller has to be told, and told loudly.
+# Every failure exits 2 and names what did not happen. These tools report findings, so exit 0 with
+# none is what a clean tree looks like, and a tool that could not run must never reach a caller as
+# silence: an empty stdout is not enough, the caller has to be told.
 #
 # tested by: resolve-test.sh
 set -euo pipefail
@@ -25,10 +24,9 @@ die() {
   exit 2
 }
 
-# `CDPATH=` because `cd` consults it for a relative path and echoes where it landed, which would put
-# a second line into the command substitution and corrupt every path built from it. `pwd -P` so the
-# tools directory is found through the symlink each skill is mounted by, never from cwd — this runs
-# from whatever repository the human is working in.
+# `CDPATH=` because `cd` echoes where it landed when the path is relative, which would put a second
+# line into this substitution and corrupt every path built from it. `pwd -P` finds the tools directory
+# through the symlink each skill is mounted by, never from cwd: this runs from the human's own repo.
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no tool can be located"
 
@@ -44,9 +42,8 @@ esac
 binary="$tools/bin/$tool"
 
 if [ "${ECO_TOOLS_BUILD:-}" != 1 ] && [ -e "$binary" ]; then
-  # An existing-but-unrunnable binary is a half-finished install. Reported rather than built over:
-  # building needs Go, so papering over it would work on a developer's machine and fail on the
-  # machine the install was for.
+  # An existing-but-unrunnable binary is a half-finished install, reported rather than built over:
+  # building needs Go, so papering over it works on a developer's machine and fails on the install's.
   [ -f "$binary" ] || die "$binary exists but is not a regular file — remove it and install again"
   [ -x "$binary" ] || die "$binary is not executable — the install did not complete; chmod +x it or install again"
   printf '%s\n' "$binary"
@@ -65,9 +62,8 @@ mkdir -p "$tools/bin" || die "cannot create $tools/bin, so $tool did NOT run"
 package="./$tool/"
 [ -d "$tools/$tool/cmd" ] && package="./$tool/cmd/"
 
-# Built to a temp name and moved, because `go build -o` writes the binary in place and two skills
-# running at once would otherwise let one exec what the other is half way through writing. The move
-# is within one directory, so it is atomic.
+# Built to a temp name and moved: `go build -o` writes in place, so two skills running at once would
+# let one exec what the other is half way through writing. The move stays in one directory, so atomic.
 staging="$tools/bin/.$tool.$$"
 # stdout is the path this prints and nothing else, so the build's own chatter goes to stderr.
 if ! (CDPATH= cd "$tools" && go build -o "$staging" "$package") >&2; then
