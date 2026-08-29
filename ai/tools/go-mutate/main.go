@@ -57,22 +57,22 @@ var mutants = []mutant{
 	{"direction: unchecked notice unbounded", "direction.go", "./eco-check/", "TestDirectionScan", "counters.ambiguous <= findingCap", "counters.ambiguous <= 100000"},
 	{"report: per-class cap removed", "report.go", "./eco-check/", "TestImportResolvedAtTheMount", "shown[r] <= findingCap", "shown[r] <= 100000"},
 	{"shell: per-file byte bound removed", "shell.go", "./eco-check/", "TestOversizeFileIsReportedNotRead", "info.Size() > maxFileBytes", "info.Size() > (1 << 62)"},
-	{"refs: citation target read with no regular-file test", "refs.go", "./eco-check/", "TestCitationTargetMustBeARegularFile", "if !shell.IsRegularFile(target) {", "if false {"},
+	{"refs: citation target read with no regular-file test", "citations.go", "./eco-check/", "TestCitationTargetMustBeARegularFile", "if !shell.IsRegularFile(target) {", "if false {"},
 	// Both directions off the bare-rule-ID scan's single pattern, which is why they share an anchor.
 	// The second is aimed at the quiet case alone: it widens the separator and the phrase just far
 	// enough to swallow the delimited citation that finding recommends writing, and leaves the three
 	// cases that assert a finding green. A mutant that also broke those would let their failure stand
 	// in for the quiet one's, which proves nothing about it.
-	{"refs: bare rule-ID scan never fires", "refs.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
-	{"refs: bare rule-ID scan reports the form it recommends", "refs.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
+	{"refs: bare rule-ID scan never fires", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
+	{"refs: bare rule-ID scan reports the form it recommends", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
 	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `"syntax: "+shell.Oneline(line)`, `"syntax: "+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", "shell.Oneline(flavorHave)", "flavorHave"},
 
 	// The delimited-citation half. Undelimited is how a section citation stops resolving in silence,
 	// so both directions are needed: the finding never firing, and it firing on the two forms the
 	// finding itself recommends.
-	{"citations: the undelimited form unreported", "refs.go", "./eco-check/", "TestDelimitedSectionCitations", "if !cited.isDelimited {", "if false {"},
-	{"citations: the delimited forms reported as undelimited", "refs.go", "./eco-check/", "TestDelimitedSectionCitations", "isDelimited = section != \"\"", "isDelimited = false"},
+	{"citations: the undelimited form unreported", "citations.go", "./eco-check/", "TestDelimitedSectionCitations", "if !cited.isDelimited {", "if false {"},
+	{"citations: the delimited forms reported as undelimited", "citation-syntax.go", "./eco-check/", "TestDelimitedSectionCitations", "isDelimited = section != \"\"", "isDelimited = false"},
 
 	// The skill-directory scan. Each of the three defects makes a skill unreachable rather than
 	// merely mis-linked, and each has exactly one case behind it.
@@ -150,13 +150,12 @@ var mutants = []mutant{
 	{"ecocheck: budget words not counted", "budget.go", "./eco-stats/", "", "budgetWords += words", "budgetWords += words * 0"},
 	// To the end of the line, or the anchor also matches the three `+= wordsInFile(…)` above it.
 	{"stats: resolved import contributes nothing", "../eco-stats/budget.go", "./eco-stats/", "", "s.alwaysLoadedWords += words\n", "s.alwaysLoadedWords += 0\n"},
-	// The collapse itself moved into shell.Oneline, which is where the mutant has to follow it: aimed
-	// at the old inline copy it matched nothing, and preflight refuses the whole run over one stale
-	// anchor — so this entry alone had the entire list running nowhere. Oneline writes through a
-	// strings.Builder, so it is the case label that carries the control bytes and not an `out[i]`
-	// assignment; the label is also the only form that matches once, since the NBSP arm below shares
-	// the `out.WriteByte(' ')` body.
-	{"stats: no newline collapse in the note", "../shell/text.go", "./eco-stats/", "TestTheNoteCannotForgeALedgerRow", "case b < 0x20 || b == 0x7f:", "case b == 0x7f:"},
+	// The collapse follows the guard wherever it moves: aimed at the inline copy Oneline used to carry
+	// it matched nothing, and preflight refuses the whole run over one stale anchor — so this entry
+	// alone has twice had the entire list running nowhere. It now sits in isControlChar, and the C0
+	// term is what the mutant drops; the C1 term below it keeps `char` read, so the mutant still
+	// builds.
+	{"stats: no newline collapse in the note", "../shell/text.go", "./eco-stats/", "TestTheNoteCannotForgeALedgerRow", "char < 0x20 || char == 0x7f", "char == 0x7f"},
 	{"stats: no pipe escaping in the note", "../eco-stats/eco-stats.go", "./eco-stats/", "", "strings.ReplaceAll(note, \"|\", `\\|`)", "strings.ReplaceAll(note, \"|\", \"|\")"},
 	{"stats: no note-length bar", "../eco-stats/eco-stats.go", "./eco-stats/", "", "words > noteWordCap", "words > 100000"},
 	{"stats: import refusals unreported", "../eco-stats/budget.go", "./eco-stats/", "", `fmt.Fprintf(errOut, "stats.sh: import refused`, `fmt.Fprintf(io.Discard, "stats.sh: import refused`},
@@ -190,8 +189,8 @@ var mutants = []mutant{
 	// paths.go — which report an invocation acts on, and what else on disk belongs to the ship it
 	// names. Every path is built from a slug, so the charset check is the whole of what keeps a write
 	// inside qualify-reports/.
-	// SURVIVOR. No case gives an `intent:` line a value with leading spaces, so the trim is never
-	// observed. The case to write: `intent:   001-x` names the same ship as `intent: 001-x`.
+	// Observable from resolveReport alone: `init` trims the value before it calls this, so the case is
+	// the one naming the ship the way `init` was given it, leading whitespace and all.
 	{"report name: the leading-space trim dropped", "../eco-report/paths.go", "./eco-report/", "TestTheFilenameAndTheFrontmatterNameTheSameShip", "firstField(trimLeadingSpace(value))", "firstField(value)"},
 	{"report name: a standalone review has no stem of its own", "../eco-report/paths.go", "./eco-report/", "TestAnExistingReportIsNotSilentlyReplaced", `case slug == "" || strings.HasPrefix(slug, "review:"):`, `case slug == "":`},
 	// Both halves of the one arm that keeps a value out of a path: the dot that no listing can see,
@@ -225,9 +224,9 @@ var mutants = []mutant{
 	// A symlink test reads the final component only, so all three of the write's path components need
 	// one, and each has its own case.
 	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestTheDestructivePathCarriesTheGuardsTheWritePathHas", `[]string{r.root + "/.idsd", r.reportsDir}`, `[]string{r.reportsDir}`},
-	// SURVIVOR. The symlink cases point `.idsd` elsewhere; none points qualify-reports/ itself, which
-	// is why dropping the outer path kills and dropping the inner one does not. The case to write:
-	// init refuses a symlinked `.idsd/qualify-reports/` rather than writing the report through it.
+	// git refuses any pathspec beyond a symbolic link, so with this path untested the ignore check
+	// refuses instead and the exit alone cannot tell the two apart. The case is the one asserting
+	// which refusal it is — the other names a remedy that reports ok and leaves the link standing.
 	{"write paths: qualify-reports/ no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `[]string{r.root + "/.idsd", r.reportsDir}`, `[]string{r.root + "/.idsd"}`},
 	{"write paths: the report itself no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", "if shell.IsSymlink(r.report) {", "if false {"},
 	{"stage markers: not keyed by the report stem", "../eco-report/paths.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `r.gitPath("idsd-stage-returns/" + name)`, `r.gitPath("idsd-stage-returns")`},
@@ -256,8 +255,9 @@ var mutants = []mutant{
 	{"invalidate: the stage record left stamped", "../eco-report/frontmatter.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "case strings.HasPrefix(line, \"reviewed-stages:\"):\n\t\t\treturn []string{\"reviewed-stages: pending\"}", "case strings.HasPrefix(line, \"reviewed-stages:\"):\n\t\t\treturn []string{line}"},
 
 	// git.go — every git call the tool makes, and the two exclusion mechanisms it writes through.
-	// SURVIVOR. Every fixture's git dir comes back relative, so the absolute arm never runs. The case
-	// to write: a linked worktree, whose git dir git answers absolutely, still gets its info/exclude.
+	// Only observable where a write goes through the answer, so the case is `check-ignore` run *in* a
+	// linked worktree: prefixed with the root, the absolute git dir names a tree inside the worktree,
+	// and the exclusion lands there while git goes on ignoring nothing.
 	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine", `if strings.HasPrefix(path, "/") {`, "if false {"},
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
 	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.captureGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
@@ -328,8 +328,8 @@ var mutants = []mutant{
 	{"discard: the shared exclusion dropped from a second worktree", "../eco-report/scratch.go", "./eco-report/", "TestASecondWorktreeKeepsTheSharedExclusion", "if r.worktreeCount() > 1 {", "if false {"},
 	{"discard: the exclusion reported from the attempt", "../eco-report/scratch.go", "./eco-report/", "TestTheTeardownReportsTheExclusionFromTheResultNotTheAttempt", "if err := r.dropLocalExclusion(); err != nil {\n\t\tr.errLines(\"discarded:", "if err := error(nil); err != nil {\n\t\tr.errLines(\"discarded:"},
 	{"close: an open item no longer refuses", "../eco-report/scratch.go", "./eco-report/", "TestCloseRetiresOneShipScratchAndNothingElse", "if !isForced {", "if !isForced && false {"},
-	// SURVIVOR. close is asserted on the report and the scratch dir, never on the stage-returns dir.
-	// The case to write: close leaves no stage marker behind for the next ship to inherit.
+	// The case re-inits the same intent after the close: that report is byte-identical to the closed
+	// one, so a surviving marker matches it and refuses the next ship's first stage-returned.
 	{"close: the stage markers outlive the report", "../eco-report/scratch.go", "./eco-report/", "TestCloseRetiresOneShipScratchAndNothingElse", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.reportsDir)", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.reportsDir)"},
 
 	// init.go — the only subcommand that creates a report, and the one every symlink guard is for.
@@ -360,13 +360,19 @@ var mutants = []mutant{
 	{"invalidate: last pass's stage returns survive it", "../eco-report/stamp.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "_ = os.RemoveAll(r.stageReturnsDir)\n\tr.line(\"invalidated", "_ = os.RemoveAll(r.stageReturnsDir + \"/no-such-stage\")\n\tr.line(\"invalidated"},
 	{"stage vocabulary: any word accepted as a stage", "../eco-report/stages.go", "./eco-report/", "TestAStageNameThatIsNotAStageIsRefused", "if stage == known {", "if stage != known {"},
 	{"stage vocabulary: a stage renamed out of the pipeline", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `const stageNames = "code-review security-review tighten refactor retro"`, `const stageNames = "code-review security-review tighten refactor retros"`},
-	// SURVIVOR. reportChecksum answers empty only for a report it cannot read, and no case marks a
-	// stage returned while it cannot. The case to write: stage-returned over an unreadable report
-	// writes no marker, so the stamp cannot later wave that stage through.
+	// SURVIVOR, and unreachable rather than merely unobserved — so it stays one. reportChecksum answers
+	// empty only for a report os.ReadFile cannot open, and `stage-returned` reaches this through
+	// requireReport, which refuses anything that is not a readable regular file first. Every shape a
+	// fixture can put at that path was tried — chmod 000, a directory, a dangling link — and each stops
+	// at one of those two guards, both of which have a mutant of their own above. This is
+	// defence-in-depth behind them, and no case driving the tool can get past them to it.
 	{"marker: an unchecksummable report marked anyway", "../eco-report/stages.go", "./eco-report/", "TestAMarkerIsThePosixCksumOfTheReport", `if value == "" {`, "if false {"},
 	{"marker: the trailing newline left on the value", "../eco-report/stages.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `strings.TrimRight(string(content), "\n")`, "string(content)"},
-	// SURVIVOR. No case stamps a pass whose stage was recorded through `no-items`. The case to write:
-	// a stage marked no-items clears the gate instead of blocking it.
+	// SURVIVOR, and an equivalent mutation — no case can kill it, so it stays one. Passes recorded
+	// through `no-items` are stamped all over this suite (armFullPass does nothing else); dropping the
+	// arm just falls to `recorded == r.reportChecksum()` below, which a `no-items` marker can never
+	// satisfy, since a checksum is "<digits> <digits>". The two programs agree on every input. The arm
+	// stays because it states the rule that string format only happens to enforce.
 	{"stage block: a no-items marker blocks the stamp", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if recorded == noItemsMarker {", "if false {"},
 	{"stage block: unrecorded items no longer block", "../eco-report/stages.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", "if recorded == r.reportChecksum() {", "if false {"},
 	{"stage block: an unmarked stage no longer blocks", "../eco-report/stages.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", "if !r.stageWasMarkedReturned(stage) {\n\t\treturn \"ran but was never marked returned", "if false {\n\t\treturn \"ran but was never marked returned"},
@@ -384,8 +390,8 @@ var mutants = []mutant{
 	{"readable: -r asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", "syscall.Access(path, 0x4)", "syscall.Access(path, 0x0)"},
 	{"executable: -x asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "syscall.Access(path, 0x1)", "syscall.Access(path, 0x0)"},
 	{"records: the trailing newline dropped from every rewrite", "../eco-report/shell.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `out.WriteString("\n")`, `out.WriteString("")`},
-	// SURVIVOR. No case puts a directory where rmFile expects a file. The case to write: init over a
-	// report path that is a directory reports something in the way rather than removing it.
+	// The case puts an *empty* directory at init's staged path: os.Remove takes one happily where
+	// `rm -f` refuses, and a directory with anything in it fails the removal either way.
 	{"rm -f: a directory removed where the shell's refused", "../eco-report/shell.go", "./eco-report/", "TestInitStagedWriteIsNotAWayOutOfTheRepo", "if info.IsDir() {", "if info.IsDir() && false {"},
 	// The marker's digest is read by whichever version of this tool runs next, so it has to be
 	// cksum(1)'s and not merely this tool's own: any self-consistent digest passes every comparison

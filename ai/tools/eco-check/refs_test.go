@@ -360,7 +360,7 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 // content this scan reads: the suite reports its own test data against the checkout, from a case that
 // passed. It has caught four suites out. The rule taken is that such a fixture is assembled at run
 // time, and the finding is where that rule is stated — the alternatives were measured and refused,
-// which refs.go records beside the note.
+// which citations.go records beside the note.
 //
 // This file writes its own citations out, because no scan reads a `.go` file. A shell suite covering
 // the same ground could not, and that asymmetry is the whole reason the note exists.
