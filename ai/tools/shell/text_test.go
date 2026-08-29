@@ -28,8 +28,8 @@ func TestOnelineReplacesEveryC0ByteAndDel(t *testing.T) {
 
 // UTF-8 puts the C1 controls at 0xc2 0x80-0x9f, two bytes both above 0x7f, so a scan testing one byte
 // at a time never sees them. U+009B is CSI, `ESC [` as one character: the escape the C0 case bars,
-// arriving by a second door.
-func TestOnelineReplacesTheC1Range(t *testing.T) {
+// arriving by a second door. The third door is the raw byte, below.
+func TestOnelineReplacesTheEncodedC1Range(t *testing.T) {
 	for r := rune(0x80); r <= 0x9f; r++ {
 		in := "a" + string(r) + "b"
 		got := shell.Oneline(in)
@@ -42,11 +42,14 @@ func TestOnelineReplacesTheC1Range(t *testing.T) {
 	}
 }
 
+// The three spellings of the same terminal command — ESC [ 2 K, U+009B encoded as UTF-8, and the raw
+// 0x9b byte an 8-bit terminal reads as CSI directly. The introducer is looked for byte by byte,
+// because reaching the terminal is a fact about bytes: IndexByte for 0x9b catches the raw form and
+// the second byte of the encoded one at once.
 func TestOnelineNeutralisesACsiSequenceThatWouldEraseTheLineAboveIt(t *testing.T) {
-	// The two spellings of the same terminal command: ESC [ 2 K, and CSI 2 K.
-	for _, erase := range []string{"\x1b[2K", "\u009b2K"} {
+	for _, erase := range []string{"\x1b[2K", "\u009b2K", string([]byte{0x9b}) + "2K"} {
 		got := shell.Oneline("refused: evil" + erase + ".md")
-		if strings.ContainsAny(got, "\x1b") || strings.ContainsRune(got, 0x9b) {
+		if strings.IndexByte(got, 0x1b) >= 0 || strings.IndexByte(got, 0x9b) >= 0 {
 			t.Errorf("Oneline(%q) = %q, which still carries the introducer", erase, got)
 		}
 		if strings.Contains(got, "\n") {
@@ -55,8 +58,78 @@ func TestOnelineNeutralisesACsiSequenceThatWouldEraseTheLineAboveIt(t *testing.T
 	}
 }
 
-// The bound is chosen, not missed: neither splits a line nor drives the terminal, and mapping a bidi
-// override to space would corrupt a legitimate right-to-left name. A caller needing that needs a
+// APFS refuses a raw 0x9b in a filename, but not in a file's content, and eco-check echoes
+// content-derived text through Oneline — a cited section in citations.go, a matched rule ID in
+// rule-ids.go. So a repository file can put the single-byte CSI into a message printed to a terminal,
+// and 0x85 (NEL) into one that then spans two lines.
+func TestOnelineReplacesARawC1ByteCarryingNoCharacter(t *testing.T) {
+	for b := 0x80; b <= 0x9f; b++ {
+		in := "a" + string([]byte{byte(b)}) + "b"
+		got := shell.Oneline(in)
+		if got != "a b" {
+			t.Errorf("Oneline of the raw byte 0x%02x = %q, want %q", b, got, "a b")
+		}
+		if !utf8.ValidString(got) {
+			t.Errorf("Oneline of the raw byte 0x%02x returned invalid UTF-8: %q", b, got)
+		}
+	}
+}
+
+// The C1 range doubles as the UTF-8 continuation range, so a guard written on byte value rather than
+// on what the byte decodes to would shred every character below. Each one carries at least one byte
+// in 0x80–0x9f, which is what makes them the evidence and not decoration.
+func TestOnelineLeavesMultiByteCharactersWhole(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+	}{
+		{"an accented letter, second byte 0x89", "É"},
+		{"a CJK character, middle byte 0x97", "日"},
+		{"an emoji, four bytes carrying 0x9f and 0x8d", "\U0001F366"},
+		{"a four-byte symbol, three of its bytes in the range", "\U0001D11E"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			carriesTheRange := false
+			for i := 0; i < len(c.text); i++ {
+				if c.text[i] >= 0x80 && c.text[i] <= 0x9f {
+					carriesTheRange = true
+				}
+			}
+			if !carriesTheRange {
+				t.Fatalf("%q carries no byte in 0x80-0x9f, so it proves nothing about the guard", c.text)
+			}
+			in := "cited: " + c.text + ".md"
+			if got := shell.Oneline(in); got != in {
+				t.Fatalf("Oneline(%q) = %q, want it unchanged", in, got)
+			}
+		})
+	}
+}
+
+// The decoder has to keep its place across a multi-byte character to space the raw byte beside it: a
+// walk that lost a byte here would either eat part of 日 or leave the CSI standing.
+func TestOnelineSpacesARawC1ByteBetweenTwoMultiByteCharacters(t *testing.T) {
+	in := "日" + string([]byte{0x9b}) + "本"
+	if got := shell.Oneline(in); got != "日 本" {
+		t.Fatalf("Oneline(%q) = %q, want %q", in, got, "日 本")
+	}
+}
+
+// A truncated multi-byte sequence orphans its continuation bytes, and an orphan in the C1 range is a
+// byte an 8-bit terminal acts on with no character behind it, so it goes the way of any other. The
+// lead byte stays: 0xe2 is outside the range, and eating it would rewrite a byte this function was
+// only asked to make printable.
+func TestOnelineSpacesAnOrphanedContinuationByteInTheC1Range(t *testing.T) {
+	in := "name" + string([]byte{0xe2, 0x86}) // the first two bytes of →
+	want := "name" + string([]byte{0xe2}) + " "
+	if got := shell.Oneline(in); got != want {
+		t.Fatalf("Oneline(%q) = %q, want %q", in, got, want)
+	}
+}
+
+// The bound is chosen, not missed: a bidi override neither splits a line nor drives the terminal, and
+// mapping it to a space would corrupt a legitimate right-to-left name. A caller needing that needs a
 // different guard, not a wider one here.
 func TestOnelineLeavesBidiOverridesAndOrdinaryTextAlone(t *testing.T) {
 	for _, keep := range []string{
@@ -79,6 +152,23 @@ func TestOnelineLeavesATruncatedLeadByteAlone(t *testing.T) {
 	if got := shell.Oneline(in); got != in {
 		t.Errorf("Oneline(%q) = %q, want it unchanged", in, got)
 	}
+}
+
+// sameValues is reflect.DeepEqual minus the one thing these tables must not assert. Empty comes back
+// as nil from SplitLines and as an allocated empty slice from SplitFields and SortUnique (text.go,
+// above SplitLines), a difference no caller can read, so a case pinning it would freeze a contract
+// the package leaves open. Length and contents are what a caller does read, and comparing those is
+// what lets "no words" and "nothing in, nothing out" assert something instead of returning early.
+func sameValues(got []string, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Each function below documents itself as a shell tool under LC_ALL=C, and that claim is the contract
@@ -151,7 +241,7 @@ func TestSplitLinesCountsLinesTheWayALineOrientedToolDoes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := shell.SplitLines(c.text); !reflect.DeepEqual(got, c.want) {
+			if got := shell.SplitLines(c.text); !sameValues(got, c.want) {
 				t.Fatalf("SplitLines(%q) = %q, want %q", c.text, got, c.want)
 			}
 		})
@@ -177,11 +267,7 @@ func TestSplitFieldsCountsWordsTheWayWcDoes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := shell.SplitFields(c.line)
-			if len(got) == 0 && len(c.want) == 0 {
-				return
-			}
-			if !reflect.DeepEqual(got, c.want) {
+			if got := shell.SplitFields(c.line); !sameValues(got, c.want) {
 				t.Fatalf("SplitFields(%q) = %q, want %q", c.line, got, c.want)
 			}
 		})
@@ -218,11 +304,7 @@ func TestSortUniqueSortsByByteAndDropsDuplicates(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := shell.SortUnique(c.values)
-			if len(got) == 0 && len(c.want) == 0 {
-				return
-			}
-			if !reflect.DeepEqual(got, c.want) {
+			if got := shell.SortUnique(c.values); !sameValues(got, c.want) {
 				t.Fatalf("SortUnique(%q) = %q, want %q", c.values, got, c.want)
 			}
 		})

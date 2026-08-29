@@ -3,42 +3,62 @@ package shell
 import (
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Anything attacker-chosen that reaches a message goes through Oneline first: one physical line per
 // message is what makes a ranking, or a grep for a refusal, mean anything. Every control byte goes,
 // not only the two that split a line — an ESC sequence erases the real line printed above it.
 //
-// C1 as well as C0. UTF-8 puts U+0080–U+009F at 0xc2 followed by 0x80–0x9f, two bytes both above
-// 0x7f, so a scan testing one byte at a time structurally cannot see them. U+009B is CSI — `ESC [`
-// as a single character — and it reached every message this function is the guard for. The exposure
-// is smaller than a bare ESC, because a terminal in UTF-8 mode usually does not act on an encoded
-// U+009B, but "usually" is not the bar for a name chosen by the tree under review.
+// C1 as well as C0, and in both of the spellings a terminal reads. UTF-8 puts U+0080–U+009F at 0xc2
+// followed by 0x80–0x9f, two bytes both above 0x7f, so a scan testing one byte at a time structurally
+// cannot see them; a terminal in UTF-8 mode usually does not act on that encoded form, but "usually"
+// is not the bar for a name chosen by the tree under review. The same argument convicts the raw 0x9b
+// byte harder still, so guarding the encoded form alone had it backwards: raw 0x9b is CSI, `ESC [` as
+// one byte, and a terminal in 8-bit mode acts on it with no "usually" about it. Raw 0x85 is NEL,
+// which breaks the one line this function exists to keep whole.
 //
-// The bound stops there, and it stops there by choice rather than by oversight. What this function
-// exists to stop is text that splits a line or drives the terminal; a lone surrogate and a bidi
-// override do neither. Both are left alone, and mapping bidi to space would corrupt a legitimate
-// right-to-left name in exchange for blunting a hazard that changes how text reads rather than what
-// the terminal does. A caller needing that needs a different guard, not a wider one here.
+// The rule that admits both spellings: a C1 byte carrying no character becomes a space, one carrying
+// a character does not. The range doubles as UTF-8 continuation bytes — 0x97 sits inside 日, and
+// three of the four bytes of U+1D11E are in it — so mapping by byte value would shred every accented
+// letter, CJK character and emoji in exchange for blunting a hazard, which is a worse trade than the
+// hazard. Decoding first tells the two apart, and a byte that decodes to nothing is carrying nothing,
+// so spacing it costs no text. That reaches an orphaned continuation byte and a lone surrogate too:
+// there is no character in either to keep.
+//
+// It does not follow that the output is safe on a terminal in 8-bit mode. That terminal never
+// decodes, so it acts on the 0x97 inside 日 as readily, and the only guard against that is the one
+// just refused. This takes the whole of the hazard that costs no text and stops.
+//
+// The bound stops at C1 by choice rather than by oversight. What this function exists to stop is text
+// that splits a line or drives the terminal; a bidi override does neither, and mapping it to a space
+// would corrupt a legitimate right-to-left name in exchange for blunting a hazard that changes how
+// text reads rather than what the terminal does. A caller needing that needs a different guard, not a
+// wider one here.
 func Oneline(text string) string {
 	var out strings.Builder
 	out.Grow(len(text))
-	for i := 0; i < len(text); i++ {
-		b := text[i]
-		switch {
-		case b < 0x20 || b == 0x7f:
-			out.WriteByte(' ')
-		// 0xc2 0xa0 is NBSP, not a control, so the second byte is bounded above at 0x9f. A trailing
-		// 0xc2 with nothing after it is left as it is: eating it would rewrite bytes this function was
-		// only asked to make printable.
-		case b == 0xc2 && i+1 < len(text) && text[i+1] >= 0x80 && text[i+1] <= 0x9f:
-			out.WriteByte(' ')
-			i++
-		default:
-			out.WriteByte(b)
+	for i := 0; i < len(text); {
+		char, width := utf8.DecodeRuneInString(text[i:])
+		// A byte that decodes to nothing stands for itself, so a raw 0x9b is judged as the CSI an
+		// 8-bit terminal reads rather than as the replacement rune Go hands back for it.
+		if char == utf8.RuneError && width == 1 {
+			char = rune(text[i])
 		}
+		if isControlChar(char) {
+			out.WriteByte(' ')
+		} else {
+			out.WriteString(text[i : i+width])
+		}
+		i += width
 	}
 	return out.String()
+}
+
+// isControlChar is the set Oneline maps to a space: C0, DEL, and the C1 range above them. U+00A0 is
+// NBSP rather than a control, which is why the range is bounded above at U+009F.
+func isControlChar(char rune) bool {
+	return char < 0x20 || char == 0x7f || (char >= 0x80 && char <= 0x9f)
 }
 
 // CutBytes is `cut -c1-n` under LC_ALL=C, which is bytes. Used where a message quotes a name the
@@ -65,6 +85,14 @@ const SpaceBytes = " \t\n\v\f\r"
 func IsSpaceByte(b byte) bool {
 	return strings.IndexByte(SpaceBytes, b) >= 0
 }
+
+// Nothing has two shapes across the three functions below, and neither shape is promised. SplitLines
+// returns nil for empty input; SplitFields and SortUnique return an allocated empty slice, one
+// inherited from strings.FieldsFunc and one from make. Every caller reads the result with len or
+// range, which cannot tell the two apart, so the difference has never been observable — and picking
+// one would freeze a contract nobody asked for, the same trade CutBytes leaves open above. It is
+// stated here instead. The cases hold these functions to length and contents rather than to
+// reflect.DeepEqual, so no test freezes what this note leaves open.
 
 // SplitLines is one file as the line-oriented tools saw it: split on \n, with no empty record for a
 // trailing newline. Bytes come back untouched — Go has no notion of a binary file, so the `-a` the
