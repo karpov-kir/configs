@@ -40,6 +40,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: ai/tools/go.mod
+          # No dependencies, so no go.sum for the cache to key on. Left default it annotates every
+          # run with a miss that can never become a hit.
+          cache: false
 
       - name: Run every suite
         run: ai/run-tests.sh
@@ -53,6 +56,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: ai/tools/go.mod
+          # No dependencies, so no go.sum for the cache to key on. Left default it annotates every
+          # run with a miss that can never become a hit.
+          cache: false
 
       - name: Gate
         working-directory: ai/tools

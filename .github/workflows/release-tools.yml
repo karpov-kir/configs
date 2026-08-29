@@ -35,6 +35,9 @@ jobs:
         with:
           # From go.mod, so the release is built by the toolchain the module declares.
           go-version-file: ai/tools/go.mod
+          # No dependencies, so no go.sum for the cache to key on. Left default it annotates every
+          # run with a miss that can never become a hit.
+          cache: false
 
       # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
       - name: Gate
