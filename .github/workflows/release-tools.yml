@@ -10,6 +10,10 @@
 # The gate runs before any binary is built. A release whose tools fail their own suite is worse than
 # a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
 # beside it and every machine would take the broken one.
+#
+# The actions carry a major tag, not an exact pin, on purpose: nothing in this repo bumps an exact
+# pin, so it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this
+# override the day dependabot or renovate lands.
 name: release-tools
 
 on:
@@ -29,14 +33,16 @@ jobs:
       # deliberately — tools-shipped_test.go fails if this list and that judgement drift apart.
       SHIPPED: eco-check eco-stats eco-report rule-echo cite-graph
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           # From go.mod, so the release is built by the toolchain the module declares.
           go-version-file: ai/tools/go.mod
-          # No dependencies, so no go.sum for the cache to key on. Left default it annotates every
-          # run with a miss that can never become a hit.
+          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
+          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
+          # that can never become a hit. cache-dependency-path would point it here, but the only
+          # thing to cache is a build cache keyed on a go.mod that never changes.
           cache: false
 
       # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.

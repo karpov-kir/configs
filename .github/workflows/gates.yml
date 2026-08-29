@@ -14,6 +14,10 @@
 # Both legs on purpose. macOS is where these suites are written and where /bin/bash is 3.2; Linux is
 # where they are unproven and where CI is cheap. fail-fast is off so one leg going red still reports
 # the other, since the delta between them is the portability signal.
+#
+# The actions carry a major tag, not an exact pin, on purpose: nothing in this repo bumps an exact
+# pin, so it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this
+# override the day dependabot or renovate lands.
 name: gates
 
 on:
@@ -33,15 +37,17 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Some suites cover scripts that build or resolve the Go tools. jq and gh, the other two
       # binaries the suites reach for, are preinstalled on both images.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ai/tools/go.mod
-          # No dependencies, so no go.sum for the cache to key on. Left default it annotates every
-          # run with a miss that can never become a hit.
+          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
+          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
+          # that can never become a hit. cache-dependency-path would point it here, but the only
+          # thing to cache is a build cache keyed on a go.mod that never changes.
           cache: false
 
       - name: Run every suite
@@ -51,13 +57,15 @@ jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ai/tools/go.mod
-          # No dependencies, so no go.sum for the cache to key on. Left default it annotates every
-          # run with a miss that can never become a hit.
+          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
+          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
+          # that can never become a hit. cache-dependency-path would point it here, but the only
+          # thing to cache is a build cache keyed on a go.mod that never changes.
           cache: false
 
       - name: Gate
@@ -81,7 +89,7 @@ jobs:
   mutants:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Exit 2 is the harness reporting that a loaded machine killed mutants on its watchdog, not that
       # a guard failed to redden; its own header says not to read those as findings. So this warns
