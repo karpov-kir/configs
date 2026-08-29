@@ -2,6 +2,8 @@
 
 Config files for the tools I use:
 
+`./bootstrap.sh` does every step below on a fresh machine, and `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands are still worth reading when a step fails.
+
 - [ZSH](https://zsh.org)
   - It's already installed by default on MacOS
   - [Prezto](https://github.com/sorin-ionescu/prezto)
@@ -14,8 +16,10 @@ Config files for the tools I use:
 - [Claude Code](https://code.claude.com)
   - `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
   - Mount the kk-flavor bucket (standards, config, and templates the skills read): `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
-  - Install the skills (each is a dir under `ai/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/skills/*/; do ln -sfn "$d" ~/.claude/skills/; done`
-  - MCP servers: `ai/mcp.json` is the public source of truth; machine-private servers (internal hosts) live beside it in `ai/mcp.private.json` — gitignored, same shape. Claude Code has no global MCP file to symlink, so sync both into the user scope (applies to all projects, CLI + IDE) with `~/Documents/WP/configs/ai/mcp-sync.sh`. Re-run after editing either file. Requires `jq` (`brew install jq`).
+  - Install the skills (each is a dir under `ai/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
+  - Install the Go tools the skills run (no Go needed; requires `gh`): `~/Documents/WP/configs/ai/tools/install.sh`. Re-run after a new release. Without it the skills build from source on first use, which needs Go.
+  - MCP servers: `ai/mcp.jsonc` is the public source of truth; machine-private servers (internal hosts) live beside it in `ai/mcp.private.jsonc` — gitignored, same shape. Claude Code has no global MCP file to symlink, so sync both into the user scope (applies to all projects, CLI + IDE) with `~/Documents/WP/configs/ai/mcp-sync.sh`. Re-run after editing either file. Requires `jq` (`brew install jq`).
+  - The `chrome-devtools` server drives the Chrome you already have open. Turn remote debugging on once at `chrome://inspect/#remote-debugging` (Chrome 144+). While it's on, any session can reach that profile, so untick it when you're done.
 - [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before Claude Code reads it
   - `brew install rtk`
   - `rtk init -g`, then restart Claude Code
@@ -45,3 +49,7 @@ Config files for the tools I use:
   - `mkdir -p ~/.config`
   - `rm -f ~/.config/starship.toml && ln -s ~/Documents/WP/configs/starship/starship.toml ~/.config/starship.toml`
   - Default icon glyphs render via Ghostty's built-in Nerd Font fallback — no font change needed.
+
+## Tests
+
+`ai/run-tests.sh` runs every `*-test.sh` in the repo. It discovers them rather than listing them, so a suite is covered the day it is written, and it exits non-zero if it finds none — a runner that quietly matches nothing would report a clean tree it never read. GitHub Actions runs it on pushes to `main` and on pull requests, over Linux and macOS, alongside a `gofmt`/`vet`/`test` gate for the Go tools — `.github/workflows/gates.yml`. `release-tools.yml` gates those tools again at release time, since a release must not attach binaries built from unchecked code.

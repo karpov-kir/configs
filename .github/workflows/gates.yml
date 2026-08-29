@@ -1,0 +1,105 @@
+# The gates that run on a push. release-tools.yml also gates the Go tools, but only on a tag, so
+# before this workflow a commit could reach main with nothing checking it at all — and every
+# `*-test.sh` in the tree was real, green, and run by nothing.
+#
+# The Go step duplicates release-tools.yml's `Gate` on purpose. That one must stay: it guards the
+# binaries a release attaches, and `resolve.sh` prefers a downloaded binary over the source beside
+# it, so a release built from unchecked code is worse than no release. Sharing them would mean a
+# reusable workflow, which is more machinery than three commands are worth.
+#
+# The suite list is not here on purpose: ai/run-tests.sh discovers every `*-test.sh`, so a suite
+# added later is gated without anyone remembering to register it, and finding none is a failure
+# rather than an empty pass.
+#
+# Both legs on purpose. macOS is where these suites are written and where /bin/bash is 3.2; Linux is
+# where they are unproven and where CI is cheap. fail-fast is off so one leg going red still reports
+# the other, since the delta between them is the portability signal.
+name: gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Some suites cover scripts that build or resolve the Go tools. jq and gh, the other two
+      # binaries the suites reach for, are preinstalled on both images.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ai/tools/go.mod
+
+      - name: Run every suite
+        run: ai/run-tests.sh
+
+  # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ai/tools/go.mod
+
+      - name: Gate
+        working-directory: ai/tools
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would rewrite:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+          go vet ./...
+          go test -count=1 ./...
+
+  # Proves the shell suites' cases can actually fail. ai/run-tests.sh cannot cover this — it discovers
+  # `*-test.sh` and the harness is not one — so without this job, editing a guard silently retires the
+  # proof that its case can redden and nothing says so.
+  #
+  # No -j: the harness defaults to twice the cores, which adapts to whatever runner it lands on.
+  # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.
+  mutants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Exit 2 is the harness reporting that a loaded machine killed mutants on its watchdog, not that
+      # a guard failed to redden; its own header says not to read those as findings. So this warns
+      # loudly and passes rather than turning machine load into a code defect — which is how a gate
+      # gets `|| true`'d and stops gating. Exit 1, a guard that did not redden, fails.
+      - name: Prove the guards can fail
+        run: |
+          set +e
+          ai/shell-mutate.sh
+          status=$?
+          set -e
+          if [ "$status" -eq 2 ]; then
+            # An annotation alone lives inside a log fold, and a job that warns-and-passes on a
+            # permanently slow runner would never measure and never say so — a green tick over a
+            # thing never reached. The step summary puts it on the run's face instead.
+            note="shell-mutate did not measure every guard on this runner. Nothing was proved for those, and this is not a pass for them."
+            echo "::warning::$note"
+            {
+              echo "### :warning: guards unproven on this run"
+              echo
+              echo "$note"
+              echo
+              echo "One did-not-measure is weather; several in a row is a signal worth acting on."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          exit "$status"
