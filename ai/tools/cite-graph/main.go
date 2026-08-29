@@ -101,16 +101,13 @@ func reportDepth(out, errOut io.Writer, adj map[string][]string, nodes []string)
 	deepest := []string{}
 	budget := &walkBudget{left: walkSteps}
 	for _, n := range nodes {
-		if got := longest(adj, n, map[string]bool{n: true}, []string{n}, budget); len(got) > len(deepest) {
+		if got := longest(adj, n, budget); len(got) > len(deepest) {
 			deepest = got
 		}
 	}
 	if budget.exhausted() {
 		fmt.Fprintf(errOut, "graph too densely connected to walk exhaustively — the depth below is a LOWER BOUND, not the longest chain\n")
 	}
-	// Named for what it is. Read as hops-a-consumer-walks it is the proxy this tool's own doctrine
-	// warns about: nobody walks the chain below end to end, and sizing work off it picks the wrong
-	// file. The caveat lived only in messages between sessions until it was written here.
 	fmt.Fprintf(out, "DEPTH  longest path through the graph is %d hop(s) — a coupling measure, not\n"+
 		"       hops any one consumer walks. No reader follows this chain end to end:\n  %s\n\n",
 		len(deepest)-1, strings.Join(printable(deepest), "\n    → "))
@@ -119,8 +116,8 @@ func reportDepth(out, errOut io.Writer, adj map[string][]string, nodes []string)
 
 // One target's row in the fan-out table.
 type fanOutRow struct {
-	file                                    string
-	doorSections, doors, deep, precisionRef int
+	file                                            string
+	doorSections, doors, deepDoors, precisionCiters int
 }
 
 // The door surface per file, widest first, and the width of the widest.
@@ -132,13 +129,19 @@ func reportFanOut(out io.Writer, targets map[string]*target) int {
 	fmt.Fprintln(out, "         what cutting a restatement correctly produces, and it is not debt.")
 	var rows []fanOutRow
 	for file, t := range targets {
-		deep := 0
+		deepDoors := 0
 		for _, sections := range t.reach {
 			if len(sections) > 1 {
-				deep++
+				deepDoors++
 			}
 		}
-		rows = append(rows, fanOutRow{file, len(t.doorSections), len(t.doorCiters), deep, len(t.precisionCiters)})
+		rows = append(rows, fanOutRow{
+			file:            file,
+			doorSections:    len(t.doorSections),
+			doors:           len(t.doorCiters),
+			deepDoors:       deepDoors,
+			precisionCiters: len(t.precisionCiters),
+		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].doorSections != rows[j].doorSections {
@@ -148,7 +151,7 @@ func reportFanOut(out io.Writer, targets map[string]*target) int {
 	})
 	for _, r := range rows {
 		fmt.Fprintf(out, "  %-42s %2d door section(s) / %2d door(s), %d of them deep, %2d precision citer(s)\n",
-			shell.Oneline(r.file), r.doorSections, r.doors, r.deep, r.precisionRef)
+			shell.Oneline(r.file), r.doorSections, r.doors, r.deepDoors, r.precisionCiters)
 	}
 	if len(rows) == 0 {
 		return 0
@@ -223,8 +226,8 @@ func main() {
 		os.Exit(2)
 	}
 	root := os.Args[1]
-	defined, edges, err := read(root)
-	if err != nil || len(defined) == 0 {
+	defined, edges := read(root, os.Stderr)
+	if len(defined) == 0 {
 		fmt.Fprintf(os.Stderr, "cite-graph: read nothing under %s — exit 2, which is not the same as a flat tree.\n", root)
 		os.Exit(2)
 	}

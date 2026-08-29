@@ -65,17 +65,17 @@ func (r *run) cmdState() {
 	resolved := r.resolveReport(r.arg(1))
 	// Several open ships have no single state, and `continue` must not act on one of them picked at
 	// random. `list` is what answers here, and the message names it.
-	if resolved == 3 {
+	if resolved == reportAmbiguous {
 		r.refuseAmbiguous("no single state. Run report.sh list, then report.sh state <intent>")
 	}
 	// The archive is read BEFORE the report's absence decides, because `close` retires a landed ship's
 	// report and the archived intent file is then the only record that it landed. Absence alone routes
 	// `continue <intent>` to "start ship <intent>" — a rebuild of work already merged.
-	if resolved == 0 && shell.IsRegularFile(r.root+"/.idsd/archive/"+stemOfReportPath(r.report)+".md") {
+	if resolved == reportResolved && shell.IsRegularFile(r.root+"/.idsd/archive/"+stemOfReportPath(r.report)+".md") {
 		r.line("done")
 		r.exit(0)
 	}
-	if resolved != 0 || !shell.IsRegularFile(r.report) {
+	if resolved != reportResolved || !shell.IsRegularFile(r.report) {
 		r.line("no-report")
 		r.legacyNote()
 		r.exit(0)
@@ -120,6 +120,7 @@ func (r *run) stateToken() string {
 // One line per open ship, so `continue` can route with several in flight.
 func (r *run) cmdList() {
 	names := r.reportNames()
+	r.noteUnnameableReports()
 	if len(names) == 0 {
 		r.line("no reports")
 		r.legacyNote()

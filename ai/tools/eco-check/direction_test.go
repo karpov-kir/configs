@@ -270,22 +270,22 @@ func TestDirectionScan(t *testing.T) {
 	// sibling. Control first, again: the same lane file fires while the shared layer carries no file
 	// by that name.
 	t.Run("reports a lane file the shared layer has no counterpart for (control)", func(t *testing.T) {
-		newSubtractionFixture(t, false).reports(basenames)
+		newLaneFileOnlyALaneCarries(t).reports(basenames)
 	})
 
 	t.Run("and calls nothing unchecked while one tier alone carries the name", func(t *testing.T) {
-		newSubtractionFixture(t, false).doesNotReport(unchecked)
+		newLaneFileOnlyALaneCarries(t).doesNotReport(unchecked)
 	})
 
 	t.Run("a lane file cannot forge a finding against a standard citing its own sibling", func(t *testing.T) {
-		newSubtractionFixture(t, true).doesNotReport(basenames)
+		newLaneFileTheSharedLayerAlsoCarries(t).doesNotReport(basenames)
 	})
 
 	// Subtracting the name narrows the scan, and a narrowing nothing says out loud is the mute this
 	// reports: any `.md` committed under kk-flavor/ named after a lane file would otherwise buy
 	// silence for free.
 	t.Run("and says the name went unchecked instead of going quiet", func(t *testing.T) {
-		newSubtractionFixture(t, true).reports(unchecked)
+		newLaneFileTheSharedLayerAlsoCarries(t).reports(unchecked)
 	})
 
 	// The unchecked-name notice is bounded like every other shape here: the tree picks how many times
@@ -358,17 +358,24 @@ func TestDirectionScan(t *testing.T) {
 	})
 }
 
-// A lane file and, optionally, the shared-layer sibling that subtracts its name from the checked set.
-func newSubtractionFixture(t *testing.T, sharedCarriesTheName bool) *fixture {
+// A lane file whose basename nothing in the shared layer answers to, so the name stays in the
+// checked set and a standard naming it is a finding.
+func newLaneFileOnlyALaneCarries(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
 	f.newMountedSkill("kk-drive")
 	f.mkdirAll(f.root + "/skills/kk-drive/notes")
 	f.write(f.root+"/skills/kk-drive/notes/writing.md", "# notes\n")
 	f.write(f.root+"/kk-flavor/standards/x.md", "the shape is `writing.md`\n")
-	if sharedCarriesTheName {
-		f.write(f.root+"/kk-flavor/standards/writing.md", "# Writing\n")
-	}
+	return f
+}
+
+// The same tree with the shared layer carrying that basename too, which subtracts it from the checked
+// set — the shape one committed file would otherwise buy silence with.
+func newLaneFileTheSharedLayerAlsoCarries(t *testing.T) *fixture {
+	t.Helper()
+	f := newLaneFileOnlyALaneCarries(t)
+	f.write(f.root+"/kk-flavor/standards/writing.md", "# Writing\n")
 	return f
 }
 

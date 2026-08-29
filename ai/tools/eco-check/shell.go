@@ -48,9 +48,18 @@ func isAlnumByte(b byte) bool {
 // used, and half a gigabyte of it OOM-kills the review stage outright. The bound is far above any real
 // instruction file — the largest in this tree is under 60 KB — so hitting it is a statement about the
 // branch, not about the tree growing.
-// Over the bound the file is **reported and not read**. Truncating it instead would leave an unchecked
-// file indistinguishable from a checked one, which is the failure this checker names three times over.
+//
+// Over the bound the file is reported and not read. Truncating it instead would leave an unchecked
+// file indistinguishable from a checked one.
 const maxFileBytes = 8 << 20
+
+// The one wording every bounded read here reports itself with, ending on what this reader did not do.
+// Three scans hit the bound and each says something different about the consequence; only that half
+// differs, and a second copy of the rest would drift from the bound it quotes.
+func tooLargeToScan(name string, size int64, consequence string) string {
+	return fmt.Sprintf("file too large to scan: %s is %d bytes, over the %d-byte bound — %s",
+		name, size, maxFileBytes, consequence)
+}
 
 func (c *checker) readLines(path string) ([]string, error) {
 	info, err := os.Stat(path)
@@ -58,8 +67,7 @@ func (c *checker) readLines(path string) ([]string, error) {
 		return nil, err
 	}
 	if info.Size() > maxFileBytes {
-		c.add(fmt.Sprintf("file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT checked",
-			shell.Oneline(path), info.Size(), maxFileBytes))
+		c.add(tooLargeToScan(shell.Oneline(path), info.Size(), "it was NOT checked"))
 		return nil, nil
 	}
 	data, err := os.ReadFile(path)
@@ -82,7 +90,18 @@ func countNonEmptyLines(text string) int {
 // `wc -l` counts newline bytes, `wc -w` counts runs of non-whitespace. Both figures ride the
 // exit-0 census line, so they are counted per file and summed by the caller: concatenating first
 // would glue the last word of a file with no final newline onto the first word of the next.
-func countLinesAndWords(path string) (lines, words int) {
+//
+// Bounded by maxFileBytes for the reason readLines is, and reporting the same way. Reported and not
+// counted, never truncated — a file whose words went uncounted must not read as one that had none.
+func (c *checker) countLinesAndWords(path string) (lines, words int) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, 0
+	}
+	if info.Size() > maxFileBytes {
+		c.add(tooLargeToScan(shell.Oneline(path), info.Size(), "it was NOT counted"))
+		return 0, 0
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return 0, 0

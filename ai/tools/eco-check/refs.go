@@ -21,29 +21,32 @@ var (
 // resolve where it is emitted (a project's `.idsd/`), so a bare sibling name is unverifiable and
 // passes; only a traversal out of the emitted directory is checkable there.
 func (c *checker) scanDanglingLinks() {
-	for _, file := range c.filesNamed(c.root.Named(), "*.md") {
-		isTemplate := strings.Contains(file, "/templates/")
-		lines, err := c.readLines(file)
-		if err != nil {
-			continue
-		}
-		dir := shell.DirName(file)
-		for _, line := range lines {
-			for _, match := range markdownLinkPattern.FindAllString(line, -1) {
-				link := strings.TrimSuffix(strings.TrimPrefix(match, "]("), ")")
-				if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "mailto:") ||
-					strings.HasPrefix(link, "#") || strings.HasPrefix(link, "~") {
-					continue
-				}
-				target, _, _ := strings.Cut(link, "#")
-				if shell.PathExists(shell.Join(dir, target)) {
-					continue
-				}
-				if isTemplate && !isTraversal(target) {
-					continue
-				}
-				c.add("dangling link: " + shell.Oneline(file) + " -> " + shell.Oneline(link))
+	for file, lines := range c.filesWithLines(c.root.Named(), "*.md") {
+		c.reportDanglingLinks(file, lines)
+	}
+}
+
+func (c *checker) reportDanglingLinks(file string, lines []string) {
+	isTemplate := strings.Contains(file, "/templates/")
+	dir := shell.DirName(file)
+	for _, line := range lines {
+		for _, match := range markdownLinkPattern.FindAllString(line, -1) {
+			link := strings.TrimSuffix(strings.TrimPrefix(match, "]("), ")")
+			if strings.HasPrefix(link, "http") || strings.HasPrefix(link, "mailto:") ||
+				strings.HasPrefix(link, "#") || strings.HasPrefix(link, "~") {
+				continue
 			}
+			target, _, _ := strings.Cut(link, "#")
+			// A target resolving outside the root is not stat'ed — see tree.go's underRoot. It falls
+			// through to the finding below, so the report says the same thing whether or not the
+			// reviewing machine holds that file.
+			if c.existsUnderRoot(shell.Join(dir, target)) {
+				continue
+			}
+			if isTemplate && !isTraversal(target) {
+				continue
+			}
+			c.add("dangling link: " + shell.Oneline(file) + " -> " + shell.Oneline(link))
 		}
 	}
 }
@@ -56,11 +59,7 @@ func isTraversal(target string) bool {
 // `~/.kk-flavor/...` and `~/.claude/skills/...` — how a skill reaches outside its own directory.
 func (c *checker) scanHomeRefs() {
 	var refs []string
-	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh") {
-		lines, err := c.readLines(file)
-		if err != nil {
-			continue
-		}
+	for _, lines := range c.filesWithLines(c.root.Named(), "*.md", "*.sh") {
 		for _, line := range lines {
 			for _, match := range homeRefPattern.FindAllString(line, -1) {
 				// The trailing run of sentence punctuation is where the prose ended, not part of
@@ -80,11 +79,7 @@ func (c *checker) scanHomeRefs() {
 // Fenced blocks are skipped. The shapes stay narrow on purpose: a bare lowercase `*.md` is as often
 // a file a project owns (`charter.md`, `roadmap.md`), so only SHOUTY-with-a-hyphen is matched.
 func (c *checker) scanPathRefs() {
-	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh") {
-		lines, err := c.readLines(file)
-		if err != nil {
-			continue
-		}
+	for file, lines := range c.filesWithLines(c.root.Named(), "*.md", "*.sh") {
 		dir := shell.DirName(file)
 		// A skill cites its own tooling from the skill root (`scripts/report.sh`) even in a file
 		// that sits under `scripts/`, so resolve from both.
@@ -114,15 +109,7 @@ func (c *checker) scanPathRefs() {
 // The text inside each pair of backticks, outside fenced blocks.
 func backtickedSpans(lines []string) []string {
 	var spans []string
-	inFence := false
-	for _, line := range lines {
-		if shell.IsFenceDelimiter(line) {
-			inFence = !inFence
-			continue
-		}
-		if inFence {
-			continue
-		}
+	for _, line := range unfenced(lines) {
 		spans = append(spans, delimitedSpans(line, "`")...)
 	}
 	return spans
@@ -148,11 +135,7 @@ func delimitedSpans(line, delimiter string) []string {
 // Our own skill namespaces: a name in prose must be a skill that exists.
 func (c *checker) scanUnknownSkills() {
 	var names []string
-	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.yaml") {
-		lines, err := c.readLines(file)
-		if err != nil {
-			continue
-		}
+	for _, lines := range c.filesWithLines(c.root.Named(), "*.md", "*.yaml") {
 		for _, line := range lines {
 			for _, match := range skillFamilyToken.FindAllString(line, -1) {
 				names = append(names, strings.TrimSuffix(match, "-"))

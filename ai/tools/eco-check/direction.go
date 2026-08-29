@@ -27,14 +27,15 @@ type directionCounters struct {
 // home**). Three shapes are banned.
 //
 // A path into a skill needs one name character before the slash, or a glob's bare `/SKILL.md` tail
-// matches. A bare skill name counts only when a skill of that name exists; that gate is not a
-// licence for the prose it lets through, because every other `kk-*`/`idsd-*` token the shared layer
-// carries is already a finding from the unknown-skill scan. The third is a lane file named by its
-// basename alone — `report.sh`, `check.sh`: it carries neither a lane name nor a path, so the first
-// two miss it, and it steers its reader into a lane just the same. Its message deliberately does
-// not extend `shared layer names a lane`, because the suite matches a finding by fixed substring and
-// a message carrying another's whole text would satisfy that other one's does-not-report cases and
-// turn them into silent passes.
+// matches. A bare skill name counts only when a skill of that name exists. That gate is no licence
+// for the prose it lets through: every other `kk-*`/`idsd-*` token the shared layer carries is
+// already a finding from the unknown-skill scan.
+//
+// The third shape is a lane file named by its basename alone — `report.sh`, `check.sh`. It carries
+// neither a lane name nor a path, so the first two miss it, and it steers its reader into a lane
+// just the same. Its message deliberately does not extend `shared layer names a lane`: the suite
+// matches a finding by fixed substring, so a message carrying another's whole text would satisfy
+// that other one's does-not-report cases and turn them into silent passes.
 //
 // Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 // reader from inside one too.
@@ -47,7 +48,7 @@ func (c *checker) scanDirection() {
 	lanes := c.laneAlternation()
 	citesPattern := laneCitationPattern(lanes)
 	namesPattern := laneNamePattern(lanes)
-	laneBasenames, ambiguousBasenames := c.laneBasenames(targets)
+	basenames := c.laneBasenames(targets)
 
 	counters := &directionCounters{}
 	wasFlavorScanned := false
@@ -65,8 +66,8 @@ func (c *checker) scanDirection() {
 			safeFile := shell.Oneline(file)
 			c.reportLaneCitations(counters, safeFile, lines, citesPattern)
 			c.reportLaneNames(counters, safeFile, lines, namesPattern)
-			if len(laneBasenames) > 0 || len(ambiguousBasenames) > 0 {
-				c.reportLaneBasenames(counters, safeFile, lines, laneBasenames, ambiguousBasenames)
+			if basenames.any() {
+				c.reportLaneBasenames(counters, safeFile, lines, basenames)
 			}
 		}
 	}
@@ -129,7 +130,7 @@ func (c *checker) reportLaneCitations(counters *directionCounters, safeFile stri
 	for _, hit := range grepNumbered(lines, pattern) {
 		counters.cites++
 		if counters.cites <= findingCap {
-			c.add("shared layer cites into a lane: " + safeFile + ":" + shell.Oneline(hit) +
+			c.add("shared layer cites into a lane: " + safeFile + ":" + shell.Oneline(hit.String()) +
 				" — move the rule to a standard (ecosystem.md → **One home**)")
 		} else if counters.cites == findingCap+1 {
 			c.reportBoundReached("shared layer cites into a lane", safeFile)
@@ -139,13 +140,12 @@ func (c *checker) reportLaneCitations(counters *directionCounters, safeFile stri
 
 func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, lines []string, pattern *regexp.Regexp) {
 	for _, hit := range grepNumbered(lines, pattern) {
-		_, matched, _ := strings.Cut(hit, ":")
 		// The trailing run of `.`, `_` and `-` is punctuation the token ends on, not part of the
-		// name: the suffix class carries all three, so the match keeps the hyphen a `kk-drive-*`
-		// glob ends on and the full stop of a sentence that ends on the lane name alike, and either
-		// would then match no skill directory. Trimmed as a run, never one character: a token can
-		// end on more than one.
-		named := strings.TrimRight(matched, "._-")
+		// name. The suffix class carries all three, so the match keeps whatever the token ended on:
+		// the hyphen of a `kk-drive-*` glob, the full stop of a sentence ending on the lane name.
+		// Either would then match no skill directory. Trimmed as a run, never one character: a token
+		// can end on more than one.
+		named := strings.TrimRight(hit.match, "._-")
 		// The whole token is tested, not the alternation's own match: `kk-drive-verified` starts
 		// with a real lane name and is not one, so matching the prefix alone would report a skill
 		// that does not exist as a lane the shared layer names.
@@ -154,7 +154,7 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 		}
 		counters.names++
 		if counters.names <= findingCap {
-			c.add("shared layer names a lane: " + safeFile + ":" + shell.Oneline(hit) +
+			c.add("shared layer names a lane: " + safeFile + ":" + shell.Oneline(hit.String()) +
 				" — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)")
 		} else if counters.names == findingCap+1 {
 			c.reportBoundReached("shared layer names a lane", safeFile)
@@ -162,22 +162,22 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 	}
 }
 
-func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile string, lines []string, laneBasenames, ambiguousBasenames map[string]bool) {
+func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile string, lines []string, basenames laneBasenameSets) {
 	for _, hit := range grepNumbered(lines, laneBasenamePattern) {
-		lineNumber, matched, _ := strings.Cut(hit, ":")
+		lineNumber := strconv.Itoa(hit.line)
 		// The leading boundary character comes back with the match; a token starts on
 		// `[A-Za-z0-9]`, so a first character outside that set is the boundary, never the name.
-		named := matched
+		named := hit.match
 		if named != "" && !isAlnumByte(named[0]) {
 			named = named[1:]
 		}
-		// **The ordering below is load-bearing**, and it is the guard rather than a convenience:
-		// test the violation set first and every ambiguous name becomes a forged finding.
-		if ambiguousBasenames[named] {
+		// The order below is the guard, not a tidy-up. Test the violation set first and every
+		// ambiguous name becomes a forged finding.
+		if basenames.ambiguous[named] {
 			c.reportUncheckedBasename(counters, safeFile, lineNumber, named)
 			continue
 		}
-		if !laneBasenames[named] {
+		if !basenames.underOneLane[named] {
 			continue
 		}
 		counters.basenames++
@@ -228,11 +228,22 @@ func (c *checker) reportBoundReached(class, file string) {
 //
 // A basename carrying a character outside the set below is dropped from both. A committed filename
 // holding a newline would otherwise reach a line-oriented reader as two names, and the reviewed tree
-// gets both halves of a forgery: the tail is a basename no lane carries, so a standard naming a file
-// nothing under `skills/` holds is reported against a file the branch never touched, and the head is
-// a second copy of a real basename, so the uniqueness gate drops it and a genuine violation goes
-// quiet.
-func (c *checker) laneBasenames(sharedTargets []string) (lane, ambiguous map[string]bool) {
+// gets both halves of a forgery. The tail is a basename no lane carries, so a standard naming a file
+// nothing under `skills/` holds is reported against a file the branch never touched. The head is a
+// second copy of a real basename, so the uniqueness gate drops it and a genuine violation goes quiet.
+//
+// The two sets travel together because the order they are tested in is the guard, and two bare maps
+// in a signature can be transposed silently where one value cannot.
+type laneBasenameSets struct {
+	// The basenames that name exactly one file under `$skills`.
+	underOneLane map[string]bool
+	// The subset of those the shared layer carries too, which no scan can attribute to either.
+	ambiguous map[string]bool
+}
+
+func (s laneBasenameSets) any() bool { return len(s.underOneLane) > 0 || len(s.ambiguous) > 0 }
+
+func (c *checker) laneBasenames(sharedTargets []string) laneBasenameSets {
 	counts := map[string]int{}
 	for _, path := range c.filesNamed(c.root.Skills(), "*.sh", "*.md") {
 		if name := shell.BaseName(path); isCleanBasename(name) {
@@ -247,33 +258,43 @@ func (c *checker) laneBasenames(sharedTargets []string) (lane, ambiguous map[str
 			}
 		}
 	}
-	lane = map[string]bool{}
-	ambiguous = map[string]bool{}
+	sets := laneBasenameSets{underOneLane: map[string]bool{}, ambiguous: map[string]bool{}}
 	for name, count := range counts {
 		if count != 1 {
 			continue
 		}
-		lane[name] = true
+		sets.underOneLane[name] = true
 		if shared[name] {
-			ambiguous[name] = true
+			sets.ambiguous[name] = true
 		}
 	}
-	return lane, ambiguous
+	return sets
 }
 
 func isCleanBasename(name string) bool {
 	return name != "" && !strings.ContainsFunc(name, isNotLaneNameRune)
 }
 
-// `grep -no`: every match on every line, each as the `<line>:<match>` grep would have printed. The
-// per-grep `-a` the shell version could not drop is gone with the hazard behind it — one committed
-// NUL byte made grep call the file binary and print nothing at all, so a violating shared layer read
-// as clean while the did-not-run guard still counted the file as scanned.
-func grepNumbered(lines []string, pattern *regexp.Regexp) []string {
-	var hits []string
+// One match of a pattern, kept as the two things it is. Packed into `<line>:<match>` it was cut back
+// apart at three of the four call sites, and the boundary character a pattern consumed makes the
+// halves mean different things.
+type lineMatch struct {
+	line  int
+	match string
+}
+
+// The `<line>:<match>` form a finding echoes, which is what `grep -no` printed.
+func (m lineMatch) String() string { return strconv.Itoa(m.line) + ":" + m.match }
+
+// `grep -no`: every match on every line. The shell version needed `-a` on every grep, and the hazard
+// behind that is gone with it: one committed NUL byte made grep call the file binary and print
+// nothing at all, so a violating shared layer read as clean while the did-not-run guard still counted
+// the file as scanned.
+func grepNumbered(lines []string, pattern *regexp.Regexp) []lineMatch {
+	var hits []lineMatch
 	for i, line := range lines {
 		for _, match := range pattern.FindAllString(line, -1) {
-			hits = append(hits, strconv.Itoa(i+1)+":"+match)
+			hits = append(hits, lineMatch{line: i + 1, match: match})
 		}
 	}
 	return hits

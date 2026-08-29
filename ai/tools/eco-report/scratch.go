@@ -106,11 +106,11 @@ func (r *run) cmdPromote() {
 // report left to read and refuses.
 func (r *run) cmdDiscard() {
 	switch r.resolveReport(r.arg(1)) {
-	case 1:
+	case reportNoneOpen:
 		r.legacyNote()
 		r.refuse("error: nothing to discard — no qualify report under "+r.reportsDir+", and no intent named",
 			"  Name the intent to discard a ship whose report is already closed.")
-	case 3:
+	case reportAmbiguous:
 		r.refuseAmbiguous("name which as the last argument")
 	}
 	r.assertRepoModeReadable()

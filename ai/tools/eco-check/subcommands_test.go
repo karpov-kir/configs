@@ -248,13 +248,10 @@ func newStubWithoutSource(t *testing.T) *fixture {
 
 func newStubWithUnmarkedSource(t *testing.T) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.mkdirAll(f.root + "/tools/toy")
-	// A real dispatch, refusing under a different script's name: the marker is what says which stub
-	// a dispatch belongs to, and no other line in the file does.
-	f.write(f.root+"/tools/toy/toy.go", strings.Replace(toyDispatch, "usage: toy.sh {", "usage: other.sh {", 1))
-	f.newStubScript("toy.sh {alpha|beta}")
-	return f
+	// A real dispatch, refusing under a different script's name: the marker is what says which stub a
+	// dispatch belongs to, and no other line in the file does.
+	return newToolStub(t, "toy.sh {alpha|beta}",
+		strings.Replace(toyDispatch, "usage: toy.sh {", "usage: other.sh {", 1))
 }
 
 func (f *fixture) newStubScript(usage string) {

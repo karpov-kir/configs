@@ -4,22 +4,19 @@ package ecoreport_test
 // it did not do.
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	t.Parallel()
-	uninvalidated := newRepo(t)
-	uninvalidated.runReport("check-ignore")
-	uninvalidated.runReport("init", "review: stamp guard")
+	uninvalidated := newShip(t, "review: stamp guard")
 	uninvalidated.runReport("stamp", "code-review,security-review,tighten,refactor,retro")
 	uninvalidated.assertRefused("stamp refuses before this pass has invalidated")
 	uninvalidated.assertReports("never invalidated", "and names invalidate as what is missing")
 
-	unrecorded := newRepo(t)
-	unrecorded.runReport("check-ignore")
-	unrecorded.runReport("init", "review: stage marker guard")
+	unrecorded := newShip(t, "review: stage marker guard")
 	unrecorded.runReport("invalidate")
 	unrecorded.runReport("stage-returned", "code-review")
 	unrecorded.runReport("stage-returned", "security-review")
@@ -29,9 +26,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	// The same guard, met by the one caller it must not stop: streaming resumes a stage and takes its
 	// return again with nothing recorded in between, so the outstanding stage is the one being marked.
 	// The other four are cleared first so the re-marked one is the only stage the stamp below can block on.
-	resumed := newRepo(t)
-	resumed.runReport("check-ignore")
-	resumed.runReport("init", "review: resumed stage")
+	resumed := newShip(t, "review: resumed stage")
 	resumed.runReport("invalidate")
 	for _, cleared := range []string{"security-review", "tighten", "refactor", "retro"} {
 		resumed.runReport("stage-returned", cleared)
@@ -39,7 +34,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	}
 	resumed.runReport("stage-returned", "code-review")
 	resumed.runReport("stage-returned", "code-review")
-	resumed.record("a resumed stage can be marked returned again", resumed.status == 0, "exit "+itoa(resumed.status)+"\n"+resumed.out)
+	resumed.record("a resumed stage can be marked returned again", resumed.status == 0, resumed.evidence())
 	// Exit 0 alone would also be satisfied by a re-mark that cleared the gate. What must survive the
 	// re-mark is the stamp's demand that the stage's items reach the report: it rewrites the same
 	// checksum, so the report still has not moved, and a stamp taken here would record a review whose
@@ -55,15 +50,13 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	resumed.runReport("stamp", "code-review,security-review,tighten,refactor,retro")
 	resumed.record("and stamps once that stage's items are accounted for",
 		resumed.status == 0 && !containsLine(resumed.read(resumed.reportPath("")), "reviewed-tree: pending"),
-		"exit "+itoa(resumed.status)+"\n"+resumed.out)
+		resumed.evidence())
 
 	// The stamp's other per-stage refusal: an entry recorded as having run for a stage that was never
 	// marked returned at all. `refactor,retro` is legally shaped whether or not either ran, so the
 	// grammar check cannot see this and only the per-stage marker can. Four of the five are marked,
 	// leaving `retro` as the one thing between this pass and a stamp it never earned.
-	unmarked := newRepo(t)
-	unmarked.runReport("check-ignore")
-	unmarked.runReport("init", "review: unmarked stage")
+	unmarked := newShip(t, "review: unmarked stage")
 	unmarked.runReport("invalidate")
 	for _, cleared := range []string{"code-review", "security-review", "tighten", "refactor"} {
 		unmarked.runReport("stage-returned", cleared)
@@ -80,15 +73,13 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	unmarked.runReport("stamp", "code-review,security-review,tighten,refactor,retro")
 	unmarked.record("and stamps once every stage carries a marker",
 		unmarked.status == 0 && !containsLine(unmarked.read(unmarked.reportPath("")), "reviewed-tree: pending"),
-		"exit "+itoa(unmarked.status)+"\n"+unmarked.out)
+		unmarked.evidence())
 }
 
 func TestAStageNameThatIsNotAStageIsRefused(t *testing.T) {
 	t.Parallel()
 	// What these pin is the refusal itself: the usage line, and no marker written.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-stage-names")
+	f := newShip(t, "001-stage-names")
 	markers := f.repo + "/.git/idsd-stage-returns/001-stage-names"
 	// An omitted stage name and an empty one arrive by the same path, so the empty form covers both; a
 	// separate case for the omitted one could not fail differently.
@@ -103,7 +94,7 @@ func TestAStageNameThatIsNotAStageIsRefused(t *testing.T) {
 	// Last, so the marker check above cannot pass on a fixture where nothing was markable in the first place.
 	f.runReport("stage-returned", "code-review")
 	f.record("while a real stage name on the same fixture is recorded",
-		f.status == 0 && f.isFile(markers+"/code-review"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && f.isFile(markers+"/code-review"), f.evidence())
 }
 
 func TestInvalidateClearsThePassItStarts(t *testing.T) {
@@ -111,13 +102,11 @@ func TestInvalidateClearsThePassItStarts(t *testing.T) {
 	// `invalidate` is what separates one pass from the next, and it clears two things. The frontmatter
 	// has to stop describing the last pass, because the merge gate reads it; and the last pass's stage
 	// markers have to go, or this pass's stamp is satisfied by returns it never took.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-invalidating")
+	f := newShip(t, "001-invalidating")
 	f.stampFullPass("001-invalidating")
 	f.runReport("gate", "001-invalidating")
 	f.record("fixture: a full pass stands, and the gate clears it",
-		f.status == 0 && strings.Contains(f.out, "gate clean"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && strings.Contains(f.out, "gate clean"), f.evidence())
 
 	f.runReport("invalidate", "001-invalidating")
 	report := f.read(f.reportPath("001-invalidating"))
@@ -128,7 +117,7 @@ func TestInvalidateClearsThePassItStarts(t *testing.T) {
 	// five stages for a pass whose own stamp says the review is not done.
 	f.runReport("gate", "001-invalidating")
 	f.record("so the gate blocks on the stage record, not on freshness alone",
-		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), f.evidence())
 
 	// And the markers. Left behind, the next stamp is satisfied by the previous pass's returns, so a
 	// pass that has run nothing since stamps a full review over the tree as it now stands.
@@ -144,9 +133,7 @@ func TestNoItemsDemandsTheStageHaveReturnedFirst(t *testing.T) {
 	// `no-items` is the one way to clear a stage's marker without editing the report, which makes it
 	// the shortest path from a pass that ran nothing to a stamped full review. Its demand that the
 	// stage have been marked returned first is the whole of what stands in that path.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-no-items")
+	f := newShip(t, "001-no-items")
 	f.runReport("invalidate", "001-no-items")
 	markers := f.repo + "/.git/idsd-stage-returns/001-no-items"
 	for _, stage := range []string{"code-review", "security-review", "tighten", "refactor", "retro"} {
@@ -166,7 +153,7 @@ func TestNoItemsDemandsTheStageHaveReturnedFirst(t *testing.T) {
 	f.runReport("no-items", "code-review", "001-no-items")
 	f.record("and no-items records a stage that has been marked returned",
 		f.status == 0 && f.read(markers+"/code-review") == "no-items\n",
-		"exit "+itoa(f.status)+"; marker holds '"+f.read(markers+"/code-review")+"'\n"+f.out)
+		"exit "+strconv.Itoa(f.status)+"; marker holds '"+f.read(markers+"/code-review")+"'\n"+f.out)
 }
 
 func TestAMarkerIsThePosixCksumOfTheReport(t *testing.T) {
@@ -174,14 +161,12 @@ func TestAMarkerIsThePosixCksumOfTheReport(t *testing.T) {
 	// A marker holds the report as cksum(1) saw it, and it has to be cksum(1)'s digest rather than
 	// merely this tool's own: a marker written by one version of the tool is read by the other across
 	// a swap, and any self-consistent digest passes every comparison the tool makes against itself.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-marker")
+	f := newShip(t, "001-marker")
 	f.runReport("invalidate", "001-marker")
 	marker := f.repo + "/.git/idsd-stage-returns/001-marker/code-review"
 	f.runReport("stage-returned", "code-review", "001-marker")
 	f.record("stage-returned writes the stage's marker",
-		f.status == 0 && f.isFile(marker), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && f.isFile(marker), f.evidence())
 	held, want, ok := f.markerAgainstCksum(marker, f.reportPath("001-marker"))
 	if ok {
 		f.record("and it holds the report's POSIX cksum — crc and byte count", held == want,
@@ -202,9 +187,7 @@ func TestAMarkerIsThePosixCksumOfTheReport(t *testing.T) {
 	// over a marker that was never written dead-ends the pass: `no-items` then refuses for a stage the
 	// human just watched return. Unwritable by construction, never by a mode bit — the marker path is
 	// a directory, so the write fails with EISDIR for every user, root included.
-	blocked := newRepo(t)
-	blocked.runReport("check-ignore")
-	blocked.runReport("init", "001-unwritable-marker")
+	blocked := newShip(t, "001-unwritable-marker")
 	blocked.runReport("invalidate", "001-unwritable-marker")
 	blocked.mkdirAll(blocked.repo + "/.git/idsd-stage-returns/001-unwritable-marker/code-review")
 	blocked.runReport("stage-returned", "code-review", "001-unwritable-marker")

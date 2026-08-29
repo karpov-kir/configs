@@ -19,8 +19,10 @@ package ecoreport_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -83,6 +85,16 @@ func newRepo(t *testing.T) *fixture {
 	return f
 }
 
+// A repository with the scratch excluded and one report scaffolded: the two commands every pass runs
+// before it has a report to act on. A case that varies either of them runs them itself.
+func newShip(t *testing.T, intent string) *fixture {
+	t.Helper()
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	f.runReport("init", intent)
+	return f
+}
+
 // The other repo mode: .idsd/ tracked through a durable charter, with qualify-reports/ gitignored the
 // way a shared idsd setup does it. Every plain newRepo fixture is a throwaway. qualify-reports/ is
 // left absent, since `init` is what creates it.
@@ -116,16 +128,21 @@ func (f *fixture) assertFixtureIsCommitted() {
 // merged them.
 func (f *fixture) runReport(args ...string) {
 	f.t.Helper()
-	var output bytes.Buffer
-	f.status = ecoreport.Invocation{
+	f.runReportIn(f.repo, args...)
+}
+
+// One invocation, and the one place this suite says which skill directory and which HOME the tool runs
+// against — the two fields a case never varies and would otherwise restate at each call.
+func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
+	f.t.Helper()
+	return ecoreport.Invocation{
 		Args: args,
-		Dir:  f.repo,
+		Dir:  dir,
 		Self: f.skill + "/scripts/report.sh",
 		Home: f.home,
-		Out:  &output,
-		Err:  &output,
+		Out:  out,
+		Err:  errOut,
 	}.Exec()
-	f.out = strings.TrimRight(output.String(), "\n")
 }
 
 // The same run from another directory, for the linked-worktree case: a worktree is its own root, and
@@ -133,7 +150,7 @@ func (f *fixture) runReport(args ...string) {
 func (f *fixture) runReportIn(dir string, args ...string) {
 	f.t.Helper()
 	var output bytes.Buffer
-	f.status = ecoreport.Invocation{Args: args, Dir: dir, Self: f.skill + "/scripts/report.sh", Home: f.home, Out: &output, Err: &output}.Exec()
+	f.status = f.invoke(dir, &output, &output, args)
 	f.out = strings.TrimRight(output.String(), "\n")
 }
 
@@ -141,7 +158,7 @@ func (f *fixture) runReportIn(dir string, args ...string) {
 func (f *fixture) runReportStdout(args ...string) string {
 	f.t.Helper()
 	var out, errOut bytes.Buffer
-	ecoreport.Invocation{Args: args, Dir: f.repo, Self: f.skill + "/scripts/report.sh", Home: f.home, Out: &out, Err: &errOut}.Exec()
+	f.invoke(f.repo, &out, &errOut, args)
 	return strings.TrimRight(out.String(), "\n")
 }
 
@@ -166,6 +183,11 @@ func (f *fixture) record(name string, passed bool, evidence string) {
 		}
 		t.Errorf("failed\n%s", indent(evidence))
 	})
+}
+
+// The exit and the output together — what a case hands `record` when the assertion is about both.
+func (f *fixture) evidence() string {
+	return "exit " + strconv.Itoa(f.status) + "\n" + f.out
 }
 
 func (f *fixture) assertReports(needle, name string) {
@@ -280,13 +302,22 @@ func (f *fixture) todoGatePath() string {
 func (f *fixture) madeUnreadable(path, what string) bool {
 	f.t.Helper()
 	f.chmod(path, 0)
-	if handle, err := os.Open(path); err != nil {
+	handle, err := os.Open(path)
+	if err != nil {
 		return true
-	} else {
-		handle.Close()
 	}
+	handle.Close()
 	f.t.Logf("skip  chmod does not restrict this user (root?) — %s cannot run", what)
 	return false
+}
+
+// The same fixture bound to a subtest's own *testing.T, so a case that declines is reported as a skip
+// against its own name instead of a log line inside its parent's pass. The fixture is a flat value, so
+// the copy shares the tree and nothing else.
+func (f *fixture) inSubtest(t *testing.T) *fixture {
+	bound := *f
+	bound.t = t
+	return &bound
 }
 
 // The staged/unstaged split this fixture is keeping, in the form a human would lose it in.
@@ -317,7 +348,7 @@ func (f *fixture) newCountingFingerprintHome() string {
 	return log
 }
 
-func (f *fixture) countLines(path string) int {
+func (f *fixture) nonEmptyLinesIn(path string) int {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return 0

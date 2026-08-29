@@ -5,6 +5,7 @@ package ecoreport_test
 // directories and a staged file, so a link at any of the three would put the write outside the repo.
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -49,7 +50,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	reports.runReport("check-ignore")
 	reports.record("the step that other refusal would name reports ok and leaves the link standing",
 		reports.status == 0 && strings.HasPrefix(reports.out, "ok:") && reports.isSymlink(reports.repo+"/.idsd/qualify-reports"),
-		"exit "+itoa(reports.status)+"\n"+reports.out)
+		reports.evidence())
 }
 
 func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
@@ -86,9 +87,7 @@ func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
 
 func TestAnExistingReportIsNotSilentlyReplaced(t *testing.T) {
 	t.Parallel()
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "review: first")
+	f := newShip(t, "review: first")
 	f.runReport("init", "review: second")
 	f.assertRefused("init refuses over an existing report without --force")
 	f.record("and the first report is left untouched", strings.Contains(f.read(f.reportPath("")), "review: first"), "")
@@ -106,9 +105,7 @@ func TestTheFrontmatterCannotBeForgedThroughTheIntentValue(t *testing.T) {
 	t.Parallel()
 	// The intent value can come from a fetched ticket. A newline in it would otherwise write a second
 	// frontmatter line, and `reviewed-tree:` is exactly what a forged one would claim.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "review: forged\nreviewed-tree: 0000000000000000000000000000000000000000")
+	f := newShip(t, "review: forged\nreviewed-tree: 0000000000000000000000000000000000000000")
 	report := f.read(f.reportPath(""))
 	stamps := 0
 	for _, line := range strings.Split(report, "\n") {
@@ -124,9 +121,7 @@ func TestTheFilenameAndTheFrontmatterNameTheSameShip(t *testing.T) {
 	t.Parallel()
 	// When they differ, one intent gets two reports so the ambiguity refusal never fires, `discard`
 	// deletes another ship's in-flight intent, and `state` answers `done` for an open one.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "  002-spaced")
+	f := newShip(t, "  002-spaced")
 	filed := f.isFile(f.reportPath("002-spaced")) && !f.isFile(f.reportPath("review")) &&
 		containsLine(f.read(f.reportPath("002-spaced")), "intent: 002-spaced")
 	f.record("a whitespace-led intent is filed and recorded under the same slug", filed,
@@ -142,9 +137,7 @@ func TestTheFilenameAndTheFrontmatterNameTheSameShip(t *testing.T) {
 
 	// Asserted on disk as well as on the exit: the harm is the scaffolded report, whose blank `intent:`
 	// every reader treats as a standalone review.
-	blank := newRepo(t)
-	blank.runReport("check-ignore")
-	blank.runReport("init", " ")
+	blank := newShip(t, " ")
 	blank.assertRefused("init refuses a whitespace-only intent")
 	blank.assertNoReportWritten("and wrote no report for it")
 }
@@ -221,4 +214,33 @@ func TestInitIsWhereALegacyReportGetsMentioned(t *testing.T) {
 	// absent. Asserted on the absent path's own name: looking for a word like `either`, which the note
 	// never emits, passes whether or not it names both.
 	f.record("and does not speak of two paths when only one is there", !strings.Contains(f.out, "ship-reports"), "")
+}
+
+// An intent can be seeded from a fetched ticket, which is why CR and LF are collapsed out of it — a
+// newline there forges a second frontmatter line. Every other control byte was carried through, and
+// the slug charset does not stand in the way: a `review: <description>` intent takes its stem off the
+// first field alone and the description reaches the `intent:` line unchecked. That line is echoed by
+// this tool's own output and quoted back by `init`'s own refusal, so an ESC in it erases the lines
+// printed above it.
+func TestAnIntentValueCarriesNoControlByteIntoTheReport(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "review: seeded\x1b[2KFORGED")
+
+	written, err := os.ReadFile(f.reportPath(""))
+	if err != nil {
+		t.Fatalf("no report to read: %v", err)
+	}
+	// The control: without it, an init that refused outright would satisfy the assertion below.
+	f.record("the intent still reaches the report", strings.Contains(string(written), "seeded"), string(written))
+	f.record("no control byte reached the frontmatter", !strings.ContainsRune(string(written), 0x1b), string(written))
+	f.record("nor this tool's own output", !strings.ContainsRune(f.out, 0x1b), f.out)
+
+	// The half that was already there: CR/LF collapse to a space rather than opening a second line.
+	g := newShip(t, "review: a\nreviewed-tree: forged")
+	body, err := os.ReadFile(g.reportPath(""))
+	if err != nil {
+		t.Fatalf("no report to read: %v", err)
+	}
+	g.record("a newline still cannot forge a frontmatter line",
+		!strings.Contains(string(body), "\nreviewed-tree: forged"), string(body))
 }

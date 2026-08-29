@@ -11,9 +11,7 @@ func TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded(t *testing.T) {
 	t.Parallel()
 	// The fixture first: an untouched copy must initialize. Without this, a copy the tool cannot read
 	// at all would refuse every case below, and each refusal would pass for the wrong reason.
-	intact := newRepo(t)
-	intact.runReport("check-ignore")
-	intact.runReport("init", "001-intact-copy")
+	intact := newShip(t, "001-intact-copy")
 	intact.record("the copied skill dir initializes a report from its own template",
 		intact.status == 0 && intact.isFile(intact.reportPath("001-intact-copy")), "")
 

@@ -55,8 +55,25 @@ var mutants = []mutant{
 	{"direction: names bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "counters.names <= findingCap", "counters.names <= 100000"},
 	{"direction: basename bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "counters.basenames <= findingCap", "counters.basenames <= 100000"},
 	{"direction: unchecked notice unbounded", "direction.go", "./eco-check/", "TestDirectionScan", "counters.ambiguous <= findingCap", "counters.ambiguous <= 100000"},
-	{"report: per-class cap removed", "report.go", "./eco-check/", "TestImportResolvedAtTheMount", "shown[r] <= findingCap", "shown[r] <= 100000"},
-	{"shell: per-file byte bound removed", "shell.go", "./eco-check/", "TestOversizeFileIsReportedNotRead", "info.Size() > maxFileBytes", "info.Size() > (1 << 62)"},
+	{"report: per-class cap removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "shown[r] <= findingCap", "shown[r] <= 100000"},
+	// Two reads, two bounds, two mutants: the line-oriented read and the read the budget counts its
+	// files through. `info.Size() > maxFileBytes` now matches twice, so each anchor carries the return
+	// above it to say which read it means. The second bound went in because the first one's mutant said
+	// nothing at all about the read beside it.
+	//
+	// The comparison is what each mutation disables, not the refusal under it: leave the c.add standing
+	// and the finding still fires, so a case asserting the message passes over a file that was read
+	// anyway. Both of these killed nothing when written that way.
+	{"shell: per-file byte bound removed from the line read", "shell.go", "./eco-check/", "TestOversizeFileIsReportedNotRead", `		return nil, err
+	}
+	if info.Size() > maxFileBytes {`, `		return nil, err
+	}
+	if info.Size() > (1 << 62) {`},
+	{"shell: per-file byte bound removed from the budget read", "shell.go", "./eco-check/", "TestOversizeBudgetFileIsReportedNotCounted", `		return 0, 0
+	}
+	if info.Size() > maxFileBytes {`, `		return 0, 0
+	}
+	if info.Size() > (1 << 62) {`},
 	{"refs: citation target read with no regular-file test", "citations.go", "./eco-check/", "TestCitationTargetMustBeARegularFile", "if !shell.IsRegularFile(target) {", "if false {"},
 	// Both directions off the bare-rule-ID scan's single pattern, which is why they share an anchor.
 	// The second is aimed at the quiet case alone: it widens the separator and the phrase just far
@@ -72,6 +89,10 @@ var mutants = []mutant{
 	// so both directions are needed: the finding never firing, and it firing on the two forms the
 	// finding itself recommends.
 	{"citations: the undelimited form unreported", "citations.go", "./eco-check/", "TestDelimitedSectionCitations", "if !cited.isDelimited {", "if false {"},
+	// The other empty-resolution branch. Left standing, the citation falls through with an empty target
+	// and is reported as "not a regular file" instead — a finding, so a case asserting merely that
+	// something was reported would pass over it.
+	{"citations: an unresolvable cited path unreported", "citations.go", "./eco-check/", "TestUnresolvableCitationPaths", `if target == "" {`, "if false {"},
 	{"citations: the delimited forms reported as undelimited", "citation-syntax.go", "./eco-check/", "TestDelimitedSectionCitations", "isDelimited = section != \"\"", "isDelimited = false"},
 
 	// The skill-directory scan. Each of the three defects makes a skill unreachable rather than
@@ -84,21 +105,15 @@ var mutants = []mutant{
 	// a header that declares nothing, one naming a suite that is not there, and the four bounds that
 	// keep a crafted header from being read as a declaration.
 	//
-	// `if len(named) > 8 {` matches twice, once for the report and once for the truncation, so the
-	// report's anchor carries the line after it.
-	//
-	// Two guards here have no mutant, both because nothing observes them. The truncation to eight
-	// names is one: no case counts the findings a truncated list produces, and the *report* of an
-	// over-long header is asserted separately, so the cut itself is invisible. The other is the
-	// `isCleanBasename` filter on the suite map, and that one cannot be given a case at all: the names
-	// it excludes are exactly the names `namedTestSuite` cannot extract from a header, so no excluded
-	// key could ever have matched one. It guards against a `find` listing split on newlines, which
-	// os.ReadDir does not produce.
-	{"test position: over-long header not reported", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if len(named) > 8 {\n\t\t\tc.add(", "if false {\n\t\t\tc.add("},
-	{"test position: header bound removed", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if i >= 200 {", "if i >= 100000 {"},
+	// One guard here has no mutant, and it cannot be given a case at all: the `isCleanBasename` filter
+	// on the suite map excludes exactly the names `namedTestSuite` cannot extract from a header, so no
+	// excluded key could ever have matched one. It guards against a `find` listing split on newlines,
+	// which os.ReadDir does not produce.
+	{"test position: over-long header not reported", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if len(named) > namedSuiteCap {", "if false {"},
+	{"test position: header bound removed", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if i >= headerLineCap {", "if i >= 100000 {"},
 	{"test position: header read past the comment block", "scripts.go", "./eco-check/", "TestScriptTestPosition", `if !strings.HasPrefix(line, "#") {`, "if false {"},
 	{"test position: the -mutate.sh exemption removed", "scripts.go", "./eco-check/", "TestScriptTestPosition", `|| strings.HasSuffix(base, "-mutate.sh")`, "|| false"},
-	{"test position: a named suite that is absent unreported", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if !suites[suite] {", "if false {"},
+	{"test position: a named suite that is absent unreported", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if len(carriers[suite]) == 0 {", "if false {"},
 	{"test position: a script declaring nothing unreported", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if !anyMatch(header, untestedDeclared) {", "if false {"},
 	{"test position: a bare untested: clears the check", "scripts.go", "./eco-check/", "TestScriptTestPosition", `untested:[[:space:]]*[^[:space:]]`, `untested:[[:space:]]*`},
 	{"test position: a dash-led suite name goes unread", "scripts.go", "./eco-check/", "TestScriptTestPosition", `[A-Za-z0-9_.-]+-test\.sh`, `[A-Za-z0-9_.]+-test\.sh`},
@@ -109,7 +124,7 @@ var mutants = []mutant{
 	{"subcommands: a missing tool source goes quiet", "subcommands.go", "./eco-check/", "TestADispatchThatCannotBeReadIsReported", `return nil, "no source directory at " + named`, `return nil, ""`},
 	{"subcommands: a source with no dispatch goes quiet", "subcommands.go", "./eco-check/", "TestADispatchThatCannotBeReadIsReported", `return nil, "no switch under " + named + " refuses with a '" + shell.Oneline(marker) + "' line"`, `return nil, ""`},
 	{"subcommands: any switch read as the dispatch", "subcommands.go", "./eco-check/", "TestGoDispatchSubcommandCallSites", "carries = carries || strings.Contains(line, marker)", "carries = true"},
-	{"subcommands: the usage grammar read one line only", "subcommands.go", "./eco-check/", "TestGoDispatchSubcommandCallSites", "if closed || len(grammar) > 4096 {", "if closed || len(grammar) > 0 {"},
+	{"subcommands: the usage grammar read one line only", "subcommands.go", "./eco-check/", "TestGoDispatchSubcommandCallSites", "if closed || len(grammar) > usageGrammarCap {", "if closed || len(grammar) > 0 {"},
 	{"subcommands: count bound removed", "subcommands.go", "./eco-check/", "TestSubcommandCountIsBounded", "if len(queries) >= subcommandCap {", "if len(queries) >= 100000 {"},
 	{"subcommands: a name only the dispatch has goes unreported", "subcommands.go", "./eco-check/", "TestUsageAndDispatchAreHeldAgainstEachOther", "onlyIn(dispatched, documented)", "onlyIn(dispatched, dispatched)"},
 	{"subcommands: a name only the usage has goes unreported", "subcommands.go", "./eco-check/", "TestUsageAndDispatchAreHeldAgainstEachOther", "onlyIn(documented, dispatched)", "onlyIn(documented, documented)"},
@@ -150,10 +165,10 @@ var mutants = []mutant{
 	{"ecocheck: budget words not counted", "budget.go", "./eco-stats/", "", "budgetWords += words", "budgetWords += words * 0"},
 	// To the end of the line, or the anchor also matches the three `+= wordsInFile(…)` above it.
 	{"stats: resolved import contributes nothing", "../eco-stats/budget.go", "./eco-stats/", "", "s.alwaysLoadedWords += words\n", "s.alwaysLoadedWords += 0\n"},
-	// The collapse follows the guard wherever it moves: aimed at the inline copy Oneline used to carry
-	// it matched nothing, and preflight refuses the whole run over one stale anchor — so this entry
-	// alone has twice had the entire list running nowhere. It now sits in isControlChar, and the C0
-	// term is what the mutant drops; the C1 term below it keeps `char` read, so the mutant still
+	// The collapse follows the guard wherever it moves. Aimed at the inline copy Oneline used to
+	// carry, it matched nothing, and preflight refuses the whole run over one stale anchor — so this
+	// entry alone has twice had the entire list running nowhere. It now sits in isControlChar, and the
+	// C0 term is what the mutant drops; the C1 term below it keeps `char` read, so the mutant still
 	// builds.
 	{"stats: no newline collapse in the note", "../shell/text.go", "./eco-stats/", "TestTheNoteCannotForgeALedgerRow", "char < 0x20 || char == 0x7f", "char == 0x7f"},
 	{"stats: no pipe escaping in the note", "../eco-stats/eco-stats.go", "./eco-stats/", "", "strings.ReplaceAll(note, \"|\", `\\|`)", "strings.ReplaceAll(note, \"|\", \"|\")"},
@@ -187,8 +202,8 @@ var mutants = []mutant{
 	// rather than budget: "some case went red" would not say which guard is observed.
 
 	// paths.go — which report an invocation acts on, and what else on disk belongs to the ship it
-	// names. Every path is built from a slug, so the charset check is the whole of what keeps a write
-	// inside qualify-reports/.
+	// names.
+	//
 	// Observable from resolveReport alone: `init` trims the value before it calls this, so the case is
 	// the one naming the ship the way `init` was given it, leading whitespace and all.
 	{"report name: the leading-space trim dropped", "../eco-report/paths.go", "./eco-report/", "TestTheFilenameAndTheFrontmatterNameTheSameShip", "firstField(trimLeadingSpace(value))", "firstField(value)"},
@@ -223,7 +238,7 @@ var mutants = []mutant{
 	{"markdown count: anything counted as an intent file", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".md") {`, `if err != nil || !info.Mode().IsRegular() {`},
 	// A symlink test reads the final component only, so all three of the write's path components need
 	// one, and each has its own case.
-	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestTheDestructivePathCarriesTheGuardsTheWritePathHas", `[]string{r.root + "/.idsd", r.reportsDir}`, `[]string{r.reportsDir}`},
+	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt", `[]string{r.root + "/.idsd", r.reportsDir}`, `[]string{r.reportsDir}`},
 	// git refuses any pathspec beyond a symbolic link, so with this path untested the ignore check
 	// refuses instead and the exit alone cannot tell the two apart. The case is the one asserting
 	// which refusal it is — the other names a remedy that reports ok and leaves the link standing.
@@ -270,7 +285,7 @@ var mutants = []mutant{
 	{"ignore surface: the trailing slash dropped", "../eco-report/git.go", "./eco-report/", "TestCheckIgnoreHoldsBeforeQualifyReportsExists", `strings.TrimPrefix(r.reportsDir, r.root+"/") + "/"`, `strings.TrimPrefix(r.reportsDir, r.root+"/")`},
 	{"append: the same entry added twice", "../eco-report/git.go", "./eco-report/", "TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if line == entry {\n\t\t\t\treturn nil", "if line == entry {\n\t\t\t\tbreak"},
 	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
-	{"exclusion drop: the entry left in place", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if line != ".idsd/" {`, "if true {"},
+	{"exclusion drop: the entry left in place", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if line != localExclusionEntry {`, "if true {"},
 	{"promote: a refusal leaves .idsd/ exposed to git add -A", "../eco-report/git.go", "./eco-report/", "TestNoRefusalLeavesIdsdExposedToGitAddAll", "func (r *run) refuseUnpromoted(lines ...string) {\n\tr.restoreLocalExclusion()", "func (r *run) refuseUnpromoted(lines ...string) {\n\tif false {\n\t\tr.restoreLocalExclusion()\n\t}"},
 	{"worktree count: every line counted as a worktree", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if strings.HasPrefix(line, "worktree ") {`, `if strings.HasPrefix(line, "") {`},
 	{"worktree count: a second worktree goes uncounted", "../eco-report/git.go", "./eco-report/", "TestASecondWorktreeKeepsTheSharedExclusion", `if strings.HasPrefix(line, "worktree ") {`, `if strings.HasPrefix(line, "no worktree line starts with this ") {`},
@@ -289,8 +304,8 @@ var mutants = []mutant{
 	{"gate: an open item no longer blocks the merge", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case todos != "":`, "case false:"},
 	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "if blocked == 0 {", "if false {"},
 	{"carry: the open items go unprinted", "../eco-report/gate.go", "./eco-report/", "TestCarryPrintsTheItemsARequalifyMustNotLose", "if r.openTodos != \"\" {\n\t\tr.line(\"%s\", r.openTodos)", "if false {\n\t\tr.line(\"%s\", r.openTodos)"},
-	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == 0 && shell.IsRegularFile(r.root+"/.idsd/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
-	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateNeverAnswersATokenItCannotStandBehind", "if resolved != 0 || !shell.IsRegularFile(r.report) {", "if false {"},
+	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.root+"/.idsd/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
+	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateNeverAnswersATokenItCannotStandBehind", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
 	{"state: the readability guard at its own call site removed", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `r.assertReportIsReadable("its state is unknown (permissions?), and 'resume' is what an unread report looks like")`, "_ = r.report"},
 	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.root+"/.idsd/archive/"+slug+".md") {`, "if false {"},
 	{"state token: an unstamped report no longer answers resume", "../eco-report/gate.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if isUnstamped(reviewed) {", "if false {"},
@@ -314,10 +329,10 @@ var mutants = []mutant{
 	{"promote: the entry written but never confirmed with git", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `if r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore" {`, "if false {"},
 	{"promote: a failed add read as a promotion", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {`, "if false {"},
 	{"promote: success read from the add rather than the mode", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if r.repoMode() != "committed" {`, "if false {"},
-	{"discard: no report and no name discarded anyway", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "case 1:", "case 9:"},
-	{"discard: the mode read without asserting it could be", "../eco-report/scratch.go", "./eco-report/", "TestTheDestructivePathCarriesTheGuardsTheWritePathHas", "r.assertRepoModeReadable()\n\tif r.repoMode() == \"committed\" {\n\t\tr.refuse(\"committed idsd repo", "_ = r.root\n\tif r.repoMode() == \"committed\" {\n\t\tr.refuse(\"committed idsd repo"},
+	{"discard: no report and no name discarded anyway", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "case reportNoneOpen:", "case reportLookup(9):"},
+	{"discard: the mode read without asserting it could be", "../eco-report/scratch.go", "./eco-report/", "TestDiscardRefusesWhenTheRepoModeCannotBeRead", "r.assertRepoModeReadable()\n\tif r.repoMode() == \"committed\" {\n\t\tr.refuse(\"committed idsd repo", "_ = r.root\n\tif r.repoMode() == \"committed\" {\n\t\tr.refuse(\"committed idsd repo"},
 	{"discard: committed mode discarded", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "if r.repoMode() == \"committed\" {\n\t\tr.refuse(\"committed idsd repo", "if false {\n\t\tr.refuse(\"committed idsd repo"},
-	{"discard: the write-path link guard removed", "../eco-report/scratch.go", "./eco-report/", "TestTheDestructivePathCarriesTheGuardsTheWritePathHas", `r.assertWritePathsAreReal("nothing was discarded")`, "_ = r.root"},
+	{"discard: the write-path link guard removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt", `r.assertWritePathsAreReal("nothing was discarded")`, "_ = r.root"},
 	{"discard: the ship-exists guard call removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "r.assertShipExists(stem)", "_ = stem"},
 	{"discard: the readability guard removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardRemovesNothingItCouldNotRead", `r.assertReportIsReadable("nothing was discarded, because its intent cannot be cross-checked (permissions?)")`, "_ = r.report"},
 	{"discard: the two names no longer reconciled", "../eco-report/scratch.go", "./eco-report/", "TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything", `if slug != "" && slug != stem {`, "if false {"},
@@ -334,7 +349,12 @@ var mutants = []mutant{
 
 	// init.go — the only subcommand that creates a report, and the one every symlink guard is for.
 	{"init: the intent untrimmed before the emptiness guard", "../eco-report/init.go", "./eco-report/", "TestTheFilenameAndTheFrontmatterNameTheSameShip", "intent = trimLeadingSpace(intent)", "intent = intent"},
-	{"init: a newline in the intent reaches the frontmatter", "../eco-report/init.go", "./eco-report/", "TestTheFrontmatterCannotBeForgedThroughTheIntentValue", `strings.NewReplacer("\n", " ", "\r", " ")`, `strings.NewReplacer("\n", "\n", "\r", "\r")`},
+	// One call, one mutant. The collapse is shell.Oneline now, not a CR/LF replacer: the value can be
+	// seeded from a fetched ticket, and the slug charset does not stand between a
+	// `review: <description>` intent and the frontmatter. So the newline hazard and the control-byte
+	// hazard are one guard. Two cases notice it, and naming the narrower one is what makes the verdict
+	// say which property went.
+	{"init: the intent value reaches the frontmatter uncollapsed", "../eco-report/init.go", "./eco-report/", "TestTheFrontmatterCannotBeForgedThroughTheIntentValue", "intent = shell.Oneline(intent)", "intent = intent"},
 	{"init: an intent that names no report scaffolds one", "../eco-report/init.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `if reportName == "" {`, "if false {"},
 	{"init: the template check dropped", "../eco-report/init.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "r.assertTemplateStampable()", "_ = r.template"},
 	{"init: the write-path link guard dropped", "../eco-report/init.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `r.assertWritePathsAreReal("the report was NOT initialized")`, "_ = r.root"},
@@ -398,6 +418,37 @@ var mutants = []mutant{
 	// the tool makes against itself.
 	{"cksum: a digest that is not POSIX cksum's", "../eco-report/shell.go", "./eco-report/", "TestAMarkerIsThePosixCksumOfTheReport", "crc = crc<<1 ^ 0x04C11DB7", "crc = crc<<1 ^ 0x04C11DB6"},
 	{"cksum: the length no longer folded in", "../eco-report/shell.go", "./eco-report/", "TestAMarkerIsThePosixCksumOfTheReport", "for length := len(content); length != 0; length >>= 8 {", "for length := len(content); false; length >>= 8 {"},
+
+	// The guards a security pass added, each proven able to fail by a control before it was written
+	// down here. They sit together because they answer one question — what a tree the tool does not own
+	// can make it do — rather than because they share a file.
+	{"traversal: an out-of-root ref is stat'ed after all", "tree.go", "./eco-check/", "TestATraversalLinkIsNotStatted", `	rel, err := filepath.Rel(c.root.Named(), path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")`, `	_, err := filepath.Rel(c.root.Named(), path)
+	return err == nil || true`},
+	{"headings: the target re-parsed once per citation", "headings.go", "./eco-check/", "TestAMarkdownFileIsParsedOncePerRun", `	if cached, ok := c.headings[path]; ok {
+		return cached
+	}`, ``},
+	{"bolded runs: the target re-parsed once per failing citation", "headings.go", "./eco-check/", "TestAMarkdownFileIsParsedOncePerRun", `	if cached, ok := c.bolded[path]; ok {
+		return cached
+	}`, ``},
+	{"call sites: the whole-file read unbounded again", "subcommands.go", "./eco-check/", "TestOversizeFileIsNotReadByTheCallSiteScan", `		if info.Size() > maxFileBytes {`, `		if info.Size() > (1 << 62) {`},
+	{"reports: a stem outside the slug charset listed anyway", "../eco-report/paths.go", "./eco-report/", "TestAFilenameCannotForgeAListingRow", `		if !isSlugCharset(stem) {`, `		if !isSlugCharset(stem) && false {`},
+	// Two readers apply this bound, and the same four lines open both — so each anchor carries the
+	// return above it, which is the only thing that tells them apart. Anchored on the shared line
+	// alone, one of them matches twice and preflight refuses the whole run.
+	{"budget: the whole-file read unbounded again", "../eco-stats/measure.go", "./eco-stats/", "TestAnOversizeBudgetFileIsRefusedRatherThanRead", `		return nil
+	}
+	if info.Size() > maxFileBytes {`, `		return nil
+	}
+	if info.Size() > (1 << 62) {`},
+	// The other reader, and the one whose figure the refusal describes: unbounded, the words of a file
+	// the same run calls "not read, not counted" go into the always-loaded total, and ecostats and
+	// ecocheck stop agreeing on the tier.
+	{"budget: the word count unbounded again", "../eco-stats/measure.go", "./eco-stats/", "TestARefusedBudgetFilesWordsAreNotInTheFigure", `		return 0
+	}
+	if info.Size() > maxFileBytes {`, `		return 0
+	}
+	if info.Size() > (1 << 62) {`},
 
 	// eco-report.go — the dispatch, and the one place a refusal becomes an exit code.
 	{"exec: a refusal reported as success", "../eco-report/eco-report.go", "./eco-report/", "TestAnExistingReportIsNotSilentlyReplaced", "code = signal.code", "code = 0"},
@@ -540,10 +591,10 @@ func main() {
 
 	started := time.Now()
 	stale := 0
-	// Asked once per suite rather than once per mutant: a `by` naming a test its suite no longer holds
-	// would run as a filter matching nothing, which `go test` exits 0 on: a KILLED NOTHING verdict
-	// loudly about the wrong thing. A stale test name is the same defect as a stale anchor, so it is
-	// refused in the same place.
+	// Asked once per suite rather than once per mutant. A `by` naming a test its suite no longer holds
+	// runs as a filter matching nothing, and `go test` exits 0 on that — so the mutant comes back
+	// KILLED NOTHING, loud about the wrong thing. A stale test name is the same defect as a stale
+	// anchor, so it is refused in the same place.
 	held := map[string]map[string]bool{}
 	for _, suite := range suitesNamed() {
 		names, err := testsIn(pkgDir, suite)

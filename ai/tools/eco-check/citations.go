@@ -11,11 +11,7 @@ import (
 // arrow counts only when the text before it resolves to a real markdown file, which keeps prose
 // arrows ("intent → build") out.
 func (c *checker) scanCitations() {
-	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh") {
-		lines, err := c.readLines(file)
-		if err != nil {
-			continue
-		}
+	for file, lines := range c.filesWithLines(c.root.Named(), "*.md", "*.sh") {
 		for _, cited := range citationsIn(file, lines) {
 			c.reportCitation(cited)
 		}
@@ -95,7 +91,7 @@ func (c *checker) reportCitation(cited citation) {
 		want = want[:cut]
 	}
 	c.addCitationFinding(cited, "dangling section ref: "+position+" -> "+shell.Oneline(cited.path)+" → "+
-		shell.Oneline(cited.section)+" — "+c.danglingVariant(cited, target, named, headings))
+		shell.Oneline(cited.section)+" — "+c.danglingVariant(cited, target))
 }
 
 // Which of the four ways a section citation dangles this one is. All four read as correct to a human
@@ -105,8 +101,10 @@ func (c *checker) reportCitation(cited citation) {
 // Each variant is decided from what is in hand where the citation failed — the name as written and
 // the cited file's own sections — and the numbered one quotes the citation that resolves, because
 // both strings are right here and a form to paste beats a form to work out.
-func (c *checker) danglingVariant(cited citation, target, named string, headings map[string]string) string {
-	if numberless := withoutLeadingNumber(named); numberless != "" {
+func (c *checker) danglingVariant(cited citation, target string) string {
+	named := plainText(cited.section)
+	headings := c.markdownHeadings(target)
+	if numberless := shell.WithoutLeadingNumber(named); numberless != "" {
 		if resolving, isHeading := headings[numberless]; isHeading {
 			return "that heading is numbered differently — cite it as " + shell.Oneline(cited.path) +
 				" → **" + shell.Oneline(resolving) + "**"

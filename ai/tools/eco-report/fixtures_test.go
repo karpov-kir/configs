@@ -10,7 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"sort"
 	"strings"
 )
 
@@ -164,14 +164,20 @@ func containsLine(text, line string) bool {
 	return false
 }
 
-func countLinesEqual(text, line string) int {
+// The four line counters below are one loop over four questions: what differs between them is which
+// lines count, and each name is what a case reads at its call site.
+func countLines(text string, counts func(string) bool) int {
 	count := 0
-	for _, candidate := range strings.Split(text, "\n") {
-		if candidate == line {
+	for _, line := range strings.Split(text, "\n") {
+		if counts(line) {
 			count++
 		}
 	}
 	return count
+}
+
+func countLinesEqual(text, line string) int {
+	return countLines(text, func(candidate string) bool { return candidate == line })
 }
 
 // The state column of a `list` line — `grep '^<name>[[:space:]]' | cut -f2`.
@@ -200,13 +206,7 @@ func frontmatterAndBody(report string) (frontmatter, body string) {
 }
 
 func countLinesWithPrefix(text, prefix string) int {
-	count := 0
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, prefix) {
-			count++
-		}
-	}
-	return count
+	return countLines(text, func(line string) bool { return strings.HasPrefix(line, prefix) })
 }
 
 // `cksum <file>` reduced to the two fields a stage marker holds. False means cksum(1) is not on this
@@ -236,31 +236,17 @@ func (f *fixture) markerAgainstCksum(marker, report string) (held, want string, 
 }
 
 func countNonEmptyLines(text string) int {
-	count := 0
-	for _, line := range strings.Split(text, "\n") {
-		if line != "" {
-			count++
-		}
-	}
-	return count
+	return countLines(text, func(line string) bool { return line != "" })
 }
 
 func sortedWords(text string) string {
 	words := strings.Fields(text)
-	for i := range words {
-		for j := i + 1; j < len(words); j++ {
-			if words[j] < words[i] {
-				words[i], words[j] = words[j], words[i]
-			}
-		}
-	}
 	if len(words) == 0 {
 		return ""
 	}
+	sort.Strings(words)
 	return strings.Join(words, " ") + " "
 }
-
-func itoa(value int) string { return strconv.Itoa(value) }
 
 func (f *fixture) isSymlink(path string) bool {
 	info, err := os.Lstat(path)
@@ -284,13 +270,7 @@ func (f *fixture) filesContaining(dir, needle string) []string {
 }
 
 func countLinesEndingWith(text, suffix string) int {
-	count := 0
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasSuffix(line, suffix) {
-			count++
-		}
-	}
-	return count
+	return countLines(text, func(line string) bool { return strings.HasSuffix(line, suffix) })
 }
 
 func joinLines(values []string) string { return strings.Join(values, "\n") }

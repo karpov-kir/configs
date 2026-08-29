@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 func TestBoldSpans(t *testing.T) {
@@ -103,7 +105,7 @@ func TestAnUnclosedFenceDoesNotSilenceTheRestOfTheFile(t *testing.T) {
 		t.Fatalf("the narrowing was not announced; stderr was %q", stderr)
 	}
 	// The whole use of the line is that a reader can open the file it names, so the path has to
-	// arrive whole. oneline's bound is sized for a rule quoted in a report and cuts a long path.
+	// arrive whole. The rule bound is sized for a report line and would cut a long path.
 	if !strings.Contains(stderr, doc) {
 		t.Fatalf("the announcement does not name %s in full:\n%s", doc, stderr)
 	}
@@ -225,8 +227,8 @@ func TestReportedPathCannotForgeALine(t *testing.T) {
 	if !strings.Contains(spans[0].file, "\n") {
 		t.Fatal("the fixture no longer carries a newline in its path; the case proves nothing")
 	}
-	if got := stripControl(spans[0].file); strings.ContainsAny(got, "\n\r\v\f\x1b") {
-		t.Fatalf("stripControl(%q) = %q, which still forges a line", spans[0].file, got)
+	if got := shell.Oneline(spans[0].file); strings.ContainsAny(got, "\n\r\v\f\x1b") {
+		t.Fatalf("shell.Oneline(%q) = %q, which still forges a line", spans[0].file, got)
 	}
 }
 
@@ -261,21 +263,21 @@ func TestSymlinkedMarkdownIsNotRead(t *testing.T) {
 	}
 }
 
-func TestStripControlKeepsTextAndDropsControlBytes(t *testing.T) {
-	got := stripControl("a\rb\vc\x1bd\x7fe")
+func TestReportedTextDropsEveryControlByte(t *testing.T) {
+	got := shell.Oneline("a\rb\vc\x1bd\x7fe")
 	if got != "a b c d e" {
-		t.Fatalf("stripControl = %q, want %q", got, "a b c d e")
+		t.Fatalf("shell.Oneline = %q, want %q", got, "a b c d e")
 	}
 }
 
 // Byte slicing at a fixed offset splits a multi-byte rune, and this tree's prose is full of them.
-func TestOnelineTruncatesOnRunesNotBytes(t *testing.T) {
-	got := oneline(strings.Repeat("→", maxReportRunes+10))
+func TestAQuotedRuleTruncatesOnRunesNotBytes(t *testing.T) {
+	got := quotedRule(strings.Repeat("→", maxReportRunes+10))
 	if strings.ContainsRune(got, '�') {
-		t.Fatalf("oneline split a rune: %q", got)
+		t.Fatalf("quotedRule split a rune: %q", got)
 	}
 	if want := strings.Repeat("→", maxReportRunes) + "…"; got != want {
-		t.Fatalf("oneline = %q, want %q", got, want)
+		t.Fatalf("quotedRule = %q, want %q", got, want)
 	}
 }
 
@@ -306,5 +308,25 @@ func TestFileOverTheBoundIsNotRead(t *testing.T) {
 	}
 	if !strings.Contains(stderr, doc) {
 		t.Fatalf("the refusal does not name %s in full:\n%s", doc, stderr)
+	}
+}
+
+// The C1 range, in both spellings a terminal reads. This tool prints a repo's own bolded prose and
+// its own paths, so the bytes here are chosen by the tree under review. A local copy of the control
+// set read C0 and DEL only: an encoded U+009B is CSI and an encoded U+0085 is NEL, and both reached
+// the terminal intact. `shell` owns which bytes are control bytes, so this holds the two to the same
+// answer rather than restating the range.
+func TestReportedTextNeutralisesTheC1Range(t *testing.T) {
+	for _, in := range []string{"a\u0080b", "a\u0085b", "a\u009bb", "a\x9bb", "a\x85b"} {
+		if got := shell.Oneline(in); got != "a b" {
+			t.Errorf("shell.Oneline(%q) = %q, want %q", in, got, "a b")
+		}
+	}
+	// Multi-byte characters survive: the range doubles as UTF-8 continuation bytes, so a rule mapping
+	// by byte value would shred every CJK character and emoji a rule might carry.
+	for _, in := range []string{"a\u65e5b", "a\U0001f600b", "a\u00e9b"} {
+		if got := shell.Oneline(in); got != in {
+			t.Errorf("shell.Oneline(%q) = %q — a real character was damaged", in, got)
+		}
 	}
 }

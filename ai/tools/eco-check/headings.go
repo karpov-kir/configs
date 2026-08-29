@@ -10,9 +10,6 @@ import (
 var (
 	headingLine   = regexp.MustCompilePOSIX(`^#+[[:space:]]`)
 	headingMarker = regexp.MustCompilePOSIX(`^#+[[:space:]]*`)
-	// The number a heading is written under, `## 7. What a suite reports`. Matched against a heading
-	// already in comparison form, where a whitespace run is one space, so a single space is exact.
-	leadingHeadingNumber = regexp.MustCompilePOSIX(`^[0-9]+\. `)
 )
 
 // The lines of a markdown file a citation can resolve against: everything outside its fenced blocks,
@@ -22,7 +19,13 @@ func (c *checker) unfencedLines(path string) []string {
 	if err != nil {
 		return nil
 	}
-	var unfenced []string
+	return unfenced(lines)
+}
+
+// The same, for a reader that already holds the lines. Whether a fence is skipped at all is each
+// scan's own call — the direction scan reads inside one on purpose.
+func unfenced(lines []string) []string {
+	var outside []string
 	inFence := false
 	for _, line := range lines {
 		if shell.IsFenceDelimiter(line) {
@@ -30,10 +33,10 @@ func (c *checker) unfencedLines(path string) []string {
 			continue
 		}
 		if !inFence {
-			unfenced = append(unfenced, line)
+			outside = append(outside, line)
 		}
 	}
-	return unfenced
+	return outside
 }
 
 // The `**bolded**` runs on the lines that are not headings, keyed by comparison form and holding the
@@ -43,6 +46,9 @@ func (c *checker) unfencedLines(path string) []string {
 // Read only where a citation has already failed. Every resolving citation would otherwise pay for a
 // pass over its target's every line, to answer a question the resolving ones never ask.
 func (c *checker) boldedRuns(path string) map[string]string {
+	if cached, ok := c.bolded[path]; ok {
+		return cached
+	}
 	bolded := map[string]string{}
 	for _, line := range c.unfencedLines(path) {
 		if headingLine.MatchString(line) {
@@ -52,12 +58,23 @@ func (c *checker) boldedRuns(path string) map[string]string {
 			bolded[plainText(span)] = span
 		}
 	}
+	if c.bolded == nil {
+		c.bolded = map[string]map[string]string{}
+	}
+	c.bolded[path] = bolded
 	return bolded
 }
 
 // Every `#` heading in a markdown file, keyed by comparison form and holding the text a finding
 // quotes back — the only thing a citation resolves against.
+// Memoised per path, like the tree walks are, because the citation scan asks this once per citation
+// and the reviewed tree writes both sides: 200 citations into a 6.3 MB target took 64 seconds and 3000
+// never finished, off a 114 KB file and a 6 MB one, each far under the read bound on its own. The maps
+// are strictly smaller than the bytes they were parsed from, and every caller only reads them.
 func (c *checker) markdownHeadings(path string) map[string]string {
+	if cached, ok := c.headings[path]; ok {
+		return cached
+	}
 	headings := map[string]string{}
 	for _, line := range c.unfencedLines(path) {
 		if !headingLine.MatchString(line) {
@@ -69,8 +86,8 @@ func (c *checker) markdownHeadings(path string) map[string]string {
 		// it, so accept that run too. Cut at the em dash and nowhere else: a trailing run, or a
 		// word-by-word prefix, would let half a heading satisfy a citation.
 		forms := []string{heading}
-		if i := strings.Index(heading, " — "); i >= 0 {
-			forms = append(forms, heading[:i])
+		if subtitled := shell.BeforeEmDash(heading); subtitled != "" {
+			forms = append(forms, subtitled)
 		}
 		// The second carve-out, and the last: a heading numbered `## 7. What a suite reports` is cited
 		// by its text. Registered here rather than matched at the citation, because the matcher trims
@@ -87,20 +104,14 @@ func (c *checker) markdownHeadings(path string) map[string]string {
 		// TestNumberedHeadingCitations proves against this same heading.
 		for _, form := range forms {
 			headings[form] = written
-			if numberless := withoutLeadingNumber(form); numberless != "" {
+			if numberless := shell.WithoutLeadingNumber(form); numberless != "" {
 				headings[numberless] = written
 			}
 		}
 	}
-	return headings
-}
-
-// A numbered heading's text without the `7. ` that opens it, and empty when the heading opens with no
-// number — an empty key would answer a citation that named nothing.
-func withoutLeadingNumber(heading string) string {
-	numberless := leadingHeadingNumber.ReplaceAllString(heading, "")
-	if numberless == heading {
-		return ""
+	if c.headings == nil {
+		c.headings = map[string]map[string]string{}
 	}
-	return numberless
+	c.headings[path] = headings
+	return headings
 }

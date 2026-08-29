@@ -30,6 +30,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"kk-flavor/tools/shell"
 )
 
 type span struct {
@@ -165,10 +167,9 @@ const (
 	// The same rule stated in two files: what this tool exists to find, and what fails the run.
 	restatement
 	// Two files naming the same thing — a path, a command — and agreeing on nothing else. Reported
-	// apart from a restatement because the answer is already known: two consumers declaring the same
-	// dependency at their own point of use, where cutting either leaves that file not naming what it
-	// runs. The `→` filter in collect is this same case caught earlier, when the citation is written
-	// after an arrow rather than as prose.
+	// apart from a restatement because the answer is already known: see namedWords. The `→` filter in
+	// collect is this same case caught earlier, when the citation is written after an arrow rather than
+	// as prose.
 	sharedName
 )
 
@@ -207,14 +208,12 @@ func collect(root string) ([]span, error) {
 		// than skipped, the way a citation target that is not a regular file already is: a scan that
 		// narrowed says so, or the narrowing is indistinguishable from a clean read.
 		if !fi.Mode().IsRegular() {
-			fmt.Fprintf(os.Stderr, "not a regular file: %s — it was NOT read\n", stripControl(p))
+			fmt.Fprintf(os.Stderr, "not a regular file: %s — it was NOT read\n", shell.Oneline(p))
 			return nil
 		}
 		if fi.Size() > maxFileBytes {
-			// stripControl like the refusal above it, not oneline: a path is not a quoted rule, and
-			// cutting one to the report's rune bound names a file the reader cannot open.
 			fmt.Fprintf(os.Stderr, "file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n",
-				stripControl(p), fi.Size(), maxFileBytes)
+				shell.Oneline(p), fi.Size(), maxFileBytes)
 			return nil
 		}
 		body, err := os.ReadFile(p)
@@ -229,11 +228,8 @@ func collect(root string) ([]span, error) {
 		// was never read costs the pass the finding.
 		closed := fencesClosed(lines)
 		if !closed {
-			// stripControl, not oneline: oneline's bound is sized for a rule quoted in a report, and a
-			// path cut to it names a file the reader cannot open — which is the whole use of this line.
-			// Control bytes still go, because that is the hazard; length is only a nuisance.
 			fmt.Fprintf(os.Stderr, "unclosed fence in %s — it was read with fencing off, so a fenced sample may be reported as a rule\n",
-				stripControl(p))
+				shell.Oneline(p))
 		}
 		inFence := false
 		for i, line := range lines {
@@ -331,13 +327,13 @@ func main() {
 
 	for _, p := range pairs {
 		fmt.Printf("rule stated twice (%d words shared):\n  %s:%d — %s\n  %s:%d — %s\n",
-			p.shared, stripControl(p.a.file), p.a.line, oneline(p.a.text),
-			stripControl(p.b.file), p.b.line, oneline(p.b.text))
+			p.shared, shell.Oneline(p.a.file), p.a.line, quotedRule(p.a.text),
+			shell.Oneline(p.b.file), p.b.line, quotedRule(p.b.text))
 	}
 	for _, p := range naming {
 		fmt.Printf("same dependency named twice, not a rule (%d words shared, %d beyond the name):\n  %s:%d — %s\n  %s:%d — %s\n",
-			p.shared, p.beyond, stripControl(p.a.file), p.a.line, oneline(p.a.text),
-			stripControl(p.b.file), p.b.line, oneline(p.b.text))
+			p.shared, p.beyond, shell.Oneline(p.a.file), p.a.line, quotedRule(p.a.text),
+			shell.Oneline(p.b.file), p.b.line, quotedRule(p.b.text))
 	}
 	fmt.Printf("%d bolded rule(s) read, %d pair(s) stating the same thing in two files", len(spans), len(pairs))
 	if len(naming) > 0 {
@@ -351,26 +347,16 @@ func main() {
 	}
 }
 
-// A path is as much the tree's own text as the rule is: a filename may carry any byte but `/` and NUL,
-// so a newline in one forges a whole line of this tool's output — and the line worth forging is the
-// summary below, which a caller reads to decide whether anything was found at all.
-func stripControl(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if r < 0x20 || r == 0x7f {
-			b.WriteRune(' ')
-			continue
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
-
-// Truncation counts runes, not bytes. Rules here are prose and the tree carries `→`, `…` and em
+// A rule as a report line quotes it: sanitised like every other text the tree chose, then truncated.
+// Truncation counts runes, not bytes — rules here are prose and the tree carries `→`, `…` and em
 // dashes, so a byte slice at a fixed offset lands mid-rune and the report ends in a replacement
-// character — on the exact input the bound exists to handle.
-func oneline(s string) string {
-	out := []rune(stripControl(s))
+// character, on the exact input the bound exists to handle.
+//
+// A path takes shell.Oneline alone: a filename may carry any byte but `/` and NUL, so a newline in
+// one forges a whole line of this tool's output — but cutting a path to a rule's rune bound names a
+// file the reader cannot open.
+func quotedRule(s string) string {
+	out := []rune(shell.Oneline(s))
 	if len(out) > maxReportRunes {
 		return string(out[:maxReportRunes]) + "…"
 	}

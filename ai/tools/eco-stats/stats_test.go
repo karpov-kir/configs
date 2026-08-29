@@ -8,7 +8,6 @@ package ecostats_test
 // reason everything else here is in-process.
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -30,6 +29,18 @@ func TestAgreementWithCheck(t *testing.T) {
 	t.Run("agree with a Read-always target in the budget", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n")
+		f.write(f.root+"/kk-flavor/standards/core.md", "alpha beta gamma\n")
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+		f.assertScriptsAgree()
+	})
+
+	// A router may name one file twice — two triggers reaching the same standard is the ordinary way
+	// that happens. It is one file in context either way, so counting it twice overstates the tier and
+	// the two tools stop agreeing. Every other case here lists each target once, which is why the
+	// disagreement survived: the invariant was only ever asserted on trees that could not show it.
+	t.Run("agree when the router lists one target twice", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n- [core again](standards/core.md)\n")
 		f.write(f.root+"/kk-flavor/standards/core.md", "alpha beta gamma\n")
 		f.write(f.root+"/CLAUDE.md", "one two\n")
 		f.assertScriptsAgree()
@@ -88,6 +99,59 @@ func TestAShortFigureIsStillReported(t *testing.T) {
 			})
 		})
 	}
+}
+
+// A refusal says "not read, not counted", and a figure carrying the refused file's words says the
+// opposite in the same output. The word count is the half that had no bound: wordsAcross streams, so
+// it counted a file no reader here may read, and the run then called an exact figure SHORT. Only the
+// bound decides membership, and ecocheck applies the same one to the same tier.
+func TestARefusedBudgetFilesWordsAreNotInTheFigure(t *testing.T) {
+	// inject.md is the only budget file left holding words, and it holds seven of them. Counted, the
+	// oversize target would add four more — `alpha`, `beta`, `gamma`, and the run of NUL bytes behind
+	// them, which carries no space so it counts as one word — so eleven is what this figure read
+	// before the bound reached the count.
+	t.Run("the router figure holds none of the oversize file's words", func(t *testing.T) {
+		f := newOversizeBudgetFile(t)
+		if got := f.figure("always-loaded"); got != "7" {
+			t.Fatalf("always-loaded = %q, want \"7\" — 11 is the refused file's words counted anyway", got)
+		}
+	})
+
+	// The count in the exit line is how many files were refused, not how many readers looked at one.
+	// The budget count and the import scan both reach this file.
+	t.Run("a file every reader reaches is refused once", func(t *testing.T) {
+		f := newOversizeBudgetFile(t)
+		stdout, stderr, status := f.run(f.root)
+		if got := strings.Count(stdout+stderr, "budget file refused"); got != 1 {
+			t.Errorf("%d refusal lines, want 1\n%s", got, indent(stdout+stderr))
+		}
+		if !strings.Contains(stdout+stderr, "1 budget file(s) refused") || status != 2 {
+			t.Errorf("status: %d\n%s", status, indent(stdout+stderr))
+		}
+	})
+
+	// The row is still withheld and every sound figure still printed, exactly as the other two
+	// refusals do it — asserted here rather than in refusedBudgetFixtures, because the subtests over
+	// that table quote ecocheck's own refusal wording and ecocheck words this one "file too large".
+	t.Run("the row is withheld and the other figures still print", func(t *testing.T) {
+		f := newOversizeBudgetFile(t)
+		stdout, _, status := f.run(f.root)
+		if status != 2 || !strings.Contains(stdout, "prose:") ||
+			!strings.Contains(stdout, "SHORT:") || strings.Contains(stdout, "uncounted import") {
+			t.Errorf("status: %d (want 2)\n%s", status, indent(stdout))
+		}
+	})
+
+	// Both tools apply the same bound to the same tier, so both are short by the same file and their
+	// router figures still match. A disagreement here is one of them counting a file it did not read —
+	// which is the whole of what this bound decides.
+	t.Run("ecocheck refuses the same file and reports the same router figure", func(t *testing.T) {
+		f := newOversizeBudgetFile(t)
+		if output := f.checkOutput(); !strings.Contains(output, "over the 8388608-byte bound") {
+			t.Errorf("ecocheck did not refuse it, so agreeing with it proves nothing\n%s", indent(output))
+		}
+		f.assertScriptsAgree()
+	})
 }
 
 func TestTheLedgerIsMeasuredApartFromTheInstructions(t *testing.T) {
@@ -195,121 +259,6 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 	})
 }
 
-func TestAnOverLongNoteIsRefusedRatherThanAppended(t *testing.T) {
-	t.Run("a 60-word note appends nothing, a short one appends one row", func(t *testing.T) {
-		f := newRoot(t)
-		ledger := f.newLedger("| date |\n")
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		f.run("--append", wordsCount(60), f.root)
-		afterLong := rowsIn(t, ledger)
-		f.run("--append", "short enough to keep", f.root)
-		afterShort := rowsIn(t, ledger)
-		if afterLong != 1 || afterShort != 2 {
-			t.Errorf("rows after the long note: %d (want 1)\nrows after the short one: %d (want 2)",
-				afterLong, afterShort)
-		}
-	})
-}
-
-func TestTheNoteCannotForgeALedgerRow(t *testing.T) {
-	t.Run("a note carrying a newline and a pipe still writes exactly one 6-column row", func(t *testing.T) {
-		f := newRoot(t)
-		ledger := f.newLedger("| date | prose | scripts | always-loaded | skills | what ran |\n|---|---|---|---|---|---|\n")
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		before := rowsIn(t, ledger)
-		f.run("--append", "first line\nsecond line | with a pipe", f.root)
-		appended := rowsIn(t, ledger) - before
-		lines := strings.Split(strings.TrimSuffix(readFile(t, ledger), "\n"), "\n")
-		row := lines[len(lines)-1]
-		// Escaped pipes come out before the count: `\|` separates no column, so counting raw `|` would
-		// read the guard working as the guard failing.
-		columns := strings.Count(strings.ReplaceAll(row, `\|`, ""), "|")
-		if appended != 1 || columns != 7 {
-			t.Errorf("rows appended: %d (want 1)\nunescaped pipes: %d (want 7)\n%s", appended, columns, row)
-		}
-	})
-}
-
-func TestTheNoteCannotCarryAControlByteIntoTheLedger(t *testing.T) {
-	// The note is written by whoever ran the skill, committed, and read back by a later pass. `\x1b[2K`
-	// erases the line it lands on, so an ESC left in it edits the terminal of everyone who later reads
-	// the ledger — the byte TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw bars from a message,
-	// barred here from the record.
-	t.Run("an ESC in the note reaches neither the ledger nor the terminal", func(t *testing.T) {
-		f := newRoot(t)
-		ledger := f.newLedger("| date | prose | scripts | always-loaded | skills | what ran |\n|---|---|---|---|---|---|\n")
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		before := rowsIn(t, ledger)
-		stdout, stderr, status := f.run("--append", "ran a pass\x1b[2K and stopped", f.root)
-		written := readFile(t, ledger)
-		appended := rowsIn(t, ledger) - before
-
-		// The row has to have landed: a run that appended nothing carries no ESC either, and would
-		// pass a byte check while saying nothing about sanitising.
-		if appended != 1 || strings.Contains(written+stdout+stderr, "\x1b") {
-			t.Errorf("status: %d\nrows appended: %d (want 1)\n%s", status, appended,
-				indent(strings.ReplaceAll(written+stdout+stderr, "\x1b", "<ESC>")))
-		}
-	})
-}
-
-func TestAMissingLedgerIsOpenedWithAHeaderAReaderCanUse(t *testing.T) {
-	// The only case that leaves stats.md out of the fixture, so it is the only one that reaches the
-	// header written when the ledger does not exist. Every other --append case creates the file first
-	// and never sees that block. The `+` legend is asserted because it is the one thing in the header
-	// a reader cannot reconstruct from the columns, and the header is where a fresh ledger states it.
-	t.Run("creates the ledger with the column header, the + legend, and one row under them", func(t *testing.T) {
-		f := newRoot(t)
-		f.installStats()
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		fresh := f.root + "/skills/kk-reduce/stats.md"
-		f.run("--append", "opening row", f.root)
-		content := readFile(t, fresh)
-		rows := rowsIn(t, fresh)
-		if rows != 3 ||
-			!strings.Contains(content, "| date | prose | scripts | always-loaded | skills | what ran |") ||
-			!strings.Contains(content, "lower bound") {
-			t.Errorf("lines starting '|': %d (want 3 — header, rule, row)\n%s", rows, indent(content))
-		}
-	})
-}
-
-func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
-	t.Run("refuses to append through a symlinked ledger", func(t *testing.T) {
-		f := newRoot(t)
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		f.installStats()
-		f.write(f.base+"/decoy-target.md", "untouched\n")
-		f.symlink(f.base+"/decoy-target.md", f.root+"/skills/kk-reduce/stats.md")
-		f.run("--append", "should not land", f.root)
-		if decoy := readFile(t, f.base+"/decoy-target.md"); decoy != "untouched\n" {
-			t.Errorf("the decoy was written: %s", decoy)
-		}
-	})
-
-	// The seed and the live ledger are a .md/source pair, which the shared-region scan cannot cover —
-	// it reads `*.sh` only. They had already drifted: the seed carried none of the three rules the
-	// real file owns, so a fresh install started with no protection for the column. Nothing but this
-	// case notices, because the seed path runs only when there is no ledger — never on the tree that
-	// would show it.
-	t.Run("the seeded ledger says what the live one says", func(t *testing.T) {
-		f := newRoot(t)
-		f.installStats()
-		f.run("--append", "seed, start", f.root)
-		seeded := ledgerProse(readFile(t, f.root+"/skills/kk-reduce/stats.md"))
-		live, err := os.ReadFile(liveLedger)
-		if err != nil {
-			t.Fatalf("the live ledger is what this case compares against: %v", err)
-		}
-		if seeded == "" || seeded != ledgerProse(string(live)) {
-			t.Errorf("seeded:\n%slive:\n%s", indent(seeded), indent(ledgerProse(string(live))))
-		}
-	})
-}
-
-// The tree's own ledger, from the package directory `go test` runs in.
-const liveLedger = "../../skills/kk-reduce/stats.md"
-
 // The two ways a budget file gets refused, run through the same cases. `containedInRoot` refuses a
 // symlink, a non-regular file and an unreadable one with one message, so either builder reaches the
 // refusal — but only the second can be built by every process. Both are here rather than only the
@@ -321,6 +270,34 @@ var refusedBudgetFixtures = []struct {
 }{
 	{"unreadable by mode", newUnreadableBudgetFile},
 	{"a directory where the budget file belongs", newRefusedBudgetFile},
+}
+
+// The tool's own maxFileBytes, which this package cannot see from outside it. Stated rather than
+// imported, so a case that drifts from the bound shows up as a fixture that stops being refused.
+const overTheReadBound = 8<<20 + 1
+
+// The third way a budget file gets refused, and the only one whose words the tool could still have
+// counted: a Read-always target over the read bound. wordsAcross streams and never slurps, so nothing
+// in the word count stopped where the line read stops — the figure went out holding this file's words
+// while the same run printed "not read, not counted" and marked the figure SHORT.
+//
+// Sparse, because the size is the whole of what the bound tests and truncating to it costs no disk.
+// The leading words are real so the case can discriminate: counted, they move the router figure and
+// check.sh's figure never holds them.
+func newOversizeBudgetFile(t *testing.T) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n")
+	target := f.root + "/kk-flavor/standards/core.md"
+	f.write(target, "alpha beta gamma\n")
+	if err := os.Truncate(target, overTheReadBound); err != nil {
+		t.Fatalf("truncate the oversize budget file: %v", err)
+	}
+	info, err := os.Stat(target)
+	if err != nil || info.Size() <= overTheReadBound-1 {
+		t.Fatalf("the fixture is %v bytes, inside the bound; the case proves nothing", info)
+	}
+	return f
 }
 
 // True when a mode of 000 actually stops this process reading. Probed rather than compared against
@@ -377,11 +354,85 @@ func skillWithDescription(name string) string {
 	return "---\nname: " + name + "\ndescription: four words exactly here\n---\n"
 }
 
-// `awk 'BEGIN { for (i = 1; i <= n; i++) printf "word%d ", i }'`.
-func wordsCount(n int) string {
-	var note strings.Builder
-	for i := 1; i <= n; i++ {
-		fmt.Fprintf(&note, "word%d ", i)
+// A whole-file read of a file the measured tree wrote. awk streamed; this does not, so every line
+// becomes a slice header: a committed 64 MiB of newlines packs to about 65 KB and took 2.46 GB of
+// resident memory here, and half a gigabyte of it is an OOM kill rather than a measurement. The read
+// was left unbounded on the grounds that a bound would leave the always-loaded figure short with
+// nothing saying so — which is what refuseBudgetFile already exists to prevent.
+func TestAnOversizeBudgetFileIsRefusedRatherThanRead(t *testing.T) {
+	build := func(t *testing.T) *fixture {
+		t.Helper()
+		f := newRoot(t)
+		// Just past the bound, and made of newlines because that is the shape that costs the most for
+		// the fewest committed bytes.
+		body := make([]byte, overTheReadBound)
+		for i := range body {
+			body[i] = '\n'
+		}
+		f.write(f.root+"/kk-flavor/inject.md", string(body))
+		// Prose the run can measure, or it exits 2 for a scan that read nothing and never reaches the
+		// refusal count this case is about.
+		f.write(f.root+"/kk-flavor/standards/core.md", "alpha beta gamma\n")
+		return f
 	}
-	return note.String()
+
+	t.Run("exits 2 and refuses it rather than reading it", func(t *testing.T) {
+		f := build(t)
+		stdout, stderr, status := f.run(f.root)
+		if status != 2 || !strings.Contains(stdout+stderr, "budget file refused") {
+			t.Errorf("status: %d (want 2)\n%s", status, indent(stdout+stderr))
+		}
+	})
+
+	t.Run("and names the bound it was over", func(t *testing.T) {
+		f := build(t)
+		stdout, stderr, _ := f.run(f.root)
+		if !strings.Contains(stdout+stderr, "-byte bound") || !strings.Contains(stdout+stderr, "NOT read") {
+			t.Errorf("%s", indent(stdout+stderr))
+		}
+	})
+
+	// One refusal, not one per reader: a budget file is read here and again by the import scan, and
+	// the count in the exit line is meant to be how many files were refused.
+	t.Run("and counts it once however many readers reach it", func(t *testing.T) {
+		f := build(t)
+		stdout, stderr, _ := f.run(f.root)
+		if !strings.Contains(stdout+stderr, "1 budget file(s) refused") {
+			t.Errorf("%s", indent(stdout+stderr))
+		}
+	})
+
+	// The census reads a SKILL.md through the same bound, and it is the only reader that reaches the
+	// bound with nothing else applying one to the same file — the budget path now counts words under
+	// a bound of its own, so an oversize budget file is refused whether or not the line read stops.
+	// Without this, removing the line read's bound changes no output any case here reads.
+	t.Run("and refuses an oversize SKILL.md the census would otherwise read", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/CLAUDE.md", "one two three\n")
+		skill := f.root + "/skills/big/SKILL.md"
+		f.mkdirAll(f.root + "/skills/big")
+		f.write(skill, skillWithDescription("big"))
+		if err := os.Truncate(skill, overTheReadBound); err != nil {
+			t.Fatalf("truncate the oversize skill: %v", err)
+		}
+		stdout, stderr, status := f.run(f.root)
+		if status != 2 || !strings.Contains(stdout+stderr, "budget file refused") {
+			t.Errorf("status: %d (want 2)\n%s", status, indent(stdout+stderr))
+		}
+	})
+
+	// The control: a file just under the bound is read as it always was, so the refusal above is the
+	// bound and not a fixture the tool could never measure.
+	t.Run("while a file under the bound is measured as before", func(t *testing.T) {
+		f := newRoot(t)
+		body := make([]byte, 1<<20)
+		for i := range body {
+			body[i] = '\n'
+		}
+		f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n"+string(body))
+		stdout, stderr, status := f.run(f.root)
+		if status != 0 || strings.Contains(stdout+stderr, "budget file refused") {
+			t.Errorf("status: %d (want 0)\n%s", status, indent(stdout+stderr))
+		}
+	})
 }

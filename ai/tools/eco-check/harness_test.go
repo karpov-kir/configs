@@ -1,18 +1,17 @@
 package ecocheck_test
 
-// The fixture builders and the four assertions the cases in check_test.go are written against. They
-// were ported one for one from a shell suite that no longer exists — it was deleted once the skills
-// switched to this binary, and git history is where the pairing can still be read. This is now the
-// only suite over these scans, so a case removed here is coverage gone rather than coverage moved.
+// The fixture builders and the assertions the case files beside it are written against. This is the
+// only suite over these scans, so a case removed here is coverage gone, not coverage moved.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out: the forks were
-// the whole cost of the shell suite, and a mutation harness multiplies that cost by the length of its
-// mutation list. `ai/tools/go-mutate` is what shows a case here can fail.
+// Fixtures are built with os.MkdirAll and os.WriteFile, never by shelling out: a mutation harness
+// multiplies every fork by the length of its mutation list. `ai/tools/go-mutate` is what shows a case
+// here can fail.
 
 import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,16 +39,19 @@ const (
 	uncheckable = "uncheckable citation"
 )
 
-// The lane fixture the citation and basename cases share cites its script by this path. It is a
-// constant for the reason the shell version made it a variable: written inline in a file the checker
-// scans, a cited path that does not resolve in the real checkout becomes a finding against the
-// checkout itself. No scan reads a `.go` file, so nothing here is exposed that way — the constant
-// stays because the two suites have to state the same path.
+// The lane fixture the citation and basename cases share cites its script by this path. Written
+// inline in a file the checker scans, a cited path that does not resolve in the real checkout becomes
+// a finding against the checkout itself. No scan reads a `.go` file, so nothing here is exposed that
+// way — the constant stays because the two suites have to state the same path.
 const laneScriptRef = "~/.claude/skills/kk-humanize/scripts/comment-density.sh"
 
-// One case's tree. `home` empty means the case runs under the ambient HOME, exactly as the shell
-// version's empty `check_home` did: a fixture root legitimately raises mount findings of its own, and
-// several cases are written against a run that has them.
+// The checker's own per-file read bound, restated here because the package under test does not export
+// it. A fixture one byte past it is what every oversize case is built on.
+const maxReadBytes = 8 << 20
+
+// One case's tree. `home` empty means the case runs under the ambient HOME: a fixture root
+// legitimately raises mount findings of its own, and several cases are written against a run that has
+// them.
 type fixture struct {
 	t    *testing.T
 	base string
@@ -57,8 +59,8 @@ type fixture struct {
 	home string
 }
 
-// The `$base/r$N` of the shell version: `base` is the scratch directory a case may write outside the
-// root into, `root` the tree under review.
+// `base` is the scratch directory a case may write outside the root into; `root` is the tree under
+// review.
 func newRootWithoutFlavor(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
@@ -111,7 +113,7 @@ func (f *fixture) newMountedSkill(name string) {
 func (f *fixture) newScript(name, body string) {
 	f.t.Helper()
 	path := f.root + "/skills/" + name
-	f.mkdirAll(dirOf(path))
+	f.mkdirAll(filepath.Dir(path))
 	f.write(path, body+"\n")
 	if err := os.Chmod(path, 0o755); err != nil {
 		f.t.Fatalf("chmod %s: %v", path, err)
@@ -147,6 +149,17 @@ func (f *fixture) newFileWithNewlineName(path, content, what string) {
 	}
 }
 
+// One markdown link per line, numbered — the flood a ranking case buries its needle under. The format
+// takes the line's number, so a case can write a target that forges a finding of its own.
+func (f *fixture) floodWithLinks(target string, count int, format string) {
+	f.t.Helper()
+	var flood strings.Builder
+	for i := 1; i <= count; i++ {
+		fmt.Fprintf(&flood, format+"\n", i)
+	}
+	f.write(target, flood.String())
+}
+
 // One line repeated past a scan's own bound — what every budget case here needs and nothing else does.
 func (f *fixture) floodWithLine(target string, remaining int, line string) {
 	f.t.Helper()
@@ -157,6 +170,17 @@ func (f *fixture) floodWithLine(target string, remaining int, line string) {
 	f.appendTo(target, flood.String())
 }
 
+// A file one byte past the read bound, made of newlines because that is the cheap shape: a branch
+// commits almost nothing and the checker allocates a slice header per line.
+func (f *fixture) writeOversize(path string) {
+	f.t.Helper()
+	body := make([]byte, maxReadBytes+1)
+	for i := range body {
+		body[i] = '\n'
+	}
+	f.write(path, string(body))
+}
+
 func (f *fixture) mkdirAll(dir string) {
 	f.t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -164,8 +188,8 @@ func (f *fixture) mkdirAll(dir string) {
 	}
 }
 
-// No parent is created here, deliberately: the shell version's `>` failed on a missing directory, and
-// a builder that quietly creates one hides a fixture written against a tree it does not have.
+// No parent is created here, deliberately: a builder that quietly creates one hides a fixture written
+// against a tree it does not have.
 func (f *fixture) write(path, content string) {
 	f.t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -192,6 +216,28 @@ func (f *fixture) symlink(target, link string) {
 	}
 }
 
+// True when a mode of 000 actually stops this process reading. Probed rather than compared against
+// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
+// carry the bit behave the same way, and all three make a mode-000 fixture a file the tool reads
+// happily. ecostats' suite carries the same probe for the same reason; neither package can import the
+// other's test helpers.
+func modeDeniesRead(t *testing.T) bool {
+	t.Helper()
+	probe := t.TempDir() + "/probe"
+	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
+		t.Fatalf("write probe: %v", err)
+	}
+	if err := os.Chmod(probe, 0o000); err != nil {
+		t.Fatalf("chmod probe: %v", err)
+	}
+	file, err := os.Open(probe)
+	if err != nil {
+		return true
+	}
+	file.Close()
+	return false
+}
+
 func (f *fixture) chmod(path string, mode os.FileMode) {
 	f.t.Helper()
 	if err := os.Chmod(path, mode); err != nil {
@@ -205,12 +251,6 @@ func (f *fixture) chmod(path string, mode os.FileMode) {
 // No case asserts on the exit code: a fixture root legitimately has findings of its own, so "clean"
 // would pass every case for the wrong reason. Exit 2 is the exception, because then nothing was
 // checked at all.
-// A case is parallelised here rather than at each t.Run, because the one thing that decides it is the
-// one thing this function knows: HOME is process-global, so a case that needs its own mount has to run
-// alone, and every other case can run alongside the rest. Splitting the decision across every t.Run
-// is what would let the two sets drift — and t.Parallel is called *after* the fixture is built, so a
-// case pays only its scan in the parallel phase. A fixture that later grows a mount panics in
-// t.Setenv instead of quietly racing one.
 func (f *fixture) run() string {
 	f.t.Helper()
 	f.isolate()
@@ -219,8 +259,8 @@ func (f *fixture) run() string {
 
 // The same tree checked twice in one process, and the second check's output. Nothing the checker
 // carries between runs is meant to change what it reports, and the `bash -n` memo is the one piece
-// held across them: a case about what that memo holds cannot be written against a single run, because
-// within one run the parse workers reach both copies of a script before either has stored anything.
+// held across them. A case about that memo cannot be written against a single run: within one run the
+// parse workers reach both copies of a script before either has stored anything.
 func (f *fixture) runTwice() string {
 	f.t.Helper()
 	f.isolate()
@@ -229,8 +269,12 @@ func (f *fixture) runTwice() string {
 }
 
 // HOME is process-global, so a case that needs its own mount has to run alone and every other case
-// can run alongside the rest. That decision is made once per case, here, because a case running twice
-// may call neither t.Setenv nor t.Parallel a second time.
+// can run alongside the rest. The decision is made here, once per case, never at each t.Run. Split
+// across every case, the two sets would drift — and a case running twice may call neither t.Setenv
+// nor t.Parallel a second time.
+//
+// Called after the fixture is built, so a case pays only its scan in the parallel phase. A fixture
+// that later grows a mount panics in t.Setenv rather than quietly racing one.
 func (f *fixture) isolate() {
 	f.t.Helper()
 	if f.home != "" {
@@ -333,13 +377,6 @@ func firstLineWith(output, needle string) int {
 		}
 	}
 	return -1
-}
-
-func dirOf(path string) string {
-	if i := strings.LastIndexByte(path, '/'); i > 0 {
-		return path[:i]
-	}
-	return "."
 }
 
 func indent(text string) string {

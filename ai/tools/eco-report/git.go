@@ -198,6 +198,11 @@ func endsWithNewline(file string) bool {
 	return last[0] == '\n'
 }
 
+// The line the local exclusion is written as, and the line the teardown removes. One name, because the
+// two have to be the same string: written one way and matched another, the add succeeds, the drop
+// removes nothing, and the teardown reports zero traces over an entry still standing.
+const localExclusionEntry = ".idsd/"
+
 func (r *run) addLocalExclusion() error {
 	// gitPath refuses rather than returning here, where the shell's `$( )` turned its exit into a
 	// status. Unreachable in practice — the repo resolved a moment ago — and exit 2 either way.
@@ -205,7 +210,7 @@ func (r *run) addLocalExclusion() error {
 	if err := os.MkdirAll(shell.DirName(exclude), 0o777); err != nil {
 		return err
 	}
-	return appendLine(exclude, ".idsd/")
+	return appendLine(exclude, localExclusionEntry)
 }
 
 // `promote` drops the exclusion before it writes .gitignore, so every refusal past that point puts it
@@ -237,7 +242,7 @@ func (r *run) dropLocalExclusion() error {
 	}
 	var kept []string
 	for _, line := range shell.SplitLines(string(content)) {
-		if line != ".idsd/" {
+		if line != localExclusionEntry {
 			kept = append(kept, line)
 		}
 	}

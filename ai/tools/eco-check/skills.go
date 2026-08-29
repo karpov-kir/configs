@@ -2,12 +2,9 @@ package ecocheck
 
 import (
 	"io"
-	"regexp"
 
 	"kk-flavor/tools/shell"
 )
-
-var declaredNameField = regexp.MustCompilePOSIX(`^name: *`)
 
 // Each defect here makes a skill unreachable rather than merely mis-linked: the loader finds a skill
 // by its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
@@ -25,7 +22,7 @@ func (c *checker) scanSkillDirectories() {
 	// unreachable.
 	for _, file := range c.filesNamed(c.root.Skills(), "SKILL.md") {
 		lines, _ := c.readLines(file)
-		declared := declaredSkillName(lines)
+		declared := shell.FrontmatterName(lines)
 		if declared != shell.BaseName(shell.DirName(file)) {
 			c.add("skill name/dir mismatch: " + shell.Oneline(file) + " declares '" + shell.Oneline(declared) + "'")
 		}
@@ -33,16 +30,6 @@ func (c *checker) scanSkillDirectories() {
 			c.add("skill without a description: " + shell.Oneline(file))
 		}
 	}
-}
-
-// Read from lines 2 to 10, where a skill's frontmatter puts it.
-func declaredSkillName(lines []string) string {
-	for i := 1; i < len(lines) && i < 10; i++ {
-		if declaredNameField.MatchString(lines[i]) {
-			return declaredNameField.ReplaceAllString(lines[i], "")
-		}
-	}
-	return ""
 }
 
 // Every skill's description loads in every session too: the same tier, held to the same bar, and the

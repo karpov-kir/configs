@@ -3,7 +3,6 @@ package ecocheck
 import (
 	"fmt"
 	"io"
-	"strings"
 
 	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
@@ -12,22 +11,23 @@ import (
 // The always-loaded budget: the root CLAUDE.md every system prompt carries, inject.md, and every doc
 // it lists under "Read always".
 func (c *checker) reportBudget(out io.Writer) {
-	files := c.budgetFiles()
-	uncounted := c.resolveImports(&files)
+	files, uncounted := c.withImports(c.budgetFiles())
 
 	// Counted per file and summed, never over a concatenation: gluing the files together fuses the
 	// last word of one that has no final newline onto the first word of the next, and ecostats sums
 	// per file, so the two would report different figures for one tree. Deduplicated first —
 	// inject.md's Read-always list can name one file any number of times, and counting it twice
-	// inflates the tier it exists to measure.
+	// inflates the tier it exists to measure. The printed total counts the same set the figures were
+	// summed over, or the line says "across 4 files" beside three files' worth of lines and words.
+	counted := shell.SortUnique(files)
 	budgetLines, budgetWords := 0, 0
-	for _, file := range shell.SortUnique(files) {
-		lines, words := countLinesAndWords(file)
+	for _, file := range counted {
+		lines, words := c.countLinesAndWords(file)
 		budgetLines += lines
 		budgetWords += words
 	}
 	writeLinef(out, "always-loaded: %d lines, %d words across %d files%s",
-		budgetLines, budgetWords, len(files), uncountedNote(uncounted))
+		budgetLines, budgetWords, len(counted), uncountedNote(uncounted))
 }
 
 // Every budget file is contained under the root before it is read — CLAUDE.md and inject.md
@@ -55,7 +55,7 @@ func (c *checker) budgetFiles() []string {
 	// disagrees with what was measured. Guarded by the same containment test as the count: refusing
 	// to count a file this then reads anyway refuses nothing.
 	injectLines, _ := c.readLines(inject)
-	for _, doc := range readAlwaysTargets(injectLines) {
+	for _, doc := range ecoroot.ReadAlwaysTargets(injectLines) {
 		listed := shell.Join(c.root.Flavor(), doc)
 		switch {
 		case !shell.PathExists(listed) && !shell.IsSymlink(listed):
@@ -70,34 +70,14 @@ func (c *checker) budgetFiles() []string {
 	return files
 }
 
-// The block sed read as `/^## Read always/,/^## /` — from the heading to the next one, the closing
-// heading included. ecostats selects the block with an awk flag instead and takes neither boundary
-// line, so this is the one part of the budget scan the two do not share.
-func readAlwaysTargets(lines []string) []string {
-	var targets []string
-	inBlock := false
-	for _, line := range lines {
-		if !inBlock {
-			if !strings.HasPrefix(line, "## Read always") {
-				continue
-			}
-			inBlock = true
-		} else if strings.HasPrefix(line, "## ") {
-			inBlock = false
-		}
-		targets = append(targets, shell.LinkTargets(line)...)
-	}
-	return targets
-}
-
 // The refused file's **name** is attacker-chosen and is printed, so the name and the number of these
 // lines are both bounded.
 func (c *checker) refuseBudgetFile(name string) {
 	c.budgetRefusals++
-	if c.budgetRefusals <= 5 {
+	if c.budgetRefusals <= budgetRefusalCap {
 		c.add("budget file refused (symlink, unreadable, or resolves outside " + c.root.Named() +
 			") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), 80))
-	} else if c.budgetRefusals == 6 {
+	} else if c.budgetRefusals == budgetRefusalCap+1 {
 		c.add("further budget-file refusals suppressed; the count above is not the total")
 	}
 }
@@ -105,15 +85,17 @@ func (c *checker) refuseBudgetFile(name string) {
 // An `@path` import inside a budget file loads with it, so a budget blind to one under-reports the
 // tier it exists to measure. Resolved ones join the budget before it is counted; the rest come back
 // to be named in the census note.
-func (c *checker) resolveImports(files *[]string) []string {
-	return c.root.ResolveImports(ecoroot.ImportScan{
-		Files:    *files,
+func (c *checker) withImports(files []string) (budget, uncounted []string) {
+	budget = files
+	uncounted = c.root.ResolveImports(ecoroot.ImportScan{
+		Files:    files,
 		Read:     c.readLines,
-		Resolved: func(target string) { *files = append(*files, target) },
+		Resolved: func(target string) { budget = append(budget, target) },
 		Refused: func(name, reason string) {
 			c.add("import refused (" + reason + "), named but not counted: " + shell.CutBytes(shell.Oneline(name), 80))
 		},
 	})
+	return budget, uncounted
 }
 
 // Capped in bytes, not just in entries: this line rides the exit-0 path, so an uncapped list prints

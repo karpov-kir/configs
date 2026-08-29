@@ -16,9 +16,7 @@ const fullRecord = "code-review,security-review,tighten,refactor,retro"
 
 func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	t.Parallel()
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-grammar")
+	f := newShip(t, "001-grammar")
 	f.armFullPass("001-grammar")
 	report := f.reportPath("001-grammar")
 
@@ -53,7 +51,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	// Left in, every entry after the first is malformed and a legitimate stamp is refused.
 	f.runReport("stamp", "code-review, security-review,\n  tighten, refactor, retro", "001-grammar")
 	f.record("a record pasted across lines stamps as one record",
-		f.status == 0, "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0, f.evidence())
 	f.record("and no whitespace reaches the record the gate reads",
 		containsLine(f.read(report), "reviewed-stages: "+fullRecord), f.read(report))
 
@@ -71,7 +69,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	} {
 		f.armFullPass("001-grammar")
 		f.runReport("stamp", legal, "001-grammar")
-		f.record("stamp accepts '"+legal+"'", f.status == 0, "exit "+itoa(f.status)+"\n"+f.out)
+		f.record("stamp accepts '"+legal+"'", f.status == 0, f.evidence())
 		f.record("and records '"+legal+"' as the gate will read it",
 			containsLine(f.read(report), "reviewed-stages: "+legal), f.read(report))
 	}
@@ -80,9 +78,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	// written into a report without one puts the record nowhere any reader looks — and the refusal has
 	// to name the missing line, because `invalidate`, which the next refusal down would name, cannot
 	// put it back.
-	missing := newRepo(t)
-	missing.runReport("check-ignore")
-	missing.runReport("init", "001-no-tree-line")
+	missing := newShip(t, "001-no-tree-line")
 	missing.armFullPass("001-no-tree-line")
 	missing.dropLines(missing.reportPath("001-no-tree-line"), "reviewed-tree:")
 	missing.runReport("stamp", fullRecord, "001-no-tree-line")

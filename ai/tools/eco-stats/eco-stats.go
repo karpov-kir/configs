@@ -32,6 +32,11 @@ import (
 // reading a report, so the bar is on what survives being read that way.
 const noteWordCap = 40
 
+// How many budget-file refusals are named on stderr before the rest are summarised. Named where the
+// relation to the suppression note is visible: written as a bare 5 and 6, a change to one silently
+// outruns the other and the note never prints.
+const budgetRefusalCap = 5
+
 // Run measures the tree under root and writes the report to out. args is the command line without
 // its program name; self is the program name itself, which is where the ledger is looked for. An
 // empty root means the two candidates the shell version tried, in order.

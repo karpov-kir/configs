@@ -107,3 +107,40 @@ func assertEquals(t *testing.T, what, got, want string) {
 		t.Errorf("%s: got %q, want %q", what, got, want)
 	}
 }
+
+// The always-loaded tier's membership, which both tools count and neither may count differently. The
+// two heading lines are the whole question: each tool selected the block its own way, and a link on
+// the closing `## Read on trigger` heading counted as always-loaded in one of them.
+func TestOnlyTheLinksBetweenTheHeadingsAreAlwaysLoaded(t *testing.T) {
+	lines := []string{
+		"# Flavor",
+		"",
+		"## Read always [heading-link](heading.md)",
+		"",
+		"- [core](standards/core.md)",
+		"- [writing](standards/writing.md)",
+		"",
+		"## Read on trigger [closing-link](closing.md)",
+		"",
+		"- [code style](standards/code-style.md)",
+	}
+
+	got := ecoroot.ReadAlwaysTargets(lines)
+	want := []string{"standards/core.md", "standards/writing.md"}
+	if len(got) != len(want) {
+		t.Fatalf("ReadAlwaysTargets = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("target %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// A router with no such heading lists nothing, rather than reading the whole file as the tier.
+func TestARouterWithNoReadAlwaysHeadingListsNothing(t *testing.T) {
+	lines := []string{"# Flavor", "", "- [core](standards/core.md)"}
+	if got := ecoroot.ReadAlwaysTargets(lines); len(got) != 0 {
+		t.Errorf("ReadAlwaysTargets = %v, want none", got)
+	}
+}

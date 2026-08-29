@@ -5,6 +5,7 @@ package ecoreport_test
 // is exactly the file that must not reach a commit.
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -59,48 +60,50 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 		committed.runReport("check-ignore")
 		committed.record("check-ignore warns where init refuses, rather than reporting ok",
 			committed.status == 1 && strings.Contains(committed.out, "NOT gitignored"),
-			"exit "+itoa(committed.status)+"; said: "+committed.out)
+			"exit "+strconv.Itoa(committed.status)+"; said: "+committed.out)
 	} else {
 		committed.record("fixture did not establish a committed repo ignored only globally", false, "")
 	}
 
 	// A linked worktree's info/exclude is absolute, so rejecting absolutes alone would break every worktree.
-	worktree := newRepo(t)
-	worktree.runReport("check-ignore")
-	worktreeDir := worktree.base + "/wt"
-	worktree.mustGit("worktree", "add", "-q", worktreeDir, "-b", "wt-branch")
-	if worktree.exists(worktreeDir) {
+	t.Run("a linked worktree, whose info/exclude is an absolute path", func(t *testing.T) {
+		worktree := newRepo(t)
+		worktree.runReport("check-ignore")
+		worktreeDir := worktree.base + "/wt"
+		worktree.mustGit("worktree", "add", "-q", worktreeDir, "-b", "wt-branch")
+		if !worktree.exists(worktreeDir) {
+			t.Skip("git worktree add is unavailable here, so a worktree with an absolute info/exclude cannot be built")
+		}
 		worktree.runReportIn(worktreeDir, "init", "001-in-a-worktree")
 		worktree.record("init works in a linked worktree, whose info/exclude is an absolute path",
 			worktree.status == 0 && worktree.isFile(worktreeDir+"/.idsd/qualify-reports/001-in-a-worktree-qualify-report.md"),
-			"exit "+itoa(worktree.status)+"\n"+worktree.out)
-	} else {
-		worktree.t.Logf("skip  git worktree add unavailable — the absolute-info/exclude case cannot run")
-	}
+			worktree.evidence())
+	})
 
 	// Init above only reads that path; this writes through it. Prefix the root onto an absolute git
 	// dir and the exclusion lands in a directory built out of it *inside the worktree*, so the append
 	// succeeds, `check-ignore` reports ok, and git ignores nothing — the next `git add -A` there
 	// stages the report. Its own repo, never the one above: `check-ignore` has already run there, and
 	// info/exclude is shared, so the entry would be in place whatever the worktree did with it.
-	writing := newRepo(t)
-	writingWorktree := writing.base + "/wt-writing"
-	writing.mustGit("worktree", "add", "-q", writingWorktree, "-b", "wt-writing-branch")
-	if writing.exists(writingWorktree) {
+	t.Run("writing through a worktree's absolute git dir", func(t *testing.T) {
+		writing := newRepo(t)
+		writingWorktree := writing.base + "/wt-writing"
+		writing.mustGit("worktree", "add", "-q", writingWorktree, "-b", "wt-writing-branch")
+		if !writing.exists(writingWorktree) {
+			t.Skip("git worktree add is unavailable here, so a worktree with an absolute git dir cannot be built")
+		}
 		writing.runReportIn(writingWorktree, "check-ignore")
 		_, ignored := writing.gitIn(writingWorktree, "check-ignore", "-q", ".idsd/")
 		// git is the authority, as it is above: an entry written where nothing reads it is still an
 		// entry, and only git's own answer tells the two apart.
 		writing.record("check-ignore in a linked worktree excludes .idsd/ where git itself reads it",
 			writing.status == 0 && ignored == 0,
-			"exit "+itoa(writing.status)+"; git check-ignore .idsd/ exited "+itoa(ignored)+"\n"+writing.out)
+			"exit "+strconv.Itoa(writing.status)+"; git check-ignore .idsd/ exited "+strconv.Itoa(ignored)+"\n"+writing.out)
 		writing.record("and wrote the entry into the git dir, not into a tree built under the worktree",
 			containsLine(writing.read(writing.repo+"/.git/info/exclude"), ".idsd/") &&
 				len(writing.filesContaining(writingWorktree, ".idsd/")) == 0,
 			"left under the worktree: "+joinLines(writing.filesContaining(writingWorktree, ".idsd/")))
-	} else {
-		writing.t.Logf("skip  git worktree add unavailable — the absolute-git-dir write case cannot run")
-	}
+	})
 }
 
 func TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
@@ -124,7 +127,7 @@ func TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
 	_, ignored := f.git("check-ignore", "-q", ".idsd/")
 	_, theirs := f.git("check-ignore", "-q", "keep.scratch")
 	f.record("and git ignores both .idsd/ and the rule that was already there",
-		ignored == 0 && theirs == 0, "check-ignore .idsd/ exited "+itoa(ignored)+", keep.scratch exited "+itoa(theirs))
+		ignored == 0 && theirs == 0, "check-ignore .idsd/ exited "+strconv.Itoa(ignored)+", keep.scratch exited "+strconv.Itoa(theirs))
 
 	// Every pass runs check-ignore again. One entry per pass would grow the file without bound and
 	// leave the human reading their own rules out of a wall of duplicates.
@@ -132,5 +135,5 @@ func TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
 	f.runReport("check-ignore")
 	f.record("and three runs leave exactly one '.idsd/' line",
 		countLinesEqual(f.read(exclude), ".idsd/") == 1,
-		itoa(countLinesEqual(f.read(exclude), ".idsd/"))+" copies:\n"+f.read(exclude))
+		strconv.Itoa(countLinesEqual(f.read(exclude), ".idsd/"))+" copies:\n"+f.read(exclude))
 }

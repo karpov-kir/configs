@@ -2,7 +2,9 @@ package ecocheck
 
 import (
 	"io/fs"
+	"iter"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"kk-flavor/tools/shell"
@@ -111,19 +113,60 @@ func (c *checker) filesNamed(start string, globs ...string) []string {
 	return matched
 }
 
+// The same files, with each one's lines already read. Every scan walks a set of files and reads each
+// one, and every one of them made the same call about a file it cannot read: skip it. The reviewed
+// tree chooses what is unreadable, so a scan that stopped there would be one a branch could switch
+// off. The call is made once here, and a scan added later inherits it.
+//
+// A file over the read bound comes back with no lines and no error — readLines reports it and returns
+// nothing — so a scan sees an empty file rather than skipping one it never told anyone about.
+func (c *checker) filesWithLines(start string, globs ...string) iter.Seq2[string, []string] {
+	return func(yield func(string, []string) bool) {
+		for _, file := range c.filesNamed(start, globs...) {
+			lines, err := c.readLines(file)
+			if err != nil {
+				continue
+			}
+			if !yield(file, lines) {
+				return
+			}
+		}
+	}
+}
+
+// Whether a path the reviewed tree wrote stays under the root, answered lexically and never by asking
+// the filesystem — because asking is the leak. Every ref below is written by the branch under review,
+// and `..` is in the charset of all three patterns that produce one. So a committed
+// `](../../../../Users/someone/.ssh/id_rsa)` used to be stat'ed. The scan flags a link only when its
+// target is missing, which turned the report into an oracle: its silence told the branch's author
+// which files the reviewing machine holds. An out-of-root ref now resolves nowhere whether or not it
+// is there, and that one answer either way is the whole of the fix.
+//
+// Lexical, so a symlinked directory committed inside the root can still redirect the stat that
+// follows; what this closes is the arbitrary-path probe, not every path question.
+func (c *checker) underRoot(path string) bool {
+	rel, err := filepath.Rel(c.root.Named(), path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
+}
+
+// shell.PathExists, asked only where the answer is about this tree.
+func (c *checker) existsUnderRoot(path string) bool {
+	return c.underRoot(path) && shell.PathExists(path)
+}
+
 // A path as prose writes it, resolved to a file under the root; empty when it resolves nowhere or
 // to more than one file.
 func (c *checker) resolveRef(dir, ref string) string {
 	if rest, ok := strings.CutPrefix(ref, "~/.kk-flavor/"); ok {
-		return existingOrEmpty(shell.Join(c.root.Flavor(), rest))
+		return c.existingOrEmpty(shell.Join(c.root.Flavor(), rest))
 	}
 	if rest, ok := strings.CutPrefix(ref, "~/.claude/skills/"); ok {
-		return existingOrEmpty(shell.Join(c.root.Skills(), rest))
+		return c.existingOrEmpty(shell.Join(c.root.Skills(), rest))
 	}
-	if dir != "" && shell.PathExists(shell.Join(dir, ref)) {
+	if dir != "" && c.existsUnderRoot(shell.Join(dir, ref)) {
 		return shell.Join(dir, ref)
 	}
-	if shell.PathExists(shell.Join(c.root.Named(), ref)) {
+	if c.existsUnderRoot(shell.Join(c.root.Named(), ref)) {
 		return shell.Join(c.root.Named(), ref)
 	}
 	// A bare name is accepted only when one file in the tree could be meant. Counted in lines
@@ -136,8 +179,8 @@ func (c *checker) resolveRef(dir, ref string) string {
 	return ""
 }
 
-func existingOrEmpty(path string) string {
-	if shell.PathExists(path) {
+func (c *checker) existingOrEmpty(path string) string {
+	if c.existsUnderRoot(path) {
 		return path
 	}
 	return ""

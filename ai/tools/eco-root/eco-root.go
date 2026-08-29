@@ -4,8 +4,7 @@
 //
 // It exists because ecocheck and ecostats resolve that directory the same way on purpose — each
 // tool's report describes a tree, and two tools describing different trees for one invocation is a
-// disagreement neither of them can report. Each tool had its own copy, so a candidate added to one
-// would have been a silent divergence.
+// disagreement neither of them can report.
 //
 // The whole surface is a Root and what you can ask one:
 //
@@ -17,6 +16,7 @@
 //     skill found at the mount is one of the tree's own.
 //   - ResolveImports(ImportScan) — the `@import` names the budget declares, resolved at the mount.
 //     UncountedNames renders the ones that did not resolve for a message.
+//   - ReadAlwaysTargets — which files the router lists in the always-loaded tier.
 //
 // Nothing here holds state between calls or writes to a stream. A Root is a value: resolving one
 // answers whether the directory is an ecosystem checkout at all, and every path a caller then builds
@@ -30,8 +30,7 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The directories that make a checkout an ecosystem one, and the two places a bare invocation looks
-// for them, in the order the shell version tried.
+// The directories that make a checkout an ecosystem one.
 const (
 	flavorDir = "kk-flavor"
 	skillsDir = "skills"
@@ -70,8 +69,8 @@ type Root struct {
 // lands on the same tree.
 var candidates = []string{".", "./ai"}
 
-// New resolves the root a tool was pointed at. An empty name means the two candidates the shell
-// version tried, in order. The second return is false when no candidate holds both directories,
+// New resolves the root a tool was pointed at. An empty name means the two candidates above, in
+// order. The second return is false when no candidate holds both directories,
 // which each tool reports in its own words — a check or a measurement that did not run is not a
 // clean one, so neither may fold this into an ordinary result.
 func New(named string) (Root, bool) {
@@ -95,6 +94,31 @@ func New(named string) (Root, bool) {
 	}, true
 }
 
+// ReadAlwaysTargets is every link the router lists under its `## Read always` heading — the files
+// that load with every session, whatever the task. Both tools count that tier and neither may count a
+// different one, so the block is selected here rather than in each of them.
+//
+// Neither heading line is in the block: the opening one names the tier rather than listing it, and
+// the closing one belongs to the section it opens.
+func ReadAlwaysTargets(lines []string) []string {
+	var targets []string
+	inBlock := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## Read always") {
+			inBlock = true
+			continue
+		}
+		if strings.HasPrefix(line, "## ") {
+			inBlock = false
+		}
+		if !inBlock {
+			continue
+		}
+		targets = append(targets, shell.LinkTargets(line)...)
+	}
+	return targets
+}
+
 func holdsBoth(dir string) bool {
 	return shell.IsDir(shell.Join(dir, flavorDir)) && shell.IsDir(shell.Join(dir, skillsDir))
 }
@@ -115,9 +139,10 @@ func (r Root) FlavorMount() string { return shell.Join(r.home, ".kk-flavor") }
 func (r Root) SkillsMount() string { return shell.Join(r.home, ".claude/skills") }
 
 // IsInstalled reports whether this checkout is the one $HOME mounts — the gate on every figure that
-// would otherwise be taken from outside the tree. Anywhere else — a clone, or a PR review's worktree
-// — the mounts resolve to the *installed* checkout, so a branch someone else wrote names files in the
-// invoking user's real `~/.claude/` and folds their sizes into a number it also authored.
+// would otherwise be taken from outside the tree. Anywhere else, in a clone or a PR review's
+// worktree, the mounts resolve to the *installed* checkout. A branch someone else wrote then names
+// files in the invoking user's real `~/.claude/` and folds their sizes into a number it also
+// authored.
 //
 // Canonicalising follows a symlinked *directory*, so refusing a symlinked `$root/kk-flavor` is what
 // stops a branch committing one to the real install and opening that gate.

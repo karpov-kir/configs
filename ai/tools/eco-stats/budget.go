@@ -18,7 +18,6 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 	claudeMd := shell.Join(s.root.Named(), "CLAUDE.md")
 	if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {
 		if s.root.Contains(claudeMd) {
-			s.alwaysLoadedWords += wordsInFile(claudeMd)
 			files = append(files, claudeMd)
 		} else {
 			s.refuseBudgetFile(errOut, claudeMd)
@@ -33,8 +32,8 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 	case (shell.PathExists(inject) || shell.IsSymlink(inject)) && !s.root.Contains(inject):
 		s.refuseBudgetFile(errOut, inject)
 	case shell.IsRegularFile(inject):
-		lines, _ := readLines(inject)
-		for _, target := range readAlwaysTargets(lines) {
+		lines := s.readTreeLines(inject, errOut)
+		for _, target := range ecoroot.ReadAlwaysTargets(lines) {
 			if target == "" {
 				continue
 			}
@@ -50,45 +49,35 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 			case !s.root.Contains(file):
 				s.refuseBudgetFile(errOut, "inject.md Read-always target "+target)
 			default:
-				s.alwaysLoadedWords += wordsInFile(file)
 				files = append(files, file)
 			}
 		}
-		s.alwaysLoadedWords += wordsInFile(inject)
 		files = append(files, inject)
+	}
+	// One file counted once, however many times the router lists it. ecocheck dedupes this same tier
+	// with this same call: a target listed twice had this tool counting its words twice and reporting
+	// one more file than ecocheck did. `--append` writes that figure into stats.md, where a later pass reads
+	// it as measurement rather than as a number that drifted.
+	//
+	// Summed here rather than at each append, because the same file reaches this list by two routes —
+	// named in CLAUDE.md and listed under Read always — and neither route can see the other.
+	//
+	// Counted under the read bound, not by a bare wordsInFile: a file over it is refused, and a
+	// refusal that says "not read, not counted" beside its words in the total is the one shape a
+	// figure must never have.
+	files = shell.SortUnique(files)
+	for _, file := range files {
+		s.alwaysLoadedWords += s.countTreeWords(file, errOut)
 	}
 	return files
 }
 
-// The block awk selected with `/^## Read always/{f=1;next} /^## /{f=0} f` — between the headings,
-// neither one included. ecocheck selects the same block with a sed range, which takes both boundary
-// lines, so this is the one part of the budget scan the two tools do not share: a link on either
-// heading line is inside ecocheck's block and outside this one.
-func readAlwaysTargets(lines []string) []string {
-	var targets []string
-	inBlock := false
-	for _, line := range lines {
-		if strings.HasPrefix(line, "## Read always") {
-			inBlock = true
-			continue
-		}
-		if strings.HasPrefix(line, "## ") {
-			inBlock = false
-		}
-		if !inBlock {
-			continue
-		}
-		targets = append(targets, shell.LinkTargets(line)...)
-	}
-	return targets
-}
-
 func (s *stats) refuseBudgetFile(errOut io.Writer, name string) {
 	s.budgetRefusals++
-	if s.budgetRefusals <= 5 {
+	if s.budgetRefusals <= budgetRefusalCap {
 		fmt.Fprintf(errOut, "stats.sh: budget file refused (symlink, unreadable, or resolves outside %s) — not read, not counted: %s\n",
 			s.root.Named(), shell.CutBytes(shell.Oneline(name), 80))
-	} else if s.budgetRefusals == 6 {
+	} else if s.budgetRefusals == budgetRefusalCap+1 {
 		fmt.Fprintln(errOut, "stats.sh: further budget-file refusals suppressed; the count in the exit message is the total")
 	}
 }
@@ -103,7 +92,7 @@ func (s *stats) refuseBudgetFile(errOut io.Writer, name string) {
 func (s *stats) resolveImports(budget []string, errOut io.Writer) {
 	s.uncounted = s.root.ResolveImports(ecoroot.ImportScan{
 		Files: budget,
-		Read:  readLines,
+		Read:  func(path string) ([]string, error) { return s.readTreeLines(path, errOut), nil },
 		Resolved: func(target string) {
 			words := wordsInFile(target)
 			s.alwaysLoadedWords += words
@@ -118,12 +107,11 @@ func (s *stats) resolveImports(budget []string, errOut io.Writer) {
 
 // Every skill description the router keeps in context, and how many of the tree's skills are routed
 // at all. Read exactly as ecocheck reads it, because that tool reports this same budget.
-func (s *stats) census() {
+func (s *stats) census(errOut io.Writer) {
 	for _, file := range skillFiles(s.root.Skills()) {
-		// A SKILL.md that cannot be read still counts as routed, with no description words: the awk
-		// behind the shell version failed to open it and its `&&` fell through to exactly that. Read as
-		// a skip instead, the "R of T skills" figure would quietly shrink on a file the tree can see.
-		lines, _ := readLines(file)
+		// A SKILL.md that cannot be read still counts as routed, with no description words. Read as a
+		// skip instead, the "R of T skills" figure would quietly shrink on a file the tree can see.
+		lines := s.readTreeLines(file, errOut)
 		if shell.IsOptedOutOfModelInvocation(lines) {
 			continue
 		}
@@ -138,7 +126,7 @@ func (s *stats) census() {
 // Only when this tree is the installed one: anywhere else — a clone, or a PR review's worktree — the
 // mounts resolve to the *installed* checkout, the exclusion below matches nothing, and the figure
 // publishes the reviewer's own local skill inventory into something an agent may quote.
-func (s *stats) mountedOutside() {
+func (s *stats) mountedOutside(errOut io.Writer) {
 	if !s.root.IsInstalled() {
 		return
 	}
@@ -146,7 +134,7 @@ func (s *stats) mountedOutside() {
 		if s.root.HoldsSkillFile(file) {
 			continue
 		}
-		lines, _ := readLines(file)
+		lines := s.readTreeLines(file, errOut)
 		if shell.IsOptedOutOfModelInvocation(lines) {
 			continue
 		}

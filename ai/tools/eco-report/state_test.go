@@ -4,6 +4,8 @@ package ecoreport_test
 // routes a live ship past a gate, and a listing that stops halfway reads exactly like a complete one.
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -13,13 +15,11 @@ func TestTwoIntentsShipSideBySide(t *testing.T) {
 	// The whole point of the per-intent path: a second intent's init is not a collision, so neither
 	// ship has to be finished before the other starts. And `check-ignore` first, as a real pass does,
 	// or the report sits inside its own fingerprint and every state below reads `re-qualify`.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-first-intent")
+	f := newShip(t, "001-first-intent")
 	f.runReport("init", "002-second-intent")
 	f.record("a second intent gets its own report rather than a refusal",
 		f.status == 0 && f.isFile(f.reportPath("001-first-intent")) && f.isFile(f.reportPath("002-second-intent")),
-		"exit "+itoa(f.status)+"\n"+f.out)
+		f.evidence())
 
 	f.runReport("gate")
 	f.assertRefused("a subcommand refuses to guess which of two reports it means")
@@ -30,13 +30,13 @@ func TestTwoIntentsShipSideBySide(t *testing.T) {
 	f.record("the named report is the only one acted on",
 		f.status == 0 && containsLine(f.read(f.reportPath("002-second-intent")), "reviewed-tree: pending") &&
 			containsLine(f.read(f.reportPath("001-first-intent")), "reviewed-tree: <hash>"),
-		"exit "+itoa(f.status)+"\n"+f.out)
+		f.evidence())
 
 	f.runReport("stage-returned", "code-review", "001-first-intent")
 	f.runReport("invalidate", "002-second-intent")
 	f.runReport("no-items", "code-review", "001-first-intent")
 	f.record("one intent's invalidate leaves the other's stage markers standing", f.status == 0,
-		"exit "+itoa(f.status)+"\n"+f.out)
+		f.evidence())
 
 	// The state column is asserted by value, not by "a tab follows the name". The looser form is
 	// satisfied by a listing that emits an empty token for every ship, or `BOGUS` where `resume`
@@ -56,9 +56,7 @@ func TestTwoIntentsShipSideBySide(t *testing.T) {
 
 func TestAnUnreadableReportIsNotAState(t *testing.T) {
 	t.Parallel()
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-unreadable")
+	f := newShip(t, "001-unreadable")
 	f.runReport("init", "002-readable")
 	if f.madeUnreadable(f.reportPath("001-unreadable"), "the unreadable-report cases") {
 		f.runReport("state", "001-unreadable")
@@ -67,21 +65,19 @@ func TestAnUnreadableReportIsNotAState(t *testing.T) {
 		// And the listing is all-or-nothing: half a listing reads exactly like a complete one.
 		f.runReport("list")
 		f.record("list prints no ship's state when one report cannot be read",
-			f.status != 0 && !strings.Contains(f.out, "002-readable"), "exit "+itoa(f.status)+"\n"+f.out)
+			f.status != 0 && !strings.Contains(f.out, "002-readable"), f.evidence())
 	}
 	f.chmod(f.reportPath("001-unreadable"), 0o644)
 
 	// The same invariant with the unreadable report ordered second, the only order that pins the
 	// buffering. Reached first, nothing is printed whether the listing is buffered or streamed.
-	buffered := newRepo(t)
-	buffered.runReport("check-ignore")
-	buffered.runReport("init", "001-readable-first")
+	buffered := newShip(t, "001-readable-first")
 	buffered.runReport("init", "002-unreadable-second")
 	if buffered.madeUnreadable(buffered.reportPath("002-unreadable-second"), "the buffering case") {
 		buffered.runReport("list")
 		buffered.record("list buffers, so a ship reached before the refusal is not printed either",
 			buffered.status != 0 && !strings.Contains(buffered.out, "001-readable-first"),
-			"exit "+itoa(buffered.status)+"\n"+buffered.out)
+			buffered.evidence())
 
 		// `carry` is where an unread report loses work silently: it prints the open items a re-qualify
 		// must keep, and an unreadable one prints none, which reads exactly like a report with nothing open.
@@ -94,7 +90,7 @@ func TestAnUnreadableReportIsNotAState(t *testing.T) {
 		buffered.assertReports("its state is unknown", "and it is that guard refusing, not the scan failing behind it")
 		buffered.runReport("carry", "001-readable-first")
 		buffered.record("and a readable sibling still carries normally", buffered.status == 0,
-			"exit "+itoa(buffered.status)+"\n"+buffered.out)
+			buffered.evidence())
 	}
 	buffered.chmod(buffered.reportPath("002-unreadable-second"), 0o644)
 }
@@ -117,15 +113,13 @@ func TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer(t *testing.T) {
 		countLinesEndingWith(f.out, "\tready") == 3, "")
 	log := f.newCountingFingerprintHome()
 	f.runReport("list")
-	walks := f.countLines(log)
+	walks := f.nonEmptyLinesIn(log)
 	f.record("list fingerprints the tree once for every ship it lists", walks == 1,
-		"fingerprint calls: "+itoa(walks)+" (wanted 1)")
+		"fingerprint calls: "+strconv.Itoa(walks)+" (wanted 1)")
 
 	// Priming must not be fatal on its own: an unstamped ship answers without the tree at all, so a
 	// tree that cannot be fingerprinted must not silence a listing that never needed it.
-	unstamped := newRepo(t)
-	unstamped.runReport("check-ignore")
-	unstamped.runReport("init", "001-unstamped")
+	unstamped := newShip(t, "001-unstamped")
 	unstamped.runReport("init", "002-unstamped")
 	unstamped.write(unstamped.repo+"/blocker.txt", "unreadable\n")
 	if unstamped.madeUnreadable(unstamped.repo+"/blocker.txt", "the priming case") {
@@ -135,12 +129,12 @@ func TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer(t *testing.T) {
 		// failure to do so, where a readable tree gives 1, the freshness block.
 		unstamped.runReport("gate", "001-unstamped")
 		unstamped.record("fixture: a tree that cannot be fingerprinted", unstamped.status == 2,
-			"gate exited "+itoa(unstamped.status)+", wanted 2\n"+unstamped.out)
+			"gate exited "+strconv.Itoa(unstamped.status)+", wanted 2\n"+unstamped.out)
 		unstamped.runReport("list")
 		unstamped.record("an unfingerprintable tree does not silence a listing of ships that never needed it",
 			unstamped.status == 0 && containsLine(unstamped.out, "001-unstamped\tresume") &&
 				containsLine(unstamped.out, "002-unstamped\tresume"),
-			"exit "+itoa(unstamped.status)+"\n"+unstamped.out)
+			unstamped.evidence())
 	}
 	unstamped.chmod(unstamped.repo+"/blocker.txt", 0o644)
 }
@@ -169,9 +163,7 @@ func TestAScanThatDidNotRunIsNeverReadAsNothingOpen(t *testing.T) {
 	// drift apart, so all three are asserted here against the same broken gate. Broken means an exit
 	// above 1, which read as "nothing open" would let a report still holding unrouted `- [ ]` pass the
 	// merge gate.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-scan-fails")
+	f := newShip(t, "001-scan-fails")
 	f.stampFullPass("001-scan-fails")
 	// The positive control, while the scan still works: this fixture reaches the open-item scan and
 	// answers `ready`. Without it, every refusal below could belong to an earlier guard and pin nothing.
@@ -195,9 +187,7 @@ func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {
 	// `no-report` and exits 0, because the resolution refuses before any report path is set and the arm
 	// falls into the absence branch. `idsd-ship continue` routes that to "start a fresh ship", over two
 	// live ones.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-live")
+	f := newShip(t, "001-live")
 	f.runReport("init", "002-live")
 	f.runReport("state")
 	f.assertRefused("state refuses rather than answering no-report with two ships open")
@@ -222,9 +212,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	none.runReport("state")
 	none.record("no-report where no ship has started", none.out == "no-report", "said '"+none.out+"'")
 
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-token")
+	f := newShip(t, "001-token")
 	f.runReport("state", "001-token")
 	f.record("resume for a report that has never been stamped", f.out == "resume", "said '"+f.out+"'")
 
@@ -245,9 +233,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	f.runReport("state", "001-token")
 	f.record("re-qualify for a stamped pass whose tree moved since", f.out == "re-qualify", "said '"+f.out+"'")
 
-	trimmed := newRepo(t)
-	trimmed.runReport("check-ignore")
-	trimmed.runReport("init", "001-trimmed-token")
+	trimmed := newShip(t, "001-trimmed-token")
 	trimmed.runReport("invalidate", "001-trimmed-token")
 	for _, stage := range []string{"code-review", "tighten", "refactor", "retro"} {
 		trimmed.runReport("stage-returned", stage, "001-trimmed-token")
@@ -262,9 +248,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	// report is closed. Read through `list` as well as `state`: `list` is the surface that reaches the
 	// token's own archive arm, since `state` answers from the report's filename a step earlier, and the
 	// two are different ships whenever the frontmatter names a slug the filename does not.
-	archived := newRepo(t)
-	archived.runReport("check-ignore")
-	archived.runReport("init", "001-landed")
+	archived := newShip(t, "001-landed")
 	archived.mkdirAll(archived.repo + "/.idsd/archive")
 	archived.write(archived.repo+"/.idsd/archive/001-landed.md", "# built, and merged\n")
 	archived.runReport("list")
@@ -272,4 +256,28 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 		stateOf(archived.out, "001-landed") == "done", archived.out)
 	archived.runReport("state", "001-landed")
 	archived.record("and state answers done for it too", archived.out == "done", "said '"+archived.out+"'")
+}
+
+// A stem comes off the directory listing without passing reportNameFor, and a filename can hold a
+// newline. `ev<LF>fakeship<TAB>ready<LF>il-qualify-report.md` put a whole forged `fakeship  ready` row
+// into the listing `idsd-ship continue` routes on — a ship that does not exist, reported merge-ready.
+func TestAFilenameCannotForgeAListingRow(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "realship")
+	forged := f.repo + "/.idsd/qualify-reports/ev\nfakeship\tready\nil" + "-qualify-report.md"
+	if err := os.WriteFile(forged, []byte("---\nintent: x\n---\n"), 0o644); err != nil {
+		t.Skipf("this filesystem refused a newline in a filename, so this case cannot run here: %v", err)
+	}
+
+	listing := f.runReportStdout("list")
+	// The control: the real ship is still listed, so the assertions below are about the forged row and
+	// not about a listing that failed outright.
+	f.record("the real ship is still listed", strings.Contains(listing, "realship\t"), listing)
+	f.record("no forged row reached the listing", !strings.Contains(listing, "fakeship\tready"), listing)
+	f.record("and the row count is one", strings.Count(strings.TrimRight(listing, "\n"), "\n") == 0, listing)
+
+	// Skipping in silence would be the other failure: a ship the listing does not mention is one
+	// nothing resumes.
+	f.runReport("list")
+	f.record("the skipped file is said out loud", strings.Contains(f.out, "were NOT listed"), f.out)
 }

@@ -3,10 +3,10 @@
 # It is one body copied into several files, so it is tested once here rather than per copy; the
 # wiring check's shared-region scan is what proves the copies are still identical.
 #
-# The two that must not be weakened: "reaches its tool from an unrelated cwd", which is the defect
-# the stub exists for and which fails silently — a stub that resolved nothing prints nothing, and a
-# check that printed nothing reads exactly like a clean tree; and "argv[0] survives the exec", which
-# decides which skill directory the tool writes into.
+# Two cases must not be weakened. "reaches its tool from an unrelated cwd" is the defect the stub
+# exists for, and it fails silently: a stub that resolved nothing prints nothing, and a check that
+# printed nothing reads exactly like a clean tree. "argv[0] survives the exec" decides which skill
+# directory the tool writes into.
 #
 # Every path is built from variables at runtime. A literal skill or tool path here would be read by
 # the wiring check as a citation and reported against the real checkout.
@@ -48,7 +48,9 @@ expect_out() {
 }
 
 # A root holding one restatement, so ruleecho has something to find: without content to find, a stub
-# that silently did nothing would pass the same assertion a working one does.
+# that silently did nothing would pass the same assertion a working one does. cite-graph takes the
+# same root — it needs only that some `.md` is there, since a root holding none exits 2 and that is
+# the status the probe below reads as the tool never having run.
 echo_root="$base/echo-root"
 mkdir -p "$echo_root/a" "$echo_root/b"
 rule='a shared rule stating several discriminating words plainly'
@@ -67,13 +69,13 @@ kk-ecosystem|check.sh|$base|$ai|always-loaded:
 kk-reduce|stats.sh|$base|$ai|prose:
 idsd-qualify|report.sh|$report_repo|list|no reports
 kk-ecosystem|ruleecho.sh|$base|$echo_root|rule stated twice
+kk-ecosystem|cite-graph.sh|$base|$echo_root|citation edge(s)
 TABLE
 }
 
 echo "shared:tool-stub"
 
-# The negative control, and the regression the stub exists for. Driven from a directory that is
-# neither the repo nor the root under scan, through the path the skill is mounted by.
+# The negative control, and the regression the stub exists for.
 while IFS='|' read -r skill script cwd args marker; do
   [ -n "$skill" ] || continue
   stub="$skills/$skill/scripts/$script"
@@ -103,7 +105,7 @@ while IFS='|' read -r skill script cwd args marker; do
   expect_out "$script names what that checkout is missing" "does not ship ai/tools/"
   expect_out "$script names the tool that did not run" "did NOT run"
 
-  # A resolver that is there but lost its exec bit — a different fix, so a different message.
+  # A resolver that is there but lost its exec bit: a different fix, so a different message.
   noexec="$base/noexec-$script"
   mkdir -p "$noexec/skills/$skill/scripts" "$noexec/tools"
   cp "$skills/$skill/scripts/$script" "$noexec/skills/$skill/scripts/$script"
@@ -116,11 +118,10 @@ while IFS='|' read -r skill script cwd args marker; do
   expect_out "$script says to chmod it" "chmod"
 done <<<"$(stubs)"
 
-# argv[0] survives the exec. This is what decides which skill directory a tool writes into: the tools
-# derive it from argv[0], so a stub that let the binary's own path through would send every write to
-# the tools directory instead. Proven with the ledger, because it is the one write whose destination
-# is visible — and asserted from both ends, since a run that wrote nowhere would satisfy the first
-# half on its own.
+# argv[0] survives the exec. The tools derive the skill directory from argv[0], so a stub that let the
+# binary's own path through would send every write to the tools directory instead. Proven with the
+# ledger, because it is the one write whose destination is visible. Asserted from both ends, since a
+# run that wrote nowhere would satisfy the first half on its own.
 ledger_name=stats.md
 real_ledger="$skills/kk-reduce/$ledger_name"
 # Copied and compared with cmp rather than hashed, so the case needs no particular checksum tool.
@@ -150,6 +151,32 @@ if cmp -s "$before" "$real_ledger"; then
   record_pass "and this checkout's own ledger is untouched"
 else
   record_fail "and this checkout's own ledger is untouched" "$real_ledger changed"
+fi
+
+# Every stub documents itself in the lowercase `usage: <script>` form, because that string is the
+# anchor two scans in eco-check's subcommands.go match on: `usageSubcommands` reads the stub's own
+# grammar by it and `goDispatchLabels` finds the tool's dispatch switch by it. A stub writing `Usage:`
+# is outside both while reading to a human as though it were documented, so the cross-check between
+# grammar and dispatch goes silent rather than red — and a silent scan is the one failure this
+# repository cannot see. Discovered from the shared region rather than listed, so the stub written
+# tomorrow is covered without a row here, and finding no stub at all fails rather than passes empty.
+region='--- shared:tool-stub ---'
+stubs_scanned=0
+while IFS= read -r stub_file; do
+  [ -n "$stub_file" ] || continue
+  grep -q -e "$region" "$stub_file" || continue
+  stubs_scanned=$((stubs_scanned + 1))
+  stub_base=${stub_file##*/}
+  name="$stub_base documents itself in the lowercase form eco-check anchors on"
+  grep -q "usage: $stub_base" "$stub_file" &&
+    record_pass "$name" ||
+    record_fail "$name" "no 'usage: $stub_base' line — a capitalised Usage: is outside both scans in subcommands.go"
+done <<<"$(find "$skills" -name '*.sh' -type f -not -name '*-test.sh' | sort)"
+
+if [ "$stubs_scanned" -gt 0 ]; then
+  record_pass "the usage-form scan found $stubs_scanned stub(s) to read"
+else
+  record_fail "the usage-form scan found stub(s) to read" "nothing under $skills carries the shared region, so the form went unchecked"
 fi
 
 echo

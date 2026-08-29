@@ -118,12 +118,11 @@ func validateStampEntries(entries string) []string {
 		}
 		seen[stage]++
 	}
-	// The required-set check, in the order the shell version's awk walked its `split()` array: an
-	// artifact of that awk's hash, kept so the two versions' refusals are byte-identical. It carries
-	// no meaning — pipeline order would read better the day report.sh is gone.
-	stages := stageList()
-	for _, i := range []int{1, 2, 3, 4, 0} {
-		switch stage := stages[i]; {
+	// The required-set check, in pipeline order: the shell version this once matched the refusal
+	// wording of is a stub that execs this binary, so its awk walk order has nothing left to agree
+	// with.
+	for _, stage := range stageList() {
+		switch {
 		case seen[stage] == 0:
 			problems = append(problems, "missing stage: "+stage)
 		case seen[stage] > 1:

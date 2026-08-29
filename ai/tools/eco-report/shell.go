@@ -162,6 +162,21 @@ func writeAll(w io.Writer, text string) {
 // a different digest there would read as "the report has moved" and free a stamp the pass never
 // earned.
 func cksum(content []byte) (uint32, int) {
+	var crc uint32
+	for _, b := range content {
+		crc = crc<<8 ^ cksumTable[byte(crc>>24)^b]
+	}
+	for length := len(content); length != 0; length >>= 8 {
+		crc = crc<<8 ^ cksumTable[byte(crc>>24)^byte(length)]
+	}
+	return ^crc, len(content)
+}
+
+// The CRC-32 table cksum reads, over the POSIX polynomial. Built once: it is the same 256 entries for
+// every marker, and a marker is written and read on every stage return.
+var cksumTable = newCksumTable()
+
+func newCksumTable() [256]uint32 {
 	var table [256]uint32
 	for i := range table {
 		crc := uint32(i) << 24
@@ -174,12 +189,5 @@ func cksum(content []byte) (uint32, int) {
 		}
 		table[i] = crc
 	}
-	var crc uint32
-	for _, b := range content {
-		crc = crc<<8 ^ table[byte(crc>>24)^b]
-	}
-	for length := len(content); length != 0; length >>= 8 {
-		crc = crc<<8 ^ table[byte(crc>>24)^byte(length)]
-	}
-	return ^crc, len(content)
+	return table
 }

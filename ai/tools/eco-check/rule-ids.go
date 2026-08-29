@@ -2,6 +2,7 @@ package ecocheck
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"kk-flavor/tools/shell"
@@ -38,29 +39,27 @@ const unresolvedHeading = "<the numbered heading>"
 // is not one scanCitations resolves, and the form this finding names has to resolve.
 func (c *checker) scanBareRuleIDs() {
 	headings := c.numberedHeadings()
-	for _, file := range c.filesNamed(c.root.Named(), "*.md") {
-		lines, err := c.readLines(file)
-		if err != nil {
-			continue
-		}
+	for file, lines := range c.filesWithLines(c.root.Named(), "*.md") {
 		safeFile := shell.Oneline(file)
 		for _, hit := range grepNumbered(lines, bareRuleIDPattern) {
-			lineNumber, matched, _ := strings.Cut(hit, ":")
-			resolving := headings[digitsRun.FindString(matched)]
+			resolving := headings[digitsRun.FindString(hit.match)]
 			if resolving == "" {
 				resolving = unresolvedHeading
 			}
-			c.add("bare rule-ID citation: " + safeFile + ":" + lineNumber + " — " + shell.Oneline(matched) +
+			c.add("bare rule-ID citation: " + safeFile + ":" + strconv.Itoa(hit.line) + " — " + shell.Oneline(hit.match) +
 				" resolves in no file; cite it as " + principlesRef + " → **" + shell.Oneline(resolving) +
 				"** (writing.md → **Readability floor**)")
 		}
 	}
 }
 
+// How many numbered headings the lookup holds. The reviewed tree chose this file, and one committed
+// 8 MB of numbered headings is otherwise carried in memory to answer a lookup that has a handful of
+// answers.
+const numberedHeadingCap = 64
+
 // The numbered `##` headings of the principles file, by the number each one opens — the resolving
-// form a finding names. The first heading of a number wins, and at most 64 are held: the reviewed
-// tree chose this file, and one committed 8 MB of numbered headings is otherwise carried in memory to
-// answer a lookup that has a handful of answers.
+// form a finding names. The first heading of a number wins.
 //
 // Read only when it is a regular file: resolveRef tests with a stat that follows symlinks, so a
 // committed `core-principles.md -> /dev/zero` would make the read never return. That is the trap
@@ -70,18 +69,9 @@ func (c *checker) numberedHeadings() map[string]string {
 	if !shell.IsRegularFile(principles) {
 		return nil
 	}
-	lines, err := c.readLines(principles)
-	if err != nil {
-		return nil
-	}
 	headings := map[string]string{}
-	inFence := false
-	for _, line := range lines {
-		if shell.IsFenceDelimiter(line) {
-			inFence = !inFence
-			continue
-		}
-		if inFence || !numberedHeadingLine.MatchString(line) || len(headings) >= 64 {
+	for _, line := range c.unfencedLines(principles) {
+		if !numberedHeadingLine.MatchString(line) || len(headings) >= numberedHeadingCap {
 			continue
 		}
 		text := headingMarker.ReplaceAllString(line, "")

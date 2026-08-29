@@ -3,9 +3,9 @@
 //
 // It is a library with a thin command beside it, because the suite that proves it drives it once
 // per case and a process spawn per case is the cost that makes a mutation run take hours. Nothing
-// here writes to os.Stdout or calls os.Exit — Run reports through the writers it is handed and
-// returns the code the command exits on — and nothing here holds state between calls, so two runs
-// in one process cannot see each other's emit counters.
+// here writes to os.Stdout or calls os.Exit: Run reports through the writers it is handed and returns
+// the code the command exits on. Nothing here holds state between calls either, so two runs in one
+// process cannot see each other's emit counters.
 //
 // Most of the density below is hardening against a hostile tree, because this runs as kk-pr-review's
 // stage over a branch that chose its own contents: NUL bytes in files, newlines in committed
@@ -26,6 +26,11 @@ import (
 // applies. Both are here so raising either is one edit.
 const findingCap = 40
 
+// How many budget-file refusals are named before the rest are summarised. Named where the relation to
+// the suppression note is visible: written as a bare 5 and 6, a change to one silently outruns the
+// other and the note never prints.
+const budgetRefusalCap = 5
+
 type checker struct {
 	// The checkout under review, which holds the root exactly as it was named: every finding
 	// echoes a path built from it.
@@ -43,12 +48,18 @@ type checker struct {
 	// file, so a finding reached through one resolves it back to a path here, or says it cannot.
 	scriptOwners map[string][]string
 
+	// Each markdown file's headings and bolded runs, parsed once per run. The citation scan asks for
+	// its target's headings once per citation, and the reviewed tree writes how many citations one
+	// file carries as freely as it writes how large the target is.
+	headings map[string]map[string]string
+	bolded   map[string]map[string]string
+
 	// The refused budget files are named in their findings, so their count is bounded too.
 	budgetRefusals int
 }
 
 // Run checks the tree under root and writes the report to out. An empty root means the two
-// candidates the shell version tried, in order. It returns the process exit code: 0 clean, 1 with
+// candidates ecoroot tries, in order. It returns the process exit code: 0 clean, 1 with
 // findings, 2 when it could not run at all. A check that did not run is not a clean one, which is
 // why the last is not folded into either of the others.
 func Run(root string, out, errOut io.Writer) int {

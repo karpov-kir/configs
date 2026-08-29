@@ -2,7 +2,6 @@ package ecoreport
 
 import (
 	"os"
-	"strings"
 
 	"kk-flavor/tools/shell"
 )
@@ -21,8 +20,12 @@ func (r *run) cmdInit(args []string) {
 		r.refuse("usage: report.sh init \"<intent frontmatter value>\" [--force]")
 	}
 	// Frontmatter is single-line: collapse CR/LF so a value seeded from a fetched ticket can't inject
-	// extra frontmatter lines (a forged reviewed-tree).
-	intent = strings.NewReplacer("\n", " ", "\r", " ").Replace(intent)
+	// extra frontmatter lines (a forged reviewed-tree). Every control byte, not those two alone. The
+	// same value reaches this tool's own output and the `intent:` line every later reader echoes back,
+	// and the slug charset does not stand between them — a `review: <description>` intent takes the
+	// `review` stem off its first field and carries the rest of the line through unchecked. An ESC
+	// there erases the lines printed above it.
+	intent = shell.Oneline(intent)
 	reportName := reportNameFor(intent)
 	if reportName == "" {
 		r.refuse("error: '" + intent + "' cannot name a report file — the intent must be a slug ([0-9A-Za-z._-]) or a \"review: <description>\". The report was NOT initialized.")

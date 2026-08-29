@@ -1,6 +1,7 @@
 package ecostats
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -37,6 +38,9 @@ type stats struct {
 	// The refused file's name is attacker-chosen, so it is bounded in length and in count. The count
 	// stays exact, and it alone decides whether a row is withheld.
 	budgetRefusals int
+	// Which paths were already refused for being over the read bound, so a file two readers reach is
+	// one refusal rather than two.
+	refusedOversize map[string]bool
 }
 
 func (s *stats) measure(errOut io.Writer) {
@@ -47,6 +51,7 @@ func (s *stats) measure(errOut io.Writer) {
 	// The ledger is a record, not an instruction, and is reported on its own line rather than inside
 	// prose: counted together, the number that decides whether a reduction is owed rises every time a
 	// reduction records that it ran.
+	//
 	// Guarded like a budget file rather than with a bare `[ -f ]`: prose is measured with
 	// `find -type f`, which does not walk a symlink, while `-f` follows one — so a symlink here would
 	// subtract words the total never held.
@@ -60,8 +65,8 @@ func (s *stats) measure(errOut io.Writer) {
 	s.skills = wcLines(findFiles(s.root.Skills(), "SKILL.md", 2))
 
 	s.resolveImports(s.budgetFiles(errOut), errOut)
-	s.census()
-	s.mountedOutside()
+	s.census(errOut)
+	s.mountedOutside(errOut)
 }
 
 const noDepthLimit = -1
@@ -110,10 +115,10 @@ func readdirNames(dir string) []string {
 
 // `cat <files> | wc -w`: one word run can span a file boundary, so the state carries across files
 // rather than restarting at each. A file with no final newline glues its last word onto the next
-// file's first, which is one word fewer than summing the files separately — the figure has always
-// been the concatenation's, and summing instead would move every prose and scripts number by however
-// many files end mid-word. A file that cannot be opened contributes nothing and does not stop the
-// run, exactly as `cat`'s own failure did not.
+// file's first, which is one word fewer than summing the files separately. The figure has always been
+// the concatenation's, and summing instead would move every prose and scripts number by however many
+// files end mid-word. A file that cannot be opened contributes nothing and does not stop the run,
+// exactly as `cat`'s own failure did not.
 func wordsAcross(paths []string) int {
 	words := 0
 	inWord := false
@@ -160,14 +165,76 @@ func wcLines(paths []string) int {
 	return lines
 }
 
-// One file as awk saw it. Unbounded, as awk's streaming read was: ecocheck bounds the same read
-// because a file over the bound there is reported and skipped, and there is no such report to make
-// here — a bound would leave the always-loaded figure short with nothing saying so, which is the one
-// thing this tool must never do.
+// The bound on a whole-file read. awk streamed, and this does not: a committed 64 MiB of newlines
+// packs to about 65 KB and took 2.46 GB of resident memory here, because every line becomes a slice
+// header. Half a gigabyte of it is an OOM kill rather than a measurement.
+//
+// A file over the bound is refused, never truncated. refuseBudgetFile names it, keeps the count
+// exact, and the run exits 2 with no row appended — so the always-loaded figure is withheld rather
+// than left quietly short, which is the one thing this tool must never do.
+//
+// Same value as ecocheck's, because the two tools measure the same tier and must agree on which files
+// are in it.
+const maxFileBytes = 8 << 20
+
+// One file as awk saw it, for a path this tool chose rather than the tree.
 func readLines(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	return shell.SplitLines(string(data)), nil
+}
+
+// The same read for a path the measured tree chose, which is every file below. Over the bound it is
+// refused rather than read, so the run withholds its row and exits 2 instead of reporting a tier it
+// could not measure.
+func (s *stats) readTreeLines(path string, errOut io.Writer) []string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	if info.Size() > maxFileBytes {
+		s.refuseOversize(path, info.Size(), errOut)
+		return nil
+	}
+	lines, _ := readLines(path)
+	return lines
+}
+
+// The words in a budget file, under the same bound the line read applies. wordsAcross streams and
+// never slurps, so it would happily count a file no reader here may read. refuseBudgetFile, reached
+// over that same file by the import scan, would then print "not read, not counted" and mark an exact
+// figure SHORT in one output.
+//
+// Bounded here instead, so the refusal's own words hold for the figure as well as for the read.
+// ecocheck refuses the same file at the same bound and counts it as no words, so both tools still
+// place it in the same tier.
+func (s *stats) countTreeWords(path string, errOut io.Writer) int {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	if info.Size() > maxFileBytes {
+		s.refuseOversize(path, info.Size(), errOut)
+		return 0
+	}
+	return wordsInFile(path)
+}
+
+// Once per file, however many readers reach it: a budget file is counted here, read again for its
+// `@import` lines by the scan, and the count in the exit line is meant to be how many files were
+// refused, not how many times one was looked at.
+func (s *stats) refuseOversize(path string, size int64, errOut io.Writer) {
+	if s.refusedOversize[path] {
+		return
+	}
+	if s.refusedOversize == nil {
+		s.refusedOversize = map[string]bool{}
+	}
+	s.refusedOversize[path] = true
+	// The bound leads, because refuseBudgetFile cuts this to 80 bytes and the path is the part the
+	// tree chose the length of.
+	s.refuseBudgetFile(errOut, fmt.Sprintf("%d bytes, over the %d-byte bound — NOT read: %s",
+		size, maxFileBytes, path))
 }

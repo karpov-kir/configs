@@ -47,12 +47,23 @@ func stemOfReportPath(path string) string {
 
 // Every report present, one filename stem per line. A dotfile is invisible here, as it was to the
 // shell's glob — which is why reportNameFor refuses a leading dot rather than sanitising one.
+//
+// Held to the same slug charset a named intent is. A stem from this listing goes on to be printed as a
+// `list` row, to name a report path, and — through resolveReport with no argument — to decide what
+// `discard` deletes; nothing between here and there checks it. A filename holds no `/`, so it could
+// not traverse, but it can hold a newline: `ev<LF>fakeship<TAB>ready<LF>il-qualify-report.md` put a
+// whole forged `fakeship  ready` row into the listing `idsd-ship continue` routes on.
+//
+// A bad name is skipped, not repaired: a name rewritten to something addressable would name a file
+// that is not there. It is counted instead, because a listing quietly short of a ship is the one
+// failure this tool must not have.
 func (r *run) reportNames() []string {
 	entries, err := os.ReadDir(r.reportsDir)
 	if err != nil {
 		return nil
 	}
 	var names []string
+	r.unnameableReports = 0
 	for _, entry := range entries {
 		name := entry.Name()
 		if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, reportSuffix) {
@@ -61,45 +72,69 @@ func (r *run) reportNames() []string {
 		if !shell.IsRegularFile(r.reportsDir + "/" + name) {
 			continue
 		}
-		names = append(names, strings.TrimSuffix(name, reportSuffix))
+		stem := strings.TrimSuffix(name, reportSuffix)
+		if !isSlugCharset(stem) {
+			r.unnameableReports++
+			continue
+		}
+		names = append(names, stem)
 	}
 	return names
 }
 
-// Resolve which report this invocation acts on: the named one, or the only one present. 0 = resolved,
-// 1 = none present, 3 = several and none named. Never guesses; the package header says what a wrong
-// guess costs.
-func (r *run) resolveReport(name string) int {
+// Said out loud by every caller that reports on the set: a report skipped in silence is a ship nothing
+// resumes. The name is bounded and sanitised, since it is the one thing here this tool did not write.
+func (r *run) noteUnnameableReports() {
+	if r.unnameableReports == 0 {
+		return
+	}
+	r.errLines("note: " + strconv.Itoa(r.unnameableReports) + " file(s) under " + r.reportsDir +
+		" are named outside the slug charset ([0-9A-Za-z._-]) and were NOT listed — a report is named after its intent. Rename each, or delete it.")
+}
+
+// What resolving an intent name to a report answered. The numbers are the shell version's, kept so a
+// caller reading either reads the same three outcomes; the names are what a call site tests against.
+type reportLookup int
+
+const (
+	reportResolved  reportLookup = 0
+	reportNoneOpen  reportLookup = 1
+	reportAmbiguous reportLookup = 3
+)
+
+// Resolve which report this invocation acts on: the named one, or the only one present. Never
+// guesses; the package header says what a wrong guess costs.
+func (r *run) resolveReport(name string) reportLookup {
 	if name != "" {
 		stem := reportNameFor(name)
 		if stem == "" {
 			r.refuse("error: '" + name + "' names no report — a report file is named after the intent, so it must be a slug ([0-9A-Za-z._-]) or a \"review: <description>\"")
 		}
 		r.setReportPaths(stem)
-		return 0
+		return reportResolved
 	}
 	names := r.reportNames()
 	if len(names) == 0 {
-		return 1
+		return reportNoneOpen
 	}
 	if len(names) != 1 {
 		r.ambiguousNames = strings.Join(names, "\n")
-		return 3
+		return reportAmbiguous
 	}
 	r.setReportPaths(names[0])
-	return 0
+	return reportResolved
 }
 
-// resolveReport's 3, refused with the names listed. The argument is what the caller must do instead:
+// The ambiguous outcome, refused with the names listed. The argument is what the caller must do instead:
 // `state` sends the human to `list`, the rest only want the name.
 func (r *run) refuseAmbiguous(instead string) {
 	r.refuse("error: several qualify reports are open — "+instead+":", indentLines(r.ambiguousNames, "  "))
 }
 
-// Every path a report has ever lived at, and none of them is this one. These are literal history, so
-// they never move with a rename: a repo whose ship was in flight across either change has its report
-// here, where nothing looks. The harm is silence — `state` answers no-report and a fresh ship starts
-// over live work — so every path that reports finding none says these exist, on stderr, leaving
+// Every path a report has ever lived at, and none of them is this one. These are literal history and
+// never move with a rename, so a repo whose ship was in flight across either rename has its report
+// here, where nothing looks. The harm is silence: `state` answers no-report and a fresh ship starts
+// over live work. So every path that reports finding none says these exist — on stderr, leaving
 // `state` printing exactly one token. `promote` is the exception: it refuses for want of anything
 // durable, not of a report.
 func (r *run) legacyNote() {
@@ -118,9 +153,9 @@ func (r *run) legacyNote() {
 }
 
 // Every frontmatter reader answers empty for a file it could not open, and empty is in isUnstamped's
-// set, so an unreadable report answers `resume` with an unstamped tree and a clean stage record, all
-// from a file nothing ever opened. Takes the consequence as an argument, like assertWritePathsAreReal:
-// each caller's is different, and a refusal naming the wrong one sends the human to the wrong place.
+// set. So an unreadable report answers `resume` with an unstamped tree and a clean stage record, all
+// from a file nothing ever opened. Takes the consequence as an argument for the reason
+// assertWritePathsAreReal does.
 func (r *run) assertReportIsReadable(consequence string) {
 	if !isReadable(r.report) {
 		r.refuse("error: " + r.report + " cannot be read — " + consequence)
@@ -131,10 +166,10 @@ func (r *run) assertReportIsReadable(consequence string) {
 // opens with this, and the optional stem is always its last argument.
 func (r *run) requireReport(name string) {
 	switch r.resolveReport(name) {
-	case 1:
+	case reportNoneOpen:
 		r.legacyNote()
 		r.refuse("error: no qualify report under " + r.reportsDir + " — run report.sh init \"<intent>\" first")
-	case 3:
+	case reportAmbiguous:
 		r.refuseAmbiguous("name which as the last argument")
 	}
 	if !shell.IsRegularFile(r.report) {
@@ -234,9 +269,9 @@ func (r *run) assertWritePathsAreReal(outcome string) {
 		}
 	}
 	// The report is never legitimately a symlink, and `--force` does not override this. The write is a
-	// staged copy then rename, which replaces a link rather than following it — so what this catches is
-	// `--force` destroying whatever link the human left there, on a dangling one an existence test
-	// cannot even see.
+	// staged copy then rename, so it replaces a link instead of following it. What this catches is
+	// `--force` destroying whatever link the human left there — including a dangling one, which an
+	// existence test cannot even see.
 	if shell.IsSymlink(r.report) {
 		r.refuse("error: "+r.report+" is a symlink -> "+readLink(r.report)+" — "+outcome+".",
 			"  the report is always a regular file. Remove the link, then re-run.")

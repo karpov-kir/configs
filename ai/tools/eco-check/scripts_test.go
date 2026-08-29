@@ -89,11 +89,11 @@ func TestScriptTestPosition(t *testing.T) {
 	// passes. The control case comes first: without the hostile file, the finding must be there to
 	// lose.
 	t.Run("reports a named suite that is absent (control for the case below)", func(t *testing.T) {
-		newGhostSuiteScript(t, false).reports(missingTest)
+		newScriptNamingAnAbsentSuite(t).reports(missingTest)
 	})
 
 	t.Run("a newline in a filename cannot forge the suite that satisfies a header", func(t *testing.T) {
-		newGhostSuiteScript(t, true).reports(missingTest)
+		newScriptWhoseSuiteAFilenameForges(t).reports(missingTest)
 	})
 
 	t.Run("a suite name starting with a dash is still checked", func(t *testing.T) {
@@ -115,29 +115,32 @@ func TestScriptTestPosition(t *testing.T) {
 // a suite that does not exist, one step subtler, because the phase that runs it does find something.
 func TestANamedSuiteResolvesToAFileAndNotToABasename(t *testing.T) {
 	// The script naming the suite sits beside neither carrier, so only the basename connects them.
-	newSharedSuiteName := func(t *testing.T, withSecondCarrier bool) *fixture {
+	newSuiteNameOneLaneCarries := func(t *testing.T) *fixture {
 		f := newRoot(t)
 		f.newScript("one/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
-		if withSecondCarrier {
-			f.newScript("two/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
-		}
 		f.newScript("three/scripts/tool.sh", "#!/usr/bin/env bash\n# a change here needs a case in shared-test.sh\ntrue")
+		return f
+	}
+
+	newSuiteNameTwoLanesCarry := func(t *testing.T) *fixture {
+		f := newSuiteNameOneLaneCarries(t)
+		f.newScript("two/scripts/shared-test.sh", "#!/usr/bin/env bash\ntrue")
 		return f
 	}
 
 	// Without this the case below passes on a scan that calls every named suite ambiguous.
 	t.Run("accepts a suite name only one file answers to (control for the case below)", func(t *testing.T) {
-		newSharedSuiteName(t, false).doesNotReport(welded)
+		newSuiteNameOneLaneCarries(t).doesNotReport(welded)
 	})
 
 	t.Run("reports one two files answer to rather than picking either", func(t *testing.T) {
-		newSharedSuiteName(t, true).reports(welded)
+		newSuiteNameTwoLanesCarry(t).reports(welded)
 	})
 
 	// Not reported as missing: the name does answer to files, and a reader sent to write a suite that
 	// is already there twice would look for a defect that is not the one there is.
 	t.Run("and does not call that name missing", func(t *testing.T) {
-		newSharedSuiteName(t, true).doesNotReport(missingTest)
+		newSuiteNameTwoLanesCarry(t).doesNotReport(missingTest)
 	})
 
 	// The sibling is what "a case in <suite> beside it" names, so the tree answers which file was
@@ -272,13 +275,18 @@ func newCoveredScript(t *testing.T) *fixture {
 	return f
 }
 
-func newGhostSuiteScript(t *testing.T, forgeTheSuite bool) *fixture {
+func newScriptNamingAnAbsentSuite(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
 	f.newScript("tool.sh", "#!/usr/bin/env bash\n# a change here needs a case in ghost-test.sh\ntrue")
-	if forgeTheSuite {
-		f.newFileWithNewlineName(f.root+"/skills/x\nghost-test.sh", "not a suite", "the forged-suite-name case")
-	}
+	return f
+}
+
+// The same script, with a committed filename whose second line reads as the suite it names.
+func newScriptWhoseSuiteAFilenameForges(t *testing.T) *fixture {
+	t.Helper()
+	f := newScriptNamingAnAbsentSuite(t)
+	f.newFileWithNewlineName(f.root+"/skills/x\nghost-test.sh", "not a suite", "the forged-suite-name case")
 	return f
 }
 

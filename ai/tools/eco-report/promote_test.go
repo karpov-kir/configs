@@ -18,7 +18,7 @@ func TestCheckIgnoreHoldsBeforeQualifyReportsExists(t *testing.T) {
 	if !f.exists(f.repo+"/.idsd/qualify-reports") && f.runReportStdout("repo-mode") == "committed" {
 		f.runReport("check-ignore")
 		f.record("check-ignore passes in committed mode before qualify-reports/ is created",
-			f.status == 0, "exit "+itoa(f.status)+"\n"+f.out)
+			f.status == 0, f.evidence())
 	} else {
 		f.record("fixture is not a committed repo with qualify-reports/ absent", false, "")
 	}
@@ -30,9 +30,7 @@ func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 	// whose every file is ignored stages nothing and exits 0. With nothing else under .idsd/, reading
 	// success off that add leaves repo-mode still saying throwaway, and the next check-ignore
 	// re-excludes .idsd/, silently undoing the promotion.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-nothing-durable")
+	f := newShip(t, "001-nothing-durable")
 	f.runReport("promote")
 	f.assertRefused("promote refuses when everything under .idsd/ is ignored")
 	f.record("and the repo is still a throwaway, as the refusal says", f.runReportStdout("repo-mode") == "throwaway", "")
@@ -44,27 +42,25 @@ func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 	f.write(f.repo+"/.idsd/intents-placeholder.md", "# intent\n")
 	f.runReport("promote")
 	f.record("promote succeeds once .idsd/ holds something that is not ignored",
-		f.status == 0 && f.runReportStdout("repo-mode") == "committed", "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && f.runReportStdout("repo-mode") == "committed", f.evidence())
 
 	// Committed mode takes the other check-ignore branch entirely: the one that asks git rather than
 	// writing an exclusion, and the only one that can confirm the entry instead of creating it.
 	f.runReport("check-ignore")
 	f.record("committed mode confirms qualify-reports/ is gitignored",
-		f.status == 0 && strings.Contains(f.out, "gitignored"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && strings.Contains(f.out, "gitignored"), f.evidence())
 
 	// And the warning fires when it is not: the entry is what keeps a report out of `git add -A`.
 	f.write(f.repo+"/.gitignore", "")
 	f.runReport("check-ignore")
 	f.record("and warns when the entry is missing",
-		f.status == 1 && strings.Contains(f.out, "NOT gitignored"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "NOT gitignored"), f.evidence())
 }
 
 func TestNoRefusalLeavesIdsdExposedToGitAddAll(t *testing.T) {
 	t.Parallel()
 	// Without a restore on the `git add` refusal, the exclusion is gone and `git status` lists .idsd/.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-promoting")
+	f := newShip(t, "001-promoting")
 	f.newIntentFile("001-promoting")
 	f.write(f.repo+"/.git/index.lock", "")
 	f.runReport("promote")
@@ -86,9 +82,7 @@ func TestNoRefusalLeavesIdsdExposedToGitAddAll(t *testing.T) {
 func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 	t.Parallel()
 	// The mode decides whether .idsd/ is durable, so every caller that acts on it owes the check.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-modes")
+	f := newShip(t, "001-modes")
 	if f.madeUnreadable(f.repo+"/.git/index", "the unreadable-index cases") {
 		// Again the message rather than the exit: without the assertion both subcommands still exit 2,
 		// because a later git call fails on the same unreadable index. Only the message tells the two
@@ -124,7 +118,7 @@ func TestCheckIgnoreRefusesWhenTheExclusionCannotBeWritten(t *testing.T) {
 	f.mkdirAll(f.repo + "/.git/info")
 	f.runReport("check-ignore")
 	f.record("and the same command succeeds once the exclude file can be written",
-		f.status == 0 && f.hasLocalExclusion(), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && f.hasLocalExclusion(), f.evidence())
 }
 
 func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
@@ -142,7 +136,7 @@ func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
 
 	f.runReport("promote")
 	f.record("promote reports the repo already committed and exits 0",
-		f.status == 0 && strings.Contains(f.out, "already committed"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && strings.Contains(f.out, "already committed"), f.evidence())
 	f.record("and stages nothing, leaving the human's index as it was",
 		f.indexState() == before, "before:\n"+before+"\nafter:\n"+f.indexState())
 }
@@ -153,9 +147,7 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	// that claim fails, each of which would otherwise be reported as a promotion that happened — a
 	// link that takes the write out of the repo, a write that cannot land, and an entry git does not
 	// act on. The last is the one that matters most: it leaves the report stageable.
-	linked := newRepo(t)
-	linked.runReport("check-ignore")
-	linked.runReport("init", "001-linked-gitignore")
+	linked := newShip(t, "001-linked-gitignore")
 	linked.newIntentFile("001-linked-gitignore")
 	outside := linked.base + "/outside.gitignore"
 	linked.write(outside, "# not the repo's\n")
@@ -169,9 +161,7 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 
 	// A write that cannot land, by construction rather than by a mode bit: .gitignore is a directory,
 	// so the append fails with EISDIR for every user, root included.
-	unwritable := newRepo(t)
-	unwritable.runReport("check-ignore")
-	unwritable.runReport("init", "001-unwritable-gitignore")
+	unwritable := newShip(t, "001-unwritable-gitignore")
 	unwritable.newIntentFile("001-unwritable-gitignore")
 	unwritable.mkdirAll(unwritable.repo + "/.gitignore")
 	unwritable.runReport("promote")
@@ -184,9 +174,7 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	// An entry written that git does not act on. The instance the guard names is a .gitignore git
 	// cannot read, which cannot be built without a mode bit; a nested negation reaches the same state
 	// by construction — the entry is in the root .gitignore and the surface is stageable anyway.
-	unread := newRepo(t)
-	unread.runReport("check-ignore")
-	unread.runReport("init", "001-negated")
+	unread := newShip(t, "001-negated")
 	unread.newIntentFile("001-negated")
 	unread.write(unread.repo+"/.idsd/.gitignore", "!qualify-reports/\n")
 	unread.runReport("promote")

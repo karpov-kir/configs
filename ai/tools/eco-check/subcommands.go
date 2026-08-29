@@ -6,10 +6,12 @@ package ecocheck
 // Two dispatch shapes are read here: a shell `case "${1:-}" in`, and a Go switch behind a stub that
 // execs a binary. A stub holds no `case` of its own, so covering the shell shape alone returns
 // nothing at all for it, which reads to every caller as a pass.
+//
 // Nothing below answers "no subcommands" by failing to find them: a stub that names a grammar it
 // cannot read the dispatch for is reported, never skipped.
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"regexp"
@@ -31,10 +33,55 @@ var (
 // rest are reported and NOT checked — an unchecked subcommand must never read as one with a call site.
 const subcommandCap = 256
 
+// How much of a wrapped `usage: <name> {…}` grammar is read. The stub is a file the reviewed branch
+// wrote, so an unterminated brace would otherwise collect the rest of it.
+const usageGrammarCap = 4096
+
+// One `<script> <subcommand>` the tree has to carry somewhere an agent reads.
+type callSite struct{ script, subcommand string }
+
 func (c *checker) scanSubcommandCallSites() {
-	type callSite struct{ script, subcommand string }
-	var wanted []callSite
-	queries := map[string]bool{}
+	c.indexScriptOwners()
+	c.reportWeldedScriptNames(c.scriptOwners)
+	wanted, queries := c.subcommandsToFind()
+	if len(queries) == 0 {
+		return
+	}
+	c.markCallSitesFound(queries)
+	for _, site := range wanted {
+		// A welded name is reported above rather than checked here: its call sites cannot be told
+		// apart, so both readings are wrong and neither is worth printing.
+		if len(c.scriptOwners[site.script]) != 1 {
+			continue
+		}
+		if !queries[site.script+" "+site.subcommand] {
+			c.add(shell.Oneline(c.scriptOwners[site.script][0]) + " subcommand with no call site: " + shell.Oneline(site.subcommand))
+		}
+	}
+}
+
+// Which file each script basename names. A call site is written the way an agent writes one —
+// `report.sh cadence`, or a path ending in that — so the *search* token has to be the basename, and it
+// is the one thing here a path cannot replace. What a path does replace is the attribution. Two
+// scripts under one basename have their dispatches read into a single set of names, and a call site
+// for either answers for both; naming the basename in the finding left a reader unable to tell which
+// file it was about.
+//
+// Filled in a pass of its own, ahead of the one that reports: every finding below reaches for the path
+// behind a basename, and a map still filling up while they do would answer differently depending on
+// walk order.
+func (c *checker) indexScriptOwners() {
+	c.scriptOwners = map[string][]string{}
+	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
+		base := shell.BaseName(script)
+		c.scriptOwners[base] = append(c.scriptOwners[base], script)
+	}
+}
+
+// Every subcommand each dispatch in the tree accepts, as the call sites they need and as the search
+// keys those call sites are found by.
+func (c *checker) subcommandsToFind() (wanted []callSite, queries map[string]bool) {
+	queries = map[string]bool{}
 	capped := 0
 	want := func(script string, subcommands []string) {
 		for _, subcommand := range subcommands {
@@ -50,66 +97,50 @@ func (c *checker) scanSubcommandCallSites() {
 			queries[key] = false
 		}
 	}
-	// A call site is written the way an agent writes one — `report.sh cadence`, or a path ending in
-	// that — so the *search* token has to be the basename, and it is the one thing here a path cannot
-	// replace. What a path does replace is the attribution: two scripts under one basename have their
-	// dispatches read into a single set of names, a call site for either then answers for both, and the
-	// finding named the basename, so a reader could not tell which file it was about.
-	//
-	// Which is why the owners are collected in a pass of their own, ahead of the one that reports:
-	// every finding below reaches for the path behind a basename, and a map still filling up while
-	// they do would answer differently depending on walk order.
-	c.scriptOwners = map[string][]string{}
-	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
+	for script, lines := range c.filesWithLines(c.root.Named(), "*.sh") {
 		base := shell.BaseName(script)
-		c.scriptOwners[base] = append(c.scriptOwners[base], script)
-	}
-	for _, script := range c.filesNamed(c.root.Named(), "*.sh") {
-		base := shell.BaseName(script)
-		lines, err := c.readLines(script)
-		if err != nil {
-			continue
-		}
 		want(base, dispatchLabels(lines))
 		want(base, c.toolSubcommands(base, lines))
 	}
-	c.reportWeldedScriptNames(c.scriptOwners)
 	if capped > 0 {
 		c.add(fmt.Sprintf("subcommand call-site scan is at its %d-subcommand bound: %d more were NOT checked",
 			subcommandCap, capped))
 	}
-	if len(queries) == 0 {
-		return
-	}
-	// One pass over the tree answers every subcommand. Walking it per label turns a script with many
-	// arms into many whole-tree walks.
+	return wanted, queries
+}
+
+// One pass over the tree answers every subcommand. Walking it per label turns a script with many arms
+// into many whole-tree walks.
+func (c *checker) markCallSitesFound(queries map[string]bool) {
 	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh", "*.yaml") {
+		// Bounded like every other read of a file the reviewed tree wrote — see shell.go's
+		// maxFileBytes. This pass reads whole files rather than lines, and it had no bound at all: a
+		// committed 600 MB standard took 1.27 GB resident here, twice the file, because the bytes
+		// were then copied into a string to search. Searched as bytes now, and reported rather than
+		// read when it is over the bound.
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		if info.Size() > maxFileBytes {
+			c.add(tooLargeToScan(shell.Oneline(file), info.Size(), "no call site in it was seen"))
+			continue
+		}
 		body, err := os.ReadFile(file)
 		if err != nil {
 			continue
 		}
-		text := string(body)
 		for query, seen := range queries {
-			if !seen && strings.Contains(text, query) {
+			if !seen && bytes.Contains(body, []byte(query)) {
 				queries[query] = true
 			}
 		}
 	}
-	for _, site := range wanted {
-		// A welded name is reported above rather than checked here: its call sites cannot be told
-		// apart, so both readings are wrong and neither is worth printing.
-		if len(c.scriptOwners[site.script]) != 1 {
-			continue
-		}
-		if !queries[site.script+" "+site.subcommand] {
-			c.add(shell.Oneline(c.scriptOwners[site.script][0]) + " subcommand with no call site: " + shell.Oneline(site.subcommand))
-		}
-	}
 }
 
-// The basenames more than one script in the tree carries. Silence here would be the mute the scan is
-// cheapest to buy: commit a second `report.sh` anywhere under the root and every subcommand of the
-// first stops being checked, while no other finding names either file. A narrowed scan reports that
+// The basenames more than one script in the tree carries. This is the cheapest way there is to mute
+// the scan: commit a second `report.sh` anywhere under the root and every subcommand of the first
+// stops being checked, while no other finding names either file. A narrowed scan reports that
 // it narrowed, and it names both files rather than choosing one — which was meant is not in the tree.
 //
 // The paths are the tree's own, so each is sanitised, and the printer bounds the line.
@@ -232,7 +263,7 @@ func usageSubcommands(base string, lines []string) []string {
 		// A space, so a wrapped alternative's two halves are two words and the first stays the
 		// subcommand rather than fusing with the previous line's argument grammar.
 		grammar += text + " "
-		if closed || len(grammar) > 4096 {
+		if closed || len(grammar) > usageGrammarCap {
 			break
 		}
 	}

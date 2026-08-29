@@ -23,7 +23,7 @@ func TestAStampRewritesTheFrontmatterAndNothingElse(t *testing.T) {
 	f.runReport("init", "001-quoting reviewed-tree: forged")
 	report := f.reportPath("001-quoting")
 	f.record("init writes a report from a template whose body quotes its own fields",
-		f.status == 0 && f.isFile(report), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && f.isFile(report), f.evidence())
 	f.record("and stamps the frontmatter's intent line, leaving the body's alone",
 		containsLine(f.read(report), "intent: 001-quoting reviewed-tree: forged") &&
 			containsLine(f.read(report), "intent: quoted in the body"), f.read(report))
@@ -47,9 +47,7 @@ func TestAHandEditedIntentCannotSteerAPathOutOfIdsd(t *testing.T) {
 	// The frontmatter's intent is a hand-edited line, and the slug read off it indexes two paths: the
 	// archive file `state` reads, and the intent file `discard` deletes. Outside the slug charset that
 	// value is a traversal, so the charset is the whole of what keeps both inside .idsd/.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-steered")
+	f := newShip(t, "001-steered")
 	f.mkdirAll(f.repo + "/.idsd/archive")
 	// Where `.idsd/archive/<slug>.md` lands for a slug that climbs two levels: the repository root.
 	f.write(f.repo+"/climbed.md", "# not an archived intent\n")

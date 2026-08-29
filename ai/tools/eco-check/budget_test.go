@@ -1,7 +1,6 @@
 package ecocheck_test
 
-// The always-loaded budget: which @imports resolve at the mount, which are refused and named, and the
-// bounds that keep a flood of tree-chosen findings from burying a graver one.
+// The always-loaded budget: which @imports resolve at the mount, and which are refused and named.
 
 import (
 	"fmt"
@@ -20,8 +19,7 @@ func TestImportResolvedAtTheMount(t *testing.T) {
 
 	// The pattern requires a non-word character before the `@`, and that character is a rune, not a
 	// byte. Cutting a fixed two carried the tail of a multi-byte one into the name: `é@alpha.md`
-	// resolved as `@alpha.md`, which is nowhere, and landed on the census line instead — where the
-	// shell's byte-wise awk had extracted `alpha.md` and counted it all along.
+	// resolved as `@alpha.md`, which is nowhere, and landed on the census line instead.
 	t.Run("counts an import behind a two-byte boundary rune", func(t *testing.T) {
 		newMultiByteBoundaryImport(t).doesNotReport(uncounted)
 	})
@@ -132,79 +130,21 @@ func TestImportResolvedAtTheMount(t *testing.T) {
 	t.Run("and carries no reason over to a name past the cap", func(t *testing.T) {
 		newCappedImportSpread(t).doesNotReport("not counted: d01.md")
 	})
+}
 
-	t.Run("shows a tampered-check finding through a flood of link findings", func(t *testing.T) {
-		f := newRoot(t)
-		var flood strings.Builder
-		for i := 1; i <= 300; i++ {
-			fmt.Fprintf(&flood, "[x](nope%d.md)\n", i)
-		}
-		f.write(f.root+"/kk-flavor/standards/flood.md", flood.String())
-		f.write(f.root+"/skills/notexec.sh", "#!/usr/bin/env bash\n")
-		f.reports("script not executable")
-	})
-
-	// `filler` is what makes the needle flood-only: `flavor mounted elsewhere` alone also matches the
-	// genuine rank-1 finding this fixture's $HOME may raise, and the assertion would then compare the
-	// real finding against itself.
-	t.Run("ranks a real finding above a flood whose link targets forge a mount finding", func(t *testing.T) {
-		f := newRoot(t)
-		f.write(f.root+"/skills/notexec.sh", "#!/bin/sh\necho hi\n")
-		f.chmod(f.root+"/skills/notexec.sh", 0o644)
-		var flood strings.Builder
-		for i := 1; i <= 300; i++ {
-			fmt.Fprintf(&flood, "[x](nope%03d flavor mounted elsewhere filler)\n", i)
-		}
-		f.write(f.root+"/kk-flavor/standards/flood.md", flood.String())
-		f.ranksAbove("script not executable", "flavor mounted elsewhere filler")
-	})
-
-	t.Run("surfaces the did-not-run guard under a flood that sorts ahead of it", func(t *testing.T) {
-		f := newRootWithSymlinkedFlavor(t)
-		var flood strings.Builder
-		for i := 1; i <= 300; i++ {
-			fmt.Fprintf(&flood, "[x](nope%03d.md)\n", i)
-		}
-		f.write(f.root+"/real-flavor/standards/flood.md", flood.String())
-		f.reports(neverRan)
-	})
-
-	t.Run("a newline in a committed path cannot start a forged finding line", func(t *testing.T) {
-		f := newRoot(t)
-		f.newFileWithNewlineName(f.root+"/kk-flavor/standards/a\nsyntax: FORGED.md",
-			"[x](nowhere.md)", "the forged-finding-line case")
-		forged, output := f.countLinesStartingWith("syntax: FORGED")
-		if forged != 0 {
-			t.Errorf("a committed path started %d forged finding line(s)\n%s", forged, indent(output))
-		}
-	})
-
-	t.Run("shows a syntax error under a flood of its own priority tier", func(t *testing.T) {
-		f := newRoot(t)
-		f.write(f.root+"/skills/broken.sh", "if then\n")
-		f.chmod(f.root+"/skills/broken.sh", 0o755)
-		for i := 1; i <= 300; i++ {
-			path := fmt.Sprintf("%s/skills/notexec%d.sh", f.root, i)
-			f.write(path, "#!/bin/sh\necho ok\n")
-			f.chmod(path, 0o644)
-		}
-		f.reports("syntax: ")
-	})
-
-	t.Run("shows a rank-1 finding under a flood of the gravest class", func(t *testing.T) {
-		newGravestClassFlood(t).reports(neverRan)
-	})
-
-	t.Run("and says how many of the flooding class it withheld", func(t *testing.T) {
-		newGravestClassFlood(t).reports("of this class, suppressed")
-	})
+// A root whose CLAUDE.md imports one name, plus the home its mount resolves at. What each case below
+// varies is only what it puts at that mount.
+func newRootImporting(t *testing.T, imported string) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.write(f.root+"/CLAUDE.md", "# Root\n\n@"+imported+"\n")
+	f.newHome()
+	return f
 }
 
 func newMountedImport(t *testing.T) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/CLAUDE.md", "# Root\n\n@FOO.md\n")
-	f.newHome()
+	f := newRootImporting(t, "FOO.md")
 	f.write(f.home+"/.claude/FOO.md", "one two three\n")
 	return f
 }
@@ -222,18 +162,14 @@ func newMultiByteBoundaryImport(t *testing.T) *fixture {
 
 func newTraversalImport(t *testing.T) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/CLAUDE.md", "# Root\n\n@../../escape.md\n")
-	f.newHome()
+	f := newRootImporting(t, "../../escape.md")
 	f.write(f.root+"/escape.md", "secret words here\n")
 	return f
 }
 
 func newSubdirectoryImport(t *testing.T) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/CLAUDE.md", "# Root\n\n@dir/file.md\n")
-	f.newHome()
+	f := newRootImporting(t, "dir/file.md")
 	f.mkdirAll(f.home + "/.claude/dir")
 	f.write(f.home+"/.claude/dir/file.md", "one two three\n")
 	return f
@@ -241,19 +177,23 @@ func newSubdirectoryImport(t *testing.T) *fixture {
 
 func newSymlinkedImport(t *testing.T) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/CLAUDE.md", "# Root\n\n@FOO.md\n")
-	f.newHome()
+	f := newRootImporting(t, "FOO.md")
 	f.write(f.base+"/linked.md", "one two three\n")
 	f.symlink(f.base+"/linked.md", f.home+"/.claude/FOO.md")
 	return f
 }
 
+// The `isReadable` limb of the import refusal: a file at the mount this process cannot open. Root
+// reads a mode-000 file regardless of the mode, and nothing else builds this condition — every other
+// way of making the read fail (a missing path, a directory, a symlink) is refused by an earlier limb
+// and never reaches this one. So the case declines rather than asserting against a file the tool
+// reads happily.
 func newUnreadableImport(t *testing.T) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/CLAUDE.md", "# Root\n\n@FOO.md\n")
-	f.newHome()
+	if !modeDeniesRead(t) {
+		t.Skip("this process reads a mode-000 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable file at the mount cannot be built here")
+	}
+	f := newRootImporting(t, "FOO.md")
 	f.write(f.home+"/.claude/FOO.md", "one two three\n")
 	f.chmod(f.home+"/.claude/FOO.md", 0o000)
 	return f
@@ -272,16 +212,5 @@ func newCappedImportSpread(t *testing.T) *fixture {
 	claudeMd.WriteString("@../x.md\n@d01.md\n")
 	f.write(f.root+"/CLAUDE.md", claudeMd.String())
 	f.write(f.home+"/.claude/d01.md", "one\n")
-	return f
-}
-
-func newGravestClassFlood(t *testing.T) *fixture {
-	t.Helper()
-	f := newRootWithSymlinkedFlavor(t)
-	for i := 1; i <= 120; i++ {
-		path := fmt.Sprintf("%s/skills/broken%d.sh", f.root, i)
-		f.write(path, "if then\n")
-		f.chmod(path, 0o755)
-	}
 	return f
 }

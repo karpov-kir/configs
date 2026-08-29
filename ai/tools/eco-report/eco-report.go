@@ -123,6 +123,9 @@ type run struct {
 	stageReturnsDir string
 
 	ambiguousNames string
+	// Files in qualify-reports/ whose name is not a slug, counted by the last reportNames call so a
+	// caller can say it listed fewer reports than the directory holds.
+	unnameableReports int
 	// One fingerprint per invocation. `list` scores every report against the same working tree, so
 	// the walk currentTree does is the same walk each time.
 	cachedTree string

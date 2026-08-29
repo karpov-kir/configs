@@ -5,6 +5,7 @@ package ecoreport_test
 // continue` starts a fresh one over live work.
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -13,9 +14,7 @@ func TestADotNamedReportIsInvisibleToEveryDiscoveryPath(t *testing.T) {
 	// `init` refuses a leading dot rather than sanitising one, and that refusal is worth something only
 	// while the listing really cannot see such a file. Both plants below are made by hand, since `init`
 	// is exactly what will not create them.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-the-only-ship")
+	f := newShip(t, "001-the-only-ship")
 	f.write(f.repo+"/.idsd/qualify-reports/.hidden-qualify-report.md", "---\nintent: 002-hidden\n---\n")
 	// A directory named like a report is the other thing the listing must not take for one.
 	f.mkdirAll(f.repo + "/.idsd/qualify-reports/003-a-directory-qualify-report.md")
@@ -28,7 +27,7 @@ func TestADotNamedReportIsInvisibleToEveryDiscoveryPath(t *testing.T) {
 	// way a ship stops being reachable, and the one a human meets first.
 	f.runReport("state")
 	f.record("and the one report still resolves without being named",
-		f.status == 0 && f.out == "resume", "exit "+itoa(f.status)+"; said '"+f.out+"'")
+		f.status == 0 && f.out == "resume", "exit "+strconv.Itoa(f.status)+"; said '"+f.out+"'")
 }
 
 func TestASubcommandRefusesAnIntentNameThatCouldNameNoReport(t *testing.T) {
@@ -36,9 +35,7 @@ func TestASubcommandRefusesAnIntentNameThatCouldNameNoReport(t *testing.T) {
 	// The intent value reaches a path, so a name outside the slug charset has to be refused where it is
 	// resolved and not only where it is created: `init` guards its own, and every other subcommand takes
 	// the same value as its last argument.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-real")
+	f := newShip(t, "001-real")
 	for _, subcommand := range []string{"gate", "carry", "state", "close", "discard"} {
 		f.runReport(subcommand, "../../escaped")
 		f.assertRefused(subcommand + " refuses an intent name that could name no report")

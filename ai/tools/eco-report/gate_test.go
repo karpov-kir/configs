@@ -11,23 +11,21 @@ import (
 
 func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	t.Parallel()
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-gating")
+	f := newShip(t, "001-gating")
 	f.stampFullPass("001-gating")
 
 	// The clean gate first, because nothing below means anything without it: every block could be a
 	// gate that blocks on everything, and each case would pass on a gate that never let a merge through.
 	f.runReport("gate", "001-gating")
 	f.record("gate clears a full pass on a fresh tree with nothing open",
-		f.status == 0 && strings.Contains(f.out, "gate clean"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0 && strings.Contains(f.out, "gate clean"), f.evidence())
 
 	// The report is git-ignored, so editing it moves nothing the fingerprint reads: the freshness arm
 	// stays clear and each arm below is the only one that can block.
 	f.appendTo(f.reportPath("001-gating"), "- [ ] a decision nobody routed\n")
 	f.runReport("gate", "001-gating")
 	f.record("gate blocks on an open item, with no override",
-		f.status == 1 && strings.Contains(f.out, "open TODOs"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "open TODOs"), f.evidence())
 	f.assertReports("a decision nobody routed", "and prints the item it blocked on")
 	f.record("and does not also report itself clean", !strings.Contains(f.out, "gate clean"), f.out)
 	f.dropLines(f.reportPath("001-gating"), "- [ ] a decision")
@@ -38,11 +36,11 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.replaceLine(f.reportPath("001-gating"), "reviewed-stages:", "reviewed-stages: <stages>")
 	f.runReport("gate", "001-gating")
 	f.record("gate blocks on a report carrying the template's stage placeholder",
-		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), f.evidence())
 	f.dropLines(f.reportPath("001-gating"), "reviewed-stages:")
 	f.runReport("gate", "001-gating")
 	f.record("and on a report carrying no stage line at all",
-		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), f.evidence())
 
 	// A scan that did not run is not a scan that found nothing: read as one, a report still holding
 	// unrouted items passes the merge gate.
@@ -50,7 +48,7 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.chmod(f.todoGatePath(), 0o755)
 	f.runReport("gate", "001-gating")
 	f.record("gate blocks when the open-item scan did not run",
-		f.status == 1 && strings.Contains(f.out, "todo-gate.sh exited 3"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "todo-gate.sh exited 3"), f.evidence())
 }
 
 func TestATrimmedPassIsNotAFullOne(t *testing.T) {
@@ -58,9 +56,7 @@ func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	// `(fast)` is the one word that marks a stage trimmed for turnaround, which is why the vocabulary is
 	// closed rather than pattern-matched: any other word for the same trim would record a trimmed pass
 	// as a full one, and the merge gate reads that record.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-trimmed")
+	f := newShip(t, "001-trimmed")
 	f.runReport("invalidate", "001-trimmed")
 	// Every stage but the trimmed one is marked. A skipped entry is not required to have returned, and
 	// leaving security-review unmarked is what pins that.
@@ -70,14 +66,14 @@ func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	}
 	f.runReport("stamp", "code-review,security-review:skipped(fast),tighten,refactor,retro", "001-trimmed")
 	f.record("a stage skipped for turnaround stamps without having returned",
-		f.status == 0, "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 0, f.evidence())
 
 	f.runReport("state", "001-trimmed")
 	f.record("state answers finalize for a trimmed pass, never ready", f.out == "finalize", "said '"+f.out+"'")
 
 	f.runReport("gate", "001-trimmed")
 	f.record("gate blocks a pass trimmed for turnaround",
-		f.status == 1 && strings.Contains(f.out, "trimmed for turnaround"), "exit "+itoa(f.status)+"\n"+f.out)
+		f.status == 1 && strings.Contains(f.out, "trimmed for turnaround"), f.evidence())
 	f.assertReports("security-review:skipped(fast)", "and names the stage that was trimmed")
 }
 
@@ -85,13 +81,11 @@ func TestCarryPrintsTheItemsARequalifyMustNotLose(t *testing.T) {
 	t.Parallel()
 	// `carry` is what a re-qualify reads to keep the last pass's open items, and no copy of them is kept
 	// anywhere else. Printing nothing is indistinguishable from a report with nothing open.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.runReport("init", "001-carrying")
+	f := newShip(t, "001-carrying")
 	f.appendTo(f.reportPath("001-carrying"), "- [ ] an item the next pass must carry\n")
 	printed := f.runReportStdout("carry", "001-carrying")
 	f.record("carry prints the open items on stdout",
 		strings.Contains(printed, "an item the next pass must carry"), "stdout was: "+printed)
 	f.runReport("carry", "001-carrying")
-	f.record("and exits 0 having printed them", f.status == 0, "exit "+itoa(f.status)+"\n"+f.out)
+	f.record("and exits 0 having printed them", f.status == 0, f.evidence())
 }
