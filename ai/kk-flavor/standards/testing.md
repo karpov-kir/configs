@@ -84,12 +84,12 @@ Four outcomes, and the suite declares which one it is:
 | ran, declined named cases | its counts, `<K> skipped` above 0 | 0 while `M` is 0 |
 | did not measure | why, on stderr; no summary line | 2 |
 
-**The skipped field is conditional, and its presence is the information.** A suite holding cases it can decline must report the count — without it, two machines that checked different sets print the same line, which is the difference this section exists to make visible. A suite where every case runs everywhere reports two fields, and that is an assertion rather than an omission: it says there are no conditional cases. A permanent `0 skipped` on such a suite is a number that can never read otherwise, and a gate keying off it learns as little as the reader does.
+**The skipped field is conditional, and its presence is the information.** A suite where every case runs everywhere reports two fields, and that is an assertion rather than an omission: it says there are no conditional cases.
 
 **A suite must not carry a counter it never increments.** That is the general rule the skipped field is one instance of, and the one worth grepping for: a `record_skip` defined once and called nowhere, behind a field that can only ever print `0`, is decoration wearing the shape of a measurement — the same defect as a case that cannot fail, one level up.
 
-**Exit 2 means the measurement did not happen, and a caller may never read it as a pass.** A suite that cannot reach its fixtures, the script it covers, or any case at all exits 2 and says which — the same reading the ecosystem's checks give the code. A suite that gets partway and then loses a fixture exits 2 as well, and prints no summary line: the passes already behind it are real, and the run they belong to is still not a result. Exiting 1 there would say the code under test is broken, which is a different claim and a false one.
+**Exit 2 means the measurement did not happen, and a caller may never read it as a pass.** A suite that cannot reach its fixtures, the script it covers, or any case at all exits 2 and says which. A suite that gets partway and then loses a fixture exits 2 as well, and prints no summary line: the passes already behind it are real, and the run they belong to is still not a result. Exiting 1 there would say the code under test is broken, which is a different claim and a false one.
 
 **Zero passed and zero skipped is vacuous, and a gate fails it**: the suite ran, claimed success and asserted nothing. **Zero passed with a skip count is a different fact** — the cases are there and this machine declined them.
 
-**A skip names the case and states why**, because the alternative is two machines checking different sets and reporting the same thing. Whether a permission fixture denies this process is one such difference (§4).
+**A skip names the case and states why.** Whether a permission fixture denies this process is one such reason (§4).
