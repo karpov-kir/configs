@@ -232,8 +232,8 @@ expect_not_out "and is not rewritten" "repointed $home/.claude/skills/$(basename
 
 # --- a stale symlink ------------------------------------------------------------------------------
 
-# A symlink carries no data of its own, so repointing one loses nothing — this is the single case
-# where writing over an existing target is correct, and it is what an older layout leaves behind.
+# A symlink carries no data of its own, so repointing one loses nothing — this is the only target a
+# link may be written over, and a stale one is what an older layout leaves behind.
 fresh_home
 mkdir -p "$home/.config"
 fixture_link "$tmp/somewhere-else" "$home/.config/nvim"
@@ -241,6 +241,45 @@ run_boot "$home"
 expect_status "a stale symlink does not refuse" 0
 expect_link_to "and is repointed at the repository" "$home/.config/nvim" "$here/nvim"
 expect_out "and says so rather than reporting ok" "repointed $home/.config/nvim"
+
+# --- the file this repository writes rather than links ---------------------------------------------
+
+# `~/.claude/RTK.md` is imported into every session by ai/CLAUDE.md, so its body is always-loaded
+# context. `rtk init -g` writes its own longer template there and rewrites it on every run, so the
+# property under test is not that the file exists — it is that whatever was there is the repository's
+# copy afterwards.
+fresh_home
+run_boot "$home"
+expect_status "a fresh home installs the import's file and exits 0" 0
+expect_file_body "RTK.md is written from the repository" "$home/.claude/RTK.md" "$(cat "$here/ai/RTK.md")"
+[ -f "$home/.claude/RTK.md" ] && [ ! -L "$home/.claude/RTK.md" ] &&
+  record_pass "and as a real file, which is the shape the always-loaded budget can count" ||
+  record_fail "and as a real file, which is the shape the always-loaded budget can count" "it is a symlink or absent"
+
+run_boot "$home"
+expect_out "a second run reports it as already ok" "  ok       $home/.claude/RTK.md"
+expect_not_out "and rewrites nothing" "wrote    $home/.claude/RTK.md"
+
+# The case the step exists for. Every other target holding a body this script did not write is a
+# refusal; this one is generated text whose author this repository has taken over, so it is replaced.
+fixture_write "$home/.claude/RTK.md" 'the template rtk init -g writes, at five times the length'
+run_boot "$home"
+expect_status "a foreign body at the mount does not refuse" 0
+expect_file_body "and is replaced by the repository's copy" "$home/.claude/RTK.md" "$(cat "$here/ai/RTK.md")"
+expect_out "and says it wrote rather than reporting ok" "wrote    $home/.claude/RTK.md"
+
+# A symlink at an import's mount is refused by the always-loaded budget, which then names the file and
+# stops counting it — so the tier goes unmeasured while every report still reads clean. This script
+# must neither create one nor pass over one silently.
+fresh_home
+mkdir -p "$home/.claude"
+fixture_link "$here/ai/RTK.md" "$home/.claude/RTK.md"
+run_boot "$home"
+expect_status "a symlink at the mount exits 1" 1
+expect_out "and says why a link is the wrong shape there" "an import's mount must be a real file"
+[ -L "$home/.claude/RTK.md" ] &&
+  record_pass "and the link is left for the human rather than deleted" ||
+  record_fail "and the link is left for the human rather than deleted" "it was removed"
 
 # --- --dry-run ------------------------------------------------------------------------------------
 
@@ -250,7 +289,8 @@ fresh_home
 run_boot "$home" --dry-run
 expect_status "--dry-run exits 0" 0
 expect_out "and says what it would do" "would link"
-[ ! -e "$home/.kk-flavor" ] && [ ! -e "$home/.config" ] &&
+expect_out "including the file it would write rather than link" "would write $home/.claude/RTK.md"
+[ ! -e "$home/.kk-flavor" ] && [ ! -e "$home/.config" ] && [ ! -e "$home/.claude" ] &&
   record_pass "--dry-run creates nothing at all" ||
   record_fail "--dry-run creates nothing at all" "something was written under $home"
 
@@ -277,7 +317,9 @@ expect_out "and names the option it rejected" "--not-a-flag"
 # this script, which is the loop the guard exists to close.
 verify_repo="$tmp/verify-repo"
 mkdir -p "$verify_repo/ai/skills/a-skill" "$verify_repo/ai/kk-flavor"
+# The two files under ai/ this script reads by name: the one it links, and the one it writes.
 : >"$verify_repo/ai/CLAUDE.md"
+: >"$verify_repo/ai/RTK.md"
 for name in zsh git ghostty lazygit nvim zellij starship; do
   ln -s "$here/$name" "$verify_repo/$name"
 done

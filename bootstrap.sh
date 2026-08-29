@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Set this machine up from this repository: link every config into place, install what the links need,
-# register the MCP servers, then verify the result by running the repository's own suites.
+# restore the generated files this repository owns the contents of, register the MCP servers, then
+# verify the result by running the repository's own suites.
 #
 #   usage: bootstrap.sh [--dry-run] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-verify]
 #
@@ -11,7 +12,9 @@
 # It refuses rather than deletes. README.md's hand-run form is `rm -rf ~/.config/nvim && ln -s ...`,
 # which is fine when a human types it having just looked at the directory, and is data loss when a
 # script does it unattended on a machine that already had a real config there. A target this does not
-# already own is reported and skipped, and the run exits non-zero with the list.
+# already own is reported and skipped, and the run exits non-zero with the list. The one exception is
+# `~/.claude/RTK.md`, which holds generated text another tool rewrites unasked — the rtk step below
+# carries why that path is owned rather than refused.
 #
 # It reaches other scripts rather than reimplementing them: `ai/tools/install.sh` for the Go tool
 # binaries, `ai/mcp-sync.sh` for the MCP registry, `ai/run-tests.sh` to verify. Each of those owns its
@@ -43,7 +46,7 @@ for arg in "$@"; do
     --skip-mcp) skip_mcp=true ;;
     --skip-verify) skip_verify=true ;;
     -h | --help)
-      sed -n '3,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '3,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -170,6 +173,43 @@ else
       brew install --cask "$cask" >/dev/null || refuse "brew install --cask $cask failed"
     fi
   done
+fi
+
+# --- rtk ------------------------------------------------------------------------------------------
+
+# `~/.claude/RTK.md` is not a config this machine happens to hold: `@RTK.md` in ai/CLAUDE.md imports
+# it into every session, so its contents are always-loaded context, paid for on every task in every
+# project. `rtk init -g` writes its own template there — five times the lines — and rewrites it on
+# every re-run, so the trimmed version is not something a machine keeps by having once been given it.
+# This restores it, and a re-run after `rtk init -g` is what makes that self-healing.
+#
+# Copied rather than linked, unlike every target above. The always-loaded budget resolves that import
+# at the mount and refuses a symlink found there, leaving the file named but uncounted — so a link
+# would cost the measurement that the file exists to be measured by.
+#
+# Written over whatever is there, which is the one place this script overwrites data. That path holds
+# generated text with exactly two possible authors, rtk and this repository, and this repository is
+# now the one that owns it: the version to edit is ai/RTK.md, and a hand-edit at the mount is a change
+# the next `rtk init -g` would discard anyway.
+#
+# Unconditional, rather than gated on rtk being on PATH. The `@RTK.md` import is committed in
+# ai/CLAUDE.md whether or not this machine has rtk yet, so a probe would leave the import naming a
+# file this repository chose not to put there — and would make what every session loads depend on an
+# external command, which is the one thing here the suite could then no longer check.
+say "rtk"
+rtk_md="$HOME/.claude/RTK.md"
+if [ ! -f "$repo/ai/RTK.md" ]; then
+  refuse "$repo/ai/RTK.md is missing from the repository, so $rtk_md was left alone"
+elif [ -L "$rtk_md" ]; then
+  refuse "$rtk_md is a symlink — an import's mount must be a real file or it goes uncounted; move it aside, then re-run"
+elif cmp -s "$repo/ai/RTK.md" "$rtk_md"; then
+  say "  ok       $rtk_md"
+elif $dry_run; then
+  say "  would write $rtk_md from ai/RTK.md"
+elif mkdir -p -- "$HOME/.claude" && cp -- "$repo/ai/RTK.md" "$rtk_md"; then
+  say "  wrote    $rtk_md"
+else
+  refuse "could not write $rtk_md from $repo/ai/RTK.md"
 fi
 
 # --- the repository's own tools ------------------------------------------------------------------

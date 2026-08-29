@@ -24,7 +24,7 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
-**The sequence after the round may run streamed instead** — the stages queue patches as they find them and you apply each on arrival, the tier order deciding conflicts rather than the schedule. [streaming.md](streaming.md) is the whole delta for that path.
+**The sequence after the round may run streamed instead** — the stages queue patches as they find them and you apply each on arrival, the tier order deciding conflicts rather than the schedule. [streaming.md](streaming.md) → **A quality pass's tiers** names which of the stages below become tiers, in what order, and which mode it suits; that file is the whole delta for the path.
 
 ## Drive it before you review it
 
