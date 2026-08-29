@@ -1,6 +1,6 @@
-<!-- Fill the slots; add nothing else — extra content pre-selects which rules the stage applies. A lead
-     the orchestrator inferred is exactly that, however useful it looks. The handoff, patch-queue,
-     emphasis and tool-output slots are omitted entirely when empty. -->
+<!-- Fill the slots; add nothing else — what you add yourself pre-selects which rules the stage
+     applies. A lead the orchestrator inferred is exactly that, however useful it looks. The
+     handoff, patch-queue, emphasis and tool-output slots are omitted entirely when empty. -->
 
 Run the `<skill name>` skill in full, per its SKILL.md.
 
@@ -12,8 +12,8 @@ Patch queue: <the directory, and this stage's tier — naming it is what puts th
 
 Reached by a handoff from `<the skill whose edits opened this lane>`: return what you find and open no further lane (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
-User-stated emphasis (verbatim, only what the user said this run): <…>
+User-stated emphasis (the human's own words this run, verbatim, or the licence a standing instruction they invoked carries, quoted from the section that states it): <…>
 
 Deterministic tool output (passed verbatim as evidence): <…>
 
-You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your skill and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows your skill's own lens.
+You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your skill and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows your skill's own lens, and the emphasis slot above carries the human's authority, not your caller's inference.

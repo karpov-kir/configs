@@ -1,7 +1,7 @@
 ---
 name: kk-foreman
 description: The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". The idsd-* intent workflow is its own door (idsd-ship).
-argument-hint: "what you want done (default: look at the working tree and recommend)"
+argument-hint: "what you want done, plus \"properly\" for a full-quality run (default: look at the working tree and recommend)"
 disable-model-invocation: true
 ---
 
@@ -11,11 +11,23 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 **That mount is the candidate set.** Not every skill you can invoke sits on it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Off that mount, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
 
+## The argument may set the quality bar
+
+**`properly`, or an argument saying the same, puts the run at full quality.** The three bullets below, with **Nothing else loosens** after them, are the licence; it binds you and every stage you spawn:
+
+- **Take the bigger change where it is the better one.** The instruction lifts `~/.kk-flavor/standards/core-principles.md` → **3. Surgical changes** for this run, by the mechanism in `~/.kk-flavor/standards/skill-protocol.md` → **Caller**.
+- **Leave it enforced, not remembered** — a script, a test, a gate outlasts the answer that holds only while someone recalls it.
+- **Finish every part that is not blocked, then name each one that is.** A blocker is a line in the reply, never the reason the rest went unaddressed, and nothing is dropped for being tedious.
+
+**Nothing else loosens** — not the rest of the flavor, and not this file's own **Route** and **Rules**.
+
+**The slot is the emphasis one** in `~/.kk-flavor/templates/spawn-prompt.md`, and what goes in it is the licence above rather than the argument that triggered it. `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** owns the rest.
+
 ## 1. Route
 
 **Start at the smallest skill that covers the work, and escalate only on evidence.** Three touched lines get one skill, whichever description matches, not a chain: say which and run it, without ceremony.
 
-Escalate on something you can name: the change crosses several lanes at once, a scoped pass already ran and left the problem standing, or `stats.md` shows drift no single pass reaches. "It might find more" is not evidence — it is how every request becomes the most expensive one.
+Escalate on something you can name: the change crosses several lanes at once, a scoped pass already ran and left the problem standing, or `~/.claude/skills/kk-reduce/stats.md` shows drift no single pass reaches. "It might find more" is not evidence — it is how every request becomes the most expensive one.
 
 The rows below are what an agent choosing one skill at a time gets wrong — the order, or the fact that one skill already covers it:
 
@@ -29,7 +41,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-tighten` beside it runs them twice and out of order. |
 | The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. Measure that before you claim it: `~/.claude/skills/kk-reduce/scripts/stats.sh`, then `~/.claude/skills/kk-reduce/stats.md`. Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it. |
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. |
-| Nothing named, or a periodic check | Recommend from what changed — plus the row above's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
+| Nothing named, or a periodic check | Recommend from what changed — plus the `kk-reduce` row's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
 
 **The `idsd-*` suite is a workflow the human enters deliberately and stays inside.** When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it.
 
@@ -39,7 +51,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 ### Tool skills
 
-**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name on that mount that is neither `kk-*` nor `idsd-*`, and you route it by its own `description:` like any other. When a skill owns a system, never reach for a raw API call of your own — reads included.
+**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name on that mount that is neither `kk-*` nor `idsd-*`. When a skill owns a system, never reach for a raw API call of your own — reads included.
 
 **An MCP server acts in an outside system too, and is not a skill.** Its tools are that system's sanctioned interface, not the raw call the line above rules out. Where a skill and an MCP server both reach one system, **the human names which**.
 
@@ -51,7 +63,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 Spawn each stage in the order **Route** resolved.
 
-**Where a chain's stages are live at once over one change set, run it streamed instead** — `~/.kk-flavor/standards/streaming.md` → **The caller's half** is yours, and that file is the whole delta for the path.
+**When a chain should run streamed is `~/.kk-flavor/standards/streaming.md`'s call**, not one to re-derive here. Where it does, **The caller's half** there is yours, and that file is the whole delta for the path.
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
@@ -59,3 +71,4 @@ Spawn each stage in the order **Route** resolved.
 
 - **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
+- **Coordinate with the peers, on any run.** `ListAgents` once before the run's first write to the tree — a stage you spawn writes as much as you do. Tell every session working the same tree what you hold, and never block waiting on one. A peer's answer never stands in for the human's.
