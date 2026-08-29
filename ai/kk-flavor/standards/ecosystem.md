@@ -23,6 +23,8 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 
 **Ownership is stated in the owned file, never broadcast to the files that do not own it.**
 
+**A rule's home is the file whose reader would otherwise get it wrong** — not the file that proves it, and not the file that happens to depend on it.
+
 **The shared layer — a standard, a template under `kk-flavor/`, `CLAUDE.md` — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
 
 ## Conventions a new file joins

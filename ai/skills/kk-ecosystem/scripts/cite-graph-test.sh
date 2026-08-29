@@ -109,13 +109,35 @@ expect_out() {
   esac
 }
 
+# The report ends in a line of `<figure> <number>` pairs, and the number is the fact these cases are
+# for. Everything above that line explains what a figure means, and an explanation gets rewritten —
+# the DEPTH paragraph already has been. A case spelled against one of those sentences goes red when
+# the sentence improves, so it teaches the next writer to leave the wording alone. Read the number by
+# the name in front of it instead: that survives the rewrite and still goes red when the number moves.
+# Take the last occurrence, because a lower-bound warning on stderr names depth too and the trailer
+# is the end of the report.
+# An absent figure fails, and never reads as zero. That is what keeps the flat-tree case from passing
+# on a run that refused the tree instead of measuring it as flat.
+expect_figure() {
+  local name="$1" figure="$2" want="$3" tail got
+  tail=${out##*"$figure "}
+  if [ "$tail" = "$out" ]; then
+    record_fail "$name" "no '$figure' figure in the report, so nothing measured it — output: $out"
+    return
+  fi
+  got=${tail%%[!0-9]*}
+  [ -n "$got" ] && [ "$got" = "$want" ] &&
+    record_pass "$name" ||
+    record_fail "$name" "$figure is '${got:-not a number}', wanted $want — output: $out"
+}
+
 echo "cite-graph.sh"
 
 out=$(CDPATH= cd "$base" && "$script" "$root" 2>&1)
 status=$?
 expect_status "runs from an unrelated cwd and measures the tree" 0
-expect_out "and reports the chain depth the fixture holds" "longest chain is 2 hop(s)"
-expect_out "and reports the widest door surface" "widest door surface 2 section(s)"
+expect_figure "and reports the chain depth the fixture holds" depth 2
+expect_figure "and reports the widest door surface" "widest door surface" 2
 expect_out "and counts a file named whole as a precision citer, not a door" "1 precision citer(s)"
 expect_out "and names the section nothing enters" "$unentered_deep"
 expect_out "and reports the cycle" "$(printf '%s %s %s %s %s' "$consumer_name" "$arrow" "$deep_name" "$arrow" "$consumer_name")"
@@ -126,12 +148,12 @@ cp -R "$root" "$base/rôot with spaces"
 out=$("$script" "$base/rôot with spaces" 2>&1)
 status=$?
 expect_status "a root path holding a space and a non-ASCII character reaches the tool whole" 0
-expect_out "and measures that tree rather than another" "longest chain is 2 hop(s)"
+expect_figure "and measures that tree rather than another" depth 2
 
 out=$("$script" "$root/flat" 2>&1)
 status=$?
 expect_status "a root with markdown but no citation exits 0" 0
-expect_out "and reports a flat tree, which is a measurement and not a refusal" "longest chain is 0 hop(s)"
+expect_figure "and reports a flat tree, which is a measurement and not a refusal" depth 0
 
 out=$("$script" "$base/no-markdown" 2>&1)
 status=$?
