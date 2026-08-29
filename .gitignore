@@ -1,5 +1,5 @@
 .DS_Store
-ai/mcp.private.json
+ai/mcp.private*
 # Cross-repo state — a retro or ship run in any other repo writes here, because the skill directory
 # is the one path that is the same everywhere. Local scratch, never this repo's record.
 ai/skills/idsd-retro/findings.md

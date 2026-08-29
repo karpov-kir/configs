@@ -1,9 +1,34 @@
+// MCP servers for Claude Code's user scope. Edit here, then run ./mcp-sync.sh.
+// A comment has to own its whole line. mcp-sync.sh blanks any line starting with `//`, so a string
+// value that starts one gets blanked too. A `//` later in a line survives, and jq won't parse it.
+// URLs inside quotes are fine.
 {
   "mcpServers": {
+    // Both stdio servers run unpinned on purpose. Every launch takes the newest release, so code
+    // I haven't read runs at session start.
+    // `"env": {}` adds to the inherited environment rather than replacing it, so each server also
+    // sees every credential exported in the shell that launched Claude Code. Accepted on the same
+    // footing as the line above: closing it means an `env -i` wrapper per server, and the exposure
+    // that decides this is the unreviewed release, not what it can read once running.
+
+    // Launches a Chrome of its own, on a profile that persists between runs, one per project
+    // directory. It isn't a clean room: what I sign into there stays signed in. One browser at a
+    // time per profile, so two clients in one project conflict.
     "playwright": {
       "type": "stdio",
       "command": "mise",
       "args": ["exec", "node@lts", "--", "npx", "-y", "@playwright/mcp"],
+      "env": {}
+    },
+    // Drives the Chrome already running on this machine, my everyday profile and my open tabs. It
+    // needs Chrome's remote debugging switched on; README.md carries that step and the warning
+    // about leaving it on.
+    // --autoConnect asks for the connection once per server process, so it's one dialog per Claude
+    // Code session rather than one per tool call.
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "mise",
+      "args": ["exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect"],
       "env": {}
     },
     "amplitude": {
