@@ -68,7 +68,7 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 - **One group, `Decide`, holding `- [ ]` actions** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
 - **Score on the `report` lane.** What the threshold cuts gets no `- [ ]`, and no decision-log entry either — a question you still hold is barred from it by the rule **The decision log** already cites.
-- **The item's shape is the block above** — the markdown this file writes; the inversion it makes is licensed at `~/.claude/skills/kk-qualify/SKILL.md` → **The residue**.
+- **The item's shape is the block above** — the markdown this file writes; the inversion it makes is licensed at `~/.kk-flavor/standards/writing.md` → **Density**.
 - **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry <intent>` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Cases for todo-gate.sh. Its caller's side — that report.sh refuses rather than reading a failed scan
 # as clean — is pinned by eco-report's Go suite, which copies this script into each fixture and also
-# stubs it to exit 3. What that cannot reach, and what this file is for, is the scan itself: the
-# fence and comment awareness this script's header carried as owed.
+# stubs it to exit 3. What that cannot reach, and what this file is for, is the scan itself: fence and
+# comment awareness, section attribution, and both refusals.
 #
 # The pairing that matters is each ignored-context case with its negative control: the same checkbox
 # outside the fence has to be reported, or the case would pass against a script that found nothing
@@ -166,7 +166,7 @@ expect_status "two items in two sections exit 1" 1
 expect_out "and the first carries its own heading" "## First | - [ ] item in the first section"
 expect_out "and the second carries its own heading" "## Second | - [ ] item in the second section"
 
-# Indented items are still items — a nested checkbox under a bullet is how a sub-task is written.
+# Indented items are still items: a nested checkbox under a bullet is how a sub-task is written.
 run_over "## Follow-ups
 
 - something
