@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Cases for install.sh's decisions: which asset this machine needs, which tools a release carries, and
-# which hash each one is checked against. The download itself is a `gh` call against a real release
-# and is not faked here; install.sh's header says why.
+# Cases for install.sh's decisions: which asset this machine needs, which tools a release carries,
+# which hash each one is checked against, and whether it carries provenance. A faked `gh` answers
+# what this script asked for; what a real `gh release download` returns is not faked, and install.sh's
+# header says why.
 #
 # The controls that make the rest mean something: asset_suffix must FAIL on a platform the release
 # does not carry, and recorded_sha256 must return nothing for an absent name. Both would otherwise
@@ -56,6 +57,23 @@ expect_refusal() { # <name> <the wording only this cause produces>, over $status
       record_fail "$name" "a missing command produced this refusal, not '$want' — output: $out" ;;
     *"$want"*) record_pass "$name" ;;
     *) record_fail "$name" "wanted '$want' in: $out" ;;
+  esac
+}
+
+# bash 3.2 — macOS's own, and one leg of the gates workflow — mis-parses a `case` written inline in a
+# `$( )`, ending the substitution at the first pattern's `)`. A needle test that has to run inside one
+# goes through a function instead.
+held() { # <needle> <text> — 'held' when the text holds the needle, the whole text when it does not
+  case "$2" in
+    *"$1"*) printf 'held' ;;
+    *) printf '%s' "$2" ;;
+  esac
+}
+
+lacked() { # <needle> <text> — 'lacked' when the text is free of the needle, the whole text otherwise
+  case "$2" in
+    *"$1"*) printf '%s' "$2" ;;
+    *) printf 'lacked' ;;
   esac
 }
 
@@ -290,6 +308,119 @@ case "$out" in
   *"gh is not installed"*"resolve.sh"*) record_pass "and names the way out that needs no gh" ;;
   *) record_fail "and names the way out that needs no gh" "output: $out" ;;
 esac
+
+# The provenance gate. Every case above stops at the download, because the gh they drive fails on its
+# first call, so none of them reaches the attestation check and without what follows it is a changed
+# behaviour nothing runs.
+#
+# A gh that answers the download for real and then answers the attestation the way each case asks.
+# One line per invocation, because `--repo` reaches both calls and a case that only greps for it
+# cannot tell which one it found.
+release_gh="$base/release-gh"
+mkdir -p "$release_gh"
+# `if` rather than a `case` on $1: eco-check reads a column-0 `case "$1…"` in any .sh file as a
+# subcommand dispatch and asks the tree for a call site per arm, which a stub inside a heredoc can
+# never have.
+cat >"$release_gh/gh" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GH_CALL_LOG"
+if [ "$1 $2" = "release download" ]; then
+  dir="" prev=""
+  for arg in "$@"; do
+    if [ "$prev" = "--dir" ]; then dir="$arg"; fi
+    prev="$arg"
+  done
+  [ -n "$dir" ] || exit 1
+  for tool in $GH_STUB_TOOLS; do
+    printf 'fake %s binary\n' "$tool" >"$dir/$tool-$GH_STUB_SUFFIX"
+  done
+  (
+    cd "$dir" || exit 1
+    for file in *-"$GH_STUB_SUFFIX"; do
+      if command -v shasum >/dev/null 2>&1; then
+        printf '%s  ./%s\n' "$(shasum -a 256 "$file" | cut -d' ' -f1)" "$file"
+      else
+        printf '%s  ./%s\n' "$(sha256sum "$file" | cut -d' ' -f1)" "$file"
+      fi
+    done
+  ) >"$dir/SHA256SUMS"
+  exit 0
+fi
+if [ "$1 $2" = "attestation verify" ]; then
+  unattested=" ${GH_STUB_UNATTESTED:-} "
+  asked=" $(basename "$3") "
+  if [ "${unattested%"$asked"*}" != "$unattested" ]; then
+    echo "stub-gh: no attestation matching the artifact was found" >&2
+    exit 1
+  fi
+  exit 0
+fi
+exit 1
+FAKE
+chmod 755 "$release_gh/gh"
+
+stub_suffix="$(asset_suffix "$(uname -s)" "$(uname -m)")"
+
+# A fresh checkout per case, so "bin/ holds nothing" is this run's answer and not the previous one's.
+release_run() { # <label> <the asset basenames with no attestation>, over $out, $status, $bin, $log
+  local label="$1" unattested="$2" dir
+  dir="$base/release-$label"
+  bin="$dir/ai/tools/bin"
+  log="$base/gh-calls-$label"
+  mkdir -p "$dir/ai/tools" "$dir/.github/workflows"
+  cp "$here/install.sh" "$dir/ai/tools/install.sh"
+  chmod 755 "$dir/ai/tools/install.sh"
+  cp "$workflow" "$dir/.github/workflows/release-tools.yml"
+  (cd "$dir" && git init -q . && git remote add origin https://github.com/pinned/target.git) >/dev/null 2>&1
+  out=$(PATH="$release_gh:$PATH" GH_CALL_LOG="$log" GH_STUB_TOOLS="$tools" \
+    GH_STUB_SUFFIX="$stub_suffix" GH_STUB_UNATTESTED="$unattested" \
+    "$dir/ai/tools/install.sh" 2>&1)
+  status=$?
+}
+
+# The control the refusal below needs. Without a run that installs, "nothing was installed" passes on
+# any fixture broken enough to stop the script early, and the case name would still claim provenance.
+release_run attested ""
+if [ "$status" -eq 0 ]; then
+  record_pass "a release whose assets all carry an attestation installs"
+else
+  record_fail "a release whose assets all carry an attestation installs" "exit $status — output: $out"
+fi
+installed=""
+for tool in $tools; do
+  [ -x "$bin/$tool" ] || installed="$installed $tool"
+done
+expect_eq "and every shipped tool lands in bin/ executable" "$installed" ""
+# And the check really ran on that green run: one call per tool, each pinned to the same repository
+# the download was. A refusal proves nothing about a check that was never reached.
+#
+# The whole argv, anchored at both ends, because `--repo` alone leaves the signer unpinned — every
+# workflow in the repository that can request an id-token signs attestations gh would accept.
+# `--signer-workflow` is matched literally, so dropping it goes red here.
+expect_eq "control: one attestation check per tool, on the run that passed" \
+  "$(grep -c "^attestation verify .* --repo pinned/target --signer-workflow karpov-kir/configs/\.github/workflows/release-tools\.yml$" "$log")" \
+  "$(printf '%s\n' "$tools" | wc -l | tr -d ' ')"
+
+# One asset without an attestation, and the whole install stops — the same all-or-nothing the hash
+# loop already had, because resolve.sh prefers whatever binary it finds.
+unattested_tool="$(printf '%s\n' "$tools" | tail -1)"
+release_run unattested "$unattested_tool-$stub_suffix"
+expect_refusal "an asset with no attestation exits 2" "carries no provenance attestation"
+expect_eq "and names the tool it refused" \
+  "$(held "$unattested_tool-$stub_suffix carries no provenance" "$out")" "held"
+# gh's own reason, carried into the refusal rather than left to a re-run: it is the only thing in the
+# output that tells an unattested binary from an offline machine.
+expect_eq "and carries gh's own reason, since the staging path it names is already deleted" \
+  "$(held 'stub-gh: no attestation matching' "$out")" "held"
+# The one that matters: refused *before* anything became executable.
+if [ -n "$(ls -A "$bin" 2>/dev/null)" ]; then
+  record_fail "control: and nothing was installed" "bin/ holds $(ls -A "$bin" | tr '\n' ' ')"
+else
+  record_pass "control: and nothing was installed"
+fi
+# The hash passed on that run, so the attestation is what refused it and not a broken fixture.
+expect_eq "control: the hashes all matched, so it is provenance that refused" \
+  "$(lacked 'does not match its recorded hash' "$out")" "lacked"
 
 echo
 echo "$passed passed, $failed failed"

@@ -86,32 +86,91 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # What gives a stateless job a running count: each attempt writes its own entry under a key
+      # unique to it, and the next run restores the newest entry under the prefix. The count itself,
+      # and what it decides, are `ai/nomeasure-count.sh`'s. It lives in $HOME rather than the
+      # workspace, having no business in the checkout `shell-mutate.sh` runs the real suites against.
+      #
+      # `run_attempt` is in the key and not only `run_id`, because a re-run carries the same run_id and
+      # `actions/cache/save` will not overwrite a key that already exists. A re-run that finally
+      # measured would leave the previous attempt's count in the cache, and the escalation to exit 1
+      # would outlive the history that earned it, failing the job over runs that did measure.
+      #
+      # The ref is in the key so a run can only escalate on its own history. GitHub lets a pull-request
+      # restore reach the base branch's caches and the default branch's, so without it a PR would
+      # restore main's count and fail over a chain of runs that were never its own. `github.ref_name`
+      # is `<number>/merge` on a pull request, so what a PR accumulates is that PR's. The hole left is
+      # a ref whose name begins with another's plus a hyphen: with these triggers, a manual dispatch
+      # on a branch named `main-…`, which would read main's count.
+      #
+      # Entries are evicted after 7 days, so the count is recent history rather than the repository's.
+      - name: Restore the did-not-measure count
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/mutants-nomeasure
+          key: mutants-nomeasure-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: mutants-nomeasure-${{ github.ref_name }}-
+
       # Exit 2 is the harness reporting that a loaded machine killed mutants on its watchdog, not that
       # a guard failed to redden; its own header says not to read those as findings. So this warns
       # loudly and passes rather than turning machine load into a code defect — which is how a gate
       # gets `|| true`'d and stops gating. Exit 1, a guard that did not redden, fails.
+      #
+      # What a status does to the count, what a garbage count means and where the escalation sits are
+      # `ai/nomeasure-count.sh`'s, case by case in `nomeasure-count-test.sh`. What stays here is what
+      # only CI can do: run the harness, and put the verdict in the annotation and the step summary.
       - name: Prove the guards can fail
         run: |
           set +e
           ai/shell-mutate.sh
           status=$?
+          note="$(ai/nomeasure-count.sh "$status" "$HOME/mutants-nomeasure")"
+          verdict=$?
           set -e
-          if [ "$status" -eq 2 ]; then
-            # An annotation alone lives inside a log fold, and a job that warns-and-passes on a
-            # permanently slow runner would never measure and never say so — a green tick over a
-            # thing never reached. The step summary puts it on the run's face instead.
-            note="shell-mutate did not measure every guard on this runner. Nothing was proved for those, and this is not a pass for them."
+
+          if [ "$verdict" -eq 0 ]; then
+            exit "$status"
+          fi
+
+          # An annotation alone lives inside a log fold, and a job that warns-and-passes on a
+          # permanently slow runner would never measure and never say so — a green tick over a
+          # thing never reached. The step summary puts it on the run's face instead.
+          if [ "$verdict" -eq 1 ]; then
             echo "::warning::$note"
             {
               echo "### :warning: guards unproven on this run"
               echo
               echo "$note"
-              echo
-              echo "One did-not-measure is weather; several in a row is a signal worth acting on."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          exit "$status"
+
+          if [ "$verdict" -eq 3 ]; then
+            echo "::error::$note"
+            {
+              echo "### :x: guards unproven, and no longer weather"
+              echo
+              echo "$note"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Every verdict the script defines is handled above, so this arm is reached only when it did
+          # not decide: its own exit 2, or a 126/127 from a file that is missing or not executable.
+          # Falling through to the warn arm would pass the job on an empty note, which is the green
+          # tick over nothing this counter exists to stop.
+          echo "::error::nomeasure-count.sh exited $verdict without deciding, so this run says nothing about the guards and nothing about the count. The reason is in this step's log."
+          exit 1
+
+      # `always()`, or a run that escalates to exit 1 never saves the count that escalated and the
+      # next run starts from the entry before it — the counter would reset itself exactly when it
+      # first mattered.
+      - name: Save the did-not-measure count
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/mutants-nomeasure
+          key: mutants-nomeasure-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
   # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file

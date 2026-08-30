@@ -19,7 +19,9 @@
 # tested by: install-test.sh
 # untested: the download itself, which is a `gh release download` against a real release — faking gh
 # would only assert the fake, so run it and read what lands in bin/. Its argv is faked, because which
-# repository and tag this asks for is this script's decision rather than an answer from GitHub.
+# repository and tag this asks for is this script's decision rather than an answer from GitHub. What
+# happens to an asset once it lands is this script's decision too, so the hash and attestation checks
+# run against a faked download.
 set -uo pipefail
 
 # The tools a release carries. Read out of the workflow that builds them rather than restated here,
@@ -201,6 +203,22 @@ for tool in $tools; do
     die "no shasum or sha256sum on this machine, so $tool-$suffix could not be verified — nothing was installed"
   [ "$want" = "$got" ] ||
     die "$tool-$suffix does not match its recorded hash — nothing was installed"
+  # The hash and the attestation answer different questions. The hash proves the asset matches the
+  # SHA256SUMS shipped beside it, but whoever publishes a release publishes both, so an attacker's
+  # assets verify against the attacker's own list. Only the attestation, signed by GitHub against the
+  # release workflow's identity, says the binary came from here.
+  #
+  # `--repo` alone is not that identity: any workflow in the repository holding `id-token: write` can
+  # sign for it. `--signer-workflow` pins the file, and its value is the literal upstream path rather
+  # than one built from `$release_repo`. This is the trust anchor, so it must not move with whatever
+  # remote the checkout happens to have. A fork cutting its own release is refused here and builds
+  # from source through resolve.sh.
+  #
+  # gh's message goes into the refusal because there is no reading it afterwards: the asset sits in a
+  # staging directory the EXIT trap deletes, so re-running the command would only report a missing file.
+  attestation_error="$(gh attestation verify "$asset" --repo "$release_repo" \
+    --signer-workflow karpov-kir/configs/.github/workflows/release-tools.yml 2>&1 >/dev/null)" ||
+    die "$tool-$suffix carries no provenance attestation from $release_repo, or it could not be checked — nothing was installed. A release built before the release workflow attested, an offline or unauthenticated machine, and a substituted binary all land here; gh said: $attestation_error"
 done
 
 for tool in $tools; do

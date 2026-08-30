@@ -22,8 +22,14 @@ on:
       - "v*"
 
 # The upload needs to write release assets. Nothing here reads another repository.
+#
+# `id-token: write` and `attestations: write` are the two widest permissions here, and they exist to
+# let the attest step below sign for what it built. install.sh refuses a binary without that
+# signature, so dropping either of them breaks every install.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release-tools:
@@ -81,6 +87,18 @@ jobs:
           # Named by basename so the file verifies from whatever directory the assets land in.
           (cd dist && sha256sum ./* > SHA256SUMS)
           ls -l dist
+
+      # Before the upload, so a failure here means no release rather than a release nothing can
+      # verify. `dist/*` and not just the binaries: SHA256SUMS is the file every hash is read from,
+      # so it is the one input an attacker most wants to swap.
+      #
+      # The signing identity is this workflow, and install.sh pins it by literal path with
+      # `--signer-workflow`. Renaming or moving this file breaks every install until that pin
+      # follows it.
+      - name: Attest what was built
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: ai/tools/dist/*
 
       # `create` when the tag has no release yet, `upload --clobber` when it does — the tag can be
       # pushed before or after the release is drafted, and re-running this workflow must not fail on

@@ -5,20 +5,26 @@
 {
   "mcpServers": {
     // Both stdio servers run unpinned on purpose. Every launch takes the newest release, so code
-    // I haven't read runs at session start.
-    // `"env": {}` adds to the inherited environment rather than replacing it, so each server also
-    // sees every credential exported in the shell that launched Claude Code. Accepted on the same
-    // footing as the line above: closing it means an `env -i` wrapper per server, and the exposure
-    // that decides this is the unreviewed release, not what it can read once running.
+    // I haven't read runs at session start. That much is accepted; what it can read is not.
+    // Both launch through mcp-env.sh, which re-execs behind `env -i` and passes only the variables a
+    // node process needs to start. The allow-list, and the reason for each name, live in that file.
+    // `"env": {}` would not do it: that adds to the inherited environment rather than replacing it,
+    // so a server still sees every credential exported in the shell that started Claude Code.
+    // Measured on Claude Code 2.1.247, not inferred: `claude mcp list` launches each stdio server to
+    // health-check it, so one whose command dumps `env` reports what it was handed. `"env": {}` and
+    // no `env` key at all handed it the same environment, an exported test variable included, and
+    // `{"X": "y"}` handed it that same environment plus X — which is what rules out the field being
+    // ignored outright.
+    // `@CONFIGS@` is this directory. mcp-sync.sh substitutes it at registration, because the path
+    // differs per machine and this file is committed.
 
     // Launches a Chrome of its own, on a profile that persists between runs, one per project
     // directory. It isn't a clean room: what I sign into there stays signed in. One browser at a
     // time per profile, so two clients in one project conflict.
     "playwright": {
       "type": "stdio",
-      "command": "mise",
-      "args": ["exec", "node@lts", "--", "npx", "-y", "@playwright/mcp"],
-      "env": {}
+      "command": "@CONFIGS@/mcp-env.sh",
+      "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "@playwright/mcp"]
     },
     // Drives the Chrome already running on this machine, my everyday profile and my open tabs. It
     // needs Chrome's remote debugging switched on; README.md carries that step and the warning
@@ -27,9 +33,8 @@
     // Code session rather than one per tool call.
     "chrome-devtools": {
       "type": "stdio",
-      "command": "mise",
-      "args": ["exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect"],
-      "env": {}
+      "command": "@CONFIGS@/mcp-env.sh",
+      "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect"]
     },
     "amplitude": {
       "type": "http",
