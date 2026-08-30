@@ -40,12 +40,7 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 			file := shell.Join(s.root.Flavor(), target)
 			switch {
 			case !shell.PathExists(file) && !shell.IsSymlink(file):
-				// Sanitised like every other name from the tree: the Read-always list is
-				// attacker-authored when this runs over a branch someone else wrote, and an ESC byte
-				// in a link target erases whatever this message was printed beside. ecocheck puts the
-				// same name through Oneline where it reports the same missing target.
-				fmt.Fprintf(errOut, "stats.sh: inject.md lists '%s' under Read always, but %s does not exist\n",
-					shell.Oneline(target), shell.Oneline(file))
+				s.absentOrOutOfReach(errOut, target, file)
 			case !s.root.Contains(file):
 				s.refuseBudgetFile(errOut, "inject.md Read-always target "+target)
 			default:
@@ -72,11 +67,29 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 	return files
 }
 
+// How this tool reports a Read-always target that is absent, and how it reports one out of reach.
+// Which of the two a failed existence test means is ecoroot.AbsentOrOutOfReach's, because ecocheck
+// asks the same question about the same tree and the two may not answer it differently; only the
+// wording below is this tool's.
+//
+// Every name here is sanitised like the rest: the Read-always list is attacker-authored when this runs
+// over a branch someone else wrote, and an ESC byte in a link target erases whatever this message was
+// printed beside. ecocheck puts the same name through Oneline where it reports the same missing target.
+func (s *stats) absentOrOutOfReach(errOut io.Writer, target, file string) {
+	isAbsent, reason := ecoroot.AbsentOrOutOfReach(file)
+	if isAbsent {
+		fmt.Fprintf(errOut, "stats.sh: inject.md lists '%s' under Read always, but %s does not exist\n",
+			shell.Oneline(target), shell.Oneline(file))
+		return
+	}
+	s.refuseBudgetFile(errOut, fmt.Sprintf("inject.md Read-always target %s: %s", target, reason))
+}
+
 func (s *stats) refuseBudgetFile(errOut io.Writer, name string) {
 	s.budgetRefusals++
 	if s.budgetRefusals <= budgetRefusalCap {
 		fmt.Fprintf(errOut, "stats.sh: budget file refused (symlink, unreadable, or resolves outside %s) — not read, not counted: %s\n",
-			s.root.Named(), shell.CutBytes(shell.Oneline(name), 80))
+			s.root.Named(), shell.CutBytesMarked(shell.Oneline(name), 80))
 	} else if s.budgetRefusals == budgetRefusalCap+1 {
 		fmt.Fprintln(errOut, "stats.sh: further budget-file refusals suppressed; the count in the exit message is the total")
 	}
@@ -94,13 +107,13 @@ func (s *stats) resolveImports(budget []string, errOut io.Writer) {
 		Files: budget,
 		Read:  func(path string) ([]string, error) { return s.readTreeLines(path, errOut), nil },
 		Resolved: func(target string) {
-			words := wordsInFile(target)
+			words := s.wordsInFile(target, errOut)
 			s.alwaysLoadedWords += words
 			s.importResolvedWords += words
 		},
 		Refused: func(name, reason string) {
 			fmt.Fprintf(errOut, "stats.sh: import refused (%s), named but not counted: %s\n",
-				reason, shell.CutBytes(shell.Oneline(name), 80))
+				reason, shell.CutBytesMarked(shell.Oneline(name), 80))
 		},
 	})
 }
@@ -134,7 +147,7 @@ func (s *stats) mountedOutside(errOut io.Writer) {
 		if s.root.HoldsSkillFile(file) {
 			continue
 		}
-		lines := s.readTreeLines(file, errOut)
+		lines := s.readOutsideLines(file, errOut)
 		if shell.IsOptedOutOfModelInvocation(lines) {
 			continue
 		}

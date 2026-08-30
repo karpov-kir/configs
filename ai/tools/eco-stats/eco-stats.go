@@ -63,10 +63,21 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "stats.sh: measured 0 words of prose under %s — the scan did not work\n", s.root.Named())
 		return 2
 	}
-	// Reported before the refusal below, not after it: prose, scripts, the ledger and skills all
+	// Reported before the refusals below, not after them: prose, scripts, the ledger and skills all
 	// measured, and withholding four sound figures to protect the one short figure leaves the caller
-	// nothing to read at all. The always-loaded line states its own shortfall.
+	// nothing to read at all. Each short figure states its own shortfall on the line that carries it.
 	s.report(out)
+
+	// A path the run could not read at all — a directory it could not list, a file it could not open.
+	// Wider than the budget refusal below, which is one tier short: this shortens prose, scripts and the
+	// census alike, and nothing here can say by how much. One `chmod 000` on `kk-flavor/standards/`
+	// moved prose from 32714 words to 20633 and the always-loaded tier from 1695 to 962, printed both
+	// at full confidence and exited 0 — and every delta a later pass reads is taken off these rows.
+	if s.unreadable != 0 {
+		fmt.Fprintf(errOut, "stats.sh: %d path(s) %s could not be read above — exit 2, the figures are short by an unknown amount and no row was appended. Do not read this as no change.\n",
+			s.unreadable, s.unreadableWhere())
+		return 2
+	}
 
 	// The refusals were named above as they happened; this is the one place their count decides
 	// anything. No row is appended, because the always-loaded figure is short by an amount nothing

@@ -10,7 +10,8 @@
 # branch is what a release install lands on, and why installing these skills needs no Go toolchain.
 # ECO_TOOLS_BUILD=1 skips it. A prebuilt binary is preferred over source that may be newer because
 # git does not preserve mtimes, so a fresh clone would otherwise rebuild every tool on a machine with
-# no Go.
+# no Go. Whoever edits the Go pays for that: bin/ goes on serving the old bytes until it is rebuilt
+# with ECO_TOOLS_BUILD=1, and a run against a stale binary looks exactly like a run against the edit.
 #
 # Every failure exits 2 and names what did not happen. These tools report findings, so exit 0 with
 # none is what a clean tree looks like, and a tool that could not run must never reach a caller as
@@ -57,10 +58,12 @@ command -v go >/dev/null 2>&1 ||
 
 mkdir -p "$tools/bin" || die "cannot create $tools/bin, so $tool did NOT run"
 
-# A package directory holding cmd/ keeps its main there, so the library beside it can be driven by
-# the suite without a process per case.
+# A tool whose main lives under cmd/ keeps its library in `<tool>/`, so the suite can drive that
+# package without a process per case. One directory per tool under cmd/, never a `cmd/` inside each
+# tool: `go build -o <dir>/ ./...` names every binary after its own directory, so three mains in
+# directories all called `cmd` overwrite one another and the build stays green two tools short.
 package="./$tool/"
-[ -d "$tools/$tool/cmd" ] && package="./$tool/cmd/"
+[ -d "$tools/cmd/$tool" ] && package="./cmd/$tool/"
 
 # Built to a temp name and moved: `go build -o` writes in place, so two skills running at once would
 # let one exec what the other is half way through writing. The move stays in one directory, so atomic.

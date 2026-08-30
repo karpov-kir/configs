@@ -4,8 +4,9 @@
 #   usage: cite-graph.sh <root>
 #
 # <root> is the directory holding the `.md` tree to measure — exactly one, and every `.md` under it
-# is read. The report is four sections: DEPTH (the longest chain a consumer walks), FAN-OUT (per
-# file, door citers against precision citers), UNENTERED (sections nothing cites), and CYCLES.
+# is read. The report is four sections: DEPTH (the longest path through the graph, a coupling
+# measure and not hops any one consumer walks), FAN-OUT (per file, door citers against precision
+# citers), UNENTERED (sections nothing cites), and CYCLES.
 #
 # Every figure here is a finder, and none of them is a target. Each measures the tree through a
 # proxy, so moving a number and improving what agents read are different acts — a door count rises

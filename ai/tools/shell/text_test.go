@@ -1,9 +1,8 @@
 package shell_test
 
-// The first tests this package has had. Oneline is the guard every attacker-chosen name in both tools
-// passes through on its way to a message, so the cases below are written against what it promises a
-// reader — one physical line, and nothing that drives the terminal — rather than against how it walks
-// the bytes.
+// Oneline is the guard every attacker-chosen name in both tools passes through on its way to a
+// message, so the cases below are written against what it promises a reader — one physical line, and
+// nothing that drives the terminal — rather than against how it walks the bytes.
 
 import (
 	"reflect"
@@ -128,7 +127,7 @@ func TestOnelineSpacesAnOrphanedContinuationByteInTheC1Range(t *testing.T) {
 	}
 }
 
-// The bound is chosen, not missed: a bidi override neither splits a line nor drives the terminal, and
+// The bound stops at C1: a bidi override neither splits a line nor drives the terminal, and
 // mapping it to a space would corrupt a legitimate right-to-left name. A caller needing that needs a
 // different guard, not a wider one here.
 func TestOnelineLeavesBidiOverridesAndOrdinaryTextAlone(t *testing.T) {
@@ -172,13 +171,15 @@ func sameValues(got []string, want []string) bool {
 }
 
 // Each function below documents itself as a shell tool under LC_ALL=C, and that claim is the contract
-// these cases hold it to. The expectations were taken from the real tools once — `LC_ALL=C sort -u`
-// puts A and B before a and b; `LC_ALL=C wc -w` reads "a\u00a0b" as one word and "a\tb\vc\fd" as
-// four; `LC_ALL=C cut -c1-4` over two `→` returns four bytes and splits the second rune — and written
-// down here rather than re-derived by spawning those tools, because a fork per case is what made the
-// shell suite this package replaced too slow to run.
+// these cases hold it to, CutBytes excepted. The expectations were taken from the real tools once —
+// `LC_ALL=C sort -u` puts A and B before a and b; `LC_ALL=C wc -w` reads "a\u00a0b" as one word and
+// "a\tb\vc\fd" as four — and written down here rather than re-derived by spawning those tools: a fork
+// per case is what makes a suite too slow to run.
+//
+// CutBytes is the exception. `LC_ALL=C cut -c1-4` over two `→` returns four bytes and splits the
+// second rune, and the case below pins the opposite deliberately; its own comment says why.
 
-func TestCutBytesCutsBytesAndNotRunes(t *testing.T) {
+func TestCutBytesBoundsBytesWithoutHalvingARune(t *testing.T) {
 	cases := []struct {
 		name string
 		text string
@@ -190,9 +191,32 @@ func TestCutBytesCutsBytesAndNotRunes(t *testing.T) {
 		{"longer is cut to the bound", "abcdef", 3, "abc"},
 		{"a zero bound cuts everything", "abc", 0, ""},
 		{"the empty string survives any bound", "", 5, ""},
-		// `cut -c1-4` over "→→" returns 4 bytes, splitting the second rune. Bytes are the point: the
-		// bound is on what a terminal is asked to print, not on what a locale calls a character.
-		{"a multi-byte rune is split at the byte bound", "→→", 4, "→\xe2"},
+		// Deliberately not `cut`'s answer, which splits "→→" mid-rune and returns "→\xe2". Every
+		// message here is cut only after Oneline has run over it, and Oneline keeps a multi-byte
+		// character precisely because it carries a character rather than a control. Halving it hands
+		// the leading bytes on alone: for U+16C0 (e1 9b 80) a cut between the second and third byte
+		// leaves a bare 0x9b — CSI, the one byte Oneline exists to keep out of a message. Running
+		// second, the bound would re-admit what the sanitiser removed.
+		{"a rune the bound would halve is dropped, not split", "→→", 4, "→"},
+		{"the halved rune is dropped even when it is the only one", "→", 2, ""},
+		// Longer than the bound, with the bound landing exactly on a rune boundary. The obvious wrong
+		// fix — back off whenever the byte before the bound is a continuation byte — drops a whole
+		// rune here for nothing. A case using text no longer than the bound cannot catch that, because
+		// the early return answers it before any of this runs.
+		{"a rune ending exactly on the bound is kept whole", "→→→", 6, "→→"},
+		// The repair stops at dropping what this cut broke. A lead byte the text already carried is
+		// left where it is, the same way Oneline leaves a truncated one alone. One byte longer than the
+		// bound on purpose: at exactly the bound the early return answers the case before any of this
+		// runs, and a cut that repaired that byte would pass it too.
+		{"a byte the text already carried is left alone", "ab\xe2c", 3, "ab\xe2"},
+		// Four bytes, because the back-off window is the thing being pinned and every case above is
+		// satisfied by a window one byte too narrow. Narrow `cut-start < utf8.UTFMax` to `< 3` and the
+		// whole table above still passes while a 4-byte rune gets halved — CutBytes("🍦🍦", 7) returns
+		// "🍦\xf0\x9f\x8d", leaving a bare 0x9f standing. That is APC, inside the range Oneline strips,
+		// so the narrowed window re-admits exactly what the case two above argues against, one rune
+		// width up. TestOnelineLeavesMultiByteCharactersWhole already names the emoji as the
+		// highest-risk shape for the same reason; this is the CutBytes half of that pair.
+		{"a four-byte rune the bound would halve is dropped", "\U0001F366\U0001F366", 7, "\U0001F366"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -200,6 +224,88 @@ func TestCutBytesCutsBytesAndNotRunes(t *testing.T) {
 				t.Fatalf("CutBytes(%q, %d) = %q, want %q", c.text, c.n, got, c.want)
 			}
 		})
+	}
+}
+
+// The marking variant carries every promise CutBytes makes and one more: a result shorter than its
+// input says so. That extra promise is what a refusal's reason needs — `permission denied` cut to
+// `permission de` is not a shorter reason, it is a different and wrong one, and a message ending in
+// `: ` reads as no reason at all.
+func TestCutBytesMarkedSaysWhenItCut(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		n    int
+		want string
+	}{
+		// The unmarked half. Marking a string that was never cut would make every short reason read
+		// as a truncated one, which is the same lie the other way round.
+		{"shorter than the bound is untouched and unmarked", "abc", 10, "abc"},
+		{"exactly the bound is untouched and unmarked", "abc", 3, "abc"},
+		{"the empty string survives any bound unmarked", "", 5, ""},
+		// The marker is inside the bound, so what is kept is n minus its three bytes.
+		{"longer is cut and marked", "abcdefghij", 8, "abcde..."},
+		{"a bound with room for the marker alone keeps no text", "abcdef", 3, "..."},
+		// The rune rule survives the marker: the kept part is still CutBytes, so a rune the inner
+		// bound falls inside is dropped rather than halved. "→→→" is nine bytes; a bound of eight
+		// leaves five for the text, which lands inside the second rune.
+		{"a rune the bound would halve is still dropped, not split", "→→→", 8, "→..."},
+		// The same one rune width up, where a halving leaves a bare 0x9f — APC, inside the range
+		// Oneline strips. Twelve bytes under a bound of ten leaves seven for the text, which lands
+		// inside the second character.
+		{"a four-byte rune the bound would halve is still dropped", "\U0001F366\U0001F366\U0001F366", 10, "\U0001F366..."},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := shell.CutBytesMarked(c.text, c.n)
+			if got != c.want {
+				t.Fatalf("CutBytesMarked(%q, %d) = %q, want %q", c.text, c.n, got, c.want)
+			}
+			if len(got) > c.n {
+				t.Fatalf("CutBytesMarked(%q, %d) = %q, which is %d bytes — the bound is on the result, marker included",
+					c.text, c.n, got, len(got))
+			}
+		})
+	}
+}
+
+// The bound and the sanitising both have to hold across the whole range of cuts, not only at the
+// lengths a table happens to name. The text is one Oneline already passed, so a byte in the C1 range
+// appearing in the result can only have come from a rune this cut broke — which is the halving
+// CutBytes refuses, re-admitted by the marker's arithmetic.
+func TestCutBytesMarkedNeverBreaksTheBoundOrARune(t *testing.T) {
+	for _, text := range []string{"", "abc", "→→→", "\U0001F366\U0001F366\U0001F366", "ab→\U0001F366cd"} {
+		for n := len(shell.CutMarker); n <= len(text)+4; n++ {
+			got := shell.CutBytesMarked(text, n)
+			if len(got) > n {
+				t.Errorf("CutBytesMarked(%q, %d) = %q, %d bytes over the bound", text, n, got, len(got)-n)
+			}
+			body := strings.TrimSuffix(got, shell.CutMarker)
+			if !utf8.ValidString(body) && utf8.ValidString(text) {
+				t.Errorf("CutBytesMarked(%q, %d) = %q, which halves a rune the input carried whole", text, n, got)
+			}
+		}
+	}
+}
+
+// The marker's own contract, which is a property of the constant and of nothing else — so it is
+// asserted once here rather than once per (text, n) pair inside the sweep above, under a name that
+// says what it is about.
+//
+// A cut is announced by appending this to text that has already been through Oneline. A marker
+// carrying anything outside ASCII would put back at the announcement exactly what the sanitiser was
+// run to remove, and the byte doing it would be one no reader could see: the message would arrive
+// carrying a C1 byte that the whole cut exists to keep out.
+func TestCutMarkerCarriesNoByteOnelineStrips(t *testing.T) {
+	for i := 0; i < len(shell.CutMarker); i++ {
+		if shell.CutMarker[i] >= 0x80 {
+			t.Errorf("CutMarker carries 0x%02x — a marker outside ASCII can carry the C1 bytes Oneline strips", shell.CutMarker[i])
+		}
+	}
+	// The contract itself rather than the byte range that happens to satisfy it today: Oneline is what
+	// decides which bytes a message may carry, so ask it.
+	if got := shell.Oneline(shell.CutMarker); got != shell.CutMarker {
+		t.Errorf("Oneline rewrites the marker to %q, so a cut message would not carry the marker whole", got)
 	}
 }
 

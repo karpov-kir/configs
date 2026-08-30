@@ -19,8 +19,7 @@
 # of hiding inside it.
 #
 # CADENCE_UNDER_TEST names the file those copies are made from, so a mutation run can point the whole
-# suite at a deliberately broken copy and see which case goes red. That is how each case below is known
-# to be able to fail rather than assumed to be.
+# suite at a deliberately broken copy and see which case goes red.
 set -u
 
 here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
@@ -30,7 +29,14 @@ source_script="${CADENCE_UNDER_TEST:-$here/cadence.sh}"
   exit 2
 }
 
-base=$(mktemp -d) || exit 2
+# Exit 2, and it says why: a fixture root that cannot be created is a suite that did not measure,
+# which run-tests.sh counts apart from a failure. Exit 1 there would claim the script under test is
+# broken — a different claim, and a false one (`~/.kk-flavor/standards/testing.md` -> **7. What a
+# suite reports**).
+base=$(mktemp -d) || {
+  echo "cadence-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$base"' EXIT
 
 # The audit record is resolved through git, so the developer's own git config must not reach these
@@ -155,7 +161,7 @@ record_offer() {
   }
 }
 
-# `</dev/null` is a guard, not tidiness: a mutated copy that stops exiting where a case expects must
+# `</dev/null` is load-bearing: a mutated copy that stops exiting where a case expects must
 # fail the case rather than block on the terminal this suite inherited. A suite that hangs when a guard
 # is removed cannot prove that guard fires.
 run() {
@@ -232,6 +238,10 @@ new_skill
 run
 expect_status "no arguments exit 2" 2
 expect_out "and prints the usage naming the topics and actions" "usage: cadence.sh {retro|audit} {due|asked}"
+# The grammar alone presents `due` and `asked` as two spellings of one query, and a caller probing it
+# rewrites the record it was asking about. The warning is the only thing at the point of the mistake
+# that says so, so it is part of the contract rather than decoration.
+expect_out "and warns that asked writes where due only reads" "'asked' OVERWRITES it with today's date"
 
 run bogus due
 expect_status "an unknown topic exits 2" 2
@@ -374,9 +384,36 @@ expect_status "a record that cannot be written exits 2" 2
 expect_out "and says the offer was not recorded" "was NOT recorded"
 expect_out "and says what follows from that" "the next run will offer again"
 
+# --- the caller's environment, which decides where the record is ---
+
+# `cd` consults CDPATH whenever the path it is given is relative and does not begin with a dot, and
+# echoes where it landed when it used one — so the directory above the script comes back two lines
+# long and every path built from it names somewhere nobody looks. Driven by a relative invocation from
+# the directory above, the only shape that reaches CDPATH at all, and the shape a hand-run
+# `bash ai/skills/idsd-ship/scripts/cadence.sh retro due` from a checkout root has.
+#
+# Both directions, because the read and the write fail differently and neither one says so: an
+# unguarded `due` reports a record written today as never offered, and an unguarded `asked` prints
+# "recorded the retro offer" while creating a directory named after the corruption and leaving the
+# real record untouched.
+new_skill
+record_offer "$today"
+skill_root=$(dirname "$(dirname "$cadence")")
+out=$(cd "$skill_root" && CDPATH=. bash scripts/cadence.sh retro due </dev/null 2>&1)
+status=$?
+expect_status "CDPATH in the environment does not hide the record from a relative run" 1
+expect_out "and the elapsed count is measured from that record, not from nothing" "0 days ago"
+
+new_skill
+record_offer "$(shift_date -30)"
+skill_root=$(dirname "$(dirname "$cadence")")
+out=$(cd "$skill_root" && CDPATH=. bash scripts/cadence.sh retro asked </dev/null 2>&1)
+status=$?
+expect_file_holds "and a relative run under CDPATH records into the file the reader looks in" "$retro_state" "$today"
+
 # --- audit: the record that belongs to the repository ---
 
-# The precondition every audit case rests on. Asserted rather than assumed: inside a repository the
+# The precondition every audit case rests on, and it is asserted: inside a repository the
 # "not inside a git repository" case below would pass for the wrong reason.
 if (cd "$neutral" && git rev-parse --show-toplevel >/dev/null 2>&1); then
   record_fail "the fixture root is outside any repository" "$neutral resolves to a repository, so the audit cases would read the wrong one"

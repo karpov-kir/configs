@@ -8,7 +8,7 @@
 # wiring check as a citation and reported against the real checkout.
 set -u
 
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 resolver="$here/resolve.sh"
 base=$(mktemp -d) || exit 1
 trap 'rm -rf "$base"' EXIT

@@ -13,9 +13,20 @@
 # or a directory holding none of what the tool reads.
 set -u
 
-here=$(cd "$(dirname "$0")" && pwd)
+# `CDPATH=`: set in the environment, `cd` echoes where it landed whenever the path it is given is
+# relative and not dot-led, so `here` comes back two lines long and `$script` names nothing. A suite
+# is not covered by the script it covers: this guard is the harness's own, and nothing under test
+# reaches it.
+here=$(CDPATH= cd "$(dirname "$0")" && pwd)
 script="$here/cite-graph.sh"
-base=$(mktemp -d) || exit 1
+# Exit 2, and it says why: a fixture root that cannot be created is a suite that did not measure,
+# which run-tests.sh counts apart from a failure. Exit 1 there would claim the script under test is
+# broken — a different claim, and a false one (`~/.kk-flavor/standards/testing.md` -> **7. What a
+# suite reports**).
+base=$(mktemp -d) || {
+  echo "cite-graph-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$base"' EXIT
 
 passed=0
@@ -194,6 +205,29 @@ assert_no_citation_literals() {
     record_pass "$name"
   fi
 }
+
+# The same property for this suite's own root, which no case about the script under test reaches.
+# A corrupt `here` does not announce itself as one: it reports having measured something else.
+#
+# The resolve line is extracted from this file rather than written out again, so this reddens when
+# the guard leaves the real line and not when the line is reworded. Driven by a relative invocation
+# from the directory above, the only shape that consults CDPATH at all. The control is what stops an
+# extraction that has stopped matching from letting the case below pass over an empty probe.
+cdpath_line=$(grep -m1 '^here=' "$0")
+if [ -n "$cdpath_line" ]; then
+  record_pass "control: this suite's own root resolution was found, so the case below drives something"
+else
+  record_fail "control: this suite's own root resolution was found, so the case below drives something" "no 'here=' line in $0"
+fi
+mkdir -p "$base/cdpath-probe/scripts"
+printf '#!/usr/bin/env bash\n%s\necho "$here"\n' "$cdpath_line" >"$base/cdpath-probe/scripts/probe.sh"
+cdpath_lines=$( (cd "$base/cdpath-probe" && CDPATH=. bash scripts/probe.sh 2>/dev/null) | grep -c '')
+if [ "$cdpath_lines" = "1" ]; then
+  record_pass "CDPATH in the environment does not corrupt this suite's own root"
+else
+  record_fail "CDPATH in the environment does not corrupt this suite's own root" "the resolve line came back $cdpath_lines line(s) long"
+fi
+
 assert_no_citation_literals
 
 echo

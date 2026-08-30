@@ -21,7 +21,14 @@ func (c *checker) scanSkillDirectories() {
 	// A skill's frontmatter name is how it is invoked; a mismatch with its directory makes it
 	// unreachable.
 	for _, file := range c.filesNamed(c.root.Skills(), "SKILL.md") {
-		lines, _ := c.readLines(file)
+		lines, err := c.readLines(file)
+		// A file nothing read declares nothing, and both findings below would state what it declares.
+		// Unread, they came out as `declares ''` and `without a description` — two positive claims
+		// about frontmatter that is very likely fine, aimed at the one reader who would go and check.
+		// readLines has already named the file; that finding is the true one.
+		if err != nil {
+			continue
+		}
 		declared := shell.FrontmatterName(lines)
 		if declared != shell.BaseName(shell.DirName(file)) {
 			c.add("skill name/dir mismatch: " + shell.Oneline(file) + " declares '" + shell.Oneline(declared) + "'")
@@ -44,8 +51,13 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 			continue
 		}
 		skillTotal++
-		lines, _ := c.readLines(file)
-		if shell.IsOptedOutOfModelInvocation(lines) {
+		lines, err := c.readLines(file)
+		// Unread, this file looks exactly like a routed skill whose description says nothing: it
+		// counted toward the figure's denominator and contributed zero words to the figure. readLines
+		// has already named it at rank 1, so what is left to get right here is not counting it as a
+		// description this run measured. The total above still counts it — the skill is in the tree,
+		// which is what that number says; only the claim to have read its description goes.
+		if err != nil || shell.IsOptedOutOfModelInvocation(lines) {
 			continue
 		}
 		routedSkills++

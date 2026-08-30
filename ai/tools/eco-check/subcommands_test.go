@@ -8,14 +8,22 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 const (
-	noCallSite      = "subcommand with no call site"
-	weldedName      = "subcommand call sites not checked"
-	unreadable      = "/skills/toy.sh's dispatch"
-	acceptsUnnamed  = "accepts a subcommand its usage does not name"
-	namesUnaccepted = "usage names a subcommand its dispatch does not accept"
+	noCallSite = "subcommand with no call site"
+	weldedName = "subcommand call sites not checked"
+	// Every way this scan can hold a script with subcommands and name none of them says so under one
+	// class prefix, and report.go ranks on that prefix. `toyIsUnread` carries the fixture script's own
+	// path after it, so a case pins the file it is about and not merely that something went unread.
+	unreadable       = "subcommand dispatch not read: "
+	toyIsUnread      = "/skills/toy.sh ("
+	acceptsUnnamed   = "accepts a subcommand its usage does not name"
+	namesUnaccepted  = "usage names a subcommand its dispatch does not accept"
+	unreadArms       = "(it opens a case dispatch on $1 and no arm of it could be read)"
+	noWayToADispatch = `it names no tool="<name>" to reach one through, and opens no case dispatch on $1`
 )
 
 // The tool source the stub below execs: a dispatch, found by the `usage: toy.sh {` line its refusing
@@ -91,7 +99,8 @@ func TestGoDispatchSubcommandCallSites(t *testing.T) {
 // does know rather than nothing.
 func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
 	t.Run("fires when the tool ships no source to read a dispatch out of", func(t *testing.T) {
-		newStubWithoutSource(t).reports(unreadable)
+		f := newStubWithoutSource(t)
+		f.reports(unreadable + f.root + toyIsUnread)
 	})
 
 	t.Run("and names that as the way it could not read it", func(t *testing.T) {
@@ -103,7 +112,8 @@ func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
 	})
 
 	t.Run("fires when the source holds no switch carrying the stub's usage line", func(t *testing.T) {
-		newStubWithUnmarkedSource(t).reports(unreadable)
+		f := newStubWithUnmarkedSource(t)
+		f.reports(unreadable + f.root + toyIsUnread)
 	})
 
 	t.Run("and names that as the way it could not read it", func(t *testing.T) {
@@ -227,6 +237,191 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch)
 		f.reports(f.root + "/skills/toy.sh " + namesUnaccepted)
 	})
+}
+
+// Both ways this scan says it could not read a dispatch quote the directory it looked in, and the
+// stub names the directory the path is built from — so its length is the reviewed tree's to choose. A
+// path cut mid-segment is still a path, so a cut with nothing marking it sends a reader to a
+// directory nobody has.
+func TestAnUnreadableDispatchPathSaysItWasCut(t *testing.T) {
+	// Past the 120-byte bound on its own, whatever TMPDIR the run has: on a machine with a long one
+	// the fixture root already runs past it, on a short one only this name does.
+	newLongToolName := func(t *testing.T) *fixture {
+		t.Helper()
+		f := newRoot(t)
+		f.newScript("toy.sh", "#!/usr/bin/env bash\n# untested: fixture\n#   usage: toy.sh {alpha|beta}\n"+
+			"tool=\""+strings.Repeat("z", 200)+"\"\ntrue")
+		return f
+	}
+
+	t.Run("names the directory it could not read (control for the case below)", func(t *testing.T) {
+		newLongToolName(t).reports("no source directory at ")
+	})
+
+	// Matched on the marker together with the text the finding puts after the path, so the assertion
+	// is about where the cut is reported rather than about a "..." landing anywhere in the output.
+	t.Run("and marks the path it cut rather than naming a shorter wrong one", func(t *testing.T) {
+		newLongToolName(t).reports(shell.CutMarker + ") — the 2 subcommand(s)")
+	})
+}
+
+// A shell dispatch is the same dispatch in every spelling of its opening line, and an author reaches
+// for whichever one they like. Matched as the single literal `case "${1:-}" in`, this scan checked the
+// subcommands of the spellings it knew and said nothing whatever about the rest: `score.sh` was
+// `case "$1" in`, so neither `threshold` nor `cut` had ever been checked for a call site, and the
+// scan reported nothing about the file because it never looked at it.
+//
+// The whole table, not the spellings a scenario happened to name — this is a mapping from a line to
+// whether a dispatch is there, and a row left out is a row nothing observes.
+func TestAShellDispatchIsReadInEverySpellingOfItsOpening(t *testing.T) {
+	for _, opening := range []string{
+		`case "${1:-}" in`,
+		`case "$1" in`,
+		`case $1 in`,
+		`case "${1-}" in`,
+		`case "${1}" in`,
+		`case "${1:-help}" in`,
+	} {
+		t.Run("reads a dispatch opened with "+opening, func(t *testing.T) {
+			f := newShellDispatch(t, opening)
+			// The whole finding, path and subcommand together: `beta` is a name other fixtures in this
+			// file produce too, and a bare substring would pass on any of their findings.
+			f.reports(f.root + "/skills/toy.sh " + noCallSite + ": beta")
+		})
+	}
+}
+
+// The silence one line further in than the case above. The opening matched, no arm did, and the scan
+// then held a dispatch it could name no subcommand of — which it reported as nothing at all, the one
+// answer indistinguishable from a script that has no dispatch.
+func TestADispatchWhoseArmsCannotBeReadIsReported(t *testing.T) {
+	// Arm bodies on the arms' own lines. Legal shell, written all over this tree, and a form the arm
+	// pattern does not read — it wants the line to end at the `)`.
+	newUnreadableArms := func(t *testing.T) *fixture {
+		t.Helper()
+		return newShellScript(t, "case \"$1\" in\n  alpha) : ;;\n  beta) : ;;\nesac")
+	}
+
+	t.Run("fires on a dispatch it could read no arm of", func(t *testing.T) {
+		f := newUnreadableArms(t)
+		f.reports(unreadable + f.root + "/skills/toy.sh " + unreadArms)
+	})
+
+	// Without this the case above passes on a scan that reports it over every dispatch in the tree.
+	t.Run("and stays quiet on one whose arms it did read (control)", func(t *testing.T) {
+		newShellDispatch(t, `case "$1" in`).doesNotReport(unreadArms)
+	})
+
+	t.Run("and stays quiet on a script that opens no dispatch at all", func(t *testing.T) {
+		newShellScript(t, "true").doesNotReport(unreadArms)
+	})
+}
+
+// What the loosened opening pattern must still refuse. It decides only that a dispatch is *there*, so
+// it is deliberately the loosest thing in this file — and a pattern that answers yes to every `case`
+// turns two real shapes in this tree into findings: a top-level `case` over a value that is not the
+// first argument, and an in-function lookup table (`install.sh`, `shell-mutate.sh`).
+func TestATopLevelCaseIsNotAlwaysADispatch(t *testing.T) {
+	t.Run("reads no dispatch out of a top-level case over another value", func(t *testing.T) {
+		f := newShellScript(t, "flag=\"$2\"\ncase \"$flag\" in\n  alpha)\n    :\n    ;;\nesac")
+		f.doesNotReport(f.root + "/skills/toy.sh " + noCallSite + ": alpha")
+	})
+
+	t.Run("nor out of a lookup table inside a function", func(t *testing.T) {
+		f := newShellScript(t, "route() {\n  case \"$1\" in\n    alpha) : ;;\n  esac\n}\ntrue")
+		f.doesNotReport(unreadArms)
+	})
+
+	// Without the two above this file would pass on a pattern matching every line, and without this
+	// one they would pass on a pattern matching none.
+	t.Run("while a dispatch on the first argument still is one (control)", func(t *testing.T) {
+		f := newShellDispatch(t, `case "$1" in`)
+		f.reports(f.root + "/skills/toy.sh " + noCallSite + ": alpha")
+	})
+}
+
+// The same silence reached through the stub half, which reads `tool="<name>"` in one spelling of its
+// own. A stub spelling it any other way names its subcommands in a usage grammar an agent reads, and
+// nothing whatever checks them: no tool to find a Go dispatch through, and no `case` of its own.
+func TestAUsageGrammarWithNoDispatchBehindItIsReported(t *testing.T) {
+	// `tool='toy'` — legal shell, and a spelling the tool-declaration pattern does not read.
+	newUnreachableDispatch := func(t *testing.T) *fixture {
+		t.Helper()
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/tools/toy")
+		f.write(f.root+"/tools/toy/toy.go", toyDispatch)
+		f.newScript("toy.sh", "#!/usr/bin/env bash\n# untested: fixture\n#   usage: toy.sh {alpha|beta}\ntool='toy'\ntrue")
+		return f
+	}
+
+	t.Run("fires when nothing in the script reaches a dispatch", func(t *testing.T) {
+		f := newUnreachableDispatch(t)
+		f.reports(unreadable + f.root + toyIsUnread)
+	})
+
+	t.Run("and names that as the way it could not read it", func(t *testing.T) {
+		newUnreachableDispatch(t).reports(noWayToADispatch)
+	})
+
+	t.Run("and still checks the subcommands its usage names", func(t *testing.T) {
+		newUnreachableDispatch(t).reports(noCallSite + ": beta")
+	})
+
+	// The two determinations that stay quiet. Each is an answer this scan reached, not one it failed
+	// to: a script whose own dispatch was read has its subcommands from there, and a script naming no
+	// grammar at all takes no subcommand (check.sh and stats.sh each take a root).
+	t.Run("stays quiet on a script whose own shell dispatch was read", func(t *testing.T) {
+		// cadence.sh's shape: a usage grammar and a dispatch, and no tool= line at all.
+		f := newShellScript(t, "#   usage: toy.sh {alpha|beta}\ncase \"$1\" in\n"+
+			"  alpha)\n    :\n    ;;\n  beta)\n    :\n    ;;\nesac")
+		f.doesNotReport(unreadable)
+	})
+
+	t.Run("stays quiet on a script whose usage names no subcommand", func(t *testing.T) {
+		newShellScript(t, "#   usage: toy.sh [<root>]\ntrue").doesNotReport(unreadable)
+	})
+}
+
+// A line saying this scan checked nothing about a file has to survive a tree that floods the report.
+// report.go ranks a finding on the head of its line, and every finding in this class leads with the
+// path of the file it is about — so unranked they fall to rank 5, share one budget with `dangling
+// link:` and sort below every one of them. 300 crafted links then hide the line, and the report reads
+// clean of it: the silence this whole class exists to end, restored one layer up. The case lives
+// beside the scan rather than in report_test.go because what it pins is this class's rank, and a rank
+// entry naming a class is only ever read together with the class.
+func TestAnUnreadDispatchSurvivesAFlood(t *testing.T) {
+	newUnreadDispatchUnderAFlood := func(t *testing.T) *fixture {
+		t.Helper()
+		f := newStubWithoutSource(t)
+		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
+		return f
+	}
+
+	t.Run("shows it through a flood of link findings", func(t *testing.T) {
+		f := newUnreadDispatchUnderAFlood(t)
+		f.reports(unreadable + f.root + toyIsUnread)
+	})
+
+	// Presence alone passes again the day the rank is dropped and the flood lands one line short of
+	// the per-class cap, so the ordering is what this pins.
+	t.Run("and ranks it above that flood rather than inside it", func(t *testing.T) {
+		newUnreadDispatchUnderAFlood(t).ranksAbove(unreadable, "dangling link: ")
+	})
+}
+
+// One script under `skills/`, with the header every script in this tree carries.
+func newShellScript(t *testing.T, body string) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.newScript("toy.sh", "#!/usr/bin/env bash\n# untested: fixture\n"+body)
+	return f
+}
+
+// A dispatch accepting `alpha` and `beta`, opened with the given line. Nothing in the tree cites
+// either, so both are findings and the case picks the one it means.
+func newShellDispatch(t *testing.T, opening string) *fixture {
+	t.Helper()
+	return newShellScript(t, opening+"\n  alpha)\n    :\n    ;;\n  beta)\n    :\n    ;;\nesac")
 }
 
 // A stub reaching a Go tool, and that tool's source: the shape report.sh and eco-report have.

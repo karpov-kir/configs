@@ -2,18 +2,20 @@ package ecocheck
 
 import "kk-flavor/tools/shell"
 
-// The mounts every `~/...` citation is resolved through. Those citations are checked against *this
-// checkout*, so a checkout that is not the installed one would report every one of them healthy.
+// The mounts every `~/...` citation resolves through, checked against *this checkout*. Anywhere that
+// is not the install — a clone, a PR review's worktree, a CI runner with a bare $HOME — the mounts
+// point at somebody else's tree or at nothing, and every finding below would be about that rather than
+// about the tree under review. Hence the IsInstalled gate; ecostats gates its own mount figure on the
+// same question (budget.go → mountedOutside).
+//
+// Past the gate, $HOME/.kk-flavor resolves to this tree by definition, so there is no flavor-mount
+// comparison here: `flavor not mounted` and `flavor mounted elsewhere` would both be restating the
+// gate's own condition and could never fire. What is left is the half the gate does not answer —
+// whether this install's own skills are reachable at the mount.
 func (c *checker) scanMounts() {
-	flavorWant := shell.CanonicalDir(c.root.Flavor())
-	flavorHave := shell.CanonicalDir(c.root.FlavorMount())
-	switch {
-	case flavorHave == "":
-		c.add("flavor not mounted: $HOME/.kk-flavor is not a directory — every ~/.kk-flavor/ citation dangles at run time")
-	case flavorHave != flavorWant:
-		c.add("flavor mounted elsewhere: $HOME/.kk-flavor -> " + shell.Oneline(flavorHave) + ", not " + shell.Oneline(flavorWant))
+	if !c.root.IsInstalled() {
+		return
 	}
-
 	skillsMount := c.root.SkillsMount()
 	if !shell.IsDir(skillsMount) {
 		c.add("skills not mounted: " + skillsMount + " is not a directory — no skill here is loadable and every ~/.claude/skills/ citation dangles")

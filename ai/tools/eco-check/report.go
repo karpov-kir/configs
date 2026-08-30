@@ -30,8 +30,11 @@ func rank(line string) int {
 		{"syntax: ", 0},
 		{"shared region ", 1},
 		{"direction scan read no files", 1},
-		{"flavor not mounted", 1},
-		{"flavor mounted elsewhere", 1},
+		// Emitted by both bounded reads in shell.go; the finding's own text ends on "it was NOT
+		// checked". At the default rank it shares one budget with `dangling link:` and sorts below
+		// every one of them.
+		{"file too large to scan: ", 1},
+		{"file could not be read: ", 1},
 		{"skills not mounted", 1},
 		{"skill not mounted", 1},
 		{"skill mounted elsewhere", 1},
@@ -41,9 +44,12 @@ func rank(line string) int {
 		{"script names more suites than the scan reads", 2},
 		{"basename not checked", 2},
 		{"subcommand call sites not checked", 2},
-		// The bound this scan withheld subcommands under. It reached the screen before only because it
-		// sorted ahead of the basename its own findings led with, which is byte order and not a rank: a
-		// tree whose stub is named `alpha.sh` buried it under the findings it exists to qualify.
+		// Every way that scan can hold a script with subcommands and name none of them. Each leads
+		// with the path of the file it is about, so without an entry here it lands at rank 5, sharing
+		// one budget with `dangling link:`.
+		{unreadDispatch, 2},
+		// The bound this scan withheld subcommands under. Without an entry it sorts by byte order
+		// against the basenames its own findings lead with, so a stub named `alpha.sh` buries it.
 		{"subcommand call-site scan is at its", 2},
 		{"script not executable", 3},
 		{"skill name/dir mismatch", 3},
@@ -97,7 +103,12 @@ func (c *checker) printFindings(out io.Writer) int {
 		if i >= printedLinesCap {
 			break
 		}
-		bounded := shell.CutBytes(line.text, lineWidthCap)
+		// Marked, because this is the last cut a finding takes and so the only one the reader sees the
+		// result of. Every message upstream that quotes a name the tree chose marks its own cut; this
+		// bound runs after all of them and takes that mark off with the tail it removes, leaving a
+		// shorter wrong line that reads as a whole one. Two cases in budget_test.go already match on
+		// a finding's head rather than its tail for exactly this reason.
+		bounded := shell.CutBytesMarked(line.text, lineWidthCap)
 		writeLinef(out, "%s", bounded)
 		// Counted from what was actually printed, never from either cap: two mechanisms hide
 		// findings, so arithmetic against one alone contradicts the other.

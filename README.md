@@ -2,7 +2,7 @@
 
 Config files for the tools I use:
 
-`./bootstrap.sh` does the steps below on a fresh machine, bar the four that write outside what this repository owns: the two `git clone`s, `mise use --global`, and `rtk init -g`. Those stay yours to run. `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands still matter when a step fails.
+`./bootstrap.sh` does the steps below on a fresh machine. Four are yours to run by hand, because they write outside what this repository owns: the two `git clone`s, `mise use --global`, and `rtk init -g`. `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands still matter when a step fails.
 
 - [ZSH](https://zsh.org)
   - It's already installed by default on MacOS
@@ -23,7 +23,7 @@ Config files for the tools I use:
 - [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before Claude Code reads it
   - `brew install rtk`
   - `rtk init -g`, then restart Claude Code
-  - `cp ~/Documents/WP/configs/ai/RTK.md ~/.claude/RTK.md`, after `rtk init -g` — which writes its own longer template there and rewrites it on every run. `ai/CLAUDE.md` imports that path into every session, so this repository owns what it says. Copied rather than symlinked, unlike every other mount here: the always-loaded budget refuses a symlink at an import's mount and stops counting the file. `./bootstrap.sh` does this step too, so re-run it after any later `rtk init -g`.
+  - `cp ~/Documents/WP/configs/ai/RTK.md ~/.claude/RTK.md`, after `rtk init -g`, which writes its own longer template there and rewrites it on every run. `ai/CLAUDE.md` imports that path into every session, so this repository owns what it says. Copied rather than symlinked, unlike every other mount here: the always-loaded budget refuses a symlink at an import's mount and stops counting the file. `./bootstrap.sh` does this step too, so re-run it after any later `rtk init -g`.
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
@@ -49,8 +49,8 @@ Config files for the tools I use:
   - `brew install starship`
   - `mkdir -p ~/.config`
   - `rm -f ~/.config/starship.toml && ln -s ~/Documents/WP/configs/starship/starship.toml ~/.config/starship.toml`
-  - Default icon glyphs render via Ghostty's built-in Nerd Font fallback — no font change needed.
+  - Default icon glyphs render via Ghostty's built-in Nerd Font fallback, so no font change is needed.
 
 ## Tests
 
-`ai/run-tests.sh` runs every `*-test.sh` in the repo. It discovers them rather than listing them, so a suite is covered the day it is written, and it exits non-zero if it finds none — a runner that quietly matches nothing would report a clean tree it never read. GitHub Actions runs it on pushes to `main` and on pull requests, over Linux and macOS, alongside a `gofmt`/`vet`/`test` gate for the Go tools — `.github/workflows/gates.yml`. `release-tools.yml` gates those tools again at release time, since a release must not attach binaries built from unchecked code.
+`ai/run-tests.sh` runs every `*-test.sh` in the repo. It discovers them rather than listing them, so a suite is covered the day it is written. It exits non-zero if it finds none, because a runner that quietly matches nothing would report a clean tree it never read. GitHub Actions runs it on pushes to `main` and on pull requests, over Linux and macOS, alongside a `gofmt`/`vet`/`test` gate for the Go tools (`.github/workflows/gates.yml`). `release-tools.yml` gates those tools again at release time.

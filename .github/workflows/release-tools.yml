@@ -11,9 +11,9 @@
 # a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
 # beside it and every machine would take the broken one.
 #
-# The actions carry a major tag, not an exact pin, on purpose: nothing in this repo bumps an exact
-# pin, so it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this
-# override the day dependabot or renovate lands.
+# The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
+# it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
+# the day dependabot or renovate lands.
 name: release-tools
 
 on:
@@ -29,8 +29,8 @@ jobs:
   release-tools:
     runs-on: ubuntu-latest
     env:
-      # The tools that ship. `go-mutate` and `mutate` are developer harnesses and stay out
-      # deliberately — tools-shipped_test.go fails if this list and that judgement drift apart.
+      # The tools that ship. `go-mutate` is a developer harness and stays out deliberately —
+      # ai/tools/shipped_test.go fails if this list and that judgement drift apart.
       SHIPPED: eco-check eco-stats eco-report rule-echo cite-graph
     steps:
       - uses: actions/checkout@v7
@@ -69,7 +69,7 @@ jobs:
           mkdir -p dist
           for tool in $SHIPPED; do
             package="./$tool/"
-            [ -d "$tool/cmd" ] && package="./$tool/cmd/"
+            [ -d "cmd/$tool" ] && package="./cmd/$tool/"
             for target in darwin/arm64 darwin/amd64 linux/arm64 linux/amd64; do
               goos=${target%/*}
               goarch=${target#*/}

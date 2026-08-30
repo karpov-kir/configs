@@ -1,6 +1,8 @@
 package ecoreport
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -60,6 +62,16 @@ func stemOfReportPath(path string) string {
 func (r *run) reportNames() []string {
 	entries, err := os.ReadDir(r.reportsDir)
 	if err != nil {
+		// Absent is "no reports open", which every caller reads correctly — before `init` there is no
+		// such directory. Present but unreadable is a different fact wearing the same shape, and it
+		// reaches the destructive branch: `survivingContent` reads the empty list as "no other ship is in
+		// flight" and `discard` goes on to remove the whole .idsd/, which in throwaway mode is the only
+		// copy of a parallel ship's report. The same rule assertRepoModeReadable states — a read this
+		// tool could not make must not arrive at a deletion wearing the shape of an answer.
+		if !errors.Is(err, fs.ErrNotExist) {
+			r.refuse("error: could not read "+r.reportsDir+" ("+err.Error()+") — which reports are open is unknown.",
+				"  That decides what discard deletes and what list shows, so nothing was read as 'no reports'.")
+		}
 		return nil
 	}
 	var names []string

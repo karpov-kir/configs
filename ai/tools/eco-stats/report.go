@@ -49,4 +49,18 @@ func (s *stats) report(out io.Writer) {
 	}
 	fmt.Fprintf(out, "always-loaded:%6d words  = %d router + %d descriptions across %d of %d skills%s%s\n",
 		s.alwaysLoaded(), s.alwaysLoadedWords, s.descriptionWords, s.routedSkills, s.skills, s.budgetNote(), s.refusalNote())
+	s.reportUnreadable(out)
+}
+
+// A path that could not be read shortens whichever figures counted over it, and which ones those are
+// is not knowable from here — a directory that would not list takes its subtree out of prose, scripts
+// and the census together. So the note sits under the whole report rather than on one line, and it
+// says the figures are not measurements: the exit code carries the same fact to a caller that reads
+// status, and this carries it to the one reading stdout.
+func (s *stats) reportUnreadable(out io.Writer) {
+	if s.unreadable == 0 {
+		return
+	}
+	fmt.Fprintf(out, "SHORT: %d path(s) %s could not be read — every figure above counts over what was reachable, not over the tree. Not a measurement.\n",
+		s.unreadable, s.unreadableWhere())
 }

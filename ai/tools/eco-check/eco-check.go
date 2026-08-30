@@ -4,8 +4,9 @@
 // It is a library with a thin command beside it, because the suite that proves it drives it once
 // per case and a process spawn per case is the cost that makes a mutation run take hours. Nothing
 // here writes to os.Stdout or calls os.Exit: Run reports through the writers it is handed and returns
-// the code the command exits on. Nothing here holds state between calls either, so two runs in one
-// process cannot see each other's emit counters.
+// the code the command exits on. Every emit counter lives on the checker Run builds, so two runs in
+// one process cannot see each other's. The one thing held across them is scripts.go's `bash -n` memo,
+// keyed on file content so a second run is answered with what the first parsed.
 //
 // Most of the density below is hardening against a hostile tree, because this runs as kk-pr-review's
 // stage over a branch that chose its own contents: NUL bytes in files, newlines in committed
@@ -56,12 +57,20 @@ type checker struct {
 
 	// The refused budget files are named in their findings, so their count is bounded too.
 	budgetRefusals int
+
+	// Scans that could not run at all, each with what did not happen. Distinct from a scan that ran
+	// and found nothing, which is what exit 0 says — see exitCode.
+	unrunnable []string
+
+	// How the parse scan finds the bash binaries to fork. A field so a case can hand it an empty
+	// list; installedBashBinaries says why that needed a seam.
+	bashBinaries func() []string
 }
 
 // Run checks the tree under root and writes the report to out. An empty root means the two
 // candidates ecoroot tries, in order. It returns the process exit code: 0 clean, 1 with
-// findings, 2 when it could not run at all. A check that did not run is not a clean one, which is
-// why the last is not folded into either of the others.
+// findings, 2 when it could not run — as a whole, or in any one scan. A check that did not run is not
+// a clean one, which is why the last is not folded into either of the others.
 func Run(root string, out, errOut io.Writer) int {
 	c, ok := newChecker(root)
 	if !ok {
@@ -90,7 +99,28 @@ func Run(root string, out, errOut io.Writer) int {
 
 	c.reportBudget(out)
 	c.reportDescriptionCensus(out)
-	return c.printFindings(out)
+	return c.exitCode(out, errOut)
+}
+
+// The code this check answers with. A scan that could not run outranks the finding count: 0 and 1 both
+// say the tree was checked, and one of them would be read as a pass over a question nobody asked. The
+// findings still print — what was checked is still worth reading — and the reason rides stderr beside
+// the same wording the no-root path uses.
+func (c *checker) exitCode(out, errOut io.Writer) int {
+	status := c.printFindings(out)
+	if len(c.unrunnable) == 0 {
+		return status
+	}
+	for _, reason := range c.unrunnable {
+		fmt.Fprintf(errOut, "check.sh: %s\n", reason)
+	}
+	fmt.Fprintln(errOut, "check.sh: exit 2 — part of this check did not run. Do not read this as clean.")
+	return 2
+}
+
+// A scan reporting that it could not run at all, rather than running and finding nothing.
+func (c *checker) cannotRun(reason string) {
+	c.unrunnable = append(c.unrunnable, reason)
 }
 
 func newChecker(root string) (*checker, bool) {
@@ -98,7 +128,7 @@ func newChecker(root string) (*checker, bool) {
 	if !ok {
 		return nil, false
 	}
-	return &checker{root: resolved, trees: map[string]*tree{}}, true
+	return &checker{root: resolved, trees: map[string]*tree{}, bashBinaries: installedBashBinaries}, true
 }
 
 func (c *checker) add(finding string) {

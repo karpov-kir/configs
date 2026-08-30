@@ -18,7 +18,7 @@
 #
 # It reaches other scripts rather than reimplementing them: `ai/tools/install.sh` for the Go tool
 # binaries, `ai/mcp-sync.sh` for the MCP registry, `ai/run-tests.sh` to verify. Each of those owns its
-# own contract and has its own suite; a second copy here would drift from all three.
+# own contract and has its own suite.
 #
 # $HOME is read from the environment and never assumed, which is what lets the suite run the real
 # linking logic against a throwaway home instead of faking it.
@@ -202,6 +202,12 @@ if [ ! -f "$repo/ai/RTK.md" ]; then
   refuse "$repo/ai/RTK.md is missing from the repository, so $rtk_md was left alone"
 elif [ -L "$rtk_md" ]; then
   refuse "$rtk_md is a symlink — an import's mount must be a real file or it goes uncounted; move it aside, then re-run"
+elif [ -e "$rtk_md" ] && [ ! -f "$rtk_md" ]; then
+  # The other shape that is not a real file, and the one that fails silently rather than loudly.
+  # `cp file dir` writes *into* the directory and exits 0, so the arm below would print "wrote" while
+  # the mount is still a directory and the import still resolves to nothing — success reported over a
+  # subject never reached. Refused for the same reason the symlink above is.
+  refuse "$rtk_md exists and is not a regular file — an import's mount must be one; move it aside, then re-run"
 elif cmp -s "$repo/ai/RTK.md" "$rtk_md"; then
   say "  ok       $rtk_md"
 elif $dry_run; then
@@ -215,7 +221,7 @@ fi
 # --- the repository's own tools ------------------------------------------------------------------
 
 # `ai/tools/install.sh` downloads the prebuilt Go tools and verifies each against the release's own
-# SHA256SUMS. Reached, never reimplemented: it owns that contract and has its own suite.
+# SHA256SUMS.
 if $skip_tools; then
   say "tools (skipped)"
 elif $dry_run; then
@@ -244,10 +250,10 @@ fi
 
 # --- verify --------------------------------------------------------------------------------------
 
-# A setup script that reports success without checking anything is the failure this repository has
-# spent the day removing, so the last step is the repository's own suites over what was just linked.
+# A setup script that reports success without checking anything has reported nothing, so the last step
+# is the repository's own suites over what was just linked.
 #
-# The re-entry guard is structural, not tidiness. `ai/run-tests.sh` discovers every `*-test.sh`,
+# The re-entry guard is load-bearing. `ai/run-tests.sh` discovers every `*-test.sh`,
 # `bootstrap-test.sh` is one of them, and it runs this script — so verify reaches a suite that reaches
 # verify. It terminates today only because every case in that suite remembers `--skip-verify`, which
 # is a loop held open by a convention. The marker closes it whatever any caller passes.
@@ -265,8 +271,16 @@ elif $dry_run; then
   say "verify: would run ai/run-tests.sh"
 else
   say "verify"
-  BOOTSTRAP_VERIFYING=1 "$repo/ai/run-tests.sh" >/dev/null ||
+  BOOTSTRAP_VERIFYING=1 "$repo/ai/run-tests.sh" >/dev/null
+  verify_status=$?
+  # The runner exits 2 for a suite that did not measure and 1 for one that failed, and the two send a
+  # reader to different places: the machine, or the code. Collapsing them here throws away the half
+  # this script cannot recover, and blames the suites for a missing dependency.
+  if [ "$verify_status" -eq 2 ]; then
+    refuse "ai/run-tests.sh could not measure every suite — unproven is not disproven, and it is not passing either"
+  elif [ "$verify_status" -ne 0 ]; then
     refuse "ai/run-tests.sh reported a failing suite"
+  fi
 fi
 
 # --- result --------------------------------------------------------------------------------------

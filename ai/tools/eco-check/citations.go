@@ -50,8 +50,12 @@ func (c *checker) reportCitation(cited citation) {
 	// markdown file — `kk-qualify` → **The residue** — and the section arrived in the `**` form
 	// ecosystem.md → **Conventions a new file joins** mandates, which together is the shape that reads
 	// as a citation to a person and resolves as nothing here.
+	//
+	// The head is quoted so its author can find the line again, and it is a run the reviewed tree
+	// chose the length of. Marked when the bound bites: a head cut at 60 bytes reads as the whole of
+	// one, and the reader then hunts their own file for a string nobody wrote.
 	if cited.path == "" {
-		c.addCitationFinding(cited, "uncheckable citation: "+position+" -> `"+shell.CutBytes(shell.Oneline(cited.head), 60)+
+		c.addCitationFinding(cited, "uncheckable citation: "+position+" -> `"+shell.CutBytesMarked(shell.Oneline(cited.head), 60)+
 			"` → "+shell.Oneline(cited.section)+
 			" — the text before the arrow names no markdown file, so nothing checks that section; write the file's path")
 		return

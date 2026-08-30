@@ -220,18 +220,36 @@ func report(out, errOut io.Writer, defined map[string]map[string]bool, edges []e
 		depth, widest, unentered, shared)
 }
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: cite-graph <root>")
-		os.Exit(2)
+// The whole command, taking its writers and returning the code rather than reaching for either — the
+// convention `eco-stats.go` states and the reason it holds: the suite drives this once per case, in
+// process, which is what lets a case prove the exit code callers branch on. Spawn a process per case
+// instead and the exit code is the one thing never covered, because covering it costs the most.
+func run(args []string, out, errOut io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(errOut, "usage: cite-graph <root>")
+		return 2
 	}
-	root := os.Args[1]
-	defined, edges := read(root, os.Stderr)
+	root := args[0]
+	defined, edges, skipped := read(root, errOut)
+	// Before the report rather than after it. Every figure below counts over the files that were read,
+	// so a scan that missed part of the tree measures a different tree — and it prints at full
+	// confidence, shaped exactly like a measurement of this one. A reader who takes the depth off
+	// stdout has no way back to the stderr lines above, so printing it and exiting 2 would still hand
+	// them the number.
+	if skipped > 0 {
+		fmt.Fprintf(errOut, "cite-graph: %d path(s) under %s were NOT read (each named above) — the tree measured is not the tree given, so there is no report. Exit 2.\n", skipped, root)
+		return 2
+	}
 	if len(defined) == 0 {
-		fmt.Fprintf(os.Stderr, "cite-graph: read nothing under %s — exit 2, which is not the same as a flat tree.\n", root)
-		os.Exit(2)
+		fmt.Fprintf(errOut, "cite-graph: read nothing under %s — exit 2, which is not the same as a flat tree.\n", root)
+		return 2
 	}
 	// The router's own view, for the unentered report: a file it loads is entered whole.
 	_, routed := routerSets(root, defined)
-	report(os.Stdout, os.Stderr, defined, edges, routed)
+	report(out, errOut, defined, edges, routed)
+	return 0
+}
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }

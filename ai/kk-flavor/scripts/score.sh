@@ -14,8 +14,8 @@
 # verdict no other machine reproduces, and silence about it is the hazard.
 #
 # The refusals below are the enforcement, not convenience: read the comment at one before removing it.
-# An unknown lane exits rather than falling back to `default`, because a caller that cannot find its
-# number invents one, and an invented threshold reads exactly like the ruled one.
+# What `default` is, and why an unknown lane exits rather than landing on it, is stated at that lane in
+# `../thresholds.conf`.
 #
 # tested by: score-test.sh
 set -euo pipefail
@@ -28,7 +28,6 @@ config="$here/../thresholds.conf"
 # outside `~/.kk-flavor`, which is a symlink into it.
 override="${XDG_CONFIG_HOME:-$HOME/.config}/kk-flavor/thresholds.conf"
 
-# Set rather than printed, for the subshell reason `scan_config` states.
 lanes= found= level= override_note=
 
 die() {
@@ -64,9 +63,8 @@ scan_config() {
     case "$name" in '' | '#'*) continue ;; esac
     # A lane name is data, and every message below prints it back. Raw, a control byte in it overwrites
     # the line already on the reader's terminal, and an `\033]` sequence reaches the terminal itself.
-    # That is the hazard the label loop neutralises. Refused here rather than neutralised, because no
-    # lane a config can legitimately rule carries one, and refusing keeps every message downstream clean
-    # by construction, `lanes` included. Shown neutralised, so the developer can still find the line.
+    # Refused rather than neutralised, because no lane a config can legitimately rule carries one, and
+    # refusing keeps every message downstream clean by construction, `lanes` included.
     case "$name" in
       *[[:cntrl:]]*) die "$path: the lane name '${name//[[:cntrl:]]/ }' carries a control character" ;;
     esac
@@ -105,8 +103,7 @@ threshold_for() {
   # cannot search reads as absent and falls back without a word. Closing it needs a stat this script
   # forks for nowhere else. The refusal above is about the file's own mode, never the path leading to it.
   [ -e "$override" ] || [ -L "$override" ] || return 0
-  # Neutralised for the same reason the note below is. This message carries `$XDG_CONFIG_HOME`, and a
-  # control byte in it rewrites the line already on the reader's terminal.
+  # `$XDG_CONFIG_HOME` is neutralised, not refused, for the reason the note below states.
   [ -f "$override" ] && [ -r "$override" ] ||
     die "${override//[[:cntrl:]]/ } is not a readable file. Fix or remove it; skipping it would restore the tracked bar without saying so"
   ruled="$lanes"
@@ -126,12 +123,16 @@ threshold_for() {
 }
 
 # `-r` as well as `-f`, matching the override's own test above: without it an unreadable tracked config
-# reached the redirect and exited 1 on bash's error rather than the ruled 2. Closing that on the
-# override alone would have left the pair asymmetric, with the older half the weaker one.
+# reaches the redirect and exits 1 on bash's error rather than the ruled 2.
 [ -f "$config" ] && [ -r "$config" ] || die "no readable threshold config at $config"
 [ $# -ge 2 ] || die "usage: score.sh threshold <lane> | score.sh cut <lane> <what a 10 is here>"
 
-case "$1" in
+# `"${1:-}"`, though the argument count above already guarantees $1 is set. The spelling is the whole of
+# it: eco-check's subcommand call-site scan matches `case "${1:-}" in` and nothing else. While this line
+# read `case "$1" in`, neither `threshold` nor `cut` was ever checked for a call site, and the scan said
+# nothing about this file because it never looked at it. Revert the spelling and it goes quiet again
+# without failing.
+case "${1:-}" in
   threshold)
     [ $# -eq 2 ] || die "threshold takes one lane"
     threshold_for "$2"
@@ -163,9 +164,21 @@ case "$1" in
     [ -z "$override_note" ] || printf '%s\n' "$override_note"
     printf '10 here means: %s\n\n' "$anchor"
     kept=0 gone=0
+    # Set before the loop, because `read` returns without assigning it when stdin cannot be read at
+    # all — closed, or a directory. Unset, `set -u` kills the run on the `[ -n "$line" ]` beside it,
+    # and the caller gets bash's own error and exit 1 in place of the refusal below.
+    line=
     # `|| [ -n "$line" ]`: at EOF without a trailing newline `read` fills the variable and still
     # returns non-zero, so the plain form drops the last item, and a caller piping a heredoc has none.
     # The item is then neither kept nor cut while the counts still add up.
+    #
+    # Bash's own `score.sh: line N: read: 0: read error` on stderr stays, however much it reads as
+    # noise. `read` returns 1 for end of input and for a failed read alike, so that line is the only
+    # thing here that tells the two apart. Redirect it away and stdin dying after three items prints
+    # `2 kept, 1 cut` at exit 0 — the shape a whole scored list takes, over a list that stopped.
+    #
+    # The refusal below does not cover this. It answers a list that never arrived, and one item read
+    # already satisfies it.
     while IFS= read -r line || [ -n "$line" ]; do
       [ -n "$line" ] || continue
       score="${line%%	*}"
@@ -190,6 +203,12 @@ case "$1" in
         kept=$((kept + 1))
       fi
     done
+    # Nothing arrived at all — stdin empty or unreadable, which read the same to a caller. `0 kept,
+    # 0 cut` at exit 0 looks exactly like a run that scored a list and cut none of it, so this is the
+    # one report the script must never produce. Exit 2, never 3: 3 refuses a result, and there is no
+    # result here. `--kept-all` cannot excuse it — that flag answers a list that was read and survived.
+    [ "$((kept + gone))" -gt 0 ] ||
+      die "nothing was scored — no '<score><TAB><label>' line reached stdin. Feed the list in"
     printf '\n%s kept, %s cut\n' "$kept" "$gone"
     # Everything clearing the bar is what scoring against no anchor looks like: the scale never gets
     # used, every item lands mid-band, and the run reads as a pass. The anchor refusal cannot catch

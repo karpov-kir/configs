@@ -4,8 +4,11 @@ package ecocheck_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 func TestImportResolvedAtTheMount(t *testing.T) {
@@ -132,6 +135,153 @@ func TestImportResolvedAtTheMount(t *testing.T) {
 	})
 }
 
+// The fourth resolver, and the one the oracle cases in refs_test.go did not reach. A Read-always
+// target is a link the reviewed branch wrote and `..` is in its charset, so asking the filesystem
+// before testing containment tells that branch's author which files the reviewing machine holds:
+// present came back `budget file refused`, absent came back `does not exist`. Both have to read the
+// same now, and each case below asserts one half — asserting only the absent one passes against a
+// checker that still probes.
+func TestATraversalReadAlwaysTargetIsNotStatted(t *testing.T) {
+	// One target outside the root that is there and one that is not. The refusal cuts the name it
+	// echoes at 80 bytes, so both render as the same line — which is the point, and also why the
+	// discriminating assertion is whether the other arm's wording appears at all.
+	newProbe := func(t *testing.T) *fixture {
+		f := newRoot(t)
+		f.write(f.base+"/present.md", "# here\n")
+		up := "../../../../../../../../../../../../../../../../../../../../"
+		f.write(f.root+"/kk-flavor/inject.md",
+			"# Flavor\n\n## Read always\n\n- [a]("+up+strings.TrimPrefix(f.base+"/present.md", "/")+")"+
+				"\n- [b]("+up+strings.TrimPrefix(f.base+"/absent.md", "/")+")\n")
+		return f
+	}
+
+	// The control: the Read-always list was read and a target was refused, so the silence below is a
+	// refusal rather than a fixture that never reached the budget scan.
+	t.Run("refuses a target that resolves outside the root (control for the case below)", func(t *testing.T) {
+		newProbe(t).reports("budget file refused")
+	})
+
+	// The leaked bit itself. Present, the target came back refused; absent, it came back through the
+	// other arm, and which of the two printed was the answer to the branch author's question.
+	//
+	// Matched on the head of that arm's line rather than on its trailing `does not exist`: these paths
+	// run past the printer's 500-byte line cap, so the tail is cut and asserting on it passes whatever
+	// the checker did. The subtest is named clear of the phrase too — t.TempDir() puts the subtest's
+	// own name inside every path the run echoes.
+	t.Run("and does not report either through the arm that says it is absent", func(t *testing.T) {
+		newProbe(t).doesNotReport("inject.md lists '")
+	})
+
+	// The control. Without it, a checker that refused every listed target would pass the three cases
+	// above as readily as one that only stops asking about paths outside the tree.
+	t.Run("while an in-root Read-always target is still counted", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/standards/real.md", "one two three\n")
+		f.write(f.root+"/kk-flavor/inject.md",
+			"# Flavor\n\n## Read always\n\n- [a](standards/real.md)\n")
+		f.doesNotReport("budget file refused")
+	})
+}
+
+// PathExists answers false two ways, and the arm behind it called both of them absent. A Read-always
+// target behind a directory this process cannot open is exactly where the router says it is, and the
+// finding sent its reader hunting for a file nobody had removed — while the always-loaded figure went
+// short by whatever that file holds, with the shortfall named as the tree's own defect.
+//
+// ecostats reports the same tree and split these two first; the answers have to match, because two
+// detectors disagreeing about what a permission failure means is the hazard rather than the wording.
+func TestAnUnreachableReadAlwaysTargetIsRefusedNotCalledAbsent(t *testing.T) {
+	newUnreachable := func(t *testing.T) *fixture {
+		skipUnlessModeDeniesRead(t, "an unreachable target cannot be built here")
+		f := newRoot(t)
+		shut := f.root + "/kk-flavor/standards/shut"
+		f.mkdirAll(shut)
+		f.write(shut+"/deep.md", "one two three\n")
+		f.write(f.root+"/kk-flavor/inject.md",
+			"# Flavor\n\n## Read always\n\n- [a](standards/shut/deep.md)\n")
+		f.chmod(shut, 0o000)
+		// Restored, or t.TempDir's own cleanup cannot descend to remove it and fails the case on the
+		// way out — a red that says nothing about what was asserted.
+		f.t.Cleanup(func() { os.Chmod(shut, 0o755) })
+		return f
+	}
+
+	t.Run("refuses a target it could not reach", func(t *testing.T) {
+		newUnreachable(t).reports("budget file refused")
+	})
+
+	// Matched on the head of the absent arm's line because that wording opens the arm and no other
+	// finding carries it. Not for the reason the sibling case above gives: these paths are short, and
+	// the line lands around 240 bytes, well inside the printer's width bound.
+	t.Run("and does not report it through the arm that says it is absent", func(t *testing.T) {
+		newUnreachable(t).doesNotReport("inject.md lists '")
+	})
+
+	// The control, and the half that keeps the fix honest: a target nobody wrote is still absent, and
+	// still says so. Without it, refusing every failed target would pass the two cases above.
+	t.Run("while a target nobody wrote is still reported as absent", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/inject.md",
+			"# Flavor\n\n## Read always\n\n- [a](standards/nowhere.md)\n")
+		f.reports("inject.md lists '")
+	})
+}
+
+// The bound both refusals below quote a name under, restated here because the package under test does
+// not export it, and a name long enough to run past it.
+const (
+	budgetMessageBound          = 80
+	overEveryBudgetMessageBound = 200
+)
+
+// Both refusals name something the reviewed tree chose the length of, and the budget one carries the
+// reason on its own tail — `<target>: <what Lstat said>`. Cut with nothing marking it, a reason stops
+// being a reason and becomes a shorter wrong one: `permission denied` arrives as `permission de`, and
+// a name cut at its colon arrives ending in `: `, which reads as "there was no reason" rather than as
+// "the reason did not fit". ecostats' suite holds the same pair over the same two messages.
+func TestACutRefusalSaysThatItWasCut(t *testing.T) {
+	// A directory where the Read-always target should be a file: it exists, so this is not the absent
+	// branch, and it is not regular, so containment refuses it and the refusal quotes the name. No
+	// mode bit is involved, so the case runs for every user, root included.
+	newLongRefusedTarget := func(t *testing.T) *fixture {
+		t.Helper()
+		f := newRoot(t)
+		long := strings.Repeat("b", overEveryBudgetMessageBound)
+		f.write(f.root+"/kk-flavor/inject.md",
+			"# Flavor\n\n## Read always\n\n- [core](standards/"+long+".md)\n")
+		f.mkdirAll(f.root + "/kk-flavor/standards/" + long + ".md")
+		return f
+	}
+
+	t.Run("refuses a budget file whose name runs past the bound (control)", func(t *testing.T) {
+		newLongRefusedTarget(t).reports("budget file refused")
+	})
+
+	t.Run("and marks that name rather than printing a shorter wrong one", func(t *testing.T) {
+		newLongRefusedTarget(t).reports("b" + shell.CutMarker)
+	})
+
+	// The other message on this path. An import name is the reviewed tree's to choose too, and this
+	// one is the shape that carries a reason: a traversal.
+	newLongRefusedImport := func(t *testing.T) *fixture {
+		t.Helper()
+		return newRootImporting(t, "../../"+strings.Repeat("e", overEveryBudgetMessageBound)+".md")
+	}
+
+	t.Run("refuses an import whose name runs past the bound (control)", func(t *testing.T) {
+		newLongRefusedImport(t).reports(refused)
+	})
+
+	// Matched on the whole cut name under the refusal's own wording, never on the marker alone: a
+	// refused import is also named in the uncounted-import note, which marks its own cut at a
+	// different bound — so "the marker is somewhere in the output" passes through that other call
+	// site whatever this one did. The mutation harness is where that was observed rather than argued.
+	t.Run("and marks that name under the refusal, not only in the census note", func(t *testing.T) {
+		kept := "../../" + strings.Repeat("e", budgetMessageBound-len("../../")-len(shell.CutMarker))
+		newLongRefusedImport(t).reports("named but not counted: " + kept + shell.CutMarker)
+	})
+}
+
 // A root whose CLAUDE.md imports one name, plus the home its mount resolves at. What each case below
 // varies is only what it puts at that mount.
 func newRootImporting(t *testing.T, imported string) *fixture {
@@ -190,9 +340,7 @@ func newSymlinkedImport(t *testing.T) *fixture {
 // reads happily.
 func newUnreadableImport(t *testing.T) *fixture {
 	t.Helper()
-	if !modeDeniesRead(t) {
-		t.Skip("this process reads a mode-000 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable file at the mount cannot be built here")
-	}
+	skipUnlessModeDeniesRead(t, "an unreadable file at the mount cannot be built here")
 	f := newRootImporting(t, "FOO.md")
 	f.write(f.home+"/.claude/FOO.md", "one two three\n")
 	f.chmod(f.home+"/.claude/FOO.md", 0o000)

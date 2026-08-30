@@ -8,10 +8,13 @@
 # Prints each outlier with its counts. Exits 1 when any found, 0 when clean, 2 when git rejected the
 # arguments. Prose/data files (md, txt, json, lockfiles) don't count. With no diff args, untracked
 # text files are scanned too; the index is never touched.
+# Every run ends with its denominator on stderr — files reached, files with countable added lines,
+# outliers, untracked files skipped unread. Read it: an empty report at exit 0 means "nothing was
+# comment-heavy" only when that first number is above zero, and "nothing was read" when it is not.
 # A targeting aid, not a bar: it counts ADDED lines, so rewording a comment the base already carried
 # moves it into the added set, and the ratio can rise across a pass that cut comments.
-# tested by: comment-density-test.sh, whose 66 cases are each proven able to fail by shell-mutate.sh
-# — one guard broken at a time in a copy, the named case required to redden and nothing else with it.
+# tested by: comment-density-test.sh, whose every case is proven able to fail by shell-mutate.sh —
+# one guard broken at a time in a copy, the named case required to redden and nothing else with it.
 set -uo pipefail
 export LC_ALL=C
 
@@ -49,6 +52,7 @@ emit_untracked_as_diff() {
     # newline, the pattern collapses to `*`, and every untracked file is skipped.
     case "$file" in
       *$'\n'*)
+        printf 'density-skipped-untracked\n'
         echo "comment-density.sh: skipping an untracked path whose name contains a newline; it was NOT scanned." >&2
         continue
         ;;
@@ -60,6 +64,13 @@ emit_untracked_as_diff() {
       # last line with the next file's `diff --git` header so the anchor below never fires.
       # || true: a file that vanished mid-scan contributes nothing.
       awk '{ print "+" $0 }' "./$file" 2>/dev/null || true
+    else
+      # A file this arm declines is one the scan never read, and it has to reach the tally or the
+      # summary claims a denominator it did not cover. Marked into the stream rather than counted in
+      # a variable: this loop is the right side of a pipe, so it is a subshell whose counters die
+      # with it. Nothing in a file's content can forge the marker — content reaches awk only behind
+      # a `+`, and every other line in a diff carries a header shape of its own.
+      printf 'density-skipped-untracked\n'
     fi
   done
 }
@@ -83,7 +94,8 @@ emit_untracked_as_diff() {
   # `diff --git` is the anchor: every line in a diff *body* carries a `+`, `-` or space prefix, so no
   # file content can forge one. Without it an added line `++ b/x.txt` reassigns the file, and every
   # added line after it disappears.
-  /^diff --git / { file = ""; pending = 1; next }
+  /^density-skipped-untracked$/ { skipped++; next }
+  /^diff --git / { file = ""; pending = 1; reached++; next }
   /^\+\+\+ / { if (pending) { pending = 0; if ($0 ~ /^\+\+\+ b\//) file = substr($0, 7) } next }
   /^\+/ {
     line = substr($0, 2)
@@ -92,6 +104,7 @@ emit_untracked_as_diff() {
     if (file ~ /\.(md|markdown|txt|json|lock)$/ || file ~ /(^|\/)[^\/]*lock[^\/]*\.(yaml|yml)$/) next
     if (line ~ /^(\/\/|\/\*|\*\/?([[:space:]]|$)|#)/) comments[file]++
     else code[file]++
+    counted[file] = 1
   }
   END {
     found = 0
@@ -110,6 +123,14 @@ emit_untracked_as_diff() {
       }
     }
     if (found > max_shown) printf "… and %d further outlier(s), not shown\n", found - max_shown
+    # The denominator, on stderr so the report on stdout stays exactly the outliers. What an empty
+    # report without it cannot say is at the head of this file.
+    countable = 0
+    for (file in counted) countable++
+    printf "comment-density.sh: %d file(s) reached the scan, %d with countable added lines, %d outlier(s), %d untracked file(s) skipped unread.\n",
+      reached + 0, countable, found, skipped + 0 > "/dev/stderr"
+    if (reached + 0 == 0)
+      printf "comment-density.sh: nothing reached the scan, so this run says nothing about the change set.\n" > "/dev/stderr"
     exit (found > 0)
   }
 '

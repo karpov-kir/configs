@@ -67,7 +67,15 @@ func (c *checker) scanScriptsParse() {
 	// Two forks per script is the dominant cost of the whole check, and each is independent of
 	// every other. Findings are sorted before they are printed, so running them out of order
 	// changes no byte of the output.
-	binaries := bashBinaries()
+	binaries := c.bashBinaries()
+	if len(binaries) == 0 {
+		// Zero binaries means zero forks, and the loop below then produces no findings at all —
+		// byte for byte what a tree of clean scripts produces. "every script still parses" is half
+		// of what this package promises, and a run that could not ask is not a run that got an
+		// answer, so this leaves through the exit rather than through silence.
+		c.cannotRun(fmt.Sprintf("no bash on PATH and none at /bin/bash, so NO script was parsed — %d script(s) went unchecked", len(scripts)))
+		return
+	}
 	results := make([]parseResult, len(scripts))
 	work := make(chan int)
 	var group sync.WaitGroup
@@ -102,7 +110,12 @@ func parseErrors(binaries []string, script string) []string {
 				continue
 			}
 		}
-		command := exec.Command(binary, "-n", script)
+		// `--` because a path opening with a dash is otherwise read as an option: `bash -n -d.sh`
+		// answers `-d: invalid option` and dumps its usage without ever opening the file, and each
+		// of those ~25 lines becomes a `syntax:` finding — rank 0, so the script goes unparsed while
+		// bash's help text floods the gravest rank. The root arrives as a literal argument, so the
+		// leading byte of every path built from it is the caller's to choose.
+		command := exec.Command(binary, "-n", "--", script)
 		command.Env = append(os.Environ(), "LC_ALL=C")
 		output, _ := command.CombinedOutput()
 		// Stored only when the parse was clean and the digest is one this process held: an error
@@ -141,7 +154,11 @@ func scriptDigest(script string) string {
 
 // Both are run even when they resolve to the same file: the duplicate findings collapse in the sort,
 // and dropping one would silently stop checking the older bash on a machine where PATH holds it.
-func bashBinaries() []string {
+//
+// Reached through a field on the checker rather than called directly, so a case can hand the scan an
+// empty list. Every machine this suite runs on has a bash, and the defect is what happened on one that
+// does not — untestable without the seam, which is why it survived.
+func installedBashBinaries() []string {
 	var found []string
 	if path, err := exec.LookPath("bash"); err == nil {
 		found = append(found, path)
@@ -327,14 +344,21 @@ type regionBody struct {
 
 // One file's regions, keyed by name. A name opening twice in one file accumulates into one body, the
 // way one pass over the file has to.
+//
+// Appended to, never concatenated. `body += line` re-copies everything gathered so far on every line,
+// which is quadratic in a line count the reviewed tree picks — the same trade imports.go took when it
+// dropped the shell version's scratch file. The cap below bounds the bytes held, not the copying done
+// to reach them: one committed 300 KB region cost 13.2s of CPU against 0.15s for the same file with
+// no markers in it, and nothing bounds how many regions or how many scripts a branch commits.
 func regionsIn(lines []string) map[string]regionBody {
-	found := map[string]regionBody{}
+	bodies := map[string]*strings.Builder{}
+	oversize := map[string]bool{}
 	region := ""
 	for _, line := range lines {
 		if sharedRegionOpen.MatchString(line) {
 			region = sharedRegionTail.ReplaceAllString(sharedRegionName.ReplaceAllString(line, ""), "")
-			if _, seen := found[region]; !seen {
-				found[region] = regionBody{}
+			if _, seen := bodies[region]; !seen {
+				bodies[region] = &strings.Builder{}
 			}
 			continue
 		}
@@ -345,16 +369,19 @@ func regionsIn(lines []string) map[string]regionBody {
 		if region == "" {
 			continue
 		}
-		current := found[region]
+		body := bodies[region]
 		// Past the cap the region is reported rather than compared: an unchecked region must never
 		// read as a matching one.
-		if len(current.body) >= sharedRegionBodyCap {
-			current.isOversize = true
-			found[region] = current
+		if body.Len() >= sharedRegionBodyCap {
+			oversize[region] = true
 			continue
 		}
-		current.body += escapeRegionLine(line) + "\x01"
-		found[region] = current
+		body.WriteString(escapeRegionLine(line))
+		body.WriteByte('\x01')
+	}
+	found := map[string]regionBody{}
+	for name, body := range bodies {
+		found[name] = regionBody{body: body.String(), isOversize: oversize[name]}
 	}
 	return found
 }

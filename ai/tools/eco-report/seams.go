@@ -12,7 +12,20 @@ import (
 // The open-item scan. 0 = nothing open, 1 = items on stdout, anything else = the scan did not run,
 // and its output is then empty — which read as "nothing open" would pass the merge gate on a scan
 // that never happened.
+//
+// Checked before it is run, the way currentTree checks the fingerprint script below. Both seams answer
+// the same question and answering it two ways is the defect: `todoGate` is built from argv[0], so a
+// slash-less one resolves it against the invocation's directory rather than the skill's, and what the
+// caller then reads is a bare exit status with no name in it. The status alone already fails closed —
+// every reader here treats anything above 1 as "did not run" — so this buys the reason, not the
+// refusal.
 func (r *run) runTodoGate() (string, int) {
+	if !isExecutable(r.todoGate) {
+		errLinesTo(r.errOut,
+			"error: "+r.todoGate+" is missing or not executable — the open-item scan did not run.",
+			"  It is located from this program's own path, so an invocation that renamed argv[0] resolves it somewhere else entirely.")
+		return "", 2
+	}
 	return r.capture(r.errOut, r.todoGate, r.report)
 }
 
@@ -57,8 +70,8 @@ func (r *run) currentTree(errOut io.Writer) (string, bool) {
 }
 
 // One fingerprint per invocation. `list` scores every report against the same working tree, so the
-// walk currentTree does is the same walk each time. Only a success is cached: a failed reading
-// reports itself again for the next caller, which is what the shell version's per-subshell retry did.
+// walk currentTree does is the same walk each time. Only a success is cached, so a failed reading
+// reports itself again for the next caller rather than going quiet after the first.
 func (r *run) currentTreeCached(errOut io.Writer) (string, bool) {
 	if r.cachedTree != "" {
 		return r.cachedTree, true

@@ -14,8 +14,7 @@
 # same moment, and a stray fixture file would land in their results as a finding.
 #
 # COMMENT_DENSITY_UNDER_TEST names the script to drive, so a mutation run can point the whole suite at
-# a deliberately broken copy and see which case goes red. That is how each case below is known to be
-# able to fail rather than assumed to be.
+# a deliberately broken copy and see which case goes red.
 set -u
 
 here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
@@ -25,7 +24,14 @@ script="${COMMENT_DENSITY_UNDER_TEST:-$here/comment-density.sh}"
   exit 2
 }
 
-base=$(mktemp -d) || exit 2
+# Exit 2, and it says why: a fixture root that cannot be created is a suite that did not measure,
+# which run-tests.sh counts apart from a failure. Exit 1 there would claim the script under test is
+# broken — a different claim, and a false one (`~/.kk-flavor/standards/testing.md` -> **7. What a
+# suite reports**).
+base=$(mktemp -d) || {
+  echo "comment-density-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$base"' EXIT
 
 # Both the developer's git config and this script's own env knobs move every verdict below, so the
@@ -121,9 +127,9 @@ blank_lines() {
   for ((i = 1; i <= total; i++)); do printf '\n'; done
 }
 
-# `</dev/null` is a guard, not tidiness: a mutated copy that stops exiting where a case expects must
-# fail the case rather than block on the terminal this suite inherited. A suite that hangs when a guard
-# is removed cannot prove that guard fires.
+# `</dev/null` is load-bearing: a mutated copy that stops exiting where a case expects must fail the
+# case rather than block on the terminal this suite inherited. A suite that hangs when a guard is
+# removed cannot prove that guard fires.
 run() {
   out=$(cd "$repo" && "$script" "$@" </dev/null 2>&1)
   status=$?
@@ -173,6 +179,8 @@ expect_no_out() {
     record_fail "$name" "expected no output, got: $out"
 }
 
+# Counts the lines of `$out`, so its case has to be run with `run_stdout`: the denominator the script
+# puts on stderr would otherwise add one to what is being asserted.
 expect_line_count() {
   local name="$1" want="$2" got
   got=$(printf '%s\n' "$out" | grep -c '')
@@ -187,9 +195,15 @@ echo "comment-density.sh"
 # expect 0 for a reason — an exclusion, a floor — and a script that exited 0 unconditionally would
 # satisfy every one of them.
 new_repo
-run HEAD
+run_stdout HEAD
 expect_status "an unchanged tree exits 0" 0
 expect_no_out "and prints nothing"
+# The other half of that exit 0, and the reason the case above is not enough on its own: an empty
+# report and a zero exit say "nothing was comment-heavy" and "nothing was read" in identical bytes.
+# The denominator is what separates them, so a run that read no file has to say so.
+run HEAD
+expect_out "and the denominator says no file reached it" "0 file(s) reached the scan"
+expect_out "and names that as saying nothing about the change set" "nothing reached the scan, so this run says nothing"
 run
 expect_status "an unchanged tree with no arguments exits 0 too" 0
 
@@ -260,9 +274,14 @@ expect_out "and prints its counts and ratio" "outlier.ts: 6 comment / 1 code add
 new_repo
 track_empty floor.ts
 comment_lines 4 >"$repo/floor.ts"
-run HEAD
+run_stdout HEAD
 expect_status "four added comment lines are under the floor" 0
 expect_no_out "and nothing is reported"
+# The positive half of the pair above: same empty report, same exit 0, and the denominator is what
+# says a file was read this time. Without both cases the number could be a constant.
+run HEAD
+expect_out "and the denominator shows the file was read all the same" "1 file(s) reached the scan, 1 with countable added lines, 0 outlier(s)"
+expect_not_out "so this run is not reported as having read nothing" "nothing reached the scan"
 comment_lines 5 >"$repo/floor.ts"
 run HEAD
 expect_status "five added comment lines reach the floor" 1
@@ -333,9 +352,13 @@ track_empty pnpm-lock.yaml
 for prose_file in notes.md notes.txt data.json pnpm-lock.yaml; do
   comment_lines 8 >"$repo/$prose_file"
 done
-run HEAD
+run_stdout HEAD
 expect_status "prose, data and lockfiles are not counted" 0
 expect_no_out "and none of them is reported"
+# Excluded is a third thing, distinct from both zeros above: the files reached the scan and none of
+# them held a countable line. The denominator carries that as its own pair of numbers.
+run HEAD
+expect_out "and the denominator separates reached from countable" "4 file(s) reached the scan, 0 with countable added lines"
 
 # --- the diff-header anchor ---
 
@@ -402,12 +425,15 @@ new_repo
 run
 expect_status "an untracked file is scanned when no revision is given" 1
 expect_out "and is reported by name" "fresh.ts: 6 comment / 1 code added lines (0.86)"
-run HEAD
+run_stdout HEAD
 expect_status "and is not scanned when one is" 0
 expect_no_out "and is not reported then"
 
+# A skipped untracked file is one this script never read, so it has to reach the denominator too — a
+# summary counting only what it managed to open would claim a coverage it did not have.
 run_env DENSITY_MAX_FILE_BYTES=10
 expect_status "an untracked file over the byte cap is skipped" 0
+expect_out "and the skip is counted rather than silent" "1 untracked file(s) skipped unread"
 
 # A NUL in the first 8KB is the binary test. Without it a minified bundle or an image would be counted
 # a line at a time.
@@ -417,9 +443,11 @@ new_repo
   code_lines 1
   printf 'tail\000byte\n'
 } >"$repo/binary.ts"
-run
+run_stdout
 expect_status "an untracked binary file is skipped" 0
 expect_no_out "and is not reported"
+run
+expect_out "and the binary skip reaches the denominator too" "1 untracked file(s) skipped unread"
 
 # An untracked file with no final newline, followed by another. `sed 's/^/+/'` passes the missing
 # newline through, fusing that file's last line with the next file's `diff --git` header: the header
@@ -453,6 +481,7 @@ newline_name=$(printf 'weird\nsecond line')
 run
 expect_status "an untracked path whose name holds a newline is skipped" 0
 expect_out "and the skip is announced" "skipping an untracked path whose name contains a newline"
+expect_out "and it is counted among the files skipped unread" "1 untracked file(s) skipped unread"
 expect_not_out "and the file is not reported" "comment /"
 
 # --- shape of the report ---
@@ -480,7 +509,7 @@ commit_all
 for ((n = 1; n <= 201; n++)); do
   comment_lines 5 >"$repo/many$n.ts"
 done
-run HEAD
+run_stdout HEAD
 expect_status "201 outliers still exit 1" 1
 expect_out "and the ones past the cap are announced, not dropped" "… and 1 further outlier(s), not shown"
 expect_line_count "and exactly the cap is printed above the announcement" 201

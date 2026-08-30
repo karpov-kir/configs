@@ -11,7 +11,7 @@
 set -uo pipefail
 export LC_ALL=C
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 tmp="$(mktemp -d)" || exit 1
 trap 'rm -rf "$tmp"' EXIT
@@ -69,6 +69,61 @@ check "blanks rather than deletes, so jq's line numbers still point at the real 
 # with both tools off PATH and its own throwaway config dir, so the check itself cannot sync either.
 guard="$(CLAUDE_CONFIG_DIR="$tmp/guard-config" PATH=/usr/bin:/bin bash -c '. "$1" && echo returned' _ "$script_dir/mcp-sync.sh" 2>/dev/null)"
 check "control: sourcing stops at the guard, so running this file cannot sync" "returned" "$guard"
+
+# The argument guard. Every run of this script writes the live MCP registry, so an argument it does
+# not understand has to stop it rather than be ignored: `bash mcp-sync.sh --help`, run expecting
+# usage text, performed a real registration instead. Driven on the same stripped PATH the guard case
+# above uses, so neither arm can reach the `claude` CLI even if it regressed — and with the guard
+# gone both runs fall through to the jq probe, which exits 1 with wording no arm here writes.
+bare="$tmp/bare-path"
+mkdir -p "$bare"
+# `bash` because the runs below are launched through it, `sed` because the usage arm reads this
+# script's own header with it. Neither `jq` nor `claude` is here, which is what keeps a regression
+# contained: past the guard the run dies at the jq probe instead of reaching the registry.
+for needed in bash sed; do
+  ln -s "$(command -v "$needed")" "$bare/$needed"
+done
+arg_config="$tmp/arg-guard-config"
+
+run_guarded() { # <arg>, over $out and $status
+  out="$(CLAUDE_CONFIG_DIR="$arg_config" PATH="$bare" bash "$script_dir/mcp-sync.sh" "$1" 2>&1)"
+  status=$?
+}
+
+held() { # <needle> — the needle back when $out holds it, the whole output when it does not
+  case "$out" in
+    *"$1"*) printf 'held' ;;
+    *) printf '%s' "$out" ;;
+  esac
+}
+
+run_guarded --not-an-argument
+check "an unknown argument exits 2 rather than syncing" "2" "$status"
+check "and names the argument it refused" "held" "$(held 'unknown argument --not-an-argument')"
+check "and says nothing was synced" "held" "$(held 'Nothing was synced')"
+# The control the status cannot give: the stripped PATH kills a script that reaches past the guard,
+# and that refusal exits 1 rather than 2 — but only the wording says which door the run came out of.
+check "control: and it is the guard refusing, not a command this PATH lacks" "clean" \
+  "$(case "$out" in *'command not found'* | *': not found'* | *'jq is required'*) printf '%s' "$out" ;; *) printf 'clean' ;; esac)"
+
+run_guarded --help
+check "--help exits 0" "0" "$status"
+check "and prints usage rather than performing the sync" "held" "$(held 'usage: mcp-sync.sh')"
+check "and says the script takes no arguments" "held" "$(held 'takes no arguments')"
+
+# The two lines above come from a `printf`. The rest of that arm is a line range out of the script's
+# own header — a claim about a file's content held by two line numbers, which a line added above the
+# range or a paragraph moved inside it turns into the wrong lines, or into none, with nothing here
+# failing. Repeating the numbers here would move the rot rather than remove it, so both ends are
+# pinned by content: the header line the range has to start at, and the note past it that has to stay
+# out. The control is what stops the first of those comparing against an empty string, which every
+# output contains — a pass over nothing, reported as a pass.
+help_first="$(sed -n '2,$p' "$script_dir/mcp-sync.sh" | sed -n 's/^# \{0,1\}\(..*\)$/\1/p' | head -1)"
+check "control: the header's opening line was found, so the case below compares something" "found" \
+  "$([ -n "$help_first" ] && printf 'found' || printf 'empty')"
+check "and prints the header's opening line, so the range still starts where it should" "held" "$(held "$help_first")"
+check "and stops before the notes under it" "clean" \
+  "$(case "$out" in *'tested by:'*) printf '%s' "$out" ;; *) printf 'clean' ;; esac)"
 
 check "the repo's own mcp.jsonc parses after stripping" "parses" \
   "$(strip_comments "$script_dir/mcp.jsonc" | jq -e . >/dev/null 2>&1 && echo parses || echo broken)"

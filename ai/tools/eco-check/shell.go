@@ -43,15 +43,9 @@ func isAlnumByte(b byte) bool {
 	return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
 
-// The reviewed tree chooses this file's size, so the read is bounded: a committed 64 MiB of newlines
-// is 408 KB packed and took 2.48 GB of resident memory, against the 7.5 MB the streaming shell version
-// used, and half a gigabyte of it OOM-kills the review stage outright. The bound is far above any real
-// instruction file — the largest in this tree is under 60 KB — so hitting it is a statement about the
-// branch, not about the tree growing.
-//
-// Over the bound the file is reported and not read. Truncating it instead would leave an unchecked
-// file indistinguishable from a checked one.
-const maxFileBytes = 8 << 20
+// The bound and its reason are shell.MaxFileBytes. Over it the file is reported and not read, which
+// is what keeps an unchecked file distinguishable from a checked one.
+const maxFileBytes = shell.MaxFileBytes
 
 // The one wording every bounded read here reports itself with, ending on what this reader did not do.
 // Three scans hit the bound and each says something different about the consequence; only that half
@@ -59,6 +53,17 @@ const maxFileBytes = 8 << 20
 func tooLargeToScan(name string, size int64, consequence string) string {
 	return fmt.Sprintf("file too large to scan: %s is %d bytes, over the %d-byte bound — %s",
 		name, size, maxFileBytes, consequence)
+}
+
+// A file the walk handed over and the read then refused. Both bounds above already turn "nothing was
+// read" into a finding rather than an empty result; a file this process cannot open is the other way
+// that happens, and it was the silent one. Every scan skips such a file, which is the right call — the
+// reviewed tree chooses what is unreadable, so stopping would be a switch a branch could throw — but
+// skipping it *quietly* made three files at mode 000 read as 41 dangling-section findings against the
+// files that cited them, a census line 34 words short under an unchanged denominator, and nothing on
+// stderr. Reported, the skip is still a skip and the run can no longer exit 0 over it.
+func couldNotRead(name, consequence string) string {
+	return fmt.Sprintf("file could not be read: %s — %s", name, consequence)
 }
 
 func (c *checker) readLines(path string) ([]string, error) {
@@ -72,6 +77,9 @@ func (c *checker) readLines(path string) ([]string, error) {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
+		// The error still comes back, so every caller goes on skipping the file exactly as before.
+		// Several scans read one file, and the findings deduplicate, so this is one line per file.
+		c.add(couldNotRead(shell.Oneline(path), "it was NOT checked"))
 		return nil, err
 	}
 	return shell.SplitLines(string(data)), nil

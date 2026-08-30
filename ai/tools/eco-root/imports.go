@@ -170,26 +170,39 @@ func (r Root) ResolveImports(scan ImportScan) []string {
 	return uncounted
 }
 
+// How many uncounted imports are named before the rest are summarised. Named because two lines below
+// read it — the slice that keeps them and the arithmetic that says how many were withheld — and
+// written as two bare 10s a change to one silently outruns the other: the note then names eight and
+// says nothing about the ninth, which is a list reading as whole. Same reason ecostats names its own
+// refusal cap.
+const uncountedNamedCap = 10
+
 // UncountedNames is the naming half of the uncounted-import note: capped in bytes as well as in
 // entries, because that note rides the exit-0 path, so an uncapped list prints attacker-chosen text
 // under a clean report. The count stays exact and is the caller's to print; only the naming is
 // trimmed here.
 func UncountedNames(uncounted []string) string {
 	shown := uncounted
-	if len(shown) > 10 {
-		shown = shown[:10]
+	if len(shown) > uncountedNamedCap {
+		shown = shown[:uncountedNamedCap]
 	}
 	var joined strings.Builder
 	for _, name := range shown {
 		// Sanitised like every other name a message echoes, even though the import pattern's charset
 		// admits no control byte today: a scan added later that widens that charset must not reopen
-		// the injection here.
-		joined.WriteString(shell.CutBytes(shell.Oneline(name), 60))
+		// the injection here. Marked when the bound bites, so a name cut at 60 bytes is not read as
+		// the whole name — this list is what a later pass grepped for to find the import again.
+		joined.WriteString(shell.CutBytesMarked(shell.Oneline(name), 60))
 		joined.WriteString(" ")
 	}
-	names := strings.TrimSuffix(shell.CutBytes(joined.String(), 200), " ")
-	if len(uncounted) > 10 {
-		names += " … and " + strconv.Itoa(len(uncounted)-10) + " more"
+	// Marked here too, and for the same reason as the per-name cut above: this bound bites first
+	// whenever several names are long, and cutting the joined list without a word puts back at the
+	// list level exactly the shorter-name-that-reads-as-whole the per-name mark closed. The trim below
+	// still finds what it is for — a cut list ends in the marker and so carries no separator, and an
+	// uncut one is handed back with the separator the loop appended.
+	names := strings.TrimSuffix(shell.CutBytesMarked(joined.String(), 200), " ")
+	if len(uncounted) > uncountedNamedCap {
+		names += " … and " + strconv.Itoa(len(uncounted)-uncountedNamedCap) + " more"
 	}
 	return names
 }

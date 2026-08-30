@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -53,6 +55,73 @@ func TestTheReportCountsDoorsDeepDoorsPrecisionCitersAndUnenteredSections(t *tes
 	}
 	if errOut.Len() != 0 {
 		t.Errorf("an honest four-file tree wrote to stderr: %q", errOut.String())
+	}
+}
+
+// The whole point of the count. A scan that missed part of the tree measured a different tree, and it
+// prints at full confidence in exactly the shape a measurement of this one takes: over a copy of `ai/`
+// with two directories shut, the report went from 49 files and 100 edges to 33 and 13, said the shared
+// layer held no unentered section — because the shared layer was what it could not open — and exited
+// 0. Both `cite-graph.sh` and CI read the exit code.
+func TestAPartialScanRefusesRatherThanReporting(t *testing.T) {
+	root := t.TempDir()
+	away := t.TempDir()
+	write(t, away, "std/proto.md", "# P\n\n## Caller\n")
+	write(t, root, "caller.md", "see `std/proto.md` → **Caller**\n")
+	if err := os.Symlink(filepath.Join(away, "std"), filepath.Join(root, "std")); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	code, out, errOut := runOver(t, root)
+	if code != 2 {
+		t.Errorf("exit %d over a tree that was not read whole, want 2", code)
+	}
+	if strings.Contains(out, "DEPTH") || strings.Contains(out, "file(s)") {
+		t.Errorf("a partial scan printed a report:\n%s", out)
+	}
+	if !strings.Contains(errOut, "were NOT read") {
+		t.Errorf("stderr %q does not say the tree was not read whole", errOut)
+	}
+}
+
+// The other side of it: a tree read whole reports and exits 0. Without this the refusal above is
+// satisfied by a tool that refuses everything, which measures nothing and passes.
+func TestATreeReadWholeReportsAndExitsZero(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "std/proto.md", "# P\n\n## Caller\n")
+	write(t, root, "caller.md", "see `std/proto.md` → **Caller**\n")
+
+	code, out, errOut := runOver(t, root)
+	if code != 0 {
+		t.Fatalf("exit %d over a tree read whole, want 0; stderr was %q", code, errOut)
+	}
+	if !strings.Contains(out, "2 file(s), 1 citation edge(s)") {
+		t.Errorf("report does not measure the fixture:\n%s", out)
+	}
+}
+
+// A root holding no markdown is a measurement that did not run, never the 0 a flat tree exits — the
+// distinction three skills read this exit code for.
+func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "notes.txt", "nothing to read here\n")
+
+	code, out, errOut := runOver(t, root)
+	if code != 2 {
+		t.Errorf("exit %d over a root holding no markdown, want 2", code)
+	}
+	if out != "" {
+		t.Errorf("a refusal printed a report:\n%s", out)
+	}
+	if !strings.Contains(errOut, "read nothing under") {
+		t.Errorf("stderr %q does not say it read nothing", errOut)
+	}
+}
+
+func TestNoRootIsARefusalWithTheUsageGrammar(t *testing.T) {
+	code, _, errOut := runOver(t)
+	if code != 2 || !strings.Contains(errOut, "usage: cite-graph <root>") {
+		t.Errorf("exit %d, stderr %q — want 2 and the usage grammar", code, errOut)
 	}
 }
 

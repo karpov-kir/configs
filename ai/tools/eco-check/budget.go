@@ -58,9 +58,15 @@ func (c *checker) budgetFiles() []string {
 	for _, doc := range ecoroot.ReadAlwaysTargets(injectLines) {
 		listed := shell.Join(c.root.Flavor(), doc)
 		switch {
+		// Lexically, and before anything here asks the filesystem — tree.go's underRoot holds the
+		// reason. A Read-always target is a link the reviewed branch wrote and `..` is in its
+		// charset, so the two arms below are an oracle: `[a](../../../../Users/x/.ssh/id_rsa)` came
+		// back refused when the reviewing machine held that file and "does not exist" when it did
+		// not.
+		case !c.underRoot(listed):
+			c.refuseBudgetFile("inject.md Read-always target " + doc)
 		case !shell.PathExists(listed) && !shell.IsSymlink(listed):
-			c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
-				shell.Oneline(doc) + " does not exist")
+			c.absentOrOutOfReach(doc, listed)
 		case !c.root.Contains(listed):
 			c.refuseBudgetFile("inject.md Read-always target " + doc)
 		default:
@@ -70,13 +76,31 @@ func (c *checker) budgetFiles() []string {
 	return files
 }
 
+// How this tool words the two, absent and out of reach. Which of them a failed existence test means
+// is ecoroot.AbsentOrOutOfReach's, shared with ecostats because both describe one tree and may not
+// answer that differently.
+//
+// Reached only for a path underRoot already accepted, so asking the filesystem here tells the reviewed
+// branch nothing it did not already write.
+func (c *checker) absentOrOutOfReach(doc, listed string) {
+	isAbsent, reason := ecoroot.AbsentOrOutOfReach(listed)
+	if isAbsent {
+		c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
+			shell.Oneline(doc) + " does not exist")
+		return
+	}
+	c.refuseBudgetFile("inject.md Read-always target " + doc + ": " + reason)
+}
+
 // The refused file's **name** is attacker-chosen and is printed, so the name and the number of these
-// lines are both bounded.
+// lines are both bounded. Marked when the bound bites: the name carries the refusal's reason on the
+// Read-always path, where it reads "<target>: <what Lstat said>", and a reason cut without a mark
+// reads as the whole of one.
 func (c *checker) refuseBudgetFile(name string) {
 	c.budgetRefusals++
 	if c.budgetRefusals <= budgetRefusalCap {
 		c.add("budget file refused (symlink, unreadable, or resolves outside " + c.root.Named() +
-			") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), 80))
+			") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))
 	} else if c.budgetRefusals == budgetRefusalCap+1 {
 		c.add("further budget-file refusals suppressed; the count above is not the total")
 	}
@@ -92,7 +116,7 @@ func (c *checker) withImports(files []string) (budget, uncounted []string) {
 		Read:     c.readLines,
 		Resolved: func(target string) { budget = append(budget, target) },
 		Refused: func(name, reason string) {
-			c.add("import refused (" + reason + "), named but not counted: " + shell.CutBytes(shell.Oneline(name), 80))
+			c.add("import refused (" + reason + "), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))
 		},
 	})
 	return budget, uncounted

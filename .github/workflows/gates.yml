@@ -1,23 +1,26 @@
-# The gates that run on a push. release-tools.yml also gates the Go tools, but only on a tag, so
-# before this workflow a commit could reach main with nothing checking it at all — and every
-# `*-test.sh` in the tree was real, green, and run by nothing.
+# The gates that run on a push. release-tools.yml also gates the Go tools, but only on a tag, which is
+# no gate on the commits between tags.
 #
-# The Go step duplicates release-tools.yml's `Gate` on purpose. That one must stay: it guards the
+# The Go step duplicates release-tools.yml's `Gate`, and that one must stay: it guards the
 # binaries a release attaches, and `resolve.sh` prefers a downloaded binary over the source beside
 # it, so a release built from unchecked code is worse than no release. Sharing them would mean a
 # reusable workflow, which is more machinery than three commands are worth.
 #
-# The suite list is not here on purpose: ai/run-tests.sh discovers every `*-test.sh`, so a suite
-# added later is gated without anyone remembering to register it, and finding none is a failure
-# rather than an empty pass.
+# No suite list here: ai/run-tests.sh discovers every `*-test.sh`, so a suite added later is gated
+# without anyone remembering to register it, and finding none is a failure rather than an empty pass.
 #
-# Both legs on purpose. macOS is where these suites are written and where /bin/bash is 3.2; Linux is
-# where they are unproven and where CI is cheap. fail-fast is off so one leg going red still reports
-# the other, since the delta between them is the portability signal.
+# Both legs matter. macOS is where these suites are written and where /bin/bash is 3.2; Linux is where
+# they are unproven and where CI is cheap. fail-fast is off so one leg going red still reports the
+# other, since the delta between them is the portability signal.
 #
-# The actions carry a major tag, not an exact pin, on purpose: nothing in this repo bumps an exact
-# pin, so it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this
-# override the day dependabot or renovate lands.
+# The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
+# it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
+# the day dependabot or renovate lands.
+#
+# Every setup-go step here sets `cache: false`, for one reason: setup-go looks for its cache key file
+# in the repo root only — go.mod now, go.sum before v6.3.0 — and this module is in ai/tools. Left
+# default it annotates every run with a miss that can never become a hit. cache-dependency-path would
+# point it here, but the only thing to cache is a build cache keyed on a go.mod that never changes.
 name: gates
 
 on:
@@ -44,10 +47,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ai/tools/go.mod
-          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
-          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
-          # that can never become a hit. cache-dependency-path would point it here, but the only
-          # thing to cache is a build cache keyed on a go.mod that never changes.
           cache: false
 
       - name: Run every suite
@@ -62,10 +61,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ai/tools/go.mod
-          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
-          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
-          # that can never become a hit. cache-dependency-path would point it here, but the only
-          # thing to cache is a build cache keyed on a go.mod that never changes.
           cache: false
 
       - name: Gate
@@ -117,3 +112,24 @@ jobs:
             exit 0
           fi
           exit "$status"
+
+  # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
+  # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file
+  # that does not exist reaches main with nothing looking at it.
+  #
+  # `check.sh` exits 1 with findings and 2 when it could not run at all, and both fail the job — a
+  # check that did not run is not a clean one, which is the rule the script's own header states.
+  wiring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The scans are Go. `check.sh` reaches the binary through `resolve.sh`, which builds from the
+      # source beside it when no release binary is present — which is the case on a fresh runner.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ai/tools/go.mod
+          cache: false
+
+      - name: Check the instruction tree wires up
+        run: ai/skills/kk-ecosystem/scripts/check.sh

@@ -11,7 +11,7 @@
 set -uo pipefail
 export LC_ALL=C
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 runner="$here/run-tests.sh"
 
 pass=0
@@ -115,6 +115,47 @@ check "control: and says discovery is what broke" "1" "$(printf '%s' "$out" | gr
 
 out="$("$runner" "$tmp/nope" 2>&1)"; rc=$?
 check "a root that does not exist exits 2" "2" "$rc"
+
+# `cd` echoes the directory it landed on when CDPATH is set and the path it is given is relative, so
+# the default root comes back two lines long and the runner refuses a directory that is really there.
+# Invoked by a relative path from a directory above it, because that is the only shape that consults
+# CDPATH at all — and it is the shape the gates workflow uses, `run: ai/run-tests.sh`.
+mkdir -p "$tmp/cdpath/sub"
+cp "$runner" "$tmp/cdpath/sub/run-tests.sh"
+chmod +x "$tmp/cdpath/sub/run-tests.sh"
+printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/cdpath/a-test.sh"
+out="$(cd "$tmp/cdpath" && CDPATH=. bash sub/run-tests.sh 2>&1)"; rc=$?
+check "CDPATH in the environment does not corrupt the default root" "0" "$rc"
+check "control: and the suite beside it really was found, so this is not an empty pass" "1" \
+  "$(printf '%s' "$out" | grep -c '^ok   a-test.sh')"
+
+# Every file discovery finds is then executed, so inside a checkout the list comes from git: tracked
+# files plus new untracked ones, and nothing .gitignore already excludes. The untracked half is the
+# property that must survive the narrowing — a suite written five minutes ago is untracked, and this
+# runner's whole claim is that it runs without anyone registering it. The ignored suite exits 1, so
+# it is a control rather than an assertion about a name: if it ran at all, the run goes red.
+if command -v git >/dev/null; then
+  mkdir -p "$tmp/ignored/vendor"
+  ( cd "$tmp/ignored" && git init -q . && git config user.email t@t && git config user.name t ) >/dev/null 2>&1
+  printf 'vendor/\n' > "$tmp/ignored/.gitignore"
+  printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/ignored/tracked-test.sh"
+  ( cd "$tmp/ignored" && git add .gitignore tracked-test.sh && git commit -qm seed ) >/dev/null 2>&1
+  printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/ignored/fresh-test.sh"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/ignored/vendor/dropped-test.sh"
+  out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
+  check "control: a gitignored suite is never executed" "0" "$rc"
+  check "control: and is not among the suites found" "0" "$(printf '%s' "$out" | grep -c 'dropped-test.sh')"
+  check "a tracked suite still runs" "1" "$(printf '%s' "$out" | grep -c '^ok   tracked-test.sh')"
+  check "and an untracked one written since the last commit runs too" "1" \
+    "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
+  check "and the summary says git answered discovery" "1" "$(printf '%s' "$out" | grep -c 'discovered by git')"
+fi
+
+# Two runs that read different file sets must not print one line, for the same reason the containment
+# tail exists: outside a checkout git cannot answer and the fallback reads every file under the root.
+out="$("$runner" "$tmp/green" 2>&1)"
+check "outside a checkout the summary says find answered instead" "1" \
+  "$(printf '%s' "$out" | grep -c 'discovered by find')"
 
 mkdir -p "$tmp/skip/node_modules/pkg"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/skip/node_modules/pkg/vendor-test.sh"

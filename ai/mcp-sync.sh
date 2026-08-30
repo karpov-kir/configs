@@ -11,7 +11,7 @@
 # argument, where `ps` can read it for the length of the call. There's no stdin or file path to pass
 # it through: `add-json` takes `<name> <json>` and nothing else. Don't run this on a shared host.
 
-# The sed is anchored at the line start on purpose: blanking from any `//` onwards truncates a URL.
+# The sed is anchored at the line start: blanking from any `//` onwards truncates a URL.
 strip_comments() {
   sed -e 's|^[[:space:]]*//.*$||' "$1"
 }
@@ -24,7 +24,24 @@ fi
 
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Every invocation form this script has writes to the live MCP registry, so an argument it does not
+# understand is refused rather than ignored. `bash mcp-sync.sh --help`, run expecting usage text,
+# silently performed a real registration instead: there is no argument meaning "tell me and stop"
+# unless this file says so. Refused ahead of the probes below, so the wording names the argument
+# rather than whatever this machine happens to be missing.
+if [ "$#" -gt 0 ]; then
+  if [ "$#" -eq 1 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
+    sed -n '3,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    printf 'usage: mcp-sync.sh   # takes no arguments; every run writes to the live registry\n'
+    exit 0
+  fi
+  printf 'mcp-sync.sh: unknown argument %s — this script takes none, and every run writes to the live MCP registry. Nothing was synced.\n' "$1" >&2
+  exit 2
+fi
+
+# `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so `script_dir` comes
+# back two lines long and every file path built from it resolves nowhere.
+script_dir="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 public_mcp_file="$script_dir/mcp.jsonc"
 private_mcp_file="$script_dir/mcp.private.jsonc"
 

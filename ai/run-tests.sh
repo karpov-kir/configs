@@ -10,16 +10,35 @@
 set -uo pipefail
 export LC_ALL=C
 
-root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so the default root comes
+# back two lines long and the check below refuses a directory that is really there.
+root="${1:-$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 [ -d "$root" ] || {
   echo "run-tests.sh: not a directory: $root" >&2
   exit 2
 }
 
+# Discovery asks git first, because every file this finds is then executed. `--cached --others
+# --exclude-standard` is tracked files plus new untracked ones and nothing else: a suite written five
+# minutes ago still runs without anyone registering it, while a build artefact, a vendored tree or
+# anything else .gitignore already excludes does not get to execute as a suite.
+#
+# `find` stays as the fallback, because the suites can legitimately be run over a directory that is
+# not a checkout, and that path keeps the node_modules exclusion it always had. Which one answered is
+# reported: two runs that read different file sets must not print one line.
 suites=()
-while IFS= read -r suite; do
-  suites+=("$suite")
-done < <(find "$root" -name "*-test.sh" -type f -not -path "*/node_modules/*" | sort)
+if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  discovery="git"
+  while IFS= read -r suite; do
+    [ -n "$suite" ] || continue
+    suites+=("$root/$suite")
+  done < <(git -C "$root" ls-files --cached --others --exclude-standard -- '*-test.sh' | sort -u)
+else
+  discovery="find"
+  while IFS= read -r suite; do
+    suites+=("$suite")
+  done < <(find "$root" -name "*-test.sh" -type f -not -path "*/node_modules/*" | sort)
+fi
 
 [ "${#suites[@]}" -gt 0 ] || {
   echo "run-tests.sh: no *-test.sh under $root — read this as discovery broken, never as a clean run" >&2
@@ -111,8 +130,8 @@ else
   containment=", containment unchecked"
 fi
 
-printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s\n' \
-  "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$containment"
+printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s, discovered by %s\n' \
+  "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$containment" "$discovery"
 
 # A red outranks a non-measurement: something is known to be wrong, which is the more urgent fact.
 [ "$failed" -eq 0 ] || exit 1

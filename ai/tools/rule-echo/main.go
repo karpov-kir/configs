@@ -58,11 +58,9 @@ const maxReportRunes = 110
 // every widening adds another way for the scan to fall silent over content it should have read.
 const fenceMarker = "```"
 
-// The tool reads whole files, and the tree supplying them is the tree under review. Prose documents
-// are kilobytes; anything past this is not a rule file, and reading it costs memory the scan has no
-// way to give back. The bound reports rather than skips, so a file nothing read is never mistaken for
-// a file that held no rules.
-const maxFileBytes = 8 << 20
+// The bound and its reason are shell.MaxFileBytes. Here it reports rather than skips, so a file
+// nothing read is never mistaken for a file that held no rules.
+const maxFileBytes = shell.MaxFileBytes
 
 type boldSpan struct {
 	start int // byte offset of the opening `**`
@@ -195,10 +193,34 @@ func classify(a, b span) (v verdict, shared, beyond int) {
 	return restatement, shared, beyond
 }
 
-func collect(root string) ([]span, error) {
-	var spans []span
+// The scan's own account of itself: the rules it read, and how many files it was pointed at and did
+// not read. The second number is the one that makes the first mean anything — 376 bolded rules and
+// 206 are the same line to a reader unless the run says it was shown less of the tree.
+type scan struct {
+	spans []span
+	// Files and directories this was handed and did not read. A directory counts once and takes its
+	// whole subtree with it, so this is a floor on what was missed, never the total.
+	unread int
+}
+
+func collect(root string) (scan, error) {
+	var found scan
+	// Named on stderr and counted, both. The count reaches the summary and the exit; the name is the
+	// only thing that tells a reader *which* part of the tree they were not shown.
+	refuse := func(format string, args ...any) {
+		found.unread++
+		fmt.Fprintf(os.Stderr, format+"\n", args...)
+	}
 	err := filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
-		if err != nil || fi.IsDir() || !strings.HasSuffix(p, ".md") {
+		// Walk hands a directory it could not open to this function with err set and fi nil, and the
+		// whole subtree under it is then never visited. Swallowed with the two conditions below, that
+		// vanished without a word: two unreadable directories took this tree from 376 bolded rules to
+		// 206 — 45% less — over an unchanged exit code and an empty stderr.
+		if err != nil {
+			refuse("cannot read %s: %s — nothing under it was read", shell.Oneline(p), shell.Oneline(err.Error()))
+			return nil
+		}
+		if fi.IsDir() || !strings.HasSuffix(p, ".md") {
 			return nil
 		}
 		// `Walk` uses `Lstat`, so a directory symlink is already not followed — but `os.ReadFile`
@@ -208,16 +230,20 @@ func collect(root string) ([]span, error) {
 		// than skipped, the way a citation target that is not a regular file already is: a scan that
 		// narrowed says so, or the narrowing is indistinguishable from a clean read.
 		if !fi.Mode().IsRegular() {
-			fmt.Fprintf(os.Stderr, "not a regular file: %s — it was NOT read\n", shell.Oneline(p))
+			refuse("not a regular file: %s — it was NOT read", shell.Oneline(p))
 			return nil
 		}
 		if fi.Size() > maxFileBytes {
-			fmt.Fprintf(os.Stderr, "file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n",
+			refuse("file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read",
 				shell.Oneline(p), fi.Size(), maxFileBytes)
 			return nil
 		}
 		body, err := os.ReadFile(p)
 		if err != nil {
+			// A file the walk reached and the open refused. Every other way of reading less than the
+			// whole tree already said so; this one returned an empty-handed nil and the rule that was
+			// in the file simply did not exist as far as any caller could tell.
+			refuse("cannot read %s: %s — it was NOT read", shell.Oneline(p), shell.Oneline(err.Error()))
 			return nil
 		}
 		lines := strings.Split(string(body), "\n")
@@ -255,13 +281,13 @@ func collect(root string) ([]span, error) {
 				k := keyOf(text)
 				// Under the floor a match is a coincidence, not a restatement.
 				if len(k) >= minDiscriminatingWords {
-					spans = append(spans, span{file: p, line: i + 1, text: text, key: k})
+					found.spans = append(found.spans, span{file: p, line: i + 1, text: text, key: k})
 				}
 			}
 		}
 		return nil
 	})
-	return spans, err
+	return found, err
 }
 
 func main() {
@@ -270,7 +296,8 @@ func main() {
 		os.Exit(2)
 	}
 	root := os.Args[1]
-	spans, err := collect(root)
+	found, err := collect(root)
+	spans := found.spans
 	if err != nil || len(spans) == 0 {
 		fmt.Fprintf(os.Stderr, "ruleecho: nothing read under %s — exit 2, which is not the same as nothing to report.\n", root)
 		os.Exit(2)
@@ -339,7 +366,21 @@ func main() {
 	if len(naming) > 0 {
 		fmt.Printf(", %d naming the same dependency", len(naming))
 	}
+	// The denominator the rule count needs. 376 rules and 206 read the same without it, and the pair
+	// count underneath is drawn from whichever of the two this run actually saw.
+	if found.unread > 0 {
+		fmt.Printf(" — %d path(s) NOT read, so this is a partial scan", found.unread)
+	}
 	fmt.Println()
+	// A partial read outranks the pair count, and takes the exit with it. The pairs above are real and
+	// stay printed; what cannot be claimed is the absence of the others, and exit 0 or 1 would claim
+	// exactly that. This is the only cross-file restatement detector there is, so a scan that was
+	// shown less than the tree must never be mistaken for one that found nothing in it.
+	if found.unread > 0 {
+		fmt.Fprintf(os.Stderr, "ruleecho: %d path(s) under %s could not be read — exit 2. The pairs above are real; the ones in what went unread are not ruled out.\n",
+			found.unread, shell.Oneline(root))
+		os.Exit(2)
+	}
 	// Only a restatement fails the run. A pair that shares nothing but a cited name is reported for
 	// the reader, never held against the tree.
 	if len(pairs) > 0 {

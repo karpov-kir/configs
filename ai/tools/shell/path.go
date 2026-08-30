@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+// MaxFileBytes bounds every whole-file read in these tools. The tree under review chooses how large a
+// committed file is, and a whole-file read is not the streaming one it replaced: 64 MiB of newlines
+// packs to a few hundred KB on disk and took ~2.5 GB resident, one slice header per line, which
+// OOM-kills the review stage. The bound sits far above any real instruction file — the largest here is
+// under 60 KB — so reaching it says something about the branch, not about the tree growing.
+//
+// A file over the bound is always reported and never truncated: an unread file must not look like one
+// that held nothing. What else it costs differs per caller, so each states its own.
+const MaxFileBytes = 8 << 20
+
 // Join builds paths by concatenation, never filepath.Join: a root arrives as a literal argument and
 // every message echoes it back, so a `./ai` root has to stay `./ai` rather than be cleaned to `ai`.
 func Join(dir, name string) string {
@@ -40,13 +50,10 @@ func BaseName(path string) string {
 	return trimmed
 }
 
-// The `[ -e ]`, `[ -d ]` and `[ -f ]` of the shell version, which follow a symlink, and the `[ -L ]`
-// that does not.
-//
-// There is deliberately no `[ -r ]` here. It has two answers — open(2)'s and access(2)'s — and they
-// differ for root and for a mode-000 file, so each caller keeps the one it means: ecoroot's
-// containment test opens the file, and ecoreport asks access(2) because its suite skips its
-// permission cases on exactly that answer. A shared one here would be picked by import order.
+// There is deliberately no IsReadable alongside these. `[ -r ]` has two answers, open(2)'s and
+// access(2)'s, and they differ for root and for a mode-000 file, so each caller keeps the one it
+// means: ecoroot's containment test opens the file, ecoreport asks access(2) because its suite skips
+// its permission cases on exactly that answer. A shared one here would be picked by import order.
 func PathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
@@ -67,9 +74,8 @@ func IsSymlink(path string) bool {
 	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
-// The directory a real path resolves to, symlinks followed — the `cd -P … && pwd -P` the shell
-// version used. Empty when the path is not a directory or cannot be resolved, and every caller reads
-// that emptiness as "not there".
+// The directory a real path resolves to, symlinks followed. Empty when the path is not a directory or
+// cannot be resolved, and every caller reads that emptiness as "not there".
 func CanonicalDir(path string) string {
 	if !IsDir(path) {
 		return ""
@@ -114,8 +120,8 @@ func Fnmatch(pattern, text string) bool {
 	return patternIndex == len(pattern)
 }
 
-// Reports whether the pattern element at index matches one byte, and how many pattern bytes that
-// element spans. A `*` reports a match of width 0 so the caller can record its backtrack point.
+// Width is how many pattern bytes the element at index spans. A `*` matches with width 0, so the
+// caller can record its backtrack point there.
 func matchOne(pattern string, index int, b byte) (matched bool, width int) {
 	if index >= len(pattern) {
 		return false, 0
@@ -137,8 +143,7 @@ func matchOne(pattern string, index int, b byte) (matched bool, width int) {
 	}
 }
 
-// A bracket expression, returning the bytes it spans. An unterminated `[` is a literal `[`, which is
-// what fnmatch does with one.
+// An unterminated `[` is a literal `[`, which is what fnmatch does with one.
 func matchClass(pattern string, b byte) (matched bool, width int) {
 	i := 1
 	negated := false

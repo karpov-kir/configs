@@ -8,7 +8,15 @@
 # the part with the branches.
 set -u
 
-here=$(cd "$(dirname "$0")" && pwd)
+# bootstrap.sh's verify step runs ai/run-tests.sh with BOOTSTRAP_VERIFYING=1, that runner discovers
+# this suite, and this suite inherits the marker — so every case below that needs verify to run finds
+# it already skipped, and `./bootstrap.sh` on a working machine then refuses, blaming the suites for
+# its own marker. Cleared once here rather than per invocation: the case at the guard sets the marker
+# on its own command line, so a case that means to test the skip still does, and one written tomorrow
+# cannot inherit it by forgetting.
+unset BOOTSTRAP_VERIFYING
+
+here=$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 script="$here/bootstrap.sh"
 
 tmp=$(mktemp -d) || exit 1
@@ -83,19 +91,18 @@ record_fail() {
   echo "  FAIL  $1  — $2"
 }
 
-# No skip counter here, deliberately, and it is worth saying why the shape differs from
-# score-test.sh. That suite reports a third field because it has a case it genuinely cannot run as
-# root, and hiding that would make two machines checking different sets look identical. Every case
-# here runs at every uid: the one `chmod` in this file grants a bit rather than restricting one, so
-# there is nothing for a skip to guard. A field that can never be non-zero is decoration wearing the
-# shape of a measurement, which is the thing this suite exists to refuse.
+# No skip counter here, unlike score-test.sh. That suite reports a third field because it has a case
+# it genuinely cannot run as root, and hiding that would make two machines checking different sets
+# look identical. Every case here runs at every uid: the one `chmod` in this file grants a bit rather
+# than restricting one, so there is nothing for a skip to guard. A field that can never be non-zero is
+# decoration wearing the shape of a measurement.
 
 # A fresh home per case, so no case inherits another's links. Numbered rather than mktemp'd again so a
 # failure message names which case's home to go and look at.
 #
 # It sets `home` rather than printing it: read back through `home=$(fresh_home)` the counter would be
 # incremented inside a subshell, every case would be handed `home1`, and each would inherit the first
-# case's links — which reads as the script writing during --dry-run rather than as a broken harness.
+# case's links. What that cost once is in the containment note above.
 case_no=0
 fresh_home() {
   case_no=$((case_no + 1))
@@ -103,9 +110,8 @@ fresh_home() {
   mkdir -p "$home"
 }
 
-# The skip flags are the guard, not tidiness: without them a case would shell out to brew, gh and the
-# claude CLI, which would make the suite slow, network-dependent, and capable of writing to the real
-# MCP registry.
+# The skip flags are load-bearing: without them a case shells out to brew, gh and the claude CLI, which
+# makes the suite slow, network-dependent, and able to write to the real MCP registry.
 run_boot() {
   local home="$1"
   shift
@@ -281,6 +287,20 @@ expect_out "and says why a link is the wrong shape there" "an import's mount mus
   record_pass "and the link is left for the human rather than deleted" ||
   record_fail "and the link is left for the human rather than deleted" "it was removed"
 
+# The other shape that is not a real file, and the one that fails quietly rather than loudly. `cp
+# file dir` writes *into* the directory and exits 0, so without a guard the step prints "wrote" while
+# the mount is still a directory and the import still resolves to nothing — a success reported over a
+# subject never reached. Asserted from both ends: the refusal, and that nothing landed inside.
+fresh_home
+mkdir -p "$home/.claude/RTK.md"
+run_boot "$home"
+expect_status "a directory at the mount exits 1" 1
+expect_out "and says the mount has to be a regular file" "exists and is not a regular file"
+expect_not_out "and does not report having written it" "wrote    $home/.claude/RTK.md"
+[ -d "$home/.claude/RTK.md" ] && [ ! -e "$home/.claude/RTK.md/RTK.md" ] &&
+  record_pass "and nothing was copied inside it" ||
+  record_fail "and nothing was copied inside it" "the directory was written into or replaced"
+
 # --- --dry-run ------------------------------------------------------------------------------------
 
 # The flag has to write nothing, or it is worse than not having it: someone checks with --dry-run and
@@ -307,6 +327,37 @@ expect_out "and names the option it rejected" "--not-a-flag"
 [ ! -e "$home/.kk-flavor" ] &&
   record_pass "and a rejected option changes nothing" ||
   record_fail "and a rejected option changes nothing" "it linked anyway"
+
+# `--help` prints a line range out of this script's own header — a claim about a file's content held
+# by two line numbers, which a line added above the range or a paragraph moved inside it turns into
+# the wrong lines, or into none, with nothing here failing. Repeating those numbers in this file
+# would move the rot rather than remove it: an ordinary header edit would then redden a case that is
+# right. So both ends are pinned by content instead — the header line the range has to start at, the
+# usage line it has to reach, and the paragraph past it that has to stay out. Read from the shipped
+# script, so editing the usage line does not redden this.
+#
+# The control is the load-bearing half: these needles come out of a `sed`, and a `sed` that stopped
+# matching would leave every assertion below comparing the output against an empty string, which
+# every output contains. Three passes over nothing, reported as three passes.
+help_first=$(sed -n '2,$p' "$script" | sed -n 's/^# \{0,1\}\(..*\)$/\1/p' | head -1)
+help_usage=$(sed -n 's/^#[[:space:]]*\(usage: bootstrap\.sh .*\)$/\1/p' "$script" | head -1)
+if [ -n "$help_first" ] && [ -n "$help_usage" ]; then
+  record_pass "control: the header's opening and usage lines were both found, so --help is compared against something"
+else
+  record_fail "control: the header's opening and usage lines were both found, so --help is compared against something" \
+    "opening='$help_first' usage='$help_usage'"
+fi
+
+fresh_home
+out=$(HOME="$home" bash "$script" --help 2>&1)
+status=$?
+expect_status "--help exits 0" 0
+expect_out "and prints the header's opening line, so the range still starts where it should" "$help_first"
+expect_out "and reaches the usage line, so it still ends where it should" "$help_usage"
+expect_not_out "and stops before the notes under it" "Safe to re-run"
+[ ! -e "$home/.kk-flavor" ] && [ ! -e "$home/.claude" ] &&
+  record_pass "and --help changes nothing on the machine" ||
+  record_fail "and --help changes nothing on the machine" "something was written under $home"
 
 # --- the verify step, and its re-entry guard ------------------------------------------------------
 
@@ -353,6 +404,27 @@ expect_out "and says why verify was skipped" "already inside a verify run"
 [ ! -f "$marker" ] &&
   record_pass "and does not re-enter the suite runner" ||
   record_fail "and does not re-enter the suite runner" "the runner ran inside a verify run"
+
+# A runner that exits 2. The runner draws its own line between a suite that failed and one that never
+# measured, and the two send a reader to different places — the code, or this machine. Folding them
+# into one refusal here blames the suites for a missing dependency, so the wording is what this case
+# holds apart; the exit alone cannot tell the two refusals from each other.
+cat >"$verify_repo/ai/run-tests.sh" <<STUB
+#!/usr/bin/env bash
+printf 'ran\n' >>"\$MARKER"
+echo "run-tests.sh: no *-test.sh under here" >&2
+exit 2
+STUB
+chmod +x "$verify_repo/ai/run-tests.sh"
+
+fresh_home
+marker="$tmp/verify-marker-$case_no"
+out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/bootstrap.sh" \
+  --skip-brew --skip-tools --skip-mcp 2>&1)
+status=$?
+expect_status "a runner that could not measure exits 1" 1
+expect_out "and says the suites went unproven" "could not measure every suite"
+expect_not_out "and does not blame the suites for it" "reported a failing suite"
 
 # A missing runner, which is what a fresh clone had while `ai/run-tests.sh` was untracked. Without a
 # guard the call exits 127 and the failing-suite arm blames the suites for a file that was never
@@ -407,11 +479,10 @@ expect_out "and refuses an empty skills directory rather than mounting nothing" 
 # nothing held them there: adding a formula to the README would silently stop it being installed,
 # with every case still passing. Read from the real files rather than a fixture, so the shipped ones
 # cannot drift to a form this never sees.
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-boot_formulae="$(sed -n 's/^  for formula in \(.*\); do$/\1/p' "$repo_root/bootstrap.sh" | tr ' ' '\n' | sort -u)"
-boot_casks="$(sed -n 's/^  for cask in \(.*\); do$/\1/p' "$repo_root/bootstrap.sh" | tr ' ' '\n' | sort -u)"
-readme_formulae="$(grep -oE '`brew install [a-z0-9-]+`' "$repo_root/README.md" | sed 's/.*brew install //; s/`//' | sort -u)"
-readme_casks="$(grep -oE '`brew install --cask [a-z0-9-]+`' "$repo_root/README.md" | sed 's/.*--cask //; s/`//' | sort -u)"
+boot_formulae="$(sed -n 's/^  for formula in \(.*\); do$/\1/p' "$script" | tr ' ' '\n' | sort -u)"
+boot_casks="$(sed -n 's/^  for cask in \(.*\); do$/\1/p' "$script" | tr ' ' '\n' | sort -u)"
+readme_formulae="$(grep -oE '`brew install [a-z0-9-]+`' "$here/README.md" | sed 's/.*brew install //; s/`//' | sort -u)"
+readme_casks="$(grep -oE '`brew install --cask [a-z0-9-]+`' "$here/README.md" | sed 's/.*--cask //; s/`//' | sort -u)"
 
 if [ -n "$boot_formulae" ] && [ -n "$readme_formulae" ]; then
   record_pass "control: both formula lists were found, so this case is comparing something"

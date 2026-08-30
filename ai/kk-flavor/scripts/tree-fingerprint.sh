@@ -47,6 +47,28 @@ mkdir -p "$scratch/objects" || {
 # inherited stderr would put git's warnings and hints on that same channel. A warning that didn't stop
 # the walk doesn't change the answer, so the success path drops it.
 git_stderr="$scratch/git-stderr"
+
+# This seed is not an optimisation. Git applies ignore rules only to paths the index does not already
+# hold, so an index built from nothing treats every tracked file as untracked — and a tracked file
+# matching an ignore rule is then dropped from the walk entirely. Such a file could be rewritten
+# between two runs with the fingerprint unmoved, which is a stale ledger passing as a valid resume
+# point: the skill reads the head as matching, resumes, and skips every file it believes already has
+# a verdict — the failure `~/.kk-flavor/standards/skill-protocol.md` → **Queue** uses this script to
+# prevent.
+#
+# Seeded from HEAD rather than from the caller's index, which this script must never read or write.
+# No commit means nothing is tracked and there is nothing to seed, so an unborn HEAD is not a failure;
+# a HEAD that resolves and still cannot be read is, because the walk would then silently miss
+# everything committed. `read-tree` writes only the index, so it takes no throwaway object store —
+# and it needs the real one, which is where HEAD's trees live.
+if git -C "$root" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+  GIT_INDEX_FILE="$scratch/index" git -C "$root" read-tree HEAD 2>"$git_stderr" || {
+    [ ! -s "$git_stderr" ] || cat "$git_stderr" >&2
+    echo "error: could not read HEAD into the throwaway index for $root" >&2
+    exit 2
+  }
+fi
+
 tree=$(
   GIT_INDEX_FILE="$scratch/index" GIT_OBJECT_DIRECTORY="$scratch/objects" \
     git -C "$root" add -A 2>"$git_stderr" &&

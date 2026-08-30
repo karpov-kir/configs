@@ -12,7 +12,10 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-const maxFileBytes = 8 << 20
+// The tool reads whole files, and the tree supplying them is the tree under review. The bound and
+// its reason are shell.MaxFileBytes; over it, a file is named and not read, so one nothing read is
+// never mistaken for one that held no citations.
+const maxFileBytes = shell.MaxFileBytes
 
 // `<file>.md → **Section**`, with the file optionally carrying a path or backticks. The arrow is the
 // whole signal: it is what separates naming a file from entering one at a named door.
@@ -104,6 +107,10 @@ type scan struct {
 	// Where a citation this scan refuses to count says so. A dropped citation moves every figure the
 	// report prints, and this line is the only signal it went.
 	errOut io.Writer
+	// How many paths under the root this scan was pointed at and did not read. A stderr line alone
+	// leaves the skip unreachable from the exit code, so a caller reading the status — `cite-graph.sh`
+	// and CI both do — takes a scan that missed most of the tree for a clean one.
+	skipped int
 	// The headings each file defines, keyed by the file's path relative to the root.
 	defined map[string]map[string]bool
 	// The `<file> → **Section**` citations, in the order they were written.
@@ -112,16 +119,45 @@ type scan struct {
 	mentions []rawCite
 }
 
-func read(root string, errOut io.Writer) (map[string]map[string]bool, []edge) {
+// The tree's headings and citations, plus how many paths under the root went unread. The third return
+// is what the exit code is owed to: without it a caller can only tell a tree with no citations from a
+// tree this never reached by reading prose on stderr, and nothing does.
+func read(root string, errOut io.Writer) (map[string]map[string]bool, []edge, int) {
 	found := scanTree(root, errOut)
-	return found.defined, found.edges()
+	return found.defined, found.edges(), found.skipped
 }
 
-// A path the walk could not read. Every figure this tool prints is a count over the files it read, so
-// one dropped in silence moves all of them. The path and the error text both carry names the tree
-// chose: printed raw, a newline in either forges a row of this tool's own report.
-func notRead(errOut io.Writer, path string, err error) {
-	fmt.Fprintf(errOut, "could not read %s: %s — it was NOT read\n", shell.Oneline(path), shell.Oneline(err.Error()))
+// A path this scan was pointed at and did not read. Every figure this tool prints is a count over the
+// files it read, so one dropped moves all of them: the line says which path went, and the count is
+// what makes the skip reachable from anywhere but a human's eye. Names reaching here are the tree's
+// own — printed raw, a newline in one forges a row of this tool's own report.
+func (s *scan) notReached(format string, args ...any) {
+	s.skipped++
+	fmt.Fprintf(s.errOut, format, args...)
+}
+
+// Walk stats with Lstat, so a symlink is never a directory here and never a regular file. The
+// installed layout is a symlink farm — `~/.kk-flavor` is one and every `~/.claude/skills/*` is one —
+// and this tool promises every `.md` under the root is read, so a link it does not follow is a hole in
+// that promise rather than a path to pass over.
+//
+// A link resolving to a directory hides however many `.md` files that subtree holds, and it hides them
+// where no `.md` suffix marks the path, which is why this runs before the suffix filter. A link named
+// `.md` hides exactly one file, and a live citation into it comes back as a manufactured `no such
+// path` that reads like a broken link the tree really has. A link to anything else was never this
+// tool's to read.
+func (s *scan) linkNotFollowed(p string) {
+	resolved, err := os.Stat(p)
+	switch {
+	case err != nil:
+		if strings.HasSuffix(p, ".md") {
+			s.notReached("could not resolve %s: %s — it was NOT read\n", shell.Oneline(p), shell.Oneline(err.Error()))
+		}
+	case resolved.IsDir():
+		s.notReached("not followed: %s links to a directory — the .md files under it were NOT read\n", shell.Oneline(p))
+	case strings.HasSuffix(p, ".md"):
+		s.notReached("not a regular file: %s — it was NOT read\n", shell.Oneline(p))
+	}
 }
 
 // One pass over the tree, reading every markdown file it can.
@@ -130,28 +166,26 @@ func scanTree(root string, errOut io.Writer) scan {
 	// The callback answers every path with nil, so the walk itself has nothing left to report.
 	_ = filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
-			notRead(errOut, p, err)
+			found.notReached("could not read %s: %s — it was NOT read\n", shell.Oneline(p), shell.Oneline(err.Error()))
 			return nil
 		}
-		if fi.IsDir() || !strings.HasSuffix(p, ".md") {
+		if fi.IsDir() {
 			return nil
 		}
-		// Walk stats with Lstat, so a `.md` symlink is not a regular file. Reported rather than
-		// skipped in silence: the file would leave every figure below, and a live citation into it
-		// comes back as a manufactured `no such path`, which reads exactly like a broken link the
-		// tree really has. The installed layout is a symlink farm, and this tool promises every `.md`
-		// under the root is read.
 		if !fi.Mode().IsRegular() {
-			fmt.Fprintf(errOut, "not a regular file: %s — it was NOT read\n", shell.Oneline(p))
+			found.linkNotFollowed(p)
+			return nil
+		}
+		if !strings.HasSuffix(p, ".md") {
 			return nil
 		}
 		if fi.Size() > maxFileBytes {
-			fmt.Fprintf(errOut, "file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n", shell.Oneline(p), fi.Size(), maxFileBytes)
+			found.notReached("file too large to scan: %s is %d bytes, over the %d-byte bound — it was NOT read\n", shell.Oneline(p), fi.Size(), maxFileBytes)
 			return nil
 		}
 		body, err := os.ReadFile(p)
 		if err != nil {
-			notRead(errOut, p, err)
+			found.notReached("could not read %s: %s — it was NOT read\n", shell.Oneline(p), shell.Oneline(err.Error()))
 			return nil
 		}
 		found.readFile(p, body)

@@ -125,6 +125,55 @@ expect_eq "returns nothing for a name the file does not record" "$(recorded_sha2
 # A name that is a suffix of a recorded one must not match it: the comparison is on the whole name.
 expect_eq "does not match on a partial name" "$(recorded_sha256 "$sums" darwin-arm64)" ""
 
+# `gh` resolves a release against the current directory's repository when it is not told which one,
+# and this script runs from wherever the caller stands — so the repository has to come out of this
+# checkout's own origin. Every form a GitHub remote is written in, and every shape that must not
+# become a `gh` argument.
+expect_eq "reads owner/name out of an https remote" "$(origin_repo https://github.com/kk/configs.git)" kk/configs
+expect_eq "and out of one without the .git suffix" "$(origin_repo https://github.com/kk/configs)" kk/configs
+expect_eq "and out of an scp-style ssh remote" "$(origin_repo git@github.com:kk/configs.git)" kk/configs
+expect_eq "and out of an ssh:// remote" "$(origin_repo ssh://git@github.com/kk/configs.git)" kk/configs
+expect_eq "and out of one carrying a username" "$(origin_repo https://kk@github.com/kk/configs.git)" kk/configs
+expect_eq "and out of one with a trailing slash" "$(origin_repo https://github.com/kk/configs/)" kk/configs
+
+# The controls. Each of these would otherwise reach `gh` as an argument, and a refusal that resolved
+# to a near-miss is worse than one that fails: the fall back `gh` makes on its own is the defect.
+# A dot segment passes the character class and is still not a name: `../repo` reaches `gh --repo` as
+# a path that walks out of the owner it names.
+for bad in "/home/me/configs" "https://github.com/kk" "https://github.com/kk/configs/extra" \
+  "https://github.com/-kk/configs" "https://github.com/kk/con figs" "https://github.com/kk/con;figs" \
+  "https://github.com//configs" "https://github.com/../repo" "https://github.com/kk/.." \
+  "https://github.com/./repo" "https://github.com/kk/." "" ; do
+  out=$(origin_repo "$bad")
+  status=$?
+  if [ "$status" -ne 0 ] && [ -z "$out" ]; then
+    record_pass "refuses the remote url '$bad'"
+  else
+    record_fail "refuses the remote url '$bad'" "exit $status, printed '$out'"
+  fi
+done
+
+# A tag reaches `gh release download` as its first positional argument, where a leading dash makes it
+# an option instead. The accepted forms first, so the refusals below are not a function that says no
+# to everything.
+for good in v1.0.0 v1.2.3-rc.1 release/2024.01 1.0; do
+  if is_safe_tag "$good"; then
+    record_pass "accepts the tag '$good'"
+  else
+    record_fail "accepts the tag '$good'" "refused a tag a release really carries"
+  fi
+done
+# `/` is legal in a tag and `..` is not, and git settles both: `git check-ref-format refs/tags/a..b`
+# exits 1, so nothing below is a tag a release could carry, while `release/2024.01` above exits 0.
+for bad in "--repo=evil/pwn" "-v1.0.0" "v1.0.0;id" "v1 0" "\$(id)" "" \
+  "../../etc" "../../../evil/repo/releases/tags/v1" "v1.0.0/../../evil" "a..b"; do
+  if is_safe_tag "$bad"; then
+    record_fail "refuses the tag '$bad'" "accepted something that is not a tag"
+  else
+    record_pass "refuses the tag '$bad'"
+  fi
+done
+
 # This machine can hash a file at all, or every verification would fail closed.
 printf 'x' >"$base/one-byte"
 digest=$(sha256_of "$base/one-byte")
@@ -133,6 +182,96 @@ if [ ${#digest} -eq 64 ]; then
 else
   record_fail "hashes a file to 64 hex characters" "got '$digest'"
 fi
+
+# The wiring, not the download. `origin_repo` returning the right pair proves nothing about whether
+# the pair reaches `gh`, and that hand-off is the whole defect: without `--repo`, gh resolves the
+# release against the caller's current directory. A `gh` that records its own argv and then fails is
+# a fake at a true external edge, and what it asserts is what this script asked for rather than what
+# GitHub would have answered — so nothing is downloaded and nothing about the network is claimed.
+pinned="$base/pinned"
+mkdir -p "$pinned/ai/tools" "$pinned/.github/workflows"
+cp "$here/install.sh" "$pinned/ai/tools/install.sh"
+chmod 755 "$pinned/ai/tools/install.sh"
+cp "$workflow" "$pinned/.github/workflows/release-tools.yml"
+( cd "$pinned" && git init -q . && git remote add origin https://github.com/pinned/target.git ) >/dev/null 2>&1
+
+fake_gh="$base/fake-gh"
+mkdir -p "$fake_gh"
+cat >"$fake_gh/gh" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$GH_ARGV_LOG"
+exit 1
+FAKE
+chmod 755 "$fake_gh/gh"
+
+argv_log="$base/gh-argv"
+out=$(PATH="$fake_gh:$PATH" GH_ARGV_LOG="$argv_log" "$pinned/ai/tools/install.sh" 2>&1)
+status=$?
+expect_refusal "a download gh refuses exits 2" "could not download"
+# The control the assertion below needs: without it, a gh that was never invoked leaves no log and
+# the awk that reads it prints nothing, which compares equal to nothing and reads as a pass.
+if [ -s "$argv_log" ]; then
+  record_pass "control: gh really was invoked, so its argv is a measurement"
+else
+  record_fail "control: gh really was invoked, so its argv is a measurement" "nothing at $argv_log"
+fi
+expect_eq "the download is pinned to the origin of the checkout install.sh lives in" \
+  "$(awk '$0 == "--repo" { getline; print; exit }' "$argv_log")" "pinned/target"
+
+# And a tag that is really an option never reaches that call at all.
+absent_log="$base/gh-argv-never"
+out=$(PATH="$fake_gh:$PATH" GH_ARGV_LOG="$absent_log" "$pinned/ai/tools/install.sh" --repo=evil/pwn 2>&1)
+status=$?
+expect_refusal "a tag that is really an option exits 2" "is not a release tag"
+if [ -e "$absent_log" ]; then
+  record_fail "control: and gh was never reached" "gh ran anyway and wrote $absent_log"
+else
+  record_pass "control: and gh was never reached"
+fi
+
+# Nor does a tag carrying a dot segment. `--repo` pins the repository, and a tag reaches GitHub
+# inside an API path: were the segments resolved there, the pin would be undone by the argument it
+# was meant to constrain, and the assets would be verified against that other repository's own
+# SHA256SUMS. Driven end to end rather than through is_safe_tag alone, because what matters is that
+# the refusal happens before the download.
+traversal_log="$base/gh-argv-traversal"
+out=$(PATH="$fake_gh:$PATH" GH_ARGV_LOG="$traversal_log" \
+  "$pinned/ai/tools/install.sh" ../../../evil/repo/releases/tags/v1 2>&1)
+status=$?
+expect_refusal "a tag that walks out of the pinned repository exits 2" "is not a release tag"
+if [ -e "$traversal_log" ]; then
+  record_fail "control: and that one reached no download" "gh ran anyway and wrote $traversal_log"
+else
+  record_pass "control: and that one reached no download"
+fi
+
+# A repository it cannot name is a refusal, never a fall back to whatever gh would have guessed —
+# guessing is the whole defect, so a checkout that cannot answer must stop rather than downgrade to
+# the behaviour this pinning replaced. Both ways the answer can be missing, each with its own fix.
+unnamed() { # <label> <the remote to add, or nothing> <the wording only this cause produces>
+  local label="$1" remote="$2" want="$3"
+  local dir log
+  dir="$base/unnamed-$label"
+  log="$base/gh-argv-$label"
+  mkdir -p "$dir/ai/tools" "$dir/.github/workflows"
+  cp "$here/install.sh" "$dir/ai/tools/install.sh"
+  chmod 755 "$dir/ai/tools/install.sh"
+  cp "$workflow" "$dir/.github/workflows/release-tools.yml"
+  (
+    cd "$dir" && git init -q .
+    if [ -n "$remote" ]; then git remote add origin "$remote"; fi
+  ) >/dev/null 2>&1
+  out=$(PATH="$fake_gh:$PATH" GH_ARGV_LOG="$log" "$dir/ai/tools/install.sh" 2>&1)
+  status=$?
+  expect_refusal "$label exits 2 rather than letting gh guess" "$want"
+  if [ -e "$log" ]; then
+    record_fail "control: $label reached no download" "gh ran anyway and wrote $log"
+  else
+    record_pass "control: $label reached no download"
+  fi
+}
+unnamed "a checkout with no origin remote" "" "not a checkout with an 'origin' remote"
+unnamed "an origin that names no owner/name pair" "/srv/mirrors/configs.git" "cannot read an owner/name pair"
 
 # The refusal a machine without gh gets. A PATH holding only what install.sh needs to reach its gh
 # check: without `dirname` it dies at self-resolution instead, which exits 2 as well, so the case is
@@ -145,10 +284,10 @@ done
 out=$(PATH="$bare" "$here/install.sh" 2>&1)
 status=$?
 expect_refusal "a machine without gh exits 2" "gh is not installed"
-# One glob over both halves. `go build` on its own is in the refusal for an unsupported platform too,
-# so alone it passes on that one and claims the gh refusal carries a way out when it may not.
+# One glob over both halves. `resolve.sh` is in the refusal for an unsupported platform too, so alone
+# it passes on that one and claims the gh refusal carries a way out when it may not.
 case "$out" in
-  *"gh is not installed"*"go build"*) record_pass "and names the way out that needs no gh" ;;
+  *"gh is not installed"*"resolve.sh"*) record_pass "and names the way out that needs no gh" ;;
   *) record_fail "and names the way out that needs no gh" "output: $out" ;;
 esac
 

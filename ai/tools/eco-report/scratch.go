@@ -159,7 +159,12 @@ func (r *run) cmdDiscard() {
 	// excluded. Drop it only from the last worktree.
 	// "Removed" holds only because assertShipExists ran: nothing reaches here without a report or an
 	// intent file to remove. Without it, a second run or any wrong slug claims this having deleted nothing.
-	if r.worktreeCount() > 1 {
+	worktrees, counted := r.worktreeCount()
+	if !counted {
+		r.line("discarded: removed .idsd/ scratch; kept the shared exclusion (git could not list the worktrees, and it is shared across them)")
+		return
+	}
+	if worktrees > 1 {
 		r.line("discarded: removed .idsd/ scratch; kept the shared exclusion (other worktrees exist)")
 		return
 	}

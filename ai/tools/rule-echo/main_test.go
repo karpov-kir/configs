@@ -65,10 +65,11 @@ func TestCollectSkipsFencesAndCitations(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	spans, err := collect(dir)
+	found, err := collect(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	spans := found.spans
 	if len(spans) != 1 || spans[0].text != kept {
 		t.Fatalf("collect returned %+v", spans)
 	}
@@ -119,11 +120,11 @@ func spansFrom(t *testing.T, body string) ([]span, string) {
 	if err := os.WriteFile(doc, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	spans, err := collect(filepath.Dir(doc))
+	found, err := collect(filepath.Dir(doc))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return spans, doc
+	return found.spans, doc
 }
 
 // `collect` names what it narrowed on os.Stderr, and that announcement is half of what the
@@ -217,10 +218,11 @@ func TestReportedPathCannotForgeALine(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, name), []byte("**"+rule+"**\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	spans, err := collect(dir)
+	found, err := collect(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	spans := found.spans
 	if len(spans) != 1 {
 		t.Fatalf("collect returned %d spans, want 1", len(spans))
 	}
@@ -241,18 +243,19 @@ func TestSymlinkedMarkdownIsNotRead(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("**"+secret+"**\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if spans, err := collect(filepath.Dir(outside)); err != nil || len(spans) != 1 {
-		t.Fatalf("the target holds no readable rule, so the case below proves nothing: %v %v", spans, err)
+	if probe, err := collect(filepath.Dir(outside)); err != nil || len(probe.spans) != 1 {
+		t.Fatalf("the target holds no readable rule, so the case below proves nothing: %v %v", probe.spans, err)
 	}
 
 	dir := t.TempDir()
 	if err := os.Symlink(outside, filepath.Join(dir, "link.md")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	spans, err := collect(dir)
+	found, err := collect(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	spans := found.spans
 	for _, s := range spans {
 		if strings.Contains(s.text, "private rule") {
 			t.Fatalf("read through a symlink out of the tree: %q from %s", s.text, s.file)
@@ -297,17 +300,133 @@ func TestFileOverTheBoundIsNotRead(t *testing.T) {
 			len([]rune(doc)), maxReportRunes)
 	}
 
-	var spans []span
+	var found scan
 	var collectErr error
-	stderr := captureStderr(t, func() { spans, collectErr = collect(dir) })
+	stderr := captureStderr(t, func() { found, collectErr = collect(dir) })
 	if collectErr != nil {
 		t.Fatal(collectErr)
 	}
-	if len(spans) != 0 {
-		t.Fatalf("read a file over the bound: %+v", spans)
+	if len(found.spans) != 0 {
+		t.Fatalf("read a file over the bound: %+v", found.spans)
 	}
 	if !strings.Contains(stderr, doc) {
 		t.Fatalf("the refusal does not name %s in full:\n%s", doc, stderr)
+	}
+}
+
+// True when a mode of 000 actually stops this process reading. Probed rather than compared against
+// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
+// carry the bit behave the same way, and all three make a mode-000 fixture something this tool reads
+// happily. ecocheck's suite carries the same probe for the same reason; neither package can import
+// the other's test helpers.
+func modeDeniesRead(t *testing.T) bool {
+	t.Helper()
+	probe := filepath.Join(t.TempDir(), "probe")
+	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
+		t.Fatalf("write probe: %v", err)
+	}
+	if err := os.Chmod(probe, 0o000); err != nil {
+		t.Fatalf("chmod probe: %v", err)
+	}
+	file, err := os.Open(probe)
+	if err != nil {
+		return true
+	}
+	file.Close()
+	return false
+}
+
+// The two ways this read less than the tree it was pointed at and said nothing. Over a copy of `ai/`
+// with two directories at mode 000 it read 376 bolded rules as 206 — 45% less — and still exited on
+// the pair count alone with zero bytes on stderr. A caller cannot tell that from a clean result, and
+// this is the only cross-file restatement detector there is.
+//
+// Both halves matter and neither substitutes for the other: an unreadable *directory* is refused by
+// Walk before any file under it is seen, and an unreadable *file* is refused by the open after Walk
+// has handed it over.
+func TestAPartialReadIsNamedAndCounted(t *testing.T) {
+	// A rule the matcher would collect, so a case failing here means the path was refused rather than
+	// that there was nothing behind it to find.
+	const rule = "a rule stating four discriminating words plainly"
+
+	newShutDirectory := func(t *testing.T) (root, shut string) {
+		t.Helper()
+		root = t.TempDir()
+		shut = filepath.Join(root, "shut")
+		if err := os.Mkdir(shut, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(shut, "a.md"), []byte("**"+rule+"**\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(shut, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(shut, 0o755) })
+		return root, shut
+	}
+
+	newShutFile := func(t *testing.T) (root, shut string) {
+		t.Helper()
+		root = t.TempDir()
+		shut = filepath.Join(root, "a.md")
+		if err := os.WriteFile(shut, []byte("**"+rule+"**\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(shut, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(shut, 0o644) })
+		return root, shut
+	}
+
+	// The control, and it runs first: the same rule behind a readable path is collected, so a zero
+	// below is a refusal and not an empty fixture.
+	t.Run("collects the rule when the path is readable", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte("**"+rule+"**\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		found, err := collect(dir)
+		if err != nil || len(found.spans) != 1 {
+			t.Fatalf("the fixture holds no collectable rule, so the cases below prove nothing: %+v %v", found, err)
+		}
+		if found.unread != 0 {
+			t.Errorf("a readable tree was counted as %d unread path(s)", found.unread)
+		}
+	})
+
+	for _, c := range []struct {
+		name  string
+		build func(*testing.T) (string, string)
+	}{
+		{"directory", newShutDirectory},
+		{"file", newShutFile},
+	} {
+		t.Run("names and counts an unreadable "+c.name, func(t *testing.T) {
+			if !modeDeniesRead(t) {
+				t.Skip("this process reads a mode-000 path regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable one cannot be built here")
+			}
+			root, shut := c.build(t)
+
+			var found scan
+			var collectErr error
+			stderr := captureStderr(t, func() { found, collectErr = collect(root) })
+			if collectErr != nil {
+				t.Fatal(collectErr)
+			}
+			if len(found.spans) != 0 {
+				t.Fatalf("the fixture was readable after all, so this case proves nothing: %+v", found.spans)
+			}
+			if found.unread != 1 {
+				t.Errorf("unread = %d, want 1 — the count is what the summary and the exit are drawn from", found.unread)
+			}
+			// The name is the only thing that says *which* part of the tree the reader was not shown,
+			// so it has to arrive whole rather than under the rule bound.
+			if !strings.Contains(stderr, shut) {
+				t.Errorf("the refusal does not name %s:\n%s", shut, stderr)
+			}
+		})
 	}
 }
 

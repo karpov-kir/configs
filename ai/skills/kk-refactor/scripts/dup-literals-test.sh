@@ -17,8 +17,7 @@
 # the suite lives in.
 #
 # DUP_LITERALS_UNDER_TEST names the script to drive, so a mutation run can point the whole suite at a
-# deliberately broken copy and see which case goes red. That is how each case below is known to be able
-# to fail rather than assumed to be.
+# deliberately broken copy and see which case goes red.
 set -u
 
 here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
@@ -28,7 +27,14 @@ script="${DUP_LITERALS_UNDER_TEST:-$here/dup-literals.sh}"
   exit 2
 }
 
-base=$(mktemp -d) || exit 2
+# Exit 2, and it says why: a fixture root that cannot be created is a suite that did not measure,
+# which run-tests.sh counts apart from a failure. Exit 1 there would claim the script under test is
+# broken — a different claim, and a false one (`~/.kk-flavor/standards/testing.md` -> **7. What a
+# suite reports**).
+base=$(mktemp -d) || {
+  echo "dup-literals-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$base"' EXIT
 
 # Both the developer's git config and this script's own env knobs move every verdict below, so the
@@ -126,9 +132,9 @@ esac
 }
 unset probe
 
-# `</dev/null` is a guard, not tidiness: a mutated copy that stops exiting where a case expects must
-# fail the case rather than block on the terminal this suite inherited. A suite that hangs when a guard
-# is removed cannot prove that guard fires.
+# `</dev/null` is load-bearing: a mutated copy that stops exiting where a case expects must fail the
+# case rather than block on the terminal this suite inherited. A suite that hangs when a guard is
+# removed cannot prove that guard fires.
 run() {
   out=$(cd "$repo" && "$script" "$@" </dev/null 2>&1)
   status=$?
@@ -178,6 +184,8 @@ expect_no_out() {
     record_fail "$name" "expected no output, got: $out"
 }
 
+# Counts the lines of `$out`, so its case has to be run with `run_stdout`: the denominator the script
+# puts on stderr would otherwise add one to what is being asserted.
 expect_line_count() {
   local name="$1" want="$2" got
   got=$(printf '%s\n' "$out" | grep -c '')
@@ -192,9 +200,15 @@ echo "dup-literals.sh"
 # expect 0 for a reason — a length floor, a size cap — and a script that exited 0 unconditionally would
 # satisfy every one of them.
 new_repo
-run HEAD
+run_stdout HEAD
 expect_status "an unchanged tree exits 0" 0
 expect_no_out "and prints nothing"
+# The other half of that exit 0, and why the case above cannot stand alone: an empty report and a zero
+# exit say "read the change set, nothing was repeated" and "read nothing at all" in identical bytes.
+# The denominator is the only thing separating them.
+run HEAD
+expect_out "and the denominator says no file reached it" "0 file(s) reached the scan"
+expect_out "and names that as saying nothing about the change set" "nothing reached the scan, so this run says nothing"
 run
 expect_status "an unchanged tree with no arguments exits 0 too" 0
 
@@ -274,9 +288,14 @@ expect_out "and the literal is truncated to its first 60 characters" "${truncate
 new_repo
 track_empty single.ts
 printf '%s\n' "$(repeat_char x 110)" >"$repo/single.ts"
-run HEAD
+run_stdout HEAD
 expect_status "a literal added once is not a duplicate" 0
 expect_no_out "and the single occurrence is not reported"
+# The positive half of the pair at the top: same empty report, same exit 0, and here the denominator
+# says a file was read. Without both cases that number could be a constant.
+run HEAD
+expect_out "and the denominator shows the file was read all the same" "1 file(s) reached the scan, 0 duplicate(s)"
+expect_not_out "so this run is not reported as having read nothing" "nothing reached the scan"
 
 # DUP_MIN_LEN, both sides of the default. 99 is under the floor and 100 reaches it; an off-by-one here
 # either floods the report with ordinary lines or silences the shortest real duplicates.
@@ -364,7 +383,7 @@ track_empty once.ts
   printf '%s\n' "$at_floor"
   printf '%s\n' "$at_floor"
 } >"$repo/once.ts"
-run HEAD
+run_stdout HEAD
 expect_status "a duplicate that is both a line and a token exits 1" 1
 expect_line_count "and is reported once, not twice" 1
 expect_out "as the token" "2x token"
@@ -399,12 +418,15 @@ new_repo
 run
 expect_status "an untracked file is scanned when no revision is given" 1
 expect_out "and the untracked file's duplicate is reported" "2x token (100 chars)"
-run HEAD
+run_stdout HEAD
 expect_status "and is not scanned when one is" 0
 expect_no_out "and nothing is reported then"
 
+# A skipped untracked file is one this script never read, so it has to reach the denominator too — a
+# summary counting only what it opened would claim a coverage it did not have.
 run_env DUP_MAX_FILE_BYTES=10
 expect_status "an untracked file over the byte cap is skipped" 0
+expect_out "and the skip is counted rather than silent" "1 file(s) skipped unread"
 
 # A NUL in the first 8KB is the binary test. Without it a minified bundle or an image would be compared
 # a line at a time.
@@ -414,9 +436,86 @@ new_repo
   printf '%s\n' "$at_floor"
   printf 'tail\000byte\n'
 } >"$repo/binary.ts"
-run
+run_stdout
 expect_status "an untracked binary file is skipped" 0
 expect_no_out "and the binary file holds no reported duplicate"
+run
+expect_out "and the binary skip reaches the denominator too" "1 file(s) skipped unread"
+
+# The tracked arm, which git feeds. `--text` is deliberate — a `-diff` attribute or one NUL byte would
+# otherwise collapse the body to "Binary files … differ" and exit 0 over a real duplicate — but it also
+# pushes a changed binary file through as ordinary added lines, whose bytes then read as repeated
+# 100-character literals. The untracked arm has refused binary since it was written; this is the same
+# refusal for the arm that had none, and without it these two lines report as a duplicate.
+new_repo
+track_empty blob.bin
+control_run=$(printf "%100s" "" | tr ' ' '\001')
+[ "${#control_run}" -eq 100 ] || {
+  echo "dup-literals-test: could not build a 100-byte control-character run — stopping, since the binary case below is made of one" >&2
+  exit 2
+}
+{
+  printf '%s\n' "$control_run"
+  printf '%s\n' "$control_run"
+} >"$repo/blob.bin"
+run_stdout HEAD
+expect_status "a tracked binary file yields no duplicate" 0
+expect_no_out "and its bytes are not reported as literals"
+run HEAD
+expect_out "and the ignored lines are counted rather than dropped in silence" "2 binary line(s) ignored"
+expect_out "while the file itself still counts as reached" "1 file(s) reached the scan"
+
+# --- secrets in the untracked arm ---
+
+# This script echoes 60 bytes of every duplicate, and with no arguments it reads files nobody put in a
+# diff. Two untracked `.env` files sharing one API token is the ordinary case, and printing it puts the
+# token in the transcript, the qualify report, and any PR comment drafted from either. The literal is
+# built here from the generator so this file never holds one.
+new_repo
+secret_token="sk-live-$(repeat_char A 110)"
+for secret_file in .env .env.local; do
+  printf 'API_TOKEN=%s\n' "$secret_token" >"$repo/$secret_file"
+done
+run
+expect_status "two untracked .env files sharing a token report nothing" 0
+# 40, not 60: the echoed prefix is 60 characters of `API_TOKEN=sk-live-` plus the run, so only 42 of
+# the token's own characters ever appear. Asserting a 60-character run is a case that cannot fail.
+expect_not_out "and no part of the token reaches the output" "$(repeat_char A 40)"
+expect_out "and each skip is announced by name" "skipping untracked '.env.local'"
+expect_out "and both are counted as unread" "2 file(s) skipped unread"
+
+# The control the case above needs: the same token in files with ordinary names is still reported, so
+# the silence above is the skip list and not a scan that stopped finding anything.
+new_repo
+for plain_file in config-a.ts config-b.ts; do
+  printf 'const token = "%s";\n' "$secret_token" >"$repo/$plain_file"
+done
+run
+expect_status "the same token in ordinarily-named files is still a duplicate" 1
+expect_out "and is reported" "2x token (118 chars)"
+
+# Every pattern in the list, one file each, because a list is a mapping and a case that names two rows
+# of it says nothing about the rest.
+new_repo
+secret_names=".env .env.local .envrc server.pem deploy.key id_rsa id_dsa aws-credentials app-secrets.yaml"
+for secret_file in $secret_names; do
+  printf 'API_TOKEN=%s\n' "$secret_token" >"$repo/$secret_file"
+done
+run_stdout
+expect_status "every secret-bearing name in the list is skipped" 0
+expect_no_out "and none of their shared token is reported"
+run
+expect_out "and all nine are counted as unread" "9 file(s) skipped unread"
+
+# A nested path, because the extension patterns match the basename and the word patterns match the
+# whole path. Without the second half a `credentials/` directory would be scanned.
+new_repo
+mkdir -p "$repo/config" "$repo/credentials"
+printf 'API_TOKEN=%s\n' "$secret_token" >"$repo/config/.env.local"
+printf 'API_TOKEN=%s\n' "$secret_token" >"$repo/credentials/prod.json"
+run_stdout
+expect_status "a nested .env and a file under a credentials directory are both skipped" 0
+expect_no_out "and their shared token is not reported"
 
 # An untracked file with no final newline, followed by another. `sed 's/^/+/'` passes the missing
 # newline through, fusing that file's last line with the next file's first, so neither is compared as
@@ -497,7 +596,7 @@ for ((n = 1; n <= 201; n++)); do
   distinct="$(repeat_char q 100)$n"
   printf '%s\n%s\n' "$distinct" "$distinct" >>"$repo/many.ts"
 done
-run HEAD
+run_stdout HEAD
 expect_status "201 duplicates still exit 1" 1
 expect_out "and the ones past the cap are announced, not dropped" "… and 1 further duplicate(s), not shown"
 expect_line_count "and exactly the cap is printed above the announcement" 201

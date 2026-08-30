@@ -4,7 +4,10 @@ package ecocheck_test
 // the finding says when it resolves nowhere.
 
 import (
+	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 func TestDelimitedSectionCitations(t *testing.T) {
@@ -22,8 +25,7 @@ func TestDelimitedSectionCitations(t *testing.T) {
 
 	// A shell comment cites the same way a document does, and the scan reads both.
 	t.Run("fires on an undelimited citation inside a shell comment", func(t *testing.T) {
-		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n## One home\n")
+		f := newCitedTarget(t, targetSectionBody)
 		f.newScript("citer.sh", "#!/usr/bin/env bash\n# untested: fixture\n# the rule is target.md → One home\ntrue")
 		f.reports(undelimited)
 	})
@@ -86,21 +88,36 @@ func TestUnresolvableCitationPaths(t *testing.T) {
 	})
 }
 
+// The section every case cites unless it says otherwise, and the cited document it sits in. Both are
+// written once because six builders and cases below reach for them: two copies of a heading, one of
+// them edited, is a case that goes on passing while citing something the target no longer carries.
+const (
+	targetSection     = "One home"
+	targetSectionBody = "## " + targetSection + "\n"
+)
+
+func newCitedTarget(t *testing.T, body string) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	// The title above the body is what makes the file a markdown document rather than a fragment.
+	f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n"+body)
+	return f
+}
+
 // A standard citing a section of `target.md`, where the case chooses the heading the target carries
 // and the form the citation is written in.
 func newCitedHeading(t *testing.T, heading, citation string) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n## "+heading+"\n")
+	f := newCitedTarget(t, "## "+heading+"\n")
 	f.write(f.root+"/kk-flavor/standards/citer.md",
 		"see [target.md](target.md) → "+citation+" for the rule\n")
 	return f
 }
 
-// The heading every case below cites unless it says otherwise.
+// The same, over the section every case cites unless it says otherwise.
 func newCitation(t *testing.T, citation string) *fixture {
 	t.Helper()
-	return newCitedHeading(t, "One home", citation)
+	return newCitedHeading(t, targetSection, citation)
 }
 
 // A citation wraps. A hard line break between the cited file and its section, or inside the section
@@ -153,8 +170,7 @@ func TestWrappedSectionCitations(t *testing.T) {
 // reads as undelimited.
 func TestWrappedCitationInsideAShellComment(t *testing.T) {
 	newCommentCitation := func(t *testing.T, section string) *fixture {
-		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n## One home\n")
+		f := newCitedTarget(t, targetSectionBody)
 		f.newScript("citer.sh", "#!/usr/bin/env bash\n# untested: fixture\n# the rule is target.md →\n# **"+section+"**\ntrue")
 		return f
 	}
@@ -171,8 +187,7 @@ func TestWrappedCitationInsideAShellComment(t *testing.T) {
 // A standard carrying one citation exactly as written, line breaks included.
 func newWrittenCitation(t *testing.T, body string) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n## One home\n")
+	f := newCitedTarget(t, targetSectionBody)
 	f.write(f.root+"/kk-flavor/standards/citer.md", body+"\n")
 	return f
 }
@@ -240,6 +255,31 @@ func TestUncheckableCitations(t *testing.T) {
 	// that way. Only the backticked head is worth a finding.
 	t.Run("stays quiet on a bare head with nothing in the block to stand in", func(t *testing.T) {
 		newBacktickedHead(t, "the placeholder is <file>.md → **Section**").doesNotReport(uncheckable)
+	})
+}
+
+// The head is the one part of that finding a reader has to find again in their own file, and it is a
+// run the reviewed tree chose the length of. Cut at 60 bytes with nothing saying so, it reads as the
+// whole head, and the reader greps for a string nobody wrote.
+func TestAnUncheckableCitationSaysWhenItsHeadWasCut(t *testing.T) {
+	// Long enough to run past the bound, and carrying no dot, so the head still names no markdown file
+	// and the finding under test is the one that fires.
+	longHead := strings.Repeat("kk-qualify-", 10)
+
+	t.Run("fires on a head that runs past the bound (control for the case below)", func(t *testing.T) {
+		newBacktickedHead(t, "`"+longHead+"` → **The residue** decides").reports(uncheckable)
+	})
+
+	// Matched on the marker together with the text the finding puts after the head, so the assertion
+	// is about where the cut is reported and not about a "..." landing anywhere in the output.
+	t.Run("and marks the head it cut rather than quoting a shorter wrong one", func(t *testing.T) {
+		newBacktickedHead(t, "`"+longHead+"` → **The residue** decides").reports(shell.CutMarker + "` → ")
+	})
+
+	// The other direction: a head inside the bound is quoted whole, or the marker starts saying a
+	// citation was cut when the reader is looking at all of it.
+	t.Run("while a head inside the bound is quoted with no marker", func(t *testing.T) {
+		newBacktickedHead(t, "`kk-qualify` → **The residue** decides").doesNotReport(shell.CutMarker + "` → ")
 	})
 }
 
@@ -322,8 +362,7 @@ func TestDanglingSectionRefNamesItsVariant(t *testing.T) {
 // body is what makes the file a markdown document rather than a fragment.
 func newDanglingVariant(t *testing.T, body, section string) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n"+body)
+	f := newCitedTarget(t, body)
 	f.write(f.root+"/kk-flavor/standards/citer.md",
 		"see [target.md](target.md) → "+section+" for the rule\n")
 	return f
@@ -366,8 +405,7 @@ func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
 // A script of the given name carrying one dangling citation, built rather than written out.
 func newHarnessCitation(t *testing.T, name string) *fixture {
 	t.Helper()
-	f := newRoot(t)
-	f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n## One home\n")
+	f := newCitedTarget(t, targetSectionBody)
 	f.newScript(name, "#!/usr/bin/env bash\n# untested: fixture\n# the rule is target.md → **Nowhere at all**\ntrue")
 	return f
 }

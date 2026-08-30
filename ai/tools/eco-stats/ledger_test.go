@@ -4,10 +4,13 @@ package ecostats_test
 // a ledger that does not exist yet is opened with.
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+
+	ecostats "kk-flavor/tools/eco-stats"
 )
 
 // The ledger a case starts from when it needs one that already has its columns.
@@ -121,6 +124,45 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 		}
 		if seeded == "" || seeded != ledgerProse(string(live)) {
 			t.Errorf("seeded:\n%slive:\n%s", indent(seeded), indent(ledgerProse(string(live))))
+		}
+	})
+}
+
+// argv[0] is where this program learns its own location, and `dirname` answers `.` for a name with no
+// slash in it. The ledger path is then `<parent of the working directory>/stats.md` — and this is the
+// one write path that *creates* rather than appends, so a run launched through `exec -a stats.sh`
+// seeds a whole ledger somewhere nobody asked for. The stub always execs an absolute path; a caller
+// that did not say where the program lives has not earned a guess taken off the working directory.
+func TestASelfNameWithNoDirectoryAppendsNothing(t *testing.T) {
+	t.Run("refuses rather than resolving the ledger against the working directory", func(t *testing.T) {
+		// Chdir'ed into scratch, and so not parallel. With the guard removed this call resolves the
+		// ledger to `<cwd>/../stats.md` and *creates* it — run from this package's own directory that
+		// is `ai/tools/stats.md`, a whole seeded ledger written into the checkout. A mutation run put
+		// one there, which is the case making its own point about what the guard is worth.
+		t.Chdir(t.TempDir())
+		f := newRoot(t)
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+
+		var out, errOut bytes.Buffer
+		status := ecostats.Run("stats.sh", []string{"--append", "should not land", f.root}, &out, &errOut)
+
+		if status != 2 || !strings.Contains(errOut.String(), "could not resolve") {
+			t.Errorf("status: %d (want 2)\n%s", status, indent(out.String()+errOut.String()))
+		}
+	})
+
+	// The other side: a self name that does say where the program lives still appends. Without it the
+	// refusal above is satisfied by a tool that never writes a row at all.
+	t.Run("a self name carrying a directory still appends its row", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+		ledger := f.newLedger(ledgerColumns)
+		before := rowsIn(t, ledger)
+		if _, stderr, status := f.run("--append", "lands", f.root); status != 0 {
+			t.Fatalf("status: %d\n%s", status, indent(stderr))
+		}
+		if rowsIn(t, ledger)-before != 1 {
+			t.Errorf("rows appended: %d (want 1)", rowsIn(t, ledger)-before)
 		}
 	})
 }

@@ -27,6 +27,30 @@ func TestDiscardRemovesNothingItCouldNotRead(t *testing.T) {
 	f.chmod(f.reportPath("001-discarding"), 0o644)
 }
 
+// The reports directory decides what survives. `survivingContent` keeps .idsd/ standing when another
+// ship's report is in flight, and it learns that by listing this directory — so a listing that failed
+// reads as "no other ship", and `discard` goes on to take the whole .idsd/, which in throwaway mode is
+// the only copy anyone has. An empty directory and one this cannot open are the same shape and not the
+// same fact.
+func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-mine")
+	f.newIntentFile("001-mine")
+	// A second ship's report, in flight, with no other copy anywhere. It is what must survive.
+	f.runReport("init", "002-yours")
+	if !f.madeUnreadable(f.repo+"/.idsd/qualify-reports", "the unreadable report-listing case") {
+		t.Skip("this process lists a mode-0 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable listing cannot be built here")
+	}
+	f.runReport("discard", "001-mine")
+	f.chmod(f.repo+"/.idsd/qualify-reports", 0o755)
+
+	f.assertRefused("discard refuses a report listing it could not read")
+	// The one thing throwaway mode keeps no copy of. This ship's own files are already gone by here,
+	// and that is what discard is for; the refusal stands between the listing and `os.RemoveAll(.idsd)`.
+	f.record("and left the other ship's report where it was",
+		f.isFile(f.reportPath("002-yours")), f.evidence())
+}
+
 func TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything(t *testing.T) {
 	t.Parallel()
 	// discard is addressed by the filename, and deletes the intent file the frontmatter names.

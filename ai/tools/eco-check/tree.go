@@ -118,8 +118,10 @@ func (c *checker) filesNamed(start string, globs ...string) []string {
 // tree chooses what is unreadable, so a scan that stopped there would be one a branch could switch
 // off. The call is made once here, and a scan added later inherits it.
 //
-// A file over the read bound comes back with no lines and no error — readLines reports it and returns
-// nothing — so a scan sees an empty file rather than skipping one it never told anyone about.
+// Skipped, never in silence. readLines names the file before it hands the error back, so the skip
+// costs a finding and no run can exit 0 over it; what a quiet one cost is at couldNotRead in shell.go.
+// A file over the read bound comes back with no lines and no error instead, so a scan sees an empty
+// file rather than one it never heard about.
 func (c *checker) filesWithLines(start string, globs ...string) iter.Seq2[string, []string] {
 	return func(yield func(string, []string) bool) {
 		for _, file := range c.filesNamed(start, globs...) {

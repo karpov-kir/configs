@@ -5,6 +5,7 @@ package ecoreport_test
 // as useless as one that never blocks — so the clean line is asserted before any of the blocks.
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -49,6 +50,22 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.runReport("gate", "001-gating")
 	f.record("gate blocks when the open-item scan did not run",
 		f.status == 1 && strings.Contains(f.out, "todo-gate.sh exited 3"), f.evidence())
+
+	// The seam is checked before it is run, the way the fingerprint script's is: both are located from
+	// this program's own path, so a slash-less argv[0] resolves either against the invocation's
+	// directory instead of the skill's. Asserted on the phrase rather than the exit, because the
+	// unchecked path also blocks — it just blocks quoting whatever exec returned, with no name in it.
+	f.chmod(f.todoGatePath(), 0o644)
+	if info, err := os.Stat(f.todoGatePath()); err == nil && info.Mode()&0o111 != 0 {
+		// A filesystem holding no execute bit to drop leaves the script runnable, and the assertion
+		// below would go red for the fixture rather than for the tool.
+		t.Logf("skip  this filesystem does not hold the execute bit — the unexecutable case cannot run")
+	} else {
+		f.runReport("gate", "001-gating")
+		f.record("gate names an open-item scan that is there but not executable",
+			f.status == 1 && strings.Contains(f.out, "is missing or not executable"), f.evidence())
+	}
+	f.chmod(f.todoGatePath(), 0o755)
 }
 
 func TestATrimmedPassIsNotAFullOne(t *testing.T) {

@@ -4,12 +4,25 @@
 # threshold and an unanchored score each produce output that reads exactly like a ruled one.
 set -u
 
-here=$(cd "$(dirname "$0")" && pwd)
+# `CDPATH=`: set in the environment, `cd` echoes where it landed whenever the path it is given is
+# relative and not dot-led, so `here` comes back two lines long and `$script` names nothing.
+#
+# A suite is not covered by the script it covers: this guard is the harness's own, and the CDPATH case
+# at the bottom of this file cannot reach it. Run relatively with CDPATH set, an unguarded `here`
+# reddened all but thirteen cases — that one among them.
+here=$(CDPATH= cd "$(dirname "$0")" && pwd)
 script="$here/score.sh"
 
 # One temp root for the whole suite, and one EXIT trap: a second `trap ... EXIT` added later replaces
 # this one rather than adding to it, and leaks whatever the first had created.
-tmp=$(mktemp -d) || exit 1
+# Exit 2, and it says why: a fixture root that cannot be created is a suite that did not measure,
+# which run-tests.sh counts apart from a failure. Exit 1 there would claim the script under test is
+# broken — a different claim, and a false one (`~/.kk-flavor/standards/testing.md` -> **7. What a
+# suite reports**).
+tmp=$(mktemp -d) || {
+  echo "score-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$tmp"' EXIT
 
 # The machine-local override resolves under XDG_CONFIG_HOME, so the suite pins that at a directory
@@ -127,7 +140,7 @@ expect_exactly "the ladder is per-lane, not one number" "6"
 run threshold always-loaded
 expect_exactly "the top of the ladder is read" "7"
 
-# The fallback that must not exist: `default` is a lane a caller names, never one it lands on.
+# The fallback that must not exist — `../thresholds.conf` states what `default` is at that lane.
 run threshold not-a-lane
 expect_status "an unknown lane exits 2 rather than falling back" 2
 expect_out "an unknown lane is told what does exist" "default"
@@ -171,8 +184,39 @@ expect_status "a blank reason is refused like a blank anchor" 2
 
 run_stdin "$(printf '3\tcut me\n')" cut outward-text "anchor"
 expect_status "a run that cuts something needs no reason" 0
+
+# `0 kept, 0 cut` at exit 0 is the report that reads identically to a run that scored a real list and
+# cut none of it, and it is the one this script must not produce: the scale never reached an artifact.
+# Exit 2 rather than 3, because 3 says a result is being refused and there is no result to refuse.
 run_stdin "" cut outward-text "anchor"
-expect_status "an empty list is not an all-keeps run" 0
+expect_status "an empty list exits 2 — nothing was scored" 2
+expect_out "and says no line reached stdin" "nothing was scored"
+expect_not_out "and prints no counts that would read as a clean run" "0 kept, 0 cut"
+
+# Blank lines are skipped as items, so a list of them scores nothing either. Without this the skip
+# above becomes a way to reach the vacuous report the case above closes.
+run_stdin "$(printf '\n\n')" cut outward-text "anchor"
+expect_status "a list of blank lines scores nothing and exits 2" 2
+
+# `--kept-all` answers a list that was read and survived. It must not excuse one that never arrived,
+# which is the vacuous report reached through the door built to accept a legitimate all-keeps run.
+run_stdin "" cut --kept-all "the artifact is already tight" outward-text "anchor"
+expect_status "--kept-all does not excuse a list that never arrived" 2
+
+# Stdin closed, not merely empty. `read` returns without assigning `line`, so without the assignment
+# before the loop `set -u` kills the run on the `[ -n "$line" ]` beside it: the caller gets bash's own
+# unbound-variable error and exit 1, after a header that already reads like a report starting.
+out=$(XDG_CONFIG_HOME="$no_override_home" "$script" cut outward-text "anchor" <&- 2>&1)
+status=$?
+expect_status "cut with stdin closed refuses rather than dying on bash's own error" 2
+expect_out "and the refusal is the script's own, naming what did not arrive" "nothing was scored"
+expect_not_out "and bash's unbound-variable error does not decide the exit" "unbound variable"
+
+# A directory dups onto fd 0 happily and only fails at the read, so it reaches the same unset `line`
+# by a route the closed-stdin case cannot see.
+out=$(XDG_CONFIG_HOME="$no_override_home" "$script" cut outward-text "anchor" <"$tmp" 2>&1)
+status=$?
+expect_status "cut given a directory on stdin refuses too" 2
 
 run_stdin "$(printf '10\tten\n0\tzero\n')" cut outward-text "anchor"
 expect_status "the scale ends accept 0 and 10" 0
@@ -446,6 +490,28 @@ out=$(cd "$here/.." && CDPATH="$fixture" bash scripts/score.sh threshold outward
 status=$?
 expect_status "CDPATH in the environment does not move the config" 0
 expect_exactly "and the lane still resolves to its own level" "5"
+
+# The same property for this suite's own root, which no case about the script under test reaches.
+# A corrupt `here` does not announce itself as one: it reports having measured something else.
+#
+# The resolve line is extracted from this file rather than written out again, so this reddens when
+# the guard leaves the real line and not when the line is reworded. Driven by a relative invocation
+# from the directory above, the only shape that consults CDPATH at all. The control is what stops an
+# extraction that has stopped matching from letting the case below pass over an empty probe.
+cdpath_line=$(grep -m1 '^here=' "$0")
+if [ -n "$cdpath_line" ]; then
+  record_pass "control: this suite's own root resolution was found, so the case below drives something"
+else
+  record_fail "control: this suite's own root resolution was found, so the case below drives something" "no 'here=' line in $0"
+fi
+mkdir -p "$tmp/cdpath-probe/scripts"
+printf '#!/usr/bin/env bash\n%s\necho "$here"\n' "$cdpath_line" >"$tmp/cdpath-probe/scripts/probe.sh"
+cdpath_lines=$( (cd "$tmp/cdpath-probe" && CDPATH=. bash scripts/probe.sh 2>/dev/null) | grep -c '')
+if [ "$cdpath_lines" = "1" ]; then
+  record_pass "CDPATH in the environment does not corrupt this suite's own root"
+else
+  record_fail "CDPATH in the environment does not corrupt this suite's own root" "the resolve line came back $cdpath_lines line(s) long"
+fi
 
 echo
 # Skips are counted in the line, never folded into passed: a run that skipped a case did not check it,

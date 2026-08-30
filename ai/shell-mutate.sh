@@ -18,9 +18,8 @@
 # nothing about any of them. And the red names the case the break was aimed at — which is the only
 # one of the three that looks like the check, and is worthless without the other two.
 #
-# Minutes, and that order of magnitude is the design rather than a happy accident. The shell harness
-# this replaces took two hours and twenty minutes, because it ran one mutant at a time against a
-# hundred-second suite. These suites are six seconds, the mutants run in parallel, and a mutant costs
+# Minutes, and the order of magnitude is the design. The harness this replaces took two hours and
+# twenty minutes, because it ran one mutant at a time against a hundred-second suite. These suites are six seconds, the mutants run in parallel, and a mutant costs
 # a copy of one file rather than a copy of a checkout. Measured here: three minutes on an idle
 # machine, seven with a dozen other things running. Under load, drop `-j` rather than reading the
 # watchdog's kills as findings — the run reports those apart and exits 2, never 1.
@@ -413,6 +412,22 @@ mutant cadence "cadence: the no-repository message goes to stdout" \
   'so there is no per-repo record — nothing was determined." >&2' \
   'so there is no per-repo record — nothing was determined."'
 
+# The usage warning. `due` and `asked` read as two spellings of one query and only one of them is, so
+# a caller probing the grammar overwrites the record it was asking about. The warning is the only
+# thing at the point of that mistake that says so.
+mutant cadence "cadence: the usage stops warning that asked writes" \
+  "and warns that asked writes where due only reads" \
+  'OVERWRITES it with today' \
+  'mentions today'
+
+# The caller's CDPATH. `cd` consults it for a relative path that is not dot-led and echoes where it
+# landed, so without the assignment the directory above the script comes back two lines long — and
+# every case above passes anyway, because they all invoke the copy by an absolute path.
+mutant cadence "cadence: the skill directory is resolved through the caller's CDPATH" \
+  "CDPATH in the environment does not hide the record from a relative run" \
+  'skill_dir=$(CDPATH= cd "$(dirname "$0")/.."' \
+  'skill_dir=$(cd "$(dirname "$0")/.."'
+
 # comment-density.sh. Two doors exit 2 and only their wording tells a live refusal from a dead tool,
 # so each door gets a mutant for its status, its wording and the stream it prints on.
 
@@ -623,6 +638,26 @@ mutant density "density: the scan unstages what the caller staged" \
   'emit_untracked_as_diff() {
   git reset -q >/dev/null 2>&1'
 
+# The denominator. Without it an empty report at exit 0 is byte-identical whether the scan read the
+# whole change set and found nothing, or read no file at all — a mistyped range, a range selecting
+# nothing. The report either side is the same, so the number is the only thing these can break.
+mutant density "density: the summary stops naming how much was read" \
+  "and the denominator says no file reached it" \
+  'printf "comment-density.sh: %d file(s) reached the scan, %d with countable added lines, %d outlier(s), %d untracked file(s) skipped unread.\n",' \
+  'printf "comment-density.sh: scan finished.\n",'
+
+mutant density "density: a run that read nothing stops saying so" \
+  "and names that as saying nothing about the change set" \
+  'if (reached + 0 == 0)' \
+  'if (reached + 0 < 0)'
+
+# A second anchor rather than the comparison above, so the two halves of that line are proven apart:
+# this one leaves the comparison alone and stops the counter feeding it.
+mutant density "density: files reaching the scan are never counted" \
+  "so this run is not reported as having read nothing" \
+  '/^diff --git / { file = ""; pending = 1; reached++; next }' \
+  '/^diff --git / { file = ""; pending = 1; next }'
+
 # dup-literals.sh. The same two doors, plus the comparison itself: what counts as one literal, and
 # what the diff-header anchor keeps from being read as a header.
 
@@ -813,6 +848,55 @@ mutant dup "dup: the scan unstages what the caller staged" \
   'emit_untracked_as_added_lines() {
   git reset -q >/dev/null 2>&1'
 
+# The denominator, as next door, plus the two things this scanner declines to read: a file whose name
+# marks it secret-bearing, and an added line carrying the bytes of a binary file git pushed through
+# `--text`. Both are files the scan never read, so both have to reach the tally.
+mutant dup "dup: the summary stops naming how much was read" \
+  "and the denominator says no file reached it" \
+  'printf "dup-literals.sh: %d file(s) reached the scan, %d duplicate(s), %d file(s) skipped unread, %d binary line(s) ignored.\n",' \
+  'printf "dup-literals.sh: scan finished.\n",'
+
+mutant dup "dup: a run that read nothing stops saying so" \
+  "and names that as saying nothing about the change set" \
+  'if (reached + 0 == 0)' \
+  'if (reached + 0 < 0)'
+
+mutant dup "dup: files reaching the scan are never counted" \
+  "so this run is not reported as having read nothing" \
+  '/^diff --git / { pending = 1; reached++; next }' \
+  '/^diff --git / { pending = 1; next }'
+
+mutant dup "dup: a file declined by the untracked arm leaves no mark" \
+  "and the skip is counted rather than silent" \
+  '      printf '"'"'dup-skipped-untracked\n'"'"'
+    fi' \
+  '      :
+    fi'
+
+# The awk half of the same tally, so the mark being emitted and the mark being counted are proven
+# apart. With only the mutant above, a counter that never ran would still look observed.
+mutant dup "dup: the marks a declined file leaves are never counted" \
+  "and the binary skip reaches the denominator too" \
+  '/^dup-skipped-untracked$/ { skipped++; next }' \
+  '/^dup-skipped-untracked$/ { next }'
+
+mutant dup "dup: binary added lines are compared as literals again" \
+  "and the ignored lines are counted rather than dropped in silence" \
+  'if (raw ~ /[\001-\010\013\014\016-\037\177]/) { binary_lines++; next }' \
+  'if (0) { binary_lines++; next }'
+
+mutant dup "dup: the secret-bearing skip list stops firing" \
+  "and no part of the token reaches the output" \
+  'if [ -n "$secret_named" ]; then' \
+  'if false; then'
+
+# The other direction: a skip list matching everything protects every secret and finds nothing at
+# all, which is the shape that reads as a clean scan.
+mutant dup "dup: the skip list swallows every untracked file" \
+  "and is reported" \
+  '      *credential* | *secret*) secret_named=1 ;;' \
+  '      *) secret_named=1 ;;'
+
 # --- cases no single break reaches ---
 
 unreachable cadence "the fixture root is outside any repository" \
@@ -903,26 +987,34 @@ done
 
 # Preflight. A stale anchor and a case name no suite holds are the same defect: both make a mutant
 # report on something other than the guard it names, and both are refused before anything runs.
+#
+# Counted per mutant, never per defect: one mutant carrying both a dead anchor and a dead case name
+# is one mutant that does not resolve, and adding a point for each would report two out of a total
+# that counts mutants — a number that can exceed its own denominator. Declarations are counted on
+# their own line for the same reason, since they are not mutants and never were part of that total.
 stale=0
+stale_declarations=0
 for ((i = 0; i < total; i++)); do
+  unresolved=0
   matches=$(anchor_count "${m_from[$i]}" "$(script_of "${m_key[$i]}")")
   if [ "$matches" -ne 1 ]; then
     printf '  anchor x%-7s %s\n' "$matches" "${m_label[$i]}"
-    stale=$((stale + 1))
+    unresolved=1
   fi
   if ! grep -Fxq -- "${m_case[$i]}" "$scratch/base/${m_key[$i]}.cases"; then
     printf '  no such case    %s aims at "%s", which its suite does not hold\n' "${m_label[$i]}" "${m_case[$i]}"
-    stale=$((stale + 1))
+    unresolved=1
   fi
+  stale=$((stale + unresolved))
 done
 for ((i = 0; i < ${#u_case[@]}; i++)); do
   if ! grep -Fxq -- "${u_case[$i]}" "$scratch/base/${u_key[$i]}.cases"; then
     printf '  no such case    "%s" is declared out of reach, and its suite does not hold it\n' "${u_case[$i]}"
-    stale=$((stale + 1))
+    stale_declarations=$((stale_declarations + 1))
   fi
 done
-if [ "$stale" -gt 0 ]; then
-  echo "preflight: $stale of $total mutants do not resolve — nothing was mutated"
+if [ "$stale" -gt 0 ] || [ "$stale_declarations" -gt 0 ]; then
+  echo "preflight: $stale of $total mutants do not resolve, and $stale_declarations out-of-reach declaration(s) name a case no suite holds — nothing was mutated"
   exit 1
 fi
 echo "preflight: $total anchors, all matching exactly once; every case a mutant names or a declaration excuses is held"

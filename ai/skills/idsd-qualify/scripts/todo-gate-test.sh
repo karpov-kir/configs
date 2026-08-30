@@ -11,7 +11,14 @@ set -u
 
 here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 gate="$here/todo-gate.sh"
-base=$(mktemp -d) || exit 1
+# Exit 2, and it says why: a fixture root that cannot be created is a suite that did not measure,
+# which run-tests.sh counts apart from a failure. Exit 1 there would claim the script under test is
+# broken — a different claim, and a false one (`~/.kk-flavor/standards/testing.md` -> **7. What a
+# suite reports**).
+base=$(mktemp -d) || {
+  echo "todo-gate-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$base"' EXIT
 
 passed=0
@@ -174,6 +181,38 @@ run_over "## Follow-ups
 "
 expect_status "an indented item exits 1" 1
 expect_out "and is printed without its indentation" "- [ ] wire the resolver into the skills"
+
+# A path awk would read as a variable assignment rather than a file. Handed to awk as an operand,
+# `intent=v2.md` sets `intent` and opens nothing; awk then falls through to stdin, takes EOF from the
+# `/dev/null` an agent hands it, prints nothing and exits 0 — a clean merge gate over a file it never
+# opened. Relative and identifier-shaped is the whole condition: an absolute path is not a valid awk
+# name, which is why every case above misses this.
+#
+# `</dev/null` is load-bearing here: without it the defect blocks on the terminal instead of reporting
+# a false clean, and the case could not tell the two apart.
+assignment_dir="$base/assignment"
+mkdir -p "$assignment_dir"
+printf '## Follow-ups\n\n%s\n' "$item" >"$assignment_dir/intent=v2.md"
+out=$(cd "$assignment_dir" && "$gate" "intent=v2.md" </dev/null 2>&1)
+status=$?
+expect_status "a relative path shaped like an awk assignment is still opened" 1
+expect_out "and its open item is reported" "wire the resolver into the skills"
+
+# The control, and the reason the case above is not enough alone: the same file reached by a path awk
+# could never misread has to behave identically. Without it, a gate that had stopped reading anything
+# at all would satisfy neither, and a gate that reported every path as an item would satisfy both.
+out=$(cd "$assignment_dir" && "$gate" "./intent=v2.md" </dev/null 2>&1)
+status=$?
+expect_status "and the same file reached by an unambiguous path agrees" 1
+expect_out "and reports the same item" "wire the resolver into the skills"
+
+# The other half of the shape: an identifier-shaped path holding nothing open must still exit 0, so
+# the fix cannot be a gate that reports an item for every path it cannot parse.
+printf '## Follow-ups\n\n- [x] done\n' >"$assignment_dir/intent=v3.md"
+out=$(cd "$assignment_dir" && "$gate" "intent=v3.md" </dev/null 2>&1)
+status=$?
+expect_status "an identifier-shaped path with nothing open exits 0" 0
+expect_no_out "and prints nothing"
 
 echo
 echo "$passed passed, $failed failed"

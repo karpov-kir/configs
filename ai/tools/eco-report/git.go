@@ -267,13 +267,31 @@ func (r *run) dropLocalExclusion() error {
 	return err
 }
 
-func (r *run) worktreeCount() int {
-	listing, _ := r.captureGit(nil, "worktree", "list", "--porcelain")
+// How many worktrees share this git dir, and whether git actually answered. The two answers are not
+// equally safe, which is why the status is read rather than discarded: `.git/info/exclude` is shared
+// across worktrees, and the only caller drops the shared `.idsd/` entry when this comes back as 1. A
+// failed read counted 0, which is also below 2 — so the exclusion went, and a parallel throwaway ship's
+// scratch became visible to the next `git add -A` there.
+//
+// The same rule `assertRepoModeReadable` states one screen up: a read this tool could not make must
+// not arrive at the destructive branch wearing the shape of an answer.
+func (r *run) worktreeCount() (int, bool) {
+	listing, status := r.captureGit(nil, "worktree", "list", "--porcelain")
+	if status != 0 {
+		return 0, false
+	}
+	return worktreesIn(listing)
+}
+
+// The worktrees a porcelain listing names, and whether it named any at all. git lists the worktree this
+// run is in, so a repo that answered reports at least one — zero is git exiting 0 while saying
+// something this cannot read, which is not the same fact as "one worktree" and must not arrive as it.
+func worktreesIn(listing string) (int, bool) {
 	count := 0
 	for _, line := range strings.Split(listing, "\n") {
 		if strings.HasPrefix(line, "worktree ") {
 			count++
 		}
 	}
-	return count
+	return count, count > 0
 }

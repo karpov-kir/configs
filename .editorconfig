@@ -5,3 +5,9 @@ indent_style = space
 indent_size = 2
 end_of_line = lf
 insert_final_newline = true
+
+# gofmt writes tabs and is not configurable, and `gofmt -l .` is a gate in both workflows. Without
+# this block an editorconfig-aware editor indents Go with spaces on save, which reddens that gate on
+# a file nobody meaningfully changed — the tool and the editor disagreeing, with CI as the referee.
+[*.go]
+indent_style = tab

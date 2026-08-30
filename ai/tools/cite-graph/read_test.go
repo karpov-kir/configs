@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// Twenty-two skills each ship a `SKILL.md`. Keyed on basename they weld into one node, and the graph
-// then reports edges belonging to one file as if they belonged to all of them.
+// Every skill ships a `SKILL.md`. Keyed on basename they weld into one node, and the graph then
+// reports edges belonging to one file as if they belonged to all of them.
 func TestSameBasenameInTwoDirectoriesStaysTwoNodes(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "a/SKILL.md", "# A\n\nsee `standards/writing.md` → **Density**\n")
@@ -411,6 +411,97 @@ func TestAPathTheWalkCannotReadIsReported(t *testing.T) {
 	_, _, stderr := graph(t, missing)
 	if !strings.Contains(stderr, "could not read") || !strings.Contains(stderr, "no-such-tree") {
 		t.Errorf("stderr %q names no unreadable path", stderr)
+	}
+}
+
+// The stderr line and the count are two different reaches. `cite-graph.sh` and CI branch on the exit
+// code, which is taken from the count, and neither reads prose — so a skip that only ever reached
+// stderr arrived at every automated caller as a clean run over a tree that was never opened.
+func TestAPathTheWalkCannotReadIsAlsoCounted(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "no-such-tree")
+	if skipped, stderr := skippedUnder(t, missing); skipped != 1 {
+		t.Fatalf("skipped = %d, want 1; stderr was %q", skipped, stderr)
+	}
+}
+
+// A symlinked directory is where the silence was total. Walk stats with Lstat, so the link is not a
+// directory, and the `.md` suffix filter used to drop it before the regular-file guard could speak:
+// the whole subtree left every figure with nothing on stderr at all. `~/.kk-flavor` is such a link and
+// so is every `~/.claude/skills/*`, so this is the shape the installed layout is made of.
+func TestASymlinkedDirectoryIsReportedAndCounted(t *testing.T) {
+	root := t.TempDir()
+	away := t.TempDir()
+	write(t, away, "b.md", "# B\n\n## Beta\n")
+	write(t, root, "a.md", "# A\n\n## Alpha\n")
+	if err := os.Symlink(away, filepath.Join(root, "std")); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	skipped, stderr := skippedUnder(t, root)
+	if skipped != 1 {
+		t.Fatalf("skipped = %d, want 1 — the subtree behind the link went unread; stderr was %q", skipped, stderr)
+	}
+	if !strings.Contains(stderr, "links to a directory") || !strings.Contains(stderr, "std") {
+		t.Errorf("stderr %q does not name the link it did not follow", stderr)
+	}
+}
+
+// A link to something this tool was never going to read is not a hole in its promise. Counting it
+// would exit 2 over a tree that was read whole, which retires the refusal by making it cry wolf.
+func TestALinkToANonMarkdownFileIsNotASkip(t *testing.T) {
+	root := t.TempDir()
+	away := t.TempDir()
+	write(t, away, "script.sh", "echo hi\n")
+	write(t, root, "a.md", "# A\n\n## Alpha\n")
+	if err := os.Symlink(filepath.Join(away, "script.sh"), filepath.Join(root, "script.sh")); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	if skipped, stderr := skippedUnder(t, root); skipped != 0 {
+		t.Fatalf("skipped = %d, want 0 — a linked .sh was never this tool's to read; stderr was %q", skipped, stderr)
+	}
+}
+
+// A `.md` link resolving to nothing is a file the tree names and this cannot read. Silent, it leaves
+// the citations into it coming back as a manufactured `no such path`.
+func TestADanglingMarkdownSymlinkIsCounted(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.md", "# A\n\n## Alpha\n")
+	if err := os.Symlink(filepath.Join(root, "gone.md"), filepath.Join(root, "b.md")); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	skipped, stderr := skippedUnder(t, root)
+	if skipped != 1 {
+		t.Fatalf("skipped = %d, want 1; stderr was %q", skipped, stderr)
+	}
+	if !strings.Contains(stderr, "b.md") {
+		t.Errorf("stderr %q does not name the dangling link", stderr)
+	}
+}
+
+// The scenario as it was observed: a directory the process cannot open. The mode bit is the only
+// mechanism that produces this exact failure, so the case probes whether it really denies this process
+// and says why it declined rather than asserting against a directory root reads happily.
+func TestAnUnreadableDirectoryIsCounted(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.md", "# A\n\n## Alpha\n")
+	write(t, root, "shut/b.md", "# B\n\n## Beta\n")
+	shut := filepath.Join(root, "shut")
+	if err := os.Chmod(shut, 0o000); err != nil {
+		t.Skipf("cannot drop the mode bits here: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(shut, 0o755) })
+	if _, err := os.ReadDir(shut); err == nil {
+		t.Skip("mode 000 does not deny this process — root or CAP_DAC_OVERRIDE, so there is no refusal to observe")
+	}
+
+	skipped, stderr := skippedUnder(t, root)
+	if skipped != 1 {
+		t.Fatalf("skipped = %d, want 1; stderr was %q", skipped, stderr)
+	}
+	if !strings.Contains(stderr, "permission denied") {
+		t.Errorf("stderr %q does not name the refusal", stderr)
 	}
 }
 

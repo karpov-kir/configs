@@ -3,12 +3,15 @@ package ecocheck
 // Enforces ecosystem.md → **Prefer the mechanism**: every subcommand a dispatch accepts needs one
 // `<script> <subcommand>` somewhere an agent reads, or it is a capability nothing routes to.
 //
-// Two dispatch shapes are read here: a shell `case "${1:-}" in`, and a Go switch behind a stub that
-// execs a binary. A stub holds no `case` of its own, so covering the shell shape alone returns
-// nothing at all for it, which reads to every caller as a pass.
+// Two dispatch shapes are read here: a top-level shell `case` on the first argument, and a Go switch
+// behind a stub that execs a binary. A stub holds no `case` of its own, so covering the shell shape
+// alone returns nothing at all for it, which reads to every caller as a pass.
 //
-// Nothing below answers "no subcommands" by failing to find them: a stub that names a grammar it
-// cannot read the dispatch for is reported, never skipped.
+// Nothing below answers "no subcommands" by failing to find them. Every reach here is written twice —
+// loosely, to decide a dispatch is there, and strictly, to read what it accepts — and the gap between
+// the two is a finding rather than a silence. A scan that reports nothing while having looked at
+// nothing is the one result this file must not be able to produce, and every single-literal anchor
+// here is one way to produce it.
 
 import (
 	"bytes"
@@ -22,6 +25,13 @@ import (
 
 var (
 	caseLabel = regexp.MustCompilePOSIX(`^  [a-z][a-z0-9|_-]*\)$`)
+	// A top-level `case` on the first argument, in any spelling a shell accepts: `case "$1" in`,
+	// `case $1 in`, `case "${1:-}" in`, `case "${1-}" in`. Deliberately looser than caseLabel above,
+	// which reads the arms — this decides only that a dispatch is *there*, and a dispatch this
+	// matches whose arms that one cannot read is reported rather than passed over. Column 0, so an
+	// in-function lookup table (`install.sh`, `shell-mutate.sh`) is not one. The character after the 1
+	// is what tells the first argument from `$10`, and every legal spelling puts one there.
+	dispatchOpening = regexp.MustCompilePOSIX(`^case [^#]*\$\{?1[^0-9]`)
 	// How a stub names the tool it execs. The charset is resolve.sh's, which refuses everything else:
 	// a name that resolver would not touch is not one to build a path from here either.
 	toolDeclaration = regexp.MustCompilePOSIX(`^tool="[a-z0-9-]+"$`)
@@ -32,6 +42,12 @@ var (
 // the dispatch every one of them was read from is a file the reviewed branch wrote. Past the bound the
 // rest are reported and NOT checked — an unchecked subcommand must never read as one with a call site.
 const subcommandCap = 256
+
+// What every way of failing to read a dispatch is said under. One class, because it is one fact
+// however it is reached — this scan holds a script that has subcommands and could name none of them —
+// and because report.go ranks a finding on the head of its line, so a path-led one would sort into
+// rank 5. The tail of each says what was checked in the dispatch's place, or that nothing was.
+const unreadDispatch = "subcommand dispatch not read: "
 
 // How much of a wrapped `usage: <name> {…}` grammar is read. The stub is a file the reviewed branch
 // wrote, so an unterminated brace would otherwise collect the rest of it.
@@ -99,8 +115,16 @@ func (c *checker) subcommandsToFind() (wanted []callSite, queries map[string]boo
 	}
 	for script, lines := range c.filesWithLines(c.root.Named(), "*.sh") {
 		base := shell.BaseName(script)
-		want(base, dispatchLabels(lines))
-		want(base, c.toolSubcommands(base, lines))
+		labels, opened := dispatchLabels(lines)
+		// The shell half's own "could not read it" line: a script that plainly opens a dispatch and
+		// yields no arm has every subcommand it accepts checked by nothing. Named by path, because
+		// this finding is about one file's own text and needs no attribution through a basename.
+		if opened && len(labels) == 0 {
+			c.add(unreadDispatch + shell.Oneline(script) + " (it opens a case dispatch on $1 and no arm of it " +
+				"could be read) — every subcommand it accepts went unchecked")
+		}
+		want(base, labels)
+		want(base, c.toolSubcommands(base, lines, opened))
 	}
 	if capped > 0 {
 		c.add(fmt.Sprintf("subcommand call-site scan is at its %d-subcommand bound: %d more were NOT checked",
@@ -114,10 +138,9 @@ func (c *checker) subcommandsToFind() (wanted []callSite, queries map[string]boo
 func (c *checker) markCallSitesFound(queries map[string]bool) {
 	for _, file := range c.filesNamed(c.root.Named(), "*.md", "*.sh", "*.yaml") {
 		// Bounded like every other read of a file the reviewed tree wrote — see shell.go's
-		// maxFileBytes. This pass reads whole files rather than lines, and it had no bound at all: a
-		// committed 600 MB standard took 1.27 GB resident here, twice the file, because the bytes
-		// were then copied into a string to search. Searched as bytes now, and reported rather than
-		// read when it is over the bound.
+		// maxFileBytes. This pass reads whole files rather than lines: unbounded, a committed 600 MB
+		// standard took 1.27 GB resident, twice the file, because the bytes were copied into a string
+		// to search. Searched as bytes, and reported rather than read when it is over the bound.
 		info, err := os.Stat(file)
 		if err != nil {
 			continue
@@ -128,6 +151,10 @@ func (c *checker) markCallSitesFound(queries map[string]bool) {
 		}
 		body, err := os.ReadFile(file)
 		if err != nil {
+			// The same consequence the bound above reports, reached the other way. Unsaid, a file
+			// this could not open left every call site in it unseen and the subcommands they answer
+			// for were reported as having none — a finding naming the wrong defect entirely.
+			c.add(couldNotRead(shell.Oneline(file), "no call site in it was seen"))
 			continue
 		}
 		for query, seen := range queries {
@@ -162,14 +189,23 @@ func (c *checker) reportWeldedScriptNames(owners map[string][]string) {
 	}
 }
 
-// The case labels of a top-level shell `case "${1:-}" in` dispatch. Labels are read at the case arm's
-// own indentation, so a nested `done)` is not one.
-func dispatchLabels(lines []string) []string {
-	var labels []string
+// The case labels of a top-level shell dispatch on the first argument, and whether one was there at
+// all. Labels are read at the case arm's own indentation, so a nested `done)` is not one.
+//
+// The two answers are separate because they fail separately, and the caller reports the combination
+// that used to be silent: `opened` without a label is a dispatch whose arms are written in a form
+// caseLabel does not read — a body on the arm's own line, an indent that is not two spaces, a quoted
+// label — and every subcommand behind it goes unchecked. Returning labels alone made that
+// indistinguishable from a script that has no dispatch.
+//
+// The dispatch is the *first* one, and the read stops at its `esac`: a second top-level `case` on $1
+// in the same file is not read, and its subcommands go unchecked without a word. No script in this
+// tree has two, and reading them all needs a per-dispatch count rather than a per-file one.
+func dispatchLabels(lines []string) (labels []string, opened bool) {
 	inside := false
 	for _, line := range lines {
-		if strings.HasPrefix(line, `case "${1:-}" in`) {
-			inside = true
+		if dispatchOpening.MatchString(line) {
+			inside, opened = true, true
 			continue
 		}
 		if inside && strings.HasPrefix(line, "esac") {
@@ -181,29 +217,39 @@ func dispatchLabels(lines []string) []string {
 		trimmed := strings.NewReplacer(" ", "", ")", "").Replace(line)
 		labels = append(labels, strings.Split(trimmed, "|")...)
 	}
-	return shell.SortUnique(labels)
+	return shell.SortUnique(labels), opened
 }
 
 // A stub that execs a Go tool takes its subcommands from that tool's dispatch, and the stub's own
 // usage grammar is what declares it has any. Both lists are read and neither stands alone: the grammar
 // is what an agent reads, the dispatch is what the tool accepts, and a name in one and not the other
 // is a defect in whichever it is missing from.
-func (c *checker) toolSubcommands(base string, lines []string) []string {
+func (c *checker) toolSubcommands(base string, lines []string, opened bool) []string {
+	documented := usageSubcommands(base, lines)
 	tool := declaredTool(lines)
 	if tool == "" {
-		return nil
+		// `tool=` is read in one spelling, so a stub spelling it any other way names its subcommands
+		// in a usage grammar and has nothing check them. The grammar is therefore read *before* the
+		// tool line — it is the evidence the script has subcommands, and it must not be reachable
+		// only through the line whose spelling is in doubt.
+		//
+		// Two quiet cases stay quiet, because each is a determination rather than a failure to reach
+		// one: a script that opened a shell dispatch is answered there, and one whose usage names no
+		// subcommand takes none (check.sh and stats.sh each take a root).
+		if opened || len(documented) == 0 {
+			return nil
+		}
+		c.reportUnreadDispatch(base, `it names no tool="<name>" to reach one through, and opens no case dispatch on $1`, documented)
+		return documented
 	}
-	documented := usageSubcommands(base, lines)
 	dispatched, why := c.goDispatchLabels(base, tool)
 	if why != "" {
 		// A stub whose grammar names subcommands and whose dispatch could not be read leaves every
 		// one of them unchecked, so say which way it could not be read and check the grammar's list
 		// anyway: a worse authority than the dispatch, but not nothing. A stub whose grammar names
-		// none and whose tool holds no dispatch takes no subcommand at all (check.sh and stats.sh
-		// each take a root), which is a determination rather than a failure to reach one.
+		// none and whose tool holds no dispatch takes no subcommand at all, the determination above.
 		if len(documented) > 0 {
-			c.add(fmt.Sprintf("cannot read %s's dispatch: %s — the %d subcommand(s) its usage names were checked against that usage alone",
-				c.scriptNamed(base), why, len(documented)))
+			c.reportUnreadDispatch(base, why, documented)
 		}
 		return documented
 	}
@@ -216,9 +262,17 @@ func (c *checker) toolSubcommands(base string, lines []string) []string {
 	return shell.SortUnique(append(append([]string{}, dispatched...), documented...))
 }
 
+// The one sentence every way of failing to reach the dispatch behind a usage grammar is said in:
+// which way it could not be read, and that the grammar's own list was checked in its place. One home
+// for it, so the three ways cannot drift into three wordings a reader has to learn separately.
+func (c *checker) reportUnreadDispatch(base, why string, documented []string) {
+	c.add(fmt.Sprintf("%s%s (%s) — the %d subcommand(s) its usage names were checked against that usage alone",
+		unreadDispatch, c.scriptNamed(base), why, len(documented)))
+}
+
 // The file a finding about a basename is about. Every finding here is reached through a basename,
-// because that is how a call site is written, and a basename is not a file: 22 files in this tree
-// answer to `SKILL.md` alone. One script under a name is the path; more than one has no answer in the
+// because that is how a call site is written, and a basename is not a file: every skill in this tree
+// answers to `SKILL.md`. One script under a name is the path; more than one has no answer in the
 // tree, so this says how many rather than picking the first and printing it as fact.
 func (c *checker) scriptNamed(base string) string {
 	paths := c.scriptOwners[base]
@@ -287,9 +341,13 @@ func usageSubcommands(base string, lines []string) []string {
 // function around it: a function is renamed without a word, and an anchor that quietly stops matching
 // is a scan gone silent. A non-empty reason means the dispatch could not be read at all, which the
 // caller reports rather than passing off as an empty list.
+//
+// Both reasons below quote that path, and the stub names the directory it is built from, so its
+// length is the reviewed tree's to choose. Marked when the bound bites: a path cut mid-segment is
+// still a path, so an unmarked cut sends a reader to a directory nobody has.
 func (c *checker) goDispatchLabels(base, tool string) (labels []string, why string) {
 	dir := shell.Join(shell.Join(c.root.Named(), "tools"), tool)
-	named := shell.CutBytes(shell.Oneline(dir), 120)
+	named := shell.CutBytesMarked(shell.Oneline(dir), 120)
 	if !shell.IsDir(dir) {
 		return nil, "no source directory at " + named
 	}

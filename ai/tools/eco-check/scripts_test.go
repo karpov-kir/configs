@@ -3,12 +3,72 @@ package ecocheck_test
 // Script test position: every script states the -test.sh covering it or why it has none.
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+
+	ecocheck "kk-flavor/tools/eco-check"
 )
+
+// The root arrives as a literal argument, so the leading byte of every path built from it is the
+// caller's to choose. Handed to `bash -n` with no `--`, a path opening with a dash is read as an
+// option: bash answers `-r: invalid option` and dumps its usage without ever opening the file, and
+// each of those ~25 lines becomes a `syntax:` finding — rank 0, so the script goes unparsed while
+// bash's own help text floods the gravest rank.
+//
+// The root has to be relative, because an absolute one always opens on `/`. That is what the chdir is
+// for, and why this case cannot be built on the fixture every other case here uses.
+func newDashLeadingRoot(t *testing.T) (root string, output string) {
+	t.Helper()
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash on PATH, so nothing here parses a script at all")
+	}
+	base := t.TempDir()
+	root = "-r"
+	for _, dir := range []string{base + "/" + root + "/kk-flavor/standards", base + "/" + root + "/skills"} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(base+"/"+root+"/kk-flavor/inject.md", []byte("# Flavor\n"), 0o644); err != nil {
+		t.Fatalf("write inject.md: %v", err)
+	}
+	// Broken on purpose: a parse that really opened the file has something to report, and one that
+	// never got past bash's option handling has only bash's usage.
+	script := base + "/" + root + "/skills/broken.sh"
+	if err := os.WriteFile(script, []byte("if then\n"), 0o755); err != nil {
+		t.Fatalf("write broken.sh: %v", err)
+	}
+	t.Chdir(base)
+
+	var buffer bytes.Buffer
+	if status := ecocheck.Run(root, &buffer, &buffer); status == 2 {
+		t.Fatalf("Run exited 2 — nothing was checked, so this case cannot be trusted\n%s", buffer.String())
+	}
+	return root, buffer.String()
+}
+
+func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) {
+	t.Run("reports the script's own syntax error", func(t *testing.T) {
+		root, output := newDashLeadingRoot(t)
+		needle := "syntax: " + root + "/skills/broken.sh: line 1: syntax error"
+		if !strings.Contains(output, needle) {
+			t.Errorf("expected a finding containing %q\n%s", needle, output)
+		}
+	})
+
+	// The other half, and the one that says the file was opened rather than merely named: bash's
+	// refusal must not reach the report at all.
+	t.Run("and does not report bash refusing the path as an option", func(t *testing.T) {
+		_, output := newDashLeadingRoot(t)
+		if strings.Contains(output, "invalid option") {
+			t.Errorf("bash was handed the path as an option and never opened the file\n%s", output)
+		}
+	})
+}
 
 func TestScriptTestPosition(t *testing.T) {
 	t.Run("fires on a script naming neither a test nor an untested reason", func(t *testing.T) {

@@ -1,7 +1,7 @@
 // A `go build ./` inside a main package's own directory drops the binary beside the source, named
-// after that directory — so the tools whose main sits in cmd/ drop a file called `cmd`. .gitignore
-// covers bin/ and dist/ and neither of those, and gitignore cannot express "a file named after its
-// directory", so the paths are written out one per line. This case is that list's guard: the list
+// after that directory. .gitignore covers bin/ and dist/ and neither of those, and gitignore cannot
+// express "a file named after its directory", so the paths are written out one per line. That the
+// names are distinct in the first place is shipped_test.go's. This case is the list's guard: the list
 // cannot notice a tool added after it, and it fails in the direction that hurts, by leaving a ~3MB
 // binary untracked for the next `git add -A` to commit.
 package tools_test
@@ -49,9 +49,8 @@ func ignoredByGit(t *testing.T, path string) bool {
 	return false
 }
 
-// Every directory holding a `package main`, verbatim. shipped_test.go collapses `<tool>/cmd` to the
-// tool name because a release is named per tool; this returns the directory the build actually runs
-// in, because that is what names the dropped binary.
+// Every directory holding a `package main`, verbatim — the directory the build actually runs in,
+// which is what names the dropped binary. shipped_test.go reads the same list as tool names.
 func mainPackageDirs(t *testing.T) []string {
 	t.Helper()
 	found := map[string]bool{}

@@ -6,16 +6,20 @@
 # The retro date lives in this skill's own directory, the one path identical from every repo; the
 # audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway `.idsd/`,
 # and a cadence the ship itself deletes can never come due.
-# tested by: cadence-test.sh. 72 of its 73 cases are proven able to fail by shell-mutate.sh, one
-# guard broken at a time in a copy; the 73rd asserts the fixture root rather than this script, and
-# reddens when that root is put inside a repository.
+# tested by: cadence-test.sh, whose every case but one is proven able to fail by shell-mutate.sh, one
+# guard broken at a time in a copy; the exception asserts the fixture root rather than this script,
+# and reddens when that root is put inside a repository.
 set -uo pipefail
 export LC_ALL=C
 
 topic="${1:-}"
 action="${2:-}"
 
-skill_dir=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || skill_dir=""
+# `CDPATH=`: set in the environment, `cd` echoes where it landed whenever the path it is given is
+# relative and not dot-led, so `skill_dir` comes back two lines long. `due` then reads a record
+# written today as never offered, and `asked` prints "recorded" while writing the date into a
+# directory named after the corruption — an offer reported as kept, and not kept.
+skill_dir=$(CDPATH= cd "$(dirname "$0")/.." 2>/dev/null && pwd) || skill_dir=""
 [ -n "$skill_dir" ] || {
   echo "cadence.sh: could not resolve idsd-ship's own directory — nothing was determined; the cadence is unknown." >&2
   exit 2
@@ -24,6 +28,11 @@ skill_dir=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd) || skill_dir=""
 interval_days=7
 
 usage() {
+  # `due` and `asked` read as two spellings of one query, and only one of them is: `asked` overwrites
+  # the record with no undo, so a caller probing the grammar rewrites the state it was asking about.
+  # Hence the warning above the usage line. Keep that order and keep both on stderr — the test anchors
+  # that hold the grammar match on it.
+  echo "cadence.sh: 'due' only reads the record; 'asked' OVERWRITES it with today's date, and nothing undoes that." >&2
   echo "usage: cadence.sh {retro|audit} {due|asked}" >&2
   exit 2
 }

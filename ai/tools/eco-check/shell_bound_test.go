@@ -3,8 +3,49 @@ package ecocheck_test
 // The per-file read bound. The reviewed tree chooses how large a committed file is, and reading one
 // whole put peak memory at 2.48 GB for a 64 MiB file that packs to 408 KB — half a gigabyte of it
 // OOM-kills the review stage.
+//
+// Plus the other way a read comes back with nothing: a file the walk handed over and the open
+// refused. Both are the same claim — a file nothing read must not be indistinguishable from one that
+// held nothing — and only the bound was making it.
 
 import "testing"
+
+// A markdown file the walk reaches and the read cannot open. Root reads a mode-000 file whatever the
+// mode says, and nothing else builds this condition: every other way to make the read fail is refused
+// a limb earlier by the walk's own regular-file test and never reaches the open. So the case declines
+// rather than asserting against a file the checker reads happily.
+func newUnreadableStandard(t *testing.T) *fixture {
+	t.Helper()
+	skipUnlessModeDeniesRead(t, "an unreadable file cannot be built here")
+	f := newRoot(t)
+	f.write(f.root+"/kk-flavor/standards/shut.md", "# Shut\n\n## One home\n")
+	f.chmod(f.root+"/kk-flavor/standards/shut.md", 0o000)
+	return f
+}
+
+// Three files at mode 000 in this tree produced 41 dangling-section findings against the files that
+// cited them, a census line 34 words short under an unchanged denominator, and zero bytes on stderr.
+// Every scan skips a file it cannot read, which is right — the reviewed tree chooses what is
+// unreadable, so stopping there is a switch a branch could throw — but skipping it in silence is the
+// zero that cannot be told from "never looked".
+func TestUnreadableFileIsReportedNotSilentlySkipped(t *testing.T) {
+	t.Run("names a file the read could not open", func(t *testing.T) {
+		newUnreadableStandard(t).reports("file could not be read")
+	})
+
+	t.Run("and says it was not checked rather than leaving it to read as empty", func(t *testing.T) {
+		newUnreadableStandard(t).reports("it was NOT checked")
+	})
+
+	// It ranks with the tampered-check class, not with the references. Left at the default rank it
+	// shares one budget with `dangling link:` and sorts below every one of them — and a flood of those
+	// is the cheapest thing a branch can commit.
+	t.Run("and reaches the screen through a flood of link findings", func(t *testing.T) {
+		f := newUnreadableStandard(t)
+		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
+		f.ranksAbove("file could not be read", "dangling link: ")
+	})
+}
 
 func TestOversizeFileIsReportedNotRead(t *testing.T) {
 	oversize := func(t *testing.T) *fixture {
@@ -68,6 +109,32 @@ func TestOversizeFileIsNotReadByTheCallSiteScan(t *testing.T) {
 	// The control. The pass is live on this fixture, so the silence above is a refusal and not a scan
 	// that never ran.
 	t.Run("while the scan itself is live on that tree", func(t *testing.T) {
+		searched(t).reports("subcommand with no call site: alpha")
+	})
+}
+
+// The same consequence reached the other way. This pass reads whole files rather than lines, so it
+// has its own open and readLines' report does not cover it: a file it could not open left every call
+// site in it unseen, and the subcommands those sites answer for were reported as having none.
+func TestUnreadableFileIsNotSearchedForCallSitesInSilence(t *testing.T) {
+	searched := func(t *testing.T) *fixture {
+		skipUnlessModeDeniesRead(t, "an unreadable file cannot be built here")
+		f := newRoot(t)
+		// A dispatch, or the call-site pass never runs and this case observes nothing.
+		f.newScript("d.sh", "#!/usr/bin/env bash\n# untested: fixture\ncase \"${1:-}\" in\n  alpha)\n    true\n    ;;\nesac")
+		f.write(f.root+"/kk-flavor/standards/shut.md", "run `d.sh alpha` at the close\n")
+		f.chmod(f.root+"/kk-flavor/standards/shut.md", 0o000)
+		return f
+	}
+
+	t.Run("reports the file it could not search", func(t *testing.T) {
+		searched(t).reports("no call site in it was seen")
+	})
+
+	// The control, and the thing that makes the fixture worth building: the unread file holds the one
+	// call site `alpha` has, so the run reports a subcommand as uncalled on evidence it never read.
+	// Both findings have to be there for a reader to tell those two facts apart.
+	t.Run("while still reporting the subcommand it could not find a site for", func(t *testing.T) {
 		searched(t).reports("subcommand with no call site: alpha")
 	})
 }

@@ -25,6 +25,23 @@ func write(t *testing.T, root, rel, body string) {
 func graph(t *testing.T, root string) (map[string]map[string]bool, []edge, string) {
 	t.Helper()
 	var stderr bytes.Buffer
-	defined, edges := read(root, &stderr)
+	defined, edges, _ := read(root, &stderr)
 	return defined, edges, stderr.String()
+}
+
+// How many paths one read of the tree did not reach, which is what the exit code is taken from.
+func skippedUnder(t *testing.T, root string) (int, string) {
+	t.Helper()
+	var stderr bytes.Buffer
+	_, _, skipped := read(root, &stderr)
+	return skipped, stderr.String()
+}
+
+// The whole command over a tree: exit code, stdout, stderr. A case reading only stdout cannot tell a
+// report from a refusal, which is the confusion the exit code exists to settle.
+func runOver(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	code := run(args, &out, &errOut)
+	return code, out.String(), errOut.String()
 }
