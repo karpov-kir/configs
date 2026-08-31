@@ -18,4 +18,4 @@ Turn vague instructions into verifiable targets before writing a line.
 
 ## 5. Verify the effect, not the report of it
 
-**Prove the check can fail**, by running the negative control first. **The instrument is a check too** — negative-control what you read a result *through*, not only what it reports on. Against a running system, [live-systems.md](live-systems.md) adds the traps specific to it.
+**Prove the check can fail**, by running the negative control first. **The instrument and the subject are checks too** — a result read through something that never ran, and a sound reading of the wrong thing, both look exactly like results. Against a running system, [live-systems.md](live-systems.md) adds the traps specific to it.
