@@ -29,6 +29,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 - Order inside a message: read, act within your license, verdict last. The verdict describes the state **before** your edits.
 - A file that passes moves on; one that warns is re-read from scratch next message and retried.
 - **A queued file that changed since you read it is re-read, and every finding standing in it re-verified, before you return.** Another stage may be editing the same change set while you review it. Say in the return that the tree moved and against which state your verdicts hold.
+- **And it is never written from the old read.** The change you did not see is the one your edit erases, and that erasure shows in no diff — the file simply holds your version. **Being told a file is yours is not the same as holding it**: agreeing who owns a file settles nothing about who is mid-edit in it right now.
 - Safety stop: an issue that resists three passes → emit `WARN` and ask your caller.
 - Once every file has a verdict, run one final sweep with the same rules — where cross-file effects surface. A sweep warning retries per the rule above; passing files stay passed. The loop ends when a complete sweep produces zero warnings, or at the safety stop above — and the sweep gets its own ledger line.
 
