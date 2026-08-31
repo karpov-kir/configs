@@ -13,65 +13,82 @@ it is adopted, since adoption moves its facts into the files that wire it.
 Nothing loads this file. It records the machine, not what agents read, which is why it sits here
 rather than under `ai/`.
 
-## codebase-memory-mcp — do not adopt
+## codebase-memory-mcp — adopted, CLI-only
 
-**v0.10.8**, darwin-arm64, judged **2026-08-28**. Installed at `~/.local/bin/codebase-memory-mcp`,
-**283 MB**, and deliberately left unwired: no MCP entry, no watcher, no standard, no background
-process. Uninstall with:
+**v0.10.8**, darwin-arm64. Third judgement, **2026-08-31**. The 2026-08-28 "do not adopt" was
+**withdrawn**: it measured a working tree sitting in an unresolved merge, so its disqualifying evidence
+was void (below). Re-measured against a clean pinned checkout. Installed at
+`~/.local/bin/codebase-memory-mcp`, 283 MB, currently unwired. Uninstall with:
 
 ```
 rm ~/.local/bin/codebase-memory-mcp && rm -rf ~/.cache/codebase-memory-mcp
 ```
 
-sha256 `9bd840df…6afd07`. Verified: release checksum match, and `gh attestation verify` exit 0 (decoy
-file exits 1, so the check can fail). Adhoc-signed, no `com.apple.quarantine`. Confinement:
-`CBM_ALLOWED_ROOT=~/Documents/WP` refuses an outside path, exit 1, message on stderr. Target:
-player-testautomation, 876 files, TS. Index 12s → 7058 nodes, 25823 edges.
+### The valid measurement
 
-### Verdict: fails the pre-agreed bar
+Target `player-testing-service` at `806c9ac4`, clean tree, 279 TypeScript files. Indexed in **7.2s**,
+3527 nodes, 10472 edges. **Zero TypeScript files flagged `parse_partial`** — the only 4 flagged are
+`nginx.conf`, `client.scss`, `triageinit.sql`, matching known upstream grammar gaps (#1700, #1598).
 
-Kill condition was "no meaningful win over grep/Explore on 2 of 3 tasks". It did not clear it as a
-general navigation tool.
+Kill condition was "no meaningful win over grep/Explore on 2 of 3 tasks". It won **3 of 3**. Ground
+truth for each was established by `git grep` and by reading the source, before the graph was asked.
 
-### What it got right
+1. **Inbound callers of `calculateSessionDuration`.** Graph, one query: 4 callers with hop distance —
+   `finishSession` (1), `timeoutSession` (2), `SessionLifecycleManager.finishSession` (2),
+   `crashTimeoutHandler` (3). All four verified correct. Grep returns 6 raw hits of which one is the
+   definition and one is `dist/` build output, gives no hop distance, and reaches hop 3 only after
+   three more rounds.
+2. **Is `displayAlert` dead?** Graph: `displayError`, `displayWarning` at hop 1 (its own file), and
+   `client` at hop 2. Verified. Grep's answer — two same-file uses — reads as near-dead; the graph gave
+   the true reachability from `client.ts`. **The graph was more correct than grep here**, not merely
+   faster.
+3. **What does `finishSession` reach, 3 hops out, across packages.** Graph: through
+   `Triager.getSevereFailures` into `player-testing-service-api`'s `isSevereFailure` and
+   `hasMonitoredTriageStatus`. Every hop verified. The hard part: `Triager.ts:10` imports through
+   `@bitmovin-internal/player-testing-service-api/dist/triage/triageutils`, a workspace alias into
+   build output, and the graph resolved it back to `src/`. Grep cannot follow that without the agent
+   manually mapping scope→package→`dist`→`src` at each hop.
 
-- `trace_path --function-name PairingApi --direction both` returned the single real caller
-  (`App.App.constructor`, hop 1), matching grep-established ground truth. One query.
-- `--include-evidence` self-reports how each edge was resolved: that one was
-  `strategy=heuristic confidence=0.50`, not LSP. The tool tells you when not to trust an edge.
-- Auto-excludes `.claude/worktrees`, `node_modules`, `dist`. Ground truth for `ScreenApi` is 2 source
-  files; a naive grep returns 7. That noise is real and the graph does not have it.
-- The negative on `LegacyClientConfigurationManager` (nothing outside its own file) was correct.
+Asked for `finishSession` unqualified it returned `status: ambiguous` with both candidates rather than
+picking one — the failure mode of upstream #1909 declined in front of us.
 
-### Why it fails anyway
+### What the win is, and is not
 
-`src/screen/lg/LgTelevisionScreen.ts`, 286 lines, flagged at index time as `error_ranges 1-287`:
+It is **multi-hop and cross-package reachability**, where grep's cost is per hop and the agent pays a
+model turn to interpret each one. It is **not** a replacement for grep on a single-symbol lookup, where
+grep is already one step. Scope any rule to the former or it will earn nothing and cost context.
 
-- Three real top-level functions are absent from the graph: `sniffImageType`, `imageUrlOn`,
-  `claimedImageType`. Direct name query returns `total: 0` for each; the file defines each once.
-- A phantom node exists: `if` at lines 215-217, presented with `label: Function`. Not an identifier.
-- The query that listed that file returned `has_more: false`, asserting completeness while wrong.
-- No query response carries any incompleteness signal. `parse_partial` lives in `index_status` and in
-  the `index_repository` reply. An agent that queries without calling `index_status` first cannot
-  know the file it is reading about was never fully parsed.
+### Caveats that stand
 
-The vendor states the same conclusion in `index_status.coverage_note`:
-"Best-effort signal, not a completeness guarantee … Prefer text search (grep) for flagged
-files/ranges. Files absent from this list are NOT guaranteed to be fully indexed."
+- Every edge reported `strategy=heuristic`, confidence 0.90–0.95 — pattern-resolved, not LSP. Nine
+  edges were hand-verified and all nine were right. That is nine edges, not a guarantee.
+- The tasks tested reachability **positives**. Upstream #1354 and #1682 report missing TypeScript CALLS
+  edges, and this measurement does not refute them: a silently absent edge is invisible to a test that
+  checks what the graph *found*. **A negative from the graph still needs `check_index_coverage`, and on
+  a clean file a bare "0 callers" remains the one answer not to trust on its own.**
+- Trust checks passed: release checksum match, `gh attestation verify` exit 0 with a decoy exiting 1,
+  `CBM_ALLOWED_ROOT` refusing an outside path. sha256 `9bd840df…6afd07`, adhoc-signed, unquarantined.
 
-### Decisions
+### Why the first verdict was void, kept as the lesson
 
-- Do not author a `code-graph.md` standard, and add no `ai/kk-flavor/inject.md` row. The rule it
-  would carry ("a negative from the graph is never an answer") is now vendor-documented behaviour
-  rather than a house rule. A standard would also cost context on every run that touches it.
-- Do not add the MCP server to `ai/mcp.jsonc`. 15 tool schemas in every session, for a tool whose
-  completeness cannot be trusted. Its one real advantage, `trace_path`, is reachable from the CLI on
-  the rare occasion it comes up.
-- Keep the binary installed, unwired, for ad-hoc `trace_path` on a multi-hop question.
-- No background watcher runs, so there is no standing cost beyond the 283 MB.
+`player-testautomation` had `.git/MERGE_HEAD` present and six files `UU` with live `<<<<<<< HEAD`
+markers. The file the whole rejection rested on was not TypeScript. Its "three missing functions" were
+missing because the source was broken; on the committed `HEAD` version of that same file,
+`parse_partial_count: 0` and every function resolves. The index flagged **4 of 876 files, all four
+conflicted, with zero false flags across the other 872** — the tool told the truth about exactly the
+files that were broken, and the write-up read that as unreliability. The vendor's
+`docs/EVALUATION_PLAN.md` already required a pinned clone at a recorded SHA.
 
-### What would change it
+That write-up also claimed no query-time completeness signal exists. **`check_index_coverage` provides
+it per path** — `status: partial` with ranges, or `no_recorded_issue` — as a separate call rather than a
+field on query responses.
 
-A query-time completeness signal — `search_graph` and `trace_path` returning the `parse_partial`
-state of the files they touched. Then a negative could be trusted for files known clean. Worth
-re-checking after a release that adds it.
+### Wiring: CLI-only
+
+`tools/list` returns **15 tools, 24.5 KB of schema — about 6.1k tokens in every session**, for a tool
+worth reaching for on a minority of tasks. The CLI surface is the same 15 and costs nothing standing,
+so it is the one wired. What CLI-only needs instead is a pointer, since an agent cannot reach for a
+binary it does not know exists: `standards/code-navigation.md`, one router row.
+
+Auto-indexing repos we do not own, a committed `graph.db.zst`, and the background watcher stay
+rejected — none is earned by occasional use.

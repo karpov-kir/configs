@@ -23,6 +23,12 @@ Config files for the tools I use:
 - [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before Claude Code reads it
   - `brew install rtk`
   - `rtk init -g`, then restart Claude Code
+- [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — a code graph, for the reachability questions `grep` answers a round at a time. `~/.kk-flavor/standards/code-navigation.md` is what an agent reads before reaching for it.
+  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release, check it against `checksums.txt`, and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`
+  - Unpack it to `~/.local/bin/codebase-memory-mcp` (~283 MB) and `chmod +x` it
+  - **Do not run its `install` subcommand.** It wires itself into every agent client it can find; this machine reaches it by CLI only, deliberately — as an MCP server it costs ~6k tokens of tool schema in every session, for a tool worth reaching for on a minority of tasks
+  - Confine it: `CBM_ALLOWED_ROOT=~/Documents/WP` makes it refuse a path outside that tree
+  - Remove with `rm ~/.local/bin/codebase-memory-mcp && rm -rf ~/.cache/codebase-memory-mcp`
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`
