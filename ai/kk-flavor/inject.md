@@ -1,6 +1,6 @@
 # kk-flavor — inject
 
-Load lazily — read a doc only when its trigger below matches what you're doing. A project's own `PROJECT_CODE_STYLE.md` / `CLAUDE.md` layers on top and wins on conflict.
+Read a doc only when its trigger below matches what you're doing. A project's own `PROJECT_CODE_STYLE.md` / `CLAUDE.md` layers on top and wins on conflict.
 
 ## Read always (any task)
 

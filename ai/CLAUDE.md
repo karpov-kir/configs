@@ -8,7 +8,7 @@ Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-i
 
 # RTK
 
-@RTK.md
+A hook runs your shell commands through the `rtk` proxy, which shrinks their output. `rtk proxy <cmd>` reruns one unfiltered.
 
 # Memory
 
