@@ -10,10 +10,10 @@ import (
 // The pass's own bookkeeping: what invalidate clears, what a stage's return records, and what the
 // stamp demands before it will write a reviewed tree into the report the merge gate trusts.
 
-const stampUsage = `usage: report.sh stamp "<all five stages, comma-separated>"
+const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
   code-review                                   always runs, always bare
   refactor | refactor:partial(fast|cap)         partial = the loop ended non-compliant
-  security-review|tighten|retro [:skipped(fast|not-applicable)]
+  security-review|tighten [:skipped(fast|not-applicable)]
     fast            = trimmed for turnaround; blocks the merge gate until a full pass
     not-applicable  = its condition was unmet
 `
@@ -72,7 +72,7 @@ func (r *run) cmdStamp() {
 		}
 		r.refuse("error: this pass never invalidated — reviewed-tree still reads '" + stamped + "', not 'pending'. Run report.sh invalidate first, or the stamp and the stage markers standing here are the previous pass's, not this one's.")
 	}
-	// `refactor,retro` is legally shaped whether or not either ran, hence the per-stage check.
+	// `refactor` is legally shaped whether or not it ran, hence the per-stage check.
 	var blockReasons []string
 	for _, entry := range strings.Split(entries, ",") {
 		if strings.Contains(entry, ":skipped(") {

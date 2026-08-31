@@ -64,7 +64,7 @@ func TestDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-qualify")
 		f.write(f.root+"/kk-flavor/standards/x.md",
-			"the prompt is `~/.claude/skills/idsd-qualify/templates/retro-spawn-prompt.md`\n")
+			"the template is `~/.claude/skills/idsd-qualify/templates/qualify-report-template.md`\n")
 		f.reports(cites)
 	})
 

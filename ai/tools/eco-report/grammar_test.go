@@ -12,7 +12,7 @@ import (
 )
 
 // The record a pass that ran everything writes, and the base every row below varies from.
-const fullRecord = "code-review,security-review,tighten,refactor,retro"
+const fullRecord = "code-review,security-review,tighten,refactor"
 
 func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	t.Parallel()
@@ -33,11 +33,11 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	for _, bad := range []struct{ record, named string }{
 		{"bogus", "malformed entry: bogus"},
 		// An extra entry outside the vocabulary, shaped so that nothing downstream catches it: the
-		// five required stages are all present, and `stamp`'s per-stage marker check skips anything
+		// four required stages are all present, and `stamp`'s per-stage marker check skips anything
 		// marked skipped. The grammar is the only thing between this and a junk entry in the record.
 		{fullRecord + ",bogus:skipped(not-applicable)", "malformed entry: bogus:skipped(not-applicable)"},
-		{"code-review,code-review,security-review,tighten,refactor,retro", "duplicate stage: code-review"},
-		{"code-review,security-review,tighten,refactor", "missing stage: retro"},
+		{"code-review,code-review,security-review,tighten,refactor", "duplicate stage: code-review"},
+		{"code-review,security-review,tighten", "missing stage: refactor"},
 	} {
 		f.runReport("stamp", bad.record, "001-grammar")
 		f.assertRefused("stamp refuses '" + bad.record + "'")
@@ -49,7 +49,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 
 	// Whitespace goes before the record is read, so a record pasted across two lines is one record.
 	// Left in, every entry after the first is malformed and a legitimate stamp is refused.
-	f.runReport("stamp", "code-review, security-review,\n  tighten, refactor, retro", "001-grammar")
+	f.runReport("stamp", "code-review, security-review,\n  tighten, refactor", "001-grammar")
 	f.record("a record pasted across lines stamps as one record",
 		f.status == 0, f.evidence())
 	f.record("and no whitespace reaches the record the gate reads",
@@ -57,15 +57,15 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 
 	// Every legal form, each one a record a real pass produces. `refactor:partial(…)` records that the
 	// loop ended non-compliant, which is what ran rather than a trim; `skipped(fast)` is a turnaround
-	// trim and `skipped(not-applicable)` an unmet condition, and only the three optional stages take
+	// trim and `skipped(not-applicable)` an unmet condition, and only the two optional stages take
 	// either.
 	for _, legal := range []string{
-		"code-review,security-review,tighten,refactor:partial(fast),retro",
-		"code-review,security-review,tighten,refactor:partial(cap),retro",
-		"code-review,security-review:skipped(not-applicable),tighten,refactor,retro",
-		"code-review,security-review,tighten:skipped(not-applicable),refactor,retro",
-		"code-review,security-review,tighten,refactor,retro:skipped(not-applicable)",
-		"code-review,security-review,tighten,refactor,retro:skipped(fast)",
+		"code-review,security-review,tighten,refactor:partial(fast)",
+		"code-review,security-review,tighten,refactor:partial(cap)",
+		"code-review,security-review:skipped(not-applicable),tighten,refactor",
+		"code-review,security-review,tighten:skipped(not-applicable),refactor",
+		"code-review,security-review:skipped(fast),tighten,refactor",
+		"code-review,security-review,tighten:skipped(fast),refactor",
 	} {
 		f.armFullPass("001-grammar")
 		f.runReport("stamp", legal, "001-grammar")

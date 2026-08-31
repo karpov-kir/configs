@@ -169,6 +169,10 @@ fresh_home
 run_boot "$home"
 expect_status "a fresh home exits 0" 0
 expect_out "and reports ok" "bootstrap: ok"
+# A machine with nothing mounted yet has nothing for the second-checkout guard to protect, so it must
+# pass straight through. Asserted on the wording rather than on the exit, because a guard that printed
+# nothing when it passes is indistinguishable from one that was never reached.
+expect_out "and the second-checkout guard passes rather than staying silent" "no mount on this machine comes from another checkout"
 expect_link_to "the flavor bucket is mounted" "$home/.kk-flavor" "$here/ai/kk-flavor"
 expect_link_to "CLAUDE.md is linked" "$home/.claude/CLAUDE.md" "$here/ai/CLAUDE.md"
 expect_link_to "a directory config is linked" "$home/.config/nvim" "$here/nvim"
@@ -248,58 +252,70 @@ expect_status "a stale symlink does not refuse" 0
 expect_link_to "and is repointed at the repository" "$home/.config/nvim" "$here/nvim"
 expect_out "and says so rather than reporting ok" "repointed $home/.config/nvim"
 
-# --- the file this repository writes rather than links ---------------------------------------------
+# --- the file this repository used to write, and now removes ---------------------------------------
 
-# `~/.claude/RTK.md` is imported into every session by ai/CLAUDE.md, so its body is always-loaded
-# context. `rtk init -g` writes its own longer template there and rewrites it on every run, so the
-# property under test is not that the file exists — it is that whatever was there is the repository's
-# copy afterwards.
+# ai/CLAUDE.md's `@RTK.md` import is gone and its two surviving sentences are inline there, so
+# `~/.claude/RTK.md` is text nothing writes and nothing reads. The removal is a step in the script
+# rather than something done by hand because that file sits in the human's home, outside this
+# repository — a step is what makes it a removal they run knowingly, and what carries it to their other
+# machines. Every case below reads the path back afterwards: a step reporting "removed" over a file
+# still on disk is exactly what these are here to catch.
 fresh_home
 run_boot "$home"
-expect_status "a fresh home installs the import's file and exits 0" 0
-expect_file_body "RTK.md is written from the repository" "$home/.claude/RTK.md" "$(cat "$here/ai/RTK.md")"
-[ -f "$home/.claude/RTK.md" ] && [ ! -L "$home/.claude/RTK.md" ] &&
-  record_pass "and as a real file, which is the shape the always-loaded budget can count" ||
-  record_fail "and as a real file, which is the shape the always-loaded budget can count" "it is a symlink or absent"
+expect_status "a fresh home with no leftover exits 0" 0
+expect_out "and says there was nothing to remove" "no leftover $home/.claude/RTK.md"
+[ ! -e "$home/.claude/RTK.md" ] &&
+  record_pass "and nothing is written at that path any more" ||
+  record_fail "and nothing is written at that path any more" "the file was created"
 
-run_boot "$home"
-expect_out "a second run reports it as already ok" "  ok       $home/.claude/RTK.md"
-expect_not_out "and rewrites nothing" "wrote    $home/.claude/RTK.md"
-
-# The case the step exists for. Every other target holding a body this script did not write is a
-# refusal; this one is generated text whose author this repository has taken over, so it is replaced.
-fixture_write "$home/.claude/RTK.md" 'the template rtk init -g writes, at five times the length'
-run_boot "$home"
-expect_status "a foreign body at the mount does not refuse" 0
-expect_file_body "and is replaced by the repository's copy" "$home/.claude/RTK.md" "$(cat "$here/ai/RTK.md")"
-expect_out "and says it wrote rather than reporting ok" "wrote    $home/.claude/RTK.md"
-
-# A symlink at an import's mount is refused by the always-loaded budget, which then names the file and
-# stops counting it — so the tier goes unmeasured while every report still reads clean. This script
-# must neither create one nor pass over one silently.
+# The case the step exists for: the copy an earlier bootstrap left behind, which is what every machine
+# already set up from this repository is holding, and what the next `rtk init -g` puts back.
 fresh_home
 mkdir -p "$home/.claude"
-fixture_link "$here/ai/RTK.md" "$home/.claude/RTK.md"
+fixture_write "$home/.claude/RTK.md" 'the copy an earlier bootstrap left here'
 run_boot "$home"
-expect_status "a symlink at the mount exits 1" 1
-expect_out "and says why a link is the wrong shape there" "an import's mount must be a real file"
-[ -L "$home/.claude/RTK.md" ] &&
-  record_pass "and the link is left for the human rather than deleted" ||
-  record_fail "and the link is left for the human rather than deleted" "it was removed"
+expect_status "a leftover file is removed and the run exits 0" 0
+expect_out "and says it removed it" "removed  $home/.claude/RTK.md"
+[ ! -e "$home/.claude/RTK.md" ] &&
+  record_pass "and the leftover is actually gone" ||
+  record_fail "and the leftover is actually gone" "it is still there"
 
-# The other shape that is not a real file, and the one that fails quietly rather than loudly. `cp
-# file dir` writes *into* the directory and exits 0, so without a guard the step prints "wrote" while
-# the mount is still a directory and the import still resolves to nothing — a success reported over a
-# subject never reached. Asserted from both ends: the refusal, and that nothing landed inside.
+# A symlink there instead of a copy — what a machine set up from an older README by hand would hold.
+# A symlink carries no data of its own, so it goes the same way. What it points at must not: `rm -f` on
+# a link does not follow it, and the file the fixture links to is what proves that here.
+fresh_home
+mkdir -p "$home/.claude"
+fixture_write "$home/.claude/pointed-at.md" 'the file the link named'
+fixture_link "$home/.claude/pointed-at.md" "$home/.claude/RTK.md"
+run_boot "$home"
+expect_status "a symlink left at that path is removed too" 0
+[ ! -e "$home/.claude/RTK.md" ] && [ ! -L "$home/.claude/RTK.md" ] &&
+  record_pass "and the link is gone" ||
+  record_fail "and the link is gone" "it is still there"
+expect_file_body "and what it pointed at was not followed and deleted" \
+  "$home/.claude/pointed-at.md" 'the file the link named'
+
+# A directory there is not a shape this script ever wrote, so it holds something else and `rm -rf` over
+# it is the data loss the header promises this script is not. Asserted from both ends: the refusal, and
+# that what was inside it is still inside it.
 fresh_home
 mkdir -p "$home/.claude/RTK.md"
+fixture_write "$home/.claude/RTK.md/notes.md" 'somebody else put this here'
 run_boot "$home"
-expect_status "a directory at the mount exits 1" 1
-expect_out "and says the mount has to be a regular file" "exists and is not a regular file"
-expect_not_out "and does not report having written it" "wrote    $home/.claude/RTK.md"
-[ -d "$home/.claude/RTK.md" ] && [ ! -e "$home/.claude/RTK.md/RTK.md" ] &&
-  record_pass "and nothing was copied inside it" ||
-  record_fail "and nothing was copied inside it" "the directory was written into or replaced"
+expect_status "a directory at that path exits 1" 1
+expect_out "and says it will not remove a directory" "is a directory, and this script only ever wrote a file"
+expect_not_out "and does not report having removed it" "removed  $home/.claude/RTK.md"
+expect_file_body "and what was inside it survives" "$home/.claude/RTK.md/notes.md" 'somebody else put this here'
+
+# --dry-run over a leftover, which needs a leftover of its own: the --dry-run case below starts from a
+# fresh home, where this step has nothing to preview and would report the same either way.
+fresh_home
+mkdir -p "$home/.claude"
+fixture_write "$home/.claude/RTK.md" 'still here afterwards'
+run_boot "$home" --dry-run
+expect_status "--dry-run over a leftover exits 0" 0
+expect_out "and says it would remove it" "would remove the leftover $home/.claude/RTK.md"
+expect_file_body "and leaves the leftover alone" "$home/.claude/RTK.md" 'still here afterwards'
 
 # --- --dry-run ------------------------------------------------------------------------------------
 
@@ -309,7 +325,6 @@ fresh_home
 run_boot "$home" --dry-run
 expect_status "--dry-run exits 0" 0
 expect_out "and says what it would do" "would link"
-expect_out "including the file it would write rather than link" "would write $home/.claude/RTK.md"
 [ ! -e "$home/.kk-flavor" ] && [ ! -e "$home/.config" ] && [ ! -e "$home/.claude" ] &&
   record_pass "--dry-run creates nothing at all" ||
   record_fail "--dry-run creates nothing at all" "something was written under $home"
@@ -368,9 +383,8 @@ expect_not_out "and stops before the notes under it" "Safe to re-run"
 # this script, which is the loop the guard exists to close.
 verify_repo="$tmp/verify-repo"
 mkdir -p "$verify_repo/ai/skills/a-skill" "$verify_repo/ai/kk-flavor"
-# The two files under ai/ this script reads by name: the one it links, and the one it writes.
+# The one file under ai/ this script reads by name.
 : >"$verify_repo/ai/CLAUDE.md"
-: >"$verify_repo/ai/RTK.md"
 for name in zsh git ghostty lazygit nvim zellij starship; do
   ln -s "$here/$name" "$verify_repo/$name"
 done
@@ -472,6 +486,201 @@ status=$?
 expect_status "a checkout missing its configs exits 1" 1
 expect_out "and names a missing source" "is missing from the repository"
 expect_out "and refuses an empty skills directory rather than mounting nothing" "nothing was mounted"
+
+# --- a second checkout must not silently move the machine -----------------------------------------
+
+# The script derives its repository from its own location, so run from a scratch clone it repoints
+# every mount at the clone and reports "repointed" thirty-odd times for an act nobody authorised.
+# Delete the clone afterwards — the entire point of a scratch clone — and the human's next login has
+# no shell config, no git config and no agent instructions. `link()` is right that a symlink carries
+# no data of its own; the damage is to the *mount*, which is why the guard sits above `link()` rather
+# than inside it, and why the stale-symlink and trailing-slash cases above must stay green alongside
+# these. This repository is cloned routinely to verify published state, so this is a live hazard.
+#
+# The fixture is a second checkout mounted onto a home by running *its* bootstrap, so the mounts under
+# test are the ones this script really writes rather than a hand-made imitation of them. It ships
+# skill directories named after ones the real repository ships, which is what makes the skill mounts
+# collide — without that the skill half of the count would be zero and never exercised.
+#
+# Rooted at `$tmp_real` rather than `$tmp`: the fixture's own bootstrap resolves its repository with
+# `pwd -P`, so it writes links reading `/private/var/…` while `$tmp` is still the `/var/…` form
+# `mktemp -d` handed back. Comparing a mount against the unresolved root fails a correct run — the
+# same trap `tmp_real` was introduced for, and the reason the guard resolves both sides physically.
+other_repo="$tmp_real/other-repo"
+mkdir -p "$other_repo/ai/skills" "$other_repo/ai/kk-flavor"
+: >"$other_repo/ai/CLAUDE.md"
+for name in zsh git ghostty lazygit nvim zellij starship; do
+  ln -s "$here/$name" "$other_repo/$name"
+done
+cp "$script" "$other_repo/bootstrap.sh"
+
+# Counted from what the fixture actually created, never written down: the real total is one per config
+# target plus one per skill directory the checkout ships, so it moves the day a skill is added.
+want_skill=0
+for skill_path in $(find "$here/ai/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -2); do
+  mkdir -p "$other_repo/ai/skills/$(basename "$skill_path")"
+  want_skill=$((want_skill + 1))
+done
+# Read from the shipped script for the same reason the brew lists below are: a config mount added to
+# bootstrap.sh and missed here would leave this case asserting a total that no longer covers it.
+want_cfg=$(grep -c '^add_cfg "' "$script")
+want_total=$((want_cfg + want_skill))
+
+if [ "$want_cfg" -gt 0 ] && [ "$want_skill" -gt 0 ]; then
+  record_pass "control: the fixture holds both config and skill mounts, so the count below covers both kinds"
+else
+  record_fail "control: the fixture holds both config and skill mounts, so the count below covers both kinds" \
+    "configs=$want_cfg skills=$want_skill"
+fi
+
+mount_from_other() {
+  HOME="$1" bash "$other_repo/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify >/dev/null 2>&1
+}
+
+fresh_home
+mount_from_other "$home"
+expect_link_to "control: the fixture checkout is really what this home is mounted from" \
+  "$home/.zshrc" "$other_repo/zsh/.zshrc"
+run_boot "$home"
+expect_status "a run from a second checkout exits 1" 1
+expect_out "and says this is not where the machine is mounted" "not to this checkout"
+expect_out "and leads with the count, so the skills are not lost behind the named configs" \
+  "$want_total mounts ($want_cfg configs and $want_skill skills)"
+expect_out "and names the checkout it would have moved them off" "$other_repo"
+expect_out "and says nothing was written" "nothing was written"
+expect_out "and names the flag that means it" "--relocate"
+expect_not_out "and does not report ok" "bootstrap: ok"
+
+# The load-bearing half. A guard that refuses after repointing has still moved the machine, so the
+# mounts are read back rather than the message being taken at its word.
+expect_link_to "and the config mount was left where the machine had it" "$home/.zshrc" "$other_repo/zsh/.zshrc"
+first_shared=$(basename "$(find "$here/ai/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)")
+expect_link_to "and the skill mount too" \
+  "$home/.claude/skills/$first_shared" "$other_repo/ai/skills/$first_shared"
+
+# --dry-run has to refuse as well. It reported "would repoint" for all of them and exited 0, which is
+# the same lie one step earlier: someone checks with --dry-run, reads ok, and runs it for real.
+fresh_home
+mount_from_other "$home"
+run_boot "$home" --dry-run
+expect_status "--dry-run from a second checkout exits 1 rather than previewing the move" 1
+expect_not_out "and does not report ok" "bootstrap: ok"
+expect_not_out "and does not offer to repoint them one at a time" "would repoint"
+expect_link_to "and writes nothing either" "$home/.zshrc" "$other_repo/zsh/.zshrc"
+
+# The escape hatch, which has to exist or someone genuinely relocating their configs cannot. It is a
+# flag of its own rather than a member of the --skip family every caller passes as a block, so it is
+# not something that rides along by habit — every case above reaches the guard without it.
+fresh_home
+mount_from_other "$home"
+run_boot "$home" --relocate
+expect_status "--relocate exits 0" 0
+expect_out "and says how many mounts it moved, and off what" "moving $want_total mount(s)"
+expect_link_to "and the config mount now points at this checkout" "$home/.zshrc" "$here/zsh/.zshrc"
+expect_link_to "and the skill mount too" \
+  "$home/.claude/skills/$first_shared" "$here/ai/skills/$first_shared"
+
+# A machine mounted from two other checkouts at once, which is what half-moving one by hand leaves.
+# The guard reports per root, and a reader told about one of them and not the other moves that checkout,
+# re-runs, and is refused again by a root nobody named — so the case that matters is the second one
+# appearing, not the first.
+third_repo="$tmp_real/third-repo"
+mkdir -p "$third_repo/git"
+fixture_write "$third_repo/git/.gitconfig" 'the third checkout'
+# A copy of the script, because that is what the guard recognises a second checkout by — a directory
+# merely ending in a matching path component is a stale mount, not a checkout.
+cp "$script" "$third_repo/bootstrap.sh"
+
+fresh_home
+mount_from_other "$home"
+# Through the containment guard, because this drops a link the fixture just made so the one below can
+# take its place. `fixture_link` refuses a target that already exists as a symlink on purpose, and that
+# refusal is one of the two properties in this file that must not be weakened.
+contained_parent "$home/.gitconfig" >/dev/null
+rm -f "$home/.gitconfig"
+fixture_link "$third_repo/git/.gitconfig" "$home/.gitconfig"
+run_boot "$home"
+expect_status "two foreign checkouts at once still refuses" 1
+expect_out "and names the checkout most of the mounts come from" "$other_repo"
+expect_out "and names the second one rather than stopping at the first" "$third_repo"
+expect_out "and reports one refusal per checkout rather than one for the pair" "2 thing(s) need you"
+expect_link_to "and the mount pointing at the second is left alone too" \
+  "$home/.gitconfig" "$third_repo/git/.gitconfig"
+
+# A checkout that no longer resolves is the aftermath of this very bug, or of a directory moved on
+# purpose. Repointing a dangling mount is the repair, so the guard must not stand in front of it —
+# a guard that refuses here would leave the human's shell broken with no way to fix it from the repo.
+gone_repo="$tmp_real/gone-repo"
+mkdir -p "$gone_repo/ai/skills/$first_shared" "$gone_repo/ai/kk-flavor"
+: >"$gone_repo/ai/CLAUDE.md"
+for name in zsh git ghostty lazygit nvim zellij starship; do
+  ln -s "$here/$name" "$gone_repo/$name"
+done
+cp "$script" "$gone_repo/bootstrap.sh"
+
+fresh_home
+HOME="$home" bash "$gone_repo/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify >/dev/null 2>&1
+expect_link_to "control: the home is mounted from the checkout about to disappear" \
+  "$home/.zshrc" "$gone_repo/zsh/.zshrc"
+# Through the same containment guard the fixture writes use: this is a recursive delete built from a
+# variable, and the suite has destroyed files in this checkout once already.
+contained_parent "$gone_repo" >/dev/null
+rm -rf "$gone_repo"
+run_boot "$home"
+expect_status "a mount from a checkout that is gone is repaired rather than refused" 0
+expect_link_to "and the dangling mount is repointed here" "$home/.zshrc" "$here/zsh/.zshrc"
+
+# A stale mount into a real directory that is not a checkout of this repository — what a machine with
+# an older dotfiles layout holds. `link()` is right to repoint that, so the guard has to stay off it:
+# a mount counts as foreign only when the link value ends in the same relative path, which is what
+# makes it the same file in a second copy of this repository. The stale-symlink case further up uses a
+# dangling link, so it is turned away a limb earlier and never reaches this test. Without a case here,
+# dropping the relative-path comparison refuses every machine holding one unrelated config symlink and
+# nothing goes red.
+fresh_home
+mkdir -p "$home/.config" "$tmp/old-dotfiles/nvim"
+fixture_link "$tmp/old-dotfiles/nvim" "$home/.config/nvim"
+run_boot "$home"
+expect_status "a stale mount into an unrelated real directory is not read as a second checkout" 0
+expect_link_to "and is repointed rather than refused" "$home/.config/nvim" "$here/nvim"
+
+# A stale mount naming a checkout's root rather than the file inside it. This script writes
+# `<checkout>/nvim` and never `<checkout>`, so such a link is stale whatever the root turns out to be,
+# and only the relative-path comparison holds the two apart — the root here really is a second checkout
+# and really does hold a copy of the script. Without a case, dropping that comparison turns every link
+# of this shape into a refusal and nothing goes red.
+fresh_home
+mkdir -p "$home/.config"
+fixture_link "$other_repo" "$home/.config/nvim"
+run_boot "$home"
+expect_status "a stale mount naming a checkout root rather than a file in it is not a mount" 0
+expect_link_to "and it is repointed too" "$home/.config/nvim" "$here/nvim"
+
+# The same checkout named through a symlinked path. `mktemp -d` hands back `/var/folders/…` while
+# `/var` is a symlink to `/private/var`, so this is the shape a real macOS mount takes — and a guard
+# comparing an unresolved root against a resolved `$repo` calls this checkout a stranger to itself and
+# refuses a machine that is correctly mounted. Both sides are resolved physically for that reason.
+alias_root="$tmp/alias-to-other"
+contained_parent "$alias_root" >/dev/null
+ln -s "$other_repo" "$alias_root"
+fresh_home
+fixture_link "$alias_root/zsh/.zshrc" "$home/.zshrc"
+out=$(HOME="$home" bash "$other_repo/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+status=$?
+expect_status "a mount naming the running checkout through a symlinked path is not foreign" 0
+expect_link_to "and is repointed at the canonical path" "$home/.zshrc" "$other_repo/zsh/.zshrc"
+
+# A relative link value is not one this script wrote — every link it makes is absolute — and resolving
+# a root out of it would resolve it against the caller's working directory rather than the link's own.
+# Run from `$tmp`, `other-repo/nvim` resolves to the fixture checkout above, so a guard that skipped
+# the absolute test would refuse here; the link itself dangles, which is what makes it merely stale.
+fresh_home
+mkdir -p "$home/.config"
+fixture_link "other-repo/nvim" "$home/.config/nvim"
+out=$(cd "$tmp" && HOME="$home" bash "$script" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+status=$?
+expect_status "a relative link is not read as a second checkout" 0
+expect_link_to "and is repointed like any other stale link" "$home/.config/nvim" "$here/nvim"
 
 # --- the brew list and the README cannot drift apart --------------------------------------------
 

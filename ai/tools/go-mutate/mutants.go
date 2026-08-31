@@ -443,7 +443,7 @@ var mutants = []mutant{
 	{"stamp: the per-stage marker check removed", "../eco-report/stamp.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `if reason := r.stageBlockReason(stage); reason != "" {`, "if reason := r.stageBlockReason(stage); len(reason) < 0 {"},
 	{"invalidate: last pass's stage returns survive it", "../eco-report/stamp.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "_ = os.RemoveAll(r.stageReturnsDir)\n\tr.line(\"invalidated", "_ = os.RemoveAll(r.stageReturnsDir + \"/no-such-stage\")\n\tr.line(\"invalidated"},
 	{"stage vocabulary: any word accepted as a stage", "../eco-report/stages.go", "./eco-report/", "TestAStageNameThatIsNotAStageIsRefused", "if stage == known {", "if stage != known {"},
-	{"stage vocabulary: a stage renamed out of the pipeline", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `const stageNames = "code-review security-review tighten refactor retro"`, `const stageNames = "code-review security-review tighten refactor retros"`},
+	{"stage vocabulary: a stage renamed out of the pipeline", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `const stageNames = "code-review security-review tighten refactor"`, `const stageNames = "code-review security-review tighten refactors"`},
 	// SURVIVOR, and unreachable rather than merely unobserved — so it stays one. reportChecksum answers
 	// empty only for a report os.ReadFile cannot open, and `stage-returned` reaches this through
 	// requireReport, which refuses anything that is not a readable regular file first. Every shape a
@@ -466,7 +466,7 @@ var mutants = []mutant{
 	{"stamp grammar: refactor:partial(fast) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `case "refactor", "refactor:partial(fast)", "refactor:partial(cap)":`, `case "refactor", "refactor:partial(cap)":`},
 	{"stamp grammar: skipped(fast) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `if entry == stage || entry == stage+":skipped(fast)" || entry == stage+":skipped(not-applicable)" {`, `if entry == stage || entry == stage+":skipped(not-applicable)" {`},
 	{"stamp grammar: skipped(not-applicable) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `if entry == stage || entry == stage+":skipped(fast)" || entry == stage+":skipped(not-applicable)" {`, `if entry == stage || entry == stage+":skipped(fast)" {`},
-	{"stamp grammar: retro left out of the skippable set", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `for _, stage := range []string{"security-review", "tighten", "retro"} {`, `for _, stage := range []string{"security-review", "tighten"} {`},
+	{"stamp grammar: a stage left out of the skippable set", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `[]string{"security-review", "tighten"} {`, `[]string{"security-review"} {`},
 
 	// shell.go — the primitives whose exact edges a refusal turns on, and the digest a marker holds.
 	{"slug charset: the dash left out of the set", "../eco-report/shell.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `b == '.' || b == '_' || b == '-'`, `b == '.' || b == '_'`},

@@ -128,7 +128,7 @@ func (r *run) ignoredSourceTravels(path string) (string, bool) {
 
 // `check-ignore` is the documented first step, and this is the assertion that it happened. A report
 // written where git does not ignore it sits inside the tree it fingerprints, so `state` answers
-// `re-qualify` straight after a complete five-stage stamp and `gate` blocks on freshness with nothing
+// `re-qualify` straight after a complete four-stage stamp and `gate` blocks on freshness with nothing
 // that can clear it. One predicate for every caller, or `check-ignore` asks a weaker question than
 // `init` enforces and the remedy `init` names cannot satisfy it.
 func (r *run) assertReportsDirIsIgnored() {

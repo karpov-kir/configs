@@ -1,29 +1,24 @@
 #!/usr/bin/env bash
 # Offer cadence — idsd-ship offers a periodic pass at most once per interval; this file owns the
-# intervals and where each one's date is kept.
-#   usage: cadence.sh <topic> due     0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
-#          cadence.sh <topic> asked   record that the offer was made today, whatever the human answered
-# The retro date lives in this skill's own directory, the one path identical from every repo; the
-# audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway `.idsd/`,
-# and a cadence the ship itself deletes can never come due.
+# interval and where its date is kept.
+#   usage: cadence.sh audit due     0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
+#          cadence.sh audit asked   record that the offer was made today, whatever the human answered
+# The audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway
+# `.idsd/`, and a cadence the ship itself deletes can never come due.
 # tested by: cadence-test.sh, whose every case but one is proven able to fail by shell-mutate.sh, one
 # guard broken at a time in a copy; the exception asserts the fixture root rather than this script,
 # and reddens when that root is put inside a repository.
 set -uo pipefail
 export LC_ALL=C
 
+# Nothing here resolves a path from this script's own location, so nothing consults CDPATH. The
+# `CDPATH= cd "$(dirname "$0")/.."` guard that stood here went with the retro record it resolved.
+# Restore it before resolving anything from `$0` again. With CDPATH set, `cd` echoes where it landed
+# for a relative path that is not dot-led. The two-line result had `due` read a record written today
+# as never offered, and `asked` print "recorded" into a directory named after the corruption.
+
 topic="${1:-}"
 action="${2:-}"
-
-# `CDPATH=`: set in the environment, `cd` echoes where it landed whenever the path it is given is
-# relative and not dot-led, so `skill_dir` comes back two lines long. `due` then reads a record
-# written today as never offered, and `asked` prints "recorded" while writing the date into a
-# directory named after the corruption — an offer reported as kept, and not kept.
-skill_dir=$(CDPATH= cd "$(dirname "$0")/.." 2>/dev/null && pwd) || skill_dir=""
-[ -n "$skill_dir" ] || {
-  echo "cadence.sh: could not resolve idsd-ship's own directory — nothing was determined; the cadence is unknown." >&2
-  exit 2
-}
 
 interval_days=7
 
@@ -33,7 +28,7 @@ usage() {
   # Hence the warning above the usage line. Keep that order and keep both on stderr — the test anchors
   # that hold the grammar match on it.
   echo "cadence.sh: 'due' only reads the record; 'asked' OVERWRITES it with today's date, and nothing undoes that." >&2
-  echo "usage: cadence.sh {retro|audit} {due|asked}" >&2
+  echo "usage: cadence.sh audit {due|asked}" >&2
   exit 2
 }
 
@@ -64,9 +59,6 @@ day_number() {
 # Dispatched on "${1:-}" rather than on $topic so kk-ecosystem's check.sh recognises this as the
 # top-level case and holds every arm to having a call site.
 case "${1:-}" in
-  retro)
-    state="$skill_dir/last-offer-retro.txt"
-    ;;
   audit)
     # `--git-common-dir`, never `--git-path`: this record is per *repository*, and `--git-path` answers
     # the per-worktree git dir, so a date written from the main tree is invisible in a linked worktree

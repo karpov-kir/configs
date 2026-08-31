@@ -182,7 +182,7 @@ func TestInitStagedWriteIsNotAWayOutOfTheRepo(t *testing.T) {
 func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
 	t.Parallel()
 	// Skipping `check-ignore`, the documented first step, is silent. The report lands inside the tree it
-	// fingerprints, so `state` answers `re-qualify` straight after a complete five-stage stamp and
+	// fingerprints, so `state` answers `re-qualify` straight after a complete four-stage stamp and
 	// `gate` blocks on freshness with nothing that can clear it.
 	f := newRepo(t)
 	f.runReport("init", "001-unignored")

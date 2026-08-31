@@ -25,7 +25,7 @@ argument-hint: "[fast|full] [scope: a path, a diff selector, or natural language
 
 **This table is the map for any caller running a lane by name.**
 
-**Two lanes are deliberately absent.** The agents' own instruction tree is `kk-ecosystem`'s, never a stage here (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**). A retro needs a home for its residue, so it belongs to a caller that persists one (`idsd-qualify`). **A change set holding either names it in your return** and you run neither.
+**Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills and this table leaves out; and a retrospective, which is no lane at all and belongs to `kk-retro`. **A change set holding the instruction tree names it in your return; a retrospective you never even offer.**
 
 ## Modes
 
@@ -33,7 +33,7 @@ argument-hint: "[fast|full] [scope: a path, a diff selector, or natural language
 
 ## The residue
 
-**Only what needs the human, never a record of the run.** If they take no action, it is not residue: shrinking to nothing is the success case, and there is never a monitor-only group.
+**Only what needs the human, never a record of the run.** If they take no action, it is not residue, and there is never a monitor-only group.
 
 - **An item earns its place by the report-item test** in `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** — read it. **An applied fix is not an item**; the diff is its record. Where the fix traded something the human may weigh differently, the open question is *which way* — that is a **fork**, and its default is what the tree now does. **Where the losing branch names no belief the human could hold, it is not a fork either.**
 - **Score what clears that test** (`~/.kk-flavor/standards/writing.md` → **Score what survives**) — here the reader's need is how much it takes their own eyes. At or below the lane's threshold it is one line in the closing reply.

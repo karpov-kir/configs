@@ -230,7 +230,7 @@ func (f *fixture) hasLocalExclusion() bool {
 func (f *fixture) armFullPass(ship string) {
 	f.t.Helper()
 	f.runReport("invalidate", ship)
-	for _, stage := range []string{"code-review", "security-review", "tighten", "refactor", "retro"} {
+	for _, stage := range []string{"code-review", "security-review", "tighten", "refactor"} {
 		f.runReport("stage-returned", stage, ship)
 		f.runReport("no-items", stage, ship)
 	}
@@ -242,7 +242,7 @@ func (f *fixture) armFullPass(ship string) {
 func (f *fixture) stampFullPass(ship string) {
 	f.t.Helper()
 	f.armFullPass(ship)
-	f.runReport("stamp", "code-review,security-review,tighten,refactor,retro", ship)
+	f.runReport("stamp", "code-review,security-review,tighten,refactor", ship)
 }
 
 // An intent file for one slug. Its body is a fixed constant because no case asserts on it: what they

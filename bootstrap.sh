@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 #
 # Set this machine up from this repository: link every config into place, install what the links need,
-# restore the generated files this repository owns the contents of, register the MCP servers, then
+# clear the one file it used to write into your home and no longer owns, register the MCP servers, then
 # verify the result by running the repository's own suites.
 #
-#   usage: bootstrap.sh [--dry-run] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-verify]
+#   usage: bootstrap.sh [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-verify]
 #
 # Safe to re-run: every step checks the state it wants before changing anything, so a second run over
 # a finished machine reports "ok" throughout and writes nothing.
 #
+# It will not move a machine that is already mounted from somewhere else. Run from a second checkout —
+# a scratch clone, a colleague's copy — every link this script writes would be repointed at the copy,
+# and deleting the copy afterwards leaves the human with no shell config, no git config and no agent
+# instructions. That is refused before anything is written; `--relocate` is how you say you mean it.
+#
 # It refuses rather than deletes. README.md's hand-run form is `rm -rf ~/.config/nvim && ln -s ...`,
 # which is fine when a human types it having just looked at the directory, and is data loss when a
 # script does it unattended on a machine that already had a real config there. A target this does not
-# already own is reported and skipped, and the run exits non-zero with the list. The one exception is
-# `~/.claude/RTK.md`, which holds generated text another tool rewrites unasked — the rtk step below
-# carries why that path is owned rather than refused.
+# already own is reported and skipped, and the run exits non-zero with the list. The one thing it does
+# remove is `~/.claude/RTK.md`, a file this repository used to write and nothing reads any more — the
+# rtk step below carries why that removal belongs in this script rather than in a human's hands.
 #
 # It reaches other scripts rather than reimplementing them: `ai/tools/install.sh` for the Go tool
 # binaries, `ai/mcp-sync.sh` for the MCP registry, `ai/run-tests.sh` to verify. Each of those owns its
@@ -31,8 +36,12 @@ set -uo pipefail
 # `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so `repo` comes back two
 # lines long and every source path built from it resolves nowhere.
 repo="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# What a second copy of this repository is recognised by, below. Read from the running file rather than
+# written down, so a rename cannot leave the guard looking for a name nothing has.
+script_name="$(basename -- "${BASH_SOURCE[0]}")"
 
 dry_run=false
+relocate=false
 skip_brew=false
 skip_tools=false
 skip_mcp=false
@@ -41,6 +50,7 @@ skip_verify=false
 for arg in "$@"; do
   case "$arg" in
     --dry-run) dry_run=true ;;
+    --relocate) relocate=true ;;
     --skip-brew) skip_brew=true ;;
     --skip-tools) skip_tools=true ;;
     --skip-mcp) skip_mcp=true ;;
@@ -66,10 +76,27 @@ refuse() {
   printf '  REFUSED  %s\n' "$1"
 }
 
-# --- links ---------------------------------------------------------------------------------------
+# The end of every path through this script, including the guard below that stops before the first
+# write. A refusal that ended the run its own way would report through something this has no say over,
+# and the exit code and the collected list are the whole contract with a caller.
+report_and_exit() {
+  echo
+  if [ "${#refusals[@]}" -eq 0 ]; then
+    say "bootstrap: ok"
+    exit 0
+  fi
+  printf 'bootstrap: %s thing(s) need you:\n' "${#refusals[@]}"
+  for item in "${refusals[@]}"; do
+    printf '  - %s\n' "$item"
+  done
+  exit 1
+}
+
+# --- the mount table, and the guard over it -------------------------------------------------------
 
 # Link `target` at `source`, and report which of the four states it found. The only state that writes
-# over something is a symlink, which carries no data of its own.
+# over something is a symlink, which carries no data of its own — but see the guard below, which is
+# the case where that reasoning holds for the link and not for what the link is part of.
 link() {
   local source="$1" target="$2" parent current
   if [ ! -e "$source" ]; then
@@ -122,28 +149,163 @@ link() {
   say "  linked   $target"
 }
 
-say "links"
-link "$repo/zsh/.zpreztorc" "$HOME/.zpreztorc"
-link "$repo/zsh/.zshrc" "$HOME/.zshrc"
-link "$repo/git/.gitconfig" "$HOME/.gitconfig"
-link "$repo/ai/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
-link "$repo/ai/kk-flavor" "$HOME/.kk-flavor"
-link "$repo/ghostty" "$HOME/.config/ghostty"
-link "$repo/lazygit" "$HOME/.config/lazygit"
-link "$repo/nvim" "$HOME/.config/nvim"
-link "$repo/zellij" "$HOME/.config/zellij"
-link "$repo/starship/starship.toml" "$HOME/.config/starship.toml"
+# The mounts, as data rather than as a run of calls, because the guard below has to survey every one
+# of them before the first is written. A second list would be a list that drifts: a target added to
+# the linking half and missed in the survey is a mount the guard silently stops covering.
+cfg_sources=()
+cfg_targets=()
+add_cfg() {
+  cfg_sources+=("$1")
+  cfg_targets+=("$2")
+}
+add_cfg "$repo/zsh/.zpreztorc" "$HOME/.zpreztorc"
+add_cfg "$repo/zsh/.zshrc" "$HOME/.zshrc"
+add_cfg "$repo/git/.gitconfig" "$HOME/.gitconfig"
+add_cfg "$repo/ai/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+add_cfg "$repo/ai/kk-flavor" "$HOME/.kk-flavor"
+add_cfg "$repo/ghostty" "$HOME/.config/ghostty"
+add_cfg "$repo/lazygit" "$HOME/.config/lazygit"
+add_cfg "$repo/nvim" "$HOME/.config/nvim"
+add_cfg "$repo/zellij" "$HOME/.config/zellij"
+add_cfg "$repo/starship/starship.toml" "$HOME/.config/starship.toml"
 
 # Discovery, not a list: a skill added tomorrow is mounted without anyone editing this file. The cost
 # of discovery is that finding none would silently mount nothing, so that is a refusal.
-say "skills"
-skill_count=0
+skill_sources=()
+skill_targets=()
 for dir in "$repo"/ai/skills/*/; do
   [ -d "$dir" ] || continue
-  link "${dir%/}" "$HOME/.claude/skills/$(basename -- "${dir%/}")"
-  skill_count=$((skill_count + 1))
+  skill_sources+=("${dir%/}")
+  skill_targets+=("$HOME/.claude/skills/$(basename -- "${dir%/}")")
 done
-[ "$skill_count" -gt 0 ] || refuse "no skill directories under $repo/ai/skills/ — nothing was mounted"
+
+# --- is this machine already mounted somewhere else? ----------------------------------------------
+
+# `link()` above treats an existing symlink as safe to write over, on the grounds that a symlink
+# carries no data of its own. True of the link. The damage this guards is to the *mount*: when the
+# checkout a live link names is real, and is where this machine's config actually lives, that link is
+# not stale — this checkout is the stranger, and repointing it moves the human's whole setup here.
+# Delete the clone afterwards, which is the entire point of a scratch clone, and their next login has
+# no .zshrc, no .gitconfig and no agent instructions. The script whose header promises it refuses
+# rather than deletes would have done it by reporting "repointed" thirty-odd times.
+#
+# Narrow on purpose, so the rule `link()` states keeps working. A mount counts as belonging to another
+# checkout on two conditions: its link value ends in the same relative path — `…/zsh/.zshrc` for
+# `~/.zshrc` — and the root left over when that path is stripped holds a copy of this script. Together
+# those make it the same file in a second copy of this repository, rather than an unrelated config the
+# stale-symlink rule is right to repoint. A README-era link with a trailing slash still compares equal
+# to this checkout and stays the compatibility case it was.
+#
+# A root that no longer resolves does not count either. That is the aftermath of this very bug, or of
+# a checkout moved on purpose, and repointing a dangling link is the repair rather than the damage.
+mount_foreign_root() {
+  local source="$1" target="$2" rel cur root
+  [ -L "$target" ] || return 1
+  cur="$(readlink "$target")"
+  cur="${cur%/}"
+  # Absolute only. A relative link value resolves against the link's own directory, not this script's
+  # working directory, so naming a root from it would name the wrong one. Every link written here is
+  # absolute, so a relative one was not written by this script and is not one of its mounts.
+  [ "${cur#/}" != "$cur" ] || return 1
+  rel="${source#"$repo"/}"
+  [ "${cur%"/$rel"}" != "$cur" ] || return 1
+  root="${cur%"/$rel"}"
+  root="$(CDPATH= cd -P -- "$root" 2>/dev/null && pwd -P)" || return 1
+  [ "$root" != "$repo" ] || return 1
+  # And the root has to hold a copy of this script, not merely end in a matching path component. Four
+  # of the sources above are one component long — `nvim`, `zellij`, `ghostty`, `lazygit` — so the tail
+  # comparison alone reads `~/.config/nvim -> ~/.dotfiles/nvim` as a second checkout, refuses the whole
+  # run, and tells the human their configuration is mounted from a directory that has never held it.
+  # That link is an ordinary stale mount and `link()` is right to repoint it.
+  [ -f "$root/$script_name" ] || return 1
+  printf '%s' "$root"
+}
+
+foreign_roots=()
+note_foreign_root() {
+  local candidate="$1" k
+  for ((k = 0; k < ${#foreign_roots[@]}; k++)); do
+    [ "${foreign_roots[k]}" != "$candidate" ] || return 0
+  done
+  foreign_roots+=("$candidate")
+}
+
+say "mounts"
+cfg_foreign=()
+skill_foreign=()
+foreign_total=0
+for ((i = 0; i < ${#cfg_targets[@]}; i++)); do
+  found="$(mount_foreign_root "${cfg_sources[i]}" "${cfg_targets[i]}")" || found=""
+  cfg_foreign[i]="$found"
+  [ -z "$found" ] || {
+    foreign_total=$((foreign_total + 1))
+    note_foreign_root "$found"
+  }
+done
+for ((i = 0; i < ${#skill_targets[@]}; i++)); do
+  found="$(mount_foreign_root "${skill_sources[i]}" "${skill_targets[i]}")" || found=""
+  skill_foreign[i]="$found"
+  [ -z "$found" ] || {
+    foreign_total=$((foreign_total + 1))
+    note_foreign_root "$found"
+  }
+done
+
+if [ "$foreign_total" -eq 0 ]; then
+  # Said out loud on the way past. A guard that prints nothing when it passes reads exactly like a
+  # guard that was never reached, and this one runs on every machine that is already set up.
+  say "  ok       no mount on this machine comes from another checkout"
+elif $relocate; then
+  say "  --relocate: moving $foreign_total mount(s) to this checkout, from:"
+  for ((r = 0; r < ${#foreign_roots[@]}; r++)); do
+    say "    ${foreign_roots[r]}"
+  done
+else
+  # The count leads, before any list. Every line of the list carries the same two roots, so the list
+  # is one fact repeated; the scale is the fact a reader cannot reconstruct, and a reader who takes in
+  # the named configs and stops has not learned that every one of their skills moves too. The configs
+  # are named because they are individually consequential — a shell, a git identity, the instructions
+  # every agent session loads. The skills are homogeneous, so their count says all a list would.
+  say ""
+  say "  This checkout is not where this machine's configuration is mounted."
+  for ((r = 0; r < ${#foreign_roots[@]}; r++)); do
+    root="${foreign_roots[r]}"
+    named=()
+    n_skill=0
+    for ((i = 0; i < ${#cfg_targets[@]}; i++)); do
+      [ "${cfg_foreign[i]}" = "$root" ] && named+=("${cfg_targets[i]}")
+    done
+    for ((i = 0; i < ${#skill_targets[@]}; i++)); do
+      [ "${skill_foreign[i]}" = "$root" ] && n_skill=$((n_skill + 1))
+    done
+    say ""
+    say "  $((${#named[@]} + n_skill)) mounts (${#named[@]} configs and $n_skill skills) currently resolve to"
+    say "    $root"
+    say "  and running from here would move every one of them to"
+    say "    $repo"
+    say ""
+    for ((i = 0; i < ${#named[@]}; i++)); do
+      say "    ${named[i]}"
+    done
+    [ "$n_skill" -eq 0 ] || say "    ...and all $n_skill skills under $HOME/.claude/skills/"
+    say ""
+    refuse "$((${#named[@]} + n_skill)) mounts (${#named[@]} configs and $n_skill skills) resolve to $root, not to this checkout — nothing was written; re-run with --relocate to move them here"
+  done
+  report_and_exit
+fi
+
+# --- links ----------------------------------------------------------------------------------------
+
+say "links"
+for ((i = 0; i < ${#cfg_targets[@]}; i++)); do
+  link "${cfg_sources[i]}" "${cfg_targets[i]}"
+done
+
+say "skills"
+for ((i = 0; i < ${#skill_targets[@]}; i++)); do
+  link "${skill_sources[i]}" "${skill_targets[i]}"
+done
+[ "${#skill_targets[@]}" -gt 0 ] || refuse "no skill directories under $repo/ai/skills/ — nothing was mounted"
 
 # --- packages ------------------------------------------------------------------------------------
 
@@ -177,45 +339,32 @@ fi
 
 # --- rtk ------------------------------------------------------------------------------------------
 
-# `~/.claude/RTK.md` is not a config this machine happens to hold: `@RTK.md` in ai/CLAUDE.md imports
-# it into every session, so its contents are always-loaded context, paid for on every task in every
-# project. `rtk init -g` writes its own template there — five times the lines — and rewrites it on
-# every re-run, so the trimmed version is not something a machine keeps by having once been given it.
-# This restores it, and a re-run after `rtk init -g` is what makes that self-healing.
+# `~/.claude/RTK.md` is a leftover, and this step is what clears it. ai/CLAUDE.md used to import that
+# path with `@RTK.md`, which resolves relative to `~/.claude/`, and this script copied ai/RTK.md there
+# so the import had something to resolve to. The import is gone and its two surviving sentences are
+# inline in ai/CLAUDE.md, so nothing writes that file any more and nothing reads it.
 #
-# Copied rather than linked, unlike every target above. The always-loaded budget resolves that import
-# at the mount and refuses a symlink found there, leaving the file named but uncounted — so a link
-# would cost the measurement that the file exists to be measured by.
+# A step here rather than a deletion done by hand, because the file sits in the human's home rather
+# than in this repository: putting it in the script is what makes the removal something they run
+# knowingly, and the only thing that carries it to their other machines. It stays rather than being a
+# one-off, too — `rtk init -g` still writes its own template at that path, so a re-run after the next
+# one clears it again.
 #
-# Written over whatever is there, which is the one place this script overwrites data. That path holds
-# generated text with exactly two possible authors, rtk and this repository, and this repository is
-# now the one that owns it: the version to edit is ai/RTK.md, and a hand-edit at the mount is a change
-# the next `rtk init -g` would discard anyway.
-#
-# Unconditional, rather than gated on rtk being on PATH. The `@RTK.md` import is committed in
-# ai/CLAUDE.md whether or not this machine has rtk yet, so a probe would leave the import naming a
-# file this repository chose not to put there — and would make what every session loads depend on an
-# external command, which is the one thing here the suite could then no longer check.
+# A directory there is refused rather than removed. This script only ever wrote a file at that path,
+# so a directory holds something else, and `rm -rf` over it is the data loss the header promises it is
+# not. A symlink is removed like the file: a link carries no data of its own.
 say "rtk"
 rtk_md="$HOME/.claude/RTK.md"
-if [ ! -f "$repo/ai/RTK.md" ]; then
-  refuse "$repo/ai/RTK.md is missing from the repository, so $rtk_md was left alone"
-elif [ -L "$rtk_md" ]; then
-  refuse "$rtk_md is a symlink — an import's mount must be a real file or it goes uncounted; move it aside, then re-run"
-elif [ -e "$rtk_md" ] && [ ! -f "$rtk_md" ]; then
-  # The other shape that is not a real file, and the one that fails silently rather than loudly.
-  # `cp file dir` writes *into* the directory and exits 0, so the arm below would print "wrote" while
-  # the mount is still a directory and the import still resolves to nothing — success reported over a
-  # subject never reached. Refused for the same reason the symlink above is.
-  refuse "$rtk_md exists and is not a regular file — an import's mount must be one; move it aside, then re-run"
-elif cmp -s "$repo/ai/RTK.md" "$rtk_md"; then
-  say "  ok       $rtk_md"
+if [ ! -e "$rtk_md" ] && [ ! -L "$rtk_md" ]; then
+  say "  ok       no leftover $rtk_md"
+elif [ ! -L "$rtk_md" ] && [ -d "$rtk_md" ]; then
+  refuse "$rtk_md is a directory, and this script only ever wrote a file there — move it aside yourself"
 elif $dry_run; then
-  say "  would write $rtk_md from ai/RTK.md"
-elif mkdir -p -- "$HOME/.claude" && cp -- "$repo/ai/RTK.md" "$rtk_md"; then
-  say "  wrote    $rtk_md"
+  say "  would remove the leftover $rtk_md"
+elif rm -f -- "$rtk_md"; then
+  say "  removed  $rtk_md"
 else
-  refuse "could not write $rtk_md from $repo/ai/RTK.md"
+  refuse "could not remove the leftover $rtk_md"
 fi
 
 # --- the repository's own tools ------------------------------------------------------------------
@@ -285,13 +434,4 @@ fi
 
 # --- result --------------------------------------------------------------------------------------
 
-echo
-if [ "${#refusals[@]}" -eq 0 ]; then
-  say "bootstrap: ok"
-  exit 0
-fi
-printf 'bootstrap: %s thing(s) need you:\n' "${#refusals[@]}"
-for item in "${refusals[@]}"; do
-  printf '  - %s\n' "$item"
-done
-exit 1
+report_and_exit

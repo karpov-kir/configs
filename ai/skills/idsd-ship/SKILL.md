@@ -6,8 +6,6 @@ argument-hint: "<arg> | done [<intent>] | qualify [fast|full] | continue [<inten
 
 You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**). You run `~/.claude/skills/idsd-build/SKILL.md` and `~/.claude/skills/idsd-qualify/SKILL.md`, so read both whole rather than entering them a section at a time. Ship's own seam: the sub-skills' clarify gates (e.g. `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1**) still fire — never suppress one by recording instead.
 
-**Offer cadence.** Both periodic offers below go through `~/.claude/skills/idsd-ship/scripts/cadence.sh <topic> due`, whose usage line carries the exit codes. On exit 2, make the offer anyway and say the cadence could not be read. Then `cadence.sh <topic> asked` once the answer is settled — on no immediately, on yes only after the stage returns.
-
 ## Subcommands
 
 | Command | What it does |
@@ -33,7 +31,6 @@ The report contract — the **committed vs throwaway** repo modes included — p
 2. **Build** — **author the intent first if it's missing.** If no intent file matches `<arg>` — not in `.idsd/intents/` or the archive — run `idsd-intent` to author one. Seed it from the ticket when `<arg>` is a ticket ref and a connector is available, else from `<arg>` as the feature description. **That `NNN-<slug>` is step 1's trigger — open the report now.** Then run `idsd-build` for that intent in its **pipeline mode**. Both run **inline**, never spawned — each couples to the human continuously (intent grills; build's Phase 1 clarifies), and only this thread reaches the human. Before recording anything in the report, confirm idsd-build routed its follow-ups and constitution proposals as its own rules require. An unrouted follow-up is a build defect, not something the report absorbs.
    - Record as **Decide** items, each pointing to the durable home idsd-build already wrote: deferrals to confirm, constraints that need human judgment, and any choice Build settled that the human may still overturn — a **fork** whose default is what Build did. An ambiguity resolved with no open decision is not recorded.
 3. **Qualify** — invoke `idsd-qualify` **inline** in **full** mode over the build's changes. Blocking findings still reach the human live, in this thread.
-   - **The retro offer is ship's, and so is the run it looks back at — only its *moment* is qualify's**: run `cadence.sh retro due` where `~/.claude/skills/idsd-qualify/SKILL.md` → **Running a pass** places the offer.
 4. **Present the gate message** — this is where `ship <arg>` ends. It is the closing status line of `~/.claude/skills/idsd-qualify/SKILL.md` → **After the pass**, plus the two things only ship owns: every open `- [ ]` for the human to clear, and the next act — review the diff and the report, then run `idsd-ship done`. **Never merge here**; `done` owns that.
 
 ## `continue` — resume from current state
@@ -60,4 +57,4 @@ Reads the intent from the report's frontmatter; error with no report, or on one 
 2. On a clean gate — or freshness/stages overridden with no open `- [ ]` — hand to `~/.claude/skills/idsd-build/SKILL.md` → **Phase 5**, which runs unchanged through its approval-gated commit.
    - **After the commit succeeds, `report.sh close <intent>`.**
 3. **Throwaway cleanup.** In throwaway repo mode (`report.sh repo-mode`) the local `.idsd/` outlives the ship and breaks the mode's zero-traces contract. **After** the commit succeeds — never before, or the intent is lost while the work is unlanded — **ask** whether to clear it (default yes). On yes, `report.sh discard <intent>`. Keeping a throwaway `.idsd/` instead is what `promote` (before `done`) is for.
-4. **Offer an audit** — committed repo mode only. `cadence.sh audit due`; invoke `idsd-audit` on a yes.
+4. **Offer an audit** — committed repo mode only, when `~/.claude/skills/idsd-ship/scripts/cadence.sh audit due` says one is due; its usage line carries the exit codes. On exit 2 offer anyway and say the cadence could not be read. Invoke `idsd-audit` on a yes. Then `cadence.sh audit asked` once the answer is settled — on no immediately, on yes only after `idsd-audit` returns.

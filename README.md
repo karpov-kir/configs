@@ -2,7 +2,7 @@
 
 Config files for the tools I use:
 
-`./bootstrap.sh` does the steps below on a fresh machine. Four are yours to run by hand, because they write outside what this repository owns: the two `git clone`s, `mise use --global`, and `rtk init -g`. `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands still matter when a step fails.
+`./bootstrap.sh` does the steps below on a fresh machine. Four are yours to run by hand, because they write outside what this repository owns: the two `git clone`s, `mise use --global`, and `rtk init -g`. `--dry-run` shows what it would change before it changes anything. It skips and reports any target you did not link yourself rather than replacing it, so the individual commands still matter when a step fails. Run it from a second checkout — a scratch clone, say — and it refuses before writing anything, because every link it makes would be repointed at that copy and deleting the copy would then leave you with no shell config; `--relocate` is how you say you mean it.
 
 - [ZSH](https://zsh.org)
   - It's already installed by default on MacOS
@@ -23,7 +23,6 @@ Config files for the tools I use:
 - [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before Claude Code reads it
   - `brew install rtk`
   - `rtk init -g`, then restart Claude Code
-  - `cp ~/Documents/WP/configs/ai/RTK.md ~/.claude/RTK.md`, after `rtk init -g`, which writes its own longer template there and rewrites it on every run. `ai/CLAUDE.md` imports that path into every session, so this repository owns what it says. Copied rather than symlinked, unlike every other mount here: the always-loaded budget refuses a symlink at an import's mount and stops counting the file. `./bootstrap.sh` does this step too, so re-run it after any later `rtk init -g`.
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/git/.gitconfig ~/.gitconfig`

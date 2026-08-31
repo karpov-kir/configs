@@ -1,14 +1,17 @@
 ---
-name: idsd-retro
-description: Adversarial retrospective on how a run was conducted, never the change it produced. Use standalone, or as idsd-qualify's retro stage.
-argument-hint: "path to a run-log, or the run/session to reflect on"
+name: kk-retro
+description: Adversarial retrospective on how a run was conducted, never the change it produced. Only the human starts one, after a run that went badly, went oddly, or went well enough to be worth knowing why.
+argument-hint: "the run or session to reflect on"
+disable-model-invocation: true
 ---
 
 Look back at **how a run was conducted**, not at the change it produced — review, refactor and security-review cover that. Read the run cold and never self-grade: whoever ran the work rationalises their own choices. Assume there is something to find.
 
 ## Input
 
-- A **factual run-log** — what was asked, what each stage did, where the human corrected course, what was deferred, and any defect the run hit and how it surfaced. **Treat what it says about the run's own mistakes as a claim to verify, not a verdict to inherit.** A caller (e.g. `idsd-qualify`) writes it; standalone, reconstruct it tersely from the session and `git` first.
+Read `findings.md` (below) before either input, so you recognise a repeat when you meet one.
+
+- A **factual run-log** — what was asked, what each stage did, where the human corrected course, what was deferred, and any defect the run hit and how it surfaced. **The run is everything that produced the change, not the pass that reviewed it** — it starts at the human's first ask, and a log opening at the first quality stage hides the costliest part. Nobody writes one for you: reconstruct it tersely from the session and `git`, and where the session is gone, say what you could not reconstruct rather than inferring it. **Treat what the run said about its own mistakes as a claim to verify, not a verdict to inherit.**
 - The **diff**, and **anything the run touched outside it** — a skill, a standard, a prompt, a script.
 
 ## Lenses
@@ -28,7 +31,7 @@ Apply each; surface only what the run evidences:
 
 **Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new.
 
-Read it before you read the run, so you recognise a repeat when you meet one. Write it after the lenses, one line per finding:
+**A repeat puts the earlier fix in scope: say whether it landed at all.** Append to `findings.md` after the lenses, one line per finding:
 
 ```
 - 1x | <YYYY-MM-DD> | <repo> | <target> | <the finding in a clause> -> <where it routed>
@@ -36,6 +39,6 @@ Read it before you read the run, so you recognise a repeat when you meet one. Wr
 
 ## Output
 
-Bounded, **evidence-backed** findings; the cost of a fix is not a reason to drop one. Each states the improvement, its **target** (the skill / arch doc / prompt / pipeline / constitution / backlog it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
+**Evidence-backed** findings; the cost of a fix is not a reason to drop one. Each states the improvement, its **target** (a skill, arch doc, prompt, pipeline, project standard or backlog — whatever it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
 
-**Caller.** Spawned by an orchestrator → return the findings as data. Standalone → present them and let the human route. Either way the retro only flags: `findings.md` is the one file it writes, and it never edits the durable record.
+Present the findings and let the human route them. The retro only flags: `findings.md` is the one file it writes.

@@ -300,9 +300,9 @@ mutant cadence "cadence: the usage exits 1, which reads as a not-due" \
   '{due|asked}" >&2
   exit 1'
 
-mutant cadence "cadence: the usage stops naming the topics and actions" \
-  "and prints the usage naming the topics and actions" \
-  'usage: cadence.sh {retro|audit} {due|asked}' \
+mutant cadence "cadence: the usage stops naming the topic and actions" \
+  "and prints the usage naming the topic and actions" \
+  'usage: cadence.sh audit {due|asked}' \
   'run: cadence.sh'
 
 mutant cadence "cadence: the audit record follows the worktree, not the repository" \
@@ -319,11 +319,6 @@ mutant cadence "cadence: the audit record moves under the throwaway intent dir" 
   "and nothing was written under .idsd" \
   'state="$git_dir/idsd-audit-offer"' \
   'state="$repo_root/'"$intent_dir"'/audit-offer"'
-
-mutant cadence "cadence: both topics share one record" \
-  "and leaves the audit cadence alone" \
-  'state="$git_dir/idsd-audit-offer"' \
-  'state="$skill_dir/last-offer-retro.txt"'
 
 mutant cadence "cadence: outside a repository, the cwd is used as one" \
   "and says there is no per-repo record" \
@@ -342,7 +337,7 @@ mutant cadence "cadence: a failed write reports the offer as recorded" \
   true || {'
 
 mutant cadence "cadence: the record is written with a fixed date" \
-  "and the record holds that date" \
+  "and the record lands in the repository's git dir" \
   'printf '"'"'%s\n'"'"' "$today" >"$state" ||' \
   'printf '"'"'%s\n'"'"' "1970-01-01" >"$state" ||'
 
@@ -352,7 +347,7 @@ mutant cadence "cadence: recording no longer names the date it wrote" \
   'echo "recorded the offer."'
 
 mutant cadence "cadence: a never-offered topic is not an offer" \
-  "a retro never offered is due" \
+  "an audit never offered is due" \
   'echo "due: no $topic has ever been offered (no $state)."
       exit 0' \
   'echo "due: no $topic has ever been offered (no $state)."
@@ -398,7 +393,7 @@ mutant cadence "cadence: the undetermined verdict reads as a not-due" \
   'echo "not due: $* — nothing was determined'
 
 mutant cadence "cadence: the never-offered verdict reads as a not-due" \
-  "and a never-offered retro does not read as a 'not due'" \
+  "and a never-offered audit does not read as a 'not due'" \
   'echo "due: no $topic has ever been offered' \
   'echo "not due: no $topic has ever been offered'
 
@@ -419,14 +414,6 @@ mutant cadence "cadence: the usage stops warning that asked writes" \
   "and warns that asked writes where due only reads" \
   'OVERWRITES it with today' \
   'mentions today'
-
-# The caller's CDPATH. `cd` consults it for a relative path that is not dot-led and echoes where it
-# landed, so without the assignment the directory above the script comes back two lines long — and
-# every case above passes anyway, because they all invoke the copy by an absolute path.
-mutant cadence "cadence: the skill directory is resolved through the caller's CDPATH" \
-  "CDPATH in the environment does not hide the record from a relative run" \
-  'skill_dir=$(CDPATH= cd "$(dirname "$0")/.."' \
-  'skill_dir=$(cd "$(dirname "$0")/.."'
 
 # comment-density.sh. Two doors exit 2 and only their wording tells a live refusal from a dead tool,
 # so each door gets a mutant for its status, its wording and the stream it prints on.

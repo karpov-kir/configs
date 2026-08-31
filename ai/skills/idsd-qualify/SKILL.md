@@ -8,25 +8,19 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 
 **The pass is `~/.claude/skills/kk-qualify/SKILL.md`** — read it and run it **inline**, since it needs the human continuously and they reach only your thread (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). That skill ends at a closing reply; this one adds the report, the stamp and the lifecycle around it. **Every heading below that it also carries is the delta over its section of that name**, and the rest is this skill's own.
 
-## Lanes
-
-Adds the lane it leaves out: **retro** → `idsd-retro`.
-
 ## Running a pass
 
 1. **`~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore`**, before anything else (**Report**).
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
 3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have.
 
-**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor and retro included, not just the round's.
-
-**Retro runs only when your caller or the human asks for one.** **Offer one once every other stage has returned, and before `report.sh stamp`**: earlier, the human decides holding nothing the pass found; later, the stamp already reads `retro:skipped` for a stage that then runs. Read [RETRO-STAGE.md](RETRO-STAGE.md) (this skill's dir) and follow it — the whole delta for a retro.
+**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor included, not just the round's.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
 When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — its usage string carries the entry vocabulary. A stage that ran is never stamped skipped, or vice versa: by design, a fast pass whose every stage ran to completion stamps with no `(fast)` entry and passes the merge gate.
 
-**A skip's recorded reason follows *why* it was skipped, not the mode.** Stamp `retro:skipped(not-applicable)` when nobody asked for a retro; stamp `retro:skipped(fast)` when one that *was* asked for is skipped for turnaround. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass. **A refactor loop cut short by fast mode is `refactor:partial(fast)`**; `(cap)` is only full mode's iteration cap.
+**A skip's recorded reason follows *why* it was skipped, not the mode.** Stamp `security-review:skipped(not-applicable)` when the change touches no security surface; `skipped(fast)` when a stage that did apply is skipped for turnaround. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass. **A refactor loop cut short by fast mode is `refactor:partial(fast)`**; `(cap)` is only full mode's iteration cap.
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
@@ -68,12 +62,12 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 - **One group, `Decide`, holding `- [ ]` actions** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
 - **Score on the `report` lane.** What the threshold cuts gets no `- [ ]`, and no decision-log entry either — a question you still hold is barred from it by the rule **The decision log** already cites.
-- **The item's shape is the block above** — the markdown this file writes; the inversion it makes is licensed at `~/.kk-flavor/standards/writing.md` → **Density**.
+- **The nested item block above is licensed** at `~/.kk-flavor/standards/writing.md` → **Density**.
 - **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry <intent>` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass
 
-The closing message adds to `~/.claude/skills/kk-qualify/SKILL.md` → **After the pass**: the **repo mode** on its status line; at most one line for a tooling improvement the retro proposed ([RETRO-STAGE.md](RETRO-STAGE.md) routes it here), and no retro narrative. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too. After a standalone review, one line saying `report.sh close review` retires it (**Report**). In throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
+The closing message adds to `~/.claude/skills/kk-qualify/SKILL.md` → **After the pass**. The **repo mode** rides its status line. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too. After a standalone review, one line saying `report.sh close review` retires it (**Report**). In throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
 
 ## Rules
 

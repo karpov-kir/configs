@@ -53,9 +53,10 @@ Spawn the round's stages **in one message** so they run concurrently.
    - **A comment finding splits by placement and content**: a true comment on the wrong construct is the refactor lane's, a false claim about the code is the code-review lane's. Each lane states only its own side.
    - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the outward-text lane's scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
 4. **Refactor** — a loop to compliance, iterating where the pass has the budget for it and once where it does not. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is residue for the human with what's open, and duplication deferred under the extract threshold goes to whatever record the pass appends its settled decisions to. Run the refactor lane's scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
-5. **Retro** — last when it runs; how it runs is the orchestrator's.
 
 **A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or `CLAUDE.md` goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.
+
+**A retrospective is not one of these either** — no pass runs, offers or schedules one, and the human starts it.
 
 ## Gates
 
