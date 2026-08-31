@@ -22,7 +22,7 @@ With no `<arg>` and no subcommand, list the not-yet-built intents and ask which.
 
 The report contract — the **committed vs throwaway** repo modes included — plus `~/.claude/skills/idsd-qualify/scripts/report.sh` belong to `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote**, its counterpart **discard**, and **close** — the last two owned by `done` below.
 
-**Promote** — `report.sh promote`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the `CLAUDE.md` pointer at `.idsd/` per `~/.claude/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context**, which owns that rule.
+**Promote** — `report.sh promote` stages `.idsd/`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the `CLAUDE.md` pointer at `.idsd/` per `~/.claude/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context**, which owns that rule.
 
 ## Build, then qualify
 

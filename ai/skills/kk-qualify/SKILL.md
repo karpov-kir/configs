@@ -49,5 +49,5 @@ argument-hint: "[fast|full] [scope: a path, a diff selector, or natural language
 
 ## Rules
 
-- **Never commits or pushes** — fixes stay in the tree; committing is the caller's or the human's act.
+- **Never commits or pushes** — fixes stay in the tree (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 - **While a stage is live, the history under it must not move**: no rebase, cherry-pick, reset, amend, branch switch or base change until it returns. A working-tree edit is a different thing, already answered by `~/.kk-flavor/standards/skill-protocol.md` → **Loop**. Finish the stage or abandon it, do the maintenance, then spawn it fresh against the new HEAD; a separate worktree is the only safe overlap.
