@@ -6,7 +6,6 @@ package ecoreport_test
 import (
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -23,7 +22,7 @@ func TestDiscardRemovesNothingItCouldNotRead(t *testing.T) {
 	f.runReport("discard", "001-discarding")
 	f.assertRefused("discard refuses a report it cannot read")
 	f.record("and removed neither the report nor the intent file",
-		f.isFile(f.reportPath("001-discarding")) && f.isFile(f.repo+"/.idsd/intents/001-discarding.md"), "")
+		f.isFile(f.reportPath("001-discarding")) && f.isFile(f.scratch()+"/intents/001-discarding.md"), "")
 	f.chmod(f.reportPath("001-discarding"), 0o644)
 }
 
@@ -38,11 +37,11 @@ func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
 	f.newIntentFile("001-mine")
 	// A second ship's report, in flight, with no other copy anywhere. It is what must survive.
 	f.runReport("init", "002-yours")
-	if !f.madeUnreadable(f.repo+"/.idsd/qualify-reports", "the unreadable report-listing case") {
+	if !f.madeUnreadable(f.scratch()+"/qualify-reports", "the unreadable report-listing case") {
 		t.Skip("this process lists a mode-0 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable listing cannot be built here")
 	}
 	f.runReport("discard", "001-mine")
-	f.chmod(f.repo+"/.idsd/qualify-reports", 0o755)
+	f.chmod(f.scratch()+"/qualify-reports", 0o755)
 
 	f.assertRefused("discard refuses a report listing it could not read")
 	// The one thing throwaway mode keeps no copy of. This ship's own files are already gone by here,
@@ -63,7 +62,7 @@ func TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything(t *testing.T) {
 	f.runReport("discard", "001-mine")
 	f.assertRefused("discard refuses when the filename and the frontmatter name different ships")
 	f.record("and deleted neither intent file",
-		f.isFile(f.repo+"/.idsd/intents/002-yours.md") && f.isFile(f.repo+"/.idsd/intents/001-mine.md"), "")
+		f.isFile(f.scratch()+"/intents/002-yours.md") && f.isFile(f.scratch()+"/intents/001-mine.md"), "")
 }
 
 func TestDiscardDestructivePath(t *testing.T) {
@@ -78,18 +77,19 @@ func TestDiscardDestructivePath(t *testing.T) {
 	// The stage markers live in the git dir, so removing .idsd/ cannot reach them. They need their own
 	// removal, or the next ship for this intent inherits a completed stage record and stamps for free.
 	only.record("and the stage markers in the git dir, which removing .idsd/ never reaches", !only.exists(markers), "")
-	// Zero traces means the local exclusion too, or .git/info/exclude keeps a line for a dir that is gone.
-	only.record("and the local exclusion, so the throwaway leaves nothing at all", !only.hasLocalExclusion(), "")
+	// Zero traces means the working tree too. There is no exclusion to drop any more, so what has to
+	// hold is that nothing was ever put in the tree for one to hide.
+	only.record("and left nothing in the working tree either", only.treeIsFreeOfScratch(), "")
 
 	// A durable file is the human's, never this ship's scratch, so it keeps .idsd/ standing.
 	charter := newShip(t, "001-with-charter")
-	charter.newDurableCharter()
+	charter.newDurableCharterInScratch()
 	charter.runReport("discard", "001-with-charter")
 	charter.record("discard keeps .idsd/ for a durable file while removing this ship's report",
-		charter.status == 0 && charter.isFile(charter.repo+"/.idsd/charter.md") &&
+		charter.status == 0 && charter.isFile(charter.scratch()+"/charter.md") &&
 			!charter.isFile(charter.reportPath("001-with-charter")), charter.evidence())
 	charter.assertReports("charter.md", "and names what kept it standing")
-	charter.record("and leaves the exclusion in place, since .idsd/ is still there to hide", charter.hasLocalExclusion(), "")
+	charter.record("and the surviving charter is outside the working tree, so nothing hides it", charter.treeIsFreeOfScratch(), "")
 
 	// A parallel ship is another human's work in flight. Deleting its report is the unrecoverable case.
 	parallel := newShip(t, "001-going")
@@ -99,16 +99,16 @@ func TestDiscardDestructivePath(t *testing.T) {
 	parallel.runReport("discard", "001-going")
 	parallel.record("discard removes only the named ship, leaving a parallel one whole",
 		parallel.status == 0 && parallel.isFile(parallel.reportPath("002-staying")) &&
-			parallel.isFile(parallel.repo+"/.idsd/intents/002-staying.md") &&
-			!parallel.isFile(parallel.repo+"/.idsd/intents/001-going.md"),
-		"exit "+strconv.Itoa(parallel.status)+"; reports: "+joinLines(parallel.entries(parallel.repo+"/.idsd/qualify-reports"))+
-			"; intents: "+joinLines(parallel.entries(parallel.repo+"/.idsd/intents")))
+			parallel.isFile(parallel.scratch()+"/intents/002-staying.md") &&
+			!parallel.isFile(parallel.scratch()+"/intents/001-going.md"),
+		"exit "+strconv.Itoa(parallel.status)+"; reports: "+joinLines(parallel.entries(parallel.scratch()+"/qualify-reports"))+
+			"; intents: "+joinLines(parallel.entries(parallel.scratch()+"/intents")))
 	parallel.assertReports("other qualify report", "and names the parallel ship as what kept .idsd/ alive")
 
 	// An intent that already built has its file in archive/ rather than intents/, and both are this ship's.
 	built := newShip(t, "001-archived")
-	built.mkdirAll(built.repo + "/.idsd/archive")
-	built.write(built.repo+"/.idsd/archive/001-archived.md", "# built\n")
+	built.mkdirAll(built.scratch() + "/archive")
+	built.write(built.scratch()+"/archive/001-archived.md", "# built\n")
 	built.runReport("discard", "001-archived")
 	built.assertIdsdRemoved("discard removes the intent file from archive/ as well as intents/")
 
@@ -119,7 +119,7 @@ func TestDiscardDestructivePath(t *testing.T) {
 	committed.runReport("discard", "001-committed")
 	committed.assertRefused("discard refuses in committed mode, where .idsd/ is the durable record")
 	committed.record("and deleted nothing",
-		committed.isFile(committed.repo+"/.idsd/charter.md") && committed.isFile(committed.reportPath("001-committed")), "")
+		committed.isFile(committed.scratch()+"/charter.md") && committed.isFile(committed.reportPath("001-committed")), "")
 
 	// `discard` runs after `close`, the order `idsd-ship done` uses; reversed, `close` finds no report
 	// and refuses. `close` deletes the report `discard` reads, and a `discard` that refuses on that
@@ -152,27 +152,27 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 	// Asserted on the refusal's own effect, not on the sibling surviving: the sibling's report keeps
 	// .idsd/ alive either way, so "it is untouched" holds with the guard gone.
 	f.record("and the reports directory it would have torn down still stands",
-		!f.exists(f.repo+"/.idsd/intents/002-nothing-of-mine.md") &&
-			f.exists(f.repo+"/.idsd/qualify-reports") && f.isFile(f.repo+"/.idsd/intents/001-real.md"), "")
+		!f.exists(f.scratch()+"/intents/002-nothing-of-mine.md") &&
+			f.exists(f.scratch()+"/qualify-reports") && f.isFile(f.scratch()+"/intents/001-real.md"), "")
 	f.assertReports("Looked for", "and names every path it looked in")
 
 	// A typo must not tear down a directory. `decisions.md` alone does not keep .idsd/ alive by design,
 	// so without the guard this reports "zero traces" for a ship that never existed.
 	typo := newRepo(t)
 	typo.runReport("check-ignore")
-	typo.mkdirAll(typo.repo + "/.idsd")
-	typo.write(typo.repo+"/.idsd/decisions.md", "# decisions\n")
+	typo.mkdirAll(typo.scratch() + "")
+	typo.write(typo.scratch()+"/decisions.md", "# decisions\n")
 	typo.runReport("discard", "999-typo")
 	typo.assertRefused("discard refuses a typo rather than removing the directory around it")
-	typo.record("and the decision log survives", typo.isFile(typo.repo+"/.idsd/decisions.md"), "")
+	typo.record("and the decision log survives", typo.isFile(typo.scratch()+"/decisions.md"), "")
 
-	// A repo that never used idsd has no .idsd/ and no exclusion to lose; the guard is what stops
-	// discard reaching the exclusion teardown there.
+	// A repo that never used idsd has nothing to lose; the guard is what stops discard tearing down a
+	// scratch dir it never created.
 	empty := newRepo(t)
 	empty.runReport("check-ignore")
 	empty.runReport("discard", "001-never-existed")
 	empty.assertRefused("discard refuses in a repo that holds no ship at all")
-	empty.record("and leaves the local exclusion alone", empty.hasLocalExclusion(), "")
+	empty.record("and wrote nothing into the working tree on the way to refusing", empty.treeIsFreeOfScratch(), "")
 
 	// The guard must not break the case it was built around: a landed ship whose report `close` retired
 	// is still identified by its intent file, so close-then-discard survives.
@@ -188,8 +188,11 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	// An unreadable index fails the index read, which reads as "nothing tracked", so a committed repo
 	// reports throwaway and discard's committed-mode refusal never fires.
 	f := newRepo(t)
+	// Both files in the tree, because this fixture is COMMITTED: git can only track what the tree holds,
+	// and the scratch-side helpers write outside it.
 	f.newDurableCharter()
-	f.newIntentFile("002-tracked")
+	f.mkdirAll(f.treeIdsd() + "/intents")
+	f.write(f.treeIdsd()+"/intents/002-tracked.md", "# intent\n")
 	f.write(f.repo+"/.gitignore", ".idsd/qualify-reports/\n")
 	f.mustGit("add", ".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked.md")
 	f.commit("committed idsd")
@@ -202,7 +205,13 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	}
 	f.runReport("discard", "002-tracked")
 	f.assertRefused("discard refuses when the repo mode cannot be read, rather than assuming throwaway")
-	f.record("and the tracked intent file survives", f.isFile(f.repo+"/.idsd/intents/002-tracked.md"), "")
+	// The REASON, not just the exit. Without the mode assertion the run reads throwaway, walks on, and is
+	// refused a few lines later for having no ship at the resolved location — also exit 2, from a guard
+	// that says nothing about the unreadable index. Asserting the code alone observes neither.
+	f.assertReports("could not read the index", "and names the unreadable index as why")
+	// Named directly rather than through f.scratch(): that asks git which mode this is, and the index it
+	// would ask is the very thing this case made unreadable.
+	f.record("and the tracked intent file survives", f.isFile(f.treeIdsd()+"/intents/002-tracked.md"), "")
 	f.chmod(f.repo+"/.git/index", 0o644)
 }
 
@@ -214,12 +223,12 @@ func TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt(t *testing.T) {
 	linked.runReport("check-ignore")
 	linked.mkdirAll(linked.base + "/outside-discard/intents")
 	linked.write(linked.base+"/outside-discard/intents/003-elsewhere.md", "# not ours to delete\n")
-	linked.symlink(linked.base+"/outside-discard", linked.repo+"/.idsd")
+	linked.symlink(linked.base+"/outside-discard", linked.scratch()+"")
 	linked.runReport("discard", "003-elsewhere")
 	linked.assertRefused("discard refuses a symlinked .idsd rather than deleting through it")
 	linked.record("and the file outside the repo is still there",
 		linked.isFile(linked.base+"/outside-discard/intents/003-elsewhere.md"), "")
-	linked.remove(linked.repo + "/.idsd")
+	linked.remove(linked.scratch() + "")
 }
 
 func TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed(t *testing.T) {
@@ -232,29 +241,12 @@ func TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed(t *testing.T) {
 	f.runReport("close", "review")
 	f.runReport("discard", "review")
 	present := "gone"
-	if f.exists(f.repo + "/.idsd") {
+	if f.exists(f.sharedIdsd()) {
 		present = "present"
 	}
-	f.record("discard tears down a closed standalone review, exclusion included",
-		f.status == 0 && !f.exists(f.repo+"/.idsd") && !f.hasLocalExclusion(),
-		"exit "+strconv.Itoa(f.status)+"; .idsd: "+present)
-}
-
-func TestTheTeardownReportsTheExclusionFromTheResultNotTheAttempt(t *testing.T) {
-	t.Parallel()
-	// With the exclusion teardown's return discarded, "zero traces" prints at exit 0 over a surviving
-	// entry. That is the one claim here a human acts on without checking.
-	f := newShip(t, "001-teardown")
-	f.newIntentFile("001-teardown")
-	f.chmod(f.repo+"/.git/info", 0o500)
-	if syscall.Access(f.repo+"/.git/info", 0x2) == nil {
-		f.chmod(f.repo+"/.git/info", 0o755)
-		t.Skip("this process writes into a mode-500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so a failing exclusion teardown cannot be built here")
-	}
-	f.runReport("discard", "001-teardown")
-	f.chmod(f.repo+"/.git/info", 0o755)
-	f.record("discard does not claim zero traces when the exclusion could not be removed",
-		f.status != 0 && !strings.Contains(f.out, "zero traces"), "exit "+strconv.Itoa(f.status)+"; said: "+f.out)
+	f.record("discard tears down a closed standalone review, leaving the tree clean",
+		f.status == 0 && !f.exists(f.sharedIdsd()) && f.treeIsFreeOfScratch(),
+		"exit "+strconv.Itoa(f.status)+"; scratch: "+present)
 }
 
 func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
@@ -264,11 +256,11 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	// that list deletes the file it names and reports zero traces, so every row gets a fixture.
 	for _, durable := range []string{"charter.md", "constitution.md", "language.md", "playbook.md"} {
 		f := newShip(t, "001-durable")
-		f.write(f.repo+"/.idsd/"+durable, "# the human's own\n")
+		f.write(f.scratch()+"/"+durable, "# the human's own\n")
 		f.runReport("discard", "001-durable")
 		f.record(durable+" alone keeps .idsd/ standing through a discard",
-			f.status == 0 && f.isFile(f.repo+"/.idsd/"+durable) && !f.isFile(f.reportPath("001-durable")),
-			"exit "+strconv.Itoa(f.status)+"; left: "+joinLines(f.find(f.repo+"/.idsd"))+"\n"+f.out)
+			f.status == 0 && f.isFile(f.scratch()+"/"+durable) && !f.isFile(f.reportPath("001-durable")),
+			"exit "+strconv.Itoa(f.status)+"; left: "+joinLines(f.find(f.scratch()+""))+"\n"+f.out)
 		f.assertReports(durable, "and discard names "+durable+" as what kept it")
 	}
 
@@ -280,9 +272,9 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	sibling.newIntentFile("002-still-in-flight")
 	sibling.runReport("discard", "001-going")
 	sibling.record("another ship's intent file keeps .idsd/ standing",
-		sibling.status == 0 && sibling.isFile(sibling.repo+"/.idsd/intents/002-still-in-flight.md") &&
-			!sibling.isFile(sibling.repo+"/.idsd/intents/001-going.md"),
-		"exit "+strconv.Itoa(sibling.status)+"; left: "+joinLines(sibling.find(sibling.repo+"/.idsd"))+"\n"+sibling.out)
+		sibling.status == 0 && sibling.isFile(sibling.scratch()+"/intents/002-still-in-flight.md") &&
+			!sibling.isFile(sibling.scratch()+"/intents/001-going.md"),
+		"exit "+strconv.Itoa(sibling.status)+"; left: "+joinLines(sibling.find(sibling.scratch()+""))+"\n"+sibling.out)
 	sibling.assertReports("1 other intent(s)", "and counts it as an intent rather than as stray content")
 
 	// The label is the whole deliverable for what is left below: .idsd/ stands either way, and what
@@ -290,10 +282,10 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	// another ship is in flight when none is.
 	stray := newShip(t, "001-stray")
 	stray.newIntentFile("001-stray")
-	stray.write(stray.repo+"/.idsd/intents/.DS_Store", "not an intent\n")
+	stray.write(stray.scratch()+"/intents/.DS_Store", "not an intent\n")
 	stray.runReport("discard", "001-stray")
 	stray.record("a stray file under intents/ keeps .idsd/ standing",
-		stray.status == 0 && stray.exists(stray.repo+"/.idsd/intents"), stray.evidence())
+		stray.status == 0 && stray.exists(stray.scratch()+"/intents"), stray.evidence())
 	stray.assertReports("unrecognised content under intents/", "and is reported as unrecognised, never counted as an intent")
 	stray.record("and no number of intents is claimed for it",
 		!strings.Contains(stray.out, "other intent(s)"), stray.out)
@@ -302,40 +294,11 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	// claims a ship in flight for a link that points at nothing.
 	linked := newShip(t, "001-linked")
 	linked.newIntentFile("001-linked")
-	linked.symlink(linked.base+"/no-such-intent.md", linked.repo+"/.idsd/intents/002-link.md")
+	linked.symlink(linked.base+"/no-such-intent.md", linked.scratch()+"/intents/002-link.md")
 	linked.runReport("discard", "001-linked")
 	linked.record("a symlink named like an intent keeps .idsd/ standing",
-		linked.status == 0 && linked.exists(linked.repo+"/.idsd/intents"), linked.evidence())
+		linked.status == 0 && linked.exists(linked.scratch()+"/intents"), linked.evidence())
 	linked.assertReports("unrecognised content under intents/", "and a symlink is not counted as an intent file")
 	linked.record("and no number of intents is claimed for a link",
 		!strings.Contains(linked.out, "other intent(s)"), linked.out)
-}
-
-func TestASecondWorktreeKeepsTheSharedExclusion(t *testing.T) {
-	t.Parallel()
-	// .git/info/exclude is one file for every worktree of a repository, so only the last discard may
-	// drop the '.idsd/' line. Dropped from the first, a parallel throwaway ship's .idsd/ becomes
-	// visible to the next `git add -A` in the other worktree, which is how it reaches a commit.
-	f := newShip(t, "001-shared")
-	f.mustGit("worktree", "add", "-q", f.base+"/second-worktree", "-b", "second")
-	// The fixture's own precondition: with one worktree the case below passes on a discard that never
-	// consults the count at all.
-	f.record("fixture: git reports two worktrees",
-		countLinesWithPrefix(f.mustGit("worktree", "list", "--porcelain"), "worktree ") == 2, "")
-
-	f.runReport("discard", "001-shared")
-	f.record("discard removes this ship's .idsd/ with a second worktree open",
-		f.status == 0 && !f.exists(f.repo+"/.idsd"), f.evidence())
-	f.record("and keeps the exclusion the other worktree shares", f.hasLocalExclusion(), "")
-	f.assertReports("kept the shared exclusion", "and says so rather than claiming zero traces")
-
-	// The positive control: the same discard does drop the exclusion once this is the only worktree
-	// left, so what kept it above was the count and not a discard that never drops it.
-	f.mustGit("worktree", "remove", f.base+"/second-worktree")
-	f.runReport("check-ignore")
-	f.runReport("init", "002-last")
-	f.runReport("discard", "002-last")
-	f.record("and the last worktree's discard drops it, leaving zero traces",
-		f.status == 0 && !f.hasLocalExclusion(), f.evidence())
-	f.assertReports("zero traces", "and claims zero traces only there")
 }

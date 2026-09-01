@@ -44,6 +44,8 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. |
 | Nothing named, or a periodic check | Recommend from what changed — plus the `kk-reduce` row's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
 
+**This file routes between the skill families, so it names the workflow family where every other any-repo skill may not** — the exception `~/.kk-flavor/standards/ecosystem.md` → **Family direction** grants, claimed here because a router cannot route to a lane it is forbidden to name.
+
 **The `idsd-*` suite is a workflow the human enters deliberately and stays inside.** When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it.
 
 **More than one row will often match** — a change set that touches skills and their scripts matches two. Run them as one chain rather than one after the other: stages whose file sets are disjoint go concurrently, and where the sets overlap the rows keep their own order. Two full chains run back to back review the same files twice and let the second undo the first.

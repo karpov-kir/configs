@@ -71,13 +71,12 @@ func (r *run) cmdState() {
 	// The archive is read BEFORE the report's absence decides, because `close` retires a landed ship's
 	// report and the archived intent file is then the only record that it landed. Absence alone routes
 	// `continue <intent>` to "start ship <intent>" — a rebuild of work already merged.
-	if resolved == reportResolved && shell.IsRegularFile(r.root+"/.idsd/archive/"+stemOfReportPath(r.report)+".md") {
+	if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {
 		r.line("done")
 		r.exit(0)
 	}
 	if resolved != reportResolved || !shell.IsRegularFile(r.report) {
 		r.line("no-report")
-		r.legacyNote()
 		r.exit(0)
 	}
 	// `state` resolves for itself rather than through requireReport, because a missing report is a
@@ -91,7 +90,7 @@ func (r *run) cmdState() {
 func (r *run) stateToken() string {
 	// A built intent's file has moved to archive/ (a standalone `review:` has no slug, so this is
 	// skipped).
-	if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.root+"/.idsd/archive/"+slug+".md") {
+	if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {
 		return "done"
 	}
 	reviewed := r.reviewedTree()
@@ -123,7 +122,6 @@ func (r *run) cmdList() {
 	r.noteUnnameableReports()
 	if len(names) == 0 {
 		r.line("no reports")
-		r.legacyNote()
 		r.exit(0)
 	}
 	// Primed before the loop so every ship is scored against the same tree. Failing to prime is not

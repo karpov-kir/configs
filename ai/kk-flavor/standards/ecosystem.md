@@ -27,12 +27,19 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 
 **The shared layer — a standard, a template under `kk-flavor/`, `CLAUDE.md` — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
 
+
+## Family direction
+
+**Inside the skill layer the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. A workflow skill invokes an any-repo one and cites it; the reverse makes a skill that works in any repo carry knowledge of a workflow most repos never use. Its description then discriminates itself against a sibling the reader may not have mounted, which is worse than not discriminating at all. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.
+
 ## Conventions a new file joins
 
 - **A skill authored in this tree joins one of two families**, by prefix: one works in any repo, the other belongs to a single workflow and carries that workflow's own on-disk machinery. An installed tool skill is a skill outside this tree, not a third family inside it.
 - **A skill the human always initiates carries `disable-model-invocation: true`**, which drops its description out of every session's context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.claude/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
+- **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes** — and an override file that is present but unusable **refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
+
 - **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it, and **the mount is proven by running the instruction lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script.
 
 ## Move it before you cut it

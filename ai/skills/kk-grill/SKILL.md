@@ -1,6 +1,6 @@
 ---
 name: kk-grill
-description: Grill the user relentlessly about a plan, decision or idea — round by round. Use before anything is built, or on any 'grill' trigger phrase. Questions only, and it writes nothing: planning a feature into an ICE intent is idsd-intent's.
+description: Grill the user relentlessly about a plan, decision or idea — round by round. Use before anything is built, or on any 'grill' trigger phrase. Questions only, and it writes nothing — a skill that turns a plan into a written spec owns that, and invokes this one to do the asking.
 argument-hint: "the plan, decision or idea to stress-test"
 ---
 

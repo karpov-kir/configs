@@ -143,27 +143,6 @@ func (r *run) refuseAmbiguous(instead string) {
 	r.refuse("error: several qualify reports are open — "+instead+":", indentLines(r.ambiguousNames, "  "))
 }
 
-// Every path a report has ever lived at, and none of them is this one. These are literal history and
-// never move with a rename, so a repo whose ship was in flight across either rename has its report
-// here, where nothing looks. The harm is silence: `state` answers no-report and a fresh ship starts
-// over live work. So every path that reports finding none says these exist — on stderr, leaving
-// `state` printing exactly one token. `promote` is the exception: it refuses for want of anything
-// durable, not of a report.
-func (r *run) legacyNote() {
-	found := ""
-	for _, path := range []string{r.root + "/.idsd/ship-report.md", r.root + "/.idsd/ship-reports"} {
-		if shell.PathExists(path) {
-			found += " " + path
-		}
-	}
-	if found == "" {
-		return
-	}
-	r.errLines(
-		"note: nothing reads these any more, and a report left at one is a ship nothing will resume:"+found,
-		"  Move what is still live to "+r.reportsDir+"/<intent>-qualify-report.md, or delete it.")
-}
-
 // Every frontmatter reader answers empty for a file it could not open, and empty is in isUnstamped's
 // set. So an unreadable report answers `resume` with an unstamped tree and a clean stage record, all
 // from a file nothing ever opened. Takes the consequence as an argument for the reason
@@ -179,13 +158,11 @@ func (r *run) assertReportIsReadable(consequence string) {
 func (r *run) requireReport(name string) {
 	switch r.resolveReport(name) {
 	case reportNoneOpen:
-		r.legacyNote()
 		r.refuse("error: no qualify report under " + r.reportsDir + " — run report.sh init \"<intent>\" first")
 	case reportAmbiguous:
 		r.refuseAmbiguous("name which as the last argument")
 	}
 	if !shell.IsRegularFile(r.report) {
-		r.legacyNote()
 		r.refuse("error: no qualify report for that intent (" + r.report + ")")
 	}
 	r.assertReportIsReadable("its state is unknown (permissions?)")
@@ -206,7 +183,7 @@ func (r *run) assertShipExists(slug string) {
 	if slug == "review" {
 		return
 	}
-	if shell.IsRegularFile(r.root+"/.idsd/intents/"+slug+".md") || shell.IsRegularFile(r.root+"/.idsd/archive/"+slug+".md") {
+	if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {
 		return
 	}
 	r.refuse("error: nothing here belongs to '"+slug+"' — nothing was discarded.",
@@ -224,7 +201,7 @@ func (r *run) assertShipExists(slug string) {
 func (r *run) survivingContent() string {
 	kept := ""
 	for _, durable := range []string{"charter.md", "constitution.md", "language.md", "playbook.md"} {
-		if shell.PathExists(r.root + "/.idsd/" + durable) {
+		if shell.PathExists(r.idsdDir + "/" + durable) {
 			kept += " " + durable
 		}
 	}
@@ -236,7 +213,7 @@ func (r *run) survivingContent() string {
 	}
 	// Anything at all under intents/ or archive/ keeps .idsd/ alive, but the label counts what is
 	// actually there — "other intents" for a stray `.DS_Store` tells the human something untrue.
-	intents, archive := r.root+"/.idsd/intents", r.root+"/.idsd/archive"
+	intents, archive := r.idsdDir+"/intents", r.idsdDir+"/archive"
 	if shell.PathExists(intents) || shell.PathExists(archive) {
 		if left := countMarkdownFiles(intents, archive); left > 0 {
 			kept += " " + strconv.Itoa(left) + " other intent(s)"
@@ -274,10 +251,10 @@ func countMarkdownFiles(dirs ...string) int {
 // own check: a symlinked `.idsd` slips past the report's test, and every write then lands wherever it
 // points.
 func (r *run) assertWritePathsAreReal(outcome string) {
-	for _, writeDir := range []string{r.root + "/.idsd", r.reportsDir} {
+	for _, writeDir := range []string{r.idsdDir, r.reportsDir} {
 		if shell.IsSymlink(writeDir) {
 			r.refuse("error: "+writeDir+" is a symlink -> "+readLink(writeDir)+" — "+outcome+".",
-				"  both .idsd/ and its qualify-reports/ are always real directories inside the repo. Remove the link, then re-run.")
+				"  the scratch directory and its qualify-reports/ are always real directories. Remove the link, then re-run.")
 		}
 	}
 	// The report is never legitimately a symlink, and `--force` does not override this. The write is a

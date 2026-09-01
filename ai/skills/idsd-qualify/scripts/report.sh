@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Qualify report tool — the deterministic gates the skills must not execute by hand. idsd-ship calls
 # it too. What the gates do, and what each subcommand means, is `ai/tools/eco-report/`.
-#   usage: report.sh {init <intent>|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|
+#   usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|
 #                     stamp "<stages>"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]
 #
 # Two sibling files are found from argv[0] and one from $HOME, so this must stay in the skill's

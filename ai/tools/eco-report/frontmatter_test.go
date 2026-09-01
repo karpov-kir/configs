@@ -5,6 +5,7 @@ package ecoreport_test
 // the value on it is a slug and not a path.
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -48,12 +49,16 @@ func TestAHandEditedIntentCannotSteerAPathOutOfIdsd(t *testing.T) {
 	// archive file `state` reads, and the intent file `discard` deletes. Outside the slug charset that
 	// value is a traversal, so the charset is the whole of what keeps both inside .idsd/.
 	f := newShip(t, "001-steered")
-	f.mkdirAll(f.repo + "/.idsd/archive")
-	// Where `.idsd/archive/<slug>.md` lands for a slug that climbs two levels: the repository root.
-	f.write(f.repo+"/climbed.md", "# not an archived intent\n")
+	f.mkdirAll(f.scratch() + "/archive")
+	// Where `<scratch>/archive/<slug>.md` lands for a slug that climbs two levels. Computed from the
+	// scratch dir rather than assumed to be the repo root: the scratch moved out of the tree, so a decoy
+	// written at the repo root is no longer on the traversal's path at all — the guard would then have no
+	// file to reach and the case would pass while observing nothing.
+	climbed := filepath.Clean(f.scratch() + "/archive/../../climbed.md")
+	f.write(climbed, "# not an archived intent\n")
 	f.replaceLine(f.reportPath("001-steered"), "intent:", "intent: ../../climbed")
 	f.runReport("state", "001-steered")
-	f.record("state reads no file outside .idsd/ as this ship's archived intent",
+	f.record("state reads no file outside the scratch dir as this ship's archived intent",
 		f.out == "resume", "said '"+f.out+"'")
-	f.record("and the file it would have read is untouched", f.isFile(f.repo+"/climbed.md"), "")
+	f.record("and the file it would have read is untouched", f.isFile(climbed), climbed)
 }

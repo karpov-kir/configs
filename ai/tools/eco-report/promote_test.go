@@ -15,7 +15,7 @@ func TestCheckIgnoreHoldsBeforeQualifyReportsExists(t *testing.T) {
 	// slash in the ignore surface earns its keep: without it, `git check-ignore -q
 	// .idsd/qualify-reports` exits 1 on a directory that is not there.
 	f := newCommittedRepo(t)
-	if !f.exists(f.repo+"/.idsd/qualify-reports") && f.runReportStdout("repo-mode") == "committed" {
+	if !f.exists(f.scratch()+"/qualify-reports") && f.runReportStdout("repo-mode") == "committed" {
 		f.runReport("check-ignore")
 		f.record("check-ignore passes in committed mode before qualify-reports/ is created",
 			f.status == 0, f.evidence())
@@ -34,12 +34,14 @@ func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 	f.runReport("promote")
 	f.assertRefused("promote refuses when everything under .idsd/ is ignored")
 	f.record("and the repo is still a throwaway, as the refusal says", f.runReportStdout("repo-mode") == "throwaway", "")
-	// Read straight from the exclude file: routing this through check-ignore would pass either way,
-	// since check-ignore re-adds the entry itself in throwaway mode.
-	f.record("and promote put the local exclusion back, so nothing scratch can be staged", f.hasLocalExclusion(), "")
+	// The refusal's real obligation now that promote MOVES the scratch: it must not have moved it. A
+	// half-done promotion leaves the intents in the tree, untracked and unignored, with the tool saying
+	// it refused.
+	f.record("and left the scratch where it was, with nothing in the working tree",
+		f.treeIsFreeOfScratch() && f.exists(f.sharedIdsd()), f.evidence())
 
 	// The same repo with one durable file: promote now has something to stage, and the mode flips.
-	f.write(f.repo+"/.idsd/intents-placeholder.md", "# intent\n")
+	f.write(f.scratch()+"/intents-placeholder.md", "# intent\n")
 	f.runReport("promote")
 	f.record("promote succeeds once .idsd/ holds something that is not ignored",
 		f.status == 0 && f.runReportStdout("repo-mode") == "committed", f.evidence())
@@ -57,15 +59,20 @@ func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 		f.status == 1 && strings.Contains(f.out, "NOT gitignored"), f.evidence())
 }
 
-func TestNoRefusalLeavesIdsdExposedToGitAddAll(t *testing.T) {
+func TestNoRefusalLeavesTheScratchStrandedInTheTree(t *testing.T) {
 	t.Parallel()
-	// Without a restore on the `git add` refusal, the exclusion is gone and `git status` lists .idsd/.
+	// promote moves the scratch into the tree and then stages it. A refusal after the move and before
+	// the staging is the dangerous shape: the reports are in the tree, and the human was told the
+	// promotion did not happen.
 	f := newShip(t, "001-promoting")
 	f.newIntentFile("001-promoting")
 	f.write(f.repo+"/.git/index.lock", "")
 	f.runReport("promote")
 	f.assertRefused("promote refuses when it cannot stage")
-	f.record("and put the local exclusion back, so .idsd/ stays invisible to 'git add -A'", f.hasLocalExclusion(), "")
+	// The move is undone, so "not promoted" is the whole truth rather than half of it.
+	f.record("and put the scratch back rather than stranding it in the tree",
+		f.treeIsFreeOfScratch() && f.exists(f.sharedIdsd()), f.evidence())
+	f.assertReports("back at", "and says so, so the human is not left guessing where their intents went")
 	f.remove(f.repo + "/.git/index.lock")
 
 	// promote needs one report as its evidence a ship happened here, which is why it does not go
@@ -97,30 +104,6 @@ func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 	f.chmod(f.repo+"/.git/index", 0o644)
 }
 
-func TestCheckIgnoreRefusesWhenTheExclusionCannotBeWritten(t *testing.T) {
-	t.Parallel()
-	// The whole pass proceeds on this command's ok line: `init` writes the report next, and a report
-	// git does not ignore sits inside its own fingerprint, so every stamp after it is stale on
-	// arrival. An ok printed over a write that failed is the one answer here that costs the pass.
-	f := newRepo(t)
-	// Unwritable by construction, never by a mode bit: .git/info is a regular file, so the mkdir the
-	// append needs fails with ENOTDIR for every user, root included.
-	f.remove(f.repo + "/.git/info")
-	f.write(f.repo+"/.git/info", "not a directory\n")
-	f.runReport("check-ignore")
-	f.assertRefused("check-ignore refuses when it cannot write the exclusion")
-	f.assertReports("NOT excluded", "and says the scratch dir is not excluded")
-	f.record("and reports no ok line the pass could proceed on", !strings.Contains(f.out, "ok:"), f.out)
-
-	// The positive control: the same command on the same fixture writes the exclusion and reports ok
-	// once .git/info is a directory again, so what refused above was this guard and not the fixture.
-	f.remove(f.repo + "/.git/info")
-	f.mkdirAll(f.repo + "/.git/info")
-	f.runReport("check-ignore")
-	f.record("and the same command succeeds once the exclude file can be written",
-		f.status == 0 && f.hasLocalExclusion(), f.evidence())
-}
-
 func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
 	t.Parallel()
 	// `promote` is run by hand and by `idsd-ship`, so it meets repos already promoted. Past the mode
@@ -131,7 +114,7 @@ func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
 	f.runReport("init", "001-already-durable")
 	// An unstaged edit to a tracked file under .idsd/, which is what `git add .idsd` would sweep up.
 	// It is the human's work, and nothing here asked for it to be staged.
-	f.appendTo(f.repo+"/.idsd/charter.md", "a line the human has not staged\n")
+	f.appendTo(f.scratch()+"/charter.md", "a line the human has not staged\n")
 	before := f.indexState()
 
 	f.runReport("promote")
@@ -157,7 +140,8 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	linked.assertReports("is a symlink", "and names the link rather than the git answer downstream of it")
 	linked.record("and wrote nothing through it, so the file outside the repo is untouched",
 		linked.read(outside) == "# not the repo's\n", "it now reads:\n"+linked.read(outside))
-	linked.record("and left the local exclusion standing", linked.hasLocalExclusion(), "")
+	linked.record("and left the scratch unmoved, with nothing in the working tree",
+		linked.treeIsFreeOfScratch() && linked.exists(linked.sharedIdsd()), linked.evidence())
 
 	// A write that cannot land, by construction rather than by a mode bit: .gitignore is a directory,
 	// so the append fails with EISDIR for every user, root included.
@@ -169,14 +153,19 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	// The message carries this one: without the guard promote runs on to the next check, which also
 	// refuses, for a reason that sends the human to look at git rather than at the failed write.
 	unwritable.assertReports("could not add", "and names the write that failed")
-	unwritable.record("and put the local exclusion back", unwritable.hasLocalExclusion(), "")
+	unwritable.record("and left the scratch unmoved", unwritable.treeIsFreeOfScratch() && unwritable.exists(unwritable.sharedIdsd()), unwritable.evidence())
 
 	// An entry written that git does not act on. The instance the guard names is a .gitignore git
-	// cannot read, which cannot be built without a mode bit; a nested negation reaches the same state
-	// by construction — the entry is in the root .gitignore and the surface is stageable anyway.
+	// cannot read, which cannot be built without a mode bit; a negation reaches the same state by
+	// construction — the entry is in the root .gitignore and the surface is stageable anyway.
+	//
+	// Seeded in the ROOT .gitignore, with the entry already present so promote's append dedupes and
+	// the negation after it is what git acts on (last match wins). A negation inside the scratch dir
+	// would ride along with promote's move and land in the tree, and the target-is-clear guard would
+	// refuse first if it were seeded in the tree — either way the case would pass for the wrong reason.
 	unread := newShip(t, "001-negated")
 	unread.newIntentFile("001-negated")
-	unread.write(unread.repo+"/.idsd/.gitignore", "!qualify-reports/\n")
+	unread.write(unread.repo+"/.gitignore", ".idsd/qualify-reports/\n!.idsd/qualify-reports/\n")
 	unread.runReport("promote")
 	unread.assertRefused("promote refuses when the entry is written but git still does not ignore the surface")
 	unread.assertReports("git still does not ignore", "and says the entry landed without taking effect")
@@ -185,5 +174,6 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	staged, _ := unread.git("diff", "--cached", "--name-only")
 	unread.record("and staged nothing, the report included",
 		!strings.Contains(staged, "qualify-report.md"), "staged:\n"+staged)
-	unread.record("and put the local exclusion back", unread.hasLocalExclusion(), "")
+	unread.record("and left the scratch unmoved, so no report reached the tree",
+		unread.treeIsFreeOfScratch() && unread.exists(unread.sharedIdsd()), unread.evidence())
 }

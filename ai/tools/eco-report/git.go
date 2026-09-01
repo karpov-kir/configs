@@ -104,21 +104,25 @@ func (r *run) ignoreSourceOf(path string) string {
 	return source
 }
 
-// Ignored has to mean ignored by something that travels with the repository. `core.excludesFile` is
-// one machine's, so it answers the plain `-q` question while ignoring nothing on anybody else's
-// clone, and the next `git add -A` there stages the report. Returns the source it read, so a caller
-// can name it.
+// Ignored has to mean ignored by something that travels with the repository. `core.excludesFile` and
+// `.git/info/exclude` are one machine's, so they answer the plain `-q` question while ignoring nothing
+// on anybody else's clone, and the next `git add -A` there stages the report. Returns the source it
+// read, so a caller can name it.
 //
-// Arm order is load-bearing. `info/exclude` is repo-relative in an ordinary repo and ABSOLUTE in a
-// linked worktree, so it is matched before absolute paths are rejected; every other in-repo source is
-// repo-relative, so rejecting the rest of the absolutes is what excludes `core.excludesFile`. Match
-// `*/.gitignore` first instead and `core.excludesFile=~/.gitignore`, the common global setup, passes.
+// `.git/info/exclude` used to count as travelling, because throwaway mode wrote the scratch exclusion
+// there and this predicate had to accept its own work. Throwaway scratch is no longer in the tree and
+// nothing writes that file any more, so the arm was both dead and wrong: the only caller left is
+// committed mode, where an entry no clone can see is exactly what must not pass. Removing it is what
+// makes "ignored for everyone" true rather than nearly true.
+//
+// Absolute paths are rejected before `*/.gitignore` is matched, or `core.excludesFile=~/.gitignore` —
+// the common global setup — passes as a repo-relative rule.
 func (r *run) ignoredSourceTravels(path string) (string, bool) {
 	source := r.ignoreSourceOf(path)
 	switch {
-	case source == ".git/info/exclude" || strings.HasSuffix(source, "/.git/info/exclude"):
-		return source, true
 	case strings.HasPrefix(source, "/"):
+		return source, false
+	case source == ".git/info/exclude" || strings.HasSuffix(source, "/.git/info/exclude"):
 		return source, false
 	case source == ".gitignore" || strings.HasSuffix(source, "/.gitignore"):
 		return source, true
@@ -132,6 +136,14 @@ func (r *run) ignoredSourceTravels(path string) (string, bool) {
 // that can clear it. One predicate for every caller, or `check-ignore` asks a weaker question than
 // `init` enforces and the remedy `init` names cannot satisfy it.
 func (r *run) assertReportsDirIsIgnored() {
+	// Outside the tree, git ignores nothing because git contains nothing: the requirement is met by
+	// the location itself rather than by an ignore rule, and asking check-ignore about a path the repo
+	// does not hold would refuse every throwaway init. The location is asserted instead, which is the
+	// stronger of the two — an ignore entry can be edited away, a path outside the tree cannot.
+	if r.idsdDir != r.treeIdsdDir() {
+		r.assertScratchIsUnreachableByGit()
+		return
+	}
 	source, travels := r.ignoredSourceTravels(r.reportsDir + "/")
 	if travels {
 		return
@@ -151,8 +163,13 @@ func (r *run) assertReportsDirIsIgnored() {
 // disagree. The durable record is deliberately absent — committed mode keeps it tracked.
 // The whole directory, never a path per report: the next intent's report does not exist when
 // `promote` runs, so an entry per file would leave it tracked.
+//
+// Built from the IN-TREE layout, not from r.reportsDir, which in throwaway mode is outside the tree
+// and would make the trim a no-op — putting an absolute path into .gitignore, where it matches
+// nothing while both writer and verifier agree it is fine. These entries describe where the reports
+// land once the directory IS in the tree, which is the only state either caller is about.
 func (r *run) ignoreSurface() []string {
-	return []string{strings.TrimPrefix(r.reportsDir, r.root+"/") + "/"}
+	return []string{".idsd/qualify-reports/"}
 }
 
 // The trailing-newline check is the point: appending to a file whose last line has none fuses the
@@ -196,102 +213,4 @@ func endsWithNewline(file string) bool {
 		return false
 	}
 	return last[0] == '\n'
-}
-
-// The line the local exclusion is written as, and the line the teardown removes. One name, because the
-// two have to be the same string: written one way and matched another, the add succeeds, the drop
-// removes nothing, and the teardown reports zero traces over an entry still standing.
-const localExclusionEntry = ".idsd/"
-
-func (r *run) addLocalExclusion() error {
-	// gitPath refuses rather than returning here, where the shell's `$( )` turned its exit into a
-	// status. Unreachable in practice — the repo resolved a moment ago — and exit 2 either way.
-	exclude := r.gitPath("info/exclude")
-	if err := os.MkdirAll(shell.DirName(exclude), 0o777); err != nil {
-		return err
-	}
-	return appendLine(exclude, localExclusionEntry)
-}
-
-// `promote` drops the exclusion before it writes .gitignore, so every refusal past that point puts it
-// back — left off, the next `git add -A` stages the whole scratch dir.
-func (r *run) restoreLocalExclusion() {
-	if err := r.addLocalExclusion(); err != nil {
-		r.errLines("error: could not restore the local .idsd/ exclusion — .idsd/ is now visible to 'git add -A'")
-	}
-}
-
-// Every refusal past that point, with the restore attached, so the next one added to `promote` cannot
-// be written without it.
-func (r *run) refuseUnpromoted(lines ...string) {
-	r.restoreLocalExclusion()
-	r.refuse(lines...)
-}
-
-func (r *run) dropLocalExclusion() error {
-	exclude := r.gitPath("info/exclude")
-	if !shell.IsRegularFile(exclude) {
-		return nil
-	}
-	content, err := os.ReadFile(exclude)
-	if err != nil {
-		// The shell read this through `grep -vxF`, whose exit 2 meant it could not read the file, and
-		// moving the empty temp over it would wipe every other exclusion.
-		r.errLines("error: could not read " + exclude + " — left it untouched")
-		return err
-	}
-	var kept []string
-	for _, line := range shell.SplitLines(string(content)) {
-		if line != localExclusionEntry {
-			kept = append(kept, line)
-		}
-	}
-	temp, err := os.CreateTemp("", "")
-	if err != nil {
-		r.errLines("error: mktemp failed — left the .idsd/ exclusion in " + exclude)
-		return err
-	}
-	// Renamed over, never written in place: the write path is what the caller reads a failure from,
-	// and an unwritable .git/info must fail here rather than truncate the file it could not replace.
-	_, err = temp.Write(joinRecords(kept))
-	if closed := temp.Close(); err == nil {
-		err = closed
-	}
-	if err == nil {
-		err = moveFile(temp.Name(), exclude)
-	}
-	if err != nil {
-		_ = os.Remove(temp.Name())
-		r.errLines("error: could not replace " + exclude + ": " + err.Error())
-	}
-	return err
-}
-
-// How many worktrees share this git dir, and whether git actually answered. The two answers are not
-// equally safe, which is why the status is read rather than discarded: `.git/info/exclude` is shared
-// across worktrees, and the only caller drops the shared `.idsd/` entry when this comes back as 1. A
-// failed read counted 0, which is also below 2 — so the exclusion went, and a parallel throwaway ship's
-// scratch became visible to the next `git add -A` there.
-//
-// The same rule `assertRepoModeReadable` states one screen up: a read this tool could not make must
-// not arrive at the destructive branch wearing the shape of an answer.
-func (r *run) worktreeCount() (int, bool) {
-	listing, status := r.captureGit(nil, "worktree", "list", "--porcelain")
-	if status != 0 {
-		return 0, false
-	}
-	return worktreesIn(listing)
-}
-
-// The worktrees a porcelain listing names, and whether it named any at all. git lists the worktree this
-// run is in, so a repo that answered reports at least one — zero is git exiting 0 while saying
-// something this cannot read, which is not the same fact as "one worktree" and must not arrive as it.
-func worktreesIn(listing string) (int, bool) {
-	count := 0
-	for _, line := range strings.Split(listing, "\n") {
-		if strings.HasPrefix(line, "worktree ") {
-			count++
-		}
-	}
-	return count, count > 0
 }

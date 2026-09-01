@@ -1,12 +1,12 @@
 ---
 name: kk-qualify
-description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's; the `.idsd` report and merge stamp are idsd-qualify's, which stacks on this.
+description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the pass written down with a merge stamp layers that on top of this one.
 argument-hint: "[fast|full] [scope: a path, a diff selector, or natural language] [score threshold]"
 ---
 
 **The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another.
 
-**No persisted state.** No report file, no stamp, no `.idsd/`. The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so** — `idsd-qualify` is the one that does.
+**No persisted state.** No report file, no stamp, no directory of your own. The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so.**
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); the per-file queue and loop belong to the subagents you spawn.
 

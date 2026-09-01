@@ -28,6 +28,8 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 ## Report
 
+**`.idsd/` in this suite means the resolved scratch root, not a path in the repo.** `report.sh root` prints it, and it is the only way to learn it. In **committed** mode it is `<repo>/.idsd/`. In **throwaway** mode it is outside the working tree — shared by every branch and worktree of the clone — so a skill that joins `.idsd/` onto the repo root writes where no other worktree will look, and where the next `git add -A` can see it. Every `.idsd/<file>` below, and in every skill of this suite, is relative to what that subcommand printed.
+
 **One report per intent**, at `.idsd/qualify-reports/<intent>-qualify-report.md`, **persisting across runs** — the working digest. `~/.claude/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
 
 **Two intents ship in parallel only in separate worktrees.** The freshness stamp fingerprints the **whole tree**, not the intent's files, so two ships in one worktree each stamp a tree holding the other's edits and invalidate each other's gate on every save.

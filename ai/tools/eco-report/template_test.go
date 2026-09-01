@@ -62,7 +62,7 @@ func TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded(t *testing.T) {
 	// The write that could already have landed is the report, not the link's target: init only ever
 	// reads the template. So this assertion names the harm, content from outside the repo reaching
 	// .idsd/, rather than the shape of the refusal.
-	smuggled := linked.filesContaining(linked.repo+"/.idsd", "SMUGGLED")
+	smuggled := linked.filesContaining(linked.scratch()+"", "SMUGGLED")
 	linked.record("and no content from outside the repo reached .idsd/", len(smuggled) == 0, joinLines(smuggled))
 
 	// A template that is gone. Without this refusal the `intent:` guard fires on the failure to open

@@ -15,9 +15,9 @@ func TestADotNamedReportIsInvisibleToEveryDiscoveryPath(t *testing.T) {
 	// while the listing really cannot see such a file. Both plants below are made by hand, since `init`
 	// is exactly what will not create them.
 	f := newShip(t, "001-the-only-ship")
-	f.write(f.repo+"/.idsd/qualify-reports/.hidden-qualify-report.md", "---\nintent: 002-hidden\n---\n")
+	f.write(f.scratch()+"/qualify-reports/.hidden-qualify-report.md", "---\nintent: 002-hidden\n---\n")
 	// A directory named like a report is the other thing the listing must not take for one.
-	f.mkdirAll(f.repo + "/.idsd/qualify-reports/003-a-directory-qualify-report.md")
+	f.mkdirAll(f.scratch() + "/qualify-reports/003-a-directory-qualify-report.md")
 
 	f.runReport("list")
 	f.record("list names the one real report, and neither the dot-named file nor the directory",
@@ -44,4 +44,19 @@ func TestASubcommandRefusesAnIntentNameThatCouldNameNoReport(t *testing.T) {
 		f.assertReports("names no report", "and "+subcommand+" names the value as what it refused")
 	}
 	f.record("and the one real report is untouched", f.isFile(f.reportPath("001-real")), "")
+}
+
+func TestANamedReportThatIsNotThereIsRefusedRatherThanRead(t *testing.T) {
+	t.Parallel()
+	// Every subcommand that reads a report opens with requireReport, and a name resolves to a path
+	// without anything checking that the path exists. Read anyway, the frontmatter readers all answer
+	// empty for a file they could not open, and empty is in isUnstamped's set — so a report nothing
+	// ever wrote answers `resume` with a clean stage record and a stamp for free.
+	f := newShip(t, "001-real")
+	f.runReport("carry", "002-never-existed")
+	f.assertRefused("a subcommand refuses an intent whose report is not there")
+	f.assertReports("no qualify report for that intent", "and names the path it looked for")
+	// The real report is untouched, so what refused was the name and not the fixture.
+	f.runReport("carry", "001-real")
+	f.record("and the report that does exist still reads", f.status == 0, f.evidence())
 }

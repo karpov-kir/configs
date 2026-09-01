@@ -139,24 +139,6 @@ func TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer(t *testing.T) {
 	unstamped.chmod(unstamped.repo+"/blocker.txt", 0o644)
 }
 
-func TestThePreScopingPathIsReportedNeverPassedOverInSilence(t *testing.T) {
-	t.Parallel()
-	f := newRepo(t)
-	f.mkdirAll(f.repo + "/.idsd")
-	f.write(f.repo+"/.idsd/ship-report.md", "---\nintent: 002-live\n---\n\n# Decide\n\n- [ ] a live decision\n")
-	// The pre-rename directory is the second historical path, and the note must name it too: a repo
-	// mid-ship across the rename has its report there, which the `ship-report.md` entry does not cover.
-	f.mkdirAll(f.repo + "/.idsd/ship-reports")
-	f.write(f.repo+"/.idsd/ship-reports/003-live-ship-report.md", "---\nintent: 003-live\n---\n")
-	f.runReport("state")
-	f.record("state names the pre-scoping report rather than answering a bare no-report", f.out != "no-report", "")
-	f.runReport("list")
-	f.assertReports("ship-report.md", "list names the pre-scoping report it cannot see")
-	f.assertReports("ship-reports", "and names the pre-rename directory too")
-	f.runReport("gate", "002-live")
-	f.assertReports("ship-report.md", "and so does a refusal for a named report that is not there")
-}
-
 func TestAScanThatDidNotRunIsNeverReadAsNothingOpen(t *testing.T) {
 	t.Parallel()
 	// `state`, `carry` and `close` share one reader, and the point of sharing it is that they cannot
@@ -195,8 +177,8 @@ func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {
 
 	// `state`'s stdout is parsed as exactly one token, so every note it emits must go to stderr.
 	noted := newRepo(t)
-	noted.mkdirAll(noted.repo + "/.idsd")
-	noted.write(noted.repo+"/.idsd/ship-report.md", "---\nintent: 002-old\n---\n\n# Decide\n")
+	noted.mkdirAll(noted.scratch() + "")
+	noted.write(noted.scratch()+"/ship-report.md", "---\nintent: 002-old\n---\n\n# Decide\n")
 	stdout := noted.runReportStdout("state")
 	noted.record("state's stdout is one token even while it notes the pre-scoping report on stderr",
 		stdout == "no-report", "stdout was: "+stdout)
@@ -249,8 +231,8 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	// token's own archive arm, since `state` answers from the report's filename a step earlier, and the
 	// two are different ships whenever the frontmatter names a slug the filename does not.
 	archived := newShip(t, "001-landed")
-	archived.mkdirAll(archived.repo + "/.idsd/archive")
-	archived.write(archived.repo+"/.idsd/archive/001-landed.md", "# built, and merged\n")
+	archived.mkdirAll(archived.scratch() + "/archive")
+	archived.write(archived.scratch()+"/archive/001-landed.md", "# built, and merged\n")
 	archived.runReport("list")
 	archived.record("done for a ship whose intent file has reached archive/",
 		stateOf(archived.out, "001-landed") == "done", archived.out)
@@ -264,7 +246,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 func TestAFilenameCannotForgeAListingRow(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "realship")
-	forged := f.repo + "/.idsd/qualify-reports/ev\nfakeship\tready\nil" + "-qualify-report.md"
+	forged := f.scratch() + "/qualify-reports/ev\nfakeship\tready\nil" + "-qualify-report.md"
 	if err := os.WriteFile(forged, []byte("---\nintent: x\n---\n"), 0o644); err != nil {
 		t.Skipf("this filesystem refused a newline in a filename, so this case cannot run here: %v", err)
 	}

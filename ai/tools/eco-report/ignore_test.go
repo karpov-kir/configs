@@ -3,6 +3,12 @@ package ecoreport_test
 // Ignored has to mean ignored for everyone. A machine-local exclude answers the plain question while
 // ignoring nothing on anybody else's clone, and the report carries a pass's security findings, so it
 // is exactly the file that must not reach a commit.
+//
+// Every case here is COMMITTED mode, and that is the change: throwaway scratch no longer lives in the
+// tree, so there is nothing there to ignore and `init` asks no ignore question at all. The rules below
+// still govern the one mode where `.idsd/` is tracked and `qualify-reports/` has to be kept out of it.
+// The throwaway mode's replacement property — the scratch is somewhere `git add -A` cannot reach — is
+// pinned in scratch_location_test.go.
 
 import (
 	"strconv"
@@ -10,11 +16,23 @@ import (
 	"testing"
 )
 
+// A committed fixture with NO .gitignore entry — the state every case here is about. The shared
+// newCommittedRepo writes that entry, which is the very thing these cases must find missing.
+func newCommittedRepoUnignored(t *testing.T) *fixture {
+	t.Helper()
+	f := newRepo(t)
+	f.newDurableCharter()
+	f.mustGit("add", ".idsd/charter.md")
+	f.commit("committed idsd")
+	f.assertFixtureIsCommitted()
+	return f
+}
+
 func TestAGlobalExcludeDoesNotCountAsIgnoringTheReport(t *testing.T) {
 	t.Parallel()
-	f := newRepo(t)
+	f := newCommittedRepoUnignored(t)
 	globalExclude := f.base + "/global-exclude"
-	f.write(globalExclude, ".idsd/\n")
+	f.write(globalExclude, ".idsd/qualify-reports/\n")
 	f.mustGit("config", "core.excludesFile", globalExclude)
 	if _, status := f.git("check-ignore", "-q", ".idsd/qualify-reports/"); status == 0 {
 		f.runReport("init", "001-global-only")
@@ -31,10 +49,10 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 	// The common global setup: `git config --global core.excludesFile ~/.gitignore`. A `*/.gitignore`
 	// arm matches it by name, so the guard against a machine-local exclude would pass for the very
 	// configuration most people have.
-	f := newRepo(t)
+	f := newCommittedRepoUnignored(t)
 	homeGitignore := f.base + "/home/.gitignore"
 	f.mkdirAll(f.base + "/home")
-	f.write(homeGitignore, ".idsd/\n")
+	f.write(homeGitignore, ".idsd/qualify-reports/\n")
 	f.mustGit("config", "core.excludesFile", homeGitignore)
 	if _, status := f.git("check-ignore", "-q", ".idsd/qualify-reports/"); status == 0 {
 		f.runReport("init", "001-global-gitignore")
@@ -45,18 +63,13 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 	}
 
 	// The remedy `init` names has to agree with `init`, or the human is sent between the two forever.
-	// This needs committed mode: throwaway `check-ignore` writes an exclusion and never asks the
-	// question, so a throwaway fixture passes whatever the committed branch does.
-	committed := newRepo(t)
-	committed.newDurableCharter()
-	committed.mustGit("add", ".idsd/charter.md")
-	committed.commit("committed idsd, no gitignore")
+	committed := newCommittedRepoUnignored(t)
 	secondHomeGitignore := committed.base + "/home2/.gitignore"
 	committed.mkdirAll(committed.base + "/home2")
 	committed.write(secondHomeGitignore, ".idsd/qualify-reports/\n")
 	committed.mustGit("config", "core.excludesFile", secondHomeGitignore)
 	_, ignoredGlobally := committed.git("check-ignore", "-q", ".idsd/qualify-reports/")
-	if committed.runReportStdout("repo-mode") == "committed" && ignoredGlobally == 0 {
+	if ignoredGlobally == 0 {
 		committed.runReport("check-ignore")
 		committed.record("check-ignore warns where init refuses, rather than reporting ok",
 			committed.status == 1 && strings.Contains(committed.out, "NOT gitignored"),
@@ -65,75 +78,87 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 		committed.record("fixture did not establish a committed repo ignored only globally", false, "")
 	}
 
-	// A linked worktree's info/exclude is absolute, so rejecting absolutes alone would break every worktree.
-	t.Run("a linked worktree, whose info/exclude is an absolute path", func(t *testing.T) {
-		worktree := newRepo(t)
-		worktree.runReport("check-ignore")
+	// A linked worktree of a committed repo reads its ignore rules from a tracked .gitignore, which
+	// travels. Init has to work there, and the report has to land in that worktree's own tree — a
+	// committed .idsd/ is per-worktree by definition, since git checks it out into each one.
+	t.Run("init works in a linked worktree of a committed repo", func(t *testing.T) {
+		worktree := newCommittedRepoUnignored(t)
+		worktree.write(worktree.repo+"/.gitignore", ".idsd/qualify-reports/\n")
+		worktree.mustGit("add", ".gitignore")
+		worktree.commit("ignore the reports")
 		worktreeDir := worktree.base + "/wt"
 		worktree.mustGit("worktree", "add", "-q", worktreeDir, "-b", "wt-branch")
 		if !worktree.exists(worktreeDir) {
-			t.Skip("git worktree add is unavailable here, so a worktree with an absolute info/exclude cannot be built")
+			t.Skip("git worktree add is unavailable here, so this case cannot be built")
 		}
 		worktree.runReportIn(worktreeDir, "init", "001-in-a-worktree")
-		worktree.record("init works in a linked worktree, whose info/exclude is an absolute path",
+		worktree.record("init works in a linked worktree, writing into that worktree's own tree",
 			worktree.status == 0 && worktree.isFile(worktreeDir+"/.idsd/qualify-reports/001-in-a-worktree-qualify-report.md"),
 			worktree.evidence())
 	})
-
-	// Init above only reads that path; this writes through it. Prefix the root onto an absolute git
-	// dir and the exclusion lands in a directory built out of it *inside the worktree*, so the append
-	// succeeds, `check-ignore` reports ok, and git ignores nothing — the next `git add -A` there
-	// stages the report. Its own repo, never the one above: `check-ignore` has already run there, and
-	// info/exclude is shared, so the entry would be in place whatever the worktree did with it.
-	t.Run("writing through a worktree's absolute git dir", func(t *testing.T) {
-		writing := newRepo(t)
-		writingWorktree := writing.base + "/wt-writing"
-		writing.mustGit("worktree", "add", "-q", writingWorktree, "-b", "wt-writing-branch")
-		if !writing.exists(writingWorktree) {
-			t.Skip("git worktree add is unavailable here, so a worktree with an absolute git dir cannot be built")
-		}
-		writing.runReportIn(writingWorktree, "check-ignore")
-		_, ignored := writing.gitIn(writingWorktree, "check-ignore", "-q", ".idsd/")
-		// git is the authority, as it is above: an entry written where nothing reads it is still an
-		// entry, and only git's own answer tells the two apart.
-		writing.record("check-ignore in a linked worktree excludes .idsd/ where git itself reads it",
-			writing.status == 0 && ignored == 0,
-			"exit "+strconv.Itoa(writing.status)+"; git check-ignore .idsd/ exited "+strconv.Itoa(ignored)+"\n"+writing.out)
-		writing.record("and wrote the entry into the git dir, not into a tree built under the worktree",
-			containsLine(writing.read(writing.repo+"/.git/info/exclude"), ".idsd/") &&
-				len(writing.filesContaining(writingWorktree, ".idsd/")) == 0,
-			"left under the worktree: "+joinLines(writing.filesContaining(writingWorktree, ".idsd/")))
-	})
 }
 
-func TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
+func TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) {
 	t.Parallel()
-	// `check-ignore` is run at the start of every pass, so the exclusion is appended over and over to
-	// a file the human also keeps their own rules in. Two things can go wrong in that append and both
-	// are silent: the entry accumulating one copy per pass, and the entry fusing onto a last line with
-	// no newline — after which neither the human's rule nor the entry matches anything.
-	f := newRepo(t)
-	exclude := f.repo + "/.git/info/exclude"
-	// A rule of the human's own, deliberately left unterminated. git init writes an exclude file whose
-	// last line is a comment with a newline, so the unterminated state has to be built here.
-	f.write(exclude, "# theirs\n*.scratch")
+	// `promote` appends to a .gitignore the human also keeps their own rules in. Two things can go
+	// wrong in that append and both are silent: the entry accumulating one copy per run, and the entry
+	// fusing onto a last line with no newline — after which neither the human's rule nor the entry
+	// matches anything, while promote reports success and stages the report.
+	//
+	// This used to be asserted over `.git/info/exclude`, which throwaway mode no longer writes. The
+	// append itself is the same code, reached now through the one caller that still writes a rule file.
+	f := newShip(t, "001-appending")
+	f.newIntentFile("001-appending")
+	gitignore := f.repo + "/.gitignore"
+	// A rule of the human's own, deliberately left unterminated.
+	f.write(gitignore, "# theirs\n*.scratch")
 
-	f.runReport("check-ignore")
-	f.record("check-ignore appends the exclusion as its own line, not onto an unterminated one",
-		containsLine(f.read(exclude), ".idsd/") && containsLine(f.read(exclude), "*.scratch"),
-		"exclude now reads:\n"+f.read(exclude))
+	f.runReport("promote")
+	f.record("promote appends the entry as its own line, not onto an unterminated one",
+		f.status == 0 && containsLine(f.read(gitignore), ".idsd/qualify-reports/") &&
+			containsLine(f.read(gitignore), "*.scratch"),
+		"exit "+strconv.Itoa(f.status)+"; .gitignore now reads:\n"+f.read(gitignore))
 	// git is the authority on whether the append took effect: a fused line is still a line, and only
 	// git's own answer distinguishes a rule that matches from one that reads like it should.
-	_, ignored := f.git("check-ignore", "-q", ".idsd/")
+	_, ignored := f.git("check-ignore", "-q", ".idsd/qualify-reports/")
 	_, theirs := f.git("check-ignore", "-q", "keep.scratch")
-	f.record("and git ignores both .idsd/ and the rule that was already there",
-		ignored == 0 && theirs == 0, "check-ignore .idsd/ exited "+strconv.Itoa(ignored)+", keep.scratch exited "+strconv.Itoa(theirs))
+	f.record("and git ignores both the reports directory and the rule that was already there",
+		ignored == 0 && theirs == 0,
+		"check-ignore .idsd/qualify-reports/ exited "+strconv.Itoa(ignored)+", keep.scratch exited "+strconv.Itoa(theirs))
 
-	// Every pass runs check-ignore again. One entry per pass would grow the file without bound and
-	// leave the human reading their own rules out of a wall of duplicates.
-	f.runReport("check-ignore")
-	f.runReport("check-ignore")
-	f.record("and three runs leave exactly one '.idsd/' line",
-		countLinesEqual(f.read(exclude), ".idsd/") == 1,
-		strconv.Itoa(countLinesEqual(f.read(exclude), ".idsd/"))+" copies:\n"+f.read(exclude))
+	// The dedupe, on a fixture where the append actually runs twice. Calling promote again would not
+	// exercise it: once the repo is committed promote returns early and never reaches the append, so a
+	// second call proves nothing about duplicates. A second ship in a fresh repo whose .gitignore
+	// already carries the entry is the state that does.
+	second := newShip(t, "001-again")
+	second.newIntentFile("001-again")
+	secondIgnore := second.repo + "/.gitignore"
+	second.write(secondIgnore, "# theirs\n.idsd/qualify-reports/\n")
+	second.runReport("promote")
+	second.record("an entry already present is not added a second time",
+		second.status == 0 && countLinesEqual(second.read(secondIgnore), ".idsd/qualify-reports/") == 1,
+		strconv.Itoa(countLinesEqual(second.read(secondIgnore), ".idsd/qualify-reports/"))+" copies:\n"+second.read(secondIgnore))
+}
+
+func TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport(t *testing.T) {
+	t.Parallel()
+	// `.git/info/exclude` is one machine's file: it never leaves this clone, so a report ignored only
+	// there is staged by the next `git add -A` on anybody else's. It used to count as travelling because
+	// throwaway mode wrote the scratch exclusion into it and the predicate had to accept its own work.
+	// Nothing writes it now, so committed mode is the only caller and this is the answer it needs.
+	f := newCommittedRepoUnignored(t)
+	f.appendTo(f.repo+"/.git/info/exclude", ".idsd/qualify-reports/\n")
+	_, ignored := f.git("check-ignore", "-q", ".idsd/qualify-reports/")
+	if ignored != 0 {
+		f.record("fixture did not establish an info/exclude-only state", false, "")
+		return
+	}
+	f.runReport("init", "001-locally-excluded")
+	f.assertRefused("init refuses when only .git/info/exclude ignores the reports directory")
+	f.assertNoReportWritten("and wrote no report a clone would commit")
+	// The remedy has to work, or the human is sent between the two commands forever.
+	f.write(f.repo+"/.gitignore", ".idsd/qualify-reports/\n")
+	f.runReport("init", "001-locally-excluded")
+	f.record("and accepts it once a tracked .gitignore is what ignores it",
+		f.status == 0 && f.isFile(f.reportPath("001-locally-excluded")), f.evidence())
 }

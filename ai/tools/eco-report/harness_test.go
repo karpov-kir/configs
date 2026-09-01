@@ -52,6 +52,9 @@ type fixture struct {
 	skill string
 	// The HOME the tool runs against, built by newFlavorHome. Never the machine's own: see there.
 	home string
+	// Where the tool looks for this machine's override. Empty means there is none, which is what every
+	// case wants but the few that write one; never the developer's real $XDG_CONFIG_HOME.
+	configHome string
 
 	out    string // the last run's stdout and stderr, merged, with trailing newlines stripped
 	status int
@@ -61,6 +64,12 @@ func newRepo(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
 	f := &fixture{t: t, base: base, repo: base + "/r"}
+	// Pinned at a fixture directory holding no override, never left empty: empty falls back to the
+	// process's own $XDG_CONFIG_HOME, and this suite would then read the developer's real idsd.conf —
+	// passing on a machine that has one and failing on every machine that does not. The same rule
+	// newFlavorHome states for HOME.
+	f.configHome = base + "/config"
+	f.mkdirAll(f.configHome)
 	f.mkdirAll(f.repo)
 	f.newFlavorHome()
 	f.newSkillCopy()
@@ -140,8 +149,11 @@ func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
 		Dir:  dir,
 		Self: f.skill + "/scripts/report.sh",
 		Home: f.home,
-		Out:  out,
-		Err:  errOut,
+		// Empty for almost every case, which means "no override file", since the fixture HOME holds no
+		// .config. A case that wants one sets f.configHome and never touches the developer's own.
+		ConfigHome: f.configHome,
+		Out:        out,
+		Err:        errOut,
 	}.Exec()
 }
 
@@ -152,6 +164,16 @@ func (f *fixture) runReportIn(dir string, args ...string) {
 	var output bytes.Buffer
 	f.status = f.invoke(dir, &output, &output, args)
 	f.out = strings.TrimRight(output.String(), "\n")
+}
+
+// The stdout-only form from another directory. Needed wherever a value is read back while an override
+// is active: runReportIn merges the streams, so the override's stderr note would arrive as part of the
+// answer.
+func (f *fixture) runReportStdoutIn(dir string, args ...string) string {
+	f.t.Helper()
+	var out, errOut bytes.Buffer
+	f.invoke(dir, &out, &errOut, args)
+	return strings.TrimRight(out.String(), "\n")
 }
 
 // The stdout-only form, for the one case that pins which stream a note goes to.
@@ -168,7 +190,41 @@ func (f *fixture) reportPath(name string) string {
 	if name == "" {
 		name = "review"
 	}
-	return f.repo + "/.idsd/qualify-reports/" + name + "-qualify-report.md"
+	return f.scratch() + "/qualify-reports/" + name + "-qualify-report.md"
+}
+
+// Where this fixture's scratch directory is, by the same rule the tool applies: in the tree while
+// .idsd/ is tracked, under the shared git dir otherwise. Asked of git rather than of the tool, because
+// every assertion helper below calls this and running the tool here would overwrite the f.out and
+// f.status the case is about to read.
+func (f *fixture) scratch() string {
+	if tracked, _ := f.git("ls-files", ".idsd"); tracked != "" {
+		return f.treeIdsd()
+	}
+	return f.sharedIdsd()
+}
+
+// The default throwaway location, as a literal. A case asserting WHERE the scratch landed wants this
+// rather than f.scratch(), which derives from the same rule the tool does and would agree with it by
+// construction.
+//
+// Physically resolved, for the reason newRepo states: on macOS the temp dir sits under /var, a symlink
+// to /private/var, and git answers with the resolved path. Compared literally, every location
+// assertion would fail and look like the defect it exists to catch.
+func (f *fixture) sharedIdsd() string {
+	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
+		return real + "/.git/idsd"
+	}
+	return f.repo + "/.git/idsd"
+}
+
+// The in-tree location — what committed mode uses and what `promote` moves into. Physically resolved
+// for the reason sharedIdsd is: the tool reports paths built from git's answer, which is resolved.
+func (f *fixture) treeIdsd() string {
+	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
+		return real + "/.idsd"
+	}
+	return f.repo + "/.idsd"
 }
 
 // One shell case, one subtest, with the evidence a FAIL line would have carried under it.
@@ -203,25 +259,39 @@ func (f *fixture) assertRefused(name string) {
 // A refusal wrote no report. Asserted on the directory, so a report under any name counts.
 func (f *fixture) assertNoReportWritten(name string) {
 	f.t.Helper()
-	entries, _ := os.ReadDir(f.repo + "/.idsd/qualify-reports")
+	entries, _ := os.ReadDir(f.scratch() + "/qualify-reports")
 	f.record(name, len(entries) == 0, "")
 }
 
-// Discard succeeded and took the whole scratch dir with it.
+// Discard succeeded and took the whole scratch dir with it. Both locations are asserted: the shared
+// one because that is what discard removes, and the in-tree one because a throwaway run that left a
+// directory there has broken the mode's contract just as thoroughly.
 func (f *fixture) assertIdsdRemoved(name string) {
 	f.t.Helper()
-	removed := f.status == 0 && !f.exists(f.repo+"/.idsd")
-	f.record(name, removed, fmt.Sprintf("exit %d; left: %s\n%s", f.status, strings.Join(f.find(f.repo+"/.idsd"), " "), f.out))
+	shared, tree := f.sharedIdsd(), f.treeIdsd()
+	removed := f.status == 0 && !f.exists(shared) && !f.exists(tree)
+	f.record(name, removed, fmt.Sprintf("exit %d; left: %s %s\n%s",
+		f.status, strings.Join(f.find(shared), " "), strings.Join(f.find(tree), " "), f.out))
 }
 
-// Whether .idsd/ is still hidden from the human's `git add -A`. That exclusion is the whole mechanism
-// keeping a throwaway report out of their commits.
-func (f *fixture) hasLocalExclusion() bool {
-	content, err := os.ReadFile(f.repo + "/.git/info/exclude")
-	if err != nil {
+// This machine's override, as a case builds one. Written under the fixture's own configHome, so no
+// case can reach the developer's real ~/.config/kk-flavor/idsd.conf.
+func (f *fixture) writeOverride(content string) {
+	f.t.Helper()
+	f.mkdirAll(f.configHome + "/kk-flavor")
+	f.write(f.configHome+"/kk-flavor/idsd.conf", content)
+}
+
+// The invariant that replaced the local exclusion: throwaway scratch sits where `git add -A` cannot
+// reach it, so there is nothing to hide and no exclusion to keep in step across worktrees. Stronger
+// than what it replaced — an exclude entry can be edited away, a path outside the tree cannot — and
+// asked of `git status` rather than of the layout, so it fails if git can see the scratch by any route.
+func (f *fixture) treeIsFreeOfScratch() bool {
+	if f.exists(f.treeIdsd()) {
 		return false
 	}
-	return containsLine(string(content), ".idsd/")
+	dirty, status := f.git("status", "--porcelain")
+	return status == 0 && !strings.Contains(dirty, ".idsd")
 }
 
 // Everything a stamp demands short of the stamp itself: this pass invalidated, and every stage
@@ -249,16 +319,28 @@ func (f *fixture) stampFullPass(ship string) {
 // care about is the file's presence, and whether `discard` takes it or leaves it.
 func (f *fixture) newIntentFile(slug string) {
 	f.t.Helper()
-	f.mkdirAll(f.repo + "/.idsd/intents")
-	f.write(f.repo+"/.idsd/intents/"+slug+".md", "# intent\n")
+	f.mkdirAll(f.scratch() + "/intents")
+	f.write(f.scratch()+"/intents/"+slug+".md", "# intent\n")
+}
+
+// The human's own durable file, in the SCRATCH dir rather than the tree: what keeps the scratch
+// directory standing when a ship's own files go. The in-tree variant below exists to build committed
+// mode, which is a different job.
+func (f *fixture) newDurableCharterInScratch() {
+	f.t.Helper()
+	f.mkdirAll(f.scratch())
+	f.write(f.scratch()+"/charter.md", "# durable\n")
 }
 
 // The human's own durable file: what keeps .idsd/ standing when a ship's scratch goes, and what
 // `promote` needs something of.
 func (f *fixture) newDurableCharter() {
 	f.t.Helper()
-	f.mkdirAll(f.repo + "/.idsd")
-	f.write(f.repo+"/.idsd/charter.md", "# durable\n")
+	// Always in-tree, never f.scratch(): this helper exists to CREATE committed mode, and at the moment
+	// it runs the repo is still throwaway, so scratch() would answer the shared dir and the `git add`
+	// that follows would have nothing to stage.
+	f.mkdirAll(f.treeIdsd())
+	f.write(f.treeIdsd()+"/charter.md", "# durable\n")
 }
 
 // A copy of the skill dir the tool resolves its two neighbours from.

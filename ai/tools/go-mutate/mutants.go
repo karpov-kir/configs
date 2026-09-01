@@ -280,14 +280,12 @@ var mutants = []mutant{
 	{"report listing: a directory counted as a report", "../eco-report/paths.go", "./eco-report/", "TestADotNamedReportIsInvisibleToEveryDiscoveryPath", `if !shell.IsRegularFile(r.reportsDir + "/" + name) {`, "if false {"},
 	{"resolve: several open reports resolved to one", "../eco-report/paths.go", "./eco-report/", "TestStateNeverAnswersATokenItCannotStandBehind", "if len(names) != 1 {", "if false {"},
 	{"resolve: a name that could name no report resolved anyway", "../eco-report/paths.go", "./eco-report/", "TestASubcommandRefusesAnIntentNameThatCouldNameNoReport", `if stem == "" {`, "if false {"},
-	{"require report: a named report that is not there read anyway", "../eco-report/paths.go", "./eco-report/", "TestThePreScopingPathIsReportedNeverPassedOverInSilence", "if !shell.IsRegularFile(r.report) {", "if false {"},
+	{"require report: a named report that is not there read anyway", "../eco-report/paths.go", "./eco-report/", "TestANamedReportThatIsNotThereIsRefusedRatherThanRead", "if !shell.IsRegularFile(r.report) {", "if false {"},
 	{"readable: an unreadable report read as one that is there", "../eco-report/paths.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", "if !isReadable(r.report) {", "if false {"},
-	{"legacy note: never emitted", "../eco-report/paths.go", "./eco-report/", "TestInitIsWhereALegacyReportGetsMentioned", "if shell.PathExists(path) {", "if false {"},
-	{"legacy note: the pre-rename directory unnamed", "../eco-report/paths.go", "./eco-report/", "TestThePreScopingPathIsReportedNeverPassedOverInSilence", `[]string{r.root + "/.idsd/ship-report.md", r.root + "/.idsd/ship-reports"}`, `[]string{r.root + "/.idsd/ship-report.md"}`},
 	// The ship-exists guard, then each of the three things that satisfy it. Removed whole, `discard
 	// <any-legal-slug>` deletes at exit 0 in a repo that never used idsd.
 	{"discard: the ship-exists guard never refuses", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "func (r *run) assertShipExists(slug string) {\n\tif shell.IsRegularFile(r.report) {", "func (r *run) assertShipExists(slug string) {\n\tif true {"},
-	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.root+"/.idsd/intents/"+slug+".md") || shell.IsRegularFile(r.root+"/.idsd/archive/"+slug+".md") {`, "if false {"},
+	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"discard: the review exception removed", "../eco-report/paths.go", "./eco-report/", "TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed", `if slug == "review" {`, "if false {"},
 	// The durable four are a table, and a table gets a row each: three of them kept .idsd/ standing
 	// with nothing observing that they did.
@@ -302,11 +300,11 @@ var mutants = []mutant{
 	{"markdown count: anything counted as an intent file", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".md") {`, `if err != nil || !info.Mode().IsRegular() {`},
 	// A symlink test reads the final component only, so all three of the write's path components need
 	// one, and each has its own case.
-	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt", `[]string{r.root + "/.idsd", r.reportsDir}`, `[]string{r.reportsDir}`},
+	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt", `[]string{r.idsdDir, r.reportsDir}`, `[]string{r.reportsDir}`},
 	// git refuses any pathspec beyond a symbolic link, so with this path untested the ignore check
 	// refuses instead and the exit alone cannot tell the two apart. The case is the one asserting
 	// which refusal it is — the other names a remedy that reports ok and leaves the link standing.
-	{"write paths: qualify-reports/ no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `[]string{r.root + "/.idsd", r.reportsDir}`, `[]string{r.root + "/.idsd"}`},
+	{"write paths: qualify-reports/ no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `[]string{r.idsdDir, r.reportsDir}`, `[]string{r.idsdDir}`},
 	{"write paths: the report itself no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", "if shell.IsSymlink(r.report) {", "if false {"},
 	{"stage markers: not keyed by the report stem", "../eco-report/paths.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `r.gitPath("idsd-stage-returns/" + name)`, `r.gitPath("idsd-stage-returns")`},
 
@@ -333,26 +331,43 @@ var mutants = []mutant{
 	{"stamp rewrite: an old layout's reviewed-mode left to be read", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", `case strings.HasPrefix(line, "reviewed-mode:"), strings.HasPrefix(line, "reviewed-stages:"):`, `case strings.HasPrefix(line, "reviewed-stages:"):`},
 	{"invalidate: the stage record left stamped", "../eco-report/frontmatter.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "case strings.HasPrefix(line, \"reviewed-stages:\"):\n\t\t\treturn []string{\"reviewed-stages: pending\"}", "case strings.HasPrefix(line, \"reviewed-stages:\"):\n\t\t\treturn []string{line}"},
 
+	{"ignore source: a machine-local info/exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, false", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, true"},
+
+	// families.go — direction inside the skill layer. Each of these turns the scan into one that looks
+	// like it works: it still runs, still reports nothing on a clean tree, and has stopped checking.
+	{"families: the router exception swallows every any-repo skill", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case name == familyRouter:", "case name == familyRouter || true:"},
+	{"families: the scan runs in the permitted direction too", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\t// The permitted direction", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\t// The permitted direction"},
+	{"families: the router keeps a blanket pass, claim or no claim", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "c.assertRouterClaimsItsException(name)", "_ = name"},
+	{"families: a skill in neither family goes unreported", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case !strings.HasPrefix(name, anyRepoFamily):", "case !strings.HasPrefix(name, anyRepoFamily) && false:"},
+	{"families: only SKILL.md is read, so scripts go unchecked", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", `c.filesNamed(dir, "*.md", "*.sh")`, `c.filesNamed(dir, "*.md")`},
+	{"families: the state directory is no longer looked for", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "[]*regexp.Regexp{workflowName, stateDir}", "[]*regexp.Regexp{workflowName}"},
+
+	// root.go — where the throwaway scratch lives. Every mutant here turns the fix back into the defect
+	// it replaced, and each one still reports success on every command, which is why they are worth
+	// pinning: the failure mode being guarded is silence, not an error.
+	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestEveryWorktreeOfACloneSeesTheOneScratchDirectory", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
+	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheLocationIsResolvedFromTheRootNotTheCallersDirectory", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
+	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(real))", "name := shell.BaseName(r.root)"},
+	{"root: a broken override falls back to the default in silence", "../eco-report/root.go", "./eco-report/", "TestABrokenOverrideRefusesRatherThanFallingBack", "if root == \"\" {\n\t\tr.refuse(\"error: \"+path+\" sets no", "if false {\n\t\tr.refuse(\"error: \"+path+\" sets no"},
+	{"root: an override inside the working tree is accepted", "../eco-report/root.go", "./eco-report/", "TestAnOverrideInsideTheWorkingTreeIsRefused", `if scratch != root && !strings.HasPrefix(scratch, root+"/") {`, "if true {"},
+	{"root: an empty directory skeleton read as content", "../eco-report/root.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if entry.IsDir() {\n\t\t\treturn nil\n\t\t}", "if entry.IsDir() {\n\t\t\tcount++\n\t\t\treturn nil\n\t\t}"},
+	{"root: an in-tree scratch dir is migrated without asking", "../eco-report/root.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if count == 0 {", "if count == 0 || true {"},
+	{"promote: a refusal strands the scratch in the working tree", "../eco-report/scratch.go", "./eco-report/", "TestNoRefusalLeavesTheScratchStrandedInTheTree", "if err := os.Rename(to, from); err != nil {", "if err := error(nil); err != nil {"},
+
 	// git.go — every git call the tool makes, and the two exclusion mechanisms it writes through.
 	// Only observable where a write goes through the answer, so the case is `check-ignore` run *in* a
 	// linked worktree: prefixed with the root, the absolute git dir names a tree inside the worktree,
 	// and the exclusion lands there while git goes on ignoring nothing.
-	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine", `if strings.HasPrefix(path, "/") {`, "if false {"},
+	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestPerWorktreeStateGoesToTheWorktreesOwnGitDir", `if strings.HasPrefix(path, "/") {`, "if false {"},
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
 	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.captureGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
 	// The arm order is load-bearing, so the two forms of info/exclude are asked separately: the
 	// relative one an ordinary repo has, and the absolute one a linked worktree has.
-	{"ignore source: info/exclude no longer travels", "../eco-report/git.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `case source == ".git/info/exclude" || strings.HasSuffix(source, "/.git/info/exclude"):`, "case false:"},
-	{"ignore source: a worktree's absolute info/exclude rejected", "../eco-report/git.go", "./eco-report/", "TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine", `case source == ".git/info/exclude" || strings.HasSuffix(source, "/.git/info/exclude"):`, `case source == ".git/info/exclude":`},
 	{"ignore source: a machine-local exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAGlobalExcludeDoesNotCountAsIgnoringTheReport", "case strings.HasPrefix(source, \"/\"):\n\t\treturn source, false", "case strings.HasPrefix(source, \"/\"):\n\t\treturn source, true"},
 	{"ignore source: .gitignore no longer travels", "../eco-report/git.go", "./eco-report/", "TestInitWillNotWriteAReportIntoItsOwnFingerprint", `case source == ".gitignore" || strings.HasSuffix(source, "/.gitignore"):`, "case false:"},
-	{"ignore surface: the trailing slash dropped", "../eco-report/git.go", "./eco-report/", "TestCheckIgnoreHoldsBeforeQualifyReportsExists", `strings.TrimPrefix(r.reportsDir, r.root+"/") + "/"`, `strings.TrimPrefix(r.reportsDir, r.root+"/")`},
-	{"append: the same entry added twice", "../eco-report/git.go", "./eco-report/", "TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if line == entry {\n\t\t\t\treturn nil", "if line == entry {\n\t\t\t\tbreak"},
-	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAnIgnoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
-	{"exclusion drop: the entry left in place", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if line != localExclusionEntry {`, "if true {"},
-	{"promote: a refusal leaves .idsd/ exposed to git add -A", "../eco-report/git.go", "./eco-report/", "TestNoRefusalLeavesIdsdExposedToGitAddAll", "func (r *run) refuseUnpromoted(lines ...string) {\n\tr.restoreLocalExclusion()", "func (r *run) refuseUnpromoted(lines ...string) {\n\tif false {\n\t\tr.restoreLocalExclusion()\n\t}"},
-	{"worktree count: every line counted as a worktree", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if strings.HasPrefix(line, "worktree ") {`, `if strings.HasPrefix(line, "") {`},
-	{"worktree count: a second worktree goes uncounted", "../eco-report/git.go", "./eco-report/", "TestASecondWorktreeKeepsTheSharedExclusion", `if strings.HasPrefix(line, "worktree ") {`, `if strings.HasPrefix(line, "no worktree line starts with this ") {`},
+	{"ignore surface: the trailing slash dropped", "../eco-report/git.go", "./eco-report/", "TestCheckIgnoreHoldsBeforeQualifyReportsExists", `return []string{".idsd/qualify-reports/"}`, `return []string{".idsd/qualify-reports"}`},
+	{"append: the same entry added twice", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if line == entry {\n\t\t\t\treturn nil", "if line == entry {\n\t\t\t\tbreak"},
+	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
 
 	// seams.go — the two scripts this tool calls rather than reimplements.
 	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "if status > 1 {", "if false {"},
@@ -368,10 +383,10 @@ var mutants = []mutant{
 	{"gate: an open item no longer blocks the merge", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case todos != "":`, "case false:"},
 	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "if blocked == 0 {", "if false {"},
 	{"carry: the open items go unprinted", "../eco-report/gate.go", "./eco-report/", "TestCarryPrintsTheItemsARequalifyMustNotLose", "if r.openTodos != \"\" {\n\t\tr.line(\"%s\", r.openTodos)", "if false {\n\t\tr.line(\"%s\", r.openTodos)"},
-	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.root+"/.idsd/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
+	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
 	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateNeverAnswersATokenItCannotStandBehind", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
 	{"state: the readability guard at its own call site removed", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `r.assertReportIsReadable("its state is unknown (permissions?), and 'resume' is what an unread report looks like")`, "_ = r.report"},
-	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.root+"/.idsd/archive/"+slug+".md") {`, "if false {"},
+	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"state token: an unstamped report no longer answers resume", "../eco-report/gate.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if isUnstamped(reviewed) {", "if false {"},
 	{"state token: a moved tree answers ready", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `return "re-qualify" // reviewed once, tree moved since`, `return "ready" // reviewed once, tree moved since`},
 	{"state token: open items no longer answer decide", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if r.openTodos != \"\" {\n\t\treturn \"decide\"", "if false {\n\t\treturn \"decide\""},
@@ -382,10 +397,9 @@ var mutants = []mutant{
 
 	// scratch.go — excluded, promoted to durable, or torn down. Two of the three are destructive.
 	{"check-ignore: the mode read without asserting it could be", "../eco-report/scratch.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", "so nothing scratch is ever staged.\n\tr.assertRepoModeReadable()", "so nothing scratch is ever staged.\n\t_ = r.root"},
-	{"check-ignore: the committed branch never taken", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", "if r.repoMode() == \"committed\" {\n\t\t// A path already tracked", "if false {\n\t\t// A path already tracked"},
+	{"check-ignore: the committed branch never taken", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", "if r.repoMode() == \"committed\" {\n\t\t// A repo promoted out of throwaway", "if false {\n\t\t// A repo promoted out of throwaway"},
 	{"check-ignore: an unignored surface reported ok", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if unignored == "" {`, "if true {"},
-	{"check-ignore: a failed exclusion reported ok", "../eco-report/scratch.go", "./eco-report/", "TestCheckIgnoreRefusesWhenTheExclusionCannotBeWritten", "if err := r.addLocalExclusion(); err != nil {", "if err := error(nil); err != nil {"},
-	{"promote: nothing to promote is promoted anyway", "../eco-report/scratch.go", "./eco-report/", "TestNoRefusalLeavesIdsdExposedToGitAddAll", "if len(r.reportNames()) == 0 {", "if false {"},
+	{"promote: nothing to promote is promoted anyway", "../eco-report/scratch.go", "./eco-report/", "TestNoRefusalLeavesTheScratchStrandedInTheTree", "if len(r.reportNames()) == 0 {", "if false {"},
 	{"promote: the mode read without asserting it could be", "../eco-report/scratch.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", "nothing to promote\")\n\t}\n\tr.assertRepoModeReadable()", "nothing to promote\")\n\t}\n\t_ = r.root"},
 	{"promote: an already-committed repo promoted again", "../eco-report/scratch.go", "./eco-report/", "TestPromoteIsIdempotentOverACommittedRepo", "if r.repoMode() == \"committed\" {\n\t\tr.line(\"already committed", "if false {\n\t\tr.line(\"already committed"},
 	{"promote: a symlinked .gitignore written through", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", "if shell.IsSymlink(gitignore) {", "if false {"},
@@ -400,12 +414,10 @@ var mutants = []mutant{
 	{"discard: the ship-exists guard call removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "r.assertShipExists(stem)", "_ = stem"},
 	{"discard: the readability guard removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardRemovesNothingItCouldNotRead", `r.assertReportIsReadable("nothing was discarded, because its intent cannot be cross-checked (permissions?)")`, "_ = r.report"},
 	{"discard: the two names no longer reconciled", "../eco-report/scratch.go", "./eco-report/", "TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything", `if slug != "" && slug != stem {`, "if false {"},
-	{"discard: the intent file left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `_ = rmFile(r.root + "/.idsd/intents/" + slug + ".md")`, "_ = slug"},
-	{"discard: the archived intent file left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `_ = rmFile(r.root + "/.idsd/archive/" + slug + ".md")`, "_ = slug"},
-	{"discard: the stage markers survive the teardown", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.reportsDir, r.root", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.reportsDir, r.root"},
+	{"discard: the intent file left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `_ = rmFile(r.idsdDir + "/intents/" + slug + ".md")`, "_ = slug"},
+	{"discard: the archived intent file left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `_ = rmFile(r.idsdDir + "/archive/" + slug + ".md")`, "_ = slug"},
+	{"discard: the stage markers survive the teardown", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.reportsDir, r.idsdDir", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.reportsDir, r.idsdDir"},
 	{"discard: what survives no longer keeps .idsd/", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `if kept := r.survivingContent(); kept != "" {`, "if kept := r.survivingContent(); len(kept) < 0 {"},
-	{"discard: the shared exclusion dropped from a second worktree", "../eco-report/scratch.go", "./eco-report/", "TestASecondWorktreeKeepsTheSharedExclusion", "if worktrees > 1 {", "if worktrees > 1 && false {"},
-	{"discard: the exclusion reported from the attempt", "../eco-report/scratch.go", "./eco-report/", "TestTheTeardownReportsTheExclusionFromTheResultNotTheAttempt", "if err := r.dropLocalExclusion(); err != nil {\n\t\tr.errLines(\"discarded:", "if err := error(nil); err != nil {\n\t\tr.errLines(\"discarded:"},
 	{"close: an open item no longer refuses", "../eco-report/scratch.go", "./eco-report/", "TestCloseRetiresOneShipScratchAndNothingElse", "if !isForced {", "if !isForced && false {"},
 	// The case re-inits the same intent after the close: that report is byte-identical to the closed
 	// one, so a surviving marker matches it and refuses the next ship's first stage-returned.
@@ -423,7 +435,6 @@ var mutants = []mutant{
 	{"init: the template check dropped", "../eco-report/init.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "r.assertTemplateStampable()", "_ = r.template"},
 	{"init: the write-path link guard dropped", "../eco-report/init.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `r.assertWritePathsAreReal("the report was NOT initialized")`, "_ = r.root"},
 	{"init: the ignore precondition dropped", "../eco-report/init.go", "./eco-report/", "TestInitWillNotWriteAReportIntoItsOwnFingerprint", "r.assertReportsDirIsIgnored()", "_ = r.root"},
-	{"init: the legacy note not emitted where it is worth reading", "../eco-report/init.go", "./eco-report/", "TestInitIsWhereALegacyReportGetsMentioned", "r.legacyNote()\n\n\tpresent :=", "\n\tpresent :="},
 	{"init: an existing report silently replaced", "../eco-report/init.go", "./eco-report/", "TestAnExistingReportIsNotSilentlyReplaced", "if present && !isForced {", "if present && !isForced && false {"},
 	{"init: --force discards the open items in silence", "../eco-report/init.go", "./eco-report/", "TestAnExistingReportIsNotSilentlyReplaced", "carried, _ = r.runTodoGate()", `carried = ""`},
 	{"init: the staged path cleared through a link", "../eco-report/init.go", "./eco-report/", "TestInitStagedWriteIsNotAWayOutOfTheRepo", "if err := rmFile(staged); err != nil {", "if err := error(nil); err != nil {"},
@@ -542,7 +553,6 @@ var mutants = []mutant{
 	// Two reads whose failure used to arrive at a deletion wearing the shape of an answer — the rule
 	// assertRepoModeReadable states, applied to the other two reads `discard` turns on.
 	{"report: a listing that failed read as no reports open", "../eco-report/paths.go", "./eco-report/", "TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead", "if !errors.Is(err, fs.ErrNotExist) {", "if !errors.Is(err, fs.ErrNotExist) && false {"},
-	{"report: an empty worktree listing read as one worktree", "../eco-report/git.go", "./eco-report/", "TestAWorktreeListingIsOnlyAnAnswerWhenItNamesAWorktree", "return count, count > 0", "return count, count >= 0"},
 	// The third copy of the map-iteration shape in this package, after routerPath and tails. `_ =` and
 	// not a deleted line, or `sort` goes unimported and the mutant does not build — and a `broken`
 	// verdict says nothing about the guard.

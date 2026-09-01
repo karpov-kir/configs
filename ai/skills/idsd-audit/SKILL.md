@@ -7,6 +7,8 @@ Check the invariants that surface **across** intents; a single intent's own ambi
 
 ## Phase 1 — Load the set
 
+**Every `.idsd/<file>` here is relative to the resolved scratch root, never joined onto the repo root** — `~/.claude/skills/idsd-qualify/SKILL.md` → **Report** owns that rule, and `~/.claude/skills/idsd-qualify/scripts/report.sh root` prints the directory.
+
 Read the intent set under `.idsd/`: active intents (`intents/`), built ones (`archive/`), `charter.md`, `constitution.md`, `language.md`, `roadmap.md`. No `.idsd/` → say so and stop.
 
 ## Phase 2 — Check the invariants

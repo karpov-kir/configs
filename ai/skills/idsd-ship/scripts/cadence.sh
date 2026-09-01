@@ -63,6 +63,11 @@ case "${1:-}" in
     # `--git-common-dir`, never `--git-path`: this record is per *repository*, and `--git-path` answers
     # the per-worktree git dir, so a date written from the main tree is invisible in a linked worktree
     # and the offer repeats in every one of them.
+    #
+    # `ai/tools/eco-report/root.go` resolves the idsd scratch root by the same rule, and the duplication
+    # is deliberate: that resolver is Go in another skill, so calling it from here would make the audit
+    # cadence fail whenever the qualify tool cannot be built. Fifteen lines of bash is the cheaper of the
+    # two failures. Change one and read the other.
     # Asked from the root and absolutized against it, because both forms answer relative to the
     # caller's cwd in an ordinary repo.
     repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || repo_root=""

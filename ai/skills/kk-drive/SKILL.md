@@ -10,7 +10,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The
 
 ## Name the entrypoint and the driver
 
-**Discovery is part of the check.** How to run this project is recorded somewhere in the repo — e.g. its manifest scripts, its README, its CI config, a `.idsd/playbook.md`, a project `verify` skill. Read those, then **name the entrypoint and the driver before you use either** — e.g. a browser for a UI, an HTTP client for an endpoint, its own command for a CLI.
+**Discovery is part of the check.** How to run this project is recorded somewhere in the repo — e.g. its manifest scripts, its README, its CI config, a project playbook, a project `verify` skill. Read those, then **name the entrypoint and the driver before you use either** — e.g. a browser for a UI, an HTTP client for an endpoint, its own command for a CLI.
 
 **A recorded result from a run that already drove this change satisfies a scenario** — read it and name what you read rather than driving it again. **A claim that it passed is not a record, and neither is a green gate** (`~/.kk-flavor/standards/core-principles.md` → **5. Verify the effect, not the report of it**): a PR's Verification section, a commit message, a CI run tells you which scenarios to run, never that they ran. A record is someone's account of driving *this* scenario — what they did, what they observed, and the evidence.
 

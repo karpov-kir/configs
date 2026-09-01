@@ -14,7 +14,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	t.Parallel()
 	link := newRepo(t)
 	link.runReport("check-ignore")
-	link.mkdirAll(link.repo + "/.idsd/qualify-reports")
+	link.mkdirAll(link.scratch() + "/qualify-reports")
 	link.mkdirAll(link.base + "/elsewhere")
 	link.symlink(link.base+"/elsewhere/stolen.md", link.reportPath(""))
 	link.runReport("init", "review: symlinked report")
@@ -25,7 +25,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	idsd := newRepo(t)
 	idsd.runReport("check-ignore")
 	idsd.mkdirAll(idsd.base + "/outside")
-	idsd.symlink(idsd.base+"/outside", idsd.repo+"/.idsd")
+	idsd.symlink(idsd.base+"/outside", idsd.scratch()+"")
 	idsd.runReport("init", "review: symlinked idsd dir")
 	idsd.assertRefused("init refuses a symlinked .idsd directory")
 	idsd.record("nothing was written outside the repo through .idsd", !idsd.exists(idsd.base+"/outside/qualify-reports"), "")
@@ -34,9 +34,9 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	// on the report file cannot see a link one level up.
 	reports := newRepo(t)
 	reports.runReport("check-ignore")
-	reports.mkdirAll(reports.repo + "/.idsd")
+	reports.mkdirAll(reports.scratch() + "")
 	reports.mkdirAll(reports.base + "/outside-reports")
-	reports.symlink(reports.base+"/outside-reports", reports.repo+"/.idsd/qualify-reports")
+	reports.symlink(reports.base+"/outside-reports", reports.scratch()+"/qualify-reports")
 	reports.runReport("init", "review: symlinked reports dir")
 	reports.assertRefused("init refuses a symlinked qualify-reports directory")
 	reports.record("nothing was written outside the repo through qualify-reports",
@@ -49,7 +49,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	// reports ok, changes nothing about the link, and init refuses again on the next run.
 	reports.runReport("check-ignore")
 	reports.record("the step that other refusal would name reports ok and leaves the link standing",
-		reports.status == 0 && strings.HasPrefix(reports.out, "ok:") && reports.isSymlink(reports.repo+"/.idsd/qualify-reports"),
+		reports.status == 0 && strings.HasPrefix(reports.out, "ok:") && reports.isSymlink(reports.scratch()+"/qualify-reports"),
 		reports.evidence())
 }
 
@@ -66,7 +66,7 @@ func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
 	// The escape lands at <repo>/escaped-qualify-report.md, two levels up from qualify-reports/, not at
 	// the scratch base. Asserting only on the base, or on the repo's parent, lets a widened charset through.
 	escaped := f.exists(f.repo+"/escaped-qualify-report.md") ||
-		f.exists(f.repo+"/.idsd/escaped-qualify-report.md") ||
+		f.exists(f.scratch()+"/escaped-qualify-report.md") ||
 		f.exists(f.base+"/escaped-qualify-report.md")
 	f.record("no report was written outside qualify-reports/", !escaped, strings.Join(f.find(f.base), "\n"))
 
@@ -80,9 +80,9 @@ func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
 		dotted.assertRefused("init refuses the intent '" + dotIntent + "', which no listing could ever see")
 	}
 	dotted.runReport("list")
-	unseen := containsLine(dotted.out, "no reports") && len(dotted.entries(dotted.repo+"/.idsd/qualify-reports")) == 0
+	unseen := containsLine(dotted.out, "no reports") && len(dotted.entries(dotted.scratch()+"/qualify-reports")) == 0
 	dotted.record("and no dot-named report was left on disk for list to miss", unseen,
-		strings.Join(dotted.entries(dotted.repo+"/.idsd/qualify-reports"), "\n"))
+		strings.Join(dotted.entries(dotted.scratch()+"/qualify-reports"), "\n"))
 }
 
 func TestAnExistingReportIsNotSilentlyReplaced(t *testing.T) {
@@ -125,7 +125,7 @@ func TestTheFilenameAndTheFrontmatterNameTheSameShip(t *testing.T) {
 	filed := f.isFile(f.reportPath("002-spaced")) && !f.isFile(f.reportPath("review")) &&
 		containsLine(f.read(f.reportPath("002-spaced")), "intent: 002-spaced")
 	f.record("a whitespace-led intent is filed and recorded under the same slug", filed,
-		strings.Join(f.entries(f.repo+"/.idsd/qualify-reports"), "\n"))
+		strings.Join(f.entries(f.scratch()+"/qualify-reports"), "\n"))
 	f.runReport("state", "002-spaced")
 	f.record("and it is addressable by the slug it recorded", f.out == "resume", "said '"+f.out+"'")
 	// And by the value `init` was given, whitespace and all — the name reaches a subcommand from the
@@ -149,7 +149,7 @@ func TestInitStagedWriteIsNotAWayOutOfTheRepo(t *testing.T) {
 	// would overwrite its target while `init` reported success.
 	f := newRepo(t)
 	f.runReport("check-ignore")
-	f.mkdirAll(f.repo + "/.idsd/qualify-reports")
+	f.mkdirAll(f.scratch() + "/qualify-reports")
 	f.mkdirAll(f.base + "/victim")
 	f.write(f.base+"/victim/keep.md", "PRECIOUS\n")
 	f.symlink(f.base+"/victim/keep.md", f.reportPath("review")+".new")
@@ -176,7 +176,7 @@ func TestInitStagedWriteIsNotAWayOutOfTheRepo(t *testing.T) {
 	occupied.assertReports("could not clear", "and names the path it could not clear")
 	occupied.record("and wrote no report over it",
 		!occupied.isFile(occupied.reportPath("")) && occupied.exists(occupied.reportPath("")+".new"),
-		joinLines(occupied.entries(occupied.repo+"/.idsd/qualify-reports")))
+		joinLines(occupied.entries(occupied.scratch()+"/qualify-reports")))
 }
 
 func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
@@ -184,7 +184,11 @@ func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
 	// Skipping `check-ignore`, the documented first step, is silent. The report lands inside the tree it
 	// fingerprints, so `state` answers `re-qualify` straight after a complete four-stage stamp and
 	// `gate` blocks on freshness with nothing that can clear it.
-	f := newRepo(t)
+	//
+	// Committed mode, because that is now the only mode where the report CAN land inside the tree.
+	// Throwaway scratch sits outside it by construction, which is the stronger guarantee — there is no
+	// ignore rule left to skip. The throwaway side of this is TestScratchSitsWhereGitAddAllCannotReachIt.
+	f := newCommittedRepoUnignored(t)
 	f.runReport("init", "001-unignored")
 	f.assertRefused("init refuses when git does not ignore the reports directory")
 	f.assertReports("report.sh check-ignore", "and names the step that was skipped")
@@ -198,30 +202,6 @@ func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
 		committed.status == 0 && committed.isFile(committed.reportPath("001-committed-ok")), "")
 }
 
-func TestInitIsWhereALegacyReportGetsMentioned(t *testing.T) {
-	t.Parallel()
-	// init is the first command a pass runs, so it is the moment a report at an older path is worth
-	// knowing about. Every other path emits the note only when it finds no report, and init finds none
-	// by definition, so without this it says nothing at all.
-	f := newRepo(t)
-	f.runReport("check-ignore")
-	f.mkdirAll(f.repo + "/.idsd")
-	f.write(f.repo+"/.idsd/ship-report.md", "---\nintent: 009-live\n---\n\n# Decide\n\n- [ ] unrouted\n")
-	f.runReport("init", "001-fresh")
-	f.record("init still succeeds with a legacy report sitting beside it", f.status == 0, "")
-	f.assertReports("ship-report.md", "and names the legacy report it is not reading")
-	// The note names only the paths that exist, so its wording cannot claim a second one that is
-	// absent. Asserted on the absent path's own name: looking for a word like `either`, which the note
-	// never emits, passes whether or not it names both.
-	f.record("and does not speak of two paths when only one is there", !strings.Contains(f.out, "ship-reports"), "")
-}
-
-// An intent can be seeded from a fetched ticket, which is why CR and LF are collapsed out of it — a
-// newline there forges a second frontmatter line. Every other control byte was carried through, and
-// the slug charset does not stand in the way: a `review: <description>` intent takes its stem off the
-// first field alone and the description reaches the `intent:` line unchecked. That line is echoed by
-// this tool's own output and quoted back by `init`'s own refusal, so an ESC in it erases the lines
-// printed above it.
 func TestAnIntentValueCarriesNoControlByteIntoTheReport(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "review: seeded\x1b[2KFORGED")

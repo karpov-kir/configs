@@ -16,6 +16,10 @@ func (r *run) cmdCheckIgnore() {
 	// any fingerprinting `git add -A`, so nothing scratch is ever staged.
 	r.assertRepoModeReadable()
 	if r.repoMode() == "committed" {
+		// A repo promoted out of throwaway still carries the old rule, and in this mode it is worse than
+		// stale: it makes git ignore untracked files under .idsd/, so a new intent never gets tracked.
+		// Unconditional here because committed mode has no reconcile step to wait for.
+		r.removeStaleExclusion()
 		// A path already tracked also answers "not ignored" here — the case most worth the warning.
 		// Asked through the same predicate `init` enforces, or this prints ok where init then refuses
 		// and sends the human back to this command.
@@ -32,15 +36,20 @@ func (r *run) cmdCheckIgnore() {
 		r.errLines("WARN: NOT gitignored:" + unignored + " — add each to .gitignore (shared idsd setup)")
 		r.exit(1)
 	}
-	if err := r.addLocalExclusion(); err != nil {
-		r.refuse("error: could not add '.idsd/' to " + r.gitPath("info/exclude") + " — the scratch dir is NOT excluded")
-	}
-	r.line("ok: throwaway run — .idsd/ excluded locally via .git/info/exclude (.gitignore untouched)")
+	// Nothing is written in the tree any more, so there is nothing to exclude and no exclusion to keep
+	// in step across worktrees. What has to hold instead is that the resolved location really is out of
+	// git's reach, and that no directory from the older in-tree layout is left holding the only copy of
+	// someone's work.
+	r.assertScratchIsUnreachableByGit()
+	r.reconcileTreeIdsdDir()
+	// After the reconcile, so the entry can only be excluding a directory that is already gone.
+	r.removeStaleExclusion()
+	r.line("ok: throwaway run — idsd scratch is %s, where `git add -A` cannot reach it (nothing to exclude)", r.idsdDir)
 }
 
 func (r *run) cmdPromote() {
-	// Promotion is about the whole .idsd/, so it names no single report — it only needs one to exist,
-	// as the evidence that a ship happened here.
+	// Promotion is about the whole scratch directory, so it names no single report — it only needs one
+	// to exist, as the evidence that a ship happened here.
 	if len(r.reportNames()) == 0 {
 		r.refuse("error: no qualify report under " + r.reportsDir + " — nothing to promote")
 	}
@@ -49,6 +58,14 @@ func (r *run) cmdPromote() {
 		r.line("already committed — .idsd/ is tracked; nothing to promote")
 		r.exit(0)
 	}
+	// Before anything is written or verified. A repo that ran a throwaway ship under the old layout
+	// still carries a `.idsd/` rule in .git/info/exclude, and every step below reads the wrong answer
+	// through it: git ignores untracked files under .idsd/, so the `git add` stages nothing and exits 0,
+	// the mode check then refuses, and the message blames the human for having nothing durable to
+	// promote. The .gitignore verification is misled too — it reads info/exclude as the ignore source
+	// and refuses saying the entry did not take effect.
+	r.removeStaleExclusion()
+
 	gitignore := r.root + "/.gitignore"
 	// Refuse a symlinked .gitignore before anything is written: afterwards the append has already
 	// landed in whatever the link points at, and no refusal below undoes that write.
@@ -57,11 +74,15 @@ func (r *run) cmdPromote() {
 			"  git ignores nothing it cannot read, so entries added through the link would take effect nowhere",
 			"  while this reported success and staged the report. Replace it with a regular file, then re-run.")
 	}
-	if err := r.dropLocalExclusion(); err != nil {
-		r.exit(2)
-	}
-	// Staging waits until every entry is written, or a promotion that reports success with one
-	// missing lets that file reach a commit.
+	// The destination is checked before the ignore entries are written, so a promotion that cannot
+	// possibly finish writes nothing at all.
+	target := r.treeIdsdDir()
+	r.assertPromotionTargetIsClear(target)
+
+	// .gitignore FIRST, and verified, because it is what keeps qualify-reports/ out of the commit. Do
+	// the move first and a failure here leaves the reports sitting in the tree, tracked by the next
+	// `git add -A`. Written this way round, a failure below leaves only a spare entry in .gitignore —
+	// which is wanted in both modes anyway.
 	unwritten := ""
 	for _, entry := range r.ignoreSurface() {
 		if err := appendLine(gitignore, entry); err != nil {
@@ -69,8 +90,8 @@ func (r *run) cmdPromote() {
 		}
 	}
 	if unwritten != "" {
-		r.refuseUnpromoted("error: could not add"+unwritten+" to "+gitignore+" — not promoted.",
-			"  Nothing was staged, so the report is not on its way into a commit.")
+		r.refuse("error: could not add"+unwritten+" to "+gitignore+" — not promoted.",
+			"  Nothing was moved and nothing was staged.")
 	}
 	// Writing an entry is not the same as it taking effect — ask git, and with -v, because
 	// `core.excludesFile` and `.git/info/exclude` answer the plain question too and are this machine's
@@ -82,23 +103,89 @@ func (r *run) cmdPromote() {
 		}
 	}
 	if unignored != "" {
-		r.refuseUnpromoted("error: the entries are in "+gitignore+", but git still does not ignore:"+unignored+" — not promoted.",
+		r.refuse("error: the entries are in "+gitignore+", but git still does not ignore:"+unignored+" — not promoted.",
 			"  git ignores nothing it cannot read; a symlinked or unreadable .gitignore does exactly this.",
-			"  Nothing was staged, so the report is not on its way into a commit.")
+			"  Nothing was moved and nothing was staged.")
 	}
+
+	moved := r.idsdDir
+	r.movePromotedScratch(target)
+
 	if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {
-		r.refuseUnpromoted("error: could not stage .idsd/ and .gitignore — not promoted")
+		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
 	}
 	// `git add` on a directory whose every file is ignored stages nothing and still exits 0, and
 	// qualify-reports/ is ignored by the entry just written — so with nothing else under .idsd/, the add
-	// is a no-op. Success is read from the mode for that reason, never from the add's exit: unpromoted,
-	// the next check-ignore re-excludes .idsd/ and the whole promotion silently un-happens.
+	// is a no-op. Success is read from the mode for that reason, never from the add's exit.
 	if r.repoMode() != "committed" {
-		r.refuseUnpromoted("error: nothing under .idsd/ could be staged, so it is still a throwaway — not promoted.",
-			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a constitution.",
-			"  The .gitignore entry stays (it is wanted in both modes); the local exclusion is back.")
+		r.refuseUnmoved(moved, target,
+			"error: nothing under "+target+" could be staged, so this is still a throwaway — not promoted.",
+			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a constitution.")
 	}
-	r.line("promoted: .idsd/ staged, qualify-reports/ ignored via .gitignore — commit when ready (not committed here)")
+	r.line("promoted: moved the scratch to %s and staged it, qualify-reports/ ignored via .gitignore — commit when ready (not committed here)", target)
+}
+
+// A refusal after the move puts the scratch back where it came from. Left in the tree it is the worst
+// of both states: the intents sit untracked in the working tree while the human has been told the
+// promotion did not happen, and the next `git add -A` picks up whatever .gitignore does not cover.
+//
+// The undo is the inverse rename, so it can only fail for a reason the forward move would have failed
+// for. If it does, say where the files actually are — that is the one thing the human needs.
+func (r *run) refuseUnmoved(from, to string, lines ...string) {
+	if err := os.Rename(to, from); err != nil {
+		lines = append(lines, "  WARNING: the scratch was moved to "+to+" and could not be put back ("+err.Error()+").",
+			"  Your intents are there, in the working tree. Move them to "+from+" yourself, or promote again.")
+		r.refuse(lines...)
+	}
+	lines = append(lines, "  The scratch is back at "+from+"; the .gitignore entry stays (it is wanted in both modes).")
+	r.refuse(lines...)
+}
+
+// Nothing is promoted onto existing content. An in-tree .idsd/ here was made by hand or left by the
+// older layout, and merging two of them is a decision this tool does not get to make silently — one
+// side's charter would win and the other would vanish with nothing said.
+func (r *run) assertPromotionTargetIsClear(target string) {
+	if shell.IsSymlink(target) {
+		r.refuse("error: "+target+" is a symlink -> "+readLink(target)+" — not promoted, and nothing was written.",
+			"  .idsd/ in the tree is always a real directory. Remove the link, then re-run.")
+	}
+	if !shell.PathExists(target) {
+		return
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		r.refuse("error: could not read " + target + " (" + err.Error() + ") — whether it holds anything is unknown, so nothing was promoted.")
+	}
+	if len(entries) == 0 {
+		return
+	}
+	r.refuse("error: "+target+" already holds content — not promoted, and nothing was written.",
+		"  Promotion moves "+r.idsdDir+" here, and merging the two is not something this decides for you:",
+		"  one side's charter or constitution would silently win. Reconcile them by hand, then re-run.")
+}
+
+// The move itself. A rename, never a recursive copy: a copy has a half-done state, and the thing being
+// copied is in throwaway mode the only version of the human's intents anywhere.
+//
+// A rename cannot cross filesystems, and an override root legitimately can be on another volume. That
+// case refuses and hands the move to the human rather than growing a copier whose partial failures
+// this tool would then have to reason about.
+func (r *run) movePromotedScratch(target string) {
+	if err := os.MkdirAll(shell.DirName(target), 0o777); err != nil {
+		r.refuse("error: could not create " + shell.DirName(target) + " — not promoted, and nothing was moved.")
+	}
+	// An empty target directory is in the way of the rename but means nothing; assertPromotionTargetIsClear
+	// has already established it holds nothing.
+	if shell.PathExists(target) {
+		if err := os.Remove(target); err != nil {
+			r.refuse("error: could not clear the empty " + target + " (" + err.Error() + ") — not promoted, and nothing was moved.")
+		}
+	}
+	if err := os.Rename(r.idsdDir, target); err != nil {
+		r.refuse("error: could not move "+r.idsdDir+" to "+target+" ("+err.Error()+") — not promoted.",
+			"  Nothing was moved. If the two are on different filesystems, a rename cannot span them:",
+			"  copy the directory there yourself, remove the original, then re-run. The .gitignore entry is already in place.")
+	}
 }
 
 // Named, this runs with no report at all, so `done` can `close` first and still `discard` after. That
@@ -107,7 +194,6 @@ func (r *run) cmdPromote() {
 func (r *run) cmdDiscard() {
 	switch r.resolveReport(r.arg(1)) {
 	case reportNoneOpen:
-		r.legacyNote()
 		r.refuse("error: nothing to discard — no qualify report under "+r.reportsDir+", and no intent named",
 			"  Name the intent to discard a ship whose report is already closed.")
 	case reportAmbiguous:
@@ -141,41 +227,26 @@ func (r *run) cmdDiscard() {
 			"  Reconcile the two by hand, then re-run.")
 	}
 	if slug != "" {
-		_ = rmFile(r.root + "/.idsd/intents/" + slug + ".md")
-		_ = rmFile(r.root + "/.idsd/archive/" + slug + ".md")
+		_ = rmFile(r.idsdDir + "/intents/" + slug + ".md")
+		_ = rmFile(r.idsdDir + "/archive/" + slug + ".md")
 	}
 	_ = rmFile(r.report)
 	// The stage markers sit in the git dir, which the .idsd/ removal below never reaches.
 	_ = os.RemoveAll(r.stageReturnsDir)
-	rmdirIfEmpty(r.reportsDir, r.root+"/.idsd/intents", r.root+"/.idsd/archive")
+	rmdirIfEmpty(r.reportsDir, r.idsdDir+"/intents", r.idsdDir+"/archive")
 	if kept := r.survivingContent(); kept != "" {
 		// `close` may already have taken the report, and a ship can have no intent file, so
 		// assertShipExists guarantees only that one of the two was there.
 		r.line("discarded: removed what remained of this ship; kept .idsd/ (still holds:%s)", kept)
 		return
 	}
-	_ = os.RemoveAll(r.root + "/.idsd")
-	// .git/info/exclude is shared across worktrees, and a parallel throwaway ship's .idsd/ must stay
-	// excluded. Drop it only from the last worktree.
-	// "Removed" holds only because assertShipExists ran: nothing reaches here without a report or an
-	// intent file to remove. Without it, a second run or any wrong slug claims this having deleted nothing.
-	worktrees, counted := r.worktreeCount()
-	if !counted {
-		r.line("discarded: removed .idsd/ scratch; kept the shared exclusion (git could not list the worktrees, and it is shared across them)")
-		return
-	}
-	if worktrees > 1 {
-		r.line("discarded: removed .idsd/ scratch; kept the shared exclusion (other worktrees exist)")
-		return
-	}
-	// Read the return, don't just call it: dropLocalExclusion fails when it cannot read or replace the
-	// exclude file, and "zero traces" over a surviving entry is the one claim here a human acts on
-	// without checking.
-	if err := r.dropLocalExclusion(); err != nil {
-		r.errLines("discarded: removed .idsd/ scratch, but the '.idsd/' entry in " + r.gitPath("info/exclude") + " could not be removed — it is still excluded")
-		r.exit(2)
-	}
-	r.line("discarded: removed .idsd/ scratch and its local exclusion (throwaway, zero traces)")
+	_ = os.RemoveAll(r.idsdDir)
+	// No exclusion to drop, and so no worktree counting to decide whether dropping it is safe: the
+	// scratch never lived in the tree, so removing it leaves nothing behind for a sibling worktree to
+	// trip over. "Removed" holds only because assertShipExists ran — nothing reaches here without a
+	// report or an intent file to remove, so a second run or a wrong slug cannot claim this having
+	// deleted nothing.
+	r.line("discarded: removed the idsd scratch at %s (throwaway, zero traces)", r.idsdDir)
 }
 
 // Retire one ship's scratch once it has landed. `done` calls this after the commit succeeds; the open

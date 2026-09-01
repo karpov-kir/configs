@@ -34,11 +34,6 @@ func (r *run) cmdInit(args []string) {
 	r.assertTemplateStampable()
 	r.assertWritePathsAreReal("the report was NOT initialized")
 	r.assertReportsDirIsIgnored()
-	// Emitted here too, and not only where a report is missing: this is the first command a pass runs,
-	// so it is the moment a legacy report is worth knowing about — after this one exists, a note saying
-	// an older one is lying around reads as noise about the report just created.
-	r.legacyNote()
-
 	present := shell.PathExists(r.report) || shell.IsSymlink(r.report)
 	if present && !isForced {
 		existing := firstLineWithPrefix(r.report, "intent:")

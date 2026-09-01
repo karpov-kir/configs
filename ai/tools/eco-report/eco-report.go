@@ -23,6 +23,9 @@
 //	init "<intent>" [--force]  scaffold .idsd/ + the report from the template, stamping its intent
 //	                 line. Refuses over an existing report unless --force, which first prints the open
 //	                 `- [ ]` it is about to discard. Refuses a symlink either way
+//	root             print the resolved scratch directory — the in-tree .idsd/ in committed mode, and
+//	                 outside the working tree in throwaway mode. The only way a skill learns it;
+//	                 joining `.idsd/` onto the repo root is what made the location per-worktree
 //	repo-mode        print committed|throwaway — is .idsd/ tracked in git?
 //	invalidate       clear reviewed-tree/reviewed-stages and drop the stage markers at pass start, so no
 //	                 stamp outlives its tree; stamp refuses until this pass has run it
@@ -68,11 +71,15 @@ import (
 // fingerprint script hangs off — are explicit here so a test can drive a fixture without touching
 // anything process-global. Empty means "take it from this process", which is what the command does.
 type Invocation struct {
-	Args     []string
-	Dir      string
-	Self     string
-	Home     string
-	Out, Err io.Writer
+	Args []string
+	Dir  string
+	Self string
+	Home string
+	// Where this machine's overrides live — `$XDG_CONFIG_HOME`. Explicit for the same reason Home is:
+	// the override it resolves decides where every write lands, so a suite must be able to point it at
+	// a fixture instead of the developer's own.
+	ConfigHome string
+	Out, Err   io.Writer
 }
 
 // Run is the entry point the command uses: the process's own directory, argv[0] and HOME.
@@ -106,16 +113,22 @@ func (inv Invocation) Exec() (code int) {
 type stop struct{ code int }
 
 type run struct {
-	args           []string
-	dir, home      string
-	out, errOut    io.Writer
-	skillDir       string
-	template       string
-	todoGate       string
-	fingerprintBin string
+	args                  []string
+	dir, home, configHome string
+	out, errOut           io.Writer
+	skillDir              string
+	template              string
+	todoGate              string
+	fingerprintBin        string
 
-	root       string
+	root string
+	// The scratch directory this invocation acts on, resolved once by resolveIdsdDir. In committed mode
+	// it is inside the tree; in throwaway mode it never is. Read it rather than rebuilding `.idsd` from
+	// the root — that is what made the location per-worktree.
+	idsdDir    string
 	reportsDir string
+	// Set when a machine-local override moved the scratch root, and printed by every command it affects.
+	overrideNote string
 
 	// Set by setReportPaths once the intent is known. Empty until then, so a subcommand that reads a
 	// report resolves it first, through requireReport or resolveReport.
@@ -138,11 +151,12 @@ const noItemsMarker = "no-items"
 
 func newRun(inv Invocation) *run {
 	r := &run{
-		args:   inv.Args,
-		dir:    inv.Dir,
-		home:   inv.Home,
-		out:    inv.Out,
-		errOut: inv.Err,
+		args:       inv.Args,
+		dir:        inv.Dir,
+		home:       inv.Home,
+		configHome: inv.ConfigHome,
+		out:        inv.Out,
+		errOut:     inv.Err,
 	}
 	if r.dir == "" {
 		// Failing here would be a directory that no longer exists, which git is about to refuse for
@@ -151,6 +165,9 @@ func newRun(inv Invocation) *run {
 	}
 	if inv.Home == "" {
 		r.home = os.Getenv("HOME")
+	}
+	if inv.ConfigHome == "" {
+		r.configHome = os.Getenv("XDG_CONFIG_HOME")
 	}
 	self := inv.Self
 	if self == "" {
@@ -183,11 +200,17 @@ func (r *run) resolveRoot() {
 		r.refuse("error: not a git repo")
 	}
 	r.root = root
-	r.reportsDir = root + "/.idsd/qualify-reports"
+	r.resolveIdsdDir()
+	r.reportsDir = r.idsdDir + "/qualify-reports"
 }
 
 func (r *run) dispatch() {
+	// Before the subcommand, so the location is named above whatever it prints — including a refusal,
+	// which is where knowing the directory matters most.
+	r.noteOverride()
 	switch r.arg(0) {
+	case "root":
+		r.line("%s", r.idsdDir)
 	case "init":
 		r.cmdInit(r.args[1:])
 	case "repo-mode":
@@ -217,7 +240,7 @@ func (r *run) dispatch() {
 	case "close":
 		r.cmdClose(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

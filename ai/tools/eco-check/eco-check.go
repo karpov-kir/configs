@@ -87,6 +87,7 @@ func Run(root string, out, errOut io.Writer) int {
 	c.scanDanglingLinks()
 	c.scanHomeRefs()
 	c.scanDirection()
+	c.scanFamilyDirection()
 	c.scanPathRefs()
 	c.scanCitations()
 	c.scanBareRuleIDs()
