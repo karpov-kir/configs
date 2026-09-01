@@ -90,10 +90,43 @@ if command -v git >/dev/null; then
   printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
     > "$tmp/repo/greedy-test.sh"
   out="$("$runner" "$tmp/repo" 2>&1)"; rc=$?
-  check "control: a suite that writes into the checkout fails the run" "1" "$rc"
+  check "control: a checkout that moved under the run exits 3, never 0" "3" "$rc"
   check "control: and the run says the checkout changed, without naming a culprit" "1" \
     "$(printf '%s' "$out" | grep -c 'the checkout changed while the suites ran')"
   check "control: even though the suite itself reported passing" "1" "$(printf '%s' "$out" | grep -c '^ok   greedy-test.sh')"
+
+  # The counters stay a tally of suites. Folded into `failed` this read `1 suite(s) found: 1 passed,
+  # 1 failed` — a sum that exceeds what was found, asserting a red suite that does not exist. Several
+  # sessions in one checkout fire the guard on ordinary editing, so that phantom arrived often enough
+  # to teach a reader to skim the line the genuine case also prints.
+  check "and a moved checkout is named on the summary rather than counted as a failing suite" "1" \
+    "$(printf '%s' "$out" | grep -c '1 suite(s) found: 1 passed, 0 failed, 0 unmeasured, the checkout moved')"
+
+  # Which of the three the exit carries, when more than one is true at once. A suite known to be red
+  # is the most urgent fact and outranks the refusal; the refusal covers every line of the result and
+  # so outranks one suite declining to measure. Both need their own checkout: the greedy suite writes
+  # the same bytes every run, so a repository it has already clobbered no longer moves under it.
+  mkdir -p "$tmp/moved-red"
+  ( cd "$tmp/moved-red" && git init -q . && git config user.email t@t && git config user.name t &&
+    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
+  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
+    > "$tmp/moved-red/greedy-test.sh"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/moved-red/broken-test.sh"
+  out="$("$runner" "$tmp/moved-red" 2>&1)"; rc=$?
+  check "a red suite outranks a checkout that moved" "1" "$rc"
+  check "control: and the checkout really did move, so this is not a red on its own" "1" \
+    "$(printf '%s' "$out" | grep -c 'the checkout changed while the suites ran')"
+
+  mkdir -p "$tmp/moved-nomeasure"
+  ( cd "$tmp/moved-nomeasure" && git init -q . && git config user.email t@t && git config user.name t &&
+    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
+  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
+    > "$tmp/moved-nomeasure/greedy-test.sh"
+  printf '#!/usr/bin/env bash\nexit 2\n' > "$tmp/moved-nomeasure/absent-test.sh"
+  out="$("$runner" "$tmp/moved-nomeasure" 2>&1)"; rc=$?
+  check "a checkout that moved outranks a suite that did not measure" "3" "$rc"
+  check "control: and that suite really did decline to measure" "1" \
+    "$(printf '%s' "$out" | grep -c '^NOMEASURE absent-test.sh')"
 fi
 
 # Two runs that checked different things must not print one line. A run outside a checkout cannot
