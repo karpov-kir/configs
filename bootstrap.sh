@@ -422,11 +422,17 @@ else
   say "verify"
   BOOTSTRAP_VERIFYING=1 "$repo/ai/run-tests.sh" >/dev/null
   verify_status=$?
-  # The runner exits 2 for a suite that did not measure and 1 for one that failed, and the two send a
-  # reader to different places: the machine, or the code. Collapsing them here throws away the half
-  # this script cannot recover, and blames the suites for a missing dependency.
+  # The runner has three non-zero codes and they send a reader to three different places: 1 to the
+  # code, 2 to this machine, 3 to whatever else was writing in this checkout while the suites ran.
+  # Collapsing any of them into the failing-suite arm blames the suites for something they did not do,
+  # and sends someone hunting through code that is fine.
+  #
+  # The runner's own account of a moved checkout — the before/after diff — goes to its stdout, which
+  # the call above discards, so the refusal below has to stand on its own and say where to look.
   if [ "$verify_status" -eq 2 ]; then
     refuse "ai/run-tests.sh could not measure every suite — unproven is not disproven, and it is not passing either"
+  elif [ "$verify_status" -eq 3 ]; then
+    refuse "ai/run-tests.sh ran the suites and then refused the result: the checkout changed while they ran, so what it measured is not this tree. Re-run it once nothing else is editing this checkout."
   elif [ "$verify_status" -ne 0 ]; then
     refuse "ai/run-tests.sh reported a failing suite"
   fi
