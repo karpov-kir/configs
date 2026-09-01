@@ -14,7 +14,7 @@ The reader understands the text on the first read, without backtracking — in *
 
 ## Density
 
-* Stay at the artifact's own altitude and one abstraction level; link to other layers rather than restating them.
+* Stay at the artifact's own altitude and one abstraction level.
 * Lead with the "why", not the implementation trace — the diff is source of truth for that.
 * Group by purpose, not by file.
 * Each line carries a fact unreachable from its surrounding context (code, types, siblings, the diff, …). Cut or link otherwise.
