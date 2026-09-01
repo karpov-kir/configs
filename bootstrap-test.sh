@@ -440,12 +440,10 @@ expect_status "a runner that could not measure exits 1" 1
 expect_out "and says the suites went unproven" "could not measure every suite"
 expect_not_out "and does not blame the suites for it" "reported a failing suite"
 
-# A runner that exits 3: it ran every suite and then refused to certify the result, because the
-# checkout moved while they ran. That is a third destination — not the code, not this machine, but
-# whatever else was writing here — and reported as a failing suite it sends a reader hunting through
-# code that is fine. The runner prints its own before/after diff on stdout, which bootstrap discards,
-# so the wording below is the only account the human gets and the only thing separating the three
-# refusals from each other.
+# A runner that exits 3: it ran the suites and then refused to certify the result, because the checkout
+# moved while they ran. Neither the code nor this machine, so it needs a refusal of its own — and the
+# runner prints its before/after diff on stdout, which bootstrap discards, so the wording asserted
+# below is the whole account the human gets, and the only thing telling this refusal from the others.
 cat >"$verify_repo/ai/run-tests.sh" <<STUB
 #!/usr/bin/env bash
 printf 'ran\n' >>"\$MARKER"
@@ -464,7 +462,7 @@ expect_status "a runner that refused its own result exits 1" 1
   record_fail "control: and the runner really did run, so this is a refusal rather than a missing file" "the runner was never invoked"
 expect_out "and says the suites ran" "ran the suites"
 expect_out "and says the checkout moved under them" "the checkout changed while they ran"
-expect_out "and says where to look" "Re-run it once nothing else is editing this checkout"
+expect_out "and says where to look" "Re-run once nothing else is writing here"
 expect_not_out "and does not blame the suites for it" "reported a failing suite"
 expect_not_out "and does not call it a machine that could not measure" "could not measure every suite"
 

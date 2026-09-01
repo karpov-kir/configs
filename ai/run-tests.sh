@@ -66,11 +66,9 @@ tree_state() {
 passed=0
 failed=0
 unmeasured=0
-# A flag rather than a fourth count: containment is one fact about the run, not a tally of suites, and
-# a counter whose only values are 0 and 1 is a boolean wearing a measurement's shape
-# (`~/.kk-flavor/standards/testing.md` → **7. What a suite reports**). It rides out on the same
-# summary slot as `containment unchecked`, so the three things this run can say about containment
-# read as three spellings of one field.
+# A flag, not a fourth count: containment is one fact about the run, not a tally of suites, and a
+# counter that only ever holds 0 or 1 is not a measurement
+# (`~/.kk-flavor/standards/testing.md` → **7. What a suite reports**).
 checkout_moved=0
 
 before_tree="$(tree_state)"
@@ -114,23 +112,21 @@ done
 
 # A suite that passes while corrupting the checkout has measured something, and the measurement was
 # not the whole effect. bootstrap-test.sh linked a temp HOME at this repository and wrote through the
-# link, replacing real config files while reporting 43 passed.
+# link, replacing real config files while reporting every case green.
 #
 # It cannot say which caused a delta: a concurrent editor looks the same from here. Naming a suite
-# would be a false diagnosis, which sends someone hunting through code that is fine. Where the
-# checkout belongs to one run — a fresh GitHub-hosted runner, which is what gates.yml uses — the only
-# candidate is a suite. That is a property of the workspace and not of CI: a self-hosted runner
-# reusing its workspace, or two jobs sharing a checkout, is as ambiguous as a laptop. Nothing here
-# detects which it is, and the ambient variables that would guess at it — CI, GITHUB_ACTIONS, set by
-# any runner and by anyone who exports them — would make that same false diagnosis wearing the
-# authority of code. So this reports what it saw and diagnoses nothing.
+# would be a false diagnosis, which sends someone hunting through code that is fine. Only a checkout
+# belonging to one run — a fresh GitHub-hosted runner, which is what gates.yml uses — leaves a suite as
+# the sole candidate, and that is a property of the workspace, not of CI: a self-hosted runner reusing
+# its workspace is as ambiguous as a laptop. Nothing here detects which case it is, and the ambient
+# variables that would guess — CI, GITHUB_ACTIONS, exportable by anyone — would give that same false
+# diagnosis the authority of code.
 #
-# What it saw is its own result rather than a failure. `failed` counts suites that went red, and
-# folding a delta no suite need have caused into it makes the summary assert a red suite that does
-# not exist — `16 suite(s) found: 16 passed, 1 failed`, which does not even add up. Several sessions
-# in one checkout fire this on ordinary editing, and a reader who meets a phantom failure often
-# enough stops reading the line: that is the run where a suite really did write into its own
-# repository, rendered identically to the noise.
+# So it goes out as its own result, not a failure. `failed` counts suites that went red, and folding a
+# delta no suite need have caused into it makes the summary claim a red suite that does not exist, on a
+# line whose numbers no longer add up. Several sessions in one checkout fire this on ordinary editing,
+# and a reader who meets that phantom often enough stops reading the line — including on the run where
+# a suite really did write into its own repository.
 if [ "$tree_readable" -eq 0 ]; then
   after_tree="$(tree_state)"
   if [ "$before_tree" != "$after_tree" ]; then
@@ -153,11 +149,10 @@ printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s, discovered b
   "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$containment" "$discovery"
 
 # A red outranks a non-measurement: something is known to be wrong, which is the more urgent fact. A
-# moved checkout sits between the two — it refuses every line of the result rather than one of them,
-# which outranks a single suite declining to measure, while a suite known to be red is more urgent
-# still.
+# moved checkout sits between them — it refuses every line of the result rather than one of them, so it
+# outranks a single suite declining to measure.
 #
-# Exit 3 for it, on `kk-flavor/scripts/score.sh`'s vocabulary: 2 is did-not-measure, 3 is
+# Exit 3 for it, on `~/.kk-flavor/scripts/score.sh`'s vocabulary: 2 is did-not-measure, 3 is
 # ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead
 # tool. Non-zero either way, so a workspace that really is exclusive still reddens gates.yml, which
 # runs this bare and fails the step on any status.

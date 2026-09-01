@@ -81,7 +81,7 @@ out="$("$runner" "$tmp/both" 2>&1)"; rc=$?
 check "a red outranks a non-measurement" "1" "$rc"
 
 # bootstrap-test.sh linked a temp HOME at this repository and wrote through the link, replacing real
-# config files while reporting 43 passed. A suite like that has measured something and the
+# config files while reporting every case green. A suite like that has measured something and the
 # measurement was not the whole effect, so the run has to notice the checkout moved under it.
 if command -v git >/dev/null; then
   mkdir -p "$tmp/repo"
@@ -96,16 +96,14 @@ if command -v git >/dev/null; then
   check "control: even though the suite itself reported passing" "1" "$(printf '%s' "$out" | grep -c '^ok   greedy-test.sh')"
 
   # The counters stay a tally of suites. Folded into `failed` this read `1 suite(s) found: 1 passed,
-  # 1 failed` — a sum that exceeds what was found, asserting a red suite that does not exist. Several
-  # sessions in one checkout fire the guard on ordinary editing, so that phantom arrived often enough
-  # to teach a reader to skim the line the genuine case also prints.
+  # 1 failed` — a sum larger than what was found, asserting a red suite that does not exist.
+  # run-tests.sh's guard carries why that phantom was worth a case.
   check "and a moved checkout is named on the summary rather than counted as a failing suite" "1" \
     "$(printf '%s' "$out" | grep -c '1 suite(s) found: 1 passed, 0 failed, 0 unmeasured, the checkout moved')"
 
-  # Which of the three the exit carries, when more than one is true at once. A suite known to be red
-  # is the most urgent fact and outranks the refusal; the refusal covers every line of the result and
-  # so outranks one suite declining to measure. Both need their own checkout: the greedy suite writes
-  # the same bytes every run, so a repository it has already clobbered no longer moves under it.
+  # Which of the three the exit carries when more than one is true at once; the ranking and its reason
+  # are in run-tests.sh. Both cases need a checkout of their own: the greedy suite writes the same
+  # bytes every run, so a repository it has already clobbered no longer moves under it.
   mkdir -p "$tmp/moved-red"
   ( cd "$tmp/moved-red" && git init -q . && git config user.email t@t && git config user.name t &&
     printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
