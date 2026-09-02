@@ -25,9 +25,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -39,16 +39,18 @@ type span struct {
 	line int
 	text string
 	key  map[string]bool
+	// The citation targets written between this span's start and the next one's, exactly as they were
+	// written — this rule's own, never the whole line's. Held per span because the citing file is what
+	// a relative target resolves against, and that is known here and lost by the time two spans are
+	// paired.
+	citedAs []string
+	// The walked files those targets name, filled once the walk has seen every file. A target names a
+	// file by its tail, so which file it names is not decidable until the file set is known.
+	cites map[string]bool
 }
 
 // Under this a match is a phrase, not a rule.
 const minRuleChars = 12
-
-// The discriminating words a span needs before a match means anything, and the same floor the
-// dependency test below applies to what is left after the names are removed. One constant because the
-// two are compared against each other: drifted apart, a pair could clear the match and fail the test
-// for a reason no reader could see.
-const minDiscriminatingWords = 4
 
 // How much of a rule a report line carries.
 const maxReportRunes = 110
@@ -87,63 +89,6 @@ func boldSpans(line string) []boldSpan {
 	return spans
 }
 
-// Words carrying no discrimination. A rule pair sharing only these shares nothing.
-var common = map[string]bool{
-	"the": true, "a": true, "an": true, "and": true, "or": true, "of": true, "to": true, "in": true,
-	"is": true, "it": true, "that": true, "this": true, "for": true, "on": true, "as": true,
-	"with": true, "by": true, "not": true, "never": true, "you": true, "your": true, "its": true,
-	"be": true, "are": true, "was": true, "one": true, "at": true, "from": true, "what": true,
-	"which": true, "when": true, "where": true, "who": true, "so": true, "but": true, "than": true,
-}
-
-var wordPattern = regexp.MustCompile(`[a-z0-9][a-z0-9-]*`)
-
-func keyOf(text string) map[string]bool {
-	key := map[string]bool{}
-	for _, w := range wordPattern.FindAllString(strings.ToLower(text), -1) {
-		if !common[w] && len(w) > 2 {
-			key[w] = true
-		}
-	}
-	return key
-}
-
-var backticked = regexp.MustCompile("`[^`]*`")
-
-// The words a span carries only because it names something in backticks — a path, a command, a file.
-// Two consumers declaring the same dependency at their own point of use share all of this vocabulary
-// without stating the same rule, and cutting either leaves that file not naming what it runs.
-func namedWords(text string) map[string]bool {
-	named := map[string]bool{}
-	for _, quoted := range backticked.FindAllString(text, -1) {
-		for w := range keyOf(quoted) {
-			named[w] = true
-		}
-	}
-	return named
-}
-
-// The overlap that survives once the words both spans owe to a name they both cite are removed.
-func overlapBeyond(a, b, named map[string]bool) int {
-	n := 0
-	for w := range a {
-		if b[w] && !named[w] {
-			n++
-		}
-	}
-	return n
-}
-
-func overlap(a, b map[string]bool) int {
-	n := 0
-	for w := range a {
-		if b[w] {
-			n++
-		}
-	}
-	return n
-}
-
 // Markdown pairs fences in order down the file, so an odd count leaves the last one open and the scan
 // off from that line to the end. Counted before the lines are read rather than discovered at the end,
 // because by then the spans below the fence have already been dropped.
@@ -157,47 +102,15 @@ func fencesClosed(lines []string) bool {
 	return markers%2 == 0
 }
 
-// What one candidate pair turns out to be.
-type verdict int
-
-const (
-	unrelated verdict = iota
-	// The same rule stated in two files: what this tool exists to find, and what fails the run.
-	restatement
-	// Two files naming the same thing — a path, a command — and agreeing on nothing else. Reported
-	// apart from a restatement because the answer is already known: see namedWords. The `→` filter in
-	// collect is this same case caught earlier, when the citation is written after an arrow rather than
-	// as prose.
-	sharedName
-)
-
-func classify(a, b span) (v verdict, shared, beyond int) {
-	shared = overlap(a.key, b.key)
-	smaller := len(a.key)
-	if len(b.key) < smaller {
-		smaller = len(b.key)
-	}
-	// Most of the shorter rule's discriminating words, so a long rule cannot drag in every short one
-	// that happens to share vocabulary with part of it.
-	if shared < minDiscriminatingWords || shared*100 < smaller*70 {
-		return unrelated, shared, 0
-	}
-	named := namedWords(a.text)
-	for w := range namedWords(b.text) {
-		named[w] = true
-	}
-	beyond = overlapBeyond(a.key, b.key, named)
-	if beyond < minDiscriminatingWords {
-		return sharedName, shared, beyond
-	}
-	return restatement, shared, beyond
-}
-
 // The scan's own account of itself: the rules it read, and how many files it was pointed at and did
 // not read. The second number is the one that makes the first mean anything — 376 bolded rules and
 // 206 are the same line to a reader unless the run says it was shown less of the tree.
 type scan struct {
 	spans []span
+	// Every file the walk read, rules or none. A citation resolves against this and not against the
+	// files that happen to hold a rule: a target that names a file holding no rules still names it,
+	// and answering "no such file" there would exempt a pair the tree can prove nothing about.
+	files []string
 	// Files and directories this was handed and did not read. A directory counts once and takes its
 	// whole subtree with it, so this is a floor on what was missed, never the total.
 	unread int
@@ -246,6 +159,7 @@ func collect(root string) (scan, error) {
 			refuse("cannot read %s: %s — it was NOT read", shell.Oneline(p), shell.Oneline(err.Error()))
 			return nil
 		}
+		found.files = append(found.files, p)
 		lines := strings.Split(string(body), "\n")
 		// A fence toggles the scan off, so one nobody closed silences every rule below it — for the
 		// rest of the file, and without a word. That is the quiet this tool exists to remove, arriving
@@ -266,7 +180,21 @@ func collect(root string) (scan, error) {
 			if inFence {
 				continue
 			}
-			for _, b := range boldSpans(line) {
+			onLine := boldSpans(line)
+			for idx, b := range onLine {
+				// A rule owns the citations written from where it starts up to the next bold span on
+				// the line, which is where the one real form puts them: `**rule** (`path` →
+				// **Section**)`. The boundary is the next bold span and not the next rule, because a
+				// citation's own `**Section**` is a bold span that is not a rule; stopping there keeps
+				// the scope narrow, and narrowing can only lose an exemption, never grant one. Handed
+				// the whole line instead, one legitimate pointer exempts every other rule beside it:
+				// park a duplicate on a line that already carries a cross-reference and the pair goes
+				// silent, which is this tool's one unacceptable failure.
+				end := len(line)
+				if idx+1 < len(onLine) {
+					end = onLine[idx+1].start
+				}
+				cited := citedTargets(line[b.start:end])
 				text := strings.TrimSpace(b.text)
 				if len(text) < minRuleChars {
 					continue
@@ -281,13 +209,85 @@ func collect(root string) (scan, error) {
 				k := keyOf(text)
 				// Under the floor a match is a coincidence, not a restatement.
 				if len(k) >= minDiscriminatingWords {
-					found.spans = append(found.spans, span{file: p, line: i + 1, text: text, key: k})
+					found.spans = append(found.spans, span{file: p, line: i + 1, text: text, key: k, citedAs: cited})
 				}
 			}
 		}
 		return nil
 	})
+	found.resolveCitations()
 	return found, err
+}
+
+// Turn each span's written citations into the walked files they name. After the walk, never during
+// it: a citation names a file by its tail, and until the last file is read the tree cannot say
+// whether one file answers to that tail or three do.
+func (s *scan) resolveCitations() {
+	resolver := newCitationResolver(s.files)
+	for i := range s.spans {
+		rule := &s.spans[i]
+		rule.cites = map[string]bool{}
+		for _, target := range rule.citedAs {
+			if named := resolver.fileNamed(target, rule.file); named != "" {
+				rule.cites[named] = true
+			}
+		}
+	}
+}
+
+// Two spans one verdict holds together, with the two counts a report line quotes.
+type pair struct {
+	a, b   span
+	shared int
+	beyond int
+}
+
+// The two sites under a report headline. One shape for all three verdicts, so a reader comparing a
+// restatement against an accepted pair reads the same columns in the same order.
+func (p pair) sites() string {
+	return fmt.Sprintf("  %s:%d — %s\n  %s:%d — %s\n",
+		shell.Oneline(p.a.file), p.a.line, quotedRule(p.a.text),
+		shell.Oneline(p.b.file), p.b.line, quotedRule(p.b.text))
+}
+
+// What one run tells its reader. Written to an io.Writer rather than printed where it is built, so a
+// case can read it back. The headline over a group, and the clause counting it in the summary, are
+// the only place a verdict reaches a human. Printed straight to stdout, nothing short of running the
+// process could check that either one is still there.
+type report struct {
+	read   int
+	pairs  []pair
+	naming []pair
+	citing []pair
+	unread int
+}
+
+func (r report) writeTo(w io.Writer) {
+	for _, p := range r.pairs {
+		fmt.Fprintf(w, "rule stated twice (%d words shared):\n%s", p.shared, p.sites())
+	}
+	for _, p := range r.naming {
+		fmt.Fprintf(w, "same dependency named twice, not a rule (%d words shared, %d beyond the name):\n%s",
+			p.shared, p.beyond, p.sites())
+	}
+	for _, p := range r.citing {
+		fmt.Fprintf(w, "one cites the other, not a restatement (%d words shared):\n%s", p.shared, p.sites())
+	}
+	fmt.Fprintf(w, "%d bolded rule(s) read, %d pair(s) stating the same thing in two files", r.read, len(r.pairs))
+	// An accepted group prints its count only when it has one. A run with none of them says so by the
+	// clause not being there, and a zero beside every heading reads as a measurement nobody made.
+	if len(r.naming) > 0 {
+		fmt.Fprintf(w, ", %d naming the same dependency", len(r.naming))
+	}
+	if len(r.citing) > 0 {
+		fmt.Fprintf(w, ", %d citing the other's file", len(r.citing))
+	}
+	// The denominator the rule count needs. 376 rules and 206 read the same without it, and the pair
+	// count underneath is drawn from whichever of the two this run actually saw.
+	if r.unread > 0 {
+		fmt.Fprintf(w, " — %d path(s) NOT read, so this is a partial scan", r.unread)
+	}
+	fmt.Fprintln(w)
 }
 
 func main() {
@@ -319,16 +319,11 @@ func main() {
 		return err == nil && inScope[abs]
 	}
 
-	type pair struct {
-		a, b   span
-		shared int
-		beyond int
-	}
 	// Restatements and the pairs that share only a name they both cite. The second kind is printed
 	// rather than dropped: silencing it would make this tool's own narrowing invisible, and a real
 	// rule whose prose is short beside a long path would vanish with it. Printed and set apart, an
 	// accepted pair costs a reader one glance instead of an adjudication they have already made.
-	var pairs, naming []pair
+	var pairs, naming, citing []pair
 	for i := range spans {
 		for j := i + 1; j < len(spans); j++ {
 			if spans[i].file == spans[j].file {
@@ -343,6 +338,8 @@ func main() {
 				pairs = append(pairs, pair{spans[i], spans[j], shared, beyond})
 			case sharedName:
 				naming = append(naming, pair{spans[i], spans[j], shared, beyond})
+			case citesOwner:
+				citing = append(citing, pair{spans[i], spans[j], shared, beyond})
 			}
 		}
 	}
@@ -351,27 +348,9 @@ func main() {
 	}
 	sort.Slice(pairs, byShared(pairs))
 	sort.Slice(naming, byShared(naming))
+	sort.Slice(citing, byShared(citing))
 
-	for _, p := range pairs {
-		fmt.Printf("rule stated twice (%d words shared):\n  %s:%d — %s\n  %s:%d — %s\n",
-			p.shared, shell.Oneline(p.a.file), p.a.line, quotedRule(p.a.text),
-			shell.Oneline(p.b.file), p.b.line, quotedRule(p.b.text))
-	}
-	for _, p := range naming {
-		fmt.Printf("same dependency named twice, not a rule (%d words shared, %d beyond the name):\n  %s:%d — %s\n  %s:%d — %s\n",
-			p.shared, p.beyond, shell.Oneline(p.a.file), p.a.line, quotedRule(p.a.text),
-			shell.Oneline(p.b.file), p.b.line, quotedRule(p.b.text))
-	}
-	fmt.Printf("%d bolded rule(s) read, %d pair(s) stating the same thing in two files", len(spans), len(pairs))
-	if len(naming) > 0 {
-		fmt.Printf(", %d naming the same dependency", len(naming))
-	}
-	// The denominator the rule count needs. 376 rules and 206 read the same without it, and the pair
-	// count underneath is drawn from whichever of the two this run actually saw.
-	if found.unread > 0 {
-		fmt.Printf(" — %d path(s) NOT read, so this is a partial scan", found.unread)
-	}
-	fmt.Println()
+	report{read: len(spans), pairs: pairs, naming: naming, citing: citing, unread: found.unread}.writeTo(os.Stdout)
 	// A partial read outranks the pair count, and takes the exit with it. The pairs above are real and
 	// stay printed; what cannot be claimed is the absence of the others, and exit 0 or 1 would claim
 	// exactly that. This is the only cross-file restatement detector there is, so a scan that was

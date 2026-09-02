@@ -595,6 +595,12 @@ var mutants = []mutant{
 	// The suffix filter used to run first, so this branch was unreachable for a link to a directory and
 	// the subtree behind it left every figure with nothing on stderr.
 	{"cite-graph: a symlinked directory dropped in silence", "../cite-graph/read.go", "./cite-graph/", "TestASymlinkedDirectoryIsReportedAndCounted", "	case resolved.IsDir():", "	case resolved.IsDir() && false:"},
+	// The whole cited path has to be the tail of the file it names. Shortened, `made/up/writing.md`
+	// answers to the real `writing.md` and the graph reports an edge nobody wrote. `ruleecho` keeps its
+	// own copy of this guard on purpose — two sites is under the extract bar, and the tools differ on
+	// an ambiguous name — so this entry is the twin of `ruleecho: a citation matched on its last
+	// segment alone`, and each copy is watched on its own.
+	{"cite-graph: a citation matched on its last segment alone", "../cite-graph/read.go", "./cite-graph/", "TestAPathThatNamesNoFileIsNotAnsweredByItsBasename", `if seen[candidate] || !(candidate == form || strings.HasSuffix(candidate, "/"+form)) {`, "if seen[candidate] {"},
 
 	{"stats: an unreadable path no longer withholds the row", "../eco-stats/eco-stats.go", "./eco-stats/", "TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree", "if s.unreadable != 0 {", "if s.unreadable != 0 && false {"},
 	{"stats: an unread path never counted", "../eco-stats/measure.go", "./eco-stats/", "TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree", "s.unreadable++", "s.unreadable += 0"},
@@ -641,6 +647,45 @@ var mutants = []mutant{
 	{"handoff: a fenced line contributes nothing to its slot", "../handoff-check/handoff-check.go", "./handoff-check/", "TestSubstanceFloor", `			s.absorb(section, raw)
 			continue`, `			continue`},
 	{"handoff: the dirty-tree note never printed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestDirtyTreeIsANoteAndNotAFinding", "if dirty == 0 {", "if dirty >= 0 {"},
+	{"ruleecho: a rule citing the file that owns it read as a restatement", "../rule-echo/match.go", "./rule-echo/", "TestAPointerToTheRulesOwnerIsNotARestatement", "if a.cites[b.file] || b.cites[a.file] {", "if false {"},
+	// The exemption is decided in `classify` and wired in `collect`, so the guard above is only half of
+	// it: with the citations never reaching the spans, `classify` reads an empty map and every pointer
+	// is a restatement again. A case that builds its own spans passes over this mutation, which is how
+	// the aimed-at line went uncovered until a case drove `collect` itself.
+	//
+	// Emptied as `line[end:end]` and not as `""`, because `end` is read nowhere else and a mutant that
+	// orphans it does not compile.
+	{"ruleecho: a line's citations never reach the spans on it", "../rule-echo/main.go", "./rule-echo/", "TestAPointerToTheRulesOwnerIsNotARestatement", "cited := citedTargets(line[b.start:end])", "cited := citedTargets(line[end:end])"},
+	// The two edges of a rule's citation scope, one mutant and one anchor each: the slice expression
+	// carries the lower bound, the assignment above it the upper. Repoint one when the code moves and
+	// the other still needs repointing. A citation belongs to the rule it was written for. Widened back
+	// to the head of the line, a pointer exempts the rule before it; widened forward to the end, it
+	// exempts the ones after. Either way a duplicated rule parked beside a legitimate cross-reference
+	// goes silent, and silence is the one failure this tool has no second guard against.
+	{"ruleecho: a rule's citations start at the head of its line", "../rule-echo/main.go", "./rule-echo/", "TestACitationDoesNotExemptTheOtherRulesOnItsLine", "cited := citedTargets(line[b.start:end])", "cited := citedTargets(line[0:end])"},
+	{"ruleecho: a rule's citations run to the end of its line", "../rule-echo/main.go", "./rule-echo/", "TestACitationDoesNotExemptTheOtherRulesOnItsLine", "end = onLine[idx+1].start", "end = len(line)"},
+	// The whole cited path has to be the tail of the file it names. Shortened, `made/up/writing.md`
+	// answers to the real `writing.md` — and here that mistake exempts a genuine restatement, so a
+	// duplicated rule is reported as compliant. `cite-graph`'s nameResolver carries the same guard
+	// against the same hazard.
+	{"ruleecho: a citation matched on its last segment alone", "../rule-echo/match.go", "./rule-echo/", "TestACitationNamingAnotherFileDoesNotExemptTheRestatement", `if seen[candidate] || !(candidate == form || strings.HasSuffix(candidate, "/"+form)) {`, "if seen[candidate] {"},
+	// A name that two files answer to names neither of them. Guess, and half the time the guess exempts
+	// a pair the tree can prove nothing about.
+	{"ruleecho: an ambiguous citation resolved to the first file that matched", "../rule-echo/match.go", "./rule-echo/", "TestAnAmbiguousCitationExemptsNothing", "if len(paths) != 1 {", "if len(paths) < 1 {"},
+	// The other side of that branch, and the one the refusal case cannot reach: most of this tree's
+	// citations are bare names, so a branch that resolves none of them reports every pointer written
+	// that way as the duplication it is not.
+	{"ruleecho: a bare name never names a file", "../rule-echo/match.go", "./rule-echo/", "TestABareNameOnlyOneFileAnswersToResolves", "return only(r.byBase[target])", `return ""`},
+	// The accepted groups must never read as the failing one. Printed under the restatement headline, or
+	// dropped from the summary, a pair the tree only points at comes back as a pair it duplicates.
+	{"ruleecho: the citing group never counted in the summary", "../rule-echo/main.go", "./rule-echo/", "TestTheReportNamesEachGroupAndCountsItInTheSummary", "if len(r.citing) > 0 {", "if len(r.citing) > 0 && false {"},
+	{"ruleecho: the citing group printed under the restatement headline", "../rule-echo/main.go", "./rule-echo/", "TestTheReportNamesEachGroupAndCountsItInTheSummary", `fmt.Fprintf(w, "one cites the other, not a restatement (%d words shared):\n%s", p.shared, p.sites())`, `fmt.Fprintf(w, "rule stated twice (%d words shared):\n%s", p.shared, p.sites())`},
+	// One candidate reachable through two of the written forms is one match. Counted twice it reads as
+	// ambiguous, and the pointer it belongs to is reported as a restatement.
+	{"ruleecho: one file counted once per written form of the citation", "../rule-echo/match.go", "./rule-echo/", "TestOneFileReachedByTwoWrittenFormsIsOneMatch", `if seen[candidate] || !(candidate == form || strings.HasSuffix(candidate, "/"+form)) {`, `if !(candidate == form || strings.HasSuffix(candidate, "/"+form)) {`},
+	// A backticked span is as often a command as a path. Read as citations, `report.sh root` and every
+	// other quoted token become exemptions handed out at random.
+	{"ruleecho: any backticked span read as a citation", "../rule-echo/match.go", "./rule-echo/", "TestCitedTargetsReadsBothFormsAndNothingElse", `if strings.HasSuffix(target, ".md") {`, "if true {"},
 }
 
 // A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same
