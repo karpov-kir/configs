@@ -139,6 +139,52 @@ func TestEverySuiteAMutantNamesIsInTheBaseline(t *testing.T) {
 	}
 }
 
+// The baseline's flags, which the case above does not reach: it asks which suites run, never how.
+// Dropping either flag is silent — every other case here stays green while the run every verdict is
+// measured against changes meaning. Raising the timeout is an edit to this expectation, not a reason
+// to drop the flag.
+func TestTheBaselineRunPinsTheFlagsItsVerdictsRestOn(t *testing.T) {
+	want := "test -count=1 -timeout 30m " + strings.Join(suitesNamed(), " ")
+	if got := strings.Join(baselineArgs(), " "); got != want {
+		t.Errorf("the baseline argv drifted — a verdict of \"this edit turned the suite red\" now rests "+
+			"on a different run than the one documented.\n got: go %s\nwant: go %s", got, want)
+	}
+}
+
+// The per-mutant run's argv, the one every printed verdict comes from. The no-filter branch is here
+// because `-run ""` runs the same suite an omitted flag does, so nothing about the run would betray
+// the flag creeping in — only this expectation would.
+func TestTheMutantRunPinsTheFlagsItsVerdictsRestOn(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		m    mutant
+		want string
+	}{
+		{
+			"a mutant naming its test runs that test alone",
+			mutant{suite: "./p/", by: "TestBound"},
+			"test -overlay=/w/overlay.json -count=1 -failfast -run TestBound ./p/",
+		},
+		{
+			"a mutant naming no test runs its whole suite, with no empty -run",
+			mutant{suite: "./p/"},
+			"test -overlay=/w/overlay.json -count=1 -failfast ./p/",
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := strings.Join(mutantArgs(c.m, "/w/overlay.json", ""), " "); got != c.want {
+				t.Errorf("the mutant argv drifted\n got: go %s\nwant: go %s", got, c.want)
+			}
+		})
+	}
+
+	// The hand-driving override, which has to be able to widen the filter as well as narrow it.
+	widened := strings.Join(mutantArgs(mutant{suite: "./p/", by: "TestBound"}, "/w/overlay.json", ".*"), " ")
+	if want := "test -overlay=/w/overlay.json -count=1 -failfast -run .* ./p/"; widened != want {
+		t.Errorf("a -run override no longer replaces the mutant's own test\n got: go %s\nwant: go %s", widened, want)
+	}
+}
+
 // The shipped list, held to the rule preflight enforces at runtime: every mutant names a file that is
 // there and a string that is in it exactly once. This is the one case here that reads the real list,
 // and it is what stops the list rotting between full mutation runs — those take minutes and are not

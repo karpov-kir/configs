@@ -52,7 +52,6 @@ jobs:
       - name: Run every suite
         run: ai/run-tests.sh
 
-  # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
   go:
     runs-on: ubuntu-latest
     steps:
@@ -63,6 +62,9 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
+      # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+      # `-timeout 30m` because the eco-report suite runs past Go's 10m default on a loaded runner, and
+      # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
       - name: Gate
         working-directory: ai/tools
         run: |
@@ -73,7 +75,7 @@ jobs:
             exit 1
           fi
           go vet ./...
-          go test -count=1 ./...
+          go test -count=1 -timeout 30m ./...
 
   # Proves the shell suites' cases can actually fail. ai/run-tests.sh cannot cover this — it discovers
   # `*-test.sh` and the harness is not one — so without this job, editing a guard silently retires the

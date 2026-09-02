@@ -8,7 +8,7 @@
 #
 # The scans are Go, in `ai/tools/eco-check/`; this reaches that binary and nothing else. Run both from
 # `ai/tools` after a change there: `go test -count=1 -timeout 30m ./...`, then `./bin/go-mutate`.
-# Keep the timeout: the 10m default is under this suite's runtime on a loaded machine, and
+# Keep the timeout: the eco-report package alone runs past the 10m default on a loaded machine, and
 # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
 #
 # tested by: tool-stub-test.sh, and the resolver it calls by resolve-test.sh

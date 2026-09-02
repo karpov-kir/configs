@@ -12,7 +12,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 |---|---|
 | `idsd-ship <arg>` | Build + qualify + gate message. `<arg>` is an existing intent slug, or a **ticket / new-feature ref**. |
 | `idsd-ship done [<intent>]` | Merge, gated on review freshness and the stage record. **Names the intent whenever more than one ship is open** — `report.sh gate` refuses to guess between them. |
-| `idsd-ship qualify` | `idsd-qualify` over the working tree — trimmed for turnaround unless you say the merge is waiting; no build, no merge. |
+| `idsd-ship qualify` | `idsd-qualify` over the working tree — trimmed for turnaround unless your caller says the merge is waiting; no build, no merge. |
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
 | `idsd-ship promote` | Turn a throwaway `.idsd/` into a durable idsd project. |
 
@@ -43,7 +43,7 @@ Read where the change set stands with `report.sh state <intent>` (never hand-par
 | `resume` | Run the full `ship <intent>` flow for the report's intent — build idempotently resumes to green, then the qualify stamps. |
 | `re-qualify` | Run `qualify`; carry-forward keeps the open items. |
 | `decide` | Present the gate message; its open items are what the human clears before `done`. |
-| `finalize` | Re-run `qualify` as the pass the merge waits on — the earlier one trimmed stages for turnaround. |
+| `finalize` | Re-run `qualify` as the pass the merge waits on. |
 | `ready` | Present the gate message — nothing is open, so the diff and the report are the whole of it. |
 | `done` | Say the intent is built and archived; recommend the next unbuilt one. |
 

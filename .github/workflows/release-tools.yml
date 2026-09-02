@@ -52,6 +52,8 @@ jobs:
           cache: false
 
       # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+      # `-timeout 30m` because the eco-report suite runs past Go's 10m default on a loaded runner, and
+      # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
       - name: Gate
         working-directory: ai/tools
         run: |
@@ -62,7 +64,7 @@ jobs:
             exit 1
           fi
           go vet ./...
-          go test -count=1 ./...
+          go test -count=1 -timeout 30m ./...
 
       # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is
       # consulted, so darwin binaries built here are the same bytes a darwin host would produce.

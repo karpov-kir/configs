@@ -545,10 +545,10 @@ func TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity(t *testing.T) {
 		f.record("and routes to re-qualify", strings.TrimSpace(f.out) == "re-qualify", f.evidence())
 	})
 
-	// The reader loop this note breaks: in a repo whose identity can never be established, the gate blocks
-	// on freshness and stages, both of which say "run a full qualify" — and that qualify's stamp refuses
-	// for a reason printed only on stamp's stderr. An orchestrator that swallows that stderr never learns
-	// why.
+	// The reader loop this note breaks: in a repo whose identity can never be established, the gate
+	// blocks on freshness and stages, both of which send the reader back to re-qualify — and that
+	// qualify's stamp refuses for a reason printed only on stamp's stderr. An orchestrator that
+	// swallows that stderr never learns why.
 	t.Run("and the gate says why it will stay unstamped, where the human meets the block", func(t *testing.T) {
 		f := newShip(t, "097-no-route")
 		f.newIntentFile("097-no-route")

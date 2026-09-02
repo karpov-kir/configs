@@ -10,7 +10,7 @@ These rules bind any edit, however small. Run the instruction lane after a batch
 
 - **Delete before you rephrase.** Keep what is essential, plus the supporting detail that makes it unambiguous. Drop the rest.
 - **Nice-to-have is a cut.** A rule that fires rarely, or that a competent agent follows anyway, buys nothing and dilutes the rules that matter.
-- **A rule you add names what it replaces**, or says plainly that nothing covered this — in the instruction lane's account, never in the file, where it is the evidence **No evidence in a rule file** cuts.
+- **A rule you add names what it replaces**, or says plainly that nothing covered this — in the instruction lane's account, never in the file, where **No evidence in a rule file** cuts it.
 - **The bar rises with how often the file loads.** An always-read doc takes only what applies to nearly every task; a trigger-loaded standard, its activity; a skill body, its lane.
 
 ## No evidence in a rule file
