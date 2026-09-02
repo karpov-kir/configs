@@ -4,7 +4,7 @@ Rules for editing what agents read: skills, standards, prompts, templates, `CLAU
 
 These rules bind any edit, however small. Run the instruction lane after a batch of edits here.
 
-**Read the sentences either side of your own edit before you leave it.** A clause added beside an older one contradicts it at reading distance, with no reference to follow. Every scoped hunt looks past it, because the file was never the thing under review.
+[writing.md](writing.md) → **Density** has you re-cut what an edit lands beside. **Beside a rule, the two clauses left do more than bloat: they contradict at reading distance, with no reference to follow.** Every scoped hunt looks past the contradiction, because the file was never the thing under review.
 
 ## Earn the place
 

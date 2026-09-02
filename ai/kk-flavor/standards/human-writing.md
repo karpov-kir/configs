@@ -1,16 +1,16 @@
 # Human Writing (outward text)
 
-Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments** take the form at the end; everything above binds them too.
+Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too**: everything here binds them. What a comment must first clear is [code-style.md](code-style.md) → **Comments**.
 
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
 
 ## Budget — the keep test
 
-**Name this artifact's reader and the one action they'll take.** Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
+**Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
 
 Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
 
-**Then score what survived** ([writing.md](writing.md) → **Score what survives**) on its `outward-text` lane — one score per point, never per sentence; what it cuts takes those same two exits.
+**Then score what survived** ([writing.md](writing.md) → **Score what survives**) on its `outward-text` lane, or `code-comment` for a comment — what it cuts takes those same two exits.
 
 **Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
 
@@ -49,10 +49,3 @@ The reviewer's side, for an author deciding what to change. **Each note goes on 
 Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting** — the reviewer writing about the review, which **Budget** already bars.
 
 **A reply is a review comment**, and opens on what changes rather than on agreeing — the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>` and nothing else.
-
-## Code comments
-
-The existence bar and the published-surface exception to it are [code-style.md](code-style.md) → **Comments**. What that bar admits:
-
-- Delete a comment whole when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when a sibling covers it. True, unique content goes too — anecdotes, provenance, alternatives considered. Once a comment stays, shortening it never drops its constraint, invariant, or warning.
-- A published surface's contract prose carries what the types can't — call order, lifecycle, error modes, units, ranges, caller invariants.

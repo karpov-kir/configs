@@ -71,7 +71,9 @@ Cutting damages prose: it stitches sentences together, strands pronouns, leaves 
 
 **Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. A header stating `# untested:` instead (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**) leaves this step covering that script with nothing; read its reason. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
 
-**Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh`** with no arguments, which scans the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start. A comment's bar is `~/.kk-flavor/standards/human-writing.md` → **Code comments**.
+**Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh`** with no arguments, which scans the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start. A comment's bar is `~/.kk-flavor/standards/code-style.md` → **Comments**.
+
+**Its outliers are yours to route, never to fix.** Spawn `kk-humanize` over them, handing it the scan output, which its own first step otherwise re-runs. Re-run the scan when it returns.
 
 **Then drain the handoffs the phases returned** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**) — nothing else here reads a script as code.
 

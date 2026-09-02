@@ -18,6 +18,7 @@ The reader understands the text on the first read, without backtracking — in *
 * Lead with the "why", not the implementation trace — the diff is source of truth for that.
 * Group by purpose, not by file.
 * Each line carries a fact unreachable from its surrounding context (code, types, siblings, the diff, …). Cut or link otherwise.
+* **An edit re-cuts what it lands beside.** Cut your new sentence together with the ones either side of it — a clause appended next to one already carrying half of it leaves both. **A correction reworks the claim it corrects**, rather than trailing it.
 * **One line per item: `<what was wrong> — <what changed>`.** No nesting, and no preamble above the items. Holds wherever you report two or more things, a reply included — reading as explanation is not an exemption, it is the dodge. **An action still open is the exception** — the item carries its case and its recommendation, so it nests.
 * Two statements that can't both hold get reconciled to one, never left to coexist.
 * No backstory, hedging, or justification — describe what is true, not what we tried.
@@ -25,7 +26,7 @@ The reader understands the text on the first read, without backtracking — in *
 
 ## Score what survives
 
-A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per thing they act on separately.** What a score has to beat is per lane, and **at or below** that number the thing goes where that lane sends it.
+A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per claim the reader acts on, never per sentence.** **A survivor longer than a couple of sentences is scored again inside it** — the unit is the claim, not the container it arrived in. What a score has to beat is per lane, and **at or below** that number the thing goes where that lane sends it.
 
 **Score through `~/.kk-flavor/scripts/score.sh cut`** — it holds the numbers, and it refuses the runs that only look like passes. **A non-zero exit is not a result you may keep**; do what it says. **Any override note goes into your reply**, unscored. **A number the human names replaces the lane's for that run.**
 

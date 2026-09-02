@@ -16,6 +16,12 @@ Short, imperative, one-line subject (~50 chars); a body only when the *why* isn'
 
 Match the recent style on the branch (`git log` first). Use semantic prefixes (`feat:`, `fix:`, …) only when the branch already does and commits land directly; PR branches default to plain.
 
+## Branch shape
+
+**A reviewer opens the branch to read the change, not the route you took to it.** A correction to work that exists only on this branch amends or fixes up into the commit it corrects, rather than reaching the PR as a commit of its own. A squash on merge does not cover this — the branch is read before it is merged.
+
+**A rework spanning several unlanded commits is one honest commit**: there is nothing to fix up into, and a rebase across the branch costs more than the shape buys. **The rule reaches only the commits no reviewer has read** — rewriting one they have read discards what they checked, so a correction to those lands openly and names what it corrects. **Never reshape pushed history to satisfy this rule.**
+
 ## Pull requests
 
 - Open as drafts; follow the repo's PR template if it has one.

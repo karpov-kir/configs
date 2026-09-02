@@ -17,7 +17,7 @@ Rewrite the text resolved from `$ARGUMENTS`. **Lossy by license** — you may dr
 Check every artifact against all three. `~/.kk-flavor/standards/writing.md` → **Readability floor** comes first; no lens below trades against it.
 
 1. **Tells** — scrub every pattern `~/.kk-flavor/standards/human-writing.md` → **AI tells** names, and anything else that reads manufactured: uniform rhythm, mirrored clause structure.
-2. **Budget** — run `~/.kk-flavor/standards/human-writing.md` → **Budget**: its keep test over every sentence, then its score over what survives. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form there (change descriptions, review comments, code comments, …) runs under it; write a new form only when a class recurs.
+2. **Budget** — run `~/.kk-flavor/standards/human-writing.md` → **Budget**: its keep test over every sentence, then its score over what survives. Substance that matters but not to this reader goes to a `parked:` list for the caller to place. A class with a written form runs under it — change descriptions and review comments in that file, code comments in `~/.kk-flavor/standards/code-style.md` → **Comments**. Write a new form only when a class recurs.
 3. **Voice** — like speech to a colleague: contractions, varied sentence and paragraph length, plain verbs, specific nouns, first person where natural.
 
 ## Guardrails on the lossy license
