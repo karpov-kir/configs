@@ -14,7 +14,7 @@ Deliberately **lossy** — detail that matters, but not to this reader, goes to 
 
 **Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
 
-**Length is the one tell you can measure, and it has a single cause: explaining why you are right.** The surplus is always the case restated, the design justified, the alternative pre-refuted. **Cut to what they act on**; if it will not compress, you have not decided what you are asking them. Under a screen, and one thing said once.
+**Length is the one tell you can measure, and it has two causes.** One is explaining why you are right: the case restated, the design justified, the alternative pre-refuted. The other is a slot that wants filling, a heading or a template field. You answer it from whatever is at hand, and that is what the reader can already see. **An empty slot is a finished one.** **Cut to what they act on**; if it will not compress, you have not decided what you are asking them. Under a screen, and one thing said once.
 
 ## AI tells
 
@@ -34,13 +34,13 @@ A watch-list, not a complete set. What they share is manufactured polish and sym
 
 ## Change descriptions (PRs)
 
-The author's side, for a reviewer deciding approve-or-not, in order. **A linked ticket owns the incident, the evidence and the timeline**, so the description carries the change and its review and nothing about how the problem was found.
+The author's side, for a reviewer deciding approve-or-not. **Link the ticket wherever the branch carries one**: it owns the incident, the evidence and the timeline, so the description carries the change and nothing about how the problem was found.
 
-- **What changes and why** — a few sentences, leading with the outcome.
-- **Review focus** — the risky parts and each deliberate trade-off, led by the **surface delta**: which exports arrived, went, or changed shape.
-- **Verification** — what ran and what it showed: links and counts, not narration. Only what CI and the diff don't already show.
+**Prose, never headings of your own**: a heading you add is a slot, and **Budget** rules what fills one. A repo template's headings stand.
 
-**Not why the code is right** — deciding that is the reviewer's job, and taking it from them is what makes a body long.
+Cover three things, in this order, and only while each has content. What changes and why, led by the outcome the consumer sees. A surface that arrived, went or changed shape belongs in that outcome, not in a note of its own. Then what you chose and what it cost, where the diff does not carry it — an alternative you rejected, a duplication kept on purpose, an invariant now split across two files. Then what this leaves someone to do, such as a release to cut or a pin to drop.
+
+**Not why the code is right** — deciding that is the reviewer's job. **Not what ran** — CI reports itself. What it cannot produce, a manual drive or a migration against real data, falls to **Budget**.
 
 ## Review comments
 
@@ -48,7 +48,7 @@ The reviewer's side, for an author deciding what to change. **Each note goes on 
 
 Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting** — the reviewer writing about the review, which **Budget** already bars.
 
-**A reply is a review comment**, and opens on what changes rather than on agreeing — the thread already holds the case, and the change shows the agreement.
+**A reply is a review comment**, and opens on what changes rather than on agreeing — the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>` and nothing else.
 
 ## Code comments
 
