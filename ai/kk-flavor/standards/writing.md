@@ -19,7 +19,7 @@ The reader understands the text on the first read, without backtracking — in *
 * Group by purpose, not by file.
 * Each line carries a fact unreachable from its surrounding context (code, types, siblings, the diff, …). Cut or link otherwise.
 * **One line per item: `<what was wrong> — <what changed>`.** No nesting, and no preamble above the items. Holds wherever you report two or more things, a reply included — reading as explanation is not an exemption, it is the dodge. **An action still open is the exception** — the item carries its case and its recommendation, so it nests.
-* One home per fact ([ecosystem.md](ecosystem.md) → **One home**). Two statements that can't both hold get reconciled to one, never left to coexist.
+* Two statements that can't both hold get reconciled to one, never left to coexist.
 * No backstory, hedging, or justification — describe what is true, not what we tried.
 * **Outward text**: [human-writing.md](human-writing.md) wins over this section on conflict.
 

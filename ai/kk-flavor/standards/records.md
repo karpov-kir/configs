@@ -33,5 +33,5 @@ Delete an entry outright, whatever its count or date, when its subject is gone f
 
 A record that **receives** promotions holds what the project has settled, so no line cap. Bound it by a test applied to the whole file on every edit:
 
-- **A principle, a gate command, a scope line** — it must name what it rules out that nothing else already rules out ([ecosystem.md](ecosystem.md) → **Earn the place**). One that rules out nothing is deleted, not reworded.
+- **A principle, a gate command, a scope line** — it must name what it rules out that nothing else already rules out. One that rules out nothing is deleted, not reworded.
 - **A vocabulary entry** — a term no artifact uses is deleted.

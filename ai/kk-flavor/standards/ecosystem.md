@@ -4,7 +4,7 @@ Rules for editing what agents read: skills, standards, prompts, templates, `CLAU
 
 These rules bind any edit, however small. Run the instruction lane after a batch of edits here.
 
-**Read the sentences either side of your own edit before you leave it.** A clause added beside an older one contradicts it at reading distance — no reference to follow, no second file to open — and every scoped hunt looks past it, because the file was never the thing under review.
+**Read the sentences either side of your own edit before you leave it.** A clause added beside an older one contradicts it at reading distance, with no reference to follow. Every scoped hunt looks past it, because the file was never the thing under review.
 
 ## Earn the place
 
@@ -21,12 +21,13 @@ Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "o
 
 Every rule lives in exactly one file; everywhere else cross-references it by path.
 
+**A citation is an instruction to load a file, and costs what that file costs.** It earns its place only where the reader must open the target — a branch to take, or a delta too big to state here. **Beside a rule the citing file owns and states whole, the link is attribution: cut it.**
+
 **Ownership is stated in the owned file, never broadcast to the files that do not own it.**
 
 **A rule's home is the file whose reader would otherwise get it wrong** — not the file that proves it, and not the file that happens to depend on it.
 
 **The shared layer — a standard, a template under `kk-flavor/`, `CLAUDE.md` — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
-
 
 ## Family direction
 
@@ -38,18 +39,18 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 - **A skill the human always initiates carries `disable-model-invocation: true`**, which drops its description out of every session's context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.claude/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
-- **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes** — and an override file that is present but unusable **refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
-
-- **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it, and **the mount is proven by running the instruction lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script.
+- **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes.** **An override file that is present but unusable refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
+- **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it. **The mount is proven by running the instruction lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script.
 
 ## Move it before you cut it
 
 - **Split** a branch not every run takes into a file the skill names at that branch. The pointer must sit where the branch is taken and say the file is the whole delta for that path.
 - **Extract** a rule a script can assert into the script (**Prefer the mechanism**, below).
-- **Reuse** — where two files state the same procedure, one skill owns it and the others invoke it, naming only their own delta. **Where neither can own it**, because each carries a scope the other must not inherit, the shared part becomes a new file both stack on. **That extraction pays only once the copies it replaced are gone** — until then it is a third home, and a routing surface on top. **A rule that departs from another file's rule moves with the sentence licensing the departure**, or lands where that sentence reaches it: split them and the half holding the rule reads as breaking a standard, which is how a sound delta becomes a contradiction nobody introduced.
+- **Reuse** — where two files state the same procedure, one skill owns it and the others invoke it, naming only their own delta. **Where neither can own it**, because each carries a scope the other must not inherit, the shared part becomes a new file both stack on. **That extraction pays only once the copies it replaced are gone** — until then it is a third home, and a routing surface on top. **A rule that departs from another file's rule moves with the sentence licensing the departure**, or lands where that sentence reaches it. Split them and the half holding the rule reads as breaking a standard — a sound delta turned into a contradiction nobody introduced.
 - **Demote** a rule that fires for one activity out of an always-read file into that activity's standard.
+- **Promote** a rule the common path needs out of a file that path never loads, into one it already loads.
 
-A move is only a win when the common path genuinely never needs the text — a rule that silently shapes behaviour on every run stays, however rarely it is quoted.
+A move away from the common path is only a win when that path genuinely never needs the text — a rule that silently shapes behaviour on every run stays, however rarely it is quoted.
 
 **A reference file earns its place when an agent takes something out of it, not when it reads it** — vendorable code, a template, a checklist it fills. Example code illustrating a rule the prose already states is a cut.
 
