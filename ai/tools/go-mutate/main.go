@@ -39,6 +39,12 @@ func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 	case verdict == "KILLED NOTHING" && isDeclared:
 		return "unreachable", false
 	}
+	// A suite that never finished says nothing about the guard either way, so it is neither a finding
+	// nor an excuse — the caller counts it apart and exits 2, the reading `shell-mutate.sh` gives its
+	// own watchdog kills.
+	if verdict == "TIMED OUT" {
+		return "TIMED OUT", false
+	}
 	// Everything else is a finding whatever was declared: `broken` says the mutant never built, and a
 	// declaration is about a guard being unobservable, never about the edit failing to compile.
 	return verdict, true
@@ -118,9 +124,22 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 // column, so telling them apart is the whole of what this harness reports: a mutant that never built
 // proves nothing, and read as a kill it manufactures exactly the finding the harness exists to
 // produce. `KILLED NOTHING` is the guard being unobserved, which is a finding about the suite.
+// How long a suite gets before the run is read as not having happened. Explicit, because `go test`
+// otherwise applies its own 10m default and eco-report has been measured at 603s — over the line on a
+// loaded machine. Generous on purpose: this bounds a hang, it does not police a slow suite.
+const suiteTimeout = "20m"
+
 func verdictOf(suiteFailed bool, output string) string {
 	if !suiteFailed {
 		return "KILLED NOTHING"
+	}
+	// Before the kill arm, and this is the whole reason it exists. A timed-out suite exits non-zero
+	// with a panic, which is neither a build failure nor a case going red, so it used to fall through
+	// and be reported as `killed` — the mutant credited with a guard it never observed. That is the
+	// finding this harness exists to produce, manufactured by the harness itself, and load is what
+	// makes it happen.
+	if strings.Contains(output, "test timed out") {
+		return "TIMED OUT"
 	}
 	if strings.Contains(output, "[build failed]") || strings.Contains(output, "cannot use") {
 		return "broken"
@@ -197,7 +216,7 @@ func run(pkgDir string, m mutant, runFilter string) (verdict string, elapsed tim
 	if runFilter != "" {
 		filter = runFilter
 	}
-	args := []string{"test", "-overlay=" + overlay, "-count=1", "-failfast"}
+	args := []string{"test", "-overlay=" + overlay, "-count=1", "-failfast", "-timeout", suiteTimeout}
 	if filter != "" {
 		args = append(args, "-run", filter)
 	}
@@ -340,7 +359,7 @@ func runAll(pkgDir string, selected []mutant, jobs int, runFilter string) ([]str
 
 // One line per mutant, and the two counts the exit code is decided on. Apart from main for the same
 // reason outcomeOf is: reached only from there, an arm of it would take a full mutation run to see.
-func report(selected []mutant, verdicts []string, times []time.Duration) (bad, declared int) {
+func report(selected []mutant, verdicts []string, times []time.Duration) (bad, declared, unmeasured int) {
 	for i, m := range selected {
 		why, isDeclared := declaredUnreachable(m.label)
 		shown, isBad := outcomeOf(verdicts[i], isDeclared)
@@ -354,11 +373,13 @@ func report(selected []mutant, verdicts []string, times []time.Duration) (bad, d
 			if shown == "STALE CLAIM" {
 				fmt.Printf("                  a case reddens it, so it is no longer unreachable — drop the declaration, which says: %s\n", why)
 			}
+		case shown == "TIMED OUT":
+			unmeasured++
 		case shown == "unreachable":
 			declared++
 		}
 	}
-	return bad, declared
+	return bad, declared, unmeasured
 }
 
 func main() {
@@ -425,7 +446,7 @@ func main() {
 
 	// The baseline first, over every suite a mutant names: each verdict below means "this edit turned
 	// a green suite red", which says nothing if it was already red.
-	base := exec.Command("go", append([]string{"test", "-count=1"}, suitesNamed(selected)...)...)
+	base := exec.Command("go", append([]string{"test", "-count=1", "-timeout", suiteTimeout}, suitesNamed(selected)...)...)
 	base.Dir = filepath.Dir(pkgDir)
 	if out, err := base.CombinedOutput(); err != nil {
 		fmt.Println("  BASELINE RED    a suite does not pass unmutated")
@@ -435,16 +456,23 @@ func main() {
 
 	fmt.Printf("%s — one guard removed at a time, %d at once\n", strings.Join(suitesNamed(selected), " "), *jobs)
 	verdicts, times := runAll(pkgDir, selected, *jobs, *runFilter)
-	bad, declared := report(selected, verdicts, times)
+	bad, declared, unmeasured := report(selected, verdicts, times)
 	// The declared count prints whether or not it is zero, the way a suite's skipped field does: its
 	// presence is the information, and a run that silently stopped counting them would look identical
 	// to a run with none.
 	//
 	// The out-of-scope count sits in that same line rather than in a note above it: a scoped run whose
 	// last line reads like a whole one is exactly the narrowing this harness is not allowed to hide.
-	fmt.Printf("%d mutation(s) run, %d not run (out of scope), %d that proved nothing, %d declared unreachable, %.1fs wall clock\n",
-		len(selected), len(mutants)-len(selected), bad, declared, time.Since(started).Seconds())
+	fmt.Printf("%d mutation(s) run, %d not run (out of scope), %d that proved nothing, %d that never measured, %d declared unreachable, %.1fs wall clock\n",
+		len(selected), len(mutants)-len(selected), bad, unmeasured, declared, time.Since(started).Seconds())
+	// A finding about the code outranks one about the machine, the reading `shell-mutate.sh`'s own
+	// last lines take. Exit 2 alone means nothing was found wrong and something never ran, which a
+	// caller may never read as a pass — `ai/gate.sh` maps it to NO MEASURE for exactly that.
 	if bad > 0 {
 		os.Exit(1)
+	}
+	if unmeasured > 0 {
+		fmt.Printf("%d mutant(s) never measured — their suite ran past %s, so nothing is known about the guards they name.\n", unmeasured, suiteTimeout)
+		os.Exit(2)
 	}
 }

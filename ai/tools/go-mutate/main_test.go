@@ -211,6 +211,27 @@ func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 	}
 }
 
+// A timed-out suite exits non-zero with a panic that is neither a build failure nor a case going red.
+// Read as a kill — which is what happened before this arm existed — the mutant is credited with a
+// guard it never observed, and the harness manufactures the finding it exists to produce.
+func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
+	out := "panic: test timed out after 10m0s\n\trunning tests:\n\tTestSomething (10m0s)"
+	if got := verdictOf(true, out); got != "TIMED OUT" {
+		t.Fatalf("a timed-out suite came back %q, want TIMED OUT — %q credits a guard nothing observed", got, got)
+	}
+	// And it is neither a finding about the code nor an excuse for one.
+	if shown, isBad := outcomeOf("TIMED OUT", false); isBad || shown != "TIMED OUT" {
+		t.Fatalf("outcomeOf gave (%q, %v), want (TIMED OUT, false): it says nothing about the guard either way", shown, isBad)
+	}
+	if shown, isBad := outcomeOf("TIMED OUT", true); isBad || shown != "TIMED OUT" {
+		t.Fatalf("a declared-unreachable mutant that timed out gave (%q, %v), want (TIMED OUT, false)", shown, isBad)
+	}
+	// The negative control: a suite that really did go red is still a kill.
+	if got := verdictOf(true, "--- FAIL: TestSomething\nFAIL"); got != "killed" {
+		t.Fatalf("a genuinely red suite came back %q, want killed", got)
+	}
+}
+
 // The baseline the run is measured against has to cover every suite a mutant names, or a verdict of
 // "this edit turned the suite red" is claimed over a suite that was never asked.
 func TestEverySuiteAMutantNamesIsInTheBaseline(t *testing.T) {
