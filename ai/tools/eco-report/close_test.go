@@ -31,7 +31,7 @@ func TestCloseRetiresOneShipScratchAndNothingElse(t *testing.T) {
 
 	// The stage markers sit in the git dir, which removing the report never reaches, and they are keyed
 	// by the report stem — so the next ship for the same intent inherits them. Asserted on the dir as
-	// well as on its effect: `discard` has its own case for this, `close` had none.
+	// well as on its effect, the way `discard`'s own case for this is.
 	relanding := newShip(t, "001-relanding")
 	relanding.runReport("stage-returned", "code-review", "001-relanding")
 	markers := relanding.repo + "/.git/idsd-stage-returns/001-relanding"

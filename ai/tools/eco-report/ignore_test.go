@@ -104,9 +104,7 @@ func TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) 
 	// wrong in that append and both are silent: the entry accumulating one copy per run, and the entry
 	// fusing onto a last line with no newline — after which neither the human's rule nor the entry
 	// matches anything, while promote reports success and stages the report.
-	//
-	// This used to be asserted over `.git/info/exclude`, which throwaway mode no longer writes. The
-	// append itself is the same code, reached now through the one caller that still writes a rule file.
+
 	f := newShip(t, "001-appending")
 	f.newIntentFile("001-appending")
 	gitignore := f.repo + "/.gitignore"
@@ -143,9 +141,8 @@ func TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) 
 func TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport(t *testing.T) {
 	t.Parallel()
 	// `.git/info/exclude` is one machine's file: it never leaves this clone, so a report ignored only
-	// there is staged by the next `git add -A` on anybody else's. It used to count as travelling because
-	// throwaway mode wrote the scratch exclusion into it and the predicate had to accept its own work.
-	// Nothing writes it now, so committed mode is the only caller and this is the answer it needs.
+	// there is staged by the next `git add -A` on anybody else's. ignoredSourceTravels holds why this
+	// predicate once answered otherwise.
 	f := newCommittedRepoUnignored(t)
 	f.appendTo(f.repo+"/.git/info/exclude", ".idsd/qualify-reports/\n")
 	_, ignored := f.git("check-ignore", "-q", ".idsd/qualify-reports/")

@@ -51,7 +51,19 @@ func (r *run) cmdInit(args []string) {
 		carried, _ = r.runTodoGate()
 	}
 
-	if err := os.MkdirAll(shell.DirName(r.report), 0o777); err != nil {
+	// 0700, and this is the one place in this tool that creates the scratch tree — MkdirAll builds every
+	// missing parent with the same mode, a missing override root included. The tree sits outside the
+	// repository now, holds the only copy of the intents, and every report in it carries a pass's
+	// security findings, so the directory is what decides who reads them: the report itself lands at
+	// 0600 (rewriteReport renames its own temp file over it, and os.CreateTemp is 0600), but nothing
+	// else there does — an intent file is written by whichever skill authors it, at that process's
+	// umask. 0777 left the scratch world-readable under any ordinary umask, and group- or world-WRITABLE
+	// under a lax one, which puts a planted link inside the directory `discard` later removes.
+	//
+	// It protects the ROOT only when init gets there first. A skill that authors an intent before any
+	// report exists creates the tree itself, and this MkdirAll then makes only the missing
+	// qualify-reports/ below it.
+	if err := os.MkdirAll(shell.DirName(r.report), 0o700); err != nil {
 		r.refuse("error: could not create " + shell.DirName(r.report) + " — the report was NOT initialized")
 	}
 	// Staged beside the report and renamed over it, never copied onto it: a write that dies partway

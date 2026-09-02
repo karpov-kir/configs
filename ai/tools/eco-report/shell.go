@@ -2,16 +2,21 @@ package ecoreport
 
 import (
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"kk-flavor/tools/shell"
 )
 
-// What is left of the shell version's primitives once `kk-flavor/tools/shell` has the ones every tool
-// here shares. These stayed because their exact edges are what a refusal in this tool turns on: what
-// `rm -f` refuses, what `mv` does across devices, and which question `-r` and `-x` really asked.
+// The primitives this tool holds itself, ported from the shell version: what `kk-flavor/tools/shell`
+// does not already share with every tool here, plus the directory walk two refusals count through. Each
+// is here because a refusal in this tool turns on its exact edges — what `rm -f` refuses, what `mv` does
+// across devices, which question `-r` and `-x` really asked, and what `find -type f` does and does not
+// call a file.
 
 // `${value#"${value%%[![:space:]]*}"}` — leading whitespace, and nothing else, removed.
 func trimLeadingSpace(value string) string {
@@ -75,8 +80,12 @@ func rmFile(path string) error {
 	return os.Remove(path)
 }
 
-// `mv`. os.Rename alone is not mv: rename(2) refuses across devices, and the temp files this moves
-// come from $TMPDIR, which is a different filesystem on plenty of machines.
+// `mv`. os.Rename alone is not mv: rename(2) refuses across devices.
+//
+// No caller reaches the fallback today: all three stage their temp file in the destination's own
+// directory. Keep it that way. The fallback follows a symlink at the destination and truncates before
+// writing, where the rename would have replaced it atomically — so a fourth caller staging somewhere
+// else is what falls into it.
 func moveFile(from, to string) error {
 	err := os.Rename(from, to)
 	if err == nil || !isCrossDevice(err) {
@@ -127,8 +136,7 @@ func rmdirIfEmpty(paths ...string) {
 	}
 }
 
-// What awk wrote back: every record followed by ORS. A file whose last line had no newline gains
-// one, exactly as the shell version's rewrites did.
+// What awk wrote back: every record followed by ORS, so a file whose last line had no newline gains one.
 func joinRecords(lines []string) []byte {
 	var out strings.Builder
 	for _, line := range lines {
@@ -157,10 +165,9 @@ func writeAll(w io.Writer, text string) {
 	_, _ = io.WriteString(w, text)
 }
 
-// The POSIX cksum CRC, which is what the stage markers hold. Reimplemented rather than shelled out
-// to because a marker written by one version of this tool is read by the other during any swap:
-// a different digest there would read as "the report has moved" and free a stamp the pass never
-// earned.
+// The POSIX cksum CRC, which is what the stage markers hold. Reimplemented rather than shelled out to,
+// because during any swap a marker written by one version of this tool is read by the other: a different
+// digest there would read as "the report has moved" and free a stamp the pass never earned.
 func cksum(content []byte) (uint32, int) {
 	var crc uint32
 	for _, b := range content {
@@ -190,4 +197,41 @@ func newCksumTable() [256]uint32 {
 		table[i] = crc
 	}
 	return table
+}
+
+// How many non-directory entries a directory holds, and up to sampleBound of their paths relative to
+// it. The count and the sample are separate returns because the sample is bounded: reporting len(sample)
+// as the count understates a directory of a hundred files as twenty.
+//
+// Symlinks count and are never followed. The link itself is something that would be lost, and what is at
+// the other end is not this directory's to weigh. Counting only regular files gave a directory holding
+// just `charter.md -> ../docs/charter.md` a count of zero, which both callers read as "nothing here to
+// lose" — reconcileTreeIdsdDir's RemoveAll deleted the link in silence, and assertPromotionTargetIsClear
+// would have promoted over it, while a symlink at either directory itself was loudly refused.
+func filesUnder(dir string) (count int, sample []string, err error) {
+	err = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		count++
+		if len(sample) < sampleBound {
+			sample = append(sample, strings.TrimPrefix(path, dir+"/"))
+		}
+		return nil
+	})
+	return count, sample, err
+}
+
+// How many paths a refusal names before it stops.
+const sampleBound = 20
+
+// What the refusal adds when the sample is short of the count, so the two never read as disagreeing.
+func sampleTail(count, shown int) string {
+	if count <= shown {
+		return ""
+	}
+	return " (and " + strconv.Itoa(count-shown) + " more)"
 }

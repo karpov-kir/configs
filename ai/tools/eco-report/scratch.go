@@ -2,6 +2,8 @@ package ecoreport
 
 import (
 	"os"
+	"strconv"
+	"strings"
 
 	"kk-flavor/tools/shell"
 )
@@ -74,6 +76,10 @@ func (r *run) cmdPromote() {
 			"  git ignores nothing it cannot read, so entries added through the link would take effect nowhere",
 			"  while this reported success and staged the report. Replace it with a regular file, then re-run.")
 	}
+	// The SOURCE, checked with the same eye the destination gets below. `init` and `discard` both refuse a
+	// symlinked scratch dir; this path did not, and it is the one that stages — so a link here reaches the
+	// history every clone pulls. assertScratchDirsAreReal has the mechanism.
+	r.assertScratchDirsAreReal("not promoted, and nothing was moved")
 	// The destination is checked before the ignore entries are written, so a promotion that cannot
 	// possibly finish writes nothing at all.
 	target := r.treeIdsdDir()
@@ -152,14 +158,18 @@ func (r *run) assertPromotionTargetIsClear(target string) {
 	if !shell.PathExists(target) {
 		return
 	}
-	entries, err := os.ReadDir(target)
+	// Files, not directory entries — the same distinction reconcileTreeIdsdDir needs, and for the same
+	// reason. Here it decides whether the empty skeleton a finished migration or an aborted `mkdir -p`
+	// leaves behind refuses the promotion, sending the human to reconcile two empty directories.
+	count, sample, err := filesUnder(target)
 	if err != nil {
 		r.refuse("error: could not read " + target + " (" + err.Error() + ") — whether it holds anything is unknown, so nothing was promoted.")
 	}
-	if len(entries) == 0 {
+	if count == 0 {
 		return
 	}
-	r.refuse("error: "+target+" already holds content — not promoted, and nothing was written.",
+	r.refuse("error: "+target+" already holds "+strconv.Itoa(count)+" file(s) — not promoted, and nothing was written.",
+		"  Still there: "+strings.Join(sample, " ")+sampleTail(count, len(sample)),
 		"  Promotion moves "+r.idsdDir+" here, and merging the two is not something this decides for you:",
 		"  one side's charter or constitution would silently win. Reconcile them by hand, then re-run.")
 }
@@ -174,10 +184,11 @@ func (r *run) movePromotedScratch(target string) {
 	if err := os.MkdirAll(shell.DirName(target), 0o777); err != nil {
 		r.refuse("error: could not create " + shell.DirName(target) + " — not promoted, and nothing was moved.")
 	}
-	// An empty target directory is in the way of the rename but means nothing; assertPromotionTargetIsClear
-	// has already established it holds nothing.
+	// RemoveAll, not Remove: an empty target directory is in the rename's way, and what stands there may
+	// be the empty directory skeleton a migration leaves, which Remove cannot take. Nothing here is lost —
+	// assertPromotionTargetIsClear has already established it holds no file.
 	if shell.PathExists(target) {
-		if err := os.Remove(target); err != nil {
+		if err := os.RemoveAll(target); err != nil {
 			r.refuse("error: could not clear the empty " + target + " (" + err.Error() + ") — not promoted, and nothing was moved.")
 		}
 	}
@@ -204,7 +215,7 @@ func (r *run) cmdDiscard() {
 		r.refuse("committed idsd repo — .idsd/ is the durable record; nothing to discard")
 	}
 	// Without this, a symlinked `.idsd` lets every deletion below reach through to a target outside the
-	// repo. `init` has carried the same guard since a link there could steer a write out.
+	// repo. `init` carries the same guard, for the same reason: a link there can steer a write out.
 	r.assertWritePathsAreReal("nothing was discarded")
 	// The filename is the ship's name here — it came from the caller, or from being the only report
 	// open. The frontmatter is read only to cross-check it, and only when there is a report left to
@@ -241,11 +252,10 @@ func (r *run) cmdDiscard() {
 		return
 	}
 	_ = os.RemoveAll(r.idsdDir)
-	// No exclusion to drop, and so no worktree counting to decide whether dropping it is safe: the
-	// scratch never lived in the tree, so removing it leaves nothing behind for a sibling worktree to
-	// trip over. "Removed" holds only because assertShipExists ran — nothing reaches here without a
-	// report or an intent file to remove, so a second run or a wrong slug cannot claim this having
-	// deleted nothing.
+	// The scratch never lived in the tree, so removing it leaves nothing behind for a sibling worktree to
+	// trip over and no exclusion to drop. "Removed" holds only because assertShipExists ran: nothing
+	// reaches here without a report or an intent file to remove, so a second run or a wrong slug cannot
+	// claim this having deleted nothing.
 	r.line("discarded: removed the idsd scratch at %s (throwaway, zero traces)", r.idsdDir)
 }
 

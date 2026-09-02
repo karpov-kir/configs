@@ -11,12 +11,11 @@ import (
 // family never names the workflow family, or anything it owns. This is its enforcement.
 //
 // scanDirection beside this file guards the tier above — the shared layer never naming a skill — and
-// stops there, so nothing checked this one until a generic skill's own description had drifted into
-// naming a workflow sibling and the directory that workflow keeps its state in.
+// stops there, so until this scan nothing checked the skill tier itself.
 //
-// Why it matters more than tidiness: a description is what the model reads to choose a skill. One that
-// discriminates itself against a sibling reads as a dangling reference in every tree that does not
-// mount that sibling, which is most of them — worse than not discriminating at all.
+// What a leak costs: a description is what the model reads to choose a skill. One that discriminates
+// itself against a sibling reads as a dangling reference in every tree that does not mount that
+// sibling, which is most of them — worse than not discriminating at all.
 
 // The two families ecosystem.md → **Conventions a new file joins** describes, as the prefixes that
 // name them. Written out rather than derived, because no property of the names says which family works
@@ -33,11 +32,10 @@ const (
 // instead of a phrase any file could start matching by accident.
 const familyRouter = "kk-foreman"
 
-// What the router's own file must cite to claim its exception. ecosystem.md says the exception is
-// claimed in the skill's own file, and keying the exception on the name alone cannot tell a claimed one
-// from a silent one — the router could stop explaining why it names the other family and nothing here
-// would fail. Asserted through the tree's own citation form rather than a phrase, so it stays true when
-// the wording is reworded.
+// What the router's own file must cite to claim its exception, since ecosystem.md says the exception is
+// claimed in the skill's own file. assertRouterClaimsItsException holds what goes wrong without the
+// check. Asserted through the tree's own citation form rather than a phrase, so it survives the prose
+// around it being reworded.
 const routerClaimCitation = "ecosystem.md → **Family direction**"
 
 // The citation as it is really written: the canonical form ecosystem.md → **Conventions a new file

@@ -1,15 +1,12 @@
 package ecoreport_test
 
-// The fixture builders and the assertions the cases are written against. They were ported one for
-// one from a shell suite that no longer exists — it was deleted once the skills switched to this
-// binary, and git history is where the pairing can still be read. This is now the only suite over
-// these gates, so a case removed here is coverage gone rather than coverage moved. It is also the
-// only coverage of `todo-gate.sh`'s caller side: newSkillCopy copies that script in for real, and one
-// case stubs it to exit 3.
+// The fixture builders and the assertions the cases are written against. This is the only suite over
+// these gates, so a case removed here is coverage gone rather than coverage moved. It is also the only
+// coverage of `todo-gate.sh`'s caller side: newSkillCopy copies that script in for real, and one case
+// stubs it to exit 3.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out — the forks were
-// the cost of the shell suite — but the repository itself is made by git, because what several cases
-// pin is what git answers about it.
+// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out, but the repository
+// itself is made by git, because what several cases pin is what git answers about it.
 //
 // Nothing here runs against this checkout. Every case gets its own repository under t.TempDir(), and
 // newRepo refuses to hand one back until git agrees that directory is its own root: this suite
@@ -30,8 +27,6 @@ import (
 )
 
 // The installed skill this suite copies its template and todo-gate.sh from, relative to this package.
-// The shell version read them out of its own directory; the same two files, reached the way the
-// checkout lays them out.
 const skillSource = "../../skills/idsd-qualify"
 
 // This checkout's kk-flavor, reached the same way, and the source of the one script the tool execs
@@ -62,8 +57,17 @@ type fixture struct {
 
 func newRepo(t *testing.T) *fixture {
 	t.Helper()
+	return newRepoNamed(t, "r")
+}
+
+// The same fixture under a chosen directory name, for the one case whose input IS the repository's own
+// path. Every guard below is the reason it comes through here rather than being built beside it: a
+// second builder would carry none of them, and the case it serves would run its assertions against a
+// tree nothing checked.
+func newRepoNamed(t *testing.T, name string) *fixture {
+	t.Helper()
 	base := t.TempDir()
-	f := &fixture{t: t, base: base, repo: base + "/r"}
+	f := &fixture{t: t, base: base, repo: base + "/" + name}
 	// Pinned at a fixture directory holding no override, never left empty: empty falls back to the
 	// process's own $XDG_CONFIG_HOME, and this suite would then read the developer's real idsd.conf —
 	// passing on a machine that has one and failing on every machine that does not. The same rule
@@ -122,9 +126,6 @@ func newCommittedRepo(t *testing.T) *fixture {
 // and the committed-mode branches its cases test (discard's refusal, check-ignore's warning, init's
 // acceptance) answer the same way in both modes. So every case above such a fixture passes while
 // testing nothing, all at once.
-//
-// The shell version named this case by fixture directory, since four identical pass lines could not
-// be told apart in one stream; subtests are already told apart by their parent.
 func (f *fixture) assertFixtureIsCommitted() {
 	f.t.Helper()
 	f.runReport("repo-mode")
@@ -132,9 +133,8 @@ func (f *fixture) assertFixtureIsCommitted() {
 	f.record("fixture rN is a committed repo", f.out == "committed", "git ls-files .idsd printed: '"+tracked+"'")
 }
 
-// Runs the tool the way a skill does: from inside the repo, so the root resolves to the fixture
-// rather than to this checkout, and with stdout and stderr merged the way the shell version's `2>&1`
-// merged them.
+// Runs the tool the way a skill does: from inside the repo, so the root resolves to the fixture rather
+// than to this checkout, and with stdout and stderr merged.
 func (f *fixture) runReport(args ...string) {
 	f.t.Helper()
 	f.runReportIn(f.repo, args...)
@@ -179,9 +179,7 @@ func (f *fixture) runReportStdoutIn(dir string, args ...string) string {
 // The stdout-only form, for the one case that pins which stream a note goes to.
 func (f *fixture) runReportStdout(args ...string) string {
 	f.t.Helper()
-	var out, errOut bytes.Buffer
-	f.invoke(f.repo, &out, &errOut, args)
-	return strings.TrimRight(out.String(), "\n")
+	return f.runReportStdoutIn(f.repo, args...)
 }
 
 // A standalone `review: …` has no slug and shares the one `review` stem, which is what most fixtures
@@ -204,27 +202,27 @@ func (f *fixture) scratch() string {
 	return f.sharedIdsd()
 }
 
+// This fixture's repo path as the tool records it, and the base every location below is built from.
+//
+// Physically resolved, for the reason newRepoNamed's own resolution check states: git answers with the
+// resolved path, and that is what the tool then reports.
+func (f *fixture) canonicalRepo() string {
+	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
+		return real
+	}
+	return f.repo
+}
+
 // The default throwaway location, as a literal. A case asserting WHERE the scratch landed wants this
 // rather than f.scratch(), which derives from the same rule the tool does and would agree with it by
 // construction.
-//
-// Physically resolved, for the reason newRepo states: on macOS the temp dir sits under /var, a symlink
-// to /private/var, and git answers with the resolved path. Compared literally, every location
-// assertion would fail and look like the defect it exists to catch.
 func (f *fixture) sharedIdsd() string {
-	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
-		return real + "/.git/idsd"
-	}
-	return f.repo + "/.git/idsd"
+	return f.canonicalRepo() + "/.git/idsd"
 }
 
-// The in-tree location — what committed mode uses and what `promote` moves into. Physically resolved
-// for the reason sharedIdsd is: the tool reports paths built from git's answer, which is resolved.
+// The in-tree location — what committed mode uses and what `promote` moves into.
 func (f *fixture) treeIdsd() string {
-	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
-		return real + "/.idsd"
-	}
-	return f.repo + "/.idsd"
+	return f.canonicalRepo() + "/.idsd"
 }
 
 // One shell case, one subtest, with the evidence a FAIL line would have carried under it.
@@ -294,16 +292,20 @@ func (f *fixture) treeIsFreeOfScratch() bool {
 	return status == 0 && !strings.Contains(dirty, ".idsd")
 }
 
+// Every pipeline stage, in the two forms a pass names them: one per `stage-returned`, and comma-joined
+// for the stamp. Stated once, because a stage marked but left out of the stamp record — or the reverse
+// — is a fixture that arms a pass the stamp then refuses, and the case reads as a broken guard.
+var (
+	allStages          = []string{"code-review", "security-review", "tighten", "refactor"}
+	allStagesStampedAs = strings.Join(allStages, ",")
+)
+
 // Everything a stamp demands short of the stamp itself: this pass invalidated, and every stage
 // marked returned and then empty. Invalidate comes first because a marker means nothing until it is
 // known which pass made it.
 func (f *fixture) armFullPass(ship string) {
 	f.t.Helper()
-	f.runReport("invalidate", ship)
-	for _, stage := range []string{"code-review", "security-review", "tighten", "refactor"} {
-		f.runReport("stage-returned", stage, ship)
-		f.runReport("no-items", stage, ship)
-	}
+	f.armFullPassIn(f.repo, ship)
 }
 
 // Drive a ship to a stamped, tree-fresh state. Unstamped, the state token answers `resume` without
@@ -311,8 +313,24 @@ func (f *fixture) armFullPass(ship string) {
 // through here.
 func (f *fixture) stampFullPass(ship string) {
 	f.t.Helper()
-	f.armFullPass(ship)
-	f.runReport("stamp", "code-review,security-review,tighten,refactor", ship)
+	f.stampFullPassIn(f.repo, ship)
+}
+
+// The same two, driven from another directory — a linked worktree, which is where a case about WHICH
+// worktree earned a stamp has to run them.
+func (f *fixture) armFullPassIn(dir, ship string) {
+	f.t.Helper()
+	f.runReportIn(dir, "invalidate", ship)
+	for _, stage := range allStages {
+		f.runReportIn(dir, "stage-returned", stage, ship)
+		f.runReportIn(dir, "no-items", stage, ship)
+	}
+}
+
+func (f *fixture) stampFullPassIn(dir, ship string) {
+	f.t.Helper()
+	f.armFullPassIn(dir, ship)
+	f.runReportIn(dir, "stamp", allStagesStampedAs, ship)
 }
 
 // An intent file for one slug. Its body is a fixed constant because no case asserts on it: what they
@@ -343,7 +361,6 @@ func (f *fixture) newDurableCharter() {
 	f.write(f.treeIdsd()+"/charter.md", "# durable\n")
 }
 
-// A copy of the skill dir the tool resolves its two neighbours from.
 // The HOME every case runs against: a fixture directory holding the one script the tool execs out of
 // HOME, copied in from this checkout. A copy rather than the installed one, for the reason above
 // flavorSource, and a copy rather than a symlink so a case may chmod it without reaching this
@@ -361,6 +378,7 @@ func (f *fixture) fingerprintScriptIn(home string) string {
 	return home + "/.kk-flavor/scripts/tree-fingerprint.sh"
 }
 
+// A copy of the skill dir the tool resolves its two neighbours from.
 func (f *fixture) newSkillCopy() {
 	f.t.Helper()
 	f.skill = f.base + "/skill"
@@ -410,10 +428,10 @@ func (f *fixture) indexState() string {
 	return "staged:" + sortedWords(staged) + "\nunstaged:" + sortedWords(unstaged)
 }
 
-// A HOME whose tree-fingerprint.sh logs every invocation and then execs the real one. The shell
-// version counted `write-tree` calls through a `git` shim on PATH; PATH is process-global, and a
-// suite that runs its cases in parallel cannot have one. The seam moves out one script, and what it
-// counts is the same thing: how many times this tool walked the tree for one `list`.
+// A HOME whose tree-fingerprint.sh logs every invocation and then execs the real one. Not a `git` shim
+// on PATH, which is where a counter like this naturally goes: PATH is process-global, and a suite that
+// runs its cases in parallel cannot have one. Either way it counts the same figure — how many times
+// this tool walked the tree for one `list`.
 //
 // It wraps the script in the HOME the fixture already had rather than naming a source of its own, so
 // there is one answer in this suite to where that script comes from.

@@ -210,7 +210,7 @@ func countLinesWithPrefix(text, prefix string) int {
 }
 
 // `cksum <file>` reduced to the two fields a stage marker holds. False means cksum(1) is not on this
-// machine, and the case that compares against it is skipped rather than failed.
+// machine.
 func posixCksum(path string) (string, bool) {
 	out, err := exec.Command("cksum", path).Output()
 	if err != nil {
@@ -306,4 +306,15 @@ func indent(text string) string {
 		fmt.Fprintf(&out, "          %s\n", line)
 	}
 	return out.String()
+}
+
+// One frontmatter field's value out of a report's text — the assertion counterpart to the tool's own
+// fieldValue, which reads a file rather than a string a case already holds.
+func fieldFrom(text, field string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, field+":") {
+			return strings.TrimSpace(strings.TrimPrefix(line, field+":"))
+		}
+	}
+	return ""
 }

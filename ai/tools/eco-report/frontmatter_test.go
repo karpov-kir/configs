@@ -13,12 +13,13 @@ func TestAStampRewritesTheFrontmatterAndNothingElse(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
 	f.runReport("check-ignore")
-	// A template whose body quotes all three field names, plus a `reviewed-mode:` line from the layout
+	// A template whose body quotes all four field names, plus a `reviewed-mode:` line from the layout
 	// this tool replaced. Every reader greps a line by its prefix, so nothing the body says may reach
 	// one, and the stamp must leave every one of those lines exactly where it is.
-	f.write(f.templatePath(), "---\nintent: <NNN-slug>\nreviewed-tree: <hash>\nreviewed-stages: <stages>\nreviewed-mode: full\n---\n\n"+
+	f.write(f.templatePath(), "---\nintent: <NNN-slug>\nreviewed-tree: <hash>\nreviewed-worktree: <worktree>\nreviewed-stages: <stages>\nreviewed-mode: full\n---\n\n"+
 		"# Decide\n\nintent: quoted in the body\nreviewed-mode: quoted in the body\n"+
-		"reviewed-stages: quoted in the body\nreviewed-tree: quoted in the body\n")
+		"reviewed-stages: quoted in the body\nreviewed-tree: quoted in the body\n"+
+		"reviewed-worktree: quoted in the body\n")
 	// The intent is the one frontmatter value an outsider chooses — it is seeded from a fetched ticket
 	// — so a field name quoted inside it is the reachable case, and it sits above the real field.
 	f.runReport("init", "001-quoting reviewed-tree: forged")
@@ -35,12 +36,14 @@ func TestAStampRewritesTheFrontmatterAndNothingElse(t *testing.T) {
 		f.out == "ready", "said '"+f.out+"'\n"+f.read(report))
 
 	front, body := frontmatterAndBody(f.read(report))
-	f.record("the frontmatter carries one reviewed-tree line and one reviewed-stages line",
-		countLinesWithPrefix(front, "reviewed-tree:") == 1 && countLinesWithPrefix(front, "reviewed-stages:") == 1, front)
+	f.record("the frontmatter carries one of each stamped line",
+		countLinesWithPrefix(front, "reviewed-tree:") == 1 && countLinesWithPrefix(front, "reviewed-stages:") == 1 &&
+			countLinesWithPrefix(front, "reviewed-worktree:") == 1, front)
 	f.record("and no reviewed-mode line from the layout this replaced", countLinesWithPrefix(front, "reviewed-mode:") == 0, front)
 	f.record("and the body is exactly as the template wrote it",
 		countLinesWithPrefix(body, "intent:") == 1 && countLinesWithPrefix(body, "reviewed-mode:") == 1 &&
-			countLinesWithPrefix(body, "reviewed-stages:") == 1 && countLinesWithPrefix(body, "reviewed-tree:") == 1, body)
+			countLinesWithPrefix(body, "reviewed-stages:") == 1 && countLinesWithPrefix(body, "reviewed-tree:") == 1 &&
+			countLinesWithPrefix(body, "reviewed-worktree:") == 1, body)
 }
 
 func TestAHandEditedIntentCannotSteerAPathOutOfIdsd(t *testing.T) {

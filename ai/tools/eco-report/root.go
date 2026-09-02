@@ -3,10 +3,11 @@ package ecoreport
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"kk-flavor/tools/shell"
@@ -23,7 +24,7 @@ import (
 // this file exists to fix, while every command still reports success.
 //
 // Nothing here is reached by hand from a skill: `report.sh root` prints what this resolved, and that
-// is how the nine skills that used to hardcode `.idsd/` find it.
+// is how the skills that used to hardcode `.idsd/` find it.
 
 // The directory name under the shared git dir. Not the git dir root, so it cannot collide with the
 // per-repository records other skills keep there — `cadence.sh`'s `idsd-audit-offer` is one.
@@ -62,9 +63,15 @@ func (r *run) gitCommonPath(name string) string {
 
 // This machine's override file. Alongside the flavor's other machine-local override, so one directory
 // holds every per-machine setting and none of them makes the checkout dirty.
+//
+// A config home that is not absolute is treated as unset, which is what the XDG spec itself says to do
+// with one. Taken as given it resolves against whatever directory the process stands in — so a
+// checkout shipping `kk-flavor/idsd.conf` would choose where this clone's reports are written and
+// which directory `discard` removes. The tree under review does not get to decide that. Absent and
+// non-absolute both fall to the default, since `filepath.IsAbs("")` is false.
 func (r *run) overrideConfigPath() string {
 	config := r.configHome
-	if config == "" {
+	if !filepath.IsAbs(config) {
 		config = r.home + "/.config"
 	}
 	return config + "/kk-flavor/idsd.conf"
@@ -72,10 +79,10 @@ func (r *run) overrideConfigPath() string {
 
 // The override's root, or empty when there is no override file.
 //
-// Strict by design: a file that is present but unusable refuses, and no path here falls back to the
-// default. A silent fallback would write this clone's intents into a directory the human was never
-// told about, which is the one failure an override must not have — the same rule score.sh applies to
-// its own. Absent is different from broken, and only absent is quiet.
+// Strict: a file that is present but unusable refuses, and no path here falls back to the default. A
+// silent fallback would write this clone's intents into a directory the human was never told about,
+// which is the one failure an override must not have. Absent is different from broken, and only absent
+// is quiet.
 func (r *run) overrideRoot() string {
 	path := r.overrideConfigPath()
 	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
@@ -124,7 +131,39 @@ func (r *run) overrideRoot() string {
 		r.refuse("error: "+path+" sets a relative root ("+shell.Oneline(root)+") — the idsd scratch location is unknown.",
 			"  A relative path would resolve against whatever directory the caller stood in, so it must be absolute (or start with `~/`).")
 	}
-	return filepath.Clean(root)
+	root = filepath.Clean(root)
+	r.assertOverrideRootIsTrustworthy(path, root)
+	return root
+}
+
+// An override root has to be somewhere only its owner can steer. `discard` calls RemoveAll on what this
+// resolves, and every report beneath it carries a pass's security findings — so a directory another
+// account can replace or rename is a directory another account can aim that deletion with.
+//
+// Both checks are on the root itself, and deliberately not on its ancestors. Refusing a symlinked
+// ancestor would outlaw ordinary setups — a home directory that is itself a symlink is common, and on
+// macOS `/tmp` is one. So this refuses what the human wrote in the config and stops there: that value
+// is the one they chose, and the one this tool can fairly hold them to.
+func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
+	if shell.IsSymlink(root) {
+		r.refuse("error: "+configPath+" sets a root that is a symlink ("+shell.Oneline(root)+" -> "+shell.Oneline(readLink(root))+") — nothing was read or written.",
+			"  `discard` removes this directory, so whoever can repoint the link chooses what that removes.",
+			"  Point `root` at a real directory.")
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		// Absent is fine and ordinary — the first run creates it. Anything else is a directory whose mode
+		// could not be read, and a permission this tool could not check must not pass as one it did.
+		if errors.Is(err, fs.ErrNotExist) {
+			return
+		}
+		r.refuse("error: could not read " + shell.Oneline(root) + " (" + err.Error() + ") — whether it is safe to write reports there is unknown, so nothing was read or written.")
+	}
+	if mode := info.Mode().Perm(); mode&0o022 != 0 {
+		r.refuse("error: "+configPath+" sets a root that is group- or world-writable ("+shell.Oneline(root)+", mode "+fmt.Sprintf("%04o", mode)+") — nothing was read or written.",
+			"  Every report written there carries a pass's findings, and `discard` removes the directory,",
+			"  so another account could read the first and steer the second. `chmod go-w` it, then re-run.")
+	}
 }
 
 // This clone's directory name under an override root: `<basename>-<digest>`, readable and unique.
@@ -179,41 +218,6 @@ func (r *run) noteOverride() {
 	}
 }
 
-// Throwaway mode holds nothing in the tree, so an in-tree `.idsd/` here is either a directory left by
-// the older layout or one a human made by hand. Its content is the only copy of whatever it holds, so
-// this refuses and says what to do rather than moving or merging anything.
-//
-// An empty directory is removed instead: it holds nothing to lose, and left standing it is a trace in
-// the mode whose whole contract is leaving none.
-func (r *run) reconcileTreeIdsdDir() {
-	tree := r.treeIdsdDir()
-	if r.idsdDir == tree || !shell.PathExists(tree) {
-		return
-	}
-	if shell.IsSymlink(tree) {
-		r.refuse("error: "+tree+" is a symlink -> "+readLink(tree)+" — nothing was read or written.",
-			"  The scratch directory now lives at "+r.idsdDir+"; remove the link, then re-run.")
-	}
-	// Files, not directory entries. Moving the content out leaves `intents/` and `qualify-reports/`
-	// standing as empty directories, and counting entries reads those as content — so a repo whose
-	// migration is finished is refused, with a message saying it holds content when it holds none.
-	count, sample, err := filesUnder(tree)
-	if err != nil {
-		r.refuse("error: could not read "+tree+" ("+err.Error()+") — whether it holds anything is unknown, so nothing was read or written.",
-			"  The scratch directory now lives at "+r.idsdDir+".")
-	}
-	if count == 0 {
-		// RemoveAll, because what is left is the empty directory skeleton the move left behind rather
-		// than a single empty dir. It holds nothing to lose: the walk above found no file under it.
-		_ = os.RemoveAll(tree)
-		return
-	}
-	r.refuse("error: "+tree+" still holds "+strconv.Itoa(count)+" file(s), and throwaway idsd scratch no longer lives in the tree — nothing was read or written.",
-		"  The scratch directory is now "+r.idsdDir+", shared by every branch and worktree of this clone.",
-		"  Still there: "+strings.Join(sample, " ")+sampleTail(count, len(sample)),
-		"  Nothing here moves your files for you: copy what you still want into that directory, delete the rest of "+tree+", then re-run.")
-}
-
 // The property throwaway mode now rests on: no write lands anywhere `git add -A` can reach, so no
 // ignore entry is needed and no report sits inside the tree it fingerprints.
 //
@@ -258,108 +262,4 @@ func resolveExisting(path string) string {
 		suffix = "/" + filepath.Base(path) + suffix
 		path = parent
 	}
-}
-
-// The line the old in-tree layout wrote into `.git/info/exclude` to hide the scratch from
-// `git add -A`. Nothing writes it any more — the scratch is not in the tree to hide — so every repo
-// that ever ran a throwaway ship still carries a rule for a directory that is not there.
-const staleExclusionEntry = ".idsd/"
-
-// Remove that rule. Reached from check-ignore, which runs before anything else in every pass, so a
-// repo cleans itself up the first time a ship touches it and no migration script has to remember.
-//
-// Safe unconditionally by the time this runs: reconcileTreeIdsdDir has already refused if the tree
-// still holds scratch, so the entry can only be excluding a directory that no longer exists. It is
-// also shared across every worktree, which used to make dropping it a decision requiring a worktree
-// count — now there is nothing any worktree needs it for.
-//
-// A failure here is reported and does not stop the pass: nothing about correctness rests on the entry
-// any more, so refusing would block real work over a tidy-up. Silence is the thing to avoid, not the
-// failure itself.
-func (r *run) removeStaleExclusion() {
-	exclude := r.gitCommonPath("info/exclude")
-	if !shell.IsRegularFile(exclude) {
-		return
-	}
-	content, err := os.ReadFile(exclude)
-	if err != nil {
-		r.errLines("note: could not read " + exclude + " — a stale '" + staleExclusionEntry + "' rule may still be there; nothing was changed")
-		return
-	}
-	var kept []string
-	removed := 0
-	for _, line := range shell.SplitLines(string(content)) {
-		if line == staleExclusionEntry {
-			removed++
-			continue
-		}
-		kept = append(kept, line)
-	}
-	if removed == 0 {
-		return
-	}
-	// Renamed over rather than written in place, for the reason the old teardown did it: an unwritable
-	// .git/info must fail without truncating the file it could not replace — which holds the human's
-	// own rules.
-	temp, err := os.CreateTemp(shell.DirName(exclude), ".exclude.")
-	if err != nil {
-		r.errLines("note: could not rewrite " + exclude + " — the stale '" + staleExclusionEntry + "' rule is still there")
-		return
-	}
-	_, err = temp.Write(joinRecords(kept))
-	if closed := temp.Close(); err == nil {
-		err = closed
-	}
-	if err == nil {
-		err = moveFile(temp.Name(), exclude)
-	}
-	if err != nil {
-		_ = os.Remove(temp.Name())
-		r.errLines("note: could not replace " + exclude + " (" + err.Error() + ") — the stale '" + staleExclusionEntry + "' rule is still there")
-		return
-	}
-	r.line("cleaned: removed the stale '%s' rule from %s (%d line(s)) — nothing writes there any more",
-		staleExclusionEntry, exclude, removed)
-}
-
-// How many regular files a directory holds, and up to sampleBound of their paths relative to it. The
-// count and the sample are separate returns because the sample is bounded: reporting len(sample) as the
-// count would understate a directory of a hundred files as twenty, and a message whose number drifts
-// from what it is counting is a message that lies.
-//
-// A symlink is not a regular file and is not followed: the point is what would be lost here, and a
-// link's target lives somewhere else.
-func filesUnder(dir string) (count int, sample []string, err error) {
-	err = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		info, infoErr := entry.Info()
-		if infoErr != nil {
-			return infoErr
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		count++
-		if len(sample) < sampleBound {
-			sample = append(sample, strings.TrimPrefix(path, dir+"/"))
-		}
-		return nil
-	})
-	return count, sample, err
-}
-
-// How many paths a refusal names before it stops.
-const sampleBound = 20
-
-// What the refusal adds when the sample is short of the count, so the two never read as disagreeing.
-func sampleTail(count, shown int) string {
-	if count <= shown {
-		return ""
-	}
-	return " (and " + strconv.Itoa(count-shown) + " more)"
 }

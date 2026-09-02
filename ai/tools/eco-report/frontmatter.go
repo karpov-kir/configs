@@ -51,7 +51,7 @@ func (r *run) reviewedStages() string { return fieldValue(r.report, "reviewed-st
 // reader knowing only some accepts what the others reject. `init` holds the template to this set.
 func isUnstamped(value string) bool {
 	switch value {
-	case "", "pending", "<hash>", "<stages>":
+	case "", "pending", "<hash>", "<stages>", "<worktree>":
 		return true
 	}
 	return false
@@ -95,7 +95,7 @@ func (r *run) assertTemplateStampable() {
 	if !hasField(r.template, "intent") {
 		r.refuse("error: template " + r.template + " has no 'intent:' line to stamp — the report was NOT initialized")
 	}
-	for _, field := range []string{"reviewed-tree", "reviewed-stages"} {
+	for _, field := range []string{"reviewed-tree", "reviewed-worktree", "reviewed-stages"} {
 		if !hasField(r.template, field) {
 			r.refuse("error: template " + r.template + " has no '" + field + ":' line — gate and state read it; the report was NOT initialized")
 		}
@@ -109,11 +109,14 @@ func (r *run) assertTemplateStampable() {
 // Atomic: on any failure the report is left exactly as it was. The two failure messages are the
 // caller's, because what a half-done rewrite leaves standing differs at each one.
 //
-// The shell version took them through the environment and refused when either was missing, since
-// `set -u` would otherwise kill the shell with exit 1 — a result to every caller. Parameters cannot
-// be omitted, so that guard is gone with the hazard it guarded.
+// Staged BESIDE the report, never in $TMPDIR, which is what makes the sentence above true. moveFile's
+// cross-device fallback is not atomic — it follows a symlink at the destination where the rename would
+// have replaced it, and it truncates before writing — and an override root legitimately sits on another
+// volume, so a temp file in $TMPDIR would make that fallback the ordinary path rather than the exotic
+// one. Same directory means the rename can never cross a device. The name is dot-led, so a leftover is
+// invisible to reportNames and joins no listing.
 func (r *run) rewriteReport(noTemp, noWrite string, rewrite func([]string) []string) error {
-	temp, err := os.CreateTemp("", "")
+	temp, err := os.CreateTemp(shell.DirName(r.report), ".rewrite.")
 	if err != nil {
 		r.errLines("error: mktemp failed — " + noTemp)
 		return err
@@ -139,7 +142,7 @@ func (r *run) rewriteReport(noTemp, noWrite string, rewrite func([]string) []str
 }
 
 // Frontmatter only, never a body line that happens to quote a field. Line 1 opens the frontmatter and
-// the next `---` closes it, which is the order the shell's awk applied its rules in.
+// the next `---` closes it.
 func mapFrontmatter(lines []string, rewrite func(inFrontmatter bool, line string) []string) []string {
 	out := make([]string, 0, len(lines)+1)
 	inFrontmatter := false
@@ -172,20 +175,21 @@ func rewriteIntent(intent string) func([]string) []string {
 	}
 }
 
-// stamp's rewrite: the stamp replaces reviewed-tree and re-emits reviewed-stages beside it, so a
-// report carrying the pair in either order ends up with one of each, and a `reviewed-mode:` line
-// from an older layout is dropped rather than left to be read.
-func rewriteStamp(tree, entries string) func([]string) []string {
+// stamp's rewrite: the stamp replaces reviewed-tree and re-emits the other two beside it, so a report
+// carrying them in any order ends up with one of each, and a `reviewed-mode:` line from an older
+// layout is dropped rather than left to be read.
+func rewriteStamp(tree, worktree, entries string) func([]string) []string {
 	return func(lines []string) []string {
 		return mapFrontmatter(lines, func(inFrontmatter bool, line string) []string {
 			if !inFrontmatter {
 				return []string{line}
 			}
 			switch {
-			case strings.HasPrefix(line, "reviewed-mode:"), strings.HasPrefix(line, "reviewed-stages:"):
+			case strings.HasPrefix(line, "reviewed-mode:"), strings.HasPrefix(line, "reviewed-stages:"),
+				strings.HasPrefix(line, "reviewed-worktree:"):
 				return nil
 			case strings.HasPrefix(line, "reviewed-tree:"):
-				return []string{"reviewed-tree: " + tree, "reviewed-stages: " + entries}
+				return []string{"reviewed-tree: " + tree, "reviewed-worktree: " + worktree, "reviewed-stages: " + entries}
 			}
 			return []string{line}
 		})
@@ -200,6 +204,8 @@ func rewriteInvalidated(lines []string) []string {
 		switch {
 		case strings.HasPrefix(line, "reviewed-tree:"):
 			return []string{"reviewed-tree: pending"}
+		case strings.HasPrefix(line, "reviewed-worktree:"):
+			return []string{"reviewed-worktree: pending"}
 		case strings.HasPrefix(line, "reviewed-stages:"):
 			return []string{"reviewed-stages: pending"}
 		}

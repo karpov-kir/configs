@@ -160,7 +160,7 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 	// so without the guard this reports "zero traces" for a ship that never existed.
 	typo := newRepo(t)
 	typo.runReport("check-ignore")
-	typo.mkdirAll(typo.scratch() + "")
+	typo.mkdirAll(typo.scratch())
 	typo.write(typo.scratch()+"/decisions.md", "# decisions\n")
 	typo.runReport("discard", "999-typo")
 	typo.assertRefused("discard refuses a typo rather than removing the directory around it")
@@ -223,20 +223,20 @@ func TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt(t *testing.T) {
 	linked.runReport("check-ignore")
 	linked.mkdirAll(linked.base + "/outside-discard/intents")
 	linked.write(linked.base+"/outside-discard/intents/003-elsewhere.md", "# not ours to delete\n")
-	linked.symlink(linked.base+"/outside-discard", linked.scratch()+"")
+	linked.symlink(linked.base+"/outside-discard", linked.scratch())
 	linked.runReport("discard", "003-elsewhere")
 	linked.assertRefused("discard refuses a symlinked .idsd rather than deleting through it")
 	linked.record("and the file outside the repo is still there",
 		linked.isFile(linked.base+"/outside-discard/intents/003-elsewhere.md"), "")
-	linked.remove(linked.scratch() + "")
+	linked.remove(linked.scratch())
 }
 
 func TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed(t *testing.T) {
 	t.Parallel()
 	// `review` is the one stem with no intent file, and idsd-qualify's SKILL.md tells the agent to run
 	// `close review`, so this sequence is the documented one. Without the `review` exception it ends in
-	// a permanent refusal, leaving an empty .idsd/ and its exclusion standing in the mode whose whole
-	// contract is zero traces.
+	// a permanent refusal, leaving an empty scratch directory standing in the mode whose whole contract
+	// is zero traces.
 	f := newShip(t, "review: a standalone pass")
 	f.runReport("close", "review")
 	f.runReport("discard", "review")
@@ -260,7 +260,7 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 		f.runReport("discard", "001-durable")
 		f.record(durable+" alone keeps .idsd/ standing through a discard",
 			f.status == 0 && f.isFile(f.scratch()+"/"+durable) && !f.isFile(f.reportPath("001-durable")),
-			"exit "+strconv.Itoa(f.status)+"; left: "+joinLines(f.find(f.scratch()+""))+"\n"+f.out)
+			"exit "+strconv.Itoa(f.status)+"; left: "+joinLines(f.find(f.scratch()))+"\n"+f.out)
 		f.assertReports(durable, "and discard names "+durable+" as what kept it")
 	}
 
@@ -274,7 +274,7 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	sibling.record("another ship's intent file keeps .idsd/ standing",
 		sibling.status == 0 && sibling.isFile(sibling.scratch()+"/intents/002-still-in-flight.md") &&
 			!sibling.isFile(sibling.scratch()+"/intents/001-going.md"),
-		"exit "+strconv.Itoa(sibling.status)+"; left: "+joinLines(sibling.find(sibling.scratch()+""))+"\n"+sibling.out)
+		"exit "+strconv.Itoa(sibling.status)+"; left: "+joinLines(sibling.find(sibling.scratch()))+"\n"+sibling.out)
 	sibling.assertReports("1 other intent(s)", "and counts it as an intent rather than as stray content")
 
 	// The label is the whole deliverable for what is left below: .idsd/ stands either way, and what

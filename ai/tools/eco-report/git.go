@@ -10,9 +10,14 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// Every git call the tool makes, and the two exclusion mechanisms it writes through. git is asked
-// rather than reimplemented everywhere it answers a question about ignoring, tracking or worktrees:
-// the answer has to be the one git will give the human's next command, not this tool's model of it.
+// Every git call the tool makes, and the one ignore mechanism it writes through — `.gitignore`, via
+// appendLine, for `promote`. The `.git/info/exclude` mentions below are all READS that classify an
+// ignore source; the code that wrote that file went with the in-tree layout, and what removes a stale
+// entry now lives in migrate.go.
+//
+// git is asked rather than reimplemented everywhere it answers a question about ignoring, tracking or
+// worktrees: the answer has to be the one git will give the human's next command, not this tool's model
+// of it.
 
 // One child process, with the invocation's directory and HOME. HOME matters to more than the
 // fingerprint path: git reads its global config out of it, so a run pointed at another HOME has to
@@ -109,11 +114,10 @@ func (r *run) ignoreSourceOf(path string) string {
 // on anybody else's clone, and the next `git add -A` there stages the report. Returns the source it
 // read, so a caller can name it.
 //
-// `.git/info/exclude` used to count as travelling, because throwaway mode wrote the scratch exclusion
-// there and this predicate had to accept its own work. Throwaway scratch is no longer in the tree and
-// nothing writes that file any more, so the arm was both dead and wrong: the only caller left is
-// committed mode, where an entry no clone can see is exactly what must not pass. Removing it is what
-// makes "ignored for everyone" true rather than nearly true.
+// `.git/info/exclude` is rejected here, which it once was not: throwaway mode wrote the scratch
+// exclusion into that file, and this predicate had to accept its own work. Nothing writes it any more,
+// and the only caller left is committed mode — where a rule no clone can see is exactly what must not
+// pass.
 //
 // Absolute paths are rejected before `*/.gitignore` is matched, or `core.excludesFile=~/.gitignore` —
 // the common global setup — passes as a repo-relative rule.
@@ -161,8 +165,9 @@ func (r *run) assertReportsDirIsIgnored() {
 // What must never be committed or fingerprinted, one path per line relative to the root. `promote`
 // writes a .gitignore entry per line and `check-ignore` verifies one per line, so the two cannot
 // disagree. The durable record is deliberately absent — committed mode keeps it tracked.
-// The whole directory, never a path per report: the next intent's report does not exist when
-// `promote` runs, so an entry per file would leave it tracked.
+//
+// The whole directory, never a path per report: the next intent's report does not exist when `promote`
+// runs, so an entry per file would leave it tracked.
 //
 // Built from the IN-TREE layout, not from r.reportsDir, which in throwaway mode is outside the tree
 // and would make the trim a no-op — putting an absolute path into .gitignore, where it matches

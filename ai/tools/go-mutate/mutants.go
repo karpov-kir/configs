@@ -312,26 +312,56 @@ var mutants = []mutant{
 	{"frontmatter: a body line read as a field", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", "if strings.HasPrefix(line, prefix) {", "if strings.Contains(line, prefix) {"},
 	// One set, read whole by every reader. A reader knowing only some of it accepts what the others
 	// reject, which is a report reading as reviewed to `gate` and unreviewed to `state`.
-	{"unstamped: 'pending' reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `case "", "pending", "<hash>", "<stages>":`, `case "", "<hash>", "<stages>":`},
-	{"unstamped: the template's <hash> reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestTheFilenameAndTheFrontmatterNameTheSameShip", `case "", "pending", "<hash>", "<stages>":`, `case "", "pending", "<stages>":`},
-	{"unstamped: the template's <stages> reads as a stage record", "../eco-report/frontmatter.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case "", "pending", "<hash>", "<stages>":`, `case "", "pending", "<hash>":`},
-	{"unstamped: an absent field reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case "", "pending", "<hash>", "<stages>":`, `case "pending", "<hash>", "<stages>":`},
+	{"unstamped: 'pending' reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "", "<hash>", "<stages>", "<worktree>":`},
+	{"unstamped: the template's <hash> reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestTheFilenameAndTheFrontmatterNameTheSameShip", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "", "pending", "<stages>", "<worktree>":`},
+	{"unstamped: the template's <stages> reads as a stage record", "../eco-report/frontmatter.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "", "pending", "<hash>", "<worktree>":`},
+	{"unstamped: the template's <worktree> reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "", "pending", "<hash>", "<stages>":`},
+	{"unstamped: an absent field reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "pending", "<hash>", "<stages>", "<worktree>":`},
 	{"fast trims: a turnaround trim no longer trims", "../eco-report/frontmatter.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `strings.Contains(entry, "(fast)")`, `strings.Contains(entry, "(FAST)")`},
 	{"intent slug: the charset no longer bounds the slug", "../eco-report/frontmatter.go", "./eco-report/", "TestAHandEditedIntentCannotSteerAPathOutOfIdsd", `if slug == "" || strings.HasPrefix(slug, "review:") || !isSlugCharset(slug) {`, `if slug == "" || strings.HasPrefix(slug, "review:") {`},
 	{"template: a symlinked template read", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "if shell.IsSymlink(r.template) {", "if false {"},
 	{"template: a missing template not named as the cause", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "if !shell.IsRegularFile(r.template) {", "if false {"},
 	{"template: no intent: line to stamp", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `if !hasField(r.template, "intent") {`, "if false {"},
-	{"template: reviewed-tree no longer required", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `[]string{"reviewed-tree", "reviewed-stages"}`, `[]string{"reviewed-stages"}`},
-	{"template: reviewed-stages no longer required", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `[]string{"reviewed-tree", "reviewed-stages"}`, `[]string{"reviewed-tree"}`},
+	{"template: reviewed-tree no longer required", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `[]string{"reviewed-tree", "reviewed-worktree", "reviewed-stages"}`, `[]string{"reviewed-worktree", "reviewed-stages"}`},
+	{"template: reviewed-worktree no longer required", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `[]string{"reviewed-tree", "reviewed-worktree", "reviewed-stages"}`, `[]string{"reviewed-tree", "reviewed-stages"}`},
+	{"template: reviewed-stages no longer required", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `[]string{"reviewed-tree", "reviewed-worktree", "reviewed-stages"}`, `[]string{"reviewed-tree", "reviewed-worktree"}`},
 	{"template: a drifted placeholder accepted", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "if !isUnstamped(placeholder) {", "if false {"},
 	{"frontmatter map: the closing delimiter never read", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", "if i > 0 && shell.IsFrontmatterDelimiter(line) {", "if i > 0 && false {"},
 	{"frontmatter map: the frontmatter never opens", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", "if i == 0 {", "if false {"},
 	{"intent rewrite: every intent: line replaced, not the first", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", "replaced = true", "replaced = false"},
-	{"stamp rewrite: the old reviewed-stages line left standing", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", `case strings.HasPrefix(line, "reviewed-mode:"), strings.HasPrefix(line, "reviewed-stages:"):`, `case strings.HasPrefix(line, "reviewed-mode:"):`},
-	{"stamp rewrite: an old layout's reviewed-mode left to be read", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", `case strings.HasPrefix(line, "reviewed-mode:"), strings.HasPrefix(line, "reviewed-stages:"):`, `case strings.HasPrefix(line, "reviewed-stages:"):`},
+	{"stamp rewrite: the old reviewed-stages line left standing", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", "case strings.HasPrefix(line, \"reviewed-mode:\"), strings.HasPrefix(line, \"reviewed-stages:\"),\n\t\t\t\tstrings.HasPrefix(line, \"reviewed-worktree:\"):", "case strings.HasPrefix(line, \"reviewed-mode:\"),\n\t\t\t\tstrings.HasPrefix(line, \"reviewed-worktree:\"):"},
+	{"stamp rewrite: an old layout's reviewed-mode left to be read", "../eco-report/frontmatter.go", "./eco-report/", "TestAStampRewritesTheFrontmatterAndNothingElse", "case strings.HasPrefix(line, \"reviewed-mode:\"), strings.HasPrefix(line, \"reviewed-stages:\"),\n\t\t\t\tstrings.HasPrefix(line, \"reviewed-worktree:\"):", "case strings.HasPrefix(line, \"reviewed-stages:\"),\n\t\t\t\tstrings.HasPrefix(line, \"reviewed-worktree:\"):"},
 	{"invalidate: the stage record left stamped", "../eco-report/frontmatter.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "case strings.HasPrefix(line, \"reviewed-stages:\"):\n\t\t\treturn []string{\"reviewed-stages: pending\"}", "case strings.HasPrefix(line, \"reviewed-stages:\"):\n\t\t\treturn []string{line}"},
 
 	{"ignore source: a machine-local info/exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, false", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, true"},
+
+	{"gate: a sibling worktree's stamp gates clean", "../eco-report/worktree.go", "./eco-report/", "TestASiblingWorktreeCannotReadAStampItNeverEarned", "case recorded != mine:", "case recorded != mine \u0026\u0026 false:"},
+	{"gate: an unstamped block never names an unestablishable identity", "../eco-report/gate.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "if _, established := r.worktreeToken(); !established {", "if _, established := r.worktreeToken(); !established \u0026\u0026 false {"},
+	{"gate: an unestablished identity reads as a match", "../eco-report/worktree.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "case !established:", "case !established \u0026\u0026 false:"},
+	// One mutant over the whole guard, where three finer ones stood. `state`'s three limbs cover each
+	// other: an unestablished identity answers `mine` empty and a recorded token is never empty, and a
+	// recorded value that is not a token is never equal to a token either — so removing any one limb
+	// changes no answer, and the two that dropped a limb did not even compile, leaving `mine` or
+	// `established` unused. `broken` and `KILLED NOTHING` are both findings here, and neither said
+	// anything about the guard. This one removes all of it, which is the smallest edit the suite can see.
+	{"state: the worktree guard gone, so a sibling routes to ready", "../eco-report/gate.go", "./eco-report/", "TestASiblingWorktreeCannotReadAStampItNeverEarned", "\tif vouch, _ := r.worktreeVouch(); vouch != vouchesForThisWorktree {\n\t\treturn \"re-qualify\"\n\t}\n", ""},
+	{"stamp: an identity it could not establish is recorded anyway", "../eco-report/stamp.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "if !established {", "if !established \u0026\u0026 false {"},
+	{"worktree identity: the token shape is trusted rather than checked", "../eco-report/worktree.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "if token := firstField(string(content)); isWorktreeToken(token) {", "if token := firstField(string(content)); token != \"\" {"},
+	{"stamp: the reviewing worktree is not recorded", "../eco-report/frontmatter.go", "./eco-report/", "TestTheStampRecordsWhichWorktreeReviewedTheTree", `return []string{"reviewed-tree: " + tree, "reviewed-worktree: " + worktree, "reviewed-stages: " + entries}`, `return []string{"reviewed-tree: " + tree, "reviewed-stages: " + entries}`},
+	{"invalidate: the reviewing worktree survives an invalidate", "../eco-report/frontmatter.go", "./eco-report/", "TestTheStampRecordsWhichWorktreeReviewedTheTree", "case strings.HasPrefix(line, \"reviewed-worktree:\"):\n\t\t\treturn []string{\"reviewed-worktree: pending\"}", "case strings.HasPrefix(line, \"reviewed-worktree:\") \u0026\u0026 false:\n\t\t\treturn []string{\"reviewed-worktree: pending\"}"},
+	{"worktree identity: the path is compared instead of the token", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", "func (r *run) reviewedWorktreeToken() string {\n\treturn firstField(fieldValue(r.report, \"reviewed-worktree\"))", "func (r *run) reviewedWorktreeToken() string {\n\tfields := shell.SplitFields(fieldValue(r.report, \"reviewed-worktree\"))\n\tif len(fields) == 0 {\n\t\treturn \"\"\n\t}\n\treturn fields[len(fields)-1]"},
+	{"worktree identity: the token is minted fresh on every read", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", "if content, err := os.ReadFile(path); err == nil {", "if content, err := os.ReadFile(path); err != nil {"},
+	{"worktree identity: the token is not persisted, so a move loses it", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", `if err := os.WriteFile(path, []byte(token+"\n"), 0o666); err != nil {`, "if err := error(nil); err != nil {"},
+
+	{"gate: a stamped tree with no reviewing worktree gates clean", "../eco-report/worktree.go", "./eco-report/", "TestAStampedTreeWithNoReviewingWorktreeIsNotAReview", "case !isWorktreeToken(recorded) \u0026\u0026 !isUnstamped(r.reviewedTree()):", "case false:"},
+	{"promote: the target check counts entries, not files", "../eco-report/scratch.go", "./eco-report/", "TestPromoteCountsFilesNotDirectoryEntries", "count, sample, err := filesUnder(target)", "entries, _ := os.ReadDir(target)\n\tcount, sample, err := len(entries), []string(nil), error(nil)"},
+	{"reconcile: a nested symlink counts as nothing and is deleted", "../eco-report/shell.go", "./eco-report/", "TestANestedSymlinkIsNotSilentlyDeleted", "if entry.IsDir() {\n\t\t\treturn nil\n\t\t}\n\t\tcount++", "if entry.IsDir() || entry.Type() == fs.ModeSymlink {\n\t\t\treturn nil\n\t\t}\n\t\tcount++"},
+
+	{"gate: the identical-trees claim is made unconditionally", "../eco-report/gate.go", "./eco-report/", "TestTheGateClaimsIdenticalTreesOnlyWhenTheyAre", "sameTree := \"\"\n\tif current == reviewed {", "sameTree := \"\"\n\tif true {"},
+
+	{"override root: a symlinked root accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", "if shell.IsSymlink(root) {", "if shell.IsSymlink(root) \u0026\u0026 false {"},
+	{"override root: a group-writable root accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `if mode := info.Mode().Perm(); mode&0o022 != 0 {`, `if mode := info.Mode().Perm(); false {`},
+	{"override root: an unreadable root passes as checked", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", "if errors.Is(err, fs.ErrNotExist) {", "if errors.Is(err, fs.ErrNotExist) || true {"},
 
 	// families.go — direction inside the skill layer. Each of these turns the scan into one that looks
 	// like it works: it still runs, still reports nothing on a clean tree, and has stopped checking.
@@ -350,8 +380,8 @@ var mutants = []mutant{
 	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(real))", "name := shell.BaseName(r.root)"},
 	{"root: a broken override falls back to the default in silence", "../eco-report/root.go", "./eco-report/", "TestABrokenOverrideRefusesRatherThanFallingBack", "if root == \"\" {\n\t\tr.refuse(\"error: \"+path+\" sets no", "if false {\n\t\tr.refuse(\"error: \"+path+\" sets no"},
 	{"root: an override inside the working tree is accepted", "../eco-report/root.go", "./eco-report/", "TestAnOverrideInsideTheWorkingTreeIsRefused", `if scratch != root && !strings.HasPrefix(scratch, root+"/") {`, "if true {"},
-	{"root: an empty directory skeleton read as content", "../eco-report/root.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if entry.IsDir() {\n\t\t\treturn nil\n\t\t}", "if entry.IsDir() {\n\t\t\tcount++\n\t\t\treturn nil\n\t\t}"},
-	{"root: an in-tree scratch dir is migrated without asking", "../eco-report/root.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if count == 0 {", "if count == 0 || true {"},
+	{"root: an empty directory skeleton read as content", "../eco-report/shell.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if entry.IsDir() {\n\t\t\treturn nil\n\t\t}", "if entry.IsDir() {\n\t\t\tcount++\n\t\t\treturn nil\n\t\t}"},
+	{"root: an in-tree scratch dir is migrated without asking", "../eco-report/migrate.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if count == 0 {", "if count == 0 || true {"},
 	{"promote: a refusal strands the scratch in the working tree", "../eco-report/scratch.go", "./eco-report/", "TestNoRefusalLeavesTheScratchStrandedInTheTree", "if err := os.Rename(to, from); err != nil {", "if err := error(nil); err != nil {"},
 
 	// git.go — every git call the tool makes, and the two exclusion mechanisms it writes through.
@@ -381,10 +411,10 @@ var mutants = []mutant{
 	{"gate: a turnaround trim no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `case trims != "":`, "case false:"},
 	{"gate: a scan that did not run no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "case status > 1:", "case false:"},
 	{"gate: an open item no longer blocks the merge", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case todos != "":`, "case false:"},
-	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "if blocked == 0 {", "if false {"},
+	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tr.line(\"gate clean: tree fresh, full qualify, no open TODOs\")\n", ""},
 	{"carry: the open items go unprinted", "../eco-report/gate.go", "./eco-report/", "TestCarryPrintsTheItemsARequalifyMustNotLose", "if r.openTodos != \"\" {\n\t\tr.line(\"%s\", r.openTodos)", "if false {\n\t\tr.line(\"%s\", r.openTodos)"},
 	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
-	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateNeverAnswersATokenItCannotStandBehind", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
+	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
 	{"state: the readability guard at its own call site removed", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `r.assertReportIsReadable("its state is unknown (permissions?), and 'resume' is what an unread report looks like")`, "_ = r.report"},
 	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"state token: an unstamped report no longer answers resume", "../eco-report/gate.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if isUnstamped(reviewed) {", "if false {"},
@@ -507,6 +537,33 @@ var mutants = []mutant{
 	}`, ``},
 	{"call sites: the whole-file read unbounded again", "subcommands.go", "./eco-check/", "TestOversizeFileIsNotReadByTheCallSiteScan", `		if info.Size() > maxFileBytes {`, `		if info.Size() > (1 << 62) {`},
 	{"reports: a stem outside the slug charset listed anyway", "../eco-report/paths.go", "./eco-report/", "TestAFilenameCannotForgeAListingRow", `		if !isSlugCharset(stem) {`, `		if !isSlugCharset(stem) && false {`},
+
+	// The same question asked of ecoreport, whose answer moved when the scratch left the tree: the
+	// location now comes from a config file, the directory sits outside the repository, and it is what
+	// `discard` removes. Each of these turns a guard into one that still reports success.
+	//
+	// Where that config file is read FROM is an input too — overrideConfigPath says what a relative one
+	// lets the checkout under review decide.
+	{"override: a relative config home read as an override", "../eco-report/root.go", "./eco-report/", "TestANonAbsoluteConfigHomeIsNotAnOverride", `if !filepath.IsAbs(config) {`, `if config == "" {`},
+	// The mode the scratch tree is created with, which is the whole of what decides who reads a report:
+	// the report itself lands at the template's mode, and the template is 0644 in the skill dir.
+	{"scratch: the tree created world-readable again", "../eco-report/init.go", "./eco-report/", "TestTheScratchDirectoryIsReadableByItsOwnerAlone", `shell.DirName(r.report), 0o700)`, `shell.DirName(r.report), 0o777)`},
+	// `promote` is the one subcommand that stages, so without this the link itself is committed and
+	// `git ls-files` answering "committed" is read as success. assertScratchDirsAreReal has the rest.
+	{"promote: a symlinked scratch dir moved into the tree and staged", "../eco-report/scratch.go", "./eco-report/", "TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink", `	r.assertScratchDirsAreReal("not promoted, and nothing was moved")`, `	_ = r.root`},
+	// Both halves of the reviewed-worktree value, which are two different hazards on one field: a newline
+	// forges a frontmatter line on the WRITE (currentWorktreeRecord), and an ESC rewrites the terminal on
+	// the ECHO (blocksOnFreshness). One mutant each, because one case cannot observe both.
+	{"stamp: the reviewing worktree's path recorded uncollapsed", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreePathCarriesNoControlByteIntoTheReport", `shell.Oneline(r.currentWorktreePath()), true`, `r.currentWorktreePath(), true`},
+	// Two branches quote that field, so two mutants — and each anchor carries the message text around
+	// the call, because the call alone matches both and an anchor matching twice is refused. They are
+	// separate claims: one blocks a review taken elsewhere, the other blocks a value that is not a
+	// usable token at all, and that second one is arbitrary text by definition.
+	{"gate: the recorded worktree echoed uncollapsed", "../eco-report/gate.go", "./eco-report/", "TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal", `reviewed in another worktree (" + shell.Oneline(fieldValue(r.report, "reviewed-worktree"))`, `reviewed in another worktree (" + fieldValue(r.report, "reviewed-worktree")`},
+	{"gate: an unusable worktree value echoed uncollapsed", "../eco-report/gate.go", "./eco-report/", "TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal", `no usable reviewing worktree (reviewed-worktree: " + shell.Oneline(fieldValue(r.report, "reviewed-worktree"))`, `no usable reviewing worktree (reviewed-worktree: " + fieldValue(r.report, "reviewed-worktree")`},
+	// Where the rewrite stages decides whether it can be atomic at all; rewriteReport says why $TMPDIR
+	// makes moveFile's non-atomic fallback the ordinary path rather than the exotic one.
+	{"rewrite: the report staged in $TMPDIR again", "../eco-report/frontmatter.go", "./eco-report/", "TestAReportRewriteIsStagedBesideTheReport", `os.CreateTemp(shell.DirName(r.report), ".rewrite.")`, `os.CreateTemp("", "")`},
 	// Two readers apply this bound, and the same four lines open both — so each anchor carries the
 	// return above it, which is the only thing that tells them apart. Anchored on the shared line
 	// alone, one of them matches twice and preflight refuses the whole run.

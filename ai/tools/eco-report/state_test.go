@@ -175,13 +175,10 @@ func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {
 	f.assertRefused("state refuses rather than answering no-report with two ships open")
 	f.record("and no-report appears nowhere in what it printed", !strings.Contains(f.out, "no-report"), "")
 
-	// `state`'s stdout is parsed as exactly one token, so every note it emits must go to stderr.
-	noted := newRepo(t)
-	noted.mkdirAll(noted.scratch() + "")
-	noted.write(noted.scratch()+"/ship-report.md", "---\nintent: 002-old\n---\n\n# Decide\n")
-	stdout := noted.runReportStdout("state")
-	noted.record("state's stdout is one token even while it notes the pre-scoping report on stderr",
-		stdout == "no-report", "stdout was: "+stdout)
+	// The stream-separation half that used to sit here is gone: the note it asserted on was legacyNote,
+	// deleted in this change, so the assertion reduced to `stdout == "no-report"`, which an empty repo
+	// answers regardless. That property is covered by TestAnOverrideMovesTheRootAndSaysSo, which asserts
+	// `state` prints one bare token while the override note goes to stderr.
 }
 
 func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {

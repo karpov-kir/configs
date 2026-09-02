@@ -1,7 +1,7 @@
 package ecocheck_test
 
 // The family-direction scan: an any-repo skill never names the workflow family, or the directory that
-// family keeps its state in. The rule's home is ecosystem.md → **One home**.
+// family keeps its state in. The rule's home is ecosystem.md → **Family direction**.
 //
 // The two directions are asserted separately, because the whole rule IS the direction: a scan that
 // fired both ways would flag a workflow skill citing an any-repo one, which is the composition the
@@ -40,24 +40,17 @@ func TestFamilyDirectionScan(t *testing.T) {
 
 	// The permitted direction, and the reason this scan cannot be symmetric: the workflow family is
 	// built by layering on the any-repo one, so every workflow skill cites one.
+	//
+	// Both findings are asserted absent, and the second is what keeps the first honest: with the
+	// direction guard removed, the workflow skill falls through to the neither-family branch and is
+	// reported by THAT instead, so a case watching only the cross-family finding stays green while
+	// observing nothing.
 	t.Run("stays quiet on a workflow skill naming an any-repo skill", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-qualify")
 		f.newMountedSkill("idsd-qualify")
 		f.write(f.root+"/skills/idsd-qualify/SKILL.md", "the pass is `~/.claude/skills/kk-qualify/SKILL.md`, run inline\n")
-		f.doesNotReport(crossFamily)
-	})
-
-	// The same fixture asserted against the OTHER finding, and it needs its own case because the harness
-	// runs a fixture once. Asserting only the cross-family absence above leaves that case green when the
-	// direction guard is removed: the workflow skill then falls through to the neither-family branch and
-	// is reported by THAT instead, so it passes while observing nothing.
-	t.Run("and is not reported as being in neither family either", func(t *testing.T) {
-		f := newRoot(t)
-		f.newMountedSkill("kk-qualify")
-		f.newMountedSkill("idsd-qualify")
-		f.write(f.root+"/skills/idsd-qualify/SKILL.md", "the pass is `~/.claude/skills/kk-qualify/SKILL.md`, run inline\n")
-		f.doesNotReport(unfamiliedSkill)
+		f.doesNotReport(crossFamily, unfamiliedSkill)
 	})
 
 	// An any-repo skill talking about its own family is the ordinary case, and a scan that flagged it
@@ -94,8 +87,8 @@ func TestFamilyDirectionScan(t *testing.T) {
 	})
 
 	// The guard that keeps the prefix key honest. laneNames deliberately does not trust the naming
-	// convention, because nothing checked it; this finding is what makes trusting it here legitimate,
-	// so a third family fails loudly instead of going unscanned in silence.
+	// convention, since nothing checked it. This finding is what makes trusting it here legitimate: a
+	// third family fails loudly instead of going unscanned in silence.
 	t.Run("fires on a mounted skill in neither declared family", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("zz-stranger")

@@ -1,7 +1,8 @@
 package ecoreport_test
 
-// `promote` writes to the human's index, and every refusal past the point it drops the local
-// exclusion owes a restore — left off, the next `git add -A` stages the whole scratch dir.
+// `promote` writes to the human's index, and every refusal past the point it MOVES the scratch into
+// the tree owes a move back — left off, the intents sit untracked in the working tree while the human
+// has been told the promotion did not happen.
 
 import (
 	"strings"
@@ -107,7 +108,7 @@ func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
 	t.Parallel()
 	// `promote` is run by hand and by `idsd-ship`, so it meets repos already promoted. Past the mode
-	// check it drops the local exclusion, appends to .gitignore and runs `git add` — and over an
+	// check it appends to .gitignore, moves the scratch into the tree and runs `git add` — and over an
 	// already-durable .idsd/ that add is the human's own staging area being written for nothing.
 	f := newCommittedRepo(t)
 	f.runReport("check-ignore")

@@ -11,9 +11,8 @@
 // between calls, so two runs in one process cannot see each other's caches.
 //
 // Two seams stay external, and must: `~/.kk-flavor/scripts/tree-fingerprint.sh` owns the
-// tree-fingerprint recipe (get it half right here, with a throwaway index but no throwaway object
-// store, and every untracked file's content lands in the human's own .git/objects for good), and
-// `todo-gate.sh` owns the open-item scan. Both are invoked, never reimplemented.
+// tree-fingerprint recipe, and `todo-gate.sh` owns the open-item scan. Both are invoked, never
+// reimplemented — newRun says what recomputing the first one costs.
 //
 // This tool deletes files (discard) and writes to the git index (promote). Every refusal below is
 // load-bearing: read the comment before removing one.
@@ -27,25 +26,29 @@
 //	                 outside the working tree in throwaway mode. The only way a skill learns it;
 //	                 joining `.idsd/` onto the repo root is what made the location per-worktree
 //	repo-mode        print committed|throwaway — is .idsd/ tracked in git?
-//	invalidate       clear reviewed-tree/reviewed-stages and drop the stage markers at pass start, so no
-//	                 stamp outlives its tree; stamp refuses until this pass has run it
+//	invalidate       clear reviewed-tree/reviewed-worktree/reviewed-stages and drop the stage markers at
+//	                 pass start, so no stamp outlives its tree; stamp refuses until this pass has run it
 //	stage-returned <stage>  mark a stage returned, recording the report as it then stood; stamp refuses until
 //	                 the report has changed since, so a stage's items cannot be left unrecorded. One stage at
 //	                 a time — refused while another stage's mark still has nothing recorded against it
 //	no-items <stage> mark a stage already marked returned as having surfaced nothing, the one way to clear
 //	                 its marker without editing the report
 //	stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
-//	                 reviewed-stages, one entry per pipeline stage. Any `(fast)` marks the pass
-//	                 not-full. Run `stamp` bare for the grammar; that usage text is the authority on it
+//	                 reviewed-worktree + reviewed-stages, one entry per pipeline stage. Any `(fast)`
+//	                 marks the pass not-full. Refuses when this worktree's identity cannot be
+//	                 established, since gate reads it to tell this tree's review from a sibling's. Run
+//	                 `stamp` bare for the grammar; that usage text is the authority on it
 //	gate             done-blocker: stale tree OR turnaround-trimmed stages (both human-overridable)
 //	                 OR any open `- [ ]` (never overridable) → non-zero + reasons
 //	carry            print prior open `- [ ]` (with their section) so re-qualify loses none
 //	check-ignore     keep qualify-reports/ out of the fingerprint, by the mechanism that fits the repo mode
-//	promote          throwaway → committed: stop excluding .idsd/, ignore qualify-reports/ via .gitignore, stage
-//	discard          throwaway only: remove this ship's local scratch (report, intent file, stage
-//	                 markers), and the whole .idsd/ + its local exclusion when nothing else remains.
-//	                 Another intent, or an authored charter/constitution/language/playbook, is
-//	                 "something" — those are the human's, not this ship's scratch
+//	promote          throwaway → committed: ignore qualify-reports/ via .gitignore, MOVE the scratch
+//	                 directory into the tree as .idsd/, stage it. Every refusal after the move puts the
+//	                 directory back where it came from
+//	discard          throwaway only: remove this ship's scratch (report, intent file, stage markers),
+//	                 and the whole scratch directory when nothing else remains. Another intent, or an
+//	                 authored charter/constitution/language/playbook, is "something" — those are the
+//	                 human's, not this ship's scratch
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
 //	list             one line per open ship, `<intent><TAB><state>`, for routing with several in flight
@@ -66,8 +69,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// Invocation is one run of the tool. The three fields the shell version read from its process — the
-// working directory git is asked about, argv[0] the skill dir is derived from, and $HOME the
+// Invocation is one run of the tool. The three fields it would otherwise read from its own process —
+// the working directory git is asked about, argv[0] the skill dir is derived from, and $HOME the
 // fingerprint script hangs off — are explicit here so a test can drive a fixture without touching
 // anything process-global. Empty means "take it from this process", which is what the command does.
 type Invocation struct {
@@ -91,11 +94,8 @@ func Run(args []string, out, errOut io.Writer) int {
 // (`gate` and `check-ignore` alone), and 2 is "this did not run" — never a result.
 func (inv Invocation) Exec() (code int) {
 	r := newRun(inv)
-	// exit 2 = "this did not run", never a result. Every path that stops halfway leaves by here.
-	// The shell version's `refuse` was an `exit`, reachable from any depth, and the header of that
-	// file says three times over what happens when one is swallowed by a `$( )` subshell: the caller
-	// runs on with an empty substitution and the error already printed. A panic carries the same
-	// reach with none of that hazard — nothing in Go recovers it but this function.
+	// exit 2 = "this did not run", never a result. Every path that stops halfway leaves by here. A panic
+	// is what gives `refuse` reach from any depth, and nothing in Go recovers it but this function.
 	defer func() {
 		switch signal := recover().(type) {
 		case nil:

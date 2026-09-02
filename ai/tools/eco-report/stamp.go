@@ -90,10 +90,16 @@ func (r *run) cmdStamp() {
 	if !ok {
 		r.exit(2)
 	}
+	worktree, established := r.currentWorktreeRecord()
+	if !established {
+		r.refuse("error: could not establish which worktree this pass ran in ("+r.gitPath("idsd-worktree-id")+" is not writable) — NOT stamped.",
+			"  gate reads that identity to tell this tree's review from a sibling's; recorded as unknown, two worktrees would gate clean off each other's review.",
+			"  Make that path writable, then stamp again. Nothing else about the pass is lost.")
+	}
 	err := r.rewriteReport(
 		"nothing was stamped",
 		"could not write the stamp into "+r.report+" — reviewed-tree is unchanged",
-		rewriteStamp(tree, entries))
+		rewriteStamp(tree, worktree, entries))
 	if err != nil {
 		r.exit(2)
 	}

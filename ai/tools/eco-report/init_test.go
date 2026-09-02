@@ -25,7 +25,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	idsd := newRepo(t)
 	idsd.runReport("check-ignore")
 	idsd.mkdirAll(idsd.base + "/outside")
-	idsd.symlink(idsd.base+"/outside", idsd.scratch()+"")
+	idsd.symlink(idsd.base+"/outside", idsd.scratch())
 	idsd.runReport("init", "review: symlinked idsd dir")
 	idsd.assertRefused("init refuses a symlinked .idsd directory")
 	idsd.record("nothing was written outside the repo through .idsd", !idsd.exists(idsd.base+"/outside/qualify-reports"), "")
@@ -34,7 +34,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	// on the report file cannot see a link one level up.
 	reports := newRepo(t)
 	reports.runReport("check-ignore")
-	reports.mkdirAll(reports.scratch() + "")
+	reports.mkdirAll(reports.scratch())
 	reports.mkdirAll(reports.base + "/outside-reports")
 	reports.symlink(reports.base+"/outside-reports", reports.scratch()+"/qualify-reports")
 	reports.runReport("init", "review: symlinked reports dir")
@@ -194,8 +194,9 @@ func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
 	f.assertReports("report.sh check-ignore", "and names the step that was skipped")
 	f.assertNoReportWritten("and wrote no report that could never gate clean")
 
-	// Committed mode reaches the same precondition through a `.gitignore` entry rather than a local
-	// exclusion, so the assertion has to accept it, or it blocks every committed idsd repo.
+	// Committed mode is the only mode that reaches this precondition at all — throwaway scratch sits
+	// outside the tree, so nothing there needs ignoring. The assertion has to accept a `.gitignore`
+	// entry, or it blocks every committed idsd repo.
 	committed := newCommittedRepo(t)
 	committed.runReport("init", "001-committed-ok")
 	committed.record("and accepts a committed repo, where .gitignore is what ignores it",
@@ -215,7 +216,7 @@ func TestAnIntentValueCarriesNoControlByteIntoTheReport(t *testing.T) {
 	f.record("no control byte reached the frontmatter", !strings.ContainsRune(string(written), 0x1b), string(written))
 	f.record("nor this tool's own output", !strings.ContainsRune(f.out, 0x1b), f.out)
 
-	// The half that was already there: CR/LF collapse to a space rather than opening a second line.
+	// The other form the collapse has to catch: CR/LF become a space rather than opening a second line.
 	g := newShip(t, "review: a\nreviewed-tree: forged")
 	body, err := os.ReadFile(g.reportPath(""))
 	if err != nil {

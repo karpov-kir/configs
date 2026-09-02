@@ -87,8 +87,8 @@ func TestTheLocationIsResolvedFromTheRootNotTheCallersDirectory(t *testing.T) {
 
 func TestScratchSitsWhereGitAddAllCannotReachIt(t *testing.T) {
 	t.Parallel()
-	// The property that replaced the local exclusion. Stronger than what it replaced: an exclude entry
-	// can be edited away or fail to travel, a path outside the tree cannot.
+	// The property that replaced the local exclusion; treeIsFreeOfScratch says why it is the stronger of
+	// the two, and asks git rather than the layout.
 	f := newShip(t, "001-unreachable")
 	f.newIntentFile("001-unreachable")
 	f.armFullPass("001-unreachable")
@@ -351,8 +351,6 @@ func TestPerWorktreeStateGoesToTheWorktreesOwnGitDir(t *testing.T) {
 	// in a linked worktree, so an absolute answer joined onto the root builds the markers at
 	// `<worktree>/<absolute path>` — a directory tree inside the checkout, while the marker the next
 	// command looks for is not there. Every command still reports success.
-	//
-	// This used to be observed through the exclusion writing, which throwaway mode no longer does.
 	f := newShip(t, "001-markers")
 	second := f.base + "/marker-worktree"
 	f.mustGit("worktree", "add", "-q", second, "-b", "markers")
@@ -374,4 +372,328 @@ func TestPerWorktreeStateGoesToTheWorktreesOwnGitDir(t *testing.T) {
 	// And the marker is readable back from that same worktree, which is what the stamp depends on.
 	f.runReportIn(second, "no-items", "code-review", "001-markers")
 	f.record("and reads back, so the stamp can see it", f.status == 0, f.evidence())
+}
+
+func TestASiblingWorktreeCannotReadAStampItNeverEarned(t *testing.T) {
+	t.Parallel()
+	// The divergence this whole change made reachable. The scratch directory
+	// is now shared per clone, so a sibling worktree can SEE another's stamped report — and the freshness
+	// guard compares tree fingerprints, which are identical for two clean worktrees at the same commit.
+	// So the sibling read a ship it never ran as its own `ready`, and `gate` passed it.
+	f := newShip(t, "090-twin")
+	f.newIntentFile("090-twin")
+	twin := f.base + "/twin-worktree"
+	f.mustGit("worktree", "add", "-q", twin, "-b", "twin")
+	if !f.exists(twin) {
+		t.Skip("git worktree add is unavailable here, so this case cannot be built")
+	}
+	// Stamped in the main checkout only. Both trees are clean and at the same commit, which is exactly
+	// the state a freshly added worktree is in.
+	f.stampFullPass("090-twin")
+
+	// The fixture's own precondition: without identical fingerprints the case passes on staleness rather
+	// than on the guard, and would stay green if the guard were removed.
+	fromMain := f.runReportStdout("gate", "090-twin")
+	f.record("fixture: the stamp is clean in the worktree that earned it",
+		f.status == 0, f.evidence()+"\n"+fromMain)
+
+	f.runReportIn(twin, "gate", "090-twin")
+	f.record("gate blocks in a sibling worktree that reviewed nothing",
+		f.status != 0, f.evidence())
+	f.assertReports("reviewed in another worktree", "and says the review describes a tree somewhere else")
+
+	f.runReportIn(twin, "state", "090-twin")
+	f.record("and state routes the sibling to re-qualify rather than ready",
+		strings.TrimSpace(f.out) == "re-qualify", f.evidence())
+
+	// The positive control: the worktree that did the work is unaffected.
+	f.runReport("state", "090-twin")
+	f.record("while the worktree that ran the pass still reads ready",
+		strings.TrimSpace(f.out) == "ready", f.evidence())
+}
+
+func TestTheStampRecordsWhichWorktreeReviewedTheTree(t *testing.T) {
+	t.Parallel()
+	// The field the guard above reads. Asserted separately because a guard comparing a value nothing
+	// writes is a guard that never fires, and a stamp that records the wrong worktree fires it always.
+	f := newShip(t, "091-recorded")
+	f.newIntentFile("091-recorded")
+	f.stampFullPass("091-recorded")
+	report := f.read(f.reportPath("091-recorded"))
+	// `<token> <path>`: the token is what gate compares, the path is for the human reading the report.
+	recorded := fieldFrom(report, "reviewed-worktree")
+	f.record("the stamp writes a token and the reviewing worktree's path",
+		len(strings.Fields(recorded)) == 2 && strings.HasSuffix(recorded, " "+f.canonicalRepo()) &&
+			len(strings.Fields(recorded)[0]) == 16, "recorded: "+recorded)
+
+	// invalidate clears it with the rest, or a re-qualify inherits the old worktree and the guard reads
+	// a review that no longer exists.
+	f.runReport("invalidate", "091-recorded")
+	f.record("and invalidate clears it with the rest of the stamp",
+		containsLine(f.read(f.reportPath("091-recorded")), "reviewed-worktree: pending"),
+		f.read(f.reportPath("091-recorded")))
+
+	// Exactly one of each line, whatever order the report carried them in.
+	f.stampFullPass("091-recorded")
+	after := f.read(f.reportPath("091-recorded"))
+	f.record("and a second stamp leaves one of each line, not two",
+		countLinesWithPrefix(after, "reviewed-worktree:") == 1 &&
+			countLinesWithPrefix(after, "reviewed-tree:") == 1 &&
+			countLinesWithPrefix(after, "reviewed-stages:") == 1, after)
+}
+
+func TestAWorktreeIdentityIsNotItsPath(t *testing.T) {
+	t.Parallel()
+	// The first version of this guard recorded the reviewing worktree as a filesystem path. A path is not
+	// an identity, and it fails in both directions.
+	t.Run("a new worktree at a reused path does not inherit the stamp", func(t *testing.T) {
+		f := newShip(t, "092-recycled")
+		f.newIntentFile("092-recycled")
+		reused := f.base + "/recycled"
+		f.mustGit("worktree", "add", "-q", reused, "-b", "first")
+		if !f.exists(reused) {
+			t.Skip("git worktree add is unavailable here, so this case cannot be built")
+		}
+		// Stamped by the first occupant of that path, which then gates clean there.
+		f.stampFullPassIn(reused, "092-recycled")
+		f.runReportIn(reused, "gate", "092-recycled")
+		f.record("fixture: the first occupant gates clean", f.status == 0, f.evidence())
+
+		// Removed and recreated at the SAME path — ordinary practice for a scratch worktree, and a
+		// brand-new worktree that has run nothing.
+		f.mustGit("worktree", "remove", reused)
+		f.mustGit("worktree", "add", "-q", reused, "-b", "second")
+		f.runReportIn(reused, "gate", "092-recycled")
+		f.record("the replacement does not inherit its predecessor's clean gate",
+			f.status != 0, f.evidence())
+		f.runReportIn(reused, "state", "092-recycled")
+		f.record("and routes to re-qualify", strings.TrimSpace(f.out) == "re-qualify", f.evidence())
+	})
+
+	t.Run("a moved worktree keeps its own stamp", func(t *testing.T) {
+		f := newShip(t, "093-moved")
+		f.newIntentFile("093-moved")
+		from, to := f.base+"/before-move", f.base+"/after-move"
+		f.mustGit("worktree", "add", "-q", from, "-b", "mover")
+		if !f.exists(from) {
+			t.Skip("git worktree add is unavailable here, so this case cannot be built")
+		}
+		f.stampFullPassIn(from, "093-moved")
+		if _, status := f.git("worktree", "move", from, to); status != 0 {
+			t.Skip("git worktree move is unavailable here, so this case cannot be built")
+		}
+		// The worktree that did the work is the same worktree, wherever it now sits. Telling it
+		// otherwise costs a whole re-qualify for a directory rename.
+		f.runReportIn(to, "gate", "093-moved")
+		f.record("the worktree that ran the pass still gates clean after being moved",
+			f.status == 0, f.evidence())
+		f.runReportIn(to, "state", "093-moved")
+		f.record("and still reads ready", strings.TrimSpace(f.out) == "ready", f.evidence())
+	})
+}
+
+func TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity(t *testing.T) {
+	t.Parallel()
+	// The subtlest of the three. The first version of this guard returned the literal string `unmintable`
+	// when it could not write the token, and compared it like any other value — so two worktrees that both
+	// failed to mint compared EQUAL and gated clean off each other's review. worktreeToken says why that
+	// pairing is not the rare coincidence it looks like.
+	t.Run("stamp refuses rather than recording an identity it could not establish", func(t *testing.T) {
+		f := newShip(t, "094-unmintable")
+		f.newIntentFile("094-unmintable")
+		f.armFullPass("094-unmintable")
+		// Unwritable by construction: a directory where the token file goes, so the write fails for every
+		// user including root.
+		f.mkdirAll(f.repo + "/.git/idsd-worktree-id")
+		f.runReport("stamp", "code-review,security-review,tighten,refactor", "094-unmintable")
+		f.assertRefused("stamp refuses when this worktree's identity cannot be established")
+		f.assertReports("NOT stamped", "and says the pass was not stamped")
+		// Still the placeholder invalidate left, so nothing was recorded.
+		f.record("and wrote no reviewed-worktree value",
+			fieldFrom(f.read(f.reportPath("094-unmintable")), "reviewed-worktree") == "pending",
+			f.read(f.reportPath("094-unmintable")))
+	})
+
+	t.Run("and two worktrees that cannot mint do not gate clean off each other", func(t *testing.T) {
+		f := newShip(t, "095-both-broken")
+		f.newIntentFile("095-both-broken")
+		twin := f.base + "/broken-twin"
+		f.mustGit("worktree", "add", "-q", twin, "-b", "broken")
+		if !f.exists(twin) {
+			t.Skip("git worktree add is unavailable here, so this case cannot be built")
+		}
+		// Stamped while identity works, so there is a real review to steal.
+		f.stampFullPass("095-both-broken")
+		// Now break minting on BOTH sides, which is how the condition actually occurs — the private git
+		// dir being unwritable is a property of the clone, so it hits every worktree at once. A directory
+		// where the file goes fails the write for every user, root included.
+		f.remove(f.repo + "/.git/idsd-worktree-id")
+		f.mkdirAll(f.repo + "/.git/idsd-worktree-id")
+		// `broken-twin`, the worktree DIRECTORY's basename — git names the private git dir after that, not
+		// after the branch. Aimed at `broken` this built a private dir for a worktree that does not exist,
+		// the twin minted an identity happily, and the case passed on the mismatch arm while claiming to
+		// cover the arm where neither side has one.
+		f.mkdirAll(f.repo + "/.git/worktrees/broken-twin/idsd-worktree-id")
+		f.runReportIn(twin, "gate", "095-both-broken")
+		f.record("the twin does not gate clean", f.status != 0, f.evidence())
+		// The message, not only the exit: with the unestablished arm gone, the block still happens — the
+		// arm below it compares an empty `mine` against a real token and refuses too — so the exit alone
+		// cannot tell the two apart, and it says the review was taken elsewhere when what is actually
+		// unknown is this tree's own identity.
+		f.assertReports("identity could not be established", "and blocks on the identity, not on a mismatch")
+		f.runReportIn(twin, "state", "095-both-broken")
+		f.record("and routes to re-qualify", strings.TrimSpace(f.out) == "re-qualify", f.evidence())
+	})
+
+	// The reader loop this note breaks: in a repo whose identity can never be established, the gate blocks
+	// on freshness and stages, both of which say "run a full qualify" — and that qualify's stamp refuses
+	// for a reason printed only on stamp's stderr. An orchestrator that swallows that stderr never learns
+	// why.
+	t.Run("and the gate says why it will stay unstamped, where the human meets the block", func(t *testing.T) {
+		f := newShip(t, "097-no-route")
+		f.newIntentFile("097-no-route")
+		f.mkdirAll(f.repo + "/.git/idsd-worktree-id")
+		f.runReport("gate", "097-no-route")
+		f.record("the gate blocks", f.status != 0, f.evidence())
+		f.assertReports("it will stay unstamped", "and says re-running the stages will not help")
+		f.assertReports("idsd-worktree-id", "and names the path to fix")
+		// The positive control: a healthy repo's block never carries that note, or it would appear on
+		// every ordinary unstamped report and mean nothing.
+		healthy := newShip(t, "098-ordinary")
+		healthy.newIntentFile("098-ordinary")
+		healthy.runReport("gate", "098-ordinary")
+		healthy.record("while an ordinary unstamped report does not carry it",
+			healthy.status != 0 && !strings.Contains(healthy.out, "it will stay unstamped"), healthy.evidence())
+	})
+
+	t.Run("a token file holding garbage reads as a different worktree, not as a match", func(t *testing.T) {
+		f := newShip(t, "096-garbage")
+		f.newIntentFile("096-garbage")
+		f.stampFullPass("096-garbage")
+		f.runReport("gate", "096-garbage")
+		f.record("fixture: it gates clean while the token is intact", f.status == 0, f.evidence())
+		// Not a token: the value is checked for shape rather than trusted, so this mints a fresh one.
+		f.write(f.repo+"/.git/idsd-worktree-id", "not-a-token\n")
+		f.runReport("gate", "096-garbage")
+		f.record("garbage in the token file does not gate clean", f.status != 0, f.evidence())
+		// What the shape check actually does, since the block above happens either way: trusted, the
+		// garbage becomes this worktree's identity and stays in the file. Checked, it is replaced by a
+		// freshly minted token, and the worktree reads as a different one rather than as a nameless one.
+		minted := strings.TrimSpace(f.read(f.repo + "/.git/idsd-worktree-id"))
+		f.record("and the garbage was replaced by a freshly minted token",
+			len(minted) == 16 && strings.Trim(minted, "0123456789abcdef") == "",
+			"the token file holds: "+minted)
+	})
+}
+
+func TestAStampedTreeWithNoReviewingWorktreeIsNotAReview(t *testing.T) {
+	t.Parallel()
+	// A report carrying a stamped tree and NO reviewed-worktree line falls through the guard entirely and
+	// gates clean in every worktree — noReviewingWorktreeRecorded says how. Reachable through the migration
+	// this change itself instructs: reconcileTreeIdsdDir tells the human to copy files out of an in-tree
+	// .idsd/ by hand, and a report copied that way has no such line.
+	f := newShip(t, "099-legacy")
+	f.newIntentFile("099-legacy")
+	f.stampFullPass("099-legacy")
+	f.runReport("gate", "099-legacy")
+	f.record("fixture: it gates clean with the field intact", f.status == 0, f.evidence())
+
+	// A malformed value is the same case as an absent one: present, unusable. Asserted first, and on the
+	// worktree line rather than the tree line, because the tree has to stay fresh for `re-qualify` to be
+	// this guard's answer — a stale tree returns the same token one branch earlier, so a case that edits
+	// reviewed-tree passes on freshness and would stay green with the guard removed.
+	f.replaceLine(f.reportPath("099-legacy"), "reviewed-worktree:", "reviewed-worktree: not-a-token")
+	f.runReport("state", "099-legacy")
+	f.record("a malformed worktree value routes to re-qualify",
+		strings.TrimSpace(f.out) == "re-qualify", f.evidence())
+
+	// Exactly the shape the older layout wrote: tree and stages stamped, no worktree line at all.
+	f.dropLines(f.reportPath("099-legacy"), "reviewed-worktree:")
+	f.record("fixture: the line is gone",
+		!strings.Contains(f.read(f.reportPath("099-legacy")), "reviewed-worktree:"),
+		f.read(f.reportPath("099-legacy")))
+
+	f.runReport("gate", "099-legacy")
+	f.record("a stamped tree with no reviewing worktree does not gate clean", f.status != 0, f.evidence())
+	f.assertReports("no usable reviewing worktree", "and says which worktree it vouches for is unknown")
+	f.runReport("state", "099-legacy")
+	f.record("and state routes to re-qualify rather than ready",
+		strings.TrimSpace(f.out) == "re-qualify", f.evidence())
+}
+
+func TestPromoteCountsFilesNotDirectoryEntries(t *testing.T) {
+	t.Parallel()
+	// The sibling of the same distinction reconcileTreeIdsdDir needs. Counting directory entries, promote
+	// refused an in-tree .idsd/ holding only the empty `intents/` and `qualify-reports/` skeleton a
+	// finished migration leaves, and told the human to reconcile two empty directories by hand.
+	f := newShip(t, "100-skeleton")
+	f.newIntentFile("100-skeleton")
+	f.mkdirAll(f.treeIdsd() + "/intents")
+	f.mkdirAll(f.treeIdsd() + "/qualify-reports")
+	f.runReport("promote")
+	f.record("promote is not refused by an empty directory skeleton",
+		f.status == 0 && f.runReportStdout("repo-mode") == "committed", f.evidence())
+
+	// The positive control: a real file there still refuses, and now names what it found.
+	other := newShip(t, "101-realfile")
+	other.newIntentFile("101-realfile")
+	other.mkdirAll(other.treeIdsd())
+	other.write(other.treeIdsd()+"/charter.md", "# theirs\n")
+	other.runReport("promote")
+	other.assertRefused("while a real file there still refuses")
+	other.assertReports("already holds 1 file(s)", "and counts what it found")
+	other.assertReports("charter.md", "and names it")
+}
+
+func TestANestedSymlinkIsNotSilentlyDeleted(t *testing.T) {
+	t.Parallel()
+	// Counting only regular files, an in-tree .idsd/ holding just `charter.md -> ../docs/charter.md`
+	// counted zero and the RemoveAll fired, deleting the link without a word — while a symlink at the TOP
+	// of that directory was loudly refused three lines above.
+	f := newRepo(t)
+	f.write(f.repo+"/docs-charter.md", "# the human's real file\n")
+	f.mkdirAll(f.treeIdsd())
+	f.symlink(f.repo+"/docs-charter.md", f.treeIdsd()+"/charter.md")
+	f.runReport("check-ignore")
+	f.assertRefused("a nested symlink is refused, not removed in silence")
+	f.record("and the link is still there",
+		f.isSymlink(f.treeIdsd()+"/charter.md"), f.evidence())
+	f.record("and its target is untouched", f.isFile(f.repo+"/docs-charter.md"), "")
+}
+
+func TestTheGateClaimsIdenticalTreesOnlyWhenTheyAre(t *testing.T) {
+	t.Parallel()
+	// The reviewed-in-another-worktree block is reachable with a STALE tree — an unstamped `reviewed-tree`
+	// beside a real token, which an older binary's invalidate could leave — and unguarded it printed "The
+	// fingerprints match because both trees are identical" directly under a BLOCK saying they differ.
+	f := newShip(t, "102-contradiction")
+	f.newIntentFile("102-contradiction")
+	f.stampFullPass("102-contradiction")
+	f.runReport("gate", "102-contradiction")
+	f.record("fixture: it gates clean while fresh and in its own worktree", f.status == 0, f.evidence())
+
+	// A sibling worktree makes the token mismatch; editing the tree makes the fingerprints differ. Both
+	// blocks now fire, and the pair must not contradict each other.
+	twin := f.base + "/contradiction-twin"
+	f.mustGit("worktree", "add", "-q", twin, "-b", "twin")
+	if !f.exists(twin) {
+		t.Skip("git worktree add is unavailable here, so this case cannot be built")
+	}
+	f.write(twin+"/moved.txt", "the tree is now different here\n")
+	f.runReportIn(twin, "gate", "102-contradiction")
+	f.record("both blocks fire", f.status != 0, f.evidence())
+	f.assertReports("tree changed since last qualify", "the freshness block says the trees differ")
+	f.record("and nothing claims the fingerprints match",
+		!strings.Contains(f.out, "fingerprints match"), f.evidence())
+
+	// The positive control: where the trees really are identical, the sentence is still there, because it
+	// is what explains why a matching fingerprint did not clear the block.
+	same := newShip(t, "103-identical")
+	same.newIntentFile("103-identical")
+	sameTwin := same.base + "/identical-twin"
+	same.mustGit("worktree", "add", "-q", sameTwin, "-b", "identical")
+	same.stampFullPass("103-identical")
+	same.runReportIn(sameTwin, "gate", "103-identical")
+	same.record("while identical trees still get the sentence that explains them",
+		same.status != 0 && strings.Contains(same.out, "fingerprints match"), same.evidence())
 }

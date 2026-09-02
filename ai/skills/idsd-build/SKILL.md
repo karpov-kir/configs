@@ -6,7 +6,7 @@ argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 
 You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. Phases 3–5 run the pipeline's gates and its drive, so read `~/.kk-flavor/standards/quality-pipeline.md` whole rather than entering it a section at a time.
 
-**Every `.idsd/<file>` here is relative to the resolved scratch root, never joined onto the repo root** — `~/.claude/skills/idsd-qualify/SKILL.md` → **Report** owns that rule, and `~/.claude/skills/idsd-qualify/scripts/report.sh root` prints the directory.
+**The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**).
 
 Input: an intent file under `.idsd/intents/NNN-<slug>.md` — its parts are defined in `~/.claude/skills/idsd-intent/templates/ice-template.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
 

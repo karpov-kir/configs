@@ -28,8 +28,10 @@ func TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded(t *testing.T) {
 		!drifted.exists(drifted.reportPath("001-drifted-placeholder")), "")
 
 	// A field the template stopped carrying: init stamps `intent:`, and gate and state read the other
-	// two, so a report scaffolded without one answers from a line that is not there.
-	for _, missingField := range []string{"intent", "reviewed-tree", "reviewed-stages"} {
+	// three, so a report scaffolded without one answers from a line that is not there. Every field
+	// assertTemplateStampable requires has a row here, or a field added to that list arrives with
+	// nothing standing behind it.
+	for _, missingField := range []string{"intent", "reviewed-tree", "reviewed-worktree", "reviewed-stages"} {
 		stripped := newRepo(t)
 		stripped.runReport("check-ignore")
 		stripped.dropLines(stripped.templatePath(), missingField+":")
@@ -62,7 +64,7 @@ func TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded(t *testing.T) {
 	// The write that could already have landed is the report, not the link's target: init only ever
 	// reads the template. So this assertion names the harm, content from outside the repo reaching
 	// .idsd/, rather than the shape of the refusal.
-	smuggled := linked.filesContaining(linked.scratch()+"", "SMUGGLED")
+	smuggled := linked.filesContaining(linked.scratch(), "SMUGGLED")
 	linked.record("and no content from outside the repo reached .idsd/", len(smuggled) == 0, joinLines(smuggled))
 
 	// A template that is gone. Without this refusal the `intent:` guard fires on the failure to open

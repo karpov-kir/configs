@@ -42,10 +42,10 @@ const (
 	unclaimedRouter = "claims no exception"
 )
 
-// The lane fixture the citation and basename cases share cites its script by this path. Written
-// inline in a file the checker scans, a cited path that does not resolve in the real checkout becomes
-// a finding against the checkout itself. No scan reads a `.go` file, so nothing here is exposed that
-// way — the constant stays because the two suites have to state the same path.
+// The lane fixture the citation and basename cases share cites its script by this path. It is a
+// constant because those two case files have to state the same path. Written inline in a file the
+// checker scans, a cited path that does not resolve in the real checkout becomes a finding against the
+// checkout itself — but no scan reads a `.go` file, so nothing here is exposed that way.
 const laneScriptRef = "~/.claude/skills/kk-humanize/scripts/comment-density.sh"
 
 // The checker's own per-file read bound, restated here because the package under test does not export
@@ -219,11 +219,6 @@ func (f *fixture) symlink(target, link string) {
 	}
 }
 
-// True when a mode of 000 actually stops this process reading. Probed rather than compared against
-// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
-// carry the bit behave the same way, and all three make a mode-000 fixture a file the tool reads
-// happily. ecostats' suite carries the same probe for the same reason; neither package can import the
-// other's test helpers.
 // Decline a case whose fixture is a path this process has to be refused, on a machine where mode 000
 // refuses nobody. `what` finishes the sentence, so the skip still names what could not be built here
 // rather than only the machine it was declined on.
@@ -235,6 +230,11 @@ func skipUnlessModeDeniesRead(t *testing.T, what string) {
 	t.Skip("this process reads a mode-000 path regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
 }
 
+// True when a mode of 000 actually stops this process reading. Probed rather than compared against
+// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
+// carry the bit behave the same way, and all three make a mode-000 fixture a file the tool reads
+// happily. ecostats' suite carries the same probe for the same reason; neither package can import the
+// other's test helpers.
 func modeDeniesRead(t *testing.T) bool {
 	t.Helper()
 	probe := t.TempDir() + "/probe"
@@ -259,8 +259,8 @@ func (f *fixture) chmod(path string, mode os.FileMode) {
 	}
 }
 
-// One run of the checker over this fixture, stdout and stderr merged into one buffer the way the
-// shell version's `2>&1` merged them — the ordering cases read line positions out of that stream.
+// One run of the checker over this fixture, stdout and stderr merged into one buffer — the ordering
+// cases read line positions out of that stream.
 //
 // No case asserts on the exit code: a fixture root legitimately has findings of its own, so "clean"
 // would pass every case for the wrong reason. Exit 2 is the exception, because then nothing was
@@ -317,11 +317,16 @@ func (f *fixture) reports(needle string) {
 	}
 }
 
-func (f *fixture) doesNotReport(needle string) {
+// Variadic, because a fixture runs once: `isolate` calls t.Parallel or t.Setenv, neither of which a
+// case may call twice. A property that needs a second finding checked against the same tree would
+// otherwise have to rebuild the whole fixture in a case of its own, and the two copies then drift.
+func (f *fixture) doesNotReport(needles ...string) {
 	f.t.Helper()
 	output := f.run()
-	if strings.Contains(output, needle) {
-		f.t.Errorf("expected no finding containing %q\n%s", needle, indent(output))
+	for _, needle := range needles {
+		if strings.Contains(output, needle) {
+			f.t.Errorf("expected no finding containing %q\n%s", needle, indent(output))
+		}
 	}
 }
 

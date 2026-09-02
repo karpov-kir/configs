@@ -25,16 +25,28 @@ func reportNameFor(value string) string {
 	switch {
 	case slug == "" || strings.HasPrefix(slug, "review:"):
 		return "review"
-	// A leading dot is refused outright, not merely made path-safe: the glob in reportNames cannot
-	// match one, so `..-qualify-report.md` would sit in the directory addressable by its own name and
-	// invisible to every discovery path — a ship whose report stands open while `state` answers
-	// `no-report` and `idsd-ship continue` starts a fresh one over it.
+	// A leading dot is refused outright, not merely made path-safe, and it guards two things of very
+	// different sizes. The small one: the glob in reportNames cannot match one, so
+	// `..-qualify-report.md` would sit in the directory addressable by its own name and invisible to
+	// every discovery path — a ship whose report stands open while `state` answers `no-report` and
+	// `idsd-ship continue` starts a fresh one over it.
+	//
+	// The large one. A stem is joined into two paths and only the report appends a suffix, so `..` there
+	// is the harmless `..-qualify-report.md`. setReportPaths hands the stem to
+	// `gitPath("idsd-stage-returns/" + name)` BARE, and `idsd-stage-returns/..` IS the git dir — which
+	// `invalidate`, `close` and `discard` each os.RemoveAll. Go permits that: RemoveAll refuses a
+	// trailing `.` and not a trailing `..`, so it recurses in and takes the index, the objects and the
+	// refs with it.
 	case strings.HasPrefix(slug, "."), !isSlugCharset(slug):
 		return ""
 	}
 	return slug
 }
 
+// The two paths a stem builds, and they are not equally forgiving — which is why every caller filters
+// the name BEFORE this rather than here. No assertion of its own on purpose: reportNameFor's refusal
+// and reportNames' skip are the guards, and a second copy of the same predicate here would shadow
+// them, leaving nothing able to observe whether either still works.
 func (r *run) setReportPaths(name string) {
 	r.report = r.reportsDir + "/" + name + reportSuffix
 	// Per-pass bookkeeping, in the git dir: no commit and no `git add -A` reaches it, and it is
@@ -47,8 +59,8 @@ func stemOfReportPath(path string) string {
 	return strings.TrimSuffix(shell.BaseName(path), reportSuffix)
 }
 
-// Every report present, one filename stem per line. A dotfile is invisible here, as it was to the
-// shell's glob — which is why reportNameFor refuses a leading dot rather than sanitising one.
+// Every report present, one filename stem per line. A dotfile is invisible here, which is why
+// reportNameFor refuses a leading dot rather than sanitising one.
 //
 // Held to the same slug charset a named intent is. A stem from this listing goes on to be printed as a
 // `list` row, to name a report path, and — through resolveReport with no argument — to decide what
@@ -66,8 +78,7 @@ func (r *run) reportNames() []string {
 		// such directory. Present but unreadable is a different fact wearing the same shape, and it
 		// reaches the destructive branch: `survivingContent` reads the empty list as "no other ship is in
 		// flight" and `discard` goes on to remove the whole .idsd/, which in throwaway mode is the only
-		// copy of a parallel ship's report. The same rule assertRepoModeReadable states — a read this
-		// tool could not make must not arrive at a deletion wearing the shape of an answer.
+		// copy of a parallel ship's report. The same rule assertRepoModeReadable states.
 		if !errors.Is(err, fs.ErrNotExist) {
 			r.refuse("error: could not read "+r.reportsDir+" ("+err.Error()+") — which reports are open is unknown.",
 				"  That decides what discard deletes and what list shows, so nothing was read as 'no reports'.")
@@ -104,8 +115,8 @@ func (r *run) noteUnnameableReports() {
 		" are named outside the slug charset ([0-9A-Za-z._-]) and were NOT listed — a report is named after its intent. Rename each, or delete it.")
 }
 
-// What resolving an intent name to a report answered. The numbers are the shell version's, kept so a
-// caller reading either reads the same three outcomes; the names are what a call site tests against.
+// What resolving an intent name to a report answered. The numbers are inherited exit codes, which is
+// why there is no 2; the names are what a call site tests against.
 type reportLookup int
 
 const (
@@ -177,8 +188,8 @@ func (r *run) assertShipExists(slug string) {
 		return
 	}
 	// `review` is the one stem with no intent file, so after `close` nothing identifies it, and
-	// refusing would leave an empty .idsd/ and its exclusion standing in the mode whose contract is
-	// zero traces. Safe to let through because it is a fixed literal: unlike a slug, it cannot be a
+	// refusing would leave an empty scratch directory standing in the mode whose contract is zero
+	// traces. Safe to let through because it is a fixed literal: unlike a slug, it cannot be a
 	// typo of another ship.
 	if slug == "review" {
 		return
@@ -251,12 +262,7 @@ func countMarkdownFiles(dirs ...string) int {
 // own check: a symlinked `.idsd` slips past the report's test, and every write then lands wherever it
 // points.
 func (r *run) assertWritePathsAreReal(outcome string) {
-	for _, writeDir := range []string{r.idsdDir, r.reportsDir} {
-		if shell.IsSymlink(writeDir) {
-			r.refuse("error: "+writeDir+" is a symlink -> "+readLink(writeDir)+" — "+outcome+".",
-				"  the scratch directory and its qualify-reports/ are always real directories. Remove the link, then re-run.")
-		}
-	}
+	r.assertScratchDirsAreReal(outcome)
 	// The report is never legitimately a symlink, and `--force` does not override this. The write is a
 	// staged copy then rename, so it replaces a link instead of following it. What this catches is
 	// `--force` destroying whatever link the human left there — including a dangling one, which an
@@ -264,6 +270,20 @@ func (r *run) assertWritePathsAreReal(outcome string) {
 	if shell.IsSymlink(r.report) {
 		r.refuse("error: "+r.report+" is a symlink -> "+readLink(r.report)+" — "+outcome+".",
 			"  the report is always a regular file. Remove the link, then re-run.")
+	}
+}
+
+// The two directories every write goes through, apart from the report itself — because `promote`
+// needs exactly this half and has no report resolved when it runs: it moves the whole scratch
+// directory and names no single ship. A rename does not follow a link at its source, so a link here
+// is MOVED into the tree and staged as a symlink blob rather than followed, and `git ls-files` then
+// answers "committed" so the promotion reports success.
+func (r *run) assertScratchDirsAreReal(outcome string) {
+	for _, writeDir := range []string{r.idsdDir, r.reportsDir} {
+		if shell.IsSymlink(writeDir) {
+			r.refuse("error: "+writeDir+" is a symlink -> "+readLink(writeDir)+" — "+outcome+".",
+				"  the scratch directory and its qualify-reports/ are always real directories. Remove the link, then re-run.")
+		}
 	}
 }
 
