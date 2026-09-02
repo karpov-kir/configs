@@ -1,11 +1,9 @@
 # Cross-compile the shipped Go tools and attach them to the release for their tag.
 #
-# Why a release and not a commit: a binary per commit measured at ~54MB/month against a 16MB repo.
-# Release assets live in GitHub's release storage rather than the git object store, so the repo stays
-# the size it is however many releases accumulate.
-#
-# Why prebuilt and not build-on-install: installing these skills would otherwise require a Go
-# toolchain on every machine that mounts them.
+# They go on a release rather than into a commit because a binary per commit measured at ~54MB/month
+# against a 16MB repo. Release assets live in GitHub's release storage, not the git object store, so
+# the repo stays the size it is however many releases accumulate. They are prebuilt because otherwise
+# installing these skills needs a Go toolchain on every machine that mounts them.
 #
 # The gate runs before any binary is built. A release whose tools fail their own suite is worse than
 # a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
@@ -51,7 +49,14 @@ jobs:
           # thing to cache is a build cache keyed on a go.mod that never changes.
           cache: false
 
-      # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+      # `-count=1` because Go's test cache is keyed on the module, and several suites read files
+      # outside it — eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and
+      # todo-gate.sh, and `ai/kk-flavor`'s tree-fingerprint.sh. Truncating that template to one line
+      # makes `go test -count=1 ./eco-report/` fail while `go test ./eco-report/` says `ok (cached)`
+      # over the same corrupt tree. Without -count=1 this job would go green on exactly that.
+      #
+      # Not because failures get cached — they don't. A deliberately failing case re-ran and re-failed
+      # on two consecutive runs, with no cached line.
       - name: Gate
         working-directory: ai/tools
         run: |

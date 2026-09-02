@@ -52,7 +52,14 @@ jobs:
       - name: Run every suite
         run: ai/run-tests.sh
 
-  # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+  # `-count=1` because Go's test cache is keyed on the module, and several suites read files outside
+  # it: eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and todo-gate.sh, and
+  # `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a plain run answers out
+  # of cache over a tree one of them has changed, and this job would go green on exactly that.
+  #
+  # `ai/gate.sh` is the developer-side answer to the same hole — it keys on those files itself and
+  # forces the packages that read them. This job stays as it is: the gate is a fast path beside the
+  # full sweep, never a substitute for it.
   go:
     runs-on: ubuntu-latest
     steps:
@@ -76,8 +83,8 @@ jobs:
           go test -count=1 ./...
 
   # Proves the shell suites' cases can actually fail. ai/run-tests.sh cannot cover this — it discovers
-  # `*-test.sh` and the harness is not one — so without this job, editing a guard silently retires the
-  # proof that its case can redden and nothing says so.
+  # `*-test.sh` and the harness is not one — so without this job, editing a guard retires the proof
+  # that its case can redden and nothing says so.
   #
   # No -j: the harness defaults to twice the cores, which adapts to whatever runner it lands on.
   # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.

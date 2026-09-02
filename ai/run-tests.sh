@@ -1,14 +1,33 @@
 #!/usr/bin/env bash
 # Runs every shell test suite in this repository — the `*-test.sh` files sitting beside the scripts
 # they cover. CI calls this, and so can you.
-#   usage: run-tests.sh [<root>]   # <root> defaults to the repository this script lives in
+#   usage: run-tests.sh [-s <suite>] [<root>]   # <root> defaults to the repository this script lives in
+#          -s  run just this one suite, by path, instead of discovering them all
+#
+# `-s` is for a caller that already knows which suite a change could have moved — `ai/gate.sh` is one
+# — and still wants this file's reading of the result: the exit-2 "did not measure", and the vacuity
+# check that makes a suite exiting 0 having run no case a failure rather than a pass. A caller running
+# `bash <suite>` itself gets neither, and a suite emptied to zero bytes reads to it as a clean run.
 #
 # Discovery rather than a list, so a suite written tomorrow runs without anyone remembering to
 # register it. The cost of discovery is a gate that finds nothing and reports success, so finding
 # zero suites exits 2 here rather than passing empty.
+#
 # tested by: run-tests-test.sh
 set -uo pipefail
 export LC_ALL=C
+
+named_suite=""
+while getopts ":s:" opt; do
+  case "$opt" in
+    s) named_suite="$OPTARG" ;;
+    *)
+      echo "usage: run-tests.sh [-s <suite>] [<root>]" >&2
+      exit 2
+      ;;
+  esac
+done
+shift $((OPTIND - 1))
 
 # `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so the default root comes
 # back two lines long and the check below refuses a directory that is really there.
@@ -27,7 +46,42 @@ root="${1:-$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)}
 # not a checkout, and that path keeps the node_modules exclusion it always had. Which one answered is
 # reported: two runs that read different file sets must not print one line.
 suites=()
-if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if [ -n "$named_suite" ]; then
+  # One named suite is still discovery, and it obeys the same rule: naming a file that is not there
+  # is the caller's typo, and answering it with an empty run would report a clean tree for a suite
+  # nothing executed. `named` rather than `git` or `find`, because the summary line must never read
+  # the same for two runs over different file sets.
+  discovery="named"
+  case "$named_suite" in
+    /*) ;;
+    *) named_suite="$root/$named_suite" ;;
+  esac
+  [ -f "$named_suite" ] || {
+    echo "run-tests.sh: no suite at $named_suite — read this as discovery broken, never as a clean run" >&2
+    exit 2
+  }
+  # Everything this script finds, it then executes, so -s has to earn the same two guarantees the
+  # discovery arm gives: inside the root, and not something .gitignore already excludes. Behind an
+  # `[ -f ]` alone, `-s ../../../x` executes a file outside the repository entirely, and
+  # `-s vendor/dropped-test.sh` executes exactly what run-tests-test.sh proves discovery refuses.
+  root_real="$(CDPATH= cd -P "$root" && pwd -P)" || exit 2
+  suite_real="$(CDPATH= cd -P "$(dirname "$named_suite")" 2>/dev/null && pwd -P)/$(basename "$named_suite")"
+  case "$suite_real" in
+    "$root_real"/*) ;;
+    *)
+      echo "run-tests.sh: $named_suite resolves to $suite_real, outside $root_real — it is not this root's to run, and nothing was tested" >&2
+      exit 2
+      ;;
+  esac
+  if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if ! git -C "$root" ls-files --error-unmatch --cached --others --exclude-standard \
+      -- "${suite_real#"$root_real"/}" >/dev/null 2>&1; then
+      echo "run-tests.sh: ${suite_real#"$root_real"/} is ignored or unknown to git, and discovery would not have run it — nothing was tested" >&2
+      exit 2
+    fi
+  fi
+  suites+=("$named_suite")
+elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   discovery="git"
   while IFS= read -r suite; do
     [ -n "$suite" ] || continue
@@ -123,10 +177,10 @@ done
 # diagnosis the authority of code.
 #
 # So it goes out as its own result, not a failure. `failed` counts suites that went red, and folding a
-# delta no suite need have caused into it makes the summary claim a red suite that does not exist, on a
-# line whose numbers no longer add up. Several sessions in one checkout fire this on ordinary editing,
-# and a reader who meets that phantom often enough stops reading the line — including on the run where
-# a suite really did write into its own repository.
+# delta no suite need have caused into it makes the summary claim a red suite that does not exist.
+# Several sessions in one checkout fire this on ordinary editing, and a reader who meets that phantom
+# often enough stops reading the line — including on the run where a suite really did write into its
+# own repository.
 if [ "$tree_readable" -eq 0 ]; then
   after_tree="$(tree_state)"
   if [ "$before_tree" != "$after_tree" ]; then

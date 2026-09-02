@@ -17,6 +17,12 @@ import (
 	"testing"
 )
 
+// What preflight is told the suite holds: `./p/` and the one test the mutants below name. A fresh map
+// each call, so no case can leave a name behind for the next.
+func newHeldTests() map[string]map[string]bool {
+	return map[string]map[string]bool{"./p/": {"TestBound": true}}
+}
+
 // The three answers a suite run can give about a removed guard. They print in one column, so a wrong
 // reading here is indistinguishable from a right one — and one of the three is the harness crediting
 // itself with a proof it never obtained.
@@ -50,7 +56,7 @@ func TestAResolvingMutantIsNotRefused(t *testing.T) {
 	dir := t.TempDir()
 	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n")
 	list := []mutant{{label: "the bound", file: "guard.go", suite: "./p/", by: "TestBound", from: "if n > 0 {", to: "if n > -1 {"}}
-	held := map[string]map[string]bool{"./p/": {"TestBound": true}}
+	held := newHeldTests()
 
 	if stale := staleMutants(list, dir, held); len(stale) != 0 {
 		t.Fatalf("a mutant that resolves was refused: %+v", stale)
@@ -60,7 +66,7 @@ func TestAResolvingMutantIsNotRefused(t *testing.T) {
 func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 	dir := t.TempDir()
 	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn n > 0\n}\n")
-	held := map[string]map[string]bool{"./p/": {"TestBound": true}}
+	held := newHeldTests()
 
 	for _, c := range []struct {
 		name   string
@@ -94,7 +100,7 @@ func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 func TestAMutantWrongInTwoWaysIsStillOneMutant(t *testing.T) {
 	dir := t.TempDir()
 	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n")
-	held := map[string]map[string]bool{"./p/": {"TestBound": true}}
+	held := newHeldTests()
 	list := []mutant{{label: "wrong twice", file: "guard.go", suite: "./p/", by: "TestRenamedAway", from: "if n >= 99 {", to: "x"}}
 
 	stale := staleMutants(list, dir, held)
@@ -119,11 +125,97 @@ func TestAnUnlistableSuiteDoesNotCondemnItsMutants(t *testing.T) {
 	}
 }
 
+// A scope selects whole files and nothing else, and the suites the baseline runs shrink with it —
+// otherwise a scoped run pays for compiling and listing suites no selected mutant can redden.
+func TestAScopeSelectsItsFileAndNarrowsTheBaseline(t *testing.T) {
+	list := []mutant{
+		{label: "a", file: "one.go", suite: "./one/"},
+		{label: "b", file: "two.go", suite: "./two/"},
+		{label: "c", file: "one.go", suite: "./one/"},
+	}
+	selected, unmatched := selectByFile(list, "one.go")
+	if len(unmatched) != 0 {
+		t.Fatalf("one.go is in the list, yet it came back unmatched: %v", unmatched)
+	}
+	if len(selected) != 2 {
+		t.Fatalf("selecting one.go took %d mutant(s), want the 2 that name it", len(selected))
+	}
+	if got := suitesNamed(selected); len(got) != 1 || got[0] != "./one/" {
+		t.Fatalf("the scoped baseline is %v, want just ./one/ — the suite the selection can redden", got)
+	}
+}
+
+// The refusal that keeps a typo from reading as a clean run. A name no mutant carries has to come
+// back unmatched, because main exits 2 on that: silently selecting nothing would print a green over
+// zero mutants, which is the one verdict this harness must never produce.
+func TestAScopeNamingNoMutantIsRefusedRatherThanEmptied(t *testing.T) {
+	list := []mutant{{label: "a", file: "one.go", suite: "./one/"}}
+	selected, unmatched := selectByFile(list, "typo.go")
+	if len(unmatched) != 1 || unmatched[0] != "typo.go" {
+		t.Fatalf("unmatched is %v, want typo.go named so the caller can be refused", unmatched)
+	}
+	if len(selected) != 0 {
+		t.Fatalf("a name no mutant carries selected %d mutant(s), want none", len(selected))
+	}
+}
+
+// An empty scope is not a scope: it selects everything, so `-file ""` is the unscoped run rather than
+// a run over nothing.
+func TestAnEmptyScopeSelectsEverything(t *testing.T) {
+	list := []mutant{{label: "a", file: "one.go"}, {label: "b", file: "two.go"}}
+	if selected, _ := selectByFile(list, ""); len(selected) != 2 {
+		t.Fatalf("an empty scope took %d of 2 mutant(s), want all of them", len(selected))
+	}
+}
+
+// The unit listing is what `ai/gate.sh` builds its mutation units from, one per line, so a file
+// missing from it is a whole unit that stops existing with nothing saying so. Every mutated file has
+// to appear exactly once, carrying its own count and each suite it names.
+func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
+	list := []mutant{
+		{label: "a", file: "one.go", suite: "./one/"},
+		{label: "b", file: "two.go", suite: "./two/"},
+		{label: "c", file: "one.go", suite: "./one/"},
+		{label: "d", file: "one.go", suite: "./other/"},
+	}
+	lines := unitLines(list, "/base")
+	if len(lines) != 2 {
+		t.Fatalf("the listing is %d line(s) over 2 distinct files: %v", len(lines), lines)
+	}
+	if lines[0] != "one.go\t./one/,./other/\t3\t/base/one.go" {
+		t.Errorf("one.go's line is %q, want its 3 mutants and both suites it names, first-named first", lines[0])
+	}
+	if lines[1] != "two.go\t./two/\t1\t/base/two.go" {
+		t.Errorf("two.go's line is %q", lines[1])
+	}
+}
+
+// The listing and the scope have to agree, or the gate builds a unit it cannot run. Every file the
+// listing names must select at least one mutant, and the union of those selections must be the whole
+// list — otherwise some mutant belongs to no unit and nothing ever runs it.
+func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
+	seen := 0
+	for _, line := range unitLines(mutants, "/base") {
+		file := strings.SplitN(line, "\t", 2)[0]
+		selected, unmatched := selectByFile(mutants, file)
+		if len(unmatched) != 0 {
+			t.Errorf("the listing names %s, which selects nothing", file)
+		}
+		if len(selected) == 0 {
+			t.Errorf("%s is listed and selects no mutant", file)
+		}
+		seen += len(selected)
+	}
+	if seen != len(mutants) {
+		t.Errorf("the listed files cover %d of %d mutant(s), so some mutant is in no unit and never runs", seen, len(mutants))
+	}
+}
+
 // The baseline the run is measured against has to cover every suite a mutant names, or a verdict of
 // "this edit turned the suite red" is claimed over a suite that was never asked.
 func TestEverySuiteAMutantNamesIsInTheBaseline(t *testing.T) {
 	named := map[string]bool{}
-	for _, s := range suitesNamed() {
+	for _, s := range suitesNamed(mutants) {
 		if named[s] {
 			t.Errorf("%s is listed twice, so the baseline runs it twice", s)
 		}
@@ -165,7 +257,7 @@ func TestTheShippedMutantsAllResolveAgainstTheTree(t *testing.T) {
 	}
 }
 
-// The four outcomes, and which of them the exit code is owed to. The diagonal is the point: an
+// The four outcomes, and which of them the exit code is owed to. The mismatches are the point: an
 // undeclared survivor is the finding this harness exists to produce, and a declared mutant that got
 // killed is a declaration that has gone false — reported loudly, because a declaration nobody
 // re-checks is how a survivor keeps getting excused after the reason stopped holding.
@@ -214,7 +306,7 @@ func TestEveryUnreachableDeclarationStillNamesOneMutantAndSaysWhy(t *testing.T) 
 			t.Errorf("%q is declared unreachable, and no mutant carries that label", u.label)
 		}
 		// A declaration with no reason is indistinguishable from a mutant someone gave up on, which is
-		// the whole failure mode the list has to not become.
+		// exactly what this list must never become.
 		if strings.TrimSpace(u.why) == "" {
 			t.Errorf("%q is declared unreachable with no reason given", u.label)
 		}
