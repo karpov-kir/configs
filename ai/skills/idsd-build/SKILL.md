@@ -25,12 +25,12 @@ Wait for the human's OK, then set `status: approved`.
 ## Phase 2 — Assemble Context (progressive)
 
 - **Place the build first: one intent = one worktree = one branch** `idsd/NNN-<slug>`, before any of the reading below. Inherit the caller's worktree if it placed you in one; never nest a second. A lone build in an idle repo may skip the worktree.
-- Read `.idsd/charter.md`, `.idsd/constitution.md`, `.idsd/language.md` and `.idsd/playbook.md` if present, plus the project's own `CLAUDE.md`. The language file fixes the names this build uses. **The playbook is pruned here and nowhere else** — an entry you reach for and find wrong is corrected or deleted in the same breath.
-- **In committed repo mode, the project's own `CLAUDE.md` should point at `.idsd/`** — the constitution, the language and the playbook. Nothing else tells an agent working here *outside* an idsd run that any of them exist. Propose that pointer block when it is missing and add it on confirmation; never in throwaway mode, where `CLAUDE.md` is tracked and the mode forbids a traceable edit.
+- Read `.idsd/charter.md`, `.idsd/language.md` and `.idsd/playbook.md` if present, plus the project's own `CLAUDE.md`. The language file fixes the names this build uses. **The playbook is pruned here and nowhere else** — an entry you reach for and find wrong is corrected or deleted in the same breath.
+- **In committed repo mode, the project's own `CLAUDE.md` should point at `.idsd/`** — the charter, the language and the playbook. Nothing else tells an agent working here *outside* an idsd run that any of them exist. Propose that pointer block when it is missing and add it on confirmation; never in throwaway mode, where `CLAUDE.md` is tracked and the mode forbids a traceable edit.
 - Read only the parts of the codebase the intent touches; pull more as work reveals need.
 - Verify any load-bearing assumption about an existing subsystem in the code, not from its name.
 
-**Resolve gates to commands** — baseline checks (build, lint, test, coverage, perf, …) plus one per measurable constraint in the ICE. Take the commands from the constitution; failing that, from repo tooling (manifest scripts, lint and test config, CI workflow); failing that, the stack's conventional ones. State each before you run it.
+**Resolve gates to commands** — baseline checks (build, lint, test, coverage, perf, …), plus one per measurable constraint binding this intent: the ICE's own, and the charter's `## Constraints` that the ICE does not override. Take the commands from repo tooling (manifest scripts, lint and test config, CI workflow); failing that, the stack's conventional ones. State each before you run it.
 
 **A gate whose green proves nothing is a stale gate** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**) — here you fix it rather than route it. A constraint that can't become a command isn't a gate — flag it for human judgment at the checkpoint.
 
@@ -45,9 +45,9 @@ Wait for the human's OK, then set `status: approved`.
 Re-run the gates yourself after any spawned subagent's edits land. **Then close the lanes this build's own edits opened** — the comments and the prose it wrote included — before the checkpoint (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
 Capture every decision, loose end and piece of operating knowledge in the artifact that owns it, never only in chat:
-- **How to operate this repo** — a command the human hands you that runs it in a mode, seeds a fixture, or drives a tool → `.idsd/playbook.md`, appended without asking. Record what the next agent needs rather than what you were told: the command, what it does, when to reach for it, verified by running it. Gate commands stay the constitution's — point at them. It accumulates across throwaway ships, so it is an appended record: `~/.kk-flavor/standards/records.md` is the whole delta, and **its bound is roughly 40 lines**. Its promotions land in the constitution or the project's own `CLAUDE.md`.
+- **How to operate this repo** — a command the human hands you that runs it in a mode, seeds a fixture, or drives a tool → `.idsd/playbook.md`, appended without asking. Record what the next agent needs rather than what you were told: the command, what it does, when to reach for it, verified by running it. Never a gate command — Phase 2 resolves those from repo tooling. The playbook accumulates across throwaway ships, so it is an appended record: `~/.kk-flavor/standards/records.md` is the whole delta, and **its bound is roughly 40 lines**. Its promotions land in the project's own `CLAUDE.md`.
 - A contract change → its constraint or scenario in the ICE (via `idsd-intent`); ratification also advances `status: approved` / `approved-by`.
-- A durable standard the project inherits (a persistence layer, a protocol, a stale constitution gate command) → propose it to the constitution (never auto-edit) **and** record a `## Follow-ups` `- [ ]`, so the Phase 5 gate forces it before archive.
+- A durable standard the project inherits (a persistence layer, a protocol) → propose it, never auto-edit, to the project's `CLAUDE.md` — or to the charter's `## Constraints` when it is a threshold — **and** record a `## Follow-ups` `- [ ]`, so the Phase 5 gate forces it before archive.
 - A change to a contract others consume (an API shape, a shared type, a wire protocol) → a `- [ ]` for **every** consumer, the project's own skills and tooling included — those read the contract from outside the codebase and won't show up in a code search.
 - A follow-up, open question, or cross-intent consequence → an unchecked `- [ ]` in the ICE's `## Follow-ups`, naming where it will land. A later build checks it `- [x]` with a one-line resolution — never deletes it.
 
@@ -65,7 +65,7 @@ Approve on outcomes → proceed. Reject with feedback → back to Phase 3.
 
 ## Phase 5 — Merge & archive
 
-**Address follow-ups first.** Every unchecked `- [ ]` in the ICE's `## Follow-ups`, plus every Phase 4 deferral, must be landed in code, routed to a real home (an intent via `idsd-intent`, a constitution proposal), or declined with a reason — then checked `- [x]` with that resolution; routing to a `draft` intent counts. Don't scan by hand: run `~/.claude/skills/idsd-qualify/scripts/todo-gate.sh <this-intent-file>`, and let a non-zero exit block the archive.
+**Address follow-ups first.** Every unchecked `- [ ]` in the ICE's `## Follow-ups`, plus every Phase 4 deferral, must be landed in code, routed to a real home (an intent via `idsd-intent`, a charter or `CLAUDE.md` proposal), or declined with a reason — then checked `- [x]` with that resolution; routing to a `draft` intent counts. Don't scan by hand: run `~/.claude/skills/idsd-qualify/scripts/todo-gate.sh <this-intent-file>`, and let a non-zero exit block the archive.
 
 **Then check this intent's `links:`** by the rules `idsd-audit` applies set-wide. A bad link blocks the archive; fix or route it first. Whole-set consistency stays `idsd-audit`'s job.
 
