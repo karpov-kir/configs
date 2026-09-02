@@ -12,7 +12,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 
 ## Lanes
 
-`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills (`~/.kk-flavor/standards/ecosystem.md` → **One home**). These are the skills filling them, and the scanner to run for each:
+`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills. These are the skills filling them, and the scanner to run for each:
 
 | Lane | Skill | Scanner to run | Tier |
 |---|---|---|---|
@@ -27,7 +27,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 
 **Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills and this table leaves out; and a retrospective, which is no lane at all and belongs to `kk-retro`. **A change set holding the instruction tree names it in your return; a retrospective you never even offer.**
 
-**You are the streamed path's caller** (`~/.kk-flavor/standards/streaming.md`, the whole delta for it, and the holder of the test for whether a given pass streams): the **Tier** column is what each spawn prompt's patch-queue slot carries. A lane with no tier does not stream, and runs the round with the rest.
+**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, the **Tier** column is what each spawn prompt's patch-queue slot carries; a lane with no tier runs the round with the rest.
 
 ## The residue
 

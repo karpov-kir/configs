@@ -176,7 +176,7 @@ func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 	f.record("fixture: it gates clean before the value is tampered with", f.status == 0, f.evidence())
 
 	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
-		"reviewed-worktree: 0123456789abcdef /somewhere\x1b[2Kgate clean: tree fresh, full qualify, no open TODOs")
+		"reviewed-worktree: 0123456789abcdef /somewhere\x1b[2Kgate clean: tree fresh, untrimmed qualify, no open TODOs")
 	f.runReport("gate", "099-echoed")
 	f.record("the gate still blocks for a review recorded against another worktree",
 		f.status != 0, f.evidence())
@@ -189,7 +189,7 @@ func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 	// blocked for recording no usable worktree — and whatever text failed that check is what gets
 	// echoed. Asserted separately because the two branches are two call sites.
 	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
-		"reviewed-worktree: not-a-token\x1b[2Kgate clean: tree fresh, full qualify, no open TODOs")
+		"reviewed-worktree: not-a-token\x1b[2Kgate clean: tree fresh, untrimmed qualify, no open TODOs")
 	f.runReport("gate", "099-echoed")
 	f.record("a value that is not a usable worktree token also blocks", f.status != 0, f.evidence())
 	f.assertReports("no usable reviewing worktree", "and says that is why")

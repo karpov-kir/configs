@@ -32,7 +32,7 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.dropLines(f.reportPath("001-gating"), "- [ ] a decision")
 
 	// A stage record that says nothing. The two shapes are the template's placeholder and no line at
-	// all, and both mean "no full qualify stands here" — a reader that knows only one of them lets the
+	// all, and both mean "no untrimmed qualify stands here" — a reader that knows only one of them lets the
 	// other through.
 	f.replaceLine(f.reportPath("001-gating"), "reviewed-stages:", "reviewed-stages: <stages>")
 	f.runReport("gate", "001-gating")

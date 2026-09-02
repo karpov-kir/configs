@@ -12,7 +12,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 |---|---|
 | `idsd-ship <arg>` | Build + qualify + gate message. `<arg>` is an existing intent slug, or a **ticket / new-feature ref**. |
 | `idsd-ship done [<intent>]` | Merge, gated on review freshness and the stage record. **Names the intent whenever more than one ship is open** — `report.sh gate` refuses to guess between them. |
-| `idsd-ship qualify` | `idsd-qualify` over the working tree, scoped for turnaround; no build, no merge. |
+| `idsd-ship qualify` | `idsd-qualify` over the working tree — trimmed for turnaround unless you say the merge is waiting; no build, no merge. |
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
 | `idsd-ship promote` | Turn a throwaway `.idsd/` into a durable idsd project. |
 
@@ -22,7 +22,7 @@ With no `<arg>` and no subcommand, list the not-yet-built intents and ask which.
 
 The report contract — the **committed vs throwaway** repo modes included — plus `~/.claude/skills/idsd-qualify/scripts/report.sh` belong to `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote**, its counterpart **discard**, and **close** — the last two owned by `done` below.
 
-**Promote** — `report.sh promote` stages `.idsd/`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the `CLAUDE.md` pointer at `.idsd/` per `~/.claude/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context**, which owns that rule.
+**Promote** — `report.sh promote` stages `.idsd/`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the `CLAUDE.md` pointer at `.idsd/` per `~/.claude/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context**.
 
 ## Build, then qualify
 
@@ -53,7 +53,7 @@ Read where the change set stands with `report.sh state <intent>` (never hand-par
 
 Reads the intent from the report's frontmatter; error with no report, or on one a standalone qualify produced (no merge target).
 
-1. **Gate.** Run `report.sh gate <intent>`; the human clears an open TODO first, by resolving it or routing it out of the report (to the ICE `## Follow-ups`, a backlog, a constitution proposal). Beyond the gate: the review is stale if the target branch advanced past this branch's base since `reviewed-tree` was stamped. Integrate the target and re-run `qualify` (which re-stamps) before landing.
+1. **Gate.** Run `report.sh gate <intent>`; the human clears an open TODO first, by resolving it or routing it out of the report (to the ICE `## Follow-ups`, a backlog, a constitution proposal). Beyond the gate: the review is stale if the target branch advanced past this branch's base since `reviewed-tree` was stamped. Integrate the target and re-run `qualify` as the pass the merge waits on (which re-stamps) before landing.
 2. On a clean gate — or freshness/stages overridden with no open `- [ ]` — hand to `~/.claude/skills/idsd-build/SKILL.md` → **Phase 5**, which runs unchanged through its approval-gated commit.
    - **After the commit succeeds, `report.sh close <intent>`.**
 3. **Throwaway cleanup.** In throwaway repo mode (`report.sh repo-mode`) the local `.idsd/` outlives the ship and breaks the mode's zero-traces contract. **After** the commit succeeds — never before, or the intent is lost while the work is unlanded — **ask** whether to clear it (default yes). On yes, `report.sh discard <intent>`. Keeping a throwaway `.idsd/` instead is what `promote` (before `done`) is for.

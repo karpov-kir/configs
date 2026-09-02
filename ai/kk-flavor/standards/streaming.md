@@ -1,8 +1,8 @@
 # Streaming a Multi-Stage Pass
 
-The whole delta for a pass whose stages queue patches as they find them instead of returning proposals at the end. A stage streams **exactly where its spawn prompt names a patch queue and that stage's tier** in the apply order below ([skill-protocol.md](skill-protocol.md) → **Caller**) — that slot is the switch, and **what decides whether it is filled is the test below, never preference**. Every other rule in that file still binds.
+The whole delta for a pass whose stages queue patches as they find them instead of returning proposals at the end. A stage streams **exactly where its spawn prompt names a patch queue and that stage's tier** in the apply order below ([skill-protocol.md](skill-protocol.md) → **Caller**). Every other rule in that file still binds.
 
-**It pays only where stages are live at once over one change set**, trading their round trips for continuous verification. A chain that spawns its stages one after another already gets each tier boundary from the spawn it does anyway. **The caller is whoever spawns the round's stages** — not a router that spawns the whole pass as one skill, which is the case this test already excludes. **Where the test passes, you stream.**
+**It pays only where stages are live at once over one change set**, trading their round trips for continuous verification. A chain that spawns its stages one after another already gets each tier boundary from the spawn it does anyway. **The caller is whoever spawns the round's stages** — not a router that spawns the whole pass as one skill. **Where the test passes, you stream.**
 
 ## The stage's half
 
@@ -22,7 +22,7 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 - **The tier order resolves conflicts; it does not schedule.** A higher tier wins the lines it touches: back the lower tier's patch out by its inverse, apply the higher one, and send the loser to its author. Nothing waits on a conflict that may never happen.
 - **Gate and broadcast at the tier boundary, not per patch.** A suite run and a re-read for every patch costs more than the round trips it saves; a broadcast per tier is a handful.
 - **A patch that still does not apply goes back to its author** to recompute or withdraw. Repairing one by hand re-derives the work and leaves you owning the result unreviewed.
-- **Name a distinct queue for each pass you run**, for the reason [skill-protocol.md](skill-protocol.md) → **Queue** gives for ledgers: the scratch dir is per session, and a second pass inheriting the first's withdrawn patches applies them unasked.
+- **Name a distinct queue for each pass you run** — the scratch dir is per session, and a second pass inheriting the first's withdrawn patches applies them unasked.
 - **An applied patch leaves the queue**, so what remains is what is outstanding and nothing lands twice. **Backing a tier out is the inverse of its patches, never a checkout** ([skill-protocol.md](skill-protocol.md) → **Queue**).
 - **A gate's result is never recalled from a resumed stage**; re-run it yourself.
 - **One objection round per tier.** Then the tier order decides, and a disagreement surviving that is a report item rather than another round.
@@ -30,10 +30,10 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 
 ## A quality pass's tiers
 
-**A pass that would otherwise run refactor after its round streams instead** — that stage, and the code-review of the fixes applied before it, are the round trips this replaces. Refactor runs over any changed code, so a pass over code streams; a change set holding none has neither round trip, and the test above fails there.
+**A pass that would otherwise run refactor after its round streams instead** — that stage, and the code-review of the fixes applied before it, are the round trips this replaces. Refactor runs over any changed code, so a pass over code streams; a change set holding none has neither round trip, and the test above fails there. **It fails too where the pass's product is a review rather than applied edits** — patches landing on arrival move the diff that review is written against.
 
 **`security`, `code-review`, `refactor`, `comments`** — that order, not the stage numbering in [quality-pipeline.md](quality-pipeline.md) → **The stages**, and those four tokens verbatim in a patch's filename. **The resume is the re-review** that file owes for fixes applied between the round and refactor.
 
-**The drive gate keeps its place** — before any lens, unchanged. What moves is its re-drive of a runtime-behaviour claim: that happens at the tier boundary of the claim's own tier, there being no round return to bring it back to.
+**A runtime-behaviour claim is re-driven at the tier boundary of its own tier**, there being no round return to bring it back to.
 
 **Refactor joins as a tier.** Its tier boundary is the serialization a fresh spawn would otherwise give it ([quality-pipeline.md](quality-pipeline.md) → **The round**): nothing from the tiers above it is outstanding when its patches land. **Its compliance verdict is still a fresh spawn** — a surviving verdict is what verifies an applied patch and what corrupts a compliance judgment.

@@ -18,9 +18,9 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
-When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — its usage string carries the entry vocabulary. A stage that ran is never stamped skipped, or vice versa: by design, a pass that trimmed nothing stamps no trim entry at all and passes the merge gate.
+When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — its usage string carries the entry vocabulary. A stage that ran is never stamped skipped, or vice versa.
 
-**A skip's recorded reason follows *why* it was skipped** — the change touching no security surface, or a stage that did apply being trimmed to answer sooner; and a refactor loop that ended non-compliant records which of the two ended it. **The usage string spells all of them, and is their only home** — a reason spelled here as well is one that drifts from the tool that validates it. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass.
+**A skip's recorded reason follows *why* it was skipped, and a partial refactor loop *what ended the loop*. The usage string spells that vocabulary and is its only home** — a reason spelled here as well is one that drifts from the tool that validates it. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass.
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
