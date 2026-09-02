@@ -44,7 +44,7 @@ func (r *run) blocksOnFreshness() bool {
 		if reviewed == "" {
 			reviewed = "<unstamped>"
 		}
-		r.errLines("BLOCK (freshness): tree changed since last qualify (current " + current + " != reviewed " + reviewed + "). Re-qualify. " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (freshness): tree changed since last qualify (current " + current + " != reviewed " + reviewed + "). Re-qualify. " + overridableByAHumanOnly)
 		blocked = true
 	}
 	// Whether the sentence below may claim identical trees. It is reachable with a STALE tree — an
@@ -60,7 +60,7 @@ func (r *run) blocksOnFreshness() bool {
 	// printed above it, and what reads this output is an agent as often as a person.
 	switch vouch, mine := r.worktreeVouch(); vouch {
 	case noReviewingWorktreeRecorded:
-		r.errLines("BLOCK (freshness): this report records a reviewed tree but no usable reviewing worktree (reviewed-worktree: " + shell.Oneline(fieldValue(r.report, "reviewed-worktree")) + "). Which worktree the review vouches for is unknown, so it cannot vouch for this one. Re-qualify here. " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (freshness): this report records a reviewed tree but no usable reviewing worktree (reviewed-worktree: " + shell.Oneline(fieldValue(r.report, "reviewed-worktree")) + "). Which worktree the review vouches for is unknown, so it cannot vouch for this one. Re-qualify here. " + overridableByAHumanOnly)
 		blocked = true
 	case reviewNotYetStamped:
 		// Unstamped is already blocked above, on freshness and on stages. What that pair does not say is
@@ -71,10 +71,10 @@ func (r *run) blocksOnFreshness() bool {
 			r.errLines("NOTE: and it will stay unstamped — this worktree has no establishable identity (" + r.gitPath("idsd-worktree-id") + " is not writable), which is what stamp refuses on. Re-running the stages will not help until that path is writable.")
 		}
 	case thisWorktreeHasNoIdentity:
-		r.errLines("BLOCK (freshness): this tree's identity could not be established (" + r.gitPath("idsd-worktree-id") + " is not writable), so whether this worktree is the one that was reviewed is unknown. Fix that path, then re-qualify. " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (freshness): this tree's identity could not be established (" + r.gitPath("idsd-worktree-id") + " is not writable), so whether this worktree is the one that was reviewed is unknown. Fix that path, then re-qualify. " + overridableByAHumanOnly)
 		blocked = true
 	case reviewedInAnotherWorktree:
-		r.errLines("BLOCK (freshness): this pass was reviewed in another worktree (" + shell.Oneline(fieldValue(r.report, "reviewed-worktree")) + ", not " + mine + " " + shell.Oneline(r.currentWorktreePath()) + ")." + sameTree + " If that path is gone or renamed, the worktree it named is gone too — re-qualify here. " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (freshness): this pass was reviewed in another worktree (" + shell.Oneline(fieldValue(r.report, "reviewed-worktree")) + ", not " + mine + " " + shell.Oneline(r.currentWorktreePath()) + ")." + sameTree + " If that path is gone or renamed, the worktree it named is gone too — re-qualify here. " + overridableByAHumanOnly)
 		blocked = true
 	}
 	return blocked
@@ -86,10 +86,10 @@ func (r *run) blocksOnStages() bool {
 	trims := r.fastTrims()
 	switch {
 	case isUnstamped(stages):
-		r.errLines("BLOCK (stages): no reviewed-stages record — run a full qualify (it stamps the stage set). " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (stages): no reviewed-stages record — run a full qualify (it stamps the stage set). " + overridableByAHumanOnly)
 		return true
 	case trims != "":
-		r.errLines("BLOCK (stages): trimmed for turnaround (" + trims + ") — run a full qualify before merge. " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (stages): trimmed for turnaround (" + trims + ") — run a full qualify before merge. " + overridableByAHumanOnly)
 		return true
 	}
 	return false
