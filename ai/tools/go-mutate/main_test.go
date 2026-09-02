@@ -10,12 +10,29 @@ package main
 // Both print in the same columns as a run that worked.
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+// The file a mutant is aimed at, in the three shapes the cases below need: the anchor `if n > 0 {`
+// present once, present twice, and gone. Which of the three a case takes is the whole of what that
+// case is asking.
+const (
+	guardMatchedOnce  = "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n"
+	guardMatchedTwice = "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn n > 0\n}\n"
+	noGuardAtAll      = "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n"
+)
+
+// What preflight is told the suite holds: `./p/` and the one test the mutants below name. A fresh map
+// each call, so no case can leave a name behind for the next.
+func newHeldTests() map[string]map[string]bool {
+	return map[string]map[string]bool{"./p/": {"TestBound": true}}
+}
 
 // The three answers a suite run can give about a removed guard. They print in one column, so a wrong
 // reading here is indistinguishable from a right one — and one of the three is the harness crediting
@@ -48,9 +65,9 @@ func TestASuiteRunIsReadAsKilledOnlyWhenItActuallyRan(t *testing.T) {
 // that refuses the whole list, which runs nothing and reports no problem.
 func TestAResolvingMutantIsNotRefused(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n")
+	writeSource(t, dir, "guard.go", guardMatchedOnce)
 	list := []mutant{{label: "the bound", file: "guard.go", suite: "./p/", by: "TestBound", from: "if n > 0 {", to: "if n > -1 {"}}
-	held := map[string]map[string]bool{"./p/": {"TestBound": true}}
+	held := newHeldTests()
 
 	if stale := staleMutants(list, dir, held); len(stale) != 0 {
 		t.Fatalf("a mutant that resolves was refused: %+v", stale)
@@ -59,8 +76,8 @@ func TestAResolvingMutantIsNotRefused(t *testing.T) {
 
 func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn n > 0\n}\n")
-	held := map[string]map[string]bool{"./p/": {"TestBound": true}}
+	writeSource(t, dir, "guard.go", guardMatchedTwice)
+	held := newHeldTests()
 
 	for _, c := range []struct {
 		name   string
@@ -93,8 +110,8 @@ func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 // than the list has entries, sending the reader after a second fault that does not exist.
 func TestAMutantWrongInTwoWaysIsStillOneMutant(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n")
-	held := map[string]map[string]bool{"./p/": {"TestBound": true}}
+	writeSource(t, dir, "guard.go", noGuardAtAll)
+	held := newHeldTests()
 	list := []mutant{{label: "wrong twice", file: "guard.go", suite: "./p/", by: "TestRenamedAway", from: "if n >= 99 {", to: "x"}}
 
 	stale := staleMutants(list, dir, held)
@@ -111,7 +128,7 @@ func TestAMutantWrongInTwoWaysIsStillOneMutant(t *testing.T) {
 // really wrong; main counts the unlistable suites apart and says so on its own line.
 func TestAnUnlistableSuiteDoesNotCondemnItsMutants(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n")
+	writeSource(t, dir, "guard.go", guardMatchedOnce)
 	list := []mutant{{label: "the bound", file: "guard.go", suite: "./p/", by: "TestBound", from: "if n > 0 {", to: "if n > -1 {"}}
 
 	if stale := staleMutants(list, dir, map[string]map[string]bool{}); len(stale) != 0 {
@@ -119,11 +136,177 @@ func TestAnUnlistableSuiteDoesNotCondemnItsMutants(t *testing.T) {
 	}
 }
 
+// A scope selects whole files and nothing else, and the suites the baseline runs shrink with it —
+// otherwise a scoped run pays for compiling and listing suites no selected mutant can redden.
+func TestAScopeSelectsItsFileAndNarrowsTheBaseline(t *testing.T) {
+	list := []mutant{
+		{label: "a", file: "one.go", suite: "./one/"},
+		{label: "b", file: "two.go", suite: "./two/"},
+		{label: "c", file: "one.go", suite: "./one/"},
+	}
+	selected, unmatched := selectByFile(list, "one.go")
+	if len(unmatched) != 0 {
+		t.Fatalf("one.go is in the list, yet it came back unmatched: %v", unmatched)
+	}
+	if len(selected) != 2 {
+		t.Fatalf("selecting one.go took %d mutant(s), want the 2 that name it", len(selected))
+	}
+	if got := suitesNamed(selected); len(got) != 1 || got[0] != "./one/" {
+		t.Fatalf("the scoped baseline is %v, want just ./one/ — the suite the selection can redden", got)
+	}
+}
+
+// The refusal that keeps a typo from reading as a clean run. A name no mutant carries has to come
+// back unmatched, because main exits 2 on that: silently selecting nothing would print a green over
+// zero mutants, which is the one verdict this harness must never produce.
+func TestAScopeNamingNoMutantIsRefusedRatherThanEmptied(t *testing.T) {
+	list := []mutant{{label: "a", file: "one.go", suite: "./one/"}}
+	selected, unmatched := selectByFile(list, "typo.go")
+	if len(unmatched) != 1 || unmatched[0] != "typo.go" {
+		t.Fatalf("unmatched is %v, want typo.go named so the caller can be refused", unmatched)
+	}
+	if len(selected) != 0 {
+		t.Fatalf("a name no mutant carries selected %d mutant(s), want none", len(selected))
+	}
+}
+
+// An empty scope is not a scope: it selects everything, so `-file ""` is the unscoped run rather than
+// a run over nothing.
+func TestAnEmptyScopeSelectsEverything(t *testing.T) {
+	list := []mutant{{label: "a", file: "one.go"}, {label: "b", file: "two.go"}}
+	if selected, _ := selectByFile(list, ""); len(selected) != 2 {
+		t.Fatalf("an empty scope took %d of 2 mutant(s), want all of them", len(selected))
+	}
+}
+
+// The unit listing is what `ai/gate.sh` builds its mutation units from, one per line, so a file
+// missing from it is a whole unit that stops existing with nothing saying so. Every mutated file has
+// to appear exactly once, carrying its own count and each suite it names.
+func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
+	list := []mutant{
+		{label: "a", file: "one.go", suite: "./one/"},
+		{label: "b", file: "two.go", suite: "./two/"},
+		{label: "c", file: "one.go", suite: "./one/"},
+		{label: "d", file: "one.go", suite: "./other/"},
+	}
+	lines := unitLines(list, "/base")
+	if len(lines) != 2 {
+		t.Fatalf("the listing is %d line(s) over 2 distinct files: %v", len(lines), lines)
+	}
+	if lines[0] != "one.go\t./one/,./other/\t3\t/base/one.go" {
+		t.Errorf("one.go's line is %q, want its 3 mutants and both suites it names, first-named first", lines[0])
+	}
+	if lines[1] != "two.go\t./two/\t1\t/base/two.go" {
+		t.Errorf("two.go's line is %q", lines[1])
+	}
+}
+
+// The listing and the scope have to agree, or the gate builds a unit it cannot run. Every file the
+// listing names must select at least one mutant, and the union of those selections must be the whole
+// list — otherwise some mutant belongs to no unit and nothing ever runs it.
+func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
+	seen := 0
+	for _, line := range unitLines(mutants, "/base") {
+		file := strings.SplitN(line, "\t", 2)[0]
+		selected, unmatched := selectByFile(mutants, file)
+		if len(unmatched) != 0 {
+			t.Errorf("the listing names %s, which selects nothing", file)
+		}
+		if len(selected) == 0 {
+			t.Errorf("%s is listed and selects no mutant", file)
+		}
+		seen += len(selected)
+	}
+	if seen != len(mutants) {
+		t.Errorf("the listed files cover %d of %d mutant(s), so some mutant is in no unit and never runs", seen, len(mutants))
+	}
+}
+
+// The output a timeout leaves is the only thing that tells a manufactured kill from a real one. It
+// has to survive the run rather than be read and dropped. Every other verdict carries none: an
+// evidence block under a `killed` line would claim the suite said something it did not.
+func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
+	timedOut := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+	if verdict, evidence := verdictWithEvidence(true, timedOut); verdict != "TIMED OUT" || evidence != timedOut {
+		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d", verdict, len(evidence), len(timedOut))
+	}
+	for _, out := range []string{"--- FAIL: TestBound\nFAIL", "ok  \t./p/\t0.1s", "[build failed]"} {
+		if _, evidence := verdictWithEvidence(true, out); evidence != "" {
+			t.Errorf("a suite that did not time out carried evidence: %q", evidence)
+		}
+	}
+	if verdict, evidence := verdictWithEvidence(false, "ok"); verdict != "KILLED NOTHING" || evidence != "" {
+		t.Errorf("a green suite gave (%q, %q), want KILLED NOTHING and no evidence", verdict, evidence)
+	}
+}
+
+// A timed-out suite exits non-zero with a panic that is neither a build failure nor a case going red.
+// Read as a kill — which is what happened before this arm existed — the mutant is credited with a
+// guard it never observed, and the harness manufactures the finding it exists to produce.
+func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
+	out := "panic: test timed out after 10m0s\n\trunning tests:\n\tTestSomething (10m0s)"
+	if got := verdictOf(true, out); got != "TIMED OUT" {
+		t.Fatalf("a timed-out suite came back %q, want TIMED OUT — %q credits a guard nothing observed", got, got)
+	}
+	// And it is neither a finding about the code nor an excuse for one.
+	if shown, isBad := outcomeOf("TIMED OUT", false); isBad || shown != "TIMED OUT" {
+		t.Fatalf("outcomeOf gave (%q, %v), want (TIMED OUT, false): it says nothing about the guard either way", shown, isBad)
+	}
+	if shown, isBad := outcomeOf("TIMED OUT", true); isBad || shown != "TIMED OUT" {
+		t.Fatalf("a declared-unreachable mutant that timed out gave (%q, %v), want (TIMED OUT, false)", shown, isBad)
+	}
+	// The negative control: a suite that really did go red is still a kill.
+	if got := verdictOf(true, "--- FAIL: TestSomething\nFAIL"); got != "killed" {
+		t.Fatalf("a genuinely red suite came back %q, want killed", got)
+	}
+}
+
+// Counting a timeout is not the same as showing it. A reader auditing for a manufactured kill needs
+// `test timed out` in the log, and it appears only in the suite's own output. A duration alone cannot
+// tell a slow compile from a timeout.
+func TestATimedOutMutantPrintsTheSuitesOwnWords(t *testing.T) {
+	selected := []mutant{{label: "the bound", file: "guard.go", suite: "./p/"}}
+	evidence := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+
+	stdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("could not capture stdout: %v", err)
+	}
+	os.Stdout = writer
+	_, _, unmeasured := report(selected, []result{{verdict: "TIMED OUT", elapsed: time.Second, evidence: evidence}})
+	writer.Close()
+	os.Stdout = stdout
+	printed, _ := io.ReadAll(reader)
+
+	if unmeasured != 1 {
+		t.Errorf("a timed-out mutant counted %d as never measured, want 1", unmeasured)
+	}
+	if !strings.Contains(string(printed), "test timed out") {
+		t.Errorf("the suite's own words never reached the log:\n%s", printed)
+	}
+	// The negative control, carrying the same evidence rather than an empty one. Hand in "" and this
+	// passes even against a report that prints the block for every verdict, because there would be
+	// nothing to print. Only the verdict may vary between the two halves.
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatalf("could not capture stdout for the control: %v", err)
+	}
+	os.Stdout = writer
+	report(selected, []result{{verdict: "killed", elapsed: time.Second, evidence: evidence}})
+	writer.Close()
+	os.Stdout = stdout
+	printed, _ = io.ReadAll(reader)
+	if strings.Contains(string(printed), "test timed out") {
+		t.Errorf("a killed mutant printed timeout evidence it does not have:\n%s", printed)
+	}
+}
+
 // The baseline the run is measured against has to cover every suite a mutant names, or a verdict of
 // "this edit turned the suite red" is claimed over a suite that was never asked.
 func TestEverySuiteAMutantNamesIsInTheBaseline(t *testing.T) {
 	named := map[string]bool{}
-	for _, s := range suitesNamed() {
+	for _, s := range suitesNamed(mutants) {
 		if named[s] {
 			t.Errorf("%s is listed twice, so the baseline runs it twice", s)
 		}
@@ -144,8 +327,8 @@ func TestEverySuiteAMutantNamesIsInTheBaseline(t *testing.T) {
 // measured against changes meaning. Raising the timeout is an edit to this expectation, not a reason
 // to drop the flag.
 func TestTheBaselineRunPinsTheFlagsItsVerdictsRestOn(t *testing.T) {
-	want := "test -count=1 -timeout 30m " + strings.Join(suitesNamed(), " ")
-	if got := strings.Join(baselineArgs(), " "); got != want {
+	want := "test -count=1 -timeout " + suiteTimeout + " " + strings.Join(suitesNamed(mutants), " ")
+	if got := strings.Join(baselineArgs(mutants), " "); got != want {
 		t.Errorf("the baseline argv drifted — a verdict of \"this edit turned the suite red\" now rests "+
 			"on a different run than the one documented.\n got: go %s\nwant: go %s", got, want)
 	}
@@ -163,12 +346,12 @@ func TestTheMutantRunPinsTheFlagsItsVerdictsRestOn(t *testing.T) {
 		{
 			"a mutant naming its test runs that test alone",
 			mutant{suite: "./p/", by: "TestBound"},
-			"test -overlay=/w/overlay.json -count=1 -failfast -run TestBound ./p/",
+			"test -overlay=/w/overlay.json -count=1 -failfast -timeout " + suiteTimeout + " -run TestBound ./p/",
 		},
 		{
 			"a mutant naming no test runs its whole suite, with no empty -run",
 			mutant{suite: "./p/"},
-			"test -overlay=/w/overlay.json -count=1 -failfast ./p/",
+			"test -overlay=/w/overlay.json -count=1 -failfast -timeout " + suiteTimeout + " ./p/",
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -180,7 +363,7 @@ func TestTheMutantRunPinsTheFlagsItsVerdictsRestOn(t *testing.T) {
 
 	// The hand-driving override, which has to be able to widen the filter as well as narrow it.
 	widened := strings.Join(mutantArgs(mutant{suite: "./p/", by: "TestBound"}, "/w/overlay.json", ".*"), " ")
-	if want := "test -overlay=/w/overlay.json -count=1 -failfast -run .* ./p/"; widened != want {
+	if want := "test -overlay=/w/overlay.json -count=1 -failfast -timeout " + suiteTimeout + " -run .* ./p/"; widened != want {
 		t.Errorf("a -run override no longer replaces the mutant's own test\n got: go %s\nwant: go %s", widened, want)
 	}
 }
@@ -211,7 +394,7 @@ func TestTheShippedMutantsAllResolveAgainstTheTree(t *testing.T) {
 	}
 }
 
-// The four outcomes, and which of them the exit code is owed to. The diagonal is the point: an
+// The four outcomes, and which of them the exit code is owed to. The mismatches are the point: an
 // undeclared survivor is the finding this harness exists to produce, and a declared mutant that got
 // killed is a declaration that has gone false — reported loudly, because a declaration nobody
 // re-checks is how a survivor keeps getting excused after the reason stopped holding.
@@ -260,7 +443,7 @@ func TestEveryUnreachableDeclarationStillNamesOneMutantAndSaysWhy(t *testing.T) 
 			t.Errorf("%q is declared unreachable, and no mutant carries that label", u.label)
 		}
 		// A declaration with no reason is indistinguishable from a mutant someone gave up on, which is
-		// the whole failure mode the list has to not become.
+		// exactly what this list must never become.
 		if strings.TrimSpace(u.why) == "" {
 			t.Errorf("%q is declared unreachable with no reason given", u.label)
 		}

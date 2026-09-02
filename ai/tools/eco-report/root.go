@@ -94,6 +94,7 @@ func (r *run) overrideRoot() string {
 		r.refuse("error: "+path+" is not a readable file — the idsd scratch location is unknown.",
 			"  Fix it or remove it. Falling back to the default would put this repo's scratch somewhere you were not told about.")
 	}
+	r.assertOverrideConfigIsTrustworthy(path)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		r.refuse("error: could not read " + path + " (" + err.Error() + ") — the idsd scratch location is unknown, and nothing was read or written.")
@@ -136,20 +137,77 @@ func (r *run) overrideRoot() string {
 	return root
 }
 
+// The file that names the root needs the trust the root needs, and for a sharper reason: every guard
+// below this one judges the value, and a value an attacker chose passes all of them. A world-writable
+// `idsd.conf` — or a world-writable directory holding it — lets any local account name a root of their
+// own, and the root they name will be a perfectly ordinary 0700 directory that satisfies every check
+// downstream. A security review closed the root's own substitution routes and said so plainly: the
+// guard it hardened is only as strong as the file that feeds it.
+//
+// A symlinked config is refused outright rather than judged by its target. `IsRegularFile` above
+// follows the link, so a link to a good file passes there — but whoever can repoint the link chooses
+// the root on the next run, which is the same substitution the ancestor walk exists to stop.
+func (r *run) assertOverrideConfigIsTrustworthy(path string) {
+	if shell.IsSymlink(path) {
+		r.refuse("error: "+shell.Oneline(path)+" is a symlink -> "+shell.Oneline(readLink(path))+" — nothing was read or written.",
+			"  Whoever can repoint it chooses where this repo's reports are written and what `discard` removes.",
+			"  Replace it with a regular file.")
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		// The same rule the root's own guard states fifty lines down: a permission this tool could not
+		// read must not pass as one it checked. Reachable only as a race against the IsRegularFile above,
+		// but accepting silently here is exactly the asymmetry that made the two guards disagree about
+		// one fact — and this is the guard the other one's strength rests on.
+		r.refuse("error: could not read " + shell.Oneline(path) + " (" + err.Error() + ") — whether the file naming the scratch root is safe to trust is unknown, so nothing was read or written.")
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		r.refuse("error: "+shell.Oneline(path)+" is group- or world-writable (mode "+fmt.Sprintf("%04o", info.Mode().Perm())+") — nothing was read or written.",
+			"  Another account could name a scratch root of its own here, and every check below this one would pass it,",
+			"  because the root it names can be an ordinary private directory. `chmod go-w` the file, then re-run.")
+	}
+	// The same substitution, one level out: a writable directory holding the config lets it be replaced
+	// wholesale rather than edited. Sticky is exempt for the reason the root's walk states.
+	for _, above := range directoriesAbove(path) {
+		info, err := os.Stat(above)
+		if err != nil {
+			continue
+		}
+		if !isSubstitutableDir(info) {
+			continue
+		}
+		r.refuse("error: "+shell.Oneline(path)+" sits under a group- or world-writable directory ("+shell.Oneline(above)+", mode "+fmt.Sprintf("%04o", info.Mode().Perm())+") — nothing was read or written.",
+			"  Whoever can write there can replace the config wholesale and name a scratch root of their own.",
+			"  `chmod go-w` the directory named, or move the config somewhere every directory above it is yours alone.")
+	}
+}
+
 // An override root has to be somewhere only its owner can steer. `discard` calls RemoveAll on what this
 // resolves, and every report beneath it carries a pass's security findings — so a directory another
 // account can replace or rename is a directory another account can aim that deletion with.
 //
-// Both checks are on the root itself, and deliberately not on its ancestors. Refusing a symlinked
-// ancestor would outlaw ordinary setups — a home directory that is itself a symlink is common, and on
-// macOS `/tmp` is one. So this refuses what the human wrote in the config and stops there: that value
-// is the one they chose, and the one this tool can fairly hold them to.
+// The root AND every directory above it, because a root nobody else can write is still substitutable
+// through a parent they can: `mv root root.stolen && mkdir root` needs write on the parent alone, and
+// repointing a symlinked ancestor needs write on the directory holding the link. Both were demonstrated
+// against the earlier form of this check, which looked at the final component only. Each landed the
+// reports in a directory of the attacker's choosing, and every command reported success throughout.
+//
+// Ancestors are held to a looser rule than the root, which is what keeps ordinary setups working: a
+// check nobody can live with gets the config file deleted rather than the root moved. A symlinked
+// ancestor is fine — a home directory that is itself a symlink is common, and on macOS `/tmp` is one —
+// because the walk follows it and judges what it points at rather than refusing the link. A
+// world-writable ancestor is fine when it is sticky; assertNothingAboveTheRootCanSubstituteIt holds
+// why. The root itself gets neither allowance: it is the value the human wrote in the config, and the
+// one this tool can fairly hold them to.
 func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
 	if shell.IsSymlink(root) {
 		r.refuse("error: "+configPath+" sets a root that is a symlink ("+shell.Oneline(root)+" -> "+shell.Oneline(readLink(root))+") — nothing was read or written.",
 			"  `discard` removes this directory, so whoever can repoint the link chooses what that removes.",
 			"  Point `root` at a real directory.")
 	}
+	// Before the root's own mode, and reached whether or not the root exists yet: an absent root is
+	// about to be CREATED under these directories, so who can write them decides what gets created.
+	r.assertNothingAboveTheRootCanSubstituteIt(configPath, root)
 	info, err := os.Stat(root)
 	if err != nil {
 		// Absent is fine and ordinary — the first run creates it. Anything else is a directory whose mode
@@ -164,6 +222,104 @@ func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
 			"  Every report written there carries a pass's findings, and `discard` removes the directory,",
 			"  so another account could read the first and steer the second. `chmod go-w` it, then re-run.")
 	}
+}
+
+// The half of the trust check that is about who else can reach the root, rather than about the root.
+func (r *run) assertNothingAboveTheRootCanSubstituteIt(configPath, root string) {
+	for _, above := range directoriesAbove(root) {
+		info, err := os.Stat(above)
+		if err != nil {
+			// Deliberately not a refusal. The root's own stat, further down, walks into the same wall and
+			// says so in the words that name the path the human actually wrote in the config.
+			continue
+		}
+		// Sticky is exactly what stops another account renaming an entry it does not own, which is the
+		// whole of the substitution this walk looks for — so a sticky world-writable ancestor is not one.
+		// Without the exemption `/tmp` would be refused as an ancestor, on macOS and Linux alike, and a
+		// scratch root under it is an ordinary thing to want.
+		if !isSubstitutableDir(info) {
+			continue
+		}
+		r.refuse("error: "+configPath+" sets a root under a group- or world-writable directory ("+shell.Oneline(above)+", mode "+fmt.Sprintf("%04o", info.Mode().Perm())+") — nothing was read or written.",
+			"  Whoever can write there can rename "+shell.Oneline(root)+" away and leave a directory of their own in its place:",
+			"  every report would then be written into theirs, and `discard` would remove theirs. `chmod go-w` the directory named,",
+			"  or point `root` somewhere every directory above it is yours alone.")
+	}
+}
+
+// Whether another account could rename an entry out of this directory and leave one of their own in
+// its place — the whole of what both walks above look for. Sticky is exactly what stops that for an
+// entry you do not own, so a sticky world-writable directory is not substitutable; without the
+// exemption `/tmp` would be refused on macOS and Linux alike, and a scratch root under it is an
+// ordinary thing to want.
+//
+// One predicate rather than the same condition in two walks: they judge different paths for the same
+// reason, and a rule stated twice drifts.
+func isSubstitutableDir(info fs.FileInfo) bool {
+	mode := info.Mode()
+	return mode.Perm()&0o022 != 0 && mode&os.ModeSticky == 0
+}
+
+// Every directory a substitution would have to be written into, from `/` down to the root's own parent.
+// The root itself is never among them — its own checks are the caller's.
+//
+// Walked a component at a time rather than resolved in one step, because a symlinked ancestor has two
+// halves that both matter: the directory holding the link, which is where a repointing gets written, and
+// the directories holding the target. Resolving the path first would drop the former, which is the half
+// the attack uses.
+func directoriesAbove(root string) []string {
+	var above []string
+	remaining := pathComponents(root)
+	current := "/"
+	followed := 0
+	for len(remaining) > 0 {
+		above = append(above, current)
+		next := filepath.Join(current, remaining[0])
+		remaining = remaining[1:]
+		info, err := os.Lstat(next)
+		if err != nil {
+			// Nothing below this point exists yet, which is ordinary on a first run: MkdirAll builds it,
+			// and what decides whether the result can be swapped out is what already stands above it.
+			break
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			current = next
+			continue
+		}
+		followed++
+		if followed > maxSymlinksFollowed {
+			break
+		}
+		target, err := os.Readlink(next)
+		if err != nil {
+			break
+		}
+		if filepath.IsAbs(target) {
+			current = "/"
+		}
+		remaining = append(pathComponents(target), remaining...)
+	}
+	return above
+}
+
+// How many links the walk follows before it gives up, which is the only thing here that can run away:
+// a loop among ancestors would otherwise spin, while plain components are finite by the length of the
+// path. Set at or above every kernel's own ELOOP limit — 32 on macOS, 40 on Linux — so that giving up
+// is safe rather than permissive: a chain this walk abandons is one os.Stat cannot resolve either, and
+// the root's own "could not read" refusal is what the caller reaches next.
+const maxSymlinksFollowed = 40
+
+// A path split into the names between its slashes, with the empties and `.` dropped. A `..` is kept,
+// because filepath.Join resolves it against the directory the walk has actually reached — which is not
+// the same directory a lexical clean would have picked once a symlink has been followed.
+func pathComponents(path string) []string {
+	var parts []string
+	for _, part := range strings.Split(path, "/") {
+		if part != "" && part != "." {
+			parts = append(parts, part)
+		}
+	}
+	return parts
 }
 
 // This clone's directory name under an override root: `<basename>-<digest>`, readable and unique.

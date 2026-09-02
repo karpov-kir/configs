@@ -5,9 +5,10 @@
 # Every case builds its own root under mktemp and points the runner at it. None of them run the
 # runner over this repository, which is what keeps this file — discovered by that runner like any
 # other suite — from recursing into itself.
-# The cases that earn the rest are the two a green run cannot otherwise distinguish itself from:
-# `no suites found`, where discovery silently matches nothing, and a suite that exits 0 having run
-# no case at all. Both report a clean tree that was never read.
+#
+# The two that matter most are the cases a green run cannot otherwise be told apart from: `no suites
+# found`, where discovery silently matches nothing, and a suite that exits 0 having run no case at
+# all. Both report a clean tree that was never read.
 set -uo pipefail
 export LC_ALL=C
 
@@ -16,6 +17,19 @@ runner="$here/run-tests.sh"
 
 pass=0
 fail=0
+# Counted, and printed as its own field. Nineteen cases below sit behind `command -v git`, and a
+# two-field summary line asserts that no case is conditional — `~/.kk-flavor/standards/testing.md` →
+# **7. What a suite reports**. Worse than untidy: `run-tests.sh` reads `skipped` BY NAME to decide
+# vacuity, so on a machine without git this suite would report "36 passed, 0 failed" and the runner
+# would accept it as a clean run with nineteen cases silently gone.
+skipped=0
+
+# <count> <why>. The count is how many cases the guarded block holds, a literal because nothing here
+# can derive it — keep it in step when a case is added to one of those blocks.
+record_skip() {
+  skipped=$((skipped + $1))
+  echo "skip — $1 case(s) not run: $2"
+}
 check() {
   local name="$1" expected="$2" actual="$3"
   if [ "$expected" = "$actual" ]; then
@@ -28,8 +42,27 @@ check() {
   fi
 }
 
-tmp="$(mktemp -d)" || exit 1
+# Exit 2, not 1: a fixture root that cannot be created is this suite failing to measure, where 1
+# would claim the script under test is broken — a different statement, and a false one.
+[ -x "$runner" ] || {
+  echo "run-tests-test: $runner is not an executable file — nothing was tested" >&2
+  exit 2
+}
+tmp="$(mktemp -d)" || {
+  echo "run-tests-test: could not create a temporary directory — nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$tmp"' EXIT
+
+# A checkout seeded with one committed file, plus a suite that overwrites it — the shape that makes the
+# tree move under a run.
+new_greedy_checkout() { # <dir>
+  mkdir -p "$1"
+  ( cd "$1" && git init -q . && git config user.email t@t && git config user.name t &&
+    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
+  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
+    > "$1/greedy-test.sh"
+}
 
 mkdir -p "$tmp/green/nested"
 printf '#!/usr/bin/env bash\necho "2 passed, 0 failed"\n' > "$tmp/green/a-test.sh"
@@ -84,11 +117,7 @@ check "a red outranks a non-measurement" "1" "$rc"
 # config files while reporting every case green. A suite like that has measured something and the
 # measurement was not the whole effect, so the run has to notice the checkout moved under it.
 if command -v git >/dev/null; then
-  mkdir -p "$tmp/repo"
-  ( cd "$tmp/repo" && git init -q . && git config user.email t@t && git config user.name t &&
-    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
-  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
-    > "$tmp/repo/greedy-test.sh"
+  new_greedy_checkout "$tmp/repo"
   out="$("$runner" "$tmp/repo" 2>&1)"; rc=$?
   check "control: a checkout that moved under the run exits 3, never 0" "3" "$rc"
   check "control: and the run says the checkout changed, without naming a culprit" "1" \
@@ -104,27 +133,21 @@ if command -v git >/dev/null; then
   # Which of the three the exit carries when more than one is true at once; the ranking and its reason
   # are in run-tests.sh. Both cases need a checkout of their own: the greedy suite writes the same
   # bytes every run, so a repository it has already clobbered no longer moves under it.
-  mkdir -p "$tmp/moved-red"
-  ( cd "$tmp/moved-red" && git init -q . && git config user.email t@t && git config user.name t &&
-    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
-  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
-    > "$tmp/moved-red/greedy-test.sh"
+  new_greedy_checkout "$tmp/moved-red"
   printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/moved-red/broken-test.sh"
   out="$("$runner" "$tmp/moved-red" 2>&1)"; rc=$?
   check "a red suite outranks a checkout that moved" "1" "$rc"
   check "control: and the checkout really did move, so this is not a red on its own" "1" \
     "$(printf '%s' "$out" | grep -c 'the checkout changed while the suites ran')"
 
-  mkdir -p "$tmp/moved-nomeasure"
-  ( cd "$tmp/moved-nomeasure" && git init -q . && git config user.email t@t && git config user.name t &&
-    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
-  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
-    > "$tmp/moved-nomeasure/greedy-test.sh"
+  new_greedy_checkout "$tmp/moved-nomeasure"
   printf '#!/usr/bin/env bash\nexit 2\n' > "$tmp/moved-nomeasure/absent-test.sh"
   out="$("$runner" "$tmp/moved-nomeasure" 2>&1)"; rc=$?
   check "a checkout that moved outranks a suite that did not measure" "3" "$rc"
   check "control: and that suite really did decline to measure" "1" \
     "$(printf '%s' "$out" | grep -c '^NOMEASURE absent-test.sh')"
+else
+  record_skip 8 "this machine has no git, so discovery could not be driven through it"
 fi
 
 # Two runs that checked different things must not print one line. A run outside a checkout cannot
@@ -136,6 +159,8 @@ if command -v git >/dev/null; then
   out="$("$runner" "$tmp/repo" 2>&1)"
   check "inside one it does not, so a clean tail means the tree was checked" "0" \
     "$(printf '%s' "$out" | grep -c 'containment unchecked')"
+else
+  record_skip 1 "this machine has no git, so discovery could not be driven through it"
 fi
 
 mkdir -p "$tmp/empty/deep"
@@ -180,6 +205,25 @@ if command -v git >/dev/null; then
   check "and an untracked one written since the last commit runs too" "1" \
     "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
   check "and the summary says git answered discovery" "1" "$(printf '%s' "$out" | grep -c 'discovered by git')"
+
+  # -s executes whatever it names, so it has to refuse what discovery refuses. Without this it runs
+  # exactly the suite the control above proves is never executed, and the guarantee holds only for
+  # callers that did not pass -s.
+  out="$("$runner" -s vendor/dropped-test.sh "$tmp/ignored" 2>&1)"; rc=$?
+  check "-s refuses a gitignored suite discovery would never run" "2" "$rc"
+  check "and says git does not know it" "1" "$(printf '%s' "$out" | grep -c 'ignored or unknown to git')"
+  out="$("$runner" -s tracked-test.sh "$tmp/ignored" 2>&1)"; rc=$?
+  check "control: -s still runs a tracked suite in the same repo" "0" "$rc"
+
+  # The shape ai/gate.sh sends every run: a suite that exists and is not ignored but has never been
+  # committed. `ai/gate-test.sh` was exactly this while it was being written. Without this case,
+  # tightening the guard to `--cached` alone leaves every case above green while breaking the gate for
+  # every newly written suite — the silent narrowing this runner exists to stop.
+  out="$("$runner" -s fresh-test.sh "$tmp/ignored" 2>&1)"; rc=$?
+  check "-s runs an untracked suite git does not ignore" "0" "$rc"
+  check "and reports it as the one suite found" "1" "$(printf '%s' "$out" | grep -c '^1 suite(s) found')"
+else
+  record_skip 10 "this machine has no git, so discovery could not be driven through it"
 fi
 
 # Two runs that read different file sets must not print one line, for the same reason the containment
@@ -194,5 +238,44 @@ printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/skip/mine-test
 out="$("$runner" "$tmp/skip" 2>&1)"; rc=$?
 check "a vendored suite under node_modules is not run" "0" "$rc"
 
-echo "$pass passed, $fail failed"
+# -s names one suite instead of discovering them all. It exists so a caller that already knows which
+# suite a change could have moved — ai/gate.sh — still gets this file's reading of the result rather
+# than running `bash <suite>` itself and inheriting neither the exit-2 nor the vacuity rule.
+mkdir -p "$tmp/named"
+printf '#!/usr/bin/env bash\necho "3 passed, 0 failed"\n' > "$tmp/named/wanted-test.sh"
+printf '#!/usr/bin/env bash\necho "9 passed, 0 failed"\n' > "$tmp/named/other-test.sh"
+out="$("$runner" -s wanted-test.sh "$tmp/named" 2>&1)"; rc=$?
+check "-s runs the suite it names" "0" "$rc"
+check "and reports exactly one suite found" "1" "$(printf '%s' "$out" | grep -c '^1 suite(s) found')"
+check "and does not run the sibling it did not name" "0" "$(printf '%s' "$out" | grep -c 'other-test.sh')"
+check "and the summary says discovery was by name" "1" "$(printf '%s' "$out" | grep -c 'discovered by named')"
+
+# The same rule discovery lives by: naming a file that is not there is the caller's typo, and an
+# empty run over it would report a clean tree for a suite nothing executed.
+out="$("$runner" -s no-such-test.sh "$tmp/named" 2>&1)"; rc=$?
+check "-s naming a suite that is not there exits 2" "2" "$rc"
+check "and says discovery is broken rather than clean" "1" \
+  "$(printf '%s' "$out" | grep -c 'never as a clean run')"
+
+# The reason -s exists at all: a suite emptied to zero bytes exits 0 in silence, and a caller running
+# it directly reads that as a pass. Through here it is VACUOUS and a failure.
+: > "$tmp/named/empty-test.sh"
+out="$("$runner" -s empty-test.sh "$tmp/named" 2>&1)"; rc=$?
+check "-s over a suite that ran no case at all fails" "1" "$rc"
+check "and names it vacuous" "1" "$(printf '%s' "$out" | grep -c '^VACUOUS')"
+
+# Everything this script finds it then executes, so a named path that leaves the root is refused
+# rather than run: nothing else stops `-s ../../../x` executing a file outside the repository.
+# The target has to EXIST outside the root, or the missing-file refusal fires first and the case
+# passes on the right exit code for the wrong reason — which is what it did when first written.
+printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/outside-test.sh"
+out="$("$runner" -s ../outside-test.sh "$tmp/named" 2>&1)"; rc=$?
+check "-s naming a path outside the root exits 2" "2" "$rc"
+check "and says it is not this root's to run" "1" "$(printf '%s' "$out" | grep -c "not this root's to run")"
+check "and does not run it" "0" "$(printf '%s' "$out" | grep -c '1 passed')"
+
+out="$("$runner" -z "$tmp/named" 2>&1)"; rc=$?
+check "an unknown flag exits 2" "2" "$rc"
+
+echo "$pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

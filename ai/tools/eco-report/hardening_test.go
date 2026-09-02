@@ -243,8 +243,10 @@ func newRepoAtAControlBytePath(t *testing.T) (*fixture, bool) {
 }
 
 func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
-	// Why an override root's own mode and link status matter is in assertOverrideRootIsTrustworthy. The
-	// four cases here are the two refusals and the two ordinary roots that must not trip them.
+	// Why an override root's mode, its link status and the directories above it all matter is in
+	// assertOverrideRootIsTrustworthy. The refusals come first, then the ordinary roots that must not
+	// trip them — and the two allowances the ancestor walk deliberately makes are among the latter,
+	// because a check nobody can live with gets the config file deleted rather than the root moved.
 	t.Run("a symlinked root is refused", func(t *testing.T) {
 		f := newRepo(t)
 		real := f.base + "/real-elsewhere"
@@ -254,6 +256,11 @@ func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
 		f.runReport("check-ignore")
 		f.assertRefused("a root that is a symlink is refused")
 		f.assertReports("is a symlink", "and says so")
+		// `init`, because `check-ignore` writes nothing anywhere: an empty target after it alone is what
+		// this fixture started with, and the assertion below would hold with the guard deleted. `init` is
+		// the first command that would build the scratch tree through the link, so running it is what
+		// makes the emptiness evidence that the refusal came first.
+		f.runReport("init", "001-linked")
 		f.record("and nothing was written through it", len(f.entries(real)) == 0, strings.Join(f.entries(real), " "))
 	})
 
@@ -268,8 +275,51 @@ func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
 		f.assertReports("group- or world-writable", "and says which permission is the problem")
 	})
 
-	// The ordinary cases, which must not be caught by either check: a private directory, and one that
-	// does not exist yet because this is the first run.
+	// A root whose own mode is impeccable and whose parent is not. Checking the final component alone
+	// passed this, and the substitution it leaves open needs no privilege at all: any account with write
+	// on the parent runs `mv root root.stolen && mkdir root`, and the next init writes every report into
+	// the directory they left behind while `discard` removes it for them.
+	t.Run("a root under a group- or world-writable parent is refused", func(t *testing.T) {
+		f := newRepo(t)
+		parent := f.base + "/loose-parent"
+		f.mkdirAll(parent + "/root")
+		f.chmod(parent+"/root", 0o700)
+		f.chmod(parent, 0o777)
+		defer f.chmod(parent, 0o755)
+		f.writeOverride("root " + parent + "/root\n")
+		f.runReport("check-ignore")
+		f.assertRefused("a root under a writable parent is refused")
+		f.assertReports("loose-parent", "and names the parent rather than the root, which is not the problem")
+		f.runReport("init", "001-parent")
+		f.record("and nothing was written under it",
+			len(f.entries(parent+"/root")) == 0, strings.Join(f.entries(parent+"/root"), " "))
+	})
+
+	// The other half of the same hole, and the one that says the walk FOLLOWS a link instead of reading
+	// the link's own attributes. The root is a real owner-only directory reached through a symlinked
+	// ancestor; what stands behind that link is world-writable, so the refusal has to name what the link
+	// points at. Checking the final component alone landed the reports in there and let `discard` follow
+	// the link wherever it was next repointed.
+	t.Run("and so is one reached through a symlinked ancestor to a writable directory", func(t *testing.T) {
+		f := newRepo(t)
+		behind := f.base + "/loose-behind-link"
+		f.mkdirAll(behind + "/root")
+		f.chmod(behind+"/root", 0o700)
+		f.chmod(behind, 0o777)
+		defer f.chmod(behind, 0o755)
+		f.symlink(behind, f.base+"/via")
+		f.writeOverride("root " + f.base + "/via/root\n")
+		f.runReport("check-ignore")
+		f.assertRefused("an ancestor symlink is followed, not trusted")
+		f.assertReports("loose-behind-link", "and names what the link points at rather than the link")
+	})
+
+	// The ordinary cases, which must not be caught by any of those checks: a private directory, one under
+	// a sticky world-writable ancestor, and one that does not exist yet because this is the first run.
+	//
+	// Each asserts that the override was HONOURED and not merely tolerated. Exit 0 alone is what a silent
+	// fallback to the default also looks like, and writing this clone's reports into a directory the human
+	// was never told about is the one failure an override must not have.
 	t.Run("while an owner-only root is accepted", func(t *testing.T) {
 		f := newRepo(t)
 		tight := f.base + "/tight-elsewhere"
@@ -278,6 +328,25 @@ func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
 		f.writeOverride("root " + tight + "\n")
 		f.runReport("check-ignore")
 		f.record("an owner-only root is accepted", f.status == 0, f.evidence())
+		f.record("and it is the location this run uses", strings.Contains(f.out, tight+"/"), f.evidence())
+	})
+
+	// The allowance /tmp rests on, here and on every Linux runner: sticky is exactly what stops another
+	// account renaming an entry it does not own, so a sticky world-writable ancestor cannot host the
+	// substitution the case above describes. Without the exemption this refuses, and the ancestor walk
+	// outlaws the most ordinary place there is to keep scratch.
+	t.Run("and so is one under a sticky world-writable ancestor", func(t *testing.T) {
+		f := newRepo(t)
+		sticky := f.base + "/sticky-parent"
+		f.mkdirAll(sticky + "/root")
+		f.chmod(sticky+"/root", 0o700)
+		f.chmod(sticky, 0o777|os.ModeSticky)
+		defer f.chmod(sticky, 0o755)
+		f.writeOverride("root " + sticky + "/root\n")
+		f.runReport("check-ignore")
+		f.record("a sticky world-writable ancestor is accepted", f.status == 0, f.evidence())
+		f.record("and it is the location this run uses",
+			strings.Contains(f.out, sticky+"/root/"), f.evidence())
 	})
 
 	// The branch a mutation found unobserved: absent is fine and ordinary, but a root whose mode could
@@ -302,5 +371,104 @@ func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
 		f.writeOverride("root " + f.base + "/not-created-yet\n")
 		f.runReport("check-ignore")
 		f.record("an absent root is accepted, since the first run creates it", f.status == 0, f.evidence())
+		f.record("and it is the location this run uses",
+			strings.Contains(f.out, f.base+"/not-created-yet/"), f.evidence())
+	})
+}
+
+func TestTheOverrideConfigIsJudgedLikeTheRootItNames(t *testing.T) {
+	// A security review closed the root's own substitution routes and handed back the file that names
+	// it: every guard below judges the value, and a value an attacker chose passes all of them, because
+	// the root they name can be an ordinary private directory. The guard is only as strong as its input.
+	t.Run("a world-writable config is refused", func(t *testing.T) {
+		f := newRepo(t)
+		// The root it names is impeccable, which is what makes the case one only the config's own mode
+		// can refuse: every check on the root passes it. The needle below names the config's mode rather
+		// than the phrase alone, because the root's refusal and the ancestor walk's both carry that phrase.
+		elsewhere := f.base + "/named-elsewhere"
+		f.mkdirAll(elsewhere)
+		f.chmod(elsewhere, 0o700)
+		f.writeOverride("root " + elsewhere + "\n")
+		f.chmod(f.configHome+"/kk-flavor/idsd.conf", 0o666)
+		f.runReport("check-ignore")
+		f.assertRefused("a group- or world-writable config is refused")
+		f.assertReports("idsd.conf is group- or world-writable (mode 0666)",
+			"and names the config file and which permission is the problem")
+	})
+
+	t.Run("a symlinked config is refused rather than judged by its target", func(t *testing.T) {
+		f := newRepo(t)
+		elsewhere := f.base + "/link-target-root"
+		f.mkdirAll(elsewhere)
+		f.chmod(elsewhere, 0o700)
+		real := f.base + "/real-idsd.conf"
+		f.write(real, "root "+elsewhere+"\n")
+		f.mkdirAll(f.configHome + "/kk-flavor")
+		f.symlink(real, f.configHome+"/kk-flavor/idsd.conf")
+		f.runReport("check-ignore")
+		f.assertRefused("a symlinked config is refused")
+		// The link's own path, and it has to fall on the left of the arrow: both paths reach this line, so
+		// a bare "is a symlink" would hold just as well for a message that named the target as the problem.
+		f.assertReports("/kk-flavor/idsd.conf is a symlink -> ", "and names the link rather than its target")
+	})
+
+	t.Run("a config under a world-writable directory is refused", func(t *testing.T) {
+		f := newRepo(t)
+		elsewhere := f.base + "/dir-case-root"
+		f.mkdirAll(elsewhere)
+		f.chmod(elsewhere, 0o700)
+		f.writeOverride("root " + elsewhere + "\n")
+		f.chmod(f.configHome+"/kk-flavor", 0o777)
+		defer f.chmod(f.configHome+"/kk-flavor", 0o755)
+		f.runReport("check-ignore")
+		f.assertRefused("a config under a writable directory is refused")
+		f.assertReports("sits under a group- or world-writable directory", "and says that is why")
+		// The directory by its tail and its mode rather than by its full path: the walk reports it with
+		// every symlink above it resolved, and on macOS the fixture sits under /var, which is one.
+		f.assertReports("kk-flavor, mode 0777)", "and names the directory that is the problem, and its mode")
+	})
+
+	// The exemption, named rather than left to fire implicitly. On a Linux runner a fixture under sticky
+	// `/tmp` exercises this by accident; on macOS it never does, so without this case the branch is
+	// unguarded on the machine this is most often run on. Sticky is what stops another account renaming
+	// an entry it does not own, which is the whole of the substitution the walk looks for.
+	t.Run("and a sticky world-writable directory above the config is not substitutable", func(t *testing.T) {
+		f := newRepo(t)
+		elsewhere := f.base + "/sticky-case-root"
+		f.mkdirAll(elsewhere)
+		f.chmod(elsewhere, 0o700)
+		f.writeOverride("root " + elsewhere + "\n")
+		holder := f.configHome + "/kk-flavor"
+		// os.Chmod takes the sticky bit as os.ModeSticky, NOT as octal 0o1000 — passing 0o1777 sets 0777
+		// and no sticky bit at all, which made this case skip silently and observe nothing.
+		f.chmod(holder, 0o777|os.ModeSticky)
+		defer f.chmod(holder, 0o755)
+		info, err := os.Stat(holder)
+		if err != nil || info.Mode()&os.ModeSticky == 0 {
+			t.Skip("this filesystem does not carry the sticky bit, so the exemption cannot be built here")
+		}
+		f.runReport("check-ignore")
+		f.record("a sticky world-writable holder is accepted, not refused",
+			f.status == 0, f.evidence())
+		f.record("and the run still resolves to the configured root",
+			strings.Contains(f.out, elsewhere+"/"), f.evidence())
+	})
+
+	// The ordinary case, which must not be caught: a private config naming a private root.
+	t.Run("while an owner-only config naming an owner-only root is accepted", func(t *testing.T) {
+		f := newRepo(t)
+		elsewhere := f.base + "/ordinary-root"
+		f.mkdirAll(elsewhere)
+		f.chmod(elsewhere, 0o700)
+		f.writeOverride("root " + elsewhere + "\n")
+		f.chmod(f.configHome+"/kk-flavor/idsd.conf", 0o600)
+		f.runReport("check-ignore")
+		f.record("an ordinary override is accepted", f.status == 0, f.evidence())
+		// Accepted AND used: exit 0 alone is also what a silent fallback to the default produces, which is
+		// the one failure an override must not have.
+		// The trailing slash is what makes this "uses" rather than "mentions": the clone's own directory
+		// hangs off the configured root, so only a run that resolved to it prints the root with a `/` after.
+		f.record("and the run announces and uses the configured root",
+			strings.Contains(f.out, elsewhere+"/"), f.evidence())
 	})
 }

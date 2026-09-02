@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Proves the shell suites' cases can fail, by breaking one guard at a time in a COPY of the script
 # and requiring the case the break was aimed at to go red.
-#   usage: shell-mutate.sh [-j <jobs>] [-p] [-m <substring>] [-v]
+#   usage: shell-mutate.sh [-j <jobs>] [-p] [-k <keys>] [-m <substring>] [-l] [-v]
 #          -j  mutants in flight at once (default: twice the cores)
 #          -p  preflight only — every anchor matches exactly once, every named case exists
-#          -m  run only the mutants whose label holds this substring
+#          -k  run only these scripts' mutants, comma-separated (see -l). This one still GATES:
+#              a script is either wholly in or wholly out, so the coverage tail over the scripts
+#              that are in is complete, and every case of theirs is still accounted for.
+#          -m  run only the mutants whose label holds this substring. This one does NOT gate:
+#              it cuts across scripts, so almost every case is unreached by construction.
+#          -l  print one line per script — key, script, suite, mutant count — and stop
 #          -v  each mutant's diff, and every case it reddened with the suite's own reason
 #
 # A suite whose cases have never been seen to fail reads as coverage and measures nothing: they may
@@ -15,20 +20,27 @@
 # harness's own log, because a replacement the shell ate before the tool saw it leaves a copy that
 # still holds the original and a suite that stays green over unmutated code. The copy still parses:
 # `bash -n` before the suite runs, because a syntax error reddens every case at once and proves
-# nothing about any of them. And the red names the case the break was aimed at — which is the only
-# one of the three that looks like the check, and is worthless without the other two.
+# nothing about any of them. And the red names the case the break was aimed at — the only one of the
+# three that looks like the check.
 #
-# Minutes, and the order of magnitude is the design. The harness this replaces took two hours and
-# twenty minutes, because it ran one mutant at a time against a hundred-second suite. These suites are six seconds, the mutants run in parallel, and a mutant costs
-# a copy of one file rather than a copy of a checkout. Measured here: three minutes on an idle
-# machine, seven with a dozen other things running. Under load, drop `-j` rather than reading the
-# watchdog's kills as findings — the run reports those apart and exits 2, never 1.
+# A whole run takes minutes, and that order of magnitude is the design: the mutants run in parallel, and one
+# costs a copy of a single file rather than a copy of a checkout. Measured over the whole list, about
+# eleven minutes on a quiet machine and twenty-two on a contended one, at `-j 4`. This is the only
+# place that figure lives — `ai/gate.sh` cites this file rather than restating a number that would
+# then rot alone. Under load, drop `-j` rather than reading the watchdog's kills as findings; the run
+# reports those apart and exits 2, never 1.
 #
 # Each mutant names its script, a search string that must match exactly once, its replacement, and
 # the case it must kill. Preflight refuses a stale anchor and a case name no suite holds — the two
 # ways a mutation run credits itself with a failure it did not cause. Attribution is the deliverable
 # and a count is not: the tail of the report names every case no mutant has yet been able to fail,
 # and the run stays red while one of them is neither proven nor declared out of reach with a reason.
+#
+# untested: no suite covers this harness. It watches itself instead — the preflight and baseline
+# checks below refuse every way a mutant could credit itself with a red it does not own, by name and
+# before anything runs, and a run that measured nothing exits 2 rather than reporting a pass. A suite
+# over it would have to build a script, a suite and a mutant per case, which is this file with the
+# names changed.
 #
 # Nothing is written inside this checkout. The mutated copy lives under mktemp and the suite is
 # pointed at it through the <SCRIPT>_UNDER_TEST variable each suite reads for exactly this purpose.
@@ -40,15 +52,19 @@ here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 jobs=0
 preflight_only=0
 filter=""
+key_filter=""
+list_units=0
 verbose=0
-while getopts ":j:pm:v" opt; do
+while getopts ":j:pk:m:lv" opt; do
   case "$opt" in
     j) jobs="$OPTARG" ;;
     p) preflight_only=1 ;;
+    k) key_filter="$OPTARG" ;;
     m) filter="$OPTARG" ;;
+    l) list_units=1 ;;
     v) verbose=1 ;;
     *)
-      echo "usage: shell-mutate.sh [-j <jobs>] [-p] [-m <substring>] [-v]" >&2
+      echo "usage: shell-mutate.sh [-j <jobs>] [-p] [-k <keys>] [-m <substring>] [-l] [-v]" >&2
       exit 2
       ;;
   esac
@@ -68,6 +84,10 @@ fi
 
 # A mutant that stops exiting where the suite expects must not hang the run. macOS ships no
 # `timeout`, so the watchdog is a background sleep against the suite's own pid.
+#
+# Err high. A bound under what a suite honestly takes turns every one of that suite's mutants into a
+# NO MEASURE, and the run exits 2 having proved nothing. That is a harness permanently declining to
+# gate, which is worse than the hang the watchdog is here to stop.
 suite_limit=120
 
 # The three keys, each one a script, the suite that covers it, and the variable that suite reads to
@@ -96,7 +116,20 @@ var_of() {
   esac
 }
 
+# ai/gate.sh is deliberately absent. Nine mutants over its refusals were run: six killed, and the
+# three that survived each found a real defect. It stays out because of the coverage tail below. A key
+# in scope needs every case name proven or excused, and gate-test.sh holds close to ninety: roughly
+# thirty-five more mutants at about 130s each.
 keys="cadence density dup"
+
+# Membership in a space-separated key list. `-k` narrows `$keys` in place, so every loop below asks
+# this before doing anything with a mutant, and a run without `-k` answers yes for all of them.
+has_key() { # <space-separated keys> <key>
+  case " $1 " in
+    *" $2 "*) return 0 ;;
+  esac
+  return 1
+}
 
 m_key=()
 m_label=()
@@ -226,6 +259,19 @@ run_suite() { # <variable> <mutated copy> <suite> <output file>
   status=$?
   { kill "$watchdog" && wait "$watchdog"; } 2>/dev/null
   return "$status"
+}
+
+# One line per suite in the baseline block, and one per mutant in the report. Two shapes, because the
+# middle column differs: a suite name against a mutant label.
+#
+# Both hold the state column here rather than at each call site. There it was hand-typed padding that
+# had to match that column's width exactly, with nothing checking that it did.
+baseline_line() { # <state> <suite name> <detail>
+  printf '  %-15s %-28s %s\n' "$1" "$2" "$3"
+}
+
+mutant_line() { # <verdict> <mutant label> <detail>
+  printf '  %-15s %-62s %s\n' "$1" "$2" "$3"
 }
 
 # Both built rather than spelled out. This file is scanned by the same tooling these scripts belong
@@ -897,6 +943,56 @@ total="${#m_label[@]}"
   exit 2
 }
 
+# One line per script: what a caller scopes `-k` on. Counted off the mutant list itself, so the
+# mapping has one home and cannot drift from the mutants it describes.
+if [ "$list_units" -eq 1 ]; then
+  for key in $keys; do
+    count=0
+    for ((i = 0; i < total; i++)); do
+      [ "${m_key[$i]}" = "$key" ] && count=$((count + 1))
+    done
+    printf '%s\t%s\t%s\t%s\n' "$key" "$(script_of "$key")" "$(suite_of "$key")" "$count"
+  done
+  exit 0
+fi
+
+# The scope. A key naming no script exits 2 rather than narrowing the run to nothing: a caller who
+# misspells one would otherwise get a green over zero mutants, which is the verdict this harness is
+# least entitled to produce. Whole scripts only — that is what lets `-k` gate where `-m` cannot: the
+# coverage tail below is computed per script, so a script wholly in scope has its whole tail checked.
+skipped=0
+if [ -n "$key_filter" ]; then
+  chosen=""
+  saved_ifs="$IFS"
+  IFS=','
+  set -f
+  for want in $key_filter; do
+    IFS="$saved_ifs"
+    set +f
+    want="${want// /}"
+    if [ -n "$want" ]; then
+      has_key "$keys" "$want" || {
+        echo "shell-mutate.sh: no script is keyed '$want' — run -l for the keys there are; nothing was mutated" >&2
+        exit 2
+      }
+      has_key "$chosen" "$want" || chosen="$chosen $want"
+    fi
+    IFS=','
+    set -f
+  done
+  IFS="$saved_ifs"
+  set +f
+  chosen="${chosen# }"
+  [ -n "$chosen" ] || {
+    echo "shell-mutate.sh: -k selected no script at all — nothing was mutated" >&2
+    exit 2
+  }
+  keys="$chosen"
+  for ((i = 0; i < total; i++)); do
+    has_key "$keys" "${m_key[$i]}" || skipped=$((skipped + 1))
+  done
+fi
+
 scratch=$(mktemp -d) || exit 1
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/out" "$scratch/base" "$scratch/cover" || exit 1
@@ -934,12 +1030,12 @@ for key in $keys; do
   # does not have — so nothing it printed is a statement about the script, and the fix is the fixture.
   # Held apart from the red because "BASELINE RED" sends the reader to the code instead.
   if [ "$status" -eq 2 ]; then
-    printf '  DID NOT MEASURE %-28s %s\n' "$suite_name" "$trailer"
+    baseline_line "DID NOT MEASURE" "$suite_name" "$trailer"
     baseline_red=1
     continue
   fi
   if [ "$status" -ne 0 ]; then
-    printf '  BASELINE RED    %-28s %s\n' "$suite_name" "$trailer"
+    baseline_line "BASELINE RED" "$suite_name" "$trailer"
     baseline_red=1
     continue
   fi
@@ -950,8 +1046,8 @@ for key in $keys; do
   case "$(summary_field passed "$trailer")" in
     '' | 0)
       case "$(summary_field skipped "$trailer")" in
-        '' | 0) printf '  VACUOUS         %-28s %s\n' "$suite_name" "$trailer" ;;
-        *) printf '  ALL DECLINED    %-28s %s\n' "$suite_name" "$trailer" ;;
+        '' | 0) baseline_line VACUOUS "$suite_name" "$trailer" ;;
+        *) baseline_line "ALL DECLINED" "$suite_name" "$trailer" ;;
       esac
       baseline_red=1
       continue
@@ -960,12 +1056,12 @@ for key in $keys; do
   # Attribution here is by case name. Two cases sharing one cannot be told apart: a mutant reddening
   # either credits both, and the name being proven able to fail proves it of only one of them.
   if sort "$scratch/base/$key.reported" | uniq -d | grep -q ''; then
-    printf '  AMBIGUOUS       %-28s %s reported case(s) under %s name(s)\n' "$suite_name" "$reported" "$count"
+    baseline_line AMBIGUOUS "$suite_name" "$reported reported case(s) under $count name(s)"
     sort "$scratch/base/$key.reported" | uniq -cd | sed 's/^/      /'
     baseline_red=1
     continue
   fi
-  printf '  green           %-28s %s, %s case name(s), each reported once\n' "$suite_name" "$trailer" "$count"
+  baseline_line green "$suite_name" "$trailer, $count case name(s), each reported once"
 done
 [ "$baseline_red" -eq 0 ] || {
   echo "a suite is not fit to mutate against — it never measured at all, fails unmutated, reports no passes at all, or names two cases the same, and every mutant below would credit itself with a red it cannot own" >&2
@@ -981,7 +1077,10 @@ done
 # their own line for the same reason, since they are not mutants and never were part of that total.
 stale=0
 stale_declarations=0
+checked=0
 for ((i = 0; i < total; i++)); do
+  has_key "$keys" "${m_key[$i]}" || continue
+  checked=$((checked + 1))
   unresolved=0
   matches=$(anchor_count "${m_from[$i]}" "$(script_of "${m_key[$i]}")")
   if [ "$matches" -ne 1 ]; then
@@ -995,16 +1094,17 @@ for ((i = 0; i < total; i++)); do
   stale=$((stale + unresolved))
 done
 for ((i = 0; i < ${#u_case[@]}; i++)); do
+  has_key "$keys" "${u_key[$i]}" || continue
   if ! grep -Fxq -- "${u_case[$i]}" "$scratch/base/${u_key[$i]}.cases"; then
     printf '  no such case    "%s" is declared out of reach, and its suite does not hold it\n' "${u_case[$i]}"
     stale_declarations=$((stale_declarations + 1))
   fi
 done
 if [ "$stale" -gt 0 ] || [ "$stale_declarations" -gt 0 ]; then
-  echo "preflight: $stale of $total mutants do not resolve, and $stale_declarations out-of-reach declaration(s) name a case no suite holds — nothing was mutated"
+  echo "preflight: $stale of $checked mutants in scope do not resolve, and $stale_declarations out-of-reach declaration(s) name a case no suite holds — nothing was mutated"
   exit 1
 fi
-echo "preflight: $total anchors, all matching exactly once; every case a mutant names or a declaration excuses is held"
+echo "preflight: $checked anchors in scope ($skipped outside -k), all matching exactly once; every case a mutant names or a declaration excuses is held"
 [ "$preflight_only" -eq 0 ] || exit 0
 
 run_mutant() { # <index>
@@ -1061,8 +1161,8 @@ run_mutant() { # <index>
   run_suite "$variable" "$mutated" "$suite" "$work/suite.out"
   ran=$?
   # The watchdog, told apart from every other way a suite can stop. A signalled exit is this machine
-  # being too busy to finish in "$suite_limit"s, and it says nothing about the guard — where a suite
-  # that exited on its own and stopped early says the mutation broke something before the branch.
+  # being too busy to finish inside `suite_limit`, and it says nothing about the guard. A suite that
+  # exited on its own and stopped early says the mutation broke something before the branch.
   # Collapsing the two reports a loaded machine as an unobserved guard, which is a false claim about
   # the code and the one a run under load will make most often.
   if [ "$ran" -ge 128 ]; then
@@ -1089,8 +1189,11 @@ run_mutant() { # <index>
 }
 
 selected=0
-echo "$total mutants, $jobs at once — one guard removed at a time"
+# The in-scope count, never the whole list: a `-k` run announcing all of them reads as a whole run,
+# which is the narrowing the closing line below is written not to hide. Without -k the two are equal.
+echo "$checked mutants, $jobs at once — one guard removed at a time"
 for ((i = 0; i < total; i++)); do
+  has_key "$keys" "${m_key[$i]}" || continue
   case "${m_label[$i]}" in
     *"$filter"*) ;;
     *) continue ;;
@@ -1116,16 +1219,16 @@ for ((i = 0; i < total; i++)); do
     # The suite's own reason for the red, not just that one happened. A case can redden because the
     # mutant broke a fixture it needed before the branch under test was ever reached, and the reason
     # is the only part of the output that tells the two apart.
-    printf '  killed          %-62s %s\n' "${m_label[$i]}" \
+    mutant_line killed "${m_label[$i]}" \
       "$(printf '"%s" %.72s%s' "${m_case[$i]}" "$(case_reason "${m_case[$i]}" "$scratch/out/$i.reasons")" "$collateral")"
   elif [ "$verdict" = "NO MEASURE" ]; then
     # Counted apart from `bad`, because this one is a finding about the machine. Rolling it in would
     # read as "this guard is unobserved", which is the claim the run is least entitled to make.
-    printf '  NO MEASURE      %-62s %s\n' "${m_label[$i]}" \
+    mutant_line "NO MEASURE" "${m_label[$i]}" \
       "the ${suite_limit}s watchdog killed its suite, so nothing was measured about \"${m_case[$i]}\""
     unmeasured=$((unmeasured + 1))
   else
-    printf '  %-15s %-62s %s\n' "$verdict" "${m_label[$i]}" "aimed at \"${m_case[$i]}\""
+    mutant_line "$verdict" "${m_label[$i]}" "aimed at \"${m_case[$i]}\""
     [ -s "$scratch/out/$i.reasons" ] && print_reasons "$scratch/out/$i.reasons" "                  red instead: "
     bad=$((bad + 1))
   fi
@@ -1147,6 +1250,7 @@ for key in $keys; do
   : >"$scratch/cover/$key.declared"
 done
 for ((i = 0; i < ${#u_case[@]}; i++)); do
+  has_key "$keys" "${u_key[$i]}" || continue
   printf '%s\n' "${u_case[$i]}" >>"$scratch/cover/${u_key[$i]}.declared"
 done
 for key in $keys; do
@@ -1189,11 +1293,11 @@ if [ "$unmeasured" -gt 0 ]; then
   echo "$unmeasured mutant(s) never measured, so the coverage above is short by whatever they would have proven and does not gate — rerun with a smaller -j on a quieter machine"
 fi
 
-# Three counters, each one moved by the loop above. The run's own last line, read the way this file
-# asks a suite's to be read — `~/.kk-flavor/standards/testing.md` → **7. What a suite reports**.
+# The run's own last line, read the way this file asks a suite's to be read —
+# `~/.kk-flavor/standards/testing.md` → **7. What a suite reports**.
 echo
-printf '%s mutant(s) run, %s that proved nothing, %s that never measured, %s case name(s) neither proven nor excused, %ss wall clock\n' \
-  "$selected" "$bad" "$unmeasured" "$unproven" "$(($(date +%s) - started))"
+printf '%s mutant(s) run, %s not run (outside -k), %s that proved nothing, %s that never measured, %s case name(s) neither proven nor excused, %ss wall clock\n' \
+  "$selected" "$skipped" "$bad" "$unmeasured" "$unproven" "$(($(date +%s) - started))"
 # A finding about the code outranks one about the machine. Exit 2 alone means nothing was found wrong
 # and something never ran, which a caller may never read as a pass.
 [ "$bad" -eq 0 ] && [ "$gated_unproven" -eq 0 ] && [ "$stale_claim" -eq 0 ] || exit 1

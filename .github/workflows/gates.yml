@@ -52,6 +52,20 @@ jobs:
       - name: Run every suite
         run: ai/run-tests.sh
 
+  # `-count=1` because Go's test cache is keyed on the module, and several suites read files outside
+  # it: eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and todo-gate.sh, and
+  # `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a plain run answers out
+  # of cache over a tree one of them has changed, and this job would go green on exactly that.
+  # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
+  # while `go test ./eco-report/` says `ok (cached)` over the same corrupt tree.
+  #
+  # A cached failure is not the hole. A deliberately failing case appended to eco-root re-ran and
+  # re-failed on two consecutive runs, never once from cache. `.github/workflows/release-tools.yml`
+  # cites this paragraph rather than repeating it.
+  #
+  # `ai/gate.sh` is the developer-side answer to the same hole — it keys on those files itself and
+  # forces the packages that read them. This job stays as it is: the gate is a fast path beside the
+  # full sweep, never a substitute for it.
   go:
     runs-on: ubuntu-latest
     steps:
@@ -62,7 +76,6 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
-      # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
       # `-timeout 30m` because the eco-report suite runs past Go's 10m default on a loaded runner, and
       # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
       - name: Gate
@@ -78,8 +91,8 @@ jobs:
           go test -count=1 -timeout 30m ./...
 
   # Proves the shell suites' cases can actually fail. ai/run-tests.sh cannot cover this — it discovers
-  # `*-test.sh` and the harness is not one — so without this job, editing a guard silently retires the
-  # proof that its case can redden and nothing says so.
+  # `*-test.sh` and the harness is not one — so without this job, editing a guard retires the proof
+  # that its case can redden and nothing says so.
   #
   # No -j: the harness defaults to twice the cores, which adapts to whatever runner it lands on.
   # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.

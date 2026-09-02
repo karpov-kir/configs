@@ -1,19 +1,16 @@
 # Cross-compile the shipped Go tools and attach them to the release for their tag.
 #
-# Why a release and not a commit: a binary per commit measured at ~54MB/month against a 16MB repo.
-# Release assets live in GitHub's release storage rather than the git object store, so the repo stays
-# the size it is however many releases accumulate.
-#
-# Why prebuilt and not build-on-install: installing these skills would otherwise require a Go
-# toolchain on every machine that mounts them.
+# They go on a release rather than into a commit because a binary per commit measured at ~54MB/month
+# against a 16MB repo. Release assets live in GitHub's release storage, not the git object store, so
+# the repo stays the size it is however many releases accumulate. They are prebuilt because otherwise
+# installing these skills needs a Go toolchain on every machine that mounts them.
 #
 # The gate runs before any binary is built. A release whose tools fail their own suite is worse than
 # a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
 # beside it and every machine would take the broken one.
 #
-# The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
-# it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
-# the day dependabot or renovate lands.
+# The actions carry a major tag rather than an exact pin, for the reason `.github/workflows/gates.yml`
+# states in its header, which also carries the condition for pruning that override.
 name: release-tools
 
 on:
@@ -45,13 +42,13 @@ jobs:
         with:
           # From go.mod, so the release is built by the toolchain the module declares.
           go-version-file: ai/tools/go.mod
-          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
-          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
-          # that can never become a hit. cache-dependency-path would point it here, but the only
-          # thing to cache is a build cache keyed on a go.mod that never changes.
+          # Off for the reason `.github/workflows/gates.yml` states in its header: setup-go looks for
+          # its cache key file in the repo root, and this module is in ai/tools.
           cache: false
 
-      # `-count=1` because `go test ./...` reports `ok (cached)` over a package that fails.
+      # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: the test
+      # cache is keyed on the module, and several suites read files from outside it. The measurement
+      # and the negative control are there.
       # `-timeout 30m` because the eco-report suite runs past Go's 10m default on a loaded runner, and
       # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
       - name: Gate

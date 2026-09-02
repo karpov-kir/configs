@@ -12,10 +12,37 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"testing"
 )
 
-// Fixture I/O. Each fails the case rather than returning an error: a fixture that did not get built
-// leaves its assertions passing against a tree they were never given.
+// Every git spawn here goes to whatever PATH names first. Most of them are the tool's own, and it
+// resolves `git` through PATH the same way. On macOS that first name is `/usr/bin/git`, an xcrun
+// shim. Going through the shim costs 2.06x the real git behind it: 37.9ms a spawn against 18.4ms.
+//
+// This package makes about 4300 spawns, and the shim had pushed it past `go test`'s 600s default:
+// a FAIL at 603.4s on a loaded machine. Skipping it measured 286.6s down to 174.1s and 118.1s,
+// interleaved so drift could not produce the result.
+//
+// Resolved once, because `xcrun` is itself a spawn. No-op wherever xcrun is absent, which is every
+// Linux runner.
+func TestMain(m *testing.M) {
+	if out, err := exec.Command("xcrun", "-f", "git").Output(); err == nil {
+		resolved := strings.TrimSpace(string(out))
+		if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			dir := filepath.Dir(resolved)
+			path := os.Getenv("PATH")
+			if !strings.HasPrefix(path, dir+string(os.PathListSeparator)) {
+				os.Setenv("PATH", dir+string(os.PathListSeparator)+path)
+			}
+		}
+	}
+	os.Exit(m.Run())
+}
+
+// Fixture I/O. The builders fail the case rather than returning an error: a fixture that did not get
+// built leaves its assertions passing against a tree they were never given. The queries answer
+// instead. A case asks `exists`, `isFile` or `read` a question, and a false or empty answer is its
+// result, not a broken fixture.
 func (f *fixture) mkdirAll(dir string) {
 	f.t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -180,6 +207,18 @@ func countLinesEqual(text, line string) int {
 	return countLines(text, func(candidate string) bool { return candidate == line })
 }
 
+func countLinesWithPrefix(text, prefix string) int {
+	return countLines(text, func(line string) bool { return strings.HasPrefix(line, prefix) })
+}
+
+func countNonEmptyLines(text string) int {
+	return countLines(text, func(line string) bool { return line != "" })
+}
+
+func countLinesEndingWith(text, suffix string) int {
+	return countLines(text, func(line string) bool { return strings.HasSuffix(line, suffix) })
+}
+
 // The state column of a `list` line — `grep '^<name>[[:space:]]' | cut -f2`.
 func stateOf(listing, name string) string {
 	for _, line := range strings.Split(listing, "\n") {
@@ -203,10 +242,6 @@ func frontmatterAndBody(report string) (frontmatter, body string) {
 		}
 	}
 	return strings.Join(lines[1:], "\n"), ""
-}
-
-func countLinesWithPrefix(text, prefix string) int {
-	return countLines(text, func(line string) bool { return strings.HasPrefix(line, prefix) })
 }
 
 // `cksum <file>` reduced to the two fields a stage marker holds. False means cksum(1) is not on this
@@ -233,10 +268,6 @@ func (f *fixture) markerAgainstCksum(marker, report string) (held, want string, 
 		return "", "", false
 	}
 	return strings.TrimRight(f.read(marker), "\n"), want, true
-}
-
-func countNonEmptyLines(text string) int {
-	return countLines(text, func(line string) bool { return line != "" })
 }
 
 func sortedWords(text string) string {
@@ -267,10 +298,6 @@ func (f *fixture) filesContaining(dir, needle string) []string {
 		return nil
 	})
 	return found
-}
-
-func countLinesEndingWith(text, suffix string) int {
-	return countLines(text, func(line string) bool { return strings.HasSuffix(line, suffix) })
 }
 
 func joinLines(values []string) string { return strings.Join(values, "\n") }
