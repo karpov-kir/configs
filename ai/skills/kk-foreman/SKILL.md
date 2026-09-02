@@ -66,7 +66,6 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 Spawn each stage in the order **Route** resolved.
 
-**When a chain should run streamed is `~/.kk-flavor/standards/streaming.md`'s call**, not one to re-derive here. Where it does, **The caller's half** there is yours, and that file is the whole delta for the path.
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 

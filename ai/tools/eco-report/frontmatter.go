@@ -57,12 +57,12 @@ func isUnstamped(value string) bool {
 	return false
 }
 
-// Entries the last stamp marked `(fast)` — stages trimmed for turnaround. Any of them means the pass
-// was not a full one.
-func (r *run) fastTrims() string {
+// Entries the last stamp marked `(turnaround)` — stages trimmed to answer sooner. Any of them means the pass
+// was not an untrimmed one.
+func (r *run) turnaroundTrims() string {
 	var trimmed []string
 	for _, entry := range strings.Split(r.reviewedStages(), ",") {
-		if strings.Contains(entry, "(fast)") {
+		if strings.Contains(entry, "(turnaround)") {
 			trimmed = append(trimmed, entry)
 		}
 	}

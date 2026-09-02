@@ -12,9 +12,9 @@ import (
 
 const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
   code-review                                   always runs, always bare
-  refactor | refactor:partial(fast|cap)         partial = the loop ended non-compliant
-  security-review|tighten [:skipped(fast|not-applicable)]
-    fast            = trimmed for turnaround; blocks the merge gate until a full pass
+  refactor | refactor:partial(turnaround|cap)   partial = the loop ended non-compliant
+  security-review|tighten [:skipped(turnaround|not-applicable)]
+    turnaround      = trimmed to answer sooner; blocks the merge gate until an untrimmed pass
     not-applicable  = its condition was unmet
 `
 

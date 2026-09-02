@@ -26,7 +26,7 @@ func (r *run) cmdGate() {
 	if stale || trimmed || open {
 		r.exit(1)
 	}
-	r.line("gate clean: tree fresh, full qualify, no open TODOs")
+	r.line("gate clean: tree fresh, untrimmed qualify, no open TODOs")
 	r.exit(0)
 }
 
@@ -80,16 +80,16 @@ func (r *run) blocksOnFreshness() bool {
 	return blocked
 }
 
-// Whether the stage record says a full pass stands behind this report.
+// Whether the stage record says an untrimmed pass stands behind this report.
 func (r *run) blocksOnStages() bool {
 	stages := r.reviewedStages()
-	trims := r.fastTrims()
+	trims := r.turnaroundTrims()
 	switch {
 	case isUnstamped(stages):
-		r.errLines("BLOCK (stages): no reviewed-stages record — run a full qualify (it stamps the stage set). " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (stages): no reviewed-stages record — re-run qualify untrimmed (it stamps the stage set). " + overridableByAHumanOnly + ".")
 		return true
 	case trims != "":
-		r.errLines("BLOCK (stages): trimmed for turnaround (" + trims + ") — run a full qualify before merge. " + overridableByAHumanOnly + ".")
+		r.errLines("BLOCK (stages): trimmed for turnaround (" + trims + ") — re-run qualify untrimmed before merge. " + overridableByAHumanOnly + ".")
 		return true
 	}
 	return false
@@ -175,8 +175,8 @@ func (r *run) stateToken() string {
 	if r.openTodos != "" {
 		return "decide" // quality done, tree fresh, open `- [ ]` remain
 	}
-	if isUnstamped(r.reviewedStages()) || r.fastTrims() != "" {
-		// Stages trimmed (or unrecorded) and fresh, nothing open — a full qualify remains.
+	if isUnstamped(r.reviewedStages()) || r.turnaroundTrims() != "" {
+		// Stages trimmed (or unrecorded) and fresh, nothing open — an untrimmed qualify remains.
 		return "finalize"
 	}
 	return "ready" // full-reviewed, tree fresh, nothing open → merge-ready

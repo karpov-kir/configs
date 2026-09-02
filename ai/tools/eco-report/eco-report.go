@@ -34,7 +34,7 @@
 //	no-items <stage> mark a stage already marked returned as having surfaced nothing, the one way to clear
 //	                 its marker without editing the report
 //	stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
-//	                 reviewed-worktree + reviewed-stages, one entry per pipeline stage. Any `(fast)`
+//	                 reviewed-worktree + reviewed-stages, one entry per pipeline stage. Any `(turnaround)`
 //	                 marks the pass not-full. Refuses when this worktree's identity cannot be
 //	                 established, since gate reads it to tell this tree's review from a sibling's. Run
 //	                 `stamp` bare for the grammar; that usage text is the authority on it

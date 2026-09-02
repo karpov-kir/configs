@@ -218,7 +218,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 		trimmed.runReport("stage-returned", stage, "001-trimmed-token")
 		trimmed.runReport("no-items", stage, "001-trimmed-token")
 	}
-	trimmed.runReport("stamp", "code-review,security-review:skipped(fast),tighten,refactor", "001-trimmed-token")
+	trimmed.runReport("stamp", "code-review,security-review:skipped(turnaround),tighten,refactor", "001-trimmed-token")
 	trimmed.runReport("state", "001-trimmed-token")
 	trimmed.record("finalize for a fresh pass with a stage trimmed for turnaround",
 		trimmed.out == "finalize", "said '"+trimmed.out+"'")

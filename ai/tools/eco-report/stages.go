@@ -105,8 +105,8 @@ func (r *run) stageBlockReason(stage string) string {
 	return ""
 }
 
-// The stage record's grammar. Only `fast` reaches fastTrims, so any other word for a turnaround trim
-// would stamp a trimmed pass as full — which is why the vocabulary is closed rather than pattern-matched.
+// The stage record's grammar. Only `turnaround` reaches turnaroundTrims, so any other word for a turnaround trim
+// would stamp a trimmed pass as untrimmed — which is why the vocabulary is closed rather than pattern-matched.
 func validateStampEntries(entries string) []string {
 	var problems []string
 	seen := map[string]int{}
@@ -136,12 +136,12 @@ func stageOfEntry(entry string) (string, bool) {
 	switch entry {
 	case "code-review":
 		return "code-review", true
-	case "refactor", "refactor:partial(fast)", "refactor:partial(cap)":
+	case "refactor", "refactor:partial(turnaround)", "refactor:partial(cap)":
 		// partial = the loop ended non-compliant, which is a record of what ran, not a trim.
 		return "refactor", true
 	}
 	for _, stage := range []string{"security-review", "tighten"} {
-		if entry == stage || entry == stage+":skipped(fast)" || entry == stage+":skipped(not-applicable)" {
+		if entry == stage || entry == stage+":skipped(turnaround)" || entry == stage+":skipped(not-applicable)" {
 			return stage, true
 		}
 	}

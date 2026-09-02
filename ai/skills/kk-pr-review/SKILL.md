@@ -1,10 +1,10 @@
 ---
 name: kk-pr-review
 description: Review a GitHub PR and leave a pending review for the human to submit. Use for "review this PR". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or the bundled code-review, which posts its comments instead of leaving them pending.
-argument-hint: "<PR number, URL, or head branch> [fast|full]"
+argument-hint: "<PR number, URL, or head branch>"
 ---
 
-Leave a **pending review** on `<ref>` for the human to submit, never applied changes; `gh` must be authenticated. The pass is **full** unless `fast` is passed — a PR review is a pre-merge verdict.
+Leave a **pending review** on `<ref>` for the human to submit, never applied changes; `gh` must be authenticated. The pass is the one a merge waits on — a PR review is a pre-merge verdict.
 
 You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**), and the review you leave is outward text, so read `~/.kk-flavor/standards/human-writing.md` whole before you draft; and what you own is the checkout, the drive, the **selection** of the stages' returns into a review, and leaving it pending.
 
@@ -23,7 +23,8 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
    - **Nothing addressed since the last review → say that and stop.** But **a review whose comments you deleted is not one that stands**: where the last round was your own withdrawal, that stop does not fire, and the replacement is drafted from the diff rather than from what you deleted.
    - Otherwise the stages run over the whole diff as usual, and the **draft** carries each still-open finding as one body line pointing at its original thread, never as a fresh line comment. A new finding on a line a prior comment already holds says what changed since.
 5. **Drive the change in the worktree before the stages read it** — `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**, with the deltas that follow. Its scenarios are the ones step 3 read. **An untrusted PR is never driven** — step 1 bars running what the branch controls, and a drive is exactly that. Never ask the human to waive that; fold the skip into step 1's unverified-gates sentence. That skip is the fork's alone. And **what the drive surfaces stops the pass the way step 3 does.**
-6. **Run the stages there unchanged, with three exceptions.**
+6. **Run the stages there unchanged, with four exceptions.**
+   - **The pass does not stream** — `~/.kk-flavor/standards/streaming.md`'s test does not bind here, the one place it does not. Applying patches on arrival moves the worktree diff your comments are drafted against, and your product is comments, not edits.
    - **A PR touching the agents' own instruction tree gets `kk-ecosystem` over those files, spawned by you.** `kk-qualify` leaves that lane out and names it in its return instead, so nothing else here covers it; its findings become review comments like any stage's, never edits to the PR.
    - **`kk-humanize` never runs over the PR's own files** — not through `kk-tighten`'s handoff, and not through the comment-block route the stages send straight to it. The author's voice stays theirs, so a concision cut may become a suggestion but a voice rewrite never does. Compare step 1's `author` login to `gh api user --jq .login`: where they match, the voice is your own, the bar does not bind, and the PR's body is prose like any other.
    - **`kk-refactor`'s repo-wide reach stops at the diff.** Resolve its scope to the PR's files. Writing the limit into the spawn prompt is not the route — that prompt narrows no stage's lens.
