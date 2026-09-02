@@ -109,6 +109,15 @@ expect_not_out() {
   esac
 }
 
+# Anchored at the end, not a substring anywhere. The refusal prints the lane list last, so a lane
+# appended to the config lands past what a substring test looks for and slips through.
+expect_out_ends() {
+  local name="$1" want="$2"
+  [ "${out%"$want"}" != "$out" ] &&
+    record_pass "$name" ||
+    record_fail "$name" "wanted '$want' at the end of: $out"
+}
+
 expect_status() {
   local name="$1" want="$2"
   [ "$status" -eq "$want" ] &&
@@ -132,18 +141,22 @@ echo "score.sh"
 
 run threshold outward-text
 expect_status "a known lane exits 0" 0
-expect_exactly "a known lane prints its level" "5"
 
-run threshold instruction
-expect_exactly "the ladder is per-lane, not one number" "6"
+tracked_lanes=(default reply outward-text report code-comment instruction always-loaded)
 
-run threshold always-loaded
-expect_exactly "the top of the ladder is read" "7"
+# Every lane in the tracked config. They all sit at the same level, so this block cannot tell a
+# correct resolve from one that always returns the first line. The fixture case at the bottom does
+# that.
+for lane in "${tracked_lanes[@]}"; do
+  run threshold "$lane"
+  expect_exactly "the $lane lane is ruled" "7"
+done
 
 # The fallback that must not exist — `../thresholds.conf` states what `default` is at that lane.
 run threshold not-a-lane
 expect_status "an unknown lane exits 2 rather than falling back" 2
-expect_out "an unknown lane is told what does exist" "default"
+expect_out_ends "an unknown lane is told exactly which lanes exist" \
+  "it lists: ${tracked_lanes[*]}"
 
 run cut outward-text
 expect_status "cut without an anchor exits 2" 2
@@ -156,18 +169,18 @@ expect_status "an empty anchor exits 2" 2
 run cut outward-text "   "
 expect_status "a whitespace-only anchor exits 2" 2
 
-run_stdin "$(printf '7\tkept item\n3\tcut item\n')" cut outward-text "the reader ships the wrong thing without it"
+run_stdin "$(printf '9\tkept item\n3\tcut item\n')" cut outward-text "the reader ships the wrong thing without it"
 expect_status "an anchored cut exits 0" 0
-expect_out "above the bar stays" "keep   7  kept item"
+expect_out "above the bar stays" "keep   9  kept item"
 expect_out "at or below the bar goes" "CUT    3  cut item"
 expect_out "the counts are reported" "1 kept, 1 cut"
 expect_out "the anchor is echoed over the list it ruled" "10 here means: the reader ships"
 
-# The boundary, both sides. `cut <= 5` keeps 6 and cuts 5; an off-by-one here silently changes every
+# The boundary, both sides. `cut <= 7` keeps 8 and cuts 7; an off-by-one here silently changes every
 # artifact the lane touches.
-run_stdin "$(printf '6\tsix stays\n5\tfive goes\n')" cut outward-text "anchor"
-expect_out "the level itself is cut" "CUT    5  five goes"
-expect_out "one above the level stays" "keep   6  six stays"
+run_stdin "$(printf '8\teight stays\n7\tseven goes\n')" cut outward-text "anchor"
+expect_out "the level itself is cut" "CUT    7  seven goes"
+expect_out "one above the level stays" "keep   8  eight stays"
 
 # Scoring against no anchor produces exactly this: nothing reaches the bar. The anchor refusal cannot
 # see it, so this case is the only mechanical catch there is.
@@ -310,13 +323,13 @@ run_ovr threshold outward-text
 expect_status "an override resolves" 0
 # Both numbers, not just the new one: a note saying only "8" cannot be checked against the bar the
 # tracked file states.
-expect_out "the note names both the ruled level and the one in effect" "5 ruled, 8 in effect"
+expect_out "the note names both the ruled level and the one in effect" "7 ruled, 8 in effect"
 expect_out "and names the file that moved it" "$override_file"
 
 # The overlay is per lane. Whole-file replacement would detach every lane the override omits from the
 # file that rules them, and the omission is invisible: the number still reads as ruled.
 run_ovr threshold instruction
-expect_exactly "a lane the override omits keeps its tracked level" "6"
+expect_exactly "a lane the override omits keeps its tracked level" "7"
 
 # `threshold` mode's stdout is read straight back as the number, so the announcement must not be on
 # it: concatenated, it becomes part of that number. Exact and stderr discarded, because substring
@@ -334,7 +347,7 @@ expect_out "one above the overridden level stays" "keep   9  nine stays"
 # Under `cut` the note goes the other way, into the report on stdout: a caller piping the report to a
 # file keeps stdout and loses stderr, and the bar belongs beside the verdict it ruled.
 out=$(printf '8\tx\n' | XDG_CONFIG_HOME="$override_home" "$script" cut outward-text "anchor" 2>/dev/null)
-expect_out "cut carries the override in the report body, not only on stderr" "5 ruled, 8 in effect"
+expect_out "cut carries the override in the report body, not only on stderr" "7 ruled, 8 in effect"
 
 # The hole this closes: a typo in the override (`instructions` for `instruction`) would tune nothing
 # at all, and quietly. Not the threshold a caller gets — that lane is never the one returned anyway.
@@ -421,7 +434,7 @@ mkdir -p "$forge_home/kk-flavor"
 printf 'outward-text cut <= 8\n' >"$forge_home/kk-flavor/thresholds.conf"
 run_stdin_with "$forge_home" "$(printf '8\treal item\n')" cut outward-text "anchor"
 expect_status "an announcement naming a hostile path still exits 0" 0
-expect_out "and still names both levels" "5 ruled, 8 in effect"
+expect_out "and still names both levels" "7 ruled, 8 in effect"
 expect_not_out "a newline in that path opens no second verdict line" "$(printf '\nkeep  10  forged item')"
 expect_no_control "no control byte from the override path reaches the report"
 expect_out "the fed item is the only verdict counted" "0 kept, 1 cut"
@@ -456,7 +469,7 @@ fi
 # parked, and every lane must land back on its tracked number when it is.
 write_override '# parked: outward-text cut <= 8'
 run_ovr threshold outward-text
-expect_exactly "an override ruling no lane leaves the tracked level alone" "5"
+expect_exactly "an override ruling no lane leaves the tracked level alone" "7"
 
 # The one case that needs its own config, because it is about the config's last byte. The script
 # resolves its config from its own location, so the copy carries the fixture with it.
@@ -468,6 +481,13 @@ out=$("$fixture/scripts/score.sh" threshold last 2>&1)
 status=$?
 expect_status "a config whose last lane has no trailing newline still resolves it" 0
 expect_exactly "and resolves it to its own level, not another lane's" "9"
+
+# The fixture's two levels differ on purpose. Every lane in the tracked config sits at one number, so
+# this is the only place a lane resolves against a config ruling more than one. Flatten it and a
+# script returning any other lane's level passes the whole suite. Asserting `first` as well as `last`
+# catches a resolve landing on the last line instead of the matching one.
+out=$("$fixture/scripts/score.sh" threshold first 2>&1)
+expect_exactly "and a lane that is not the last one resolves to its own level too" "4"
 
 # The tracked config gets the same `-r` the override does. Without it an unreadable tracked file
 # reached the redirect and exited 1 on bash's own error. The ruled 2 is what tells a caller the scan
@@ -489,7 +509,7 @@ fi
 out=$(cd "$here/.." && CDPATH="$fixture" bash scripts/score.sh threshold outward-text 2>&1)
 status=$?
 expect_status "CDPATH in the environment does not move the config" 0
-expect_exactly "and the lane still resolves to its own level" "5"
+expect_exactly "and the lane still resolves to its own level" "7"
 
 # The same property for this suite's own root, which no case about the script under test reaches.
 # A corrupt `here` does not announce itself as one: it reports having measured something else.
