@@ -363,6 +363,13 @@ var mutants = []mutant{
 	{"override root: a group-writable root accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `if mode := info.Mode().Perm(); mode&0o022 != 0 {`, `if mode := info.Mode().Perm(); false {`},
 	{"override root: an unreadable root passes as checked", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", "if errors.Is(err, fs.ErrNotExist) {", "if errors.Is(err, fs.ErrNotExist) || true {"},
 
+	{"override root: a writable ancestor accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `for _, above := range directoriesAbove(root) {`, `for _, above := range []string(nil) {`},
+	{"override root: the sticky exemption inverted, so a plain writable ancestor passes", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `return mode.Perm()&0o022 != 0 && mode&os.ModeSticky == 0`, `return mode.Perm()&0o022 != 0 && mode&os.ModeSticky != 0`},
+	{"override config: a world-writable config accepted", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", `if info.Mode().Perm()&0o022 != 0 {`, `if false {`},
+	{"override config: an unreadable config passes as a checked one", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", "\tinfo, err := os.Lstat(path)\n\tif err != nil {", "\tinfo, err := os.Lstat(path)\n\tif err != nil \u0026\u0026 false {"},
+	{"override config: a symlinked config judged by its target", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", "	if shell.IsSymlink(path) {\n\t\tr.refuse(\"error: \"+shell.Oneline(path)+\" is a symlink", "	if false {\n\t\tr.refuse(\"error: \"+shell.Oneline(path)+\" is a symlink"},
+	{"override config: a writable directory holding it accepted", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", `for _, above := range directoriesAbove(path) {`, `for _, above := range []string(nil) {`},
+
 	// families.go — direction inside the skill layer. Each of these turns the scan into one that looks
 	// like it works: it still runs, still reports nothing on a clean tree, and has stopped checking.
 	{"families: the router exception swallows every any-repo skill", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case name == familyRouter:", "case name == familyRouter || true:"},
@@ -709,6 +716,18 @@ type unreachableMutant struct {
 }
 
 var unreachableMutants = []unreachableMutant{
+	{
+		"override config: an unreadable config passes as a checked one",
+		"unreachable behind an earlier guard: os.Lstat can only fail here for a path that " +
+			"shell.IsRegularFile and isReadable both accepted two statements earlier, so reaching it needs " +
+			"the file to change between those calls and this one — a race no case can stage " +
+			"deterministically. The guard is kept because its sibling fifty lines down refuses on the same " +
+			"fact, and one of the two accepting silently is the asymmetry that let a permission this tool " +
+			"could not read pass as one it checked. What stands behind it is " +
+			"TestTheOverrideConfigIsJudgedLikeTheRootItNames, whose four other cases drive every " +
+			"permission path that IS constructible, and TestAnUntrustworthyOverrideRootIsRefused, which " +
+			"reaches the sibling's identical branch through a root that need not exist.",
+	},
 	{
 		"stage block: a no-items marker blocks the stamp",
 		"equivalent, not unobserved: with the guard off, `recorded` is the literal \"no-items\" and the " +
