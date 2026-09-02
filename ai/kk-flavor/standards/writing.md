@@ -34,7 +34,7 @@ A keep test says only that a thing *may* stay, so alone it keeps whatever can be
 Your own reply in the session, not a message you compose for someone else. [human-writing.md](human-writing.md) → **AI tells** still binds here — a tell marks manufactured writing, whoever reads it.
 
 * Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do — then score what is left, lane `reply`.
-* **No headings, and no bold lead-in restating its own line.**
+* **No headings, and no bold lead-in restating its own line. Render items as a `*` list.**
 * **Order it so they can stop early** — chronological where the content is a sequence, otherwise what they must decide before what they only need to know.
 * Substance with a durable home (a report, a ticket, a commit) is pointed at, never restated.
 * **Close with one line: `Next: <the one immediate action>`.** Nothing follows it; when nothing is next, `Next: nothing — <the state this leaves>`. Spawned with no human, close with your verdict instead ([skill-protocol.md](skill-protocol.md) → **Verdict**).
