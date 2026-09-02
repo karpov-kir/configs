@@ -9,9 +9,8 @@
 # a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
 # beside it and every machine would take the broken one.
 #
-# The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
-# it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
-# the day dependabot or renovate lands.
+# The actions carry a major tag rather than an exact pin, for the reason `.github/workflows/gates.yml`
+# states in its header, which also carries the condition for pruning that override.
 name: release-tools
 
 on:
@@ -43,20 +42,13 @@ jobs:
         with:
           # From go.mod, so the release is built by the toolchain the module declares.
           go-version-file: ai/tools/go.mod
-          # setup-go looks for its cache key file in the repo root only — go.mod now, go.sum before
-          # v6.3.0 — and this module is in ai/tools. Left default it annotates every run with a miss
-          # that can never become a hit. cache-dependency-path would point it here, but the only
-          # thing to cache is a build cache keyed on a go.mod that never changes.
+          # Off for the reason `.github/workflows/gates.yml` states in its header: setup-go looks for
+          # its cache key file in the repo root, and this module is in ai/tools.
           cache: false
 
-      # `-count=1` because Go's test cache is keyed on the module, and several suites read files
-      # outside it — eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and
-      # todo-gate.sh, and `ai/kk-flavor`'s tree-fingerprint.sh. Truncating that template to one line
-      # makes `go test -count=1 ./eco-report/` fail while `go test ./eco-report/` says `ok (cached)`
-      # over the same corrupt tree. Without -count=1 this job would go green on exactly that.
-      #
-      # Not because failures get cached — they don't. A deliberately failing case re-ran and re-failed
-      # on two consecutive runs, with no cached line.
+      # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: the test
+      # cache is keyed on the module, and several suites read files from outside it. The measurement
+      # and the negative control are there.
       - name: Gate
         working-directory: ai/tools
         run: |

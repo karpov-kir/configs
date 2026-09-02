@@ -120,15 +120,15 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 	return stale
 }
 
-// What one suite run says about the guard the mutant removed. The three answers print in the same
-// column, so telling them apart is the whole of what this harness reports: a mutant that never built
-// proves nothing, and read as a kill it manufactures exactly the finding the harness exists to
-// produce. `KILLED NOTHING` is the guard being unobserved, which is a finding about the suite.
 // How long a suite gets before the run is read as not having happened. Explicit, because `go test`
 // otherwise applies its own 10m default and eco-report has been measured at 603s — over the line on a
 // loaded machine. Generous on purpose: this bounds a hang, it does not police a slow suite.
 const suiteTimeout = "20m"
 
+// What one suite run says about the guard the mutant removed. The four answers print in the same
+// column, so telling them apart is the whole of what this harness reports: a mutant that never built
+// proves nothing, and read as a kill it manufactures exactly the finding the harness exists to
+// produce. `KILLED NOTHING` is the guard being unobserved, which is a finding about the suite.
 func verdictOf(suiteFailed bool, output string) string {
 	if !suiteFailed {
 		return "KILLED NOTHING"
@@ -182,32 +182,43 @@ func writeOverlay(dir, realPath, mutatedPath string) (string, error) {
 	return path, os.WriteFile(path, body, 0o644)
 }
 
+// What one mutant's run came back with. One value, not a slice per field for the caller to keep
+// index-aligned by hand. Evidence means nothing except beside its own verdict, and separate slices
+// sit one edit away from pinning a timeout's output on the mutant next to it.
+type result struct {
+	verdict string
+	elapsed time.Duration
+	// The suite's own output, kept for a timeout and nothing else: `test timed out` shows up only in
+	// this output, so a timeout verdict cannot be checked without it. Empty otherwise.
+	evidence string
+}
+
 // One mutant: rewrite the file into a temp copy, point an overlay at it, and run the suite through it.
 // Compilation failure is `broken`, not a kill: a mutant that cannot build says nothing about a guard.
-func run(pkgDir string, m mutant, runFilter string) (verdict string, elapsed time.Duration) {
+func run(pkgDir string, m mutant, runFilter string) result {
 	at := time.Now()
 	work, err := os.MkdirTemp("", "gomutate")
 	if err != nil {
-		return "invalid", time.Since(at)
+		return result{verdict: "invalid", elapsed: time.Since(at)}
 	}
 	defer os.RemoveAll(work)
 
 	realPath, source, matches, err := m.anchor(pkgDir)
 	if err != nil {
-		return "invalid", time.Since(at)
+		return result{verdict: "invalid", elapsed: time.Since(at)}
 	}
 	if matches != 1 {
-		return fmt.Sprintf("anchor x%d", matches), time.Since(at)
+		return result{verdict: fmt.Sprintf("anchor x%d", matches), elapsed: time.Since(at)}
 	}
 	// Base, not the mutant's own relative path: a file named `../shell/x.go` would otherwise write
 	// outside the temp dir. Each mutant has its own work dir, so two basenames cannot collide.
 	mutated := filepath.Join(work, filepath.Base(m.file))
 	if err := os.WriteFile(mutated, []byte(strings.Replace(source, m.from, m.to, 1)), 0o644); err != nil {
-		return "invalid", time.Since(at)
+		return result{verdict: "invalid", elapsed: time.Since(at)}
 	}
 	overlay, err := writeOverlay(work, realPath, mutated)
 	if err != nil {
-		return "invalid", time.Since(at)
+		return result{verdict: "invalid", elapsed: time.Since(at)}
 	}
 
 	// The mutant's own test unless the caller overrode it: `-run` on the command line is for driving
@@ -224,7 +235,19 @@ func run(pkgDir string, m mutant, runFilter string) (verdict string, elapsed tim
 	cmd := exec.Command("go", args...)
 	cmd.Dir = filepath.Dir(pkgDir)
 	out, err := cmd.CombinedOutput()
-	return verdictOf(err != nil, string(out)), time.Since(at)
+	verdict, evidence := verdictWithEvidence(err != nil, string(out))
+	return result{verdict: verdict, elapsed: time.Since(at), evidence: evidence}
+}
+
+// What a finished suite run means, and what of its output has to survive. Kept out of run(), which
+// spawns a real `go test`: reaching this decision through run() would mean making a suite genuinely
+// time out, so the capture went unexercised and deleting it still left the package green.
+func verdictWithEvidence(suiteFailed bool, output string) (verdict, evidence string) {
+	verdict = verdictOf(suiteFailed, output)
+	if verdict == "TIMED OUT" {
+		evidence = output
+	}
+	return verdict, evidence
 }
 
 // The mutants whose file one of `names` names. Empty selects everything: a scope nobody asked for
@@ -337,11 +360,10 @@ func preflight(pkgDir string, list []mutant) (refused []staleMutant, unlistable 
 	return refused, unlistable
 }
 
-// Every selected mutant, `jobs` of them in flight at once. Both slices come back in the list's own
+// Every selected mutant, `jobs` of them in flight at once. The results come back in the list's own
 // order rather than completion order, so the report reads the same however the machine scheduled it.
-func runAll(pkgDir string, selected []mutant, jobs int, runFilter string) ([]string, []time.Duration) {
-	verdicts := make([]string, len(selected))
-	times := make([]time.Duration, len(selected))
+func runAll(pkgDir string, selected []mutant, jobs int, runFilter string) []result {
+	results := make([]result, len(selected))
 	sem := make(chan struct{}, jobs)
 	var wg sync.WaitGroup
 	for i, m := range selected {
@@ -350,20 +372,31 @@ func runAll(pkgDir string, selected []mutant, jobs int, runFilter string) ([]str
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			verdicts[i], times[i] = run(pkgDir, m, runFilter)
+			results[i] = run(pkgDir, m, runFilter)
 		}(i, m)
 	}
 	wg.Wait()
-	return verdicts, times
+	return results
+}
+
+// A block of suite output, set in from the verdict lines so the two do not read as one stream. Named
+// apart from the `indent` in this module's test harnesses: that one ends every line with a newline,
+// this one joins without a trailing one. Two contracts, so two names.
+func indentBlock(text string) string {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = "                  " + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 // One line per mutant, and the two counts the exit code is decided on. Apart from main for the same
 // reason outcomeOf is: reached only from there, an arm of it would take a full mutation run to see.
-func report(selected []mutant, verdicts []string, times []time.Duration) (bad, declared, unmeasured int) {
+func report(selected []mutant, results []result) (bad, declared, unmeasured int) {
 	for i, m := range selected {
 		why, isDeclared := declaredUnreachable(m.label)
-		shown, isBad := outcomeOf(verdicts[i], isDeclared)
-		fmt.Printf("  %-15s %s  (%.1fs)\n", shown, m.label, times[i].Seconds())
+		shown, isBad := outcomeOf(results[i].verdict, isDeclared)
+		fmt.Printf("  %-15s %s  (%.1fs)\n", shown, m.label, results[i].elapsed.Seconds())
 		switch {
 		case isBad:
 			bad++
@@ -375,6 +408,11 @@ func report(selected []mutant, verdicts []string, times []time.Duration) (bad, d
 			}
 		case shown == "TIMED OUT":
 			unmeasured++
+			// The only place the suite's own words reach the log. Without them a reader auditing the
+			// run for manufactured kills can only infer from durations.
+			if results[i].evidence != "" {
+				fmt.Println(indentBlock(results[i].evidence))
+			}
 		case shown == "unreachable":
 			declared++
 		}
@@ -455,8 +493,7 @@ func main() {
 	}
 
 	fmt.Printf("%s — one guard removed at a time, %d at once\n", strings.Join(suitesNamed(selected), " "), *jobs)
-	verdicts, times := runAll(pkgDir, selected, *jobs, *runFilter)
-	bad, declared, unmeasured := report(selected, verdicts, times)
+	bad, declared, unmeasured := report(selected, runAll(pkgDir, selected, *jobs, *runFilter))
 	// The declared count prints whether or not it is zero, the way a suite's skipped field does: its
 	// presence is the information, and a run that silently stopped counting them would look identical
 	// to a run with none.

@@ -84,6 +84,10 @@ fi
 
 # A mutant that stops exiting where the suite expects must not hang the run. macOS ships no
 # `timeout`, so the watchdog is a background sleep against the suite's own pid.
+#
+# Err high. A bound under what a suite honestly takes turns every one of that suite's mutants into a
+# NO MEASURE, and the run exits 2 having proved nothing. That is a harness permanently declining to
+# gate, which is worse than the hang the watchdog is here to stop.
 suite_limit=120
 
 # The three keys, each one a script, the suite that covers it, and the variable that suite reads to
@@ -112,6 +116,10 @@ var_of() {
   esac
 }
 
+# ai/gate.sh is deliberately absent. Nine mutants over its refusals were run: six killed, and the
+# three that survived each found a real defect. It stays out because of the coverage tail below. A key
+# in scope needs every case name proven or excused, and gate-test.sh holds close to ninety: roughly
+# thirty-five more mutants at about 130s each.
 keys="cadence density dup"
 
 # Membership in a space-separated key list. `-k` narrows `$keys` in place, so every loop below asks
@@ -251,6 +259,19 @@ run_suite() { # <variable> <mutated copy> <suite> <output file>
   status=$?
   { kill "$watchdog" && wait "$watchdog"; } 2>/dev/null
   return "$status"
+}
+
+# One line per suite in the baseline block, and one per mutant in the report. Two shapes, because the
+# middle column differs: a suite name against a mutant label.
+#
+# Both hold the state column here rather than at each call site. There it was hand-typed padding that
+# had to match that column's width exactly, with nothing checking that it did.
+baseline_line() { # <state> <suite name> <detail>
+  printf '  %-15s %-28s %s\n' "$1" "$2" "$3"
+}
+
+mutant_line() { # <verdict> <mutant label> <detail>
+  printf '  %-15s %-62s %s\n' "$1" "$2" "$3"
 }
 
 # Both built rather than spelled out. This file is scanned by the same tooling these scripts belong
@@ -1009,12 +1030,12 @@ for key in $keys; do
   # does not have — so nothing it printed is a statement about the script, and the fix is the fixture.
   # Held apart from the red because "BASELINE RED" sends the reader to the code instead.
   if [ "$status" -eq 2 ]; then
-    printf '  DID NOT MEASURE %-28s %s\n' "$suite_name" "$trailer"
+    baseline_line "DID NOT MEASURE" "$suite_name" "$trailer"
     baseline_red=1
     continue
   fi
   if [ "$status" -ne 0 ]; then
-    printf '  BASELINE RED    %-28s %s\n' "$suite_name" "$trailer"
+    baseline_line "BASELINE RED" "$suite_name" "$trailer"
     baseline_red=1
     continue
   fi
@@ -1025,8 +1046,8 @@ for key in $keys; do
   case "$(summary_field passed "$trailer")" in
     '' | 0)
       case "$(summary_field skipped "$trailer")" in
-        '' | 0) printf '  VACUOUS         %-28s %s\n' "$suite_name" "$trailer" ;;
-        *) printf '  ALL DECLINED    %-28s %s\n' "$suite_name" "$trailer" ;;
+        '' | 0) baseline_line VACUOUS "$suite_name" "$trailer" ;;
+        *) baseline_line "ALL DECLINED" "$suite_name" "$trailer" ;;
       esac
       baseline_red=1
       continue
@@ -1035,12 +1056,12 @@ for key in $keys; do
   # Attribution here is by case name. Two cases sharing one cannot be told apart: a mutant reddening
   # either credits both, and the name being proven able to fail proves it of only one of them.
   if sort "$scratch/base/$key.reported" | uniq -d | grep -q ''; then
-    printf '  AMBIGUOUS       %-28s %s reported case(s) under %s name(s)\n' "$suite_name" "$reported" "$count"
+    baseline_line AMBIGUOUS "$suite_name" "$reported reported case(s) under $count name(s)"
     sort "$scratch/base/$key.reported" | uniq -cd | sed 's/^/      /'
     baseline_red=1
     continue
   fi
-  printf '  green           %-28s %s, %s case name(s), each reported once\n' "$suite_name" "$trailer" "$count"
+  baseline_line green "$suite_name" "$trailer, $count case name(s), each reported once"
 done
 [ "$baseline_red" -eq 0 ] || {
   echo "a suite is not fit to mutate against — it never measured at all, fails unmutated, reports no passes at all, or names two cases the same, and every mutant below would credit itself with a red it cannot own" >&2
@@ -1140,8 +1161,8 @@ run_mutant() { # <index>
   run_suite "$variable" "$mutated" "$suite" "$work/suite.out"
   ran=$?
   # The watchdog, told apart from every other way a suite can stop. A signalled exit is this machine
-  # being too busy to finish in "$suite_limit"s, and it says nothing about the guard — where a suite
-  # that exited on its own and stopped early says the mutation broke something before the branch.
+  # being too busy to finish inside `suite_limit`, and it says nothing about the guard. A suite that
+  # exited on its own and stopped early says the mutation broke something before the branch.
   # Collapsing the two reports a loaded machine as an unobserved guard, which is a false claim about
   # the code and the one a run under load will make most often.
   if [ "$ran" -ge 128 ]; then
@@ -1198,16 +1219,16 @@ for ((i = 0; i < total; i++)); do
     # The suite's own reason for the red, not just that one happened. A case can redden because the
     # mutant broke a fixture it needed before the branch under test was ever reached, and the reason
     # is the only part of the output that tells the two apart.
-    printf '  killed          %-62s %s\n' "${m_label[$i]}" \
+    mutant_line killed "${m_label[$i]}" \
       "$(printf '"%s" %.72s%s' "${m_case[$i]}" "$(case_reason "${m_case[$i]}" "$scratch/out/$i.reasons")" "$collateral")"
   elif [ "$verdict" = "NO MEASURE" ]; then
     # Counted apart from `bad`, because this one is a finding about the machine. Rolling it in would
     # read as "this guard is unobserved", which is the claim the run is least entitled to make.
-    printf '  NO MEASURE      %-62s %s\n' "${m_label[$i]}" \
+    mutant_line "NO MEASURE" "${m_label[$i]}" \
       "the ${suite_limit}s watchdog killed its suite, so nothing was measured about \"${m_case[$i]}\""
     unmeasured=$((unmeasured + 1))
   else
-    printf '  %-15s %-62s %s\n' "$verdict" "${m_label[$i]}" "aimed at \"${m_case[$i]}\""
+    mutant_line "$verdict" "${m_label[$i]}" "aimed at \"${m_case[$i]}\""
     [ -s "$scratch/out/$i.reasons" ] && print_reasons "$scratch/out/$i.reasons" "                  red instead: "
     bad=$((bad + 1))
   fi

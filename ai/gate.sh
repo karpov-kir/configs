@@ -261,119 +261,115 @@ ext_qualify="ai/skills/idsd-qualify/scripts ai/skills/idsd-qualify/templates"
 ext_reduce="ai/skills/kk-reduce/stats.md"
 ext_workflows=".github/workflows"
 
-if [ -z "$units_from_file" ]; then
-unit gofmt check "$go_tree" 'run_gofmt'
-unit vet check "$go_tree" 'cd ai/tools && go vet ./...'
-unit gotest check "$go_tree $ext_flavor $ext_qualify $ext_reduce $ext_workflows" 'run_gotest'
-unit wiring check "ai/skills ai/kk-flavor ai/tools" 'ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh'
+# The real unit table, as against the one GATE_UNITS_FILE supplies: the four Go checks, one unit per
+# discovered shell suite, and one per mutated script from each harness's own listing.
+discover_units() {
+  unit gofmt check "$go_tree" 'run_gofmt'
+  unit vet check "$go_tree" 'cd ai/tools && go vet ./...'
+  unit gotest check "$go_tree $ext_flavor $ext_qualify $ext_reduce $ext_workflows" 'run_gotest'
+  unit wiring check "ai/skills ai/kk-flavor ai/tools" 'ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh'
 
-# Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
-# added later is gated without anyone remembering to register it here.
-#
-# A suite's inputs are itself, the script it covers, and ai/run-tests.sh. That last one for the same
-# reason the mutation units below take their harness: it decides what the suite's exit status and
-# summary line mean, so a change to it can flip this unit's verdict with neither the suite nor its
-# script moving a byte. The suites that drive a Go tool also take the tool tree, since a change there
-# moves what they observe.
-#
-# --cached --others --exclude-standard, the same query ai/run-tests.sh discovers by. Tracked files
-# alone would leave a suite someone just wrote ungated until they remembered to `git add` it — the
-# gate quietly narrowing itself, which is the failure this whole script is built not to have.
-suites=$(git ls-files --cached --others --exclude-standard -- '*-test.sh' | sort -u)
-[ -n "$suites" ] || {
-  echo "gate.sh: discovery found no *-test.sh at all — read this as the gate broken, never as a clean run" >&2
-  exit 2
-}
-for suite in $suites; do
-  safe_token "suite" "$suite"
-  sibling="${suite%-test.sh}.sh"
-  inputs="$suite ai/run-tests.sh"
-  [ -f "$sibling" ] && inputs="$inputs $sibling"
-  if grep -qE 'tools/|resolve\.sh|eco-check|eco-report|eco-stats|cite-graph|rule-echo|ECO_TOOLS' "$suite" 2>/dev/null; then
-    inputs="$inputs $go_tree"
-  fi
-  # Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit
-  # 2 is "did not measure", and a suite exiting 0 having run no case at all is VACUOUS and a failure.
-  # Run directly, a suite emptied to zero bytes exits 0 silently and the gate reported `ran ok`.
-  unit "shell:$(basename "${suite%-test.sh}")" check "$inputs" "ai/run-tests.sh -s $(printf '%q' "$suite")"
-done
-
-# The mutation units, one per mutated script, each harness reporting its own. Nothing here restates
-# which mutants live where: that mapping has one home, in the harness's own list, and a copy of it
-# kept in this file is a copy that goes stale the first time a mutant moves.
-go_mutate_bin="ai/tools/go-mutate/go-mutate"
-(cd ai/tools && go build -o go-mutate/go-mutate ./go-mutate) 2>"$scratch/build.err" || {
-  echo "gate.sh: go-mutate does not build, so its units cannot be listed and its verdicts cannot be trusted — nothing ran" >&2
-  cat "$scratch/build.err" >&2
-  exit 2
-}
-"$go_mutate_bin" -units >"$scratch/go-units" 2>"$scratch/go-units.err" || {
-  echo "gate.sh: go-mutate could not list its units — nothing ran" >&2
-  cat "$scratch/go-units.err" >&2
-  exit 2
-}
-[ -s "$scratch/go-units" ] || {
-  echo "gate.sh: go-mutate listed no units — read this as the harness broken, never as nothing to check" >&2
-  exit 2
-}
-while IFS="$(printf '\t')" read -r mfile msuites mcount mpath; do
-  [ -n "$mfile" ] || continue
-  safe_token "mutant file" "$mfile"
-  # The resolved path comes from the harness's own listing rather than being rebuilt here. The base a
-  # mutant's `file` is relative to is the harness's to know, and a second copy of it here is a rename
-  # away from a gate that resolves nothing.
-  [ -n "$mpath" ] || {
-    echo "gate.sh: the mutation harness listed $mfile with no resolved path, so the gate cannot say which file the unit is keyed on — nothing ran" >&2
+  # Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
+  # added later is gated without anyone remembering to register it here.
+  #
+  # A suite's inputs are itself, the script it covers, and ai/run-tests.sh. That last one for the same
+  # reason the mutation units below take their harness: it decides what the suite's exit status and
+  # summary line mean, so a change to it can flip this unit's verdict with neither the suite nor its
+  # script moving a byte. The suites that drive a Go tool also take the tool tree, since a change there
+  # moves what they observe.
+  #
+  # --cached --others --exclude-standard, the same query ai/run-tests.sh discovers by. Tracked files
+  # alone would leave a suite someone just wrote ungated until they remembered to `git add` it — the
+  # gate quietly narrowing itself, which is the failure this whole script is built not to have.
+  suites=$(git ls-files --cached --others --exclude-standard -- '*-test.sh' | sort -u)
+  [ -n "$suites" ] || {
+    echo "gate.sh: discovery found no *-test.sh at all — read this as the gate broken, never as a clean run" >&2
     exit 2
   }
-  target="${mpath#"$here"/}"
-  inputs="$target ai/tools/go-mutate/mutants.go ai/tools/go-mutate/main.go"
-  saved_ifs="$IFS"
-  IFS=','
-  for msuite in $msuites; do
-    IFS="$saved_ifs"
-    suite_dir="ai/tools/${msuite#./}"
-    inputs="$inputs ${suite_dir%/}"
-    IFS=','
+  for suite in $suites; do
+    safe_token "suite" "$suite"
+    sibling="${suite%-test.sh}.sh"
+    inputs="$suite ai/run-tests.sh"
+    [ -f "$sibling" ] && inputs="$inputs $sibling"
+    if grep -qE 'tools/|resolve\.sh|eco-check|eco-report|eco-stats|cite-graph|rule-echo|ECO_TOOLS' "$suite" 2>/dev/null; then
+      inputs="$inputs $go_tree"
+    fi
+    # Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit
+    # 2 is "did not measure", and a suite exiting 0 having run no case at all is VACUOUS and a failure.
+    # Run directly, a suite emptied to zero bytes exits 0 silently and the gate reported `ran ok`.
+    unit "shell:$(basename "${suite%-test.sh}")" check "$inputs" "ai/run-tests.sh -s $(printf '%q' "$suite")"
   done
-  IFS="$saved_ifs"
-  # Keyed on the package-qualified path, never the basename: eco-check and eco-report both hold a
-  # shell.go, and two units under one id would share one cache record — so running one would report
-  # the other fresh over a file nothing had looked at.
-  unit "mutants:go:${target#ai/tools/}" mutation "$inputs" "$go_mutate_bin -file $(printf '%q' "$mfile")"
-done <"$scratch/go-units"
 
-ai/shell-mutate.sh -l >"$scratch/sh-units" 2>"$scratch/sh-units.err" || {
-  echo "gate.sh: shell-mutate.sh could not list its units — nothing ran" >&2
-  cat "$scratch/sh-units.err" >&2
-  exit 2
+  # The mutation units, one per mutated script, each harness reporting its own. Nothing here restates
+  # which mutants live where: that mapping has one home, in the harness's own list, and a copy of it
+  # kept in this file is a copy that goes stale the first time a mutant moves.
+  go_mutate_bin="ai/tools/go-mutate/go-mutate"
+  (cd ai/tools && go build -o go-mutate/go-mutate ./go-mutate) 2>"$scratch/build.err" || {
+    echo "gate.sh: go-mutate does not build, so its units cannot be listed and its verdicts cannot be trusted — nothing ran" >&2
+    cat "$scratch/build.err" >&2
+    exit 2
+  }
+  "$go_mutate_bin" -units >"$scratch/go-units" 2>"$scratch/go-units.err" || {
+    echo "gate.sh: go-mutate could not list its units — nothing ran" >&2
+    cat "$scratch/go-units.err" >&2
+    exit 2
+  }
+  [ -s "$scratch/go-units" ] || {
+    echo "gate.sh: go-mutate listed no units — read this as the harness broken, never as nothing to check" >&2
+    exit 2
+  }
+  while IFS="$(printf '\t')" read -r mfile msuites mcount mpath; do
+    [ -n "$mfile" ] || continue
+    safe_token "mutant file" "$mfile"
+    # The resolved path comes from the harness's own listing rather than being rebuilt here. The base a
+    # mutant's `file` is relative to is the harness's to know, and a second copy of it here is a rename
+    # away from a gate that resolves nothing.
+    [ -n "$mpath" ] || {
+      echo "gate.sh: the mutation harness listed $mfile with no resolved path, so the gate cannot say which file the unit is keyed on — nothing ran" >&2
+      exit 2
+    }
+    target="${mpath#"$here"/}"
+    inputs="$target ai/tools/go-mutate/mutants.go ai/tools/go-mutate/main.go"
+    saved_ifs="$IFS"
+    IFS=','
+    for msuite in $msuites; do
+      IFS="$saved_ifs"
+      suite_dir="ai/tools/${msuite#./}"
+      inputs="$inputs ${suite_dir%/}"
+      IFS=','
+    done
+    IFS="$saved_ifs"
+    # Keyed on the package-qualified path, never the basename: eco-check and eco-report both hold a
+    # shell.go, and two units under one id would share one cache record — so running one would report
+    # the other fresh over a file nothing had looked at.
+    unit "mutants:go:${target#ai/tools/}" mutation "$inputs" "$go_mutate_bin -file $(printf '%q' "$mfile")"
+  done <"$scratch/go-units"
+
+  ai/shell-mutate.sh -l >"$scratch/sh-units" 2>"$scratch/sh-units.err" || {
+    echo "gate.sh: shell-mutate.sh could not list its units — nothing ran" >&2
+    cat "$scratch/sh-units.err" >&2
+    exit 2
+  }
+  [ -s "$scratch/sh-units" ] || {
+    echo "gate.sh: shell-mutate.sh listed no units — read this as the harness broken, never as nothing to check" >&2
+    exit 2
+  }
+  while IFS="$(printf '\t')" read -r skey sscript ssuite scount; do
+    [ -n "$skey" ] || continue
+    safe_token "mutant key" "$skey"
+    unit "mutants:shell:$skey" mutation \
+      "${sscript#"$here"/} ${ssuite#"$here"/} ai/shell-mutate.sh" \
+      "ai/shell-mutate.sh -k $(printf '%q' "$skey")"
+  done <"$scratch/sh-units"
 }
-[ -s "$scratch/sh-units" ] || {
-  echo "gate.sh: shell-mutate.sh listed no units — read this as the harness broken, never as nothing to check" >&2
-  exit 2
-}
-while IFS="$(printf '\t')" read -r skey sscript ssuite scount; do
-  [ -n "$skey" ] || continue
-  safe_token "mutant key" "$skey"
-  unit "mutants:shell:$skey" mutation \
-    "${sscript#"$here"/} ${ssuite#"$here"/} ai/shell-mutate.sh" \
-    "ai/shell-mutate.sh -k $(printf '%q' "$skey")"
-done <"$scratch/sh-units"
+
+if [ -z "$units_from_file" ]; then
+  discover_units
 fi
 
 total=${#u_id[@]}
 [ "$total" -gt 0 ] || {
   echo "gate.sh: no units resolved at all — read this as the gate broken, never as a clean run" >&2
-  exit 2
-}
-
-# An id is the name of a cache record, so two units carrying one id share a verdict: running either
-# would report the other fresh over inputs nothing had read. Refused here rather than found later as
-# a gate that skips a file it never checked.
-duplicate_ids=$(printf '%s\n' "${u_id[@]}" | sort | uniq -d)
-[ -z "$duplicate_ids" ] || {
-  echo "gate.sh: these unit ids are carried twice, so a cached verdict could not say which unit it belongs to — nothing ran" >&2
-  printf '    %s\n' $duplicate_ids >&2
   exit 2
 }
 
@@ -388,20 +384,31 @@ duplicate_ids=$(printf '%s\n' "${u_id[@]}" | sort | uniq -d)
 record_stem() { # <id>, sets record_stem_out
   record_stem_out="${1//[!A-Za-z0-9._-]/-}"
 }
+# The stem-and-id table the guard below reads falls out of the same pass. One redirect for the whole
+# loop, rather than an append per unit.
 u_stem=()
 for ((i = 0; i < total; i++)); do
   record_stem "${u_id[$i]}"
   u_stem+=("$record_stem_out")
-done
-# Two ids that flatten to one filename share a record exactly as two identical ids would, and the
-# guard above cannot see it — it compares ids, and these differ.
-duplicate_stems=$(printf '%s\n' "${u_stem[@]}" | sort | uniq -d)
+  printf '%s\t%s\n' "$record_stem_out" "${u_id[$i]}"
+done >"$scratch/stems"
+sort -o "$scratch/stems" "$scratch/stems"
+
+# Two units that share a cache record share a verdict: running either would report the other fresh
+# over inputs nothing had read. Asked about stems rather than ids, because the stem is the record's
+# name. Identical ids always flatten to one stem, so an id check could never fire on its own.
+duplicate_stems=$(cut -f1 "$scratch/stems" | uniq -d)
 [ -z "$duplicate_stems" ] || {
-  echo "gate.sh: these unit ids differ but name one cache record, so a verdict could not say which unit it belongs to — nothing ran" >&2
-  printf '    %s\n' $duplicate_stems >&2
+  echo "gate.sh: these units share one cache record, so a verdict could not say which of them it belongs to — nothing ran" >&2
+  for stem in $duplicate_stems; do
+    ids=$(awk -F '\t' -v want="$stem" '$1 == want { print $2 }' "$scratch/stems" | sort -u | tr '\n' ' ')
+    case "$(printf '%s\n' $ids | grep -c '')" in
+      1) printf '    %s — carried by two units under one id\n' "$ids" >&2 ;;
+      *) printf '    %s — different ids, one record name\n' "$ids" >&2 ;;
+    esac
+  done
   exit 2
 }
-
 # --- the commands the units run ---
 
 run_gofmt() {
@@ -589,6 +596,13 @@ fi
 
 # --- the run ---
 
+# One unit's line in the run report. The column widths live here rather than at each of the eight
+# states that print one. The duration rides in the detail rather than in a column of its own, because
+# only some states have one.
+unit_line() { # <state> <id> <detail>
+  printf '  %-11s %-32s %s\n' "$1" "$2" "$3"
+}
+
 echo "$git_note"
 echo "$total unit(s): $mode path"
 echo
@@ -608,7 +622,7 @@ for ((i = 0; i < total; i++)); do
   # one state this script treats as worse than a failure, because it looks exactly like a pass.
   ensure_keyfile "$i"
   if [ "$keyfile_has_inputs" -eq 0 ]; then
-    printf '  %-11s %-32s %s\n' "NO INPUTS" "$id" "declared: ${u_inputs[$i]}"
+    unit_line "NO INPUTS" "$id" "declared: ${u_inputs[$i]}"
     empty=$((empty + 1))
     continue
   fi
@@ -622,18 +636,18 @@ for ((i = 0; i < total; i++)); do
     # a change to eco-check was measured re-running the whole of eco-report for 180s because the
     # sidecar was missing and every external group therefore read as moved.
     [ -f "$cache/$stem.inputs" ] || tail -n +4 "$keyfile" >"$cache/$stem.inputs"
-    printf '  %-11s %-32s %s\n' "fresh" "$id" "${key:0:12} — inputs unchanged since it last passed"
+    unit_line "fresh" "$id" "${key:0:12} — inputs unchanged since it last passed"
     fresh=$((fresh + 1))
     continue
   fi
   if [ "$kind" = mutation ] && [ "$mode" = fast ]; then
-    printf '  %-11s %-32s %s\n' "DEFERRED" "$id" "inputs moved — not run on the fast path"
+    unit_line "DEFERRED" "$id" "inputs moved — not run on the fast path"
     deferred=$((deferred + 1))
     deferred_ids="$deferred_ids $id"
     continue
   fi
   if [ "$kind" = check ] && [ "$mode" = mutants ]; then
-    printf '  %-11s %-32s %s\n' "not asked" "$id" "--mutants settles the mutation units only"
+    unit_line "not asked" "$id" "--mutants settles the mutation units only"
     continue
   fi
 
@@ -656,7 +670,7 @@ for ((i = 0; i < total; i++)); do
     # forcing above would have nothing to compare against.
     : >"$record"
     tail -n +4 "$keyfile" >"$cache/$stem.inputs"
-    printf '  %-11s %-32s %ss\n' "ran ok" "$id" "$took"
+    unit_line "ran ok" "$id" "${took}s"
     continue
   fi
   # Neither a record nor a pass, whichever way it went: a verdict recorded before someone broke the
@@ -667,7 +681,7 @@ for ((i = 0; i < total; i++)); do
   # something the machine did, and a gate whose exit code cannot say "I measured nothing here" is
   # exactly what this script exists not to be.
   if [ "$unit_status" -eq 2 ]; then
-    printf '  %-11s %-32s %ss  %s\n' "NO MEASURE" "$id" "$took" "it exited 2 — it did not run, so nothing is known"
+    unit_line "NO MEASURE" "$id" "${took}s  it exited 2 — it did not run, so nothing is known"
     sed 's/^/                  /' "$scratch/out.$i" | tail -n 10
     unmeasured=$((unmeasured + 1))
     continue
@@ -678,12 +692,12 @@ for ((i = 0; i < total; i++)); do
   # file's own comment calls the false diagnosis it exists to avoid. So it counts with the
   # non-measurements: not a pass, not a verdict on the code, and no record written either way.
   if [ "$unit_status" -eq 3 ]; then
-    printf '  %-11s %-32s %ss  %s\n' "REFUSED" "$id" "$took" "it exited 3 — the checkout moved while it ran, so it refuses its own result"
+    unit_line "REFUSED" "$id" "${took}s  it exited 3 — the checkout moved while it ran, so it refuses its own result"
     sed 's/^/                  /' "$scratch/out.$i" | tail -n 10
     unmeasured=$((unmeasured + 1))
     continue
   fi
-  printf '  %-11s %-32s %ss\n' "FAILED" "$id" "$took"
+  unit_line "FAILED" "$id" "${took}s"
   sed 's/^/                  /' "$scratch/out.$i" | tail -n 40
   failed=$((failed + 1))
 done

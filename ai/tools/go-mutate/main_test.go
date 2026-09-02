@@ -10,11 +10,22 @@ package main
 // Both print in the same columns as a run that worked.
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+)
+
+// The file a mutant is aimed at, in the three shapes the cases below need: the anchor `if n > 0 {`
+// present once, present twice, and gone. Which of the three a case takes is the whole of what that
+// case is asking.
+const (
+	guardMatchedOnce  = "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n"
+	guardMatchedTwice = "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn n > 0\n}\n"
+	noGuardAtAll      = "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n"
 )
 
 // What preflight is told the suite holds: `./p/` and the one test the mutants below name. A fresh map
@@ -54,7 +65,7 @@ func TestASuiteRunIsReadAsKilledOnlyWhenItActuallyRan(t *testing.T) {
 // that refuses the whole list, which runs nothing and reports no problem.
 func TestAResolvingMutantIsNotRefused(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n")
+	writeSource(t, dir, "guard.go", guardMatchedOnce)
 	list := []mutant{{label: "the bound", file: "guard.go", suite: "./p/", by: "TestBound", from: "if n > 0 {", to: "if n > -1 {"}}
 	held := newHeldTests()
 
@@ -65,7 +76,7 @@ func TestAResolvingMutantIsNotRefused(t *testing.T) {
 
 func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn n > 0\n}\n")
+	writeSource(t, dir, "guard.go", guardMatchedTwice)
 	held := newHeldTests()
 
 	for _, c := range []struct {
@@ -99,7 +110,7 @@ func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 // than the list has entries, sending the reader after a second fault that does not exist.
 func TestAMutantWrongInTwoWaysIsStillOneMutant(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n")
+	writeSource(t, dir, "guard.go", noGuardAtAll)
 	held := newHeldTests()
 	list := []mutant{{label: "wrong twice", file: "guard.go", suite: "./p/", by: "TestRenamedAway", from: "if n >= 99 {", to: "x"}}
 
@@ -117,7 +128,7 @@ func TestAMutantWrongInTwoWaysIsStillOneMutant(t *testing.T) {
 // really wrong; main counts the unlistable suites apart and says so on its own line.
 func TestAnUnlistableSuiteDoesNotCondemnItsMutants(t *testing.T) {
 	dir := t.TempDir()
-	writeSource(t, dir, "guard.go", "package p\n\nfunc f(n int) bool {\n\tif n > 0 {\n\t\treturn true\n\t}\n\treturn false\n}\n")
+	writeSource(t, dir, "guard.go", guardMatchedOnce)
 	list := []mutant{{label: "the bound", file: "guard.go", suite: "./p/", by: "TestBound", from: "if n > 0 {", to: "if n > -1 {"}}
 
 	if stale := staleMutants(list, dir, map[string]map[string]bool{}); len(stale) != 0 {
@@ -211,6 +222,24 @@ func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 	}
 }
 
+// The output a timeout leaves is the only thing that tells a manufactured kill from a real one. It
+// has to survive the run rather than be read and dropped. Every other verdict carries none: an
+// evidence block under a `killed` line would claim the suite said something it did not.
+func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
+	timedOut := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+	if verdict, evidence := verdictWithEvidence(true, timedOut); verdict != "TIMED OUT" || evidence != timedOut {
+		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d", verdict, len(evidence), len(timedOut))
+	}
+	for _, out := range []string{"--- FAIL: TestBound\nFAIL", "ok  \t./p/\t0.1s", "[build failed]"} {
+		if _, evidence := verdictWithEvidence(true, out); evidence != "" {
+			t.Errorf("a suite that did not time out carried evidence: %q", evidence)
+		}
+	}
+	if verdict, evidence := verdictWithEvidence(false, "ok"); verdict != "KILLED NOTHING" || evidence != "" {
+		t.Errorf("a green suite gave (%q, %q), want KILLED NOTHING and no evidence", verdict, evidence)
+	}
+}
+
 // A timed-out suite exits non-zero with a panic that is neither a build failure nor a case going red.
 // Read as a kill — which is what happened before this arm existed — the mutant is credited with a
 // guard it never observed, and the harness manufactures the finding it exists to produce.
@@ -229,6 +258,47 @@ func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
 	// The negative control: a suite that really did go red is still a kill.
 	if got := verdictOf(true, "--- FAIL: TestSomething\nFAIL"); got != "killed" {
 		t.Fatalf("a genuinely red suite came back %q, want killed", got)
+	}
+}
+
+// Counting a timeout is not the same as showing it. A reader auditing for a manufactured kill needs
+// `test timed out` in the log, and it appears only in the suite's own output. A duration alone cannot
+// tell a slow compile from a timeout.
+func TestATimedOutMutantPrintsTheSuitesOwnWords(t *testing.T) {
+	selected := []mutant{{label: "the bound", file: "guard.go", suite: "./p/"}}
+	evidence := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+
+	stdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("could not capture stdout: %v", err)
+	}
+	os.Stdout = writer
+	_, _, unmeasured := report(selected, []result{{verdict: "TIMED OUT", elapsed: time.Second, evidence: evidence}})
+	writer.Close()
+	os.Stdout = stdout
+	printed, _ := io.ReadAll(reader)
+
+	if unmeasured != 1 {
+		t.Errorf("a timed-out mutant counted %d as never measured, want 1", unmeasured)
+	}
+	if !strings.Contains(string(printed), "test timed out") {
+		t.Errorf("the suite's own words never reached the log:\n%s", printed)
+	}
+	// The negative control, carrying the same evidence rather than an empty one. Hand in "" and this
+	// passes even against a report that prints the block for every verdict, because there would be
+	// nothing to print. Only the verdict may vary between the two halves.
+	reader, writer, err = os.Pipe()
+	if err != nil {
+		t.Fatalf("could not capture stdout for the control: %v", err)
+	}
+	os.Stdout = writer
+	report(selected, []result{{verdict: "killed", elapsed: time.Second, evidence: evidence}})
+	writer.Close()
+	os.Stdout = stdout
+	printed, _ = io.ReadAll(reader)
+	if strings.Contains(string(printed), "test timed out") {
+		t.Errorf("a killed mutant printed timeout evidence it does not have:\n%s", printed)
 	}
 }
 

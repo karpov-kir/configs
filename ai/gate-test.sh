@@ -128,6 +128,17 @@ expect_file() { # <case> <path>
     record_fail "$1" "$2 is not there"
 }
 
+# A unit's recorded verdict, which is `<stem>.<key>` in the cache with a `.inputs` sidecar beside it.
+# Asserted by its own name because exit 0 does not distinguish a unit that recorded from one that did
+# not — deleting the write leaves this suite green everywhere except here.
+expect_record() { # <case> <stem>
+  if find "$cache" -maxdepth 1 -name "$2.*" ! -name '*.inputs' 2>/dev/null | grep -q .; then
+    record_pass "$1"
+  else
+    record_fail "$1" "no record for $2 in $cache"
+  fi
+}
+
 expect_no_file() { # <case> <path>
   [ -f "$2" ] &&
     record_fail "$1" "$2 is there and must not be" ||
@@ -219,7 +230,7 @@ add_unit "mutants:go:a/b.go" check watched.txt "true"
 add_unit "mutants:go:a:b.go" check watched.txt "true"
 run_gate
 expect_status "two ids that name one cache record exit 2" 2
-expect_out "and say so" "name one cache record"
+expect_out "and say the two ids differ" "different ids, one record name"
 
 # Exit 3 is ai/run-tests.sh's "ran, and refuses its own result": the checkout moved under it, which a
 # suite corrupting its own repository and a neighbouring session editing a file look identical from.
@@ -289,6 +300,26 @@ else
 fi
 chmod 644 "$repo/watched.txt"
 
+# Removing the record of a unit that just failed is reachable only in --full mode: on the fast path a
+# unit runs only on a cache miss, so there is no record to remove. Without a case here, a mutation
+# over that removal killed nothing. It guards a unit that was green and then broke from reading fresh.
+new_watched_repo
+add_unit flip check watched.txt "touch $repo/ran; [ -f $repo/ok ]"
+touch "$repo/ok"
+run_gate
+expect_status "a unit that passes exits clean" 0
+expect_record "and its verdict is written to the cache" flip
+
+rm -f "$repo/ok" "$repo/ran"
+run_gate --full
+expect_status "and --full runs it again over the same inputs, where it now fails" 1
+expect_file "having really run it rather than read its old record" "$repo/ran"
+
+touch "$repo/ok"
+rm -f "$repo/ran"
+run_gate
+expect_file "the failed full run dropped that record, so the next fast run measures again" "$repo/ran"
+
 # --- the refusals ---
 
 new_repo
@@ -314,7 +345,7 @@ add_unit twice check watched.txt "true"
 add_unit twice check watched.txt "true"
 run_gate
 expect_status "two units under one id exit 2" 2
-expect_out "and name the id that is carried twice" "carried twice"
+expect_out "and name the id that is carried twice" "carried by two units under one id"
 expect_out "and nothing is run" "nothing ran"
 
 new_repo
@@ -412,27 +443,25 @@ else
   [ "$bad" -eq 0 ] &&
     record_pass "go-mutate -units gives four fields with an absolute resolved path" ||
     record_fail "go-mutate -units gives four fields with an absolute resolved path" "$bad malformed line(s)"
-  missing=$(printf '%s\n' "$go_units" | cut -f4 | while IFS= read -r f; do [ -f "$f" ] || printf 'x'; done)
-  [ -z "$missing" ] &&
+  absent=$(printf '%s\n' "$go_units" | cut -f4 | while IFS= read -r f; do [ -f "$f" ] || printf 'x'; done)
+  [ -z "$absent" ] &&
     record_pass "and every resolved path it names is a file that exists" ||
     record_fail "and every resolved path it names is a file that exists" "some column-four path is not a file"
 fi
 
 # And the parsers themselves: every script and every mutated file the harnesses list must come back as
 # a unit. A parser that dropped a line would leave that file ungated with nothing saying so.
-units=$(GATE_ROOT="$checkout" "$gate" --units 2>/dev/null)
-gone=""
-printf '%s\n' "$sh_units" | cut -f1 | while IFS= read -r k; do
+gate_units=$(GATE_ROOT="$checkout" "$gate" --units 2>/dev/null)
+gone=$(printf '%s\n' "$sh_units" | cut -f1 | while IFS= read -r k; do
   [ -n "$k" ] || continue
-  printf '%s\n' "$units" | grep -q "^mutants:shell:$k " || printf '%s ' "$k"
-done >"$base/missing-sh"
-gone=$(cat "$base/missing-sh")
+  printf '%s\n' "$gate_units" | grep -q "^mutants:shell:$k " || printf '%s ' "$k"
+done)
 [ -z "$gone" ] &&
   record_pass "every script shell-mutate.sh lists becomes a mutation unit" ||
   record_fail "every script shell-mutate.sh lists becomes a mutation unit" "no unit for:$gone"
 
 listed_go=$(printf '%s\n' "$go_units" | grep -c '')
-built_go=$(printf '%s\n' "$units" | grep -c '^mutants:go:')
+built_go=$(printf '%s\n' "$gate_units" | grep -c '^mutants:go:')
 [ "$listed_go" -eq "$built_go" ] &&
   record_pass "and every file go-mutate lists becomes one too" ||
   record_fail "and every file go-mutate lists becomes one too" "$listed_go listed, $built_go units built"
@@ -444,7 +473,9 @@ if [ -z "$discovered" ]; then
   echo "gate-test: no *-test.sh in this checkout at all — read this as discovery broken, never as a clean run" >&2
   exit 2
 fi
-listed=$(GATE_ROOT="$checkout" "$gate" --units 2>/dev/null | awk '$1 ~ /^shell:/ { print $1 }' | sort -u)
+# Reusing the listing the harness-parser cases already took. Each `--units` builds go-mutate and
+# hashes every input, about fifteen seconds, and this suite is the slowest thing the gate runs.
+listed=$(printf '%s\n' "$gate_units" | awk '$1 ~ /^shell:/ { print $1 }' | sort -u)
 if [ -z "$listed" ]; then
   echo "gate-test: gate.sh --units named no shell unit at all — nothing was compared" >&2
   exit 2

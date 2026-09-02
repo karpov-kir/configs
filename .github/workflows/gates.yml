@@ -56,6 +56,12 @@ jobs:
   # it: eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and todo-gate.sh, and
   # `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a plain run answers out
   # of cache over a tree one of them has changed, and this job would go green on exactly that.
+  # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
+  # while `go test ./eco-report/` says `ok (cached)` over the same corrupt tree.
+  #
+  # A cached failure is not the hole. A deliberately failing case appended to eco-root re-ran and
+  # re-failed on two consecutive runs, never once from cache. `.github/workflows/release-tools.yml`
+  # cites this paragraph rather than repeating it.
   #
   # `ai/gate.sh` is the developer-side answer to the same hole — it keys on those files itself and
   # forces the packages that read them. This job stays as it is: the gate is a fast path beside the
