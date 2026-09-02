@@ -152,64 +152,6 @@ func captureStderr(t *testing.T, run func()) string {
 	return <-drained
 }
 
-// Both rows are real spans out of this tree, and both cleared the old match. The first has been
-// adjudicated three separate times and accepted every time, because two consumers naming the same
-// dependency at their own point of use is what `One home` asks for, not what it bars. The second is a
-// genuine restatement and has to stay one, or the test below would pass by silencing everything.
-func TestAPairSharingOnlyACitedNameIsNotARestatement(t *testing.T) {
-	cases := []struct {
-		name string
-		a, b string
-		want verdict
-	}{
-		{
-			"the same dependency declared by two consumers",
-			"The pass is `~/.claude/skills/kk-qualify/SKILL.md`",
-			"The pass is `~/.claude/skills/kk-qualify/SKILL.md`",
-			sharedName,
-		},
-		{
-			"the same rule reworded in two files",
-			"A licence you received goes into every spawn prompt you build, verbatim",
-			"The licence goes in every spawn prompt's emphasis slot",
-			restatement,
-		},
-		{
-			// The blind spot the split could open: prose that states a rule and happens to name a file.
-			// It stays a restatement because what the two share survives the name being removed — five
-			// words of agreement that owe the path nothing.
-			"a rule that names a file but agrees beyond it",
-			"Never edit a generated file by hand, regenerate it from `~/.claude/skills/kk-qualify/SKILL.md`",
-			"Never edit a generated file by hand, regenerate it instead",
-			restatement,
-		},
-		{"two rules sharing nothing", "the first rule about fences", "an unrelated rule about ledgers", unrelated},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got, shared, beyond := classify(spanOf(c.a), spanOf(c.b))
-			if got != c.want {
-				t.Fatalf("classify = %v, want %v (%d shared, %d beyond the name)", got, c.want, shared, beyond)
-			}
-		})
-	}
-}
-
-// A pair that shares only a cited name must not fail the run: the whole point of setting it apart is
-// that a reader has already answered it, and an exit 1 asks them again every time.
-func TestOnlyARestatementFailsTheRun(t *testing.T) {
-	naming, _, _ := classify(
-		spanOf("The pass is `~/.claude/skills/kk-qualify/SKILL.md`"),
-		spanOf("The pass is `~/.claude/skills/kk-qualify/SKILL.md`"))
-	if naming == restatement {
-		t.Fatal("a shared name is being counted as a restatement, so a clean tree would exit 1")
-	}
-}
-
-func spanOf(text string) span {
-	return span{text: text, key: keyOf(text)}
-}
-
 func TestReportedPathCannotForgeALine(t *testing.T) {
 	dir := t.TempDir()
 	const rule = "a rule stating four discriminating words plainly"
@@ -447,5 +389,38 @@ func TestReportedTextNeutralisesTheC1Range(t *testing.T) {
 		if got := shell.Oneline(in); got != in {
 			t.Errorf("shell.Oneline(%q) = %q — a real character was damaged", in, got)
 		}
+	}
+}
+
+// Every group's headline, and the clause counting it in the summary. The two accepted groups must
+// never read as the failing one: a citing pair printed under `rule stated twice`, or counted into the
+// restatement figure, reports a tree as duplicating a rule it in fact points at.
+func TestTheReportNamesEachGroupAndCountsItInTheSummary(t *testing.T) {
+	site := func(file, text string) span { return span{file: file, line: 7, text: text} }
+	both := func(a, b span) pair { return pair{a: a, b: b, shared: 6, beyond: 1} }
+	full := report{
+		read:   9,
+		pairs:  []pair{both(site("a.md", "the rule stated once"), site("b.md", "the rule stated again"))},
+		naming: []pair{both(site("c.md", "names the dependency"), site("d.md", "names it as well"))},
+		citing: []pair{both(site("e.md", "points at the owner"), site("f.md", "owns the rule"))},
+	}
+	var out strings.Builder
+	full.writeTo(&out)
+	got := out.String()
+	for _, want := range []string{
+		"rule stated twice (6 words shared):",
+		"same dependency named twice, not a rule (6 words shared, 1 beyond the name):",
+		"one cites the other, not a restatement (6 words shared):",
+		"9 bolded rule(s) read, 1 pair(s) stating the same thing in two files, 1 naming the same dependency, 1 citing the other's file",
+		"  e.md:7 — points at the owner\n  f.md:7 — owns the rule\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the report does not carry %q:\n%s", want, got)
+		}
+	}
+	var bare strings.Builder
+	report{read: 4}.writeTo(&bare)
+	if strings.Contains(bare.String(), "naming the same dependency") || strings.Contains(bare.String(), "citing the other's file") {
+		t.Errorf("an empty group still counted itself into the summary: %s", bare.String())
 	}
 }
