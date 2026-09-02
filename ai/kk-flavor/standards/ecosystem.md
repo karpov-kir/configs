@@ -10,7 +10,7 @@ These rules bind any edit, however small. Run the instruction lane after a batch
 
 - **Delete before you rephrase.** Keep what is essential, plus the supporting detail that makes it unambiguous. Drop the rest.
 - **Nice-to-have is a cut.** A rule that fires rarely, or that a competent agent follows anyway, buys nothing and dilutes the rules that matter.
-- **A rule you add names what it replaces**, or says plainly that nothing covered this.
+- **A rule you add names what it replaces**, or says plainly that nothing covered this — in the instruction lane's account, never in the file, where it is the evidence **No evidence in a rule file** cuts.
 - **The bar rises with how often the file loads.** An always-read doc takes only what applies to nearly every task; a trigger-loaded standard, its activity; a skill body, its lane.
 
 ## No evidence in a rule file
@@ -40,6 +40,7 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.claude/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
 - **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes.** **An override file that is present but unusable refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
+- **An edit in a worktree is not what a spawned agent reads.** The mounts resolve to the main checkout, so a stage you spawn reads the landed version of every skill and standard, not the tree you are editing. Land it, or exercise it inline, before spawning anything to test it.
 - **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it. **The mount is proven by running the instruction lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script.
 
 ## Move it before you cut it

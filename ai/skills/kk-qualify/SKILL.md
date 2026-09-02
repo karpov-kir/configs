@@ -1,35 +1,33 @@
 ---
 name: kk-qualify
 description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the pass written down with a merge stamp layers that on top of this one.
-argument-hint: "[fast|full] [scope: a path, a diff selector, or natural language] [score threshold]"
+argument-hint: "[scope: a path, a diff selector, or natural language] [score threshold]"
 ---
 
-**The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another.
+**The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another. **Nothing waits on your pass unless your caller says it does**: bare, you may trim for turnaround, and you say what you trimmed.
 
-**No persisted state.** No report file, no stamp, no directory of your own. The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so.**
+**No persisted state.** No report file, no stamp, no directory of your own — a run's scratch ledgers and patch queue are not that. The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so.**
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); the per-file queue and loop belong to the subagents you spawn.
 
 ## Lanes
 
-`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills (`~/.kk-flavor/standards/ecosystem.md` → **One home**). These are the skills filling them, and the scanner to run for each:
+`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills. These are the skills filling them, and the scanner to run for each:
 
-| Lane | Skill | Scanner to run |
-|---|---|---|
-| drive | `kk-drive` | — |
-| code-review | `kk-code-review` | — |
-| security-review | `kk-security-review` | — |
-| prose | `kk-tighten` | — |
-| outward-text | `kk-humanize` | `~/.claude/skills/kk-humanize/scripts/comment-density.sh` |
-| refactor | `kk-refactor` | `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` |
+| Lane | Skill | Scanner to run | Tier |
+|---|---|---|---|
+| drive | `kk-drive` | — | — |
+| code-review | `kk-code-review` | — | `code-review` |
+| security-review | `kk-security-review` | — | `security` |
+| prose | `kk-tighten` | — | — |
+| outward-text | `kk-humanize` | `~/.claude/skills/kk-humanize/scripts/comment-density.sh` | `comments` |
+| refactor | `kk-refactor` | `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
 
 **This table is the map for any caller running a lane by name.**
 
 **Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills and this table leaves out; and a retrospective, which is no lane at all and belongs to `kk-retro`. **A change set holding the instruction tree names it in your return; a retrospective you never even offer.**
 
-## Modes
-
-**Fast iterates; full is the verdict** — the pass that must precede a merge. Bare invocation is fast.
+**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, the **Tier** column is what each spawn prompt's patch-queue slot carries; a lane with no tier runs the round with the rest.
 
 ## The residue
 
@@ -45,7 +43,7 @@ argument-hint: "[fast|full] [scope: a path, a diff selector, or natural language
 
 ## After the pass
 
-`~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — mode and item count by decision kind — then the items in the order above, then **one line for everything the threshold cut** and every drive step the human dropped when asked, named and not argued. No per-stage verdicts.
+`~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — what the pass ran, and item count by decision kind — then the items in the order above, then **one line for everything the threshold cut** and every drive step the human dropped when asked, named and not argued. No per-stage verdicts.
 
 ## Rules
 

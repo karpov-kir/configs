@@ -36,6 +36,11 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 		// four required stages are all present, and `stamp`'s per-stage marker check skips anything
 		// marked skipped. The grammar is the only thing between this and a junk entry in the record.
 		{fullRecord + ",bogus:skipped(not-applicable)", "malformed entry: bogus:skipped(not-applicable)"},
+		// The retired turnaround token. It was the vocabulary before the modes were removed, so it is
+		// the one wrong word a stamp is most likely to carry — and `turnaroundTrims` reads `(turnaround)`,
+		// so a record still saying `fast` would gate a trimmed pass as untrimmed.
+		{"code-review,security-review:skipped(fast),tighten,refactor", "malformed entry: security-review:skipped(fast)"},
+		{"code-review,security-review,tighten,refactor:partial(fast)", "malformed entry: refactor:partial(fast)"},
 		{"code-review,code-review,security-review,tighten,refactor", "duplicate stage: code-review"},
 		{"code-review,security-review,tighten", "missing stage: refactor"},
 	} {
@@ -56,16 +61,16 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 		containsLine(f.read(report), "reviewed-stages: "+fullRecord), f.read(report))
 
 	// Every legal form, each one a record a real pass produces. `refactor:partial(…)` records that the
-	// loop ended non-compliant, which is what ran rather than a trim; `skipped(fast)` is a turnaround
+	// loop ended non-compliant, which is what ran rather than a trim; `skipped(turnaround)` is a turnaround
 	// trim and `skipped(not-applicable)` an unmet condition, and only the two optional stages take
 	// either.
 	for _, legal := range []string{
-		"code-review,security-review,tighten,refactor:partial(fast)",
+		"code-review,security-review,tighten,refactor:partial(turnaround)",
 		"code-review,security-review,tighten,refactor:partial(cap)",
 		"code-review,security-review:skipped(not-applicable),tighten,refactor",
 		"code-review,security-review,tighten:skipped(not-applicable),refactor",
-		"code-review,security-review:skipped(fast),tighten,refactor",
-		"code-review,security-review,tighten:skipped(fast),refactor",
+		"code-review,security-review:skipped(turnaround),tighten,refactor",
+		"code-review,security-review,tighten:skipped(turnaround),refactor",
 	} {
 		f.armFullPass("001-grammar")
 		f.runReport("stamp", legal, "001-grammar")

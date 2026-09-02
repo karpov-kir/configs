@@ -44,7 +44,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. |
 | Nothing named, or a periodic check | Recommend from what changed — plus the `kk-reduce` row's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
 
-**This file routes between the skill families, so it names the workflow family where every other any-repo skill may not** — the exception `~/.kk-flavor/standards/ecosystem.md` → **Family direction** grants, claimed here because a router cannot route to a lane it is forbidden to name.
+**This file routes between the skill families, so it names the workflow family where every other any-repo skill may not** — the exception `~/.kk-flavor/standards/ecosystem.md` → **Family direction** grants.
 
 **The `idsd-*` suite is a workflow the human enters deliberately and stays inside.** When the work is plainly intent-shaped (an ICE to author, an intent to build, a change heading for that pipeline's merge gate), say so and name `idsd-ship` as its door, then stop. Do not sequence its stages, and do not substitute a `kk-*` chain for it.
 
@@ -65,8 +65,6 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 ## 2. Run
 
 Spawn each stage in the order **Route** resolved.
-
-**When a chain should run streamed is `~/.kk-flavor/standards/streaming.md`'s call**, not one to re-derive here. Where it does, **The caller's half** there is yours, and that file is the whole delta for the path.
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 

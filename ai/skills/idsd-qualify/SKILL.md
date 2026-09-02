@@ -1,7 +1,7 @@
 ---
 name: idsd-qualify
-description: Run the quality pipeline over the working tree with a merge stamp, in fast or full mode. Use for "qualify the changes" inside an IDSD project. The `.idsd` report layer over kk-qualify — the same pass without a report is that skill's, and its description discriminates the rest.
-argument-hint: "[fast|full] [score threshold]"
+description: Run the quality pipeline over the working tree with a merge stamp. Use for "qualify the changes" inside an IDSD project. The `.idsd` report layer over kk-qualify — the same pass without a report is that skill's, and its description discriminates the rest.
+argument-hint: "[score threshold]"
 ---
 
 Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. You orchestrate, so read `~/.kk-flavor/standards/skill-protocol.md` whole.
@@ -14,13 +14,13 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
 3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have.
 
-**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor included, not just the round's.
+**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor included, not just the round's. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
-When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — its usage string carries the entry vocabulary. A stage that ran is never stamped skipped, or vice versa: by design, a fast pass whose every stage ran to completion stamps with no `(fast)` entry and passes the merge gate.
+When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — its usage string carries the entry vocabulary. A stage that ran is never stamped skipped, or vice versa.
 
-**A skip's recorded reason follows *why* it was skipped, not the mode.** Stamp `security-review:skipped(not-applicable)` when the change touches no security surface; `skipped(fast)` when a stage that did apply is skipped for turnaround. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass. **A refactor loop cut short by fast mode is `refactor:partial(fast)`**; `(cap)` is only full mode's iteration cap.
+**A skip's recorded reason follows *why* it was skipped, and a partial refactor loop *what ended the loop*. The usage string spells that vocabulary and is its only home** — a reason spelled here as well is one that drifts from the tool that validates it. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass.
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 

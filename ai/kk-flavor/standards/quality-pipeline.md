@@ -2,7 +2,7 @@
 
 The stages a quality pass runs over one change set. **Binding on whoever runs a pass, any single stage of one, or one of its lanes on its own** — the rules here that bind a standalone lane say so.
 
-You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger.
+You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger. **A pass a merge waits on** has no such latitude: every stage its trigger fires runs, and refactor loops to compliance.
 
 **Each scanner lives with the lens it serves**, and you run it from there. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; a change set already committed is seen only by naming the range. **A spawn prompt describes the tree you read, never the tree you intended.**
 
@@ -10,7 +10,7 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 Spawn the round's stages **in one message** so they run concurrently.
 
-**Refactor is the round's serializer** — a fresh spawn after the round, never joining it. The round must have settled *to a decision* first: every blocking finding answered *and applied*, asked of the human as it arrives.
+**Refactor is the round's serializer on the batch path** — a fresh spawn after the round rather than joining it; streamed, its tier boundary does that work instead ([streaming.md](streaming.md) → **A quality pass's tiers**). The round must have settled *to a decision* first: every blocking finding answered *and applied*, asked of the human as it arrives.
 
 **One subagent per stage.** Every decision, and everything the pass itself writes, stay in this thread. Carry a mid-session deferral into the spawn prompt of every stage that runs afterwards.
 
@@ -24,7 +24,7 @@ Spawn the round's stages **in one message** so they run concurrently.
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
-**The sequence after the round may run streamed instead** — the stages queue patches as they find them and you apply each on arrival, the tier order deciding conflicts rather than the schedule. [streaming.md](streaming.md) → **A quality pass's tiers** names which of the stages below become tiers and in what order; that file is the whole delta for the path.
+**The sequence after the round runs streamed where the path pays** — the stages queue patches as they find them and you apply each on arrival, the tier order deciding conflicts rather than the schedule. [streaming.md](streaming.md) → **A quality pass's tiers** holds the test, names which of the stages below become tiers and in what order, and is the whole delta for the path.
 
 ## Drive it before you review it
 
@@ -52,7 +52,7 @@ Spawn the round's stages **in one message** so they run concurrently.
    - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names.
    - **A comment finding splits by placement and content**: a true comment on the wrong construct is the refactor lane's, a false claim about the code is the code-review lane's. Each lane states only its own side.
    - **Comment blocks** wait for refactor, then go to the outward-text lane directly, never the prose lane first. Run the outward-text lane's scanner **at pass start, not here**; its outliers ride the spawn prompt's tool-output slot.
-4. **Refactor** — a loop to compliance, iterating where the pass has the budget for it and once where it does not. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is residue for the human with what's open, and duplication deferred under the extract threshold goes to whatever record the pass appends its settled decisions to. Run the refactor lane's scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
+4. **Refactor** — a loop to compliance; a pass trimming for turnaround runs one iteration instead. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is residue for the human with what's open, and duplication deferred under the extract threshold goes to whatever record the pass appends its settled decisions to. Run the refactor lane's scanner before the first iteration and **again after the last**; second-run hits are yours to resolve or record, not a reason for another iteration.
 
 **A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or `CLAUDE.md` goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.
 

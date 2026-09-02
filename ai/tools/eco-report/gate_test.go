@@ -32,7 +32,7 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.dropLines(f.reportPath("001-gating"), "- [ ] a decision")
 
 	// A stage record that says nothing. The two shapes are the template's placeholder and no line at
-	// all, and both mean "no full qualify stands here" — a reader that knows only one of them lets the
+	// all, and both mean "no untrimmed qualify stands here" — a reader that knows only one of them lets the
 	// other through.
 	f.replaceLine(f.reportPath("001-gating"), "reviewed-stages:", "reviewed-stages: <stages>")
 	f.runReport("gate", "001-gating")
@@ -70,7 +70,7 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 
 func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	t.Parallel()
-	// `(fast)` is the one word that marks a stage trimmed for turnaround, which is why the vocabulary is
+	// `(turnaround)` is the one word that marks a stage trimmed to answer sooner, which is why the vocabulary is
 	// closed rather than pattern-matched: any other word for the same trim would record a trimmed pass
 	// as a full one, and the merge gate reads that record.
 	f := newShip(t, "001-trimmed")
@@ -81,7 +81,7 @@ func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 		f.runReport("stage-returned", stage, "001-trimmed")
 		f.runReport("no-items", stage, "001-trimmed")
 	}
-	f.runReport("stamp", "code-review,security-review:skipped(fast),tighten,refactor", "001-trimmed")
+	f.runReport("stamp", "code-review,security-review:skipped(turnaround),tighten,refactor", "001-trimmed")
 	f.record("a stage skipped for turnaround stamps without having returned",
 		f.status == 0, f.evidence())
 
@@ -91,7 +91,7 @@ func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	f.runReport("gate", "001-trimmed")
 	f.record("gate blocks a pass trimmed for turnaround",
 		f.status == 1 && strings.Contains(f.out, "trimmed for turnaround"), f.evidence())
-	f.assertReports("security-review:skipped(fast)", "and names the stage that was trimmed")
+	f.assertReports("security-review:skipped(turnaround)", "and names the stage that was trimmed")
 }
 
 func TestCarryPrintsTheItemsARequalifyMustNotLose(t *testing.T) {
