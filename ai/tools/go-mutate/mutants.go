@@ -557,6 +557,33 @@ var mutants = []mutant{
 	// not a deleted line, or `sort` goes unimported and the mutant does not build — and a `broken`
 	// verdict says nothing about the guard.
 	{"cite-graph: an alias winner taken from a map iteration", "../cite-graph/headings.go", "./cite-graph/", "TestTwoHeadingsSharingAnAliasResolveToTheSameOneEveryTime", "	sort.Strings(sorted)", "	_ = sort.Strings"},
+
+	// The handoff gate. One mutant per scan, because each scan is the only thing standing between a
+	// draft and a chip a fresh session cannot act on, and a scan that silently stopped firing looks
+	// exactly like a tree of well-written drafts.
+	{"handoff: the licence blockquote always satisfied", "../handoff-check/handoff-check.go", "./handoff-check/", "TestLicenceMustBeQuoted", "if section == \"Licence\" && isBlockquote(text) {", "if section == \"Licence\" || true {"},
+	{"handoff: every base commit resolves", "../handoff-check/handoff-check.go", "./handoff-check/", "TestBaseAndRepository", `if _, err := git(repo, "cat-file", "-e", sha+"^{commit}"); err == nil {`, `if _, err := git(repo, "cat-file", "-e", sha+"^{commit}"); err == nil || true {`},
+	{"handoff: the repository the draft must name goes unchecked", "../handoff-check/handoff-check.go", "./handoff-check/", "TestBaseAndRepository", `if name == "Where it starts" && !s.named {`, `if name == "Where it starts" && !s.named && false {`},
+	// The bound is what tells a commit from a hex run inside a word. Removed, a draft naming a
+	// temporary directory is answered with a commit nobody wrote.
+	{"handoff: the hex scan unbounded again", "../handoff-check/handoff-check.go", "./handoff-check/", "TestBaseAndRepository", "`(^|[^0-9A-Za-z])([0-9a-f]{7,})([^0-9A-Za-z]|$)`", "`()([0-9a-f]{7,})()`"},
+	{"handoff: the reachback scan silenced", "../handoff-check/handoff-check.go", "./handoff-check/", "TestReachback", "if hit := matcher.FindString(low); hit != \"\" {", "if hit := matcher.FindString(low); false {"},
+	{"handoff: an empty slot read as filled", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !s.filled[name]:", "case !s.filled[name] && false:"},
+	{"handoff: an eighth heading accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !isRequired(name):", "case !isRequired(name) && false:"},
+	{"handoff: a second title line accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "if s.titles > 1 {", "if s.titles > 1 && false {"},
+	// The anchor on the placeholder, which is what lets a real title hold an angle bracket.
+	{"handoff: the placeholder title matched anywhere in the line", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if title == "" || (strings.HasPrefix(title, "<") && strings.HasSuffix(title, ">")) {`, `if title == "" || strings.Contains(title, "<") {`},
+	{"handoff: a leftover template comment ignored", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `s.flag(fmt.Sprintf("template comment left at line %d — that slot is unfilled", lineNo))`, `_ = lineNo`},
+	{"handoff: None accepted in the slots that refuse it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestNone", "case refuseNone[name]:", "case refuseNone[name] && false:"},
+	// The word boundary after `None`, without which a slot opening "Nonetheless" is read as empty and
+	// its real content never measured.
+	{"handoff: None matched as a prefix", "../handoff-check/handoff-check.go", "./handoff-check/", "TestNone", `return first == "None" || (strings.HasPrefix(first, "None") && len(first) > 4 && shell.IsSpaceByte(first[4]))`, `return strings.HasPrefix(first, "None")`},
+	{"handoff: the substance floor lowered to nothing", "../handoff-check/handoff-check.go", "./handoff-check/", "TestSubstanceFloor", "if name != \"Licence\" && s.words[name] < minWords {", "if name != \"Licence\" && s.words[name] < 0 {"},
+	// Fenced content counts as content. Dropped, a slot holding only command output — which is exactly
+	// what Measured facts asks for — comes back as empty and sends the author to fix the wrong thing.
+	{"handoff: a fenced line contributes nothing to its slot", "../handoff-check/handoff-check.go", "./handoff-check/", "TestSubstanceFloor", `			s.absorb(section, raw)
+			continue`, `			continue`},
+	{"handoff: the dirty-tree note never printed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestDirtyTreeIsANoteAndNotAFinding", "if dirty == 0 {", "if dirty >= 0 {"},
 }
 
 // A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same

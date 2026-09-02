@@ -8,6 +8,7 @@ dist/
 /cmd/eco-check/eco-check
 /cmd/eco-report/eco-report
 /cmd/eco-stats/eco-stats
+/cmd/handoff-check/handoff-check
 /cite-graph/cite-graph
 /go-mutate/go-mutate
 /rule-echo/rule-echo
