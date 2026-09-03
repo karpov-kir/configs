@@ -120,10 +120,6 @@ func mountTarget(mountPath string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	// README-era mounts were written from a `*/` glob and read back as `…/kk-tighten/`, and the
-	// directory of that string is the skill itself rather than skills/ — every one of those mounts
-	// would be taken for another checkout's.
-	target = strings.TrimRight(target, "/")
 	// A relative target resolves against the directory holding the link; CanonicalDir would otherwise
 	// hand it to filepath.Abs and resolve it against this process's working directory. Left that way
 	// the same mount reads as this tree's when the tool is run from the root and as nobody's when it

@@ -156,7 +156,8 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	})
 
 	// Every mount this machine was set up from the README with reads back with a trailing slash, this
-	// one included. Untrimmed, the shape the finding is actually about is the one it never fires on.
+	// one included. Nothing here trims it: the scan reads the mount's parent through shell.DirName,
+	// which answers dirname(1) and so trims for it. This case is what would catch that going away.
 	t.Run("and reports one whose target carries the README-era trailing slash", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone/")
