@@ -866,16 +866,18 @@ type unreachableMutant struct {
 var unreachableMutants = []unreachableMutant{
 	{
 		"gate: the filtered tree rebuilt from a literal",
-		"unobservable until the field it protects exists. keepCommittable copies the walked tree and " +
-			"resets only `entries` and `suffixes`, so a field added to `tree` reaches the filtered copy " +
-			"too; while `tree` holds nothing else, rebuilding from a literal is identical and no case " +
-			"can tell the two apart. A STALE CLAIM here is the signal that `tree` has gained a field — " +
-			"`start`, at the time of writing, which keys the suffix index on the root's canonical name " +
-			"rather than the caller's spelling. That is the moment the guard starts mattering: dropped, " +
-			"a gated run keys differently from a bare one and every finding depends again on how the " +
-			"root was typed. Delete THIS ENTRY and keep the mutant. Do not revert keepCommittable and " +
-			"do not delete the mutant — it is doing its job, and the case that now kills it is " +
-			"TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed.",
+		"unobservable because nothing reads the copied fields after the walk. keepCommittable copies " +
+			"the walked tree and resets `entries` and `suffixes`; the other two fields, `start` and " +
+			"`canonicalRoot`, are read by newEntry during the walk alone, while add keys each entry on " +
+			"the `canonical` name that entry already carries. So a filtered copy rebuilt from a literal " +
+			"loses both and still produces byte-identical findings. " +
+			"The condition is a field READ AT FILTER TIME, never merely a field on `tree`: `start` " +
+			"exists and this mutant still kills nothing. Measured both ways — dropping those fields " +
+			"from newWalk reddens TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed, and " +
+			"dropping them from the filtered copy reddens no case at all. A STALE CLAIM here means " +
+			"keepCommittable or add has come to read something a literal would drop, and the guard is " +
+			"load-bearing from that moment: delete THIS ENTRY and keep the mutant. Do not revert " +
+			"keepCommittable and do not delete the mutant.",
 	},
 	{
 		"override config: an unreadable config passes as a checked one",
