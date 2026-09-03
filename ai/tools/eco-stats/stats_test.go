@@ -245,6 +245,28 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 		}
 	})
 
+	// The absent row read as a measured zero. Outside the install the scan does not run at all, and the
+	// report has to say which of the two this is.
+	t.Run("says the figure was not measured where the scan does not run", func(t *testing.T) {
+		f := newRoot(t)
+		f.newHomeWithoutFlavorMount()
+		stdout, _, _ := f.run(f.root)
+		if !strings.Contains(stdout, "mounted outside:  not measured") {
+			t.Errorf("a run that measured no mount reported nothing about it\n%s", indent(stdout))
+		}
+	})
+
+	// The other half: on the install the figure is measured, so the note would be a false claim about
+	// work that did happen.
+	t.Run("and says nothing of the sort where it does run", func(t *testing.T) {
+		f := newRoot(t)
+		f.newHome()
+		stdout, _, _ := f.run(f.root)
+		if strings.Contains(stdout, "not measured") {
+			t.Errorf("a run that did measure the mounts called the figure unmeasured\n%s", indent(stdout))
+		}
+	})
+
 	// A mounted skill is read out of the user's home, and the run counts it unread like anything else
 	// it could not open. The shortfall message then placed it "under <root>", which is a checkout the
 	// file is not in: a reader takes that literally and goes looking through the wrong tree. Exit 2 is
@@ -318,7 +340,47 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 		}
 	})
 
-	t.Run("says nothing about mounted skills when this tree is not the installed one", func(t *testing.T) {
+	// The mount that will not list. A file where the directory belongs, rather than a mode bit: root
+	// ignores mode 000 and CI runs as root often enough that a permission fixture builds nothing there.
+	// This one refuses every user, so the case measures the guard rather than the machine.
+	//
+	// It matters because of what the *absence* of a figure now says. Silence means the scan ran and
+	// counted none, so a mount nobody could read must not produce it — the run says SHORT and names
+	// the path instead.
+	t.Run("refuses a skills mount that will not list, rather than publishing its silence", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+		f.home = f.root + "/home"
+		f.mkdirAll(f.home + "/.claude")
+		f.symlink(f.root+"/kk-flavor", f.home+"/.kk-flavor")
+		f.write(f.home+"/.claude/skills", "not a directory\n")
+		stdout, stderr, status := f.run(f.root)
+		if status != 2 {
+			t.Errorf("status: %d (want 2 — the mounted-outside scan did not run)\n%s", status, indent(stdout+stderr))
+		}
+		if !strings.Contains(stdout, "mounted outside:  not measured") {
+			t.Errorf("a mount that would not list was not reported as unmeasured\n%s", indent(stdout))
+		}
+	})
+
+	// The third state, and the one that makes the silence readable at all: the scan ran on the install
+	// and counted nothing, so no `mounted outside:` line is printed. Without this, deleting the
+	// zero-guard prints `mounted outside:   0 words` on every clean install and nothing goes red.
+	t.Run("prints no mounted-outside line at all when the scan ran and counted none", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/CLAUDE.md", "one two\n")
+		f.newHome()
+		f.mkdirAll(f.home + "/.claude/skills")
+		stdout, _, _ := f.run(f.root)
+		if strings.Contains(stdout, "mounted outside:") {
+			t.Errorf("a measured zero printed a row\n%s", indent(stdout))
+		}
+	})
+
+	// A mount the scan would have counted on the install, left uncounted here. The report does carry a
+	// `mounted outside:` line on this path — it says the figure was not measured — so this holds that
+	// no figure was published, never that the label is absent.
+	t.Run("publishes no mounted-outside figure when this tree is not the installed one", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two\n")
 		f.newHomeWithoutFlavorMount()
@@ -327,7 +389,7 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 		f.write(f.base+"/outside-skill-2/SKILL.md", skillWithDescription("outside-skill-2"))
 		f.symlink(f.base+"/outside-skill-2", f.home+"/.claude/skills/outside-skill-2")
 		if reported := f.figure("mounted outside"); reported != "" {
-			t.Errorf("reported: %q (want no line at all)", reported)
+			t.Errorf("reported: %q (want no figure — this tree is not the install)", reported)
 		}
 	})
 }

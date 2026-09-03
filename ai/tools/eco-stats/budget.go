@@ -1,8 +1,10 @@
 package ecostats
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -143,7 +145,19 @@ func (s *stats) mountedOutside(errOut io.Writer) {
 	if !s.root.IsInstalled() {
 		return
 	}
-	for _, file := range skillFiles(s.root.SkillsMount()) {
+	// Listed here before skillFiles lists it again, because skillFiles cannot say which of its two
+	// answers it is giving: a mount that will not list and a mount holding nothing both come back as
+	// no files. Report.go reads the absence of a figure as "the scan ran and counted none", so the
+	// three states are kept apart here. A mount that is not there at all is a measurement — nothing is
+	// mounted, so zero is the true figure. One that exists and will not list is not a measurement, and
+	// it is named and counted instead, with the run going out SHORT.
+	mount := s.root.SkillsMount()
+	if _, err := os.ReadDir(mount); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		s.refuseUnreadable(errOut, mount, err)
+		return
+	}
+	s.outsideMeasured = true
+	for _, file := range skillFiles(mount) {
 		if s.root.HoldsSkillFile(file) {
 			continue
 		}
