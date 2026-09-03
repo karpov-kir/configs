@@ -443,7 +443,7 @@ var mutants = []mutant{
 	// and the exclusion lands there while git goes on ignoring nothing.
 	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestPerWorktreeStateGoesToTheWorktreesOwnGitDir", `if strings.HasPrefix(path, "/") {`, "if false {"},
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
-	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.captureGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
+	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
 	// The arm order is load-bearing, so the two forms of info/exclude are asked separately: the
 	// relative one an ordinary repo has, and the absolute one a linked worktree has.
 	{"ignore source: a machine-local exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAGlobalExcludeDoesNotCountAsIgnoringTheReport", "case strings.HasPrefix(source, \"/\"):\n\t\treturn source, false", "case strings.HasPrefix(source, \"/\"):\n\t\treturn source, true"},
@@ -455,7 +455,7 @@ var mutants = []mutant{
 	// seams.go — the two scripts this tool calls rather than reimplements.
 	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "if status > 1 {", "if false {"},
 	{"fingerprint: a missing script recomputed locally", "../eco-report/seams.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "if !isExecutable(r.fingerprintBin) {", "if false {"},
-	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if status != 0 || tree == "" {`, "if false {"},
+	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if err != nil || tree == "" {`, "if false {"},
 	{"fingerprint: the walk repeated once per ship", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if r.cachedTree != "" {`, "if false {"},
 
 	// records.go — the two records every worktree of the clone shares. Every guard here stands between

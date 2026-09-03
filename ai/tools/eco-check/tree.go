@@ -89,6 +89,12 @@ func (t *tree) add(entry fsEntry) {
 	if !entry.isRegular() {
 		return
 	}
+	// The whole path is a key too, not only the tails after each `/`. A ref can name the tree from its
+	// very root — `ai/tools/resolve.sh`, cited from a file inside `ai/` — and when the root is spelled
+	// without a leading segment (`check.sh ai` rather than `check.sh ./ai`) that ref IS the walked path,
+	// with nothing before it to match. Indexed by tails alone, every such ref reported as dangling while
+	// the same tree answered clean through `./ai`: a verdict that depended on how the root was typed.
+	t.suffixes[entry.path] = append(t.suffixes[entry.path], entry.path)
 	for i := 0; i < len(entry.path); i++ {
 		if entry.path[i] == '/' {
 			tail := entry.path[i+1:]
@@ -97,14 +103,19 @@ func (t *tree) add(entry fsEntry) {
 	}
 }
 
-// The regular files whose path a `*/<ref>` pattern matches, in walk order.
+// The regular files whose path a `*/<ref>` pattern matches, or which the ref names whole, in walk
+// order. Both, for the reason the index above states: with a root spelled without a leading segment,
+// a ref naming the tree from its root has nothing before it for `*/` to consume.
 func (t *tree) matchPath(ref string) []string {
 	if !strings.ContainsAny(ref, `*?[\`) {
 		return t.suffixes[ref]
 	}
 	var matches []string
 	for _, entry := range t.entries {
-		if entry.isRegular() && shell.Fnmatch("*/"+ref, entry.path) {
+		if !entry.isRegular() {
+			continue
+		}
+		if shell.Fnmatch("*/"+ref, entry.path) || shell.Fnmatch(ref, entry.path) {
 			matches = append(matches, entry.path)
 		}
 	}

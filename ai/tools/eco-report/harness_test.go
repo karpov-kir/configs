@@ -18,12 +18,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	ecoreport "kk-flavor/tools/eco-report"
+	treefingerprint "kk-flavor/tools/tree-fingerprint"
 )
 
 // The installed skill this suite copies its template and todo-gate.sh from, relative to this package.
@@ -37,6 +40,9 @@ const flavorSource = "../../kk-flavor"
 
 // One case's tree.
 type fixture struct {
+	// Set by countFingerprints, and nil everywhere else so the tool uses its own recipe.
+	fingerprint func(root string) (string, error)
+
 	t    *testing.T
 	base string // scratch the case may write outside the repo into
 	repo string // the fixture repository, and the directory every run acts from
@@ -53,6 +59,109 @@ type fixture struct {
 
 	out    string // the last run's stdout and stderr, merged, with trailing newlines stripped
 	status int
+}
+
+// The one repository every fixture is a copy of, built with real git on first use and verified there.
+//
+// Guarded by sync.Once and NOT by a plain nil check: `go test` runs top-level cases in one goroutine,
+// but a case that calls t.Parallel() would race a bare initialisation, and a half-built seed copied
+// into a fixture is a green case over a repository that does not exist.
+var (
+	seedOnce sync.Once
+	seedPath string
+	seedErr  error
+)
+
+func seedRepoOnce(t *testing.T) string {
+	t.Helper()
+	seedOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "eco-report-seed")
+		if err != nil {
+			seedErr = err
+			return
+		}
+		seedPath = dir + "/r"
+		if err := os.MkdirAll(seedPath, 0o755); err != nil {
+			seedErr = err
+			return
+		}
+		run := func(args ...string) error {
+			cmd := exec.Command("git", append([]string{"-C", seedPath}, args...)...)
+			return cmd.Run()
+		}
+		for _, args := range [][]string{
+			{"init", "-q"},
+			{"config", "user.email", "t@t"},
+			{"config", "user.name", "t"},
+			{"config", "commit.gpgsign", "false"},
+		} {
+			if seedErr = run(args...); seedErr != nil {
+				return
+			}
+		}
+		if seedErr = os.WriteFile(seedPath+"/tracked.txt", []byte("base\n"), 0o644); seedErr != nil {
+			return
+		}
+		if seedErr = run("add", "tracked.txt"); seedErr != nil {
+			return
+		}
+		if seedErr = run("commit", "-qm", "base"); seedErr != nil {
+			return
+		}
+		// The two guards the per-fixture form used to run, kept here where they cost once. Compared
+		// physically: on macOS a temp dir sits under /var, a symlink to /private/var, and git answers
+		// with the resolved path, so a literal comparison would fail and look like the very thing it
+		// exists to catch.
+		out, err := exec.Command("git", "-C", seedPath, "rev-parse", "--show-toplevel").Output()
+		if err != nil {
+			seedErr = err
+			return
+		}
+		resolved := strings.TrimRight(string(out), "\n")
+		physical, err := filepath.EvalSymlinks(seedPath)
+		if err != nil || resolved != physical {
+			seedErr = fmt.Errorf("%s resolves to %q, not itself", seedPath, resolved)
+			return
+		}
+		// `git add -A` needs a HEAD to compare against, so a seed whose commit never landed would send
+		// every case down the unfingerprintable-tree path.
+		seedErr = run("diff", "--quiet", "HEAD", "--", "tracked.txt")
+	})
+	if seedErr != nil {
+		t.Fatalf("could not build the seed repository: %v — stopping, since every fixture is a copy of it", seedErr)
+	}
+	return seedPath
+}
+
+// A faithful copy, symlinks included: git's own files hold no symlink today, but a copy that silently
+// turned one into its target would be a fixture differing from the seed in a way nothing asserts.
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		switch {
+		case info.IsDir():
+			return os.MkdirAll(target, info.Mode().Perm()|0o700)
+		case info.Mode()&os.ModeSymlink != 0:
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, target)
+		default:
+			body, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(target, body, info.Mode().Perm())
+		}
+	})
 }
 
 func newRepo(t *testing.T) *fixture {
@@ -77,23 +186,23 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	f.mkdirAll(f.repo)
 	f.newFlavorHome()
 	f.newSkillCopy()
-	f.mustGit("init", "-q")
-	// Compared physically: on macOS the temp dir sits under /var, a symlink to /private/var, and git
-	// answers with the resolved path. A literal comparison would fail on every fixture, making this
-	// guard look like the very thing it exists to catch.
-	resolved, _ := f.git("rev-parse", "--show-toplevel")
-	physical, err := filepath.EvalSymlinks(f.repo)
-	if err != nil || resolved != physical {
-		t.Fatalf("%s resolves to %q, not itself — stopping before any destructive case runs", f.repo, resolved)
+	// COPIED from one seed rather than built with git. This ran 94 times across the package at five
+	// git processes each, and on a machine whose security agent inspects every exec that is the suite's
+	// runtime rather than an incidental cost.
+	//
+	// The guards the built form carried are not dropped, they are moved: seedRepoOnce runs them ONCE
+	// against the seed, with real git, and what is checked here is that this copy is a faithful one.
+	// That is sound because every property the seed was verified for — it resolves to itself, it has a
+	// HEAD, tracked.txt is committed — is a property of its bytes, and a faithful copy has those bytes.
+	if err := copyTree(seedRepoOnce(t), f.repo); err != nil {
+		t.Fatalf("could not copy the seed repository into %s: %v — stopping before any destructive case runs", f.repo, err)
 	}
-	// Checked by its effect, not just by exit status: `git add -A` needs a HEAD to compare against, so
-	// a fixture whose commit never landed sends every case below down the unfingerprintable-tree path
-	// instead of the one it meant to test.
-	f.write(f.repo+"/tracked.txt", "base\n")
-	f.mustGit("add", "tracked.txt")
-	f.commit("base")
-	if _, status := f.git("diff", "--quiet", "HEAD", "--", "tracked.txt"); status != 0 {
-		t.Fatalf("could not commit the fixture in %s — stopping before any destructive case runs", f.repo)
+	// Asserted, not assumed. A copy that silently lost `.git` or the tracked file would send every case
+	// below down the unfingerprintable-tree path instead of the one it meant to test, and pass.
+	for _, needed := range []string{"/.git/HEAD", "/tracked.txt"} {
+		if _, err := os.Stat(f.repo + needed); err != nil {
+			t.Fatalf("the copied fixture in %s has no %s — stopping before any destructive case runs", f.repo, needed)
+		}
 	}
 	return f
 }
@@ -151,9 +260,10 @@ func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
 		Home: f.home,
 		// Empty for almost every case, which means "no override file", since the fixture HOME holds no
 		// .config. A case that wants one sets f.configHome and never touches the developer's own.
-		ConfigHome: f.configHome,
-		Out:        out,
-		Err:        errOut,
+		ConfigHome:  f.configHome,
+		Out:         out,
+		Err:         errOut,
+		Fingerprint: f.fingerprint,
 	}.Exec()
 }
 
@@ -435,17 +545,14 @@ func (f *fixture) indexState() string {
 //
 // It wraps the script in the HOME the fixture already had rather than naming a source of its own, so
 // there is one answer in this suite to where that script comes from.
-func (f *fixture) newCountingFingerprintHome() string {
+func (f *fixture) countFingerprints() *int {
 	f.t.Helper()
-	wrapped := f.fingerprintScriptIn(f.home)
-	home := f.base + "/counting-home"
-	log := home + "/fingerprints.log"
-	f.mkdirAll(home + "/.kk-flavor/scripts")
-	shim := f.fingerprintScriptIn(home)
-	f.write(shim, "#!/bin/sh\nprintf '%s\\n' \"$*\" >>\""+log+"\"\nexec \""+wrapped+"\" \"$@\"\n")
-	f.chmod(shim, 0o755)
-	f.home = home
-	return log
+	calls := 0
+	f.fingerprint = func(root string) (string, error) {
+		calls++
+		return treefingerprint.Fingerprint(root)
+	}
+	return &calls
 }
 
 func (f *fixture) nonEmptyLinesIn(path string) int {

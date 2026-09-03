@@ -38,6 +38,37 @@ func TestEveryWorkflowGateRunsTheGoSuiteWithItsFlagsPinned(t *testing.T) {
 	}
 }
 
+// ai/gate.sh is the third runner of that suite and the one a human actually watches, so the flag it
+// most needs is the one nothing was checking. It cannot carry `goSuiteRun` verbatim — it selects
+// packages rather than running `./...`, and forces some with `-count=1` because the Go cache cannot see
+// the fixtures' external inputs — so what is held here is the part that must not vary: no invocation
+// of `go test` may go out without a timeout. Dropped, the eco-report package overruns Go's 10m default
+// on a loaded machine and prints a goroutine dump, which reads as a deadlock rather than a slow pass.
+func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
+	const gate = "../../ai/gate.sh"
+	body, err := os.ReadFile(gate)
+	if err != nil {
+		t.Fatalf("reading %s: %v", gate, err)
+	}
+	var found int
+	for _, line := range strings.Split(string(body), "\n") {
+		trimmed := strings.TrimSpace(line)
+		// The invocations only, never the prose about them: a comment naming `go test` is not a run.
+		if strings.HasPrefix(trimmed, "#") || !strings.Contains(trimmed, "go test ") {
+			continue
+		}
+		found++
+		if !strings.Contains(trimmed, "-timeout") {
+			t.Errorf("%s runs the Go suite with no -timeout: %s", gate, trimmed)
+		}
+	}
+	// Zero invocations means this case is holding nothing to account — the runner was renamed, or the
+	// suite moved, and either way the assertion above passed over nothing.
+	if found == 0 {
+		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", gate)
+	}
+}
+
 func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
 	gates := gateSteps(t)
 

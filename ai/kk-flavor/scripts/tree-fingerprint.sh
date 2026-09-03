@@ -3,84 +3,73 @@
 # ledger can name the tree it was written against (`~/.kk-flavor/standards/skill-protocol.md` →
 # **Queue**).
 #
-# Usage: tree-fingerprint.sh [<repo path>]. Prints the tree hash, or exits 2 with a reason.
+# usage: tree-fingerprint.sh [<repo path>]. Prints the tree hash, or exits 2 with a reason.
 #
-# Both git calls below need GIT_INDEX_FILE set. Drop it from the `add` and this stages the caller's whole
-# tree against their real index, no prompt first; drop it from `write-tree` and the hash follows that
-# index instead of the tree.
+# There is no exit 1: a fingerprint either is the tree's hash or it is nothing, and a caller that read
+# a refusal as a hash would write a ledger head no later run can match.
 #
-# A change here needs a case in `~/.kk-flavor/scripts/tree-fingerprint-test.sh`.
-set -u
+# The recipe is Go, in `ai/tools/tree-fingerprint/`, and the Go callers import it rather than coming
+# through here — `eco-report` ran this about 110 times a suite, and each run cost a bash and an mktemp
+# on top of the git calls that do the work.
+#
+# Two properties that recipe holds, and which a second copy of it would lose: untracked content goes to
+# a THROWAWAY object store, because `add -A` would otherwise leave the caller's working files
+# recoverable from `.git/objects` for good; and the throwaway index is seeded from HEAD, because git
+# applies ignore rules only to paths the index does not hold, so an unseeded walk drops a tracked file
+# matching an ignore rule and a rewrite of it becomes invisible to every ledger.
+#
+# tested by: the Go suite beside the tool, `ai/tools/tree-fingerprint/fingerprint_test.go`, which drives
+# every case in one process; the shared stub region below by tool-stub-test.sh, and the resolver it
+# calls by resolve-test.sh.
 
-root=${1:-.}
+set -euo pipefail
 
-git -C "$root" rev-parse --show-toplevel >/dev/null 2>&1 || {
-  echo "error: not a git repository: $root" >&2
+tool="tree-fingerprint"
+
+# --- shared:tool-stub ---
+# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
+# sourced because sourcing a file is executing it, and these run from whatever repo the human is in.
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
 }
 
-# Private scratch for everything this run writes. The index goes here rather than in a bare `mktemp`
-# file because git recreates that file at 0644, and on a shared /tmp that hands every path in the tree
-# to any local user.
-scratch=$(mktemp -d) || {
-  echo "error: could not create a temporary directory" >&2
-  exit 2
-}
-trap 'rm -rf "$scratch"' EXIT
+# `CDPATH=` because `cd` echoes where it landed when the path is relative, which would put a second
+# line into this substitution and corrupt every path built from it. `pwd -P` resolves the symlink the
+# skill is mounted by, so the tools directory is found from this file's real location, not from cwd.
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
+  die "cannot resolve my own directory, so $tool could not be located"
 
-# `add -A` hashes every untracked, un-ignored file into the object store. No ref points at those blobs,
-# so nothing ever collects them: fingerprinting a tree would leave the caller's working files, a live
-# credential among them, recoverable from `.git/objects` for good. They go to a throwaway store instead.
-# Both git calls only write objects, so the real store needs no alternate and the hash is the same.
+# Two candidates, named, and NOT a walk upward. The stubs sit at exactly two depths — a skill's
+# `scripts/` is three below the tools directory, `kk-flavor/scripts/` is two — so both are written out
+# and nothing else is consulted.
 #
-# Git won't create GIT_OBJECT_DIRECTORY, and a missing one fails repository discovery itself ("fatal: not
-# a git repository"), so don't drop this mkdir.
-mkdir -p "$scratch/objects" || {
-  echo "error: could not create the throwaway object store" >&2
-  exit 2
-}
+# An unbounded walk was here and was a hole: where a checkout genuinely does not ship `ai/tools/`, it
+# climbed out of the checkout and ran the first `tools/resolve.sh` it met in any ancestor, exec'ing a
+# stranger's binary at exit 0 where the refusal below is the whole point. Bounding it by depth alone
+# does not close that — an ancestor can sit inside the bound. Naming the two real candidates does.
+resolver=""
+for candidate in "$here/../../tools/resolve.sh" "$here/../../../tools/resolve.sh"; do
+  if [ -e "$candidate" ]; then
+    resolver="$candidate"
+    break
+  fi
+done
+[ -n "$resolver" ] ||
+  die "no tools/resolve.sh at either depth above $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+[ -x "$resolver" ] ||
+  die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
-# Nothing creates the index path: git rejects an existing 0-byte file ("index file smaller than
-# expected"), so it must not be pre-made.
-#
-# git's stderr is captured because a caller may read the hash through `$(tree-fingerprint.sh 2>&1)`, and
-# inherited stderr would put git's warnings and hints on that same channel. A warning that didn't stop
-# the walk doesn't change the answer, so the success path drops it.
-git_stderr="$scratch/git-stderr"
+# The resolver names its own failures on stderr, so nothing is re-reported here. Its status is NOT
+# passed through, and the 2 below is deliberate rather than a copy of it: every way a resolver can fail
+# means the tool did not run, which is 2 in this repo's vocabulary, and 3 — ran and refuses a result —
+# must never reach a caller for a binary that never started. `ai/tools/resolve.sh` exits 2 for all of
+# them today, so this collapses nothing now; it is what keeps the guarantee if it ever grows a code.
+binary="$("$resolver" "$tool")" || exit 2
+[ -n "$binary" ] && [ -x "$binary" ] ||
+  die "the resolver named no runnable binary for $tool, so it did NOT run"
 
-# This seed is not an optimisation. Git applies ignore rules only to paths the index does not already
-# hold, so an index built from nothing treats every tracked file as untracked — and a tracked file
-# matching an ignore rule is then dropped from the walk entirely. Such a file could be rewritten
-# between two runs with the fingerprint unmoved, which is a stale ledger passing as a valid resume
-# point: the skill reads the head as matching, resumes, and skips every file it believes already has
-# a verdict — the failure `~/.kk-flavor/standards/skill-protocol.md` → **Queue** uses this script to
-# prevent.
-#
-# Seeded from HEAD rather than from the caller's index, which this script must never read or write.
-# No commit means nothing is tracked and there is nothing to seed, so an unborn HEAD is not a failure;
-# a HEAD that resolves and still cannot be read is, because the walk would then silently miss
-# everything committed. `read-tree` writes only the index, so it takes no throwaway object store —
-# and it needs the real one, which is where HEAD's trees live.
-if git -C "$root" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
-  GIT_INDEX_FILE="$scratch/index" git -C "$root" read-tree HEAD 2>"$git_stderr" || {
-    [ ! -s "$git_stderr" ] || cat "$git_stderr" >&2
-    echo "error: could not read HEAD into the throwaway index for $root" >&2
-    exit 2
-  }
-fi
-
-tree=$(
-  GIT_INDEX_FILE="$scratch/index" GIT_OBJECT_DIRECTORY="$scratch/objects" \
-    git -C "$root" add -A 2>"$git_stderr" &&
-    GIT_INDEX_FILE="$scratch/index" GIT_OBJECT_DIRECTORY="$scratch/objects" \
-      git -C "$root" write-tree 2>>"$git_stderr"
-)
-status=$?
-
-[ "$status" = 0 ] && [ -n "$tree" ] || {
-  [ ! -s "$git_stderr" ] || cat "$git_stderr" >&2
-  echo "error: could not fingerprint the tree in $root" >&2
-  exit 2
-}
-
-printf '%s\n' "$tree"
+# `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
+# it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
+exec -a "$0" "$binary" "$@"
+# --- end shared:tool-stub ---

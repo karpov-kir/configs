@@ -111,9 +111,9 @@ func TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer(t *testing.T) {
 	f.runReport("list")
 	f.record("fixture: three stamped ships, each one reaching the fingerprint",
 		countLinesEndingWith(f.out, "\tready") == 3, "")
-	log := f.newCountingFingerprintHome()
+	calls := f.countFingerprints()
 	f.runReport("list")
-	walks := f.nonEmptyLinesIn(log)
+	walks := *calls
 	f.record("list fingerprints the tree once for every ship it lists", walks == 1,
 		"fingerprint calls: "+strconv.Itoa(walks)+" (wanted 1)")
 

@@ -435,12 +435,19 @@ run_gofmt() {
 # module that the fixtures copy in, so those packages are forced with -count=1 whenever one moved.
 run_gotest() {
   local groups="" status=0 module rest dir
+  # Every `go test` below carries it. `go test`'s default is 10 minutes, and the eco-report package
+  # alone runs past that on a loaded machine — an overrun prints a goroutine dump, which reads as a
+  # deadlock in os/exec rather than as a slow pass, and has twice been reported here as a red gate that
+  # was not one. Both workflows already pass it (`.github/workflows/gates.yml`, `release-tools.yml`);
+  # until now the local gate was the only runner without it, which is the wrong way round for the
+  # runner a human watches.
+  local timeout=30m
   changed_since_green "$ext_flavor" && groups="$groups eco-report"
   changed_since_green "$ext_qualify" && groups="$groups eco-report"
   changed_since_green "$ext_reduce" && groups="$groups eco-stats"
   changed_since_green "$ext_workflows" && groups="$groups ."
   if [ -z "$groups" ]; then
-    (cd ai/tools && go test ./...)
+    (cd ai/tools && go test -timeout "$timeout" ./...)
     return $?
   fi
   module=$(cd ai/tools && go list -m) || return 1
@@ -453,9 +460,9 @@ run_gotest() {
   rest=$(comm -23 "$scratch/allpkgs" "$scratch/forced" | tr '\n' ' ')
   echo "forcing $(grep -c '' <"$scratch/forced") package(s) with -count=1: an input outside the module moved, and the Go cache cannot see those" >"$scratch/note"
   if [ -n "$(printf '%s' "$rest" | tr -d ' ')" ]; then
-    (cd ai/tools && go test $rest) || status=1
+    (cd ai/tools && go test -timeout "$timeout" $rest) || status=1
   fi
-  (cd ai/tools && go test -count=1 $(tr '\n' ' ' <"$scratch/forced")) || status=1
+  (cd ai/tools && go test -timeout "$timeout" -count=1 $(tr '\n' ' ' <"$scratch/forced")) || status=1
   return "$status"
 }
 

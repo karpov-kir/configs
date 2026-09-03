@@ -117,6 +117,9 @@ func (r *run) cmdPromote() {
 	moved := r.idsdDir
 	r.movePromotedScratch(target)
 
+	// The index moves here, so the memoized `ls-files .idsd` answer goes with it: it is what decides
+	// committed from throwaway, and `discard` reads that before deleting.
+	r.stagedIndex()
 	if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
 	}

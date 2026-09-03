@@ -379,6 +379,11 @@ func newSpellingTree(t *testing.T, base string) {
 	write(root+"/kk-flavor/standards/deep.md", "# Deep\n\n## A Real Section\n")
 	write(root+"/skills/kk-one/SKILL.md",
 		"---\nname: kk-one\ndescription: cites a file only the index can reach\n---\n\nSee deep.md → "+citedSection+".\n")
+	// A path ref naming the tree from its ROOT, which only the whole-path index can resolve. Spelled
+	// `r/...`, it is the entire walked path when the root is named `r` with nothing before it, so `*/`
+	// has no leading component to consume. Every other ref in this fixture resolves some other way.
+	write(root+"/kk-flavor/standards/rooted.md",
+		"# Rooted\n\nThe router is `r/kk-flavor/inject.md`.\n")
 	write(root+"/local.txt", "scratch\n")
 	write(base+"/.gitignore", "r/local.txt\n")
 
@@ -393,6 +398,32 @@ func newSpellingTree(t *testing.T, base string) {
 
 // Both runs over one spelling, compared as sets of lines with the skip line removed — the one line the
 // flag is allowed to add.
+// The findings are a fact about the tree, so every spelling of one root must produce the same set.
+// They did not: a ref naming the tree from its root resolved through `./r` and dangled through `r`,
+// because the suffix index held only the tails after each `/` and `*/` had nothing to consume; and a
+// trailing slash doubled the separator in every walked path, so `r/` matched nothing that `r` did.
+// Fifteen false findings in this repository came from the two, and `check.sh ai` exited 1 while
+// `check.sh ./ai` exited 0 over the same commit.
+func TestTheFindingsAreTheSameHoweverTheRootIsNamed(t *testing.T) {
+	base := t.TempDir()
+	newSpellingTree(t, base)
+	t.Chdir(base)
+
+	want := runLines(t, "./r")
+	// A control on the instrument: a fixture reporting nothing would make every comparison below hold
+	// no matter what the checker did with the spelling.
+	if len(want) == 0 {
+		t.Fatal("the fixture produced no output at all, so comparing spellings checks nothing")
+	}
+	for _, spelling := range []string{"r", "r/", "./r/", base + "/r", base + "/r/"} {
+		got := runLines(t, spelling)
+		if !slices.Equal(want, got) {
+			t.Errorf("root spelled %q reports a different tree from \"./r\"\nwant:\n%s\ngot:\n%s",
+				spelling, indent(strings.Join(want, "\n")), indent(strings.Join(got, "\n")))
+		}
+	}
+}
+
 func assertGatedMatchesBare(t *testing.T, root string) {
 	t.Helper()
 	bare := runLines(t, root)
