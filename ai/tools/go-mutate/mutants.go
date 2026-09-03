@@ -183,6 +183,14 @@ var mutants = []mutant{
 	{"imports: the withheld count never says how many", "../eco-root/imports.go", "./eco-check/", "TestUncountedNamesAreCapped", "if len(uncounted) > uncountedNamedCap {", "if len(uncounted) > 100000 {"},
 	{"imports: the uncounted list not capped in bytes", "../eco-root/imports.go", "./eco-check/", "TestUncountedNamesAreCapped", "shell.CutBytesMarked(joined.String(), 200)", "joined.String()"},
 	{"imports: one uncounted name not capped in bytes", "../eco-root/imports.go", "./eco-check/", "TestUncountedNamesAreCapped", "shell.CutBytesMarked(shell.Oneline(name), 60)", "shell.Oneline(name)"},
+	// The two trims that make DirName dirname(1) rather than a split on the last slash. Separate
+	// mutants, because they answer different inputs. The first puts back the divergence where DirName
+	// split a trailing slash and BaseName trimmed it. The second gives `a//b` the parent `a/` instead
+	// of `a`. The first anchor carries the signature above it, or it also matches BaseName's own trim.
+	{"path: DirName splits a trailing slash instead of trimming it", "../shell/path.go", "./shell/", "TestDirNameAndBaseNameAreDirnameAndBasename", `func DirName(path string) string {
+	trimmed := strings.TrimRight(path, "/")`, `func DirName(path string) string {
+	trimmed := path`},
+	{"path: DirName leaves a repeated slash on the parent", "../shell/path.go", "./shell/", "TestDirNameAndBaseNameAreDirnameAndBasename", `if parent := strings.TrimRight(trimmed[:i], "/"); parent != "" {`, `if parent := trimmed[:i]; parent != "" {`},
 	// The marker itself, now that its contract has a case of its own. A constant, so the mutation is its
 	// value: an ellipsis character carries the bytes Oneline strips, which is the announcement putting
 	// back what the sanitiser removed.
@@ -766,7 +774,10 @@ var mutants = []mutant{
 	// followed it. One mutant still, not one per consumer: it is one guard, and ecocheck's own case for
 	// it reddens on the same edit.
 	{"root: permission denied reported as absence", "../eco-root/contained.go", "./eco-stats/", "TestAReadAlwaysTargetOutOfReachIsNotReportedMissing", "if errors.Is(err, fs.ErrNotExist) {", "if err != nil || errors.Is(err, fs.ErrNotExist) {"},
-	{"stats: a self name with no directory resolved against the cwd", "../eco-stats/ledger.go", "./eco-stats/", "TestASelfNameWithNoDirectoryAppendsNothing", `if !strings.Contains(self, "/") {`, `if !strings.Contains(self, "/") && false {`},
+	// One guard with two limbs, and dropping either resolves a whole shape of self name against the
+	// working directory again. So one mutant each, not one for the guard.
+	{"stats: a self name off PATH resolved against the cwd", "../eco-stats/ledger.go", "./eco-stats/", "TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing", `if !strings.Contains(self, "/") || strings.HasSuffix(self, "/") {`, `if strings.HasSuffix(self, "/") {`},
+	{"stats: a self name naming a directory resolved against the cwd", "../eco-stats/ledger.go", "./eco-stats/", "TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing", `if !strings.Contains(self, "/") || strings.HasSuffix(self, "/") {`, `if !strings.Contains(self, "/") {`},
 	{"report: the open-item scan run without being checked for", "../eco-report/seams.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "if !isExecutable(r.todoGate) {", "if !isExecutable(r.todoGate) && false {"},
 	// Two reads whose failure used to arrive at a deletion wearing the shape of an answer — the rule
 	// assertRepoModeReadable states, applied to the other two reads `discard` turns on.
