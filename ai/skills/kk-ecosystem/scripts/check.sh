@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Ecosystem wiring check — the mechanical half of kk-ecosystem: every reference an agent could
-# follow resolves to something that exists, and every script still parses.
-#   usage: check.sh [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
+# Ecosystem wiring check, the mechanical half of kk-ecosystem. It checks that every reference an
+# agent could follow resolves to something that exists, and that every script still parses.
+#   usage: check.sh [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
 # Prints one line per finding, plus two always-loaded budgets: the router's files, and every skill's
-# `description:`. Exits 1 with findings, 0 when clean, and 2 when it could not run at all: no
-# resolvable root, or the check never started. A check that did not run is not a clean one.
+# `description:`. Exits 1 with findings, 0 when clean, and 2 when it could not run at all. A check
+# that did not run is not a clean one.
 #
-# The scans are Go, in `ai/tools/eco-check/`; this reaches that binary and nothing else. Run both from
-# `ai/tools` after a change there: `go test -count=1 -timeout 30m ./...`, then `./bin/go-mutate`.
-# Keep the timeout: the eco-report package alone runs past the 10m default on a loaded machine, and
-# overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
+# --gate drops every gitignored path from the walk, so two checkouts of one commit cannot answer
+# differently. The filter is on ignored and never on untracked, so a skill just written and not yet
+# staged is still judged.
+#
+# The scans are Go, in `ai/tools/eco-check/`. This file reaches that binary and nothing else. After a
+# change there run `go test -count=1 -timeout 30m ./...` and then `./bin/go-mutate`, both from
+# `ai/tools`. Keep the timeout: the eco-report package alone runs past the 10m default on a loaded
+# machine, and an overrun dumps every goroutine, which reads as a hang.
 #
 # tested by: tool-stub-test.sh, and the resolver it calls by resolve-test.sh
 

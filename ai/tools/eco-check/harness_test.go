@@ -300,8 +300,15 @@ func (f *fixture) isolate() {
 
 func (f *fixture) check() string {
 	f.t.Helper()
+	return f.checkWith(f.root)
+}
+
+// The same run under whatever arguments a case needs — the gate cases pass --gate beside the root, and
+// every other caller passes the root alone.
+func (f *fixture) checkWith(args ...string) string {
+	f.t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run(f.root, &output, &output); status == 2 {
+	if status := ecocheck.Run(args, &output, &output); status == 2 {
 		f.t.Fatalf("Run exited 2 — nothing was checked, so this case cannot be trusted\n%s", indent(output.String()))
 	}
 	return output.String()

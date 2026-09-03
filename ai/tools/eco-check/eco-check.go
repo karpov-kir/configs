@@ -40,6 +40,10 @@ type checker struct {
 	findings []string
 	trees    map[string]*tree
 
+	// The paths --gate takes out of every walk, or nil with the flag off. gate.go holds what the flag
+	// answers and why the default is off.
+	gate *gateFilter
+
 	// Which file holds each heading in the tree, built on the first dangling citation and never for
 	// a clean tree. It names the one dangling variant the cited file's own contents cannot: the
 	// section is real and the file moved.
@@ -67,20 +71,30 @@ type checker struct {
 	bashBinaries func() []string
 }
 
-// Run checks the tree under root and writes the report to out. An empty root means the two
-// candidates ecoroot tries, in order. It returns the process exit code: 0 clean, 1 with
-// findings, 2 when it could not run — as a whole, or in any one scan. A check that did not run is not
-// a clean one, which is why the last is not folded into either of the others.
-func Run(root string, out, errOut io.Writer) int {
-	c, ok := newChecker(root)
+// Run checks the tree under args and writes the report to out. The arguments are an optional root and
+// an optional --gate, in either order: an empty root means the two candidates ecoroot tries, in order,
+// and --gate narrows the walk to what a commit can carry (gate.go). It returns the process exit code:
+// 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan. A check that did
+// not run is not a clean one, which is why the last is not folded into either of the others.
+func Run(args []string, out, errOut io.Writer) int {
+	root, isGate, ok := parseArgs(args)
 	if !ok {
+		return refuseToRun(errOut, "usage: check.sh ["+gateFlag+"] [<root>]")
+	}
+	c, found := newChecker(root)
+	if !found {
 		named := root
 		if named == "" {
 			named = ". and ./ai"
 		}
-		fmt.Fprintf(errOut, "check.sh: no root holding both kk-flavor/ and skills/ (tried '%s')\n", named)
-		fmt.Fprintln(errOut, "check.sh: exit 2 — nothing was checked. Fix the invocation; do not read this as clean.")
-		return 2
+		return refuseToRun(errOut, fmt.Sprintf("no root holding both kk-flavor/ and skills/ (tried '%s')", named))
+	}
+	// Before the first scan, so a run that could not ask which files a commit carries reports nothing
+	// rather than a page of findings over the unfiltered tree it was told not to judge.
+	if isGate {
+		if err := c.enableGate(); err != nil {
+			return refuseToRun(errOut, err.Error())
+		}
 	}
 
 	c.scanMounts()
@@ -98,9 +112,40 @@ func Run(root string, out, errOut io.Writer) int {
 	c.scanTestPositions()
 	c.scanSharedRegions()
 
+	c.reportGate(out)
 	c.reportBudget(out)
 	c.reportDescriptionCensus(out)
 	return c.exitCode(out, errOut)
+}
+
+// The root and the flag, in either order. Only the exact flag is a flag and everything else is a path,
+// because a root may legitimately be spelled `-r` and this tool opens the paths it is handed rather
+// than parsing them — TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption is that rule.
+//
+// So a mistyped flag lands as the root and reports that no checkout is there, which is loud and never
+// a run that quietly went unfiltered. A second path is refused instead of overwriting the first: two
+// roots is a caller that does not know which tree it asked about.
+func parseArgs(args []string) (root string, isGate, ok bool) {
+	hasRoot := false
+	for _, arg := range args {
+		switch {
+		case arg == gateFlag:
+			isGate = true
+		case hasRoot:
+			return "", false, false
+		default:
+			root, hasRoot = arg, true
+		}
+	}
+	return root, isGate, true
+}
+
+// The one wording for a run that never started: what did not happen, then the line that stops a caller
+// reading exit 2 as clean.
+func refuseToRun(errOut io.Writer, reason string) int {
+	fmt.Fprintf(errOut, "check.sh: %s\n", reason)
+	fmt.Fprintln(errOut, "check.sh: exit 2 — nothing was checked. Fix the invocation; do not read this as clean.")
+	return 2
 }
 
 // The code this check answers with. A scan that could not run outranks the finding count: 0 and 1 both
