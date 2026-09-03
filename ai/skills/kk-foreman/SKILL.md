@@ -1,7 +1,7 @@
 ---
 name: kk-foreman
 description: The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". The idsd-* intent workflow is its own door (idsd-ship).
-argument-hint: "what you want done, plus \"properly\" for a full-quality run (default: look at the working tree and recommend)"
+argument-hint: "what you want done, plus \"unattended\" to hand the run over (default: look at the working tree and recommend)"
 disable-model-invocation: true
 ---
 
@@ -11,16 +11,18 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 **That mount is the candidate set.** Not every skill you can invoke sits on it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Off that mount, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
 
-## The argument may set the quality bar
+## The argument may hand you the run
 
-**`properly`, or an argument saying the same, puts the run at full quality.** The bullets below, with **Nothing else loosens** after them, are the licence; it binds you and every stage you spawn:
+**`unattended`, or an argument saying the same, hands you the run** — nobody is at the keyboard to answer, so you decide and you act. The bullets below, with **Two things still stop you** and **Nothing else loosens** after them, are the licence; it binds you and every stage you spawn:
 
-- **Run what you recommend — the instruction is the yes.** Yours alone, not a stage's. It lifts the yes that the cost bullet under **Rules** requires. A decision that blocks under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** still blocks, and an act with no undo still waits for the human (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**).
+- **Run what you recommend — the instruction is the yes.** Yours alone, not a stage's. It lifts the yes that the cost bullet under **Rules** requires, and `~/.kk-flavor/standards/git.md`'s approval before a commit, a push or opening a PR. **That is what it lifts, and it is no ceiling on what a stage may write** — a stage's own skill authorises its own acts, and this licence neither widens nor narrows them.
 - **Take the bigger change where it is the better one.** The instruction lifts `~/.kk-flavor/standards/core-principles.md` → **3. Surgical changes** for this run, by the mechanism in `~/.kk-flavor/standards/skill-protocol.md` → **Caller**.
 - **Leave it enforced, not remembered** — a script, a test, a gate outlasts the answer that holds only while someone recalls it.
 - **Finish every part that is not blocked, then name each one that is.** A blocker is a line in the reply, never the reason the rest went unaddressed, and nothing is dropped for being tedious.
 
-**Nothing else loosens** — not the rest of the flavor, and nothing in `kk-foreman`'s own **Route** or **Rules** beyond the cost bullet lifted above.
+**Two things still stop you.** A decision that blocks under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** still blocks. And **an act with no undo still waits for the human** (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**) — **merging is on that side of the line**, however close it sits to the acts above.
+
+**Nothing else loosens** — nothing in the rest of the flavor, and nothing in `kk-foreman`'s own **Route** or **Rules**, beyond the two the first bullet lifts.
 
 **The slot is the emphasis one** in `~/.kk-flavor/templates/spawn-prompt.md`, and what goes in it is the licence above rather than the argument that triggered it. `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** owns the rest.
 
@@ -35,8 +37,8 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | The work | The answer |
 |---|---|
 | Code or tooling changed | `kk-qualify`, alone — it owns the stage order and what each stage's trigger is. Queuing those stages here instead runs the pipeline without its round. |
-| A PR to review | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. |
-| Changes were requested on a PR | Make the edits, or name `idsd-ship` if the change is intent-shaped, then run the code row over what you changed, before you push. **`kk-pr-review` answers nothing**: it is never how a comment gets addressed, and exactly how the edits get re-reviewed once they are in. |
+| A PR to review | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. **A PR of the human's own too**, where the code row would leave the fixes uncommitted and the PR stale. |
+| Changes were requested on a PR | `kk-pr-review`, alone, and **pass its `fix` token** — on someone else's PR, without it the skill only drafts a review. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
 | Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
 | Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-tighten` beside it runs them twice and out of order. |
@@ -70,6 +72,6 @@ Spawn each stage in the order **Route** resolved.
 
 ## Rules
 
-- **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes — which a full-quality run already carries.
+- **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes — which an `unattended` run already carries.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 - **Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires.** Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**

@@ -14,7 +14,7 @@ func (c *checker) scanSkillDirectories() {
 		if !entry.mode.IsDir() || shell.DirName(entry.path) != c.root.Skills() {
 			continue
 		}
-		if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {
+		if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {
 			c.add("skill dir without SKILL.md: " + shell.Oneline(entry.path))
 		}
 	}
@@ -47,7 +47,7 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 	skillTotal := 0
 	for _, name := range c.skillDirNames() {
 		file := shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
-		if !shell.IsRegularFile(file) {
+		if !c.holdsRegularFile(file) {
 			continue
 		}
 		skillTotal++

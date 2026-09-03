@@ -43,13 +43,26 @@ func (s *stats) report(out io.Writer) {
 	fmt.Fprintf(out, "scripts:      %6d words\n", s.scripts)
 	fmt.Fprintf(out, "ledger:       %6d words  (stats.md — a record, not instructions; step 1 reads it in full, so it costs context like the always-loaded tier)\n",
 		s.ledgerWords)
-	if s.outsideSkills != 0 {
-		fmt.Fprintf(out, "mounted outside:%4d words  (%d skill(s) this tree cannot shrink; bundled and plugin skills are unmeasurable)\n",
-			s.outsideWords, s.outsideSkills)
-	}
+	s.reportMountedOutside(out)
 	fmt.Fprintf(out, "always-loaded:%6d words  = %d router + %d descriptions across %d of %d skills%s%s\n",
 		s.alwaysLoaded(), s.alwaysLoadedWords, s.descriptionWords, s.routedSkills, s.skills, s.budgetNote(), s.refusalNote())
 	s.reportUnreadable(out)
+}
+
+// A run that skipped the scan and a tree with nothing mounted from outside printed the same nothing,
+// and a reader takes the absence for the second. Outside the install this is not a zero, it is no
+// measurement — budget.go → mountedOutside is where it stops and why. With that line printing, no line
+// at all means the scan ran and found none.
+func (s *stats) reportMountedOutside(out io.Writer) {
+	if !s.outsideMeasured {
+		fmt.Fprintf(out, "mounted outside:  not measured  (no scan ran here: this checkout is not the install, or its skills mount would not list)\n")
+		return
+	}
+	if s.outsideSkills == 0 {
+		return
+	}
+	fmt.Fprintf(out, "mounted outside:%4d words  (%d skill(s) this tree cannot shrink; bundled and plugin skills are unmeasurable)\n",
+		s.outsideWords, s.outsideSkills)
 }
 
 // A path that could not be read shortens whichever figures counted over it, and which ones those are

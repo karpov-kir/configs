@@ -38,6 +38,7 @@ func rank(line string) int {
 		{"skills not mounted", 1},
 		{"skill not mounted", 1},
 		{"skill mounted elsewhere", 1},
+		{"mount without a skill", 1},
 		{"budget file refused", 2},
 		{"script names a missing test", 2},
 		{"script names an ambiguous test", 2},

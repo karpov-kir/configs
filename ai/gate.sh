@@ -267,7 +267,16 @@ discover_units() {
   unit gofmt check "$go_tree" 'run_gofmt'
   unit vet check "$go_tree" 'cd ai/tools && go vet ./...'
   unit gotest check "$go_tree $ext_flavor $ext_qualify $ext_reduce $ext_workflows" 'run_gotest'
-  unit wiring check "ai/skills ai/kk-flavor ai/tools" 'ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh'
+  # --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
+  # check walks whatever sits on disk, gitignored files included, and two checkouts of one commit
+  # disagree: a scratch record nobody staged turned this red in the install while every worktree of
+  # the same commit was green.
+  #
+  # `.gitignore` is an input *because* of the flag. The rules decide which files the check judges, so
+  # editing them moves this unit's verdict — and a verdict that moves without its key is the stale
+  # green this whole script exists not to serve. ai/tools/.gitignore already rides the tools tree; the
+  # root one is its own entry.
+  unit wiring check "ai/skills ai/kk-flavor ai/tools .gitignore" 'ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate'
 
   # Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
   # added later is gated without anyone remembering to register it here.

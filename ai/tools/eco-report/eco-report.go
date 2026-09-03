@@ -47,13 +47,17 @@
 //	                 directory back where it came from
 //	discard          throwaway only: remove this ship's scratch (report, intent file, stage markers),
 //	                 and the whole scratch directory when nothing else remains. Another intent, or an
-//	                 authored charter/constitution/language/playbook, is "something" — those are the
+//	                 authored charter/language/playbook, is "something" — those are the
 //	                 human's, not this ship's scratch
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
 //	list             one line per open ship, `<intent><TAB><state>`, for routing with several in flight
 //	close [--force]  retire one landed ship's report and stage markers. Refuses while an open `- [ ]`
 //	                 stands, since nothing else keeps a copy
+//	record <append|bump|evict> <decisions|playbook> "<text>"
+//	                 the one way to write the two shared records, which every worktree of the clone
+//	                 shares. Serialised under flock, so two agents writing at once both land; a hand
+//	                 edit is what silently drops one of them. records.go says why it locks as it does
 //
 // Every subcommand that reads a report takes the intent as its LAST argument, optional while only one
 // report is open. Several open and none named is refused, never guessed: resolving to the wrong report
@@ -239,8 +243,10 @@ func (r *run) dispatch() {
 		r.cmdList()
 	case "close":
 		r.cmdClose(r.args[1:])
+	case "record":
+		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

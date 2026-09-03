@@ -25,15 +25,21 @@ func Join(dir, name string) string {
 // DirName and BaseName are dirname(1) and basename(1), for the same reason Join exists:
 // filepath.Dir cleans its result.
 func DirName(path string) string {
-	i := strings.LastIndexByte(path, '/')
-	switch {
-	case i < 0:
-		return "."
-	case i == 0:
+	trimmed := strings.TrimRight(path, "/")
+	if trimmed == "" {
+		if path == "" {
+			return "."
+		}
 		return "/"
-	default:
-		return path[:i]
 	}
+	i := strings.LastIndexByte(trimmed, '/')
+	if i < 0 {
+		return "."
+	}
+	if parent := strings.TrimRight(trimmed[:i], "/"); parent != "" {
+		return parent
+	}
+	return "/"
 }
 
 func BaseName(path string) string {

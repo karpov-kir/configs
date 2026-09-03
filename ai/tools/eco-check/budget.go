@@ -37,7 +37,7 @@ func (c *checker) reportBudget(out io.Writer) {
 func (c *checker) budgetFiles() []string {
 	var files []string
 	claudeMd := shell.Join(c.root.Named(), "CLAUDE.md")
-	if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {
+	if c.holdsSomething(claudeMd) {
 		if c.root.Contains(claudeMd) {
 			files = append(files, claudeMd)
 		} else {
@@ -65,6 +65,11 @@ func (c *checker) budgetFiles() []string {
 		// not.
 		case !c.underRoot(listed):
 			c.refuseBudgetFile("inject.md Read-always target " + doc)
+		// Under --gate a gitignored doc is not there as far as a commit is concerned, and this says what
+		// a fresh clone's run says. Ahead of absentOrOutOfReach, whose Lstat would find the file sitting
+		// right where the router points and report that nothing could answer for it.
+		case c.isSkippedByGate(listed):
+			c.reportAbsentBudgetDoc(doc)
 		case !shell.PathExists(listed) && !shell.IsSymlink(listed):
 			c.absentOrOutOfReach(doc, listed)
 		case !c.root.Contains(listed):
@@ -85,11 +90,17 @@ func (c *checker) budgetFiles() []string {
 func (c *checker) absentOrOutOfReach(doc, listed string) {
 	isAbsent, reason := ecoroot.AbsentOrOutOfReach(listed)
 	if isAbsent {
-		c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
-			shell.Oneline(doc) + " does not exist")
+		c.reportAbsentBudgetDoc(doc)
 		return
 	}
 	c.refuseBudgetFile("inject.md Read-always target " + doc + ": " + reason)
+}
+
+// One wording for a listed doc this tree does not hold, because two callers reach it and a reader
+// comparing a gated run against a bare one may not meet two spellings of one fact.
+func (c *checker) reportAbsentBudgetDoc(doc string) {
+	c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
+		shell.Oneline(doc) + " does not exist")
 }
 
 // The refused file's **name** is attacker-chosen and is printed, so the name and the number of these

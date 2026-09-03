@@ -14,17 +14,17 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
 3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have.
 
-**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran, refactor included, not just the round's. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
+**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included, not just the round's. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
-When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — its usage string carries the entry vocabulary. A stage that ran is never stamped skipped, or vice versa.
+When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — **its usage string is the entry vocabulary's only home**, and a copy in this file would drift from the tool that validates it. A stage that ran is never stamped skipped, or vice versa.
 
-**A skip's recorded reason follows *why* it was skipped, and a partial refactor loop *what ended the loop*. The usage string spells that vocabulary and is its only home** — a reason spelled here as well is one that drifts from the tool that validates it. **Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass.
+**Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass.
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
-**Report post-processing.** After stamping, when the report has items, apply `kk-humanize`'s lens **inline** over this pass's report file before presenting — the exception that `~/.kk-flavor/standards/skill-protocol.md` → **Caller** names. **The report is outward text**: a person reads it to decide, so `~/.kk-flavor/standards/human-writing.md` binds it and `kk-tighten`'s internal-prose lens does not. **Lossless, against `kk-humanize`'s lossy license**: every item and its stakes survive, and a `- [ ]` is never dropped or softened. (The report is check-ignored, so this never invalidates the stamp.)
+**Report post-processing.** After stamping, when the report has items, apply `kk-humanize`'s lens **inline** over this pass's report file before presenting — the exception that `~/.kk-flavor/standards/skill-protocol.md` → **Caller** names. **The report is outward text**, so `kk-tighten`'s internal-prose lens never runs over it. **Lossless, against `kk-humanize`'s lossy license**: every item and its stakes survive, and a `- [ ]` is never dropped or softened. (The report is check-ignored, so this never invalidates the stamp.)
 
 ## Report
 
@@ -46,6 +46,8 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 40 lines.**
 
+**Write it only through `report.sh record {append|bump|evict} decisions "<text>"`.** Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
+
 Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale. **Read it at pass start**: its standing observations are re-evaluated each pass.
 
 ### The residue
@@ -57,14 +59,13 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 - [ ] **<N> · <Falsified | Fork | Pending evidence> · <score>/10 —** <the action, one line>
   <the case: what it is, why it matters, the evidence>
-  **Recommend:** <the answer, and the branch it loses to>
+  **Recommend:** <the answer>
 ```
 
 **What earns an item, how it is scored, and the order it lands in are `~/.claude/skills/kk-qualify/SKILL.md` → **The residue**.** This file adds only where that residue is written:
 
-- **One group, `Decide`, holding `- [ ]` actions** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
-- **Score on the `report` lane.** What the threshold cuts gets no `- [ ]`, and no decision-log entry either — a question you still hold is barred from it by the rule **The decision log** already cites.
-- **The nested item block above is licensed** at `~/.kk-flavor/standards/writing.md` → **Density**.
+- **One group, `Decide`** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
+- **What the threshold cuts gets no `- [ ]`**, and no decision-log entry either — a question you still hold is barred from that log.
 - **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry <intent>` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass

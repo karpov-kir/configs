@@ -73,6 +73,33 @@ var mutants = []mutant{
 	{"refs: bare rule-ID scan reports the form it recommends", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
 	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `"syntax: "+shell.Oneline(line)`, `"syntax: "+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", "shell.Oneline(mountHave)", "mountHave"},
+	// The name each of the three mount messages leads with, one mutant per message. A skill directory
+	// name is the branch's own text, and the sanitiser on it is a separate call from the one on the
+	// path beside it — so a case exercising the path arm leaves the name arm free to be deleted.
+	{"mounts: an unmounted skill's own name left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", `shell.Join(skillsMount, shell.Oneline(name)) + " is missing`, `shell.Join(skillsMount, name) + " is missing`},
+	{"mounts: that name left unsanitised on the elsewhere arm", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", `shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(mountHave)`, `shell.Join(skillsMount, name) + " -> " + shell.Oneline(mountHave)`},
+	// The reverse half, which the loop over this tree's own skill directories cannot reach at all.
+	{"mounts: a mount that outlived its skill goes unreported", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "if shell.IsDir(mountPath) {", "if shell.IsDir(mountPath) || true {"},
+	// The other direction of that same guard: dropped, a skill renamed with its old mount still
+	// resolving to the new directory reads as a deletion.
+	{"mounts: a mount that still resolves reported as gone", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "if shell.IsDir(mountPath) {", "if shell.IsDir(mountPath) && false {"},
+	{"mounts: another checkout's mount reported as this tree's", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if mountedInto == "" || mountedInto != skillsHere {`, `if (mountedInto == "" || mountedInto != skillsHere) && false {`},
+	{"mounts: a skill this tree still has reported by both halves", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "if skillDirs[name] {", "if skillDirs[name] && false {"},
+	{"mounts: a mount without a skill left unsanitised", "mounts.go", "./eco-check/", "TestAMountWithoutASkillCarriesNoControlByte", "shell.Oneline(target)", "target"},
+	{"mounts: a mount's own name left unsanitised", "mounts.go", "./eco-check/", "TestAMountWithoutASkillCarriesNoControlByte", `shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(target)`, `shell.Join(skillsMount, name) + " -> " + shell.Oneline(target)`},
+	// A relative target, resolved the way mountTarget says it has to be. Both directions, because an
+	// absolute target must not move either.
+	// Appended to rather than replaced, per the note at the head of this list: `strings.HasPrefix` here
+	// is the package's last use of `strings`, so a bare `false` or `true` orphans the import and the
+	// mutant comes back broken instead of killed.
+	{"mounts: a relative target read against the working directory", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if !strings.HasPrefix(target, "/") {`, `if !strings.HasPrefix(target, "/") && false {`},
+	{"mounts: an absolute target rewritten as a relative one", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if !strings.HasPrefix(target, "/") {`, `if !strings.HasPrefix(target, "/") || true {`},
+	// The skip note, both directions: only the pair makes absence of that line readable as "the scan
+	// ran".
+	{"mounts: a skipped scan never says it was skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() || true {"},
+	{"mounts: a scan that ran reported as skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() && false {"},
+	// Its rank, which decides whether the finding is read at all under a flood.
+	{"report: a mount without a skill left at the default rank", "report.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "\t\t{\"mount without a skill\", 1},\n", ""},
 
 	// The delimited-citation half. Undelimited is how a section citation stops resolving in silence,
 	// so both directions are needed: the finding never firing, and it firing on the two forms the
@@ -86,7 +113,7 @@ var mutants = []mutant{
 
 	// The skill-directory scan. Each of the three defects makes a skill unreachable rather than
 	// merely mis-linked, and each has exactly one case behind it.
-	{"skills: a directory carrying no SKILL.md unreported", "skills.go", "./eco-check/", "TestSkillDirectory", `if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, "if false {"},
+	{"skills: a directory carrying no SKILL.md unreported", "skills.go", "./eco-check/", "TestSkillDirectory", `if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, "if false {"},
 	{"skills: a name/dir mismatch unreported", "skills.go", "./eco-check/", "TestSkillDirectory", "if declared != shell.BaseName(shell.DirName(file)) {", "if false {"},
 	{"skills: a SKILL.md with no description unreported", "skills.go", "./eco-check/", "TestSkillDirectory", `if shell.FrontmatterDescription(lines) == "" {`, "if false {"},
 
@@ -158,6 +185,14 @@ var mutants = []mutant{
 	{"imports: the withheld count never says how many", "../eco-root/imports.go", "./eco-check/", "TestUncountedNamesAreCapped", "if len(uncounted) > uncountedNamedCap {", "if len(uncounted) > 100000 {"},
 	{"imports: the uncounted list not capped in bytes", "../eco-root/imports.go", "./eco-check/", "TestUncountedNamesAreCapped", "shell.CutBytesMarked(joined.String(), 200)", "joined.String()"},
 	{"imports: one uncounted name not capped in bytes", "../eco-root/imports.go", "./eco-check/", "TestUncountedNamesAreCapped", "shell.CutBytesMarked(shell.Oneline(name), 60)", "shell.Oneline(name)"},
+	// The two trims that make DirName dirname(1) rather than a split on the last slash. Separate
+	// mutants, because they answer different inputs. The first puts back the divergence where DirName
+	// split a trailing slash and BaseName trimmed it. The second gives `a//b` the parent `a/` instead
+	// of `a`. The first anchor carries the signature above it, or it also matches BaseName's own trim.
+	{"path: DirName splits a trailing slash instead of trimming it", "../shell/path.go", "./shell/", "TestDirNameAndBaseNameAreDirnameAndBasename", `func DirName(path string) string {
+	trimmed := strings.TrimRight(path, "/")`, `func DirName(path string) string {
+	trimmed := path`},
+	{"path: DirName leaves a repeated slash on the parent", "../shell/path.go", "./shell/", "TestDirNameAndBaseNameAreDirnameAndBasename", `if parent := strings.TrimRight(trimmed[:i], "/"); parent != "" {`, `if parent := trimmed[:i]; parent != "" {`},
 	// The marker itself, now that its contract has a case of its own. A constant, so the mutation is its
 	// value: an ellipsis character carries the bytes Oneline strips, which is the announcement putting
 	// back what the sanitiser removed.
@@ -199,8 +234,18 @@ var mutants = []mutant{
 
 	// Where an unread path was. The mounted-outside scan reads out of the user's home, and both
 	// shortfall messages used to place every unread path under the root — sending a reader hunting for
-	// a file through a checkout it is not in. Two mutants, because the location is carried by two
-	// things: the read the scan uses, and the count that read feeds.
+	// a file through a checkout it is not in.
+	//
+	// ecostats' own skip note, both directions: only the pair makes absence of that line readable as
+	// "the scan ran and counted none". Its gate's mutant is `stats: mounted-outside gate removed`, below.
+	{"stats: a skipped mount scan reported as a measured zero", "../eco-stats/report.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "if !s.outsideMeasured {", "if !s.outsideMeasured && false {"},
+	{"stats: a measured figure reported as not measured", "../eco-stats/report.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "if !s.outsideMeasured {", "if !s.outsideMeasured || true {"},
+	// The two states the flag cannot tell apart on its own. A mount that will not list must not reach
+	// the silence that now means "ran and counted none", and a measured zero must not grow a row.
+	{"stats: an unlistable skills mount published as a measured zero", "../eco-stats/budget.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "if _, err := os.ReadDir(mount); err != nil && !errors.Is(err, fs.ErrNotExist) {", "if _, err := os.ReadDir(mount); err != nil && !errors.Is(err, fs.ErrNotExist) && false {"},
+	{"stats: a measured zero printed as a row", "../eco-stats/report.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "if s.outsideSkills == 0 {", "if s.outsideSkills == 0 && false {"},
+	// Two mutants for the location itself, because it is carried by two things: the read the scan uses,
+	// and the count that read feeds.
 	{"stats: an outside path reported as one under the root", "../eco-stats/budget.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "lines := s.readOutsideLines(file, errOut)", "lines := s.readTreeLines(file, errOut)"},
 	{"stats: the outside-path count never rises", "../eco-stats/measure.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "s.unreadableOutside += s.unreadable - before", "s.unreadableOutside += (s.unreadable - before) * 0"},
 
@@ -240,7 +285,9 @@ var mutants = []mutant{
 	{"stats: Read-always target left unsanitised", "../eco-stats/budget.go", "./eco-stats/", "TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw", "shell.Oneline(target), shell.Oneline(file))", "target, file)"},
 	{"stats: ledger not taken out of prose", "../eco-stats/measure.go", "./eco-stats/", "", "s.prose -= s.ledgerWords", "s.prose -= 0"},
 	{"stats: ledger figure unreported", "../eco-stats/report.go", "./eco-stats/", "", `fmt.Fprintf(out, "ledger:`, `fmt.Fprintf(io.Discard, "ledger:`},
-	{"stats: mounted-outside unreported", "../eco-stats/report.go", "./eco-stats/", "", `fmt.Fprintf(out, "mounted outside:`, `fmt.Fprintf(io.Discard, "mounted outside:`},
+	// Anchored through the format verb, because the row has a sibling: the line saying the figure was
+	// not measured at all opens with the same label, and an anchor matching both refuses the run.
+	{"stats: mounted-outside unreported", "../eco-stats/report.go", "./eco-stats/", "", `fmt.Fprintf(out, "mounted outside:%4d words`, `fmt.Fprintf(io.Discard, "mounted outside:%4d words`},
 	{"stats: mounted-outside gate removed", "../eco-stats/budget.go", "./eco-stats/", "", "if !s.root.IsInstalled() {", "if false {"},
 	// The same gate, in the other tool. A clone, a worktree or a CI runner mounts none of this tree, so
 	// every mount finding there restates that rather than saying anything about the tree under review.
@@ -287,12 +334,11 @@ var mutants = []mutant{
 	{"discard: the ship-exists guard never refuses", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "func (r *run) assertShipExists(slug string) {\n\tif shell.IsRegularFile(r.report) {", "func (r *run) assertShipExists(slug string) {\n\tif true {"},
 	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"discard: the review exception removed", "../eco-report/paths.go", "./eco-report/", "TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed", `if slug == "review" {`, "if false {"},
-	// The durable four are a table, and a table gets a row each: three of them kept .idsd/ standing
-	// with nothing observing that they did.
-	{"surviving: charter.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", `[]string{"charter.md", "constitution.md", "language.md", "playbook.md"}`, `[]string{"constitution.md", "language.md", "playbook.md"}`},
-	{"surviving: constitution.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constitution.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "language.md", "playbook.md"}`},
-	{"surviving: language.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constitution.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "constitution.md", "playbook.md"}`},
-	{"surviving: playbook.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constitution.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "constitution.md", "language.md"}`},
+	// The durable three are a table, and a table gets a row each: each one kept .idsd/ standing
+	// with nothing observing that it did.
+	{"surviving: charter.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", `[]string{"charter.md", "language.md", "playbook.md"}`, `[]string{"language.md", "playbook.md"}`},
+	{"surviving: language.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "playbook.md"}`},
+	{"surviving: playbook.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "language.md"}`},
 	{"surviving: a parallel ship's report no longer counted", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", "if left := len(r.reportNames()); left != 0 {", "if left := len(r.reportNames()); left < 0 {"},
 	{"surviving: another ship's intent file no longer counted", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if shell.PathExists(intents) || shell.PathExists(archive) {", "if false {"},
 	{"surviving: stray content counted as intents", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if left := countMarkdownFiles(intents, archive); left > 0 {", "if left := countMarkdownFiles(intents, archive); left >= 0 {"},
@@ -412,6 +458,30 @@ var mutants = []mutant{
 	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if status != 0 || tree == "" {`, "if false {"},
 	{"fingerprint: the walk repeated once per ship", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if r.cachedTree != "" {`, "if false {"},
 
+	// records.go — the two records every worktree of the clone shares. Every guard here stands between
+	// an agent's write and another agent's entries, and losing one leaves a well-formed file: no crash
+	// and no diff, so a mutant that survives here is a defect nothing reports.
+	{"records: a shared lock where the write needs an exclusive one", "../eco-report/records.go", "./eco-report/", "TestARecordWriteWaitsForTheLockRatherThanRacingIt", "syscall.LOCK_EX", "syscall.LOCK_SH"},
+	{"records: a restatement appended as a second entry", "../eco-report/records.go", "./eco-report/", "TestBumpRaisesTheCountAndRedatesWithoutAddingALine", "if entry.text == text {", "if false {"},
+	{"records: a multi-line entry written as one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if strings.ContainsAny(text, "\n\r") {`, "if false {"},
+	{"records: an ambiguous match resolved to the first entry", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "case 1:", "case 1, 2:"},
+	{"records: a symlinked record followed", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if shell.IsSymlink(path) {", "if shell.IsSymlink(path) && false {"},
+	{"records: the bound never reported", "../eco-report/records.go", "./eco-report/", "TestCrossingTheBoundIsReportedAndNothingIsDeleted", "if len(entries) <= recordBound {", "if true {"},
+	{"records: the eviction candidate chosen on count alone", "../eco-report/records.go", "./eco-report/", "TestCrossingTheBoundIsReportedAndNothingIsDeleted", "if entry.count < lowest.count || (entry.count == lowest.count && entry.date < lowest.date) {", "if entry.count < lowest.count {"},
+	{"records: an entry appended onto an unterminated last line", "../eco-report/records.go", "./eco-report/", "TestAMutationNeverLosesALineItDidNotTarget", "} else if !ended {", "} else if !ended && false {"},
+	{"records: a no-match refusal that never says the text is in the file", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if strings.Contains(line, text) {", "if strings.Contains(line, text) && false {"},
+	{"records: the not-an-entry hint fired for a line that is one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if _, isEntry := parseRecordEntry(i, line); isEntry {", "if _, isEntry := parseRecordEntry(i, line); isEntry && false {"},
+	{"records: an escape sequence stored verbatim and echoed back", "../eco-report/records.go", "./eco-report/", "TestAnEntryCannotDriveTheTerminalOrRunAwayInLength", "text = shell.Oneline(text)", "_ = shell.Oneline(text)"},
+	{"records: an entry of any length at all accepted", "../eco-report/records.go", "./eco-report/", "TestAnEntryCannotDriveTheTerminalOrRunAwayInLength", "if len(text) > entryBound {", "if false {"},
+	{"records: a bump creating the record it could not find", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", "flags := os.O_RDWR | syscall.O_NOFOLLOW", "flags := os.O_RDWR | syscall.O_NOFOLLOW | os.O_CREATE"},
+	{"records: a write into a scratch root git can reach", "../eco-report/records.go", "./eco-report/", "TestARecordIsNeverWrittenWhereGitCanReachIt", "r.assertScratchIsUnreachableByGit()", "_ = r.root"},
+	{"records: a rewrite that never trims what it shrank", "../eco-report/records.go", "./eco-report/", "TestAnEvictLeavesNoTailOfWhatItRemoved", "if err := handle.Truncate(int64(len(content))); err != nil {", "if err := error(nil); err != nil {"},
+	{"records: an unknown operation reaching the scratch directory", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", `if op != "append" && op != "bump" && op != "evict" {`, "if false {"},
+	{"records: an empty entry recorded as one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if strings.TrimSpace(text) == "" {`, "if false {"},
+	{"records: a record name outside the two this tool owns", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if kind == nil {", "if false {"},
+	{"records: a call with the wrong argument count reaching the switch", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if len(args) != 3 {", "if false {"},
+	{"records: a scratch directory anyone on the machine can read", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", "os.MkdirAll(r.idsdDir, 0o700)", "os.MkdirAll(r.idsdDir, 0o777)"},
+
 	// gate.go — the merge gate, the items a re-qualify must carry, and the routing token.
 	{"gate: a stale tree no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestTheHumanIndexIsNeverTouched", "if current != reviewed {\n\t\tif reviewed == \"\" {", "if false {\n\t\tif reviewed == \"\" {"},
 	{"gate: an absent stage record no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "case isUnstamped(stages):", "case isUnstamped(stages) && false:"},
@@ -521,7 +591,10 @@ var mutants = []mutant{
 	{"slug charset: a path separator let into the set", "../eco-report/shell.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `b == '.' || b == '_' || b == '-'`, `b == '.' || b == '_' || b == '-' || b == '/'`},
 	{"readable: -r asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", "syscall.Access(path, 0x4)", "syscall.Access(path, 0x0)"},
 	{"executable: -x asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "syscall.Access(path, 0x1)", "syscall.Access(path, 0x0)"},
-	{"records: the trailing newline dropped from every rewrite", "../eco-report/shell.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `out.WriteString("\n")`, `out.WriteString("")`},
+	// `join`, not `records`: that prefix now names the two shared record files. A label is a mutant's
+	// whole identity in the verdict column, so a prefix naming two subjects sends the reader of a
+	// survivor to the wrong file. This one is joinRecords', here in shell.go.
+	{"join: the trailing newline dropped from every rewrite", "../eco-report/shell.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `out.WriteString("\n")`, `out.WriteString("")`},
 	// The case puts an *empty* directory at init's staged path: os.Remove takes one happily where
 	// `rm -f` refuses, and a directory with anything in it fails the removal either way.
 	{"rm -f: a directory removed where the shell's refused", "../eco-report/shell.go", "./eco-report/", "TestInitStagedWriteIsNotAWayOutOfTheRepo", "if info.IsDir() {", "if info.IsDir() && false {"},
@@ -543,6 +616,61 @@ var mutants = []mutant{
 		return cached
 	}`, ``},
 	{"call sites: the whole-file read unbounded again", "subcommands.go", "./eco-check/", "TestOversizeFileIsNotReadByTheCallSiteScan", `		if info.Size() > maxFileBytes {`, `		if info.Size() > (1 << 62) {`},
+
+	// The --gate guards. What they answer is one question — whether a file this checkout holds but a
+	// commit cannot carry may decide the verdict — so they sit together rather than by file.
+	//
+	// Each of the three reaches gets its own mutant, because they are three different ways a local file
+	// gets back in: the walk every scan reads, the path a citation spells out in prose, and the skills
+	// directory the mount scan lists from. One case cannot observe more than one of them.
+	{"gate: a gitignored file left in the walk", "gate.go", "./eco-check/", "TestAGitignoredFileIsJudgedWithoutTheFlagAndNotWithIt", "if g.holds(entry.path) {", "if g.holds(entry.path) && false {"},
+	{"gate: a citation resolved through a gitignored file", "tree.go", "./eco-check/", "TestACitationResolvingOnlyThroughAGitignoredFileDangles", "return c.underRoot(path) && !c.isSkippedByGate(path) && shell.PathExists(path)", "return c.underRoot(path) && shell.PathExists(path)"},
+	{"gate: a gitignored skill directory listed anyway", "tree.go", "./eco-check/", "TestAGitignoredSkillDirectoryIsNotCounted", "if c.isSkippedByGate(dir) {", "if c.isSkippedByGate(dir) && false {"},
+	// The path list crosses a process boundary, and NUL is what keeps a committed filename holding a
+	// newline one path on both sides of it.
+	{"gate: the path list handed to git line-delimited", "gate.go", "./eco-check/", "TestAGitignoredFileWhoseNameHoldsANewlineIsStillFilteredOut", `exec.Command("git", "check-ignore", "-z", "--stdin")`, `exec.Command("git", "check-ignore", "--stdin")`},
+	// Both directions off git's exit code, which is why they share a function. Read as a failure, exit 1
+	// refuses every clean checkout the flag exists to serve; read as an answer, exit 128 hands the gate
+	// back an unfiltered tree under a line saying it was filtered.
+	{"gate: git saying nothing is ignored read as a failure", "gate.go", "./eco-check/", "TestTheFlagRunsOnATreeWithNothingIgnored", "exit.ExitCode() == 1", "exit.ExitCode() == 99"},
+	{"gate: a git that could not answer read as one that did", "gate.go", "./eco-check/", "TestTheFlagRefusesWhereGitCannotAnswer", "return errors.As(err, &exit) && exit.ExitCode() == 1", "return errors.As(err, &exit) || true"},
+	// The report's two bounds. Collapsing to the outermost ignored path is what makes the count read as
+	// how much of the tree went unjudged; the name cap is what keeps tree-chosen text off the exit-0
+	// path, exactly as uncountedNote does for an import name.
+	{"gate: every file under an ignored directory named separately", "gate.go", "./eco-check/", "TestAGitignoredSkillDirectoryIsNotCounted", "if !ignored[shell.DirName(path)] {", "if true {"},
+	{"gate: the skipped names unbounded", "gate.go", "./eco-check/", "TestTheSkippedNamesAreBoundedAndTheCountIsNot", "const gateSkipNameCap = 5", "const gateSkipNameCap = 100000"},
+	// The named-path reaches: a scan that stats a path it spells out for itself rather than taking it
+	// from the walk. Everywhere else the walk filter already answers, and a guard it makes
+	// unobservable is one this harness reports as killing nothing.
+	{"gate: a gitignored SKILL.md still found by name", "skills.go", "./eco-check/", "TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne", `if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, `if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still counted in the census", "skills.go", "./eco-check/", "TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne", "if !c.holdsRegularFile(file) {", "if !shell.IsRegularFile(file) {"},
+	{"gate: a gitignored CLAUDE.md still counted into the budget", "budget.go", "./eco-check/", "TestAGitignoredClaudeMdIsNeitherCountedNorScanned", "if c.holdsSomething(claudeMd) {", "if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {"},
+	// Without the arm above it, a gitignored doc reaches absentOrOutOfReach, whose Lstat finds the file
+	// sitting right where the router points and reports that nothing could answer for it — a refusal
+	// about this machine, where the fact is that the commit does not carry the file.
+	{"gate: a gitignored Read-always target refused instead of absent", "budget.go", "./eco-check/", "TestAGitignoredReadAlwaysTargetIsReportedAbsent", "\t\tcase c.isSkippedByGate(listed):\n\t\t\tc.reportAbsentBudgetDoc(doc)\n", ""},
+	// A citation is a path prose wrote, so it arrives spelled however its author spelled it. Compared
+	// as written rather than cleaned, `./notes.md` misses an ignored set keyed on `notes.md` while
+	// naming the same file — the run lists that file as skipped and then resolves a reference through
+	// it, which is a false green under the one flag that exists to make false greens impossible.
+	{"gate: the skip compared as spelled instead of cleaned", "gate.go", "./eco-check/", "TestACitationSpelledNonCanonicallyStillHitsTheGate", "return g.ignored[filepath.Clean(path)]", "return g.ignored[path]"},
+	// The filtered tree is copied from the walk rather than declared fresh, so a field the walk gains
+	// is carried into it. Unobservable while `tree` holds only the two fields the copy resets by hand,
+	// which is why this one is declared unreachable below rather than left to survive.
+	{"gate: the filtered tree rebuilt from a literal", "gate.go", "./eco-check/", "TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed", `	kept := *walked
+	kept.entries = nil
+	kept.suffixes = map[string][]string{}`, `	kept := tree{suffixes: map[string][]string{}}`},
+	// The three reaches that name a skill's own SKILL.md. Each is masked by a different sibling, so
+	// each needs its own shape in the case that kills it: the alternation shows only through a
+	// citation, the whole-token re-test only through a token that is not itself a lane name, and the
+	// unknown-skill scan only through the bare name.
+	{"gate: a gitignored SKILL.md still builds a lane name", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`, `		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still passes the whole-token re-test", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {`, `		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still counts as a known skill", "refs.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if name == "kk-flavor" || c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`, `		if name == "kk-flavor" || shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`},
+	// A second path overwriting the first rather than being refused: the run then scans a tree the
+	// caller named second while believing it asked about the first, and a mistyped flag reaches that
+	// arm too — an unfiltered run under a caller that asked for a gated one.
+	{"gate: a second root taken instead of refused", "eco-check.go", "./eco-check/", "TestAnUnknownArgumentIsRefused", "\t\tcase hasRoot:\n", "\t\tcase hasRoot && false:\n"},
 	{"reports: a stem outside the slug charset listed anyway", "../eco-report/paths.go", "./eco-report/", "TestAFilenameCannotForgeAListingRow", `		if !isSlugCharset(stem) {`, `		if !isSlugCharset(stem) && false {`},
 
 	// The same question asked of ecoreport, whose answer moved when the scratch left the tree: the
@@ -618,7 +746,10 @@ var mutants = []mutant{
 	// followed it. One mutant still, not one per consumer: it is one guard, and ecocheck's own case for
 	// it reddens on the same edit.
 	{"root: permission denied reported as absence", "../eco-root/contained.go", "./eco-stats/", "TestAReadAlwaysTargetOutOfReachIsNotReportedMissing", "if errors.Is(err, fs.ErrNotExist) {", "if err != nil || errors.Is(err, fs.ErrNotExist) {"},
-	{"stats: a self name with no directory resolved against the cwd", "../eco-stats/ledger.go", "./eco-stats/", "TestASelfNameWithNoDirectoryAppendsNothing", `if !strings.Contains(self, "/") {`, `if !strings.Contains(self, "/") && false {`},
+	// One guard with two limbs, and dropping either resolves a whole shape of self name against the
+	// working directory again. So one mutant each, not one for the guard.
+	{"stats: a self name off PATH resolved against the cwd", "../eco-stats/ledger.go", "./eco-stats/", "TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing", `if !strings.Contains(self, "/") || strings.HasSuffix(self, "/") {`, `if strings.HasSuffix(self, "/") {`},
+	{"stats: a self name naming a directory resolved against the cwd", "../eco-stats/ledger.go", "./eco-stats/", "TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing", `if !strings.Contains(self, "/") || strings.HasSuffix(self, "/") {`, `if !strings.Contains(self, "/") {`},
 	{"report: the open-item scan run without being checked for", "../eco-report/seams.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "if !isExecutable(r.todoGate) {", "if !isExecutable(r.todoGate) && false {"},
 	// Two reads whose failure used to arrive at a deletion wearing the shape of an answer — the rule
 	// assertRepoModeReadable states, applied to the other two reads `discard` turns on.
@@ -851,6 +982,19 @@ var unreachableMutants = []unreachableMutant{
 			"the quoted spelling head-on: git C-quotes a control character whatever core.quotePath says, so " +
 			"the parser has to read that form either way, and that case is what holds it to doing so — and " +
 			"the unquoting now carries its own mutant beside this flag, which that same case kills.",
+	},
+	{
+		"gate: the filtered tree rebuilt from a literal",
+		"unobservable until the field it protects exists. keepCommittable copies the walked tree and " +
+			"resets only `entries` and `suffixes`, so a field added to `tree` reaches the filtered copy " +
+			"too; while `tree` holds nothing else, rebuilding from a literal is identical and no case " +
+			"can tell the two apart. A STALE CLAIM here is the signal that `tree` has gained a field — " +
+			"`start`, at the time of writing, which keys the suffix index on the root's canonical name " +
+			"rather than the caller's spelling. That is the moment the guard starts mattering: dropped, " +
+			"a gated run keys differently from a bare one and every finding depends again on how the " +
+			"root was typed. Delete THIS ENTRY and keep the mutant. Do not revert keepCommittable and " +
+			"do not delete the mutant — it is doing its job, and the case that now kills it is " +
+			"TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed.",
 	},
 	{
 		"override config: an unreadable config passes as a checked one",

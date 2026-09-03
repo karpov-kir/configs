@@ -28,14 +28,31 @@ type tree struct {
 	suffixes map[string][]string
 }
 
-// walkTree mirrors `find <start>` with no -L flag: the starting point is lstat'ed like every entry
-// under it, so a symlinked start yields the link itself and nothing beneath it. That is the whole
-// of the direction scan's did-not-run guard — a branch that commits `kk-flavor` as a symlink to
-// somewhere else gets an empty walk and a finding saying so, never a silent pass.
+// The one place the reviewed tree becomes a set of files, so the one place --gate narrows it: every
+// scan reaches its files through filesNamed below, every citation resolves through matchPath, and the
+// skill-directory scan reads these entries straight. Filtering here is all three at once, and a scan
+// added later inherits it — gate.go holds why a checkout's local files may not decide a commit's
+// verdict.
 func (c *checker) walkTree(start string) *tree {
 	if cached, ok := c.trees[start]; ok {
 		return cached
 	}
+	walked := newWalk(start)
+	if c.gate != nil {
+		walked = c.gate.keepCommittable(walked)
+	}
+	c.trees[start] = walked
+	return walked
+}
+
+// newWalk mirrors `find <start>` with no -L flag: the starting point is lstat'ed like every entry
+// under it, so a symlinked start yields the link itself and nothing beneath it. That is the whole
+// of the direction scan's did-not-run guard — a branch that commits `kk-flavor` as a symlink to
+// somewhere else gets an empty walk and a finding saying so, never a silent pass.
+//
+// Unfiltered and uncached, because enableGate walks the root through it to build the very set
+// walkTree filters by.
+func newWalk(start string) *tree {
 	walked := &tree{suffixes: map[string][]string{}}
 	if info, err := os.Lstat(start); err == nil {
 		walked.add(fsEntry{path: start, mode: info.Mode()})
@@ -43,7 +60,6 @@ func (c *checker) walkTree(start string) *tree {
 			walked.descend(start)
 		}
 	}
-	c.trees[start] = walked
 	return walked
 }
 
@@ -151,9 +167,11 @@ func (c *checker) underRoot(path string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-// shell.PathExists, asked only where the answer is about this tree.
+// shell.PathExists, asked only where the answer is about this tree. The gate term is not a second
+// filter but the same one: resolveRef spells a path out of prose instead of taking it from the walk,
+// so without it a citation still resolves through a gitignored file the walk has already dropped.
 func (c *checker) existsUnderRoot(path string) bool {
-	return c.underRoot(path) && shell.PathExists(path)
+	return c.underRoot(path) && !c.isSkippedByGate(path) && shell.PathExists(path)
 }
 
 // A path as prose writes it, resolved to a file under the root; empty when it resolves nowhere or
@@ -198,6 +216,11 @@ func (c *checker) refExists(dir, ref string) bool {
 
 // The entries of skills/ that stat as directories, dotfiles excluded and byte-sorted the way the
 // shell's `"$skills"/*/` glob produced them.
+//
+// Read straight off the directory rather than out of the walk, so the gate term is asked here too.
+// The mount scan lists skills from this, and it runs only in the install: a gitignored skill
+// directory would be `skill not mounted` there and nothing at all in a worktree of the same commit,
+// which is the exact split the flag exists to close.
 func (c *checker) skillDirNames() []string {
 	entries, err := os.ReadDir(c.root.Skills())
 	if err != nil {
@@ -208,7 +231,11 @@ func (c *checker) skillDirNames() []string {
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		if shell.IsDir(shell.Join(c.root.Skills(), entry.Name())) {
+		dir := shell.Join(c.root.Skills(), entry.Name())
+		if c.isSkippedByGate(dir) {
+			continue
+		}
+		if shell.IsDir(dir) {
 			names = append(names, entry.Name())
 		}
 	}

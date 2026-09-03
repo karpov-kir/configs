@@ -140,7 +140,7 @@ func (f *fixture) routerWordsFromCheck() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run(f.root, &out, io.Discard)
+	ecocheck.Run([]string{f.root}, &out, io.Discard)
 	return firstSubmatch(checkRouterWords, out.String())
 }
 
@@ -149,7 +149,7 @@ func (f *fixture) checkOutput() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run(f.root, &out, &out)
+	ecocheck.Run([]string{f.root}, &out, &out)
 	return out.String()
 }
 

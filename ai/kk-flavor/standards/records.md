@@ -18,10 +18,10 @@ Bound the record, and state its bound in the file itself. **Evict the lowest cou
 
 **A count that keeps rising is a rule nobody has written down yet.** Move it to whatever binds:
 
-- how the project is built → the record holding its principles and gate commands
+- how the project is built → the record holding its constraints
 - what the project is for → the record holding its scope
 - a domain term → the record holding its vocabulary
-- how agents work → the standard or `CLAUDE.md` owning that lane
+- how agents or the project work → the standard or `CLAUDE.md` owning that lane
 
 **Promoting deletes the entry.**
 
@@ -33,5 +33,5 @@ Delete an entry outright, whatever its count or date, when its subject is gone f
 
 A record that **receives** promotions holds what the project has settled, so no line cap. Bound it by a test applied to the whole file on every edit:
 
-- **A principle, a gate command, a scope line** — it must name what it rules out that nothing else already rules out. One that rules out nothing is deleted, not reworded.
+- **A principle, a constraint, a scope line** — it must name what it rules out that nothing else already rules out. One that rules out nothing is deleted, not reworded.
 - **A vocabulary entry** — a term no artifact uses is deleted.
