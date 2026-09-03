@@ -83,7 +83,7 @@ func (c *checker) scanDirection() {
 func (c *checker) laneNames() []string {
 	var names []string
 	for _, name := range c.skillDirNames() {
-		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {
+		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {
 			continue
 		}
 		// `kk-flavor` is the shared layer itself, so a reviewed tree committing `skills/kk-flavor/`
@@ -149,7 +149,7 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 		// The whole token is tested, not the alternation's own match: `kk-drive-verified` starts
 		// with a real lane name and is not one, so matching the prefix alone would report a skill
 		// that does not exist as a lane the shared layer names.
-		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {
+		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {
 			continue
 		}
 		counters.names++

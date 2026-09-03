@@ -309,15 +309,16 @@ func (f *fixture) mountHome() {
 
 func (f *fixture) check() string {
 	f.t.Helper()
-	return f.checkRoot(f.root)
+	return f.checkWith(f.root)
 }
 
-// The same run with the root named some other way. Every other case hands in the absolute path, and
-// which spelling of the root a caller used is not meant to change a finding.
-func (f *fixture) checkRoot(root string) string {
+// The same run under whatever arguments a case needs — the gate cases pass --gate beside the root, the
+// spelling cases pass the root named some other way, and every other caller passes the root alone.
+// Which spelling a caller used is not meant to change a finding, which is what those cases assert.
+func (f *fixture) checkWith(args ...string) string {
 	f.t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run(root, &output, &output); status == 2 {
+	if status := ecocheck.Run(args, &output, &output); status == 2 {
 		f.t.Fatalf("Run exited 2 — nothing was checked, so this case cannot be trusted\n%s", indent(output.String()))
 	}
 	return output.String()
@@ -345,14 +346,14 @@ func (f *fixture) reportsWithRootNamed(dir, root, needle string) {
 	f.t.Helper()
 	f.mountHome()
 	f.t.Chdir(dir)
-	f.found(f.checkRoot(root), needle)
+	f.found(f.checkWith(root), needle)
 }
 
 func (f *fixture) doesNotReportWithRootNamed(dir, root string, needles ...string) {
 	f.t.Helper()
 	f.mountHome()
 	f.t.Chdir(dir)
-	f.absent(f.checkRoot(root), needles...)
+	f.absent(f.checkWith(root), needles...)
 }
 
 // The message each assertion fails with, held once so no caller can word it differently.

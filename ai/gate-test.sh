@@ -419,6 +419,30 @@ expect_out "and prints the file the unit is keyed on" "watched.txt"
 run_gate --why nosuchunit
 expect_status "--why on a unit that does not exist exits 2" 2
 
+# The wiring unit runs check.sh with --gate, so the repo's ignore rules decide which files that check
+# judges — and a verdict that is a function of an input the key does not cover is a stale green by
+# construction, which is the one thing this script exists not to serve. Both rule files count: the
+# tools one rides in on the `ai/tools` directory input, the root one is named on the unit.
+#
+# Against the real unit table and the real tree, because the claim is about this repo's own wiring
+# unit; GATE_UNITS_FILE replaces the table with a fixture's and could not reach it. Paths are compared
+# as whole fields, never as substrings — `.gitignore` sits inside `ai/tools/.gitignore`, so a
+# substring test would pass on one file while the other was missing.
+keyed_files=$("$gate" --why wiring 2>/dev/null | awk 'NF == 2 { print $2 }')
+if [ -z "$keyed_files" ]; then
+  record_fail "wiring --why lists the files it hashes" "it printed none, so the case below would assert nothing"
+else
+  record_pass "wiring --why lists the files it hashes"
+  missing=""
+  for rules in ".gitignore" "ai/tools/.gitignore"; do
+    printf '%s\n' "$keyed_files" | grep -qxF "$rules" || missing="$missing $rules"
+  done
+  [ -z "$missing" ] &&
+    record_pass "and keys the wiring unit on every ignore rule" ||
+    record_fail "and keys the wiring unit on every ignore rule" \
+      "not hashed:$missing — editing one moves --gate's verdict and not the key, so the gate serves a stale green"
+fi
+
 # The two harness listings, which the seam above cannot reach either — GATE_UNITS_FILE replaces the
 # table, so every `mutants:` id in the fixture cases is fabricated and neither parser is ever run. The
 # fourth column especially: it carries the resolved path a go mutation unit is keyed on, and a gate

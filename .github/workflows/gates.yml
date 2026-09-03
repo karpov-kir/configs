@@ -205,5 +205,9 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
+      # --gate, so this job and ai/gate.sh's wiring unit ask the same question of the same commit.
+      # Not a no-op on a fresh runner: resolve.sh builds from source when no release binary is present,
+      # writes ai/tools/bin/eco-check, and only then execs it — so build output exists in the tree by
+      # the time the walk runs, and without the flag the check reads files it cannot judge.
       - name: Check the instruction tree wires up
-        run: ai/skills/kk-ecosystem/scripts/check.sh
+        run: ai/skills/kk-ecosystem/scripts/check.sh --gate

@@ -86,7 +86,7 @@ var mutants = []mutant{
 
 	// The skill-directory scan. Each of the three defects makes a skill unreachable rather than
 	// merely mis-linked, and each has exactly one case behind it.
-	{"skills: a directory carrying no SKILL.md unreported", "skills.go", "./eco-check/", "TestSkillDirectory", `if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, "if false {"},
+	{"skills: a directory carrying no SKILL.md unreported", "skills.go", "./eco-check/", "TestSkillDirectory", `if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, "if false {"},
 	{"skills: a name/dir mismatch unreported", "skills.go", "./eco-check/", "TestSkillDirectory", "if declared != shell.BaseName(shell.DirName(file)) {", "if false {"},
 	{"skills: a SKILL.md with no description unreported", "skills.go", "./eco-check/", "TestSkillDirectory", `if shell.FrontmatterDescription(lines) == "" {`, "if false {"},
 
@@ -599,6 +599,61 @@ var mutants = []mutant{
 		return cached
 	}`, ``},
 	{"call sites: the whole-file read unbounded again", "subcommands.go", "./eco-check/", "TestOversizeFileIsNotReadByTheCallSiteScan", `		if info.Size() > maxFileBytes {`, `		if info.Size() > (1 << 62) {`},
+
+	// The --gate guards. What they answer is one question — whether a file this checkout holds but a
+	// commit cannot carry may decide the verdict — so they sit together rather than by file.
+	//
+	// Each of the three reaches gets its own mutant, because they are three different ways a local file
+	// gets back in: the walk every scan reads, the path a citation spells out in prose, and the skills
+	// directory the mount scan lists from. One case cannot observe more than one of them.
+	{"gate: a gitignored file left in the walk", "gate.go", "./eco-check/", "TestAGitignoredFileIsJudgedWithoutTheFlagAndNotWithIt", "if g.holds(entry.path) {", "if g.holds(entry.path) && false {"},
+	{"gate: a citation resolved through a gitignored file", "tree.go", "./eco-check/", "TestACitationResolvingOnlyThroughAGitignoredFileDangles", "return c.underRoot(path) && !c.isSkippedByGate(path) && shell.PathExists(path)", "return c.underRoot(path) && shell.PathExists(path)"},
+	{"gate: a gitignored skill directory listed anyway", "tree.go", "./eco-check/", "TestAGitignoredSkillDirectoryIsNotCounted", "if c.isSkippedByGate(dir) {", "if c.isSkippedByGate(dir) && false {"},
+	// The path list crosses a process boundary, and NUL is what keeps a committed filename holding a
+	// newline one path on both sides of it.
+	{"gate: the path list handed to git line-delimited", "gate.go", "./eco-check/", "TestAGitignoredFileWhoseNameHoldsANewlineIsStillFilteredOut", `exec.Command("git", "check-ignore", "-z", "--stdin")`, `exec.Command("git", "check-ignore", "--stdin")`},
+	// Both directions off git's exit code, which is why they share a function. Read as a failure, exit 1
+	// refuses every clean checkout the flag exists to serve; read as an answer, exit 128 hands the gate
+	// back an unfiltered tree under a line saying it was filtered.
+	{"gate: git saying nothing is ignored read as a failure", "gate.go", "./eco-check/", "TestTheFlagRunsOnATreeWithNothingIgnored", "exit.ExitCode() == 1", "exit.ExitCode() == 99"},
+	{"gate: a git that could not answer read as one that did", "gate.go", "./eco-check/", "TestTheFlagRefusesWhereGitCannotAnswer", "return errors.As(err, &exit) && exit.ExitCode() == 1", "return errors.As(err, &exit) || true"},
+	// The report's two bounds. Collapsing to the outermost ignored path is what makes the count read as
+	// how much of the tree went unjudged; the name cap is what keeps tree-chosen text off the exit-0
+	// path, exactly as uncountedNote does for an import name.
+	{"gate: every file under an ignored directory named separately", "gate.go", "./eco-check/", "TestAGitignoredSkillDirectoryIsNotCounted", "if !ignored[shell.DirName(path)] {", "if true {"},
+	{"gate: the skipped names unbounded", "gate.go", "./eco-check/", "TestTheSkippedNamesAreBoundedAndTheCountIsNot", "const gateSkipNameCap = 5", "const gateSkipNameCap = 100000"},
+	// The named-path reaches: a scan that stats a path it spells out for itself rather than taking it
+	// from the walk. Everywhere else the walk filter already answers, and a guard it makes
+	// unobservable is one this harness reports as killing nothing.
+	{"gate: a gitignored SKILL.md still found by name", "skills.go", "./eco-check/", "TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne", `if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, `if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still counted in the census", "skills.go", "./eco-check/", "TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne", "if !c.holdsRegularFile(file) {", "if !shell.IsRegularFile(file) {"},
+	{"gate: a gitignored CLAUDE.md still counted into the budget", "budget.go", "./eco-check/", "TestAGitignoredClaudeMdIsNeitherCountedNorScanned", "if c.holdsSomething(claudeMd) {", "if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {"},
+	// Without the arm above it, a gitignored doc reaches absentOrOutOfReach, whose Lstat finds the file
+	// sitting right where the router points and reports that nothing could answer for it — a refusal
+	// about this machine, where the fact is that the commit does not carry the file.
+	{"gate: a gitignored Read-always target refused instead of absent", "budget.go", "./eco-check/", "TestAGitignoredReadAlwaysTargetIsReportedAbsent", "\t\tcase c.isSkippedByGate(listed):\n\t\t\tc.reportAbsentBudgetDoc(doc)\n", ""},
+	// A citation is a path prose wrote, so it arrives spelled however its author spelled it. Compared
+	// as written rather than cleaned, `./notes.md` misses an ignored set keyed on `notes.md` while
+	// naming the same file — the run lists that file as skipped and then resolves a reference through
+	// it, which is a false green under the one flag that exists to make false greens impossible.
+	{"gate: the skip compared as spelled instead of cleaned", "gate.go", "./eco-check/", "TestACitationSpelledNonCanonicallyStillHitsTheGate", "return g.ignored[filepath.Clean(path)]", "return g.ignored[path]"},
+	// The filtered tree is copied from the walk rather than declared fresh, so a field the walk gains
+	// is carried into it. Unobservable while `tree` holds only the two fields the copy resets by hand,
+	// which is why this one is declared unreachable below rather than left to survive.
+	{"gate: the filtered tree rebuilt from a literal", "gate.go", "./eco-check/", "TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed", `	kept := *walked
+	kept.entries = nil
+	kept.suffixes = map[string][]string{}`, `	kept := tree{suffixes: map[string][]string{}}`},
+	// The three reaches that name a skill's own SKILL.md. Each is masked by a different sibling, so
+	// each needs its own shape in the case that kills it: the alternation shows only through a
+	// citation, the whole-token re-test only through a token that is not itself a lane name, and the
+	// unknown-skill scan only through the bare name.
+	{"gate: a gitignored SKILL.md still builds a lane name", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`, `		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still passes the whole-token re-test", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {`, `		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still counts as a known skill", "refs.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if name == "kk-flavor" || c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`, `		if name == "kk-flavor" || shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`},
+	// A second path overwriting the first rather than being refused: the run then scans a tree the
+	// caller named second while believing it asked about the first, and a mistyped flag reaches that
+	// arm too — an unfiltered run under a caller that asked for a gated one.
+	{"gate: a second root taken instead of refused", "eco-check.go", "./eco-check/", "TestAnUnknownArgumentIsRefused", "\t\tcase hasRoot:\n", "\t\tcase hasRoot && false:\n"},
 	{"reports: a stem outside the slug charset listed anyway", "../eco-report/paths.go", "./eco-report/", "TestAFilenameCannotForgeAListingRow", `		if !isSlugCharset(stem) {`, `		if !isSlugCharset(stem) && false {`},
 
 	// The same question asked of ecoreport, whose answer moved when the scratch left the tree: the
@@ -772,6 +827,19 @@ type unreachableMutant struct {
 }
 
 var unreachableMutants = []unreachableMutant{
+	{
+		"gate: the filtered tree rebuilt from a literal",
+		"unobservable until the field it protects exists. keepCommittable copies the walked tree and " +
+			"resets only `entries` and `suffixes`, so a field added to `tree` reaches the filtered copy " +
+			"too; while `tree` holds nothing else, rebuilding from a literal is identical and no case " +
+			"can tell the two apart. A STALE CLAIM here is the signal that `tree` has gained a field — " +
+			"`start`, at the time of writing, which keys the suffix index on the root's canonical name " +
+			"rather than the caller's spelling. That is the moment the guard starts mattering: dropped, " +
+			"a gated run keys differently from a bare one and every finding depends again on how the " +
+			"root was typed. Delete THIS ENTRY and keep the mutant. Do not revert keepCommittable and " +
+			"do not delete the mutant — it is doing its job, and the case that now kills it is " +
+			"TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed.",
+	},
 	{
 		"override config: an unreadable config passes as a checked one",
 		"unreachable behind an earlier guard: os.Lstat can only fail here for a path that " +
