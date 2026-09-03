@@ -34,23 +34,24 @@ die() {
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so $tool could not be located"
 
-# Two candidates, named, and NOT a walk upward. The stubs sit at exactly two depths — a skill's
-# `scripts/` is three below the tools directory, `kk-flavor/scripts/` is two — so both are written out
-# and nothing else is consulted.
+# The candidates, named, and NOT a walk upward. The stubs sit at exactly three depths — `ai/` itself is
+# one above the tools directory, `kk-flavor/scripts/` is two, a skill's `scripts/` is three — so all
+# three are written out and nothing else is consulted. They cannot collide: from any one depth the
+# other two name directories that do not exist.
 #
 # An unbounded walk was here and was a hole: where a checkout genuinely does not ship `ai/tools/`, it
 # climbed out of the checkout and ran the first `tools/resolve.sh` it met in any ancestor, exec'ing a
 # stranger's binary at exit 0 where the refusal below is the whole point. Bounding it by depth alone
 # does not close that — an ancestor can sit inside the bound. Naming the two real candidates does.
 resolver=""
-for candidate in "$here/../../tools/resolve.sh" "$here/../../../tools/resolve.sh"; do
+for candidate in "$here/tools/resolve.sh" "$here/../../tools/resolve.sh" "$here/../../../tools/resolve.sh"; do
   if [ -e "$candidate" ]; then
     resolver="$candidate"
     break
   fi
 done
 [ -n "$resolver" ] ||
-  die "no tools/resolve.sh at either depth above $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+  die "no tools/resolve.sh at any of the three depths around $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
 [ -x "$resolver" ] ||
   die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
