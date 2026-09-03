@@ -260,13 +260,19 @@ ext_flavor="ai/kk-flavor/scripts/tree-fingerprint.sh"
 ext_qualify="ai/skills/idsd-qualify/scripts ai/skills/idsd-qualify/templates"
 ext_reduce="ai/skills/kk-reduce/stats.md"
 ext_workflows=".github/workflows"
+# workflows_test.go reads this file to pull `gotest_timeout` out of it and hold both workflows'
+# -timeout to that number. Declared like the rest, or the guard against those three drifting apart is
+# the one thing a `gotest_timeout` edit does not re-run: hashing this file into every key re-runs the
+# unit, but the re-run still reaches Go's own cache, which cannot see a file outside the module and
+# answers `ok (cached)`.
+ext_gate="ai/gate.sh"
 
 # The real unit table, as against the one GATE_UNITS_FILE supplies: the four Go checks, one unit per
 # discovered shell suite, and one per mutated script from each harness's own listing.
 discover_units() {
   unit gofmt check "$go_tree" 'run_gofmt'
   unit vet check "$go_tree" 'cd ai/tools && go vet ./...'
-  unit gotest check "$go_tree $ext_flavor $ext_qualify $ext_reduce $ext_workflows" 'run_gotest'
+  unit gotest check "$go_tree $ext_flavor $ext_qualify $ext_reduce $ext_workflows $ext_gate" 'run_gotest'
   unit wiring check "ai/skills ai/kk-flavor ai/tools" 'ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh'
 
   # Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
@@ -420,6 +426,19 @@ run_gofmt() {
   return 1
 }
 
+# `go test` defaults to 10m, and eco-report runs past it on a loaded machine: 682s wall clock at
+# the worst measured. The flag bounds each test binary, never the whole `./...` run. So the number
+# is set against that one package, and nothing here caps the unit's total. 30m sits far above it on
+# purpose: a timeout prints a goroutine dump that reads as a deadlock in os/exec, never as a slow
+# test. A bound tight enough to fire under load would turn a busy machine into a false bug report.
+gotest_timeout=30m
+
+# Every `go test` this file runs goes through here, so the bound above cannot be tuned at one call
+# site and left standing at the others.
+bounded_go_test() { # <go test arguments>
+  (cd ai/tools && go test -timeout "$gotest_timeout" "$@")
+}
+
 # Go's own cache is content-keyed over the module and is exactly right there: a warm `go test ./...`
 # is 2.4s against 185s cold, and it does not cache failures — verified by appending a failing case and
 # watching two consecutive runs both re-run and re-fail. What it cannot see is the files outside the
@@ -430,8 +449,9 @@ run_gotest() {
   changed_since_green "$ext_qualify" && groups="$groups eco-report"
   changed_since_green "$ext_reduce" && groups="$groups eco-stats"
   changed_since_green "$ext_workflows" && groups="$groups ."
+  changed_since_green "$ext_gate" && groups="$groups ."
   if [ -z "$groups" ]; then
-    (cd ai/tools && go test ./...)
+    bounded_go_test ./...
     return $?
   fi
   module=$(cd ai/tools && go list -m) || return 1
@@ -444,9 +464,9 @@ run_gotest() {
   rest=$(comm -23 "$scratch/allpkgs" "$scratch/forced" | tr '\n' ' ')
   echo "forcing $(grep -c '' <"$scratch/forced") package(s) with -count=1: an input outside the module moved, and the Go cache cannot see those" >"$scratch/note"
   if [ -n "$(printf '%s' "$rest" | tr -d ' ')" ]; then
-    (cd ai/tools && go test $rest) || status=1
+    bounded_go_test $rest || status=1
   fi
-  (cd ai/tools && go test -count=1 $(tr '\n' ' ' <"$scratch/forced")) || status=1
+  bounded_go_test -count=1 $(tr '\n' ' ' <"$scratch/forced") || status=1
   return "$status"
 }
 
