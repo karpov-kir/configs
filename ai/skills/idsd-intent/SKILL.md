@@ -1,6 +1,6 @@
 ---
 name: idsd-intent
-description: Author or refine an ICE intent — what to build and why, never how; also owns .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term".
+description: Author or refine an ICE intent — what to build and why, never how; also owns .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.
 argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
@@ -10,13 +10,13 @@ Capture **what** to build and **why** as an **ICE** — Intent · Context · Exp
 
 Pick scope from the request, not repo state: one ticket or one outcome → a **feature**, one ICE; "plan the project" / "map the MVP" / several features → a **project**, a map of linked ICEs each tagged by `milestone`.
 
-At project scope, read `.idsd/charter.md` if present to ground decomposition, and offer once to run `idsd-charter` / `idsd-constitution` for whichever is missing — never force it.
+At project scope, read `.idsd/charter.md` to ground decomposition; if it is missing, offer once to run `idsd-charter` — never force it.
 
 If refining, read the named intent file, grill only the gaps, and preserve its build-managed `## Follow-ups` checklist.
 
 ## Phase 1 — Grill
 
-Invoke `kk-grill` **inline** over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, the constitution, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
+Invoke `kk-grill` **inline** over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
 
 Cover only what's unclear — the heuristic per part:
 
@@ -50,6 +50,6 @@ If `.idsd/charter.md` exists and this planning adds intents, defers them, or put
 
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
 - **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: never point `blocks` or `depends-on` at an intent that is foundational to this one or already built (that's backwards); a later intent that adds a constraint to a shipped one `extends` it.
-- Never rewrite the charter's vision or problem, or the constitution — those change only via `idsd-charter` / `idsd-constitution`, on a proposal you make and they confirm.
+- Never rewrite the charter — it changes only via `idsd-charter`, on a proposal you make and the human confirms.
 - If the user says "just write it", collapse Phases 1–2 to the fastest pass that still emits the Phase 2 outcome line, then Phase 3 — the gate fires even on the fast path.
 - Don't restate the kk-flavor standards or `CLAUDE.md`; they're Context for `idsd-build`.

@@ -76,6 +76,40 @@ func suitesNamed(list []mutant) []string {
 	return suites
 }
 
+// The baseline run's argv after `go`.
+//
+// `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout 30m` because
+// this runs whole suites, not one filtered test, and eco-report's alone runs past Go's 10m default on
+// a loaded machine — overrunning it panics, and main reads that non-zero exit as a suite that does not
+// pass unmutated, printing BASELINE RED for what was machine load.
+//
+// It is a function so main_test.go can pin both flags: each fails silently when absent, and nothing
+// else in the harness would catch one going.
+func baselineArgs(selected []mutant) []string {
+	return append([]string{"test", "-count=1", "-timeout", suiteTimeout}, suitesNamed(selected)...)
+}
+
+// One mutant run's argv after `go`. Every verdict this harness prints comes from this run, so
+// main_test.go pins these flags too. `-count=1` because a cached `ok` makes each mutant read KILLED
+// NOTHING, a finding manufactured rather than missed; `-failfast` because the first red case has
+// already answered what the mutant was asked.
+//
+// The filter is the mutant's own test unless the caller overrode it: `-run` on the command line is for
+// driving one mutant by hand, so it has to widen the filter as well as narrow it. A mutant naming no
+// test gets no flag rather than an empty one: `-run ""` is an empty pattern that matches every test,
+// so the two runs are the same suite, and the argv a failure prints should say which was meant.
+func mutantArgs(m mutant, overlay, runFilter string) []string {
+	filter := m.by
+	if runFilter != "" {
+		filter = runFilter
+	}
+	args := []string{"test", "-overlay=" + overlay, "-count=1", "-failfast", "-timeout", suiteTimeout}
+	if filter != "" {
+		args = append(args, "-run", filter)
+	}
+	return append(args, m.suite)
+}
+
 // Where a mutant's anchor is, and how many times it matches there. Exactly once, or the mutant is
 // ambiguous: a string matching twice edits a guard it was not aimed at, and one matching zero times
 // edits nothing. Preflight and the run itself both ask, and they ask here so they cannot come to
@@ -221,18 +255,7 @@ func run(pkgDir string, m mutant, runFilter string) result {
 		return result{verdict: "invalid", elapsed: time.Since(at)}
 	}
 
-	// The mutant's own test unless the caller overrode it: `-run` on the command line is for driving
-	// one mutant by hand, and it has to be able to widen the filter as well as narrow it.
-	filter := m.by
-	if runFilter != "" {
-		filter = runFilter
-	}
-	args := []string{"test", "-overlay=" + overlay, "-count=1", "-failfast", "-timeout", suiteTimeout}
-	if filter != "" {
-		args = append(args, "-run", filter)
-	}
-	args = append(args, m.suite)
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command("go", mutantArgs(m, overlay, runFilter)...)
 	cmd.Dir = filepath.Dir(pkgDir)
 	out, err := cmd.CombinedOutput()
 	verdict, evidence := verdictWithEvidence(err != nil, string(out))
@@ -484,7 +507,7 @@ func main() {
 
 	// The baseline first, over every suite a mutant names: each verdict below means "this edit turned
 	// a green suite red", which says nothing if it was already red.
-	base := exec.Command("go", append([]string{"test", "-count=1", "-timeout", suiteTimeout}, suitesNamed(selected)...)...)
+	base := exec.Command("go", baselineArgs(selected)...)
 	base.Dir = filepath.Dir(pkgDir)
 	if out, err := base.CombinedOutput(); err != nil {
 		fmt.Println("  BASELINE RED    a suite does not pass unmutated")

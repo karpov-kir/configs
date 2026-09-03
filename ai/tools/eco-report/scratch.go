@@ -126,7 +126,7 @@ func (r *run) cmdPromote() {
 	if r.repoMode() != "committed" {
 		r.refuseUnmoved(moved, target,
 			"error: nothing under "+target+" could be staged, so this is still a throwaway — not promoted.",
-			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a constitution.")
+			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a playbook.")
 	}
 	r.line("promoted: moved the scratch to %s and staged it, qualify-reports/ ignored via .gitignore — commit when ready (not committed here)", target)
 }
@@ -171,7 +171,7 @@ func (r *run) assertPromotionTargetIsClear(target string) {
 	r.refuse("error: "+target+" already holds "+strconv.Itoa(count)+" file(s) — not promoted, and nothing was written.",
 		"  Still there: "+strings.Join(sample, " ")+sampleTail(count, len(sample)),
 		"  Promotion moves "+r.idsdDir+" here, and merging the two is not something this decides for you:",
-		"  one side's charter or constitution would silently win. Reconcile them by hand, then re-run.")
+		"  one side's charter or playbook would silently win. Reconcile them by hand, then re-run.")
 }
 
 // The move itself. A rename, never a recursive copy: a copy has a half-done state, and the thing being

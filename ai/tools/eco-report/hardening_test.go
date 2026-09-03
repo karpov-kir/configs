@@ -175,8 +175,16 @@ func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 	f.runReport("gate", "099-echoed")
 	f.record("fixture: it gates clean before the value is tampered with", f.status == 0, f.evidence())
 
+	// The forgery is the gate's own clean line, taken from the run above rather than retyped. A retyped
+	// one stops imitating anything the day the gate is reworded — and the assertion below is about the
+	// ESC, so the case would go on passing while demonstrating nothing.
+	cleanLine := f.out
+	f.record("fixture: and the clean line the forgery imitates is the gate's own",
+		strings.HasPrefix(cleanLine, "gate clean:"), "the clean run printed: '"+cleanLine+"'")
+	forged := "\x1b[2K" + cleanLine
+
 	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
-		"reviewed-worktree: 0123456789abcdef /somewhere\x1b[2Kgate clean: tree fresh, untrimmed qualify, no open TODOs")
+		"reviewed-worktree: 0123456789abcdef /somewhere"+forged)
 	f.runReport("gate", "099-echoed")
 	f.record("the gate still blocks for a review recorded against another worktree",
 		f.status != 0, f.evidence())
@@ -189,7 +197,7 @@ func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 	// blocked for recording no usable worktree — and whatever text failed that check is what gets
 	// echoed. Asserted separately because the two branches are two call sites.
 	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
-		"reviewed-worktree: not-a-token\x1b[2Kgate clean: tree fresh, untrimmed qualify, no open TODOs")
+		"reviewed-worktree: not-a-token"+forged)
 	f.runReport("gate", "099-echoed")
 	f.record("a value that is not a usable worktree token also blocks", f.status != 0, f.evidence())
 	f.assertReports("no usable reviewing worktree", "and says that is why")

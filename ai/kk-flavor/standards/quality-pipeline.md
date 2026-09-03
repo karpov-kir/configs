@@ -2,7 +2,7 @@
 
 The stages a quality pass runs over one change set. **Binding on whoever runs a pass, any single stage of one, or one of its lanes on its own** — the rules here that bind a standalone lane say so.
 
-You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger. **A pass a merge waits on** has no such latitude: every stage its trigger fires runs, and refactor loops to compliance.
+You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger. **A pass a merge waits on** has no such latitude: every stage its trigger fires runs.
 
 **Each scanner lives with the lens it serves**, and you run it from there. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; a change set already committed is seen only by naming the range. **A spawn prompt describes the tree you read, never the tree you intended.** **Every scanner runs again after the lane it serves returns** — a hit still standing is resolved, or goes to the human as residue.
 

@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 You **dispatch and do not do the work** — every stage is a skill that already exists, invoked per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
 
-**This file holds no catalogue of what each skill does.** Their own `description:` fields are that (`~/.kk-flavor/standards/ecosystem.md` → **One home**). Resolve candidates at run time by reading the frontmatter under `~/.claude/skills/*/SKILL.md` — that also finds skills whose `disable-model-invocation: true` keeps them out of your context.
+**This file holds no catalogue of what each skill does.** Their own `description:` fields are that. Resolve candidates at run time by reading the frontmatter under `~/.claude/skills/*/SKILL.md` — that also finds skills whose `disable-model-invocation: true` keeps them out of your context.
 
 **That mount is the candidate set.** Not every skill you can invoke sits on it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Off that mount, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
 

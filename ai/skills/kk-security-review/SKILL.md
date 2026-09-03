@@ -14,7 +14,7 @@ Adversarially review every change resolved from `$ARGUMENTS`: assume the code is
 
 ## Setup (once)
 
-- List the security invariants the changes must hold — the project's constitution and `CLAUDE.md` on top of the standards.
+- List the security invariants the changes must hold — the project's `CLAUDE.md` on top of the standards.
 
 ## Coverage — the threat model
 

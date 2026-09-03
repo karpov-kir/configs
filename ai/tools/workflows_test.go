@@ -3,13 +3,11 @@
 // .github/workflows/gates.yml's own header.
 //
 // So the duplication is a decision, and this is its guard: two copies with a comment hoping to stay
-// aligned is how a fix lands in one and not the other, which happened in this repo today to a shell
-// script and its Go twin.
+// aligned is how a fix lands in one and not the other. The cases below hold the copies to each other
+// and to what they should say — agreeing on the wrong thing is still green.
 //
-// This file and gates.yml are a unit and must land in the same commit. With only one workflow
-// carrying a Gate step, the case below has nothing to hold to parity and fails — deliberately, and
-// not to be softened into a skip. A skip here would leave the drift unguarded while reading green,
-// which is the failure the whole case exists to prevent.
+// This file and gates.yml are a unit and must land in the same commit: with only one workflow
+// carrying a Gate step, they have nothing to hold to account and fail deliberately.
 package tools_test
 
 import (
@@ -24,7 +22,77 @@ const workflowsDir = "../../.github/workflows"
 
 const gateScript = "../gate.sh"
 
+// What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
+// on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
+// covers a package that fails, and without `./...` the gate runs a subset of the module.
+//
+// The bound is deliberately not in this list. It has one home — `gotest_timeout` in ai/gate.sh — and
+// TestEveryWorkflowGateBoundsGoTestLikeTheGateScript derives it from there. Pinned here as well, the
+// number would have a fourth home, and raising it would take a four-file edit with this case red until
+// the last one landed. That is the drift both cases exist to stop, reintroduced by the guard against
+// it.
+var goSuiteFlags = []string{"-count=1", "./..."}
+
+func TestEveryWorkflowGateRunsTheGoSuiteWithItsFlagsPinned(t *testing.T) {
+	checked := 0
+	for name, step := range gateSteps(t) {
+		invocations := goTestLines(step)
+		if len(invocations) == 0 {
+			t.Errorf("the Gate step in %s runs no `go test`, so the run it gates is not this module's "+
+				"suite.\n\n%s:\n%s", name, name, step)
+			continue
+		}
+		for i, fields := range invocations {
+			checked++
+			for _, flag := range goSuiteFlags {
+				if !hasField(fields, flag) {
+					t.Errorf("`go test` invocation %d in %s's Gate step does not pass %s, so the run it "+
+						"gates is not the one that was decided on — and this flag fails silently when "+
+						"absent.\n\n%s:\n%s", i+1, name, flag, name, step)
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatalf("no workflow under %s has a Gate step running `go test`, so this case held nothing to "+
+			"account. That is the drift going unguarded while reading green.", workflowsDir)
+	}
+}
+
+func hasField(fields []string, want string) bool {
+	for _, field := range fields {
+		if field == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
+	gates := gateSteps(t)
+
+	names := make([]string, 0, len(gates))
+	for name := range gates {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	first := names[0]
+	for _, name := range names[1:] {
+		if gates[name] != gates[first] {
+			t.Errorf("the Gate step in %s differs from the one in %s — the copies have drifted, so a change "+
+				"landed in one and not the other.\n\n%s:\n%s\n%s:\n%s",
+				name, first, first, gates[first], name, gates[name])
+		}
+	}
+}
+
+// Every workflow's step named `Gate`, by file name. Fewer than two is fatal for both cases above:
+// either a gate lost its step name or a workflow lost its gate, and both leave the cases with
+// nothing to hold to account. Not to be softened into a skip, which would leave the drift unguarded
+// while reading green.
+func gateSteps(t *testing.T) map[string]string {
+	t.Helper()
 	entries, err := os.ReadDir(workflowsDir)
 	if err != nil {
 		t.Fatalf("reading %s: %v", workflowsDir, err)
@@ -45,25 +113,10 @@ func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
 	}
 
 	if len(gates) < 2 {
-		t.Fatalf("found %d workflow(s) with a step named Gate under %s — this case exists because two of "+
-			"them run the same gate, so fewer than two means it is holding nothing to account. Either a "+
-			"gate lost its step name or a workflow lost its gate.", len(gates), workflowsDir)
+		t.Fatalf("found %d workflow(s) with a step named Gate under %s — fewer than two means these cases "+
+			"are holding nothing to account.", len(gates), workflowsDir)
 	}
-
-	names := make([]string, 0, len(gates))
-	for name := range gates {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	first := names[0]
-	for _, name := range names[1:] {
-		if gates[name] != gates[first] {
-			t.Errorf("the Gate step in %s differs from the one in %s — the copies have drifted, so a change "+
-				"landed in one and not the other.\n\n%s:\n%s\n%s:\n%s",
-				name, first, first, gates[first], name, gates[name])
-		}
-	}
+	return gates
 }
 
 // The `go test` bound is one fact with two homes: `gotest_timeout` in ai/gate.sh, and the `-timeout`
@@ -157,14 +210,7 @@ func gotestTimeout(script string) string {
 // is explaining.
 func goTestBounds(step string) []string {
 	var bounds []string
-	for _, line := range strings.Split(step, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 || strings.HasPrefix(fields[0], "#") {
-			continue
-		}
-		if fields[0] != "go" || fields[1] != "test" {
-			continue
-		}
+	for _, fields := range goTestLines(step) {
 		bound := ""
 		for i := 2; i+1 < len(fields); i++ {
 			if fields[i] == "-timeout" {
@@ -174,6 +220,24 @@ func goTestBounds(step string) []string {
 		bounds = append(bounds, bound)
 	}
 	return bounds
+}
+
+// The fields of each `go test` line in a Gate step, in order. Both cases read their own fact out of
+// these, so neither can disagree with the other about which lines are the suite's. Comment lines are
+// skipped, because a step's own comment names the flags it is explaining.
+func goTestLines(step string) [][]string {
+	var invocations [][]string
+	for _, line := range strings.Split(step, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || strings.HasPrefix(fields[0], "#") {
+			continue
+		}
+		if fields[0] != "go" || fields[1] != "test" {
+			continue
+		}
+		invocations = append(invocations, fields)
+	}
+	return invocations
 }
 
 // The body of the step named `Gate`, dedented, with trailing blank lines dropped. Line-based rather

@@ -4,11 +4,11 @@ description: Review a GitHub PR and leave a pending review for the human to subm
 argument-hint: "<PR number, URL, or head branch>"
 ---
 
-Leave a **pending review** on `<ref>` for the human to submit, never applied changes; `gh` must be authenticated. The pass is the one a merge waits on — a PR review is a pre-merge verdict.
+Leave a **pending review** on `<ref>` for the human to submit, never applied changes; `gh` must be authenticated.
 
 You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**), and the review you leave is outward text, so read `~/.kk-flavor/standards/human-writing.md` whole before you draft; and what you own is the checkout, the drive, the **selection** of the stages' returns into a review, and leaving it pending.
 
-**The pass is `~/.claude/skills/kk-qualify/SKILL.md`** — read it and run it over the checked-out worktree; everything below is this skill's delta. Its residue never reaches the human here — collect the stage returns in a scratch file instead. **That file is raw material, not a draft-in-progress** — the review gets written once, at **Draft, then leave it pending**. A gate that can't run is a setup ambiguity, asked live.
+**The pass is `~/.claude/skills/kk-qualify/SKILL.md`** — read it and run it over the checked-out worktree as the pass the merge waits on; everything below is this skill's delta. **Run it inline**, not spawned: it needs the human continuously, and they reach only your thread (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). Its residue never reaches the human here — collect the stage returns in a scratch file instead. **That file is raw material, not a draft-in-progress** — the review gets written once, at **Draft, then leave it pending**. A gate that can't run is a setup ambiguity, asked live.
 
 ## Set up, gate, drive, then run the stages
 

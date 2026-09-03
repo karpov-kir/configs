@@ -13,7 +13,7 @@ links:               # neighbouring intents, one edge per line: "extends NNN —
 
 ## Constraints
 
-Absolute qualities/thresholds the outcome must hold (3–7, business language; violation = failure). Project-wide NFRs are inherited from the constitution — list only the intent-specific ones here.
+Absolute qualities/thresholds the outcome must hold (3–7, business language; violation = failure). This intent inherits the charter's `## Constraints` — list only the intent-specific ones here.
 
 - <constraint, prefer measurable, e.g. "search returns in < 300ms">
 

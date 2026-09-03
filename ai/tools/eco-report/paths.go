@@ -207,11 +207,13 @@ func (r *run) assertShipExists(slug string) {
 // `discard` may take the whole directory. What counts as remaining is named, never "the .idsd/ root
 // is non-empty", so a stray dotfile cannot keep the dir alive. `decisions.md` is deliberately NOT on
 // the list — `~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log** makes it throwaway
-// scratch by design. Read after this ship's own files are gone, so every count it takes is of what
-// survives.
+// scratch by design. `roadmap.md` is off it for its own reason: `~/.claude/skills/idsd-intent/SKILL.md`
+// → **Phase 3 — Emit** generates it from the intents' own frontmatter, so wherever it says anything
+// the arm below is already keeping .idsd/ standing for what it was generated from.
+// Read after this ship's own files are gone, so every count it takes is of what survives.
 func (r *run) survivingContent() string {
 	kept := ""
-	for _, durable := range []string{"charter.md", "constitution.md", "language.md", "playbook.md"} {
+	for _, durable := range []string{"charter.md", "language.md", "playbook.md"} {
 		if shell.PathExists(r.idsdDir + "/" + durable) {
 			kept += " " + durable
 		}
