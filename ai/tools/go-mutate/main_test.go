@@ -105,6 +105,26 @@ func TestPreflightRefusesAMutantItCannotRunAsWritten(t *testing.T) {
 	}
 }
 
+// The command-line half of the stale-name defect preflight already refuses for `by`. A `-run` naming
+// a test the suites do not hold selects nothing, `go test` exits 0 over it, and every mutant comes
+// back KILLED NOTHING — 350 findings the harness invented.
+func TestARunFilterNoSuiteCanAnswerIsRefused(t *testing.T) {
+	held := map[string]map[string]bool{"./eco-check/": {"TestTheGravestFindingSurvivesAFlood": true}}
+
+	for _, given := range []string{"", "TestTheGravest", "TestTheGravestFindingSurvivesAFlood/and_ranks_it"} {
+		if why := unmatchedRunFilter(given, held); why != "" {
+			t.Errorf("expected -run %q to be answerable, refused with %q", given, why)
+		}
+	}
+
+	// The label of a mutant, which is what a reader reaches for and what no test is named.
+	for _, given := range []string{"report: the per-class floor removed", "TestNoSuchCase", "Test("} {
+		if unmatchedRunFilter(given, held) == "" {
+			t.Errorf("expected -run %q to be refused, it was accepted", given)
+		}
+	}
+}
+
 // The count is of mutants, not of complaints. A renamed guard and a renamed test travel together, so
 // one entry is regularly wrong twice — and counted twice it made the summary claim more broken anchors
 // than the list has entries, sending the reader after a second fault that does not exist.

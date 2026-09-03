@@ -33,7 +33,21 @@ type mutant struct {
 // six mutants sat there reading as a finished list. Appending keeps every name in the condition read.
 var mutants = []mutant{
 	{"direction: the shared finding bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "*count <= findingCap", "*count <= 100000"},
-	{"report: per-class cap removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "shown[r] <= findingCap", "shown[r] <= 100000"},
+	{"report: the per-rank cap removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "return shownInRank[rank] >= findingCap", "return shownInRank[rank] >= 100000"},
+	// `|| true`, not the `&& false` the header above describes: the anchored condition is the one
+	// that *skips* a finding, so appending to it is what leaves the floor keeping nothing.
+	{"report: the per-class floor removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) {", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) || true {"},
+	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	// findingCap is the right number only for the class that filled the rank. Every class the floor
+	// left at one line then gets a negative count, so a case that only asserts a note is there stays
+	// green.
+	{"report: a note counting its whole rank's withheld findings", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "class.total-class.shown, suppressedMarker", "class.total-findingCap, suppressedMarker"},
+	// The flag is set here and read at the tally. Unset, every note counts as a finding and the
+	// trailing "further finding(s) not shown" is short by one per note.
+	{"report: a note counted as one of the findings", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "rankedLine{rank: class.rank, isNote: true,", "rankedLine{rank: class.rank, isNote: false,"},
+	// Only observable on a tree whose own committed path holds the marker wording, which is why the
+	// case builds that filename out of the constant.
+	{"report: notes told apart by their text", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if !line.isNote {", "if !strings.Contains(bounded, suppressedMarker) {"},
 	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
 	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
 	// crafted links hides them and the report reads clean of the very thing they exist to say.
