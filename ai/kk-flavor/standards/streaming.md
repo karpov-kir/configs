@@ -37,6 +37,6 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 
 **`security`, `code-review`, `refactor`, `comments`** — that order, not the stage numbering in [quality-pipeline.md](quality-pipeline.md) → **The stages**, and those four tokens verbatim in a patch's filename. **The resume is the re-review** that file owes for fixes applied between the round and refactor.
 
-**A runtime-behaviour claim is re-driven at the tier boundary of its own tier**, there being no round return to bring it back to.
+**Refactor joins as a tier.** Its tier boundary is the serialization a fresh spawn would otherwise give it ([quality-pipeline.md](quality-pipeline.md) → **The round**): nothing from the tiers above it is outstanding at that boundary. **Its compliance verdict is still a fresh spawn** — a surviving verdict is what verifies an applied patch and what corrupts a compliance judgment.
 
-**Refactor joins as a tier.** Its tier boundary is the serialization a fresh spawn would otherwise give it ([quality-pipeline.md](quality-pipeline.md) → **The round**): nothing from the tiers above it is outstanding when its patches land. **Its compliance verdict is still a fresh spawn** — a surviving verdict is what verifies an applied patch and what corrupts a compliance judgment.
+**A runtime-behaviour claim is re-driven at the tier boundary of its own tier**, there being no round return to bring it back to.
