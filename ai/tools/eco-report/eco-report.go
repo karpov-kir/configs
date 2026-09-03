@@ -47,7 +47,7 @@
 //	                 directory back where it came from
 //	discard          throwaway only: remove this ship's scratch (report, intent file, stage markers),
 //	                 and the whole scratch directory when nothing else remains. Another intent, or an
-//	                 authored charter/constitution/language/playbook, is "something" — those are the
+//	                 authored charter/language/playbook, is "something" — those are the
 //	                 human's, not this ship's scratch
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
