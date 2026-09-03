@@ -180,33 +180,15 @@ done <<<"$(stubs)"
 while IFS='|' read -r skill script cwd args marker; do
   [ -n "$skill" ] || continue
 
-  # The shallower of the two candidates: a stub two levels below the tools directory rather than three.
-  # The in-situ case at the top of this file drives the one real stub at that depth; this fixture drives
-  # every stub body there.
+  # A checkout that ships no ai/tools/ refuses, rather than reaching one that belongs to somebody else.
+  # The decoy sits ABOVE the repository root, which is where two earlier shapes of this region reached:
+  # first an unbounded walk upward, then a list of three relative offsets applied uniformly to stubs at
+  # three different depths, so two of them pointed outside the checkout for a stub one level above
+  # ai/tools/. Both ran a stranger's binary at exit 0.
   #
-  # The `sub/` matters. Built as `$shallow/scripts/` beside `$shallow/tools/`, the resolver would be one
-  # level up — a position no stub in this repo occupies — and the case would pass off a shape it never
-  # models.
-  shallow="$base/shallow-$script"
-  mkdir -p "$shallow/sub/scripts"
-  cp -R "$tools" "$shallow/tools"
-  cp "$skills/$skill/scripts/$script" "$shallow/sub/scripts/$script"
-  chmod 755 "$shallow/sub/scripts/$script"
-  out=$(CDPATH= cd "$cwd" && "$shallow/sub/scripts/$script" "$args" 2>&1)
-  status=$?
-  if [ "$status" -eq 2 ]; then
-    record_fail "$script reaches its tool from two levels below tools/" "exit 2 — the resolver was not found: $out"
-  else
-    record_pass "$script reaches its tool from two levels below tools/"
-  fi
-
-  # And a checkout that ships no ai/tools/ refuses, rather than reaching one that belongs to somebody
-  # else. The decoy sits FOUR levels above the stub, past both named candidates, so anything that
-  # reached it resolved by some rule other than the two.
-  #
-  # Asserted from both ends: the refusal must name the missing tools directory, AND the decoy must never
-  # have run. Either alone passes for the wrong reason — a stub that died before resolving anything
-  # satisfies the second, and a stub that ran the decoy and then failed could satisfy the first.
+  # Asserted from both ends: the refusal must name the missing resolver, AND the decoy must never have
+  # run. Either alone passes for the wrong reason — a stub that died before resolving anything satisfies
+  # the second, and one that ran the decoy and then failed could satisfy the first.
   escape="$base/escape-$script"
   mkdir -p "$escape/tools" "$escape/root/skills/$skill/scripts"
   printf '#!/usr/bin/env bash\necho "decoy resolver reached" >&2\nexit 2\n' > "$escape/tools/resolve.sh"
@@ -216,15 +198,50 @@ while IFS='|' read -r skill script cwd args marker; do
   out=$(CDPATH= cd "$cwd" && "$escape/root/skills/$skill/scripts/$script" "$args" 2>&1)
   status=$?
   expect_status "$script exits 2 rather than reaching a tools/ outside the checkout" 2
-  expect_out "$script names the missing tools directory rather than resolving past it" "does not ship ai/tools/"
+  expect_out "$script names the resolver it could not find" "no resolver at"
   case "$out" in
     *"decoy resolver reached"*)
-      record_fail "$script never reaches a resolver four levels above it" \
-        "it resolved past both named candidates and ran $escape/tools/resolve.sh: $out"
+      record_fail "$script never reaches a resolver outside its own checkout" \
+        "it resolved past the path it names and ran $escape/tools/resolve.sh: $out"
       ;;
-    *) record_pass "$script never reaches a resolver four levels above it" ;;
+    *) record_pass "$script never reaches a resolver outside its own checkout" ;;
   esac
 done <<<"$(stubs)"
+
+# Every stub's declared offset, checked against where that stub actually sits. This replaced a fixture
+# that copied a skill stub into a shallower tree and asserted it still resolved — which was only ever
+# true while the region SEARCHED for the tools directory. It names one path now, so a stub's depth is
+# its own property, and the thing worth holding is that each one declares the depth it really has.
+#
+# Discovered rather than listed, so a stub added tomorrow is checked without a row here; finding none
+# is a failure, because a scan over nothing is green for the wrong reason.
+offsets_checked=0
+while IFS= read -r stub_file; do
+  [ -n "$stub_file" ] || continue
+  # This file carries the marker as a string it searches FOR, not as a region it holds. Excluded by
+  # name rather than by a cleverer pattern: a scan that tried to tell the two apart by shape would be
+  # one more thing to get wrong, and there is exactly one file in this position.
+  case "$stub_file" in */tool-stub-test.sh) continue ;; esac
+  grep -q -e '--- shared:tool-stub ---' "$stub_file" || continue
+  offset=$(sed -n 's/^tools_offset="\(.*\)"$/\1/p' "$stub_file")
+  if [ -z "$offset" ]; then
+    record_fail "$stub_file declares a tools_offset" "it carries the shared region and names no offset, so it resolves nothing"
+    continue
+  fi
+  stub_dir=$(CDPATH= cd -P "$(dirname "$stub_file")" && pwd -P)
+  offsets_checked=$((offsets_checked + 1))
+  if [ -x "$stub_dir/$offset/tools/resolve.sh" ]; then
+    record_pass "${stub_file##*/} declares the offset that reaches its own tools directory"
+  else
+    record_fail "${stub_file##*/} declares the offset that reaches its own tools directory" \
+      "tools_offset=$offset resolves to $stub_dir/$offset/tools/resolve.sh, which is not executable"
+  fi
+done <<<"$(cd "$ai/.." && git ls-files '*.sh')"
+if [ "$offsets_checked" -eq 0 ]; then
+  record_fail "the offset scan found stubs to read" "no file carried a tools_offset, so that scan checked nothing"
+else
+  record_pass "the offset scan found $offsets_checked stub(s) to read"
+fi
 
 # argv[0] survives the exec. The tools derive the skill directory from argv[0], so a stub that let the
 # binary's own path through would send every write to the tools directory instead. Proven with the

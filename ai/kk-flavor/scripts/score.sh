@@ -17,12 +17,15 @@
 # enforcement, not convenience: read the comment at one before removing it. What `default` is, and why
 # an unknown lane exits rather than landing on it, is stated at that lane in `../thresholds.conf`.
 #
-# tested by: the Go suite beside the tool, `ai/tools/score/score_test.go`, which drives every case in
-# one process; the shared stub region below by tool-stub-test.sh, and the resolver by resolve-test.sh.
+# tested by: the Go suite beside the tool, `ai/tools/score/`; the shared stub region below by
+# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 
 tool="score"
+# How far THIS file sits above the tools directory. The shared region below resolves exactly this one
+# path and consults nothing else, so a stub can only ever reach the directory it names.
+tools_offset="../.."
 
 # --- shared:tool-stub ---
 # Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
@@ -38,24 +41,16 @@ die() {
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so $tool could not be located"
 
-# The candidates, named, and NOT a walk upward. The stubs sit at exactly three depths — `ai/` itself is
-# one above the tools directory, `kk-flavor/scripts/` is two, a skill's `scripts/` is three — so all
-# three are written out and nothing else is consulted. They cannot collide: from any one depth the
-# other two name directories that do not exist.
-#
-# An unbounded walk was here and was a hole: where a checkout genuinely does not ship `ai/tools/`, it
-# climbed out of the checkout and ran the first `tools/resolve.sh` it met in any ancestor, exec'ing a
-# stranger's binary at exit 0 where the refusal below is the whole point. Bounding it by depth alone
-# does not close that — an ancestor can sit inside the bound. Naming the two real candidates does.
-resolver=""
-for candidate in "$here/tools/resolve.sh" "$here/../../tools/resolve.sh" "$here/../../../tools/resolve.sh"; do
-  if [ -e "$candidate" ]; then
-    resolver="$candidate"
-    break
-  fi
-done
-[ -n "$resolver" ] ||
-  die "no tools/resolve.sh at any of the three depths around $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+# Exactly one path, named by the stub above rather than searched for here. The stubs sit at three
+# depths, and a shared region that guesses between them is a stub reaching a directory it does not
+# name: first a walk upward, which where a checkout ships no `ai/tools/` climbed OUT of it and exec'd
+# the first `tools/resolve.sh` in any ancestor, and then a list of three relative candidates, which is
+# the same hole one step quieter — those offsets are applied to files at DIFFERENT depths, so two of
+# them resolve outside the repository for a stub one level above the tools directory. Demonstrated
+# both times, exit 0 with a stranger's binary run. One named path cannot do either.
+resolver="$here/$tools_offset/tools/resolve.sh"
+[ -e "$resolver" ] ||
+  die "no resolver at $resolver — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
 [ -x "$resolver" ] ||
   die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
