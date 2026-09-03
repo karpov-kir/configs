@@ -27,19 +27,19 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 
 **Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills and this table leaves out; and a retrospective, which is no lane at all and belongs to `kk-retro`. **A change set holding the instruction tree names it in your return; a retrospective you never even offer.**
 
-**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, the **Tier** column is what each spawn prompt's patch-queue slot carries; a lane with no tier runs unstreamed — prose in the round with the rest, drive still the gate before it.
+**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, **every tiered row goes out in the round's one message — `kk-refactor` and `kk-humanize` alongside the reviews, never after them**. The **Tier** column is what each one's spawn prompt carries in its patch-queue slot. A lane with no tier runs unstreamed: prose in the round with the rest, drive still the gate before it.
 
 ## The residue
 
 **Only what needs the human, never a record of the run.** If they take no action, it is not residue, and there is never a monitor-only group.
 
 - **An item earns its place by the report-item test** in `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** — read it. **An applied fix is not an item**; the diff is its record. Where the fix traded something the human may weigh differently, the open question is *which way* — that is a **fork**, and its default is what the tree now does. **Where the losing branch names no belief the human could hold, it is not a fork either.**
-- **Score what clears that test** (`~/.kk-flavor/standards/writing.md` → **Score what survives**) — here the reader's need is how much it takes their own eyes. At or below the lane's threshold it is one line in the closing reply.
+- **Score what clears that test** (`~/.kk-flavor/standards/writing.md` → **Score what survives**) — here the reader's need is how much it takes their own eyes. At or below the `report` lane's threshold it is one line in the closing reply.
 - **Order by score, highest first** — the kind rides as a label, never a group: **falsified** (a claim this pass disproved), **fork** (a genuine choice still open), **pending evidence** (blocked on a named signal that does not exist yet). A falsified claim is not more urgent than a fork, it is a prerequisite, and the item's own text carries that: **a falsified item has no branch to lose to**, so it closes on what the human must now re-decide; where that is nothing, it is a tidy-up and there is no item.
-- **Number the items in the order they land**, so the human can name one. The number is positional and good only for the pass in front of them — say so, because the next pass renumbers and "item 3" then means something else.
+- **Number the items in the order they land**, so the human can name one. The number is positional and good only for the pass in front of them — say so, because the next pass renumbers.
 - **A blocking question is asked live and never recorded**, except the unanswered one (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). **A drive step the human dropped is neither** — it is one line in the closing reply (**After the pass**); asking before dropping is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**.
 - **Each item stands alone** — someone who never saw the run understands what it is, why it matters, and can act. Cut run-narration and command strings, never the stakes.
-- **Roughly 60 words an item, and the recommendation closes it on its own line** — this lane's bound on the exception `~/.kk-flavor/standards/writing.md` → **Density** licenses. Over the bound the surplus is the case restated for a reader who has just read it. **Having no recommendation is itself an opening**: "nothing — this is a product call" beats a hedge dressed as advice.
+- **Roughly 60 words an item, and the recommendation closes it on its own line** — this skill's bound on the exception `~/.kk-flavor/standards/writing.md` → **Density** licenses. Over the bound the surplus is the case restated for a reader who has just read it. **Having no recommendation is itself an opening**: "nothing — this is a product call" beats a hedge dressed as advice.
 
 ## After the pass
 
