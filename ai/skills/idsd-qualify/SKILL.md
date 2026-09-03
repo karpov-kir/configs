@@ -46,6 +46,8 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` â€
 
 It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 40 lines.**
 
+**Write it only through `report.sh record {append|bump|evict} decisions "<text>"`.** Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
+
 Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** â€” content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale. **Read it at pass start**: its standing observations are re-evaluated each pass.
 
 ### The residue

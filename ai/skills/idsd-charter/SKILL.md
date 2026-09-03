@@ -23,10 +23,10 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 
 Score the Constraints section through `~/.kk-flavor/scripts/score.sh cut instruction "a constraint whose breach fails the build"`. The two tests above have already taken the weak ones, so `--kept-all <why>` is the ordinary ending here rather than a failure.
 
+A constraint promoted from `.idsd/decisions.md` arrives as a proposal, never as the entry itself: the human owns the threshold. Once they accept it, delete the source entry with `~/.claude/skills/idsd-qualify/scripts/report.sh record evict decisions "<text identifying it>"` (`~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log**).
+
 ## Rules
 
 Curated, not generated: humans own the wording. **So you open no prose-lane handoff for this file.**
 
 This file is a promotion target, so `~/.kk-flavor/standards/records.md` is the whole delta: its test bounds the file, applied to every line on every edit, never a line count.
-
-A constraint promoted from `.idsd/decisions.md` arrives as a proposal, never as the entry itself: the human owns the threshold.
