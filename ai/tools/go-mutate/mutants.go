@@ -84,14 +84,16 @@ var mutants = []mutant{
 	// resolving to the new directory reads as a deletion.
 	{"mounts: a mount that still resolves reported as gone", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "if shell.IsDir(mountPath) {", "if shell.IsDir(mountPath) && false {"},
 	{"mounts: another checkout's mount reported as this tree's", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if mountedInto == "" || mountedInto != skillsHere {`, `if (mountedInto == "" || mountedInto != skillsHere) && false {`},
-	{"mounts: a target's trailing slash hides the mount behind it", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `strings.TrimRight(target, "/")`, `strings.TrimRight(target, "")`},
 	{"mounts: a skill this tree still has reported by both halves", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "if skillDirs[name] {", "if skillDirs[name] && false {"},
 	{"mounts: a mount without a skill left unsanitised", "mounts.go", "./eco-check/", "TestAMountWithoutASkillCarriesNoControlByte", "shell.Oneline(target)", "target"},
 	{"mounts: a mount's own name left unsanitised", "mounts.go", "./eco-check/", "TestAMountWithoutASkillCarriesNoControlByte", `shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(target)`, `shell.Join(skillsMount, name) + " -> " + shell.Oneline(target)`},
 	// A relative target, resolved the way mountTarget says it has to be. Both directions, because an
 	// absolute target must not move either.
-	{"mounts: a relative target read against the working directory", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if !strings.HasPrefix(target, "/") {`, `if false {`},
-	{"mounts: an absolute target rewritten as a relative one", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if !strings.HasPrefix(target, "/") {`, `if true {`},
+	// Appended to rather than replaced, per the note at the head of this list: `strings.HasPrefix` here
+	// is the package's last use of `strings`, so a bare `false` or `true` orphans the import and the
+	// mutant comes back broken instead of killed.
+	{"mounts: a relative target read against the working directory", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if !strings.HasPrefix(target, "/") {`, `if !strings.HasPrefix(target, "/") && false {`},
+	{"mounts: an absolute target rewritten as a relative one", "mounts.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", `if !strings.HasPrefix(target, "/") {`, `if !strings.HasPrefix(target, "/") || true {`},
 	// The skip note, both directions: only the pair makes absence of that line readable as "the scan
 	// ran".
 	{"mounts: a skipped scan never says it was skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() || true {"},
