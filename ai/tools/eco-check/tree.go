@@ -11,20 +11,32 @@ import (
 )
 
 type fsEntry struct {
+	// The path as the walk built it, which is the root exactly as the caller spelled it plus the
+	// way down. Every finding echoes this one.
 	path string
-	mode fs.FileMode
+	// The same file under the name rootName gives the root, which every spelling shares, plus the
+	// way down.
+	canonical string
+	mode      fs.FileMode
 }
 
 func (e fsEntry) isRegular() bool { return e.mode.IsRegular() }
 
-// tree is one `find <start>` answered once, plus the index that answers `-path "*/<ref>" -type f`.
-// That question is asked once per cited token, and the shell version paid a process and a whole
-// tree walk for each of them.
+// tree is one `find <start>` answered once, plus the index that answers "does this cited token name
+// a file in here". That question is asked once per cited token, and the shell version paid a process
+// and a whole tree walk for each of them.
 type tree struct {
+	// The start as the caller spelled it, and rootName's name for it. Together they turn a walked
+	// path into the canonical name the index is keyed on.
+	start         string
+	canonicalRoot string
+
 	entries []fsEntry
-	// Every tail of a regular file's path that begins after a `/`, which is exactly what a
-	// `*/<ref>` pattern can match. Insertion order is walk order, so a caller reading the first
-	// match reads the one find would have printed first.
+	// Each regular file's canonical name, plus every tail of it that begins after a `/` — the
+	// shapes prose writes a path in, from the root's own name down to a bare basename. Keyed on the
+	// canonical name and never on the spelled one, so what the check reports never depends on which
+	// spelling was typed. Insertion order is walk order, so a caller reading the first match reads
+	// the one find would have printed first.
 	suffixes map[string][]string
 }
 
@@ -36,15 +48,54 @@ func (c *checker) walkTree(start string) *tree {
 	if cached, ok := c.trees[start]; ok {
 		return cached
 	}
-	walked := &tree{suffixes: map[string][]string{}}
+	walked := &tree{start: start, canonicalRoot: rootName(start), suffixes: map[string][]string{}}
 	if info, err := os.Lstat(start); err == nil {
-		walked.add(fsEntry{path: start, mode: info.Mode()})
+		walked.add(walked.newEntry(start, info.Mode()))
 		if info.IsDir() {
 			walked.descend(start)
 		}
 	}
 	c.trees[start] = walked
 	return walked
+}
+
+// The directory name every spelling of start shares: `ai` for `ai`, `ai/`, `./ai`, the absolute path,
+// and `.` run from inside that directory. filepath.Abs cleans the path and answers from the process
+// working directory, which is how a relative root is read everywhere else in this tool.
+//
+// The root's own directory name, and nothing above it. Anchor this any higher — on the cleaned
+// absolute path, say — and every ancestor of the checkout becomes a key in the index below. A
+// citation naming one would resolve, and the report's silence would tell the branch's author what the
+// reviewing machine's path is called. That is underRoot's probe again, arriving through the index
+// instead of through a stat. TestACitationNamingADirectoryAboveTheRootDoesNotResolve holds it shut.
+//
+// The root's own name does leak. A citation whose first component guesses it right resolves and a
+// wrong guess is reported, so one guess confirms the name. That is the whole of the residue: one
+// low-value directory name, never an ancestor of it. Reading it back a character class at a time went
+// with the pattern arm — citations.go → globInCitation refuses a glob before the index is asked.
+//
+// Symlinks are not resolved here. walkTree lstats the start, so a symlinked root is never descended
+// into and its index stays empty whatever name this returns — resolving would only put this function
+// at odds with the walk beside it.
+func rootName(start string) string {
+	absolute, err := filepath.Abs(start)
+	if err != nil {
+		return shell.BaseName(start)
+	}
+	return shell.BaseName(absolute)
+}
+
+// One walked entry, under both names. The relative half is a prefix cut rather than a path
+// operation: every path the walk builds is start plus concatenated components, so start is a literal
+// prefix of it. A spelling that leaves a doubled separator behind (`ai/` yields `ai//gate.sh`) loses
+// it here with the rest of the leading slashes.
+func (t *tree) newEntry(path string, mode fs.FileMode) fsEntry {
+	rel := strings.TrimLeft(strings.TrimPrefix(path, t.start), "/")
+	canonical := t.canonicalRoot
+	if rel != "" {
+		canonical = shell.Join(t.canonicalRoot, rel)
+	}
+	return fsEntry{path: path, canonical: canonical, mode: mode}
 }
 
 func (t *tree) descend(dir string) {
@@ -57,9 +108,8 @@ func (t *tree) descend(dir string) {
 		if err != nil {
 			continue
 		}
-		// Concatenated, not joined, so the path a finding echoes is the one the caller named.
 		path := shell.Join(dir, entry.Name())
-		t.add(fsEntry{path: path, mode: info.Mode()})
+		t.add(t.newEntry(path, info.Mode()))
 		// entry.IsDir() reads the directory entry's own type, so a symlink to a directory is not
 		// descended into and no committed link can walk this scan out of the tree under review.
 		if entry.IsDir() {
@@ -73,26 +123,26 @@ func (t *tree) add(entry fsEntry) {
 	if !entry.isRegular() {
 		return
 	}
-	for i := 0; i < len(entry.path); i++ {
-		if entry.path[i] == '/' {
-			tail := entry.path[i+1:]
+	// The canonical name is a key in its own right, not only its tails. Every tail below begins
+	// after a `/`, so none of them starts at the root's own directory name — and a citation written
+	// from the repo root, such as `ai/gate.sh` cited in a file under `ai/`, names exactly that.
+	t.suffixes[entry.canonical] = append(t.suffixes[entry.canonical], entry.path)
+	for i := 0; i < len(entry.canonical); i++ {
+		if entry.canonical[i] == '/' {
+			tail := entry.canonical[i+1:]
 			t.suffixes[tail] = append(t.suffixes[tail], entry.path)
 		}
 	}
 }
 
-// The regular files whose path a `*/<ref>` pattern matches, in walk order.
+// The regular files a cited token names, in walk order: the files whose canonical name the token is,
+// and those whose canonical name ends with it after a `/`.
+//
+// The index answers this whole question, because no token that reaches here holds a pattern. Every
+// scan's token charset excludes `*?[\`, and the one scan that did not exclude them — the citation
+// scan — now refuses them outright (citations.go → globInCitation).
 func (t *tree) matchPath(ref string) []string {
-	if !strings.ContainsAny(ref, `*?[\`) {
-		return t.suffixes[ref]
-	}
-	var matches []string
-	for _, entry := range t.entries {
-		if entry.isRegular() && shell.Fnmatch("*/"+ref, entry.path) {
-			matches = append(matches, entry.path)
-		}
-	}
-	return matches
+	return t.suffixes[ref]
 }
 
 // The regular files under start whose basename matches one of the given `find -name` globs.

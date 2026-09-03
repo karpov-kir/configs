@@ -35,6 +35,11 @@ func (c *checker) scanCitations() {
 // write one.
 const harnessCitationNote = " — this file is a test harness: if that citation is fixture text, assemble it at run time instead of writing it out"
 
+// The bytes a cited path may not hold. fnmatch's four metacharacters, named here rather than in the
+// resolver: with these refused the resolver has no pattern to answer, so this is the one place that
+// still has to know what one looks like.
+const globInCitation = `*?[\`
+
 // Findings from this scan go through here so a harness pays the note once, wherever it was reported.
 func (c *checker) addCitationFinding(cited citation, finding string) {
 	if isTestHarness(cited.src) {
@@ -45,6 +50,7 @@ func (c *checker) addCitationFinding(cited citation, finding string) {
 
 func (c *checker) reportCitation(cited citation) {
 	position := shell.Oneline(cited.src) + ":" + strconv.Itoa(cited.line)
+	citedPath := position + " -> " + shell.Oneline(cited.path)
 	// A citation the scanner cannot see is worse than one it reports wrong: nothing reads the section,
 	// so the rename that breaks it leaves this gate green. The head is a backticked run naming no
 	// markdown file — `kk-qualify` → **The residue** — and the section arrived in the `**` form
@@ -60,16 +66,29 @@ func (c *checker) reportCitation(cited citation) {
 			" — the text before the arrow names no markdown file, so nothing checks that section; write the file's path")
 		return
 	}
+	// These four bytes reach here because the cited path is filtered by `[A-Za-z0-9]\.md$` alone — an
+	// end anchor, so anything at all may precede it — while every other scan's token charset excludes
+	// them. Refused rather than matched, on two counts. A pattern that matched reported a section
+	// against a file nobody cited, which is a wrong finding whoever reads it. And answering *which*
+	// patterns matched told the reviewed branch what the reviewing machine's own directories are
+	// called, one character class per citation — the probe tree.go → underRoot exists to close.
+	// Refusing costs the resolver its whole pattern arm, which is the point: nothing reaches it once
+	// this is here.
+	if glob := strings.IndexAny(cited.path, globInCitation); glob >= 0 {
+		c.addCitationFinding(cited, "pattern in a citation path: "+citedPath+
+			" — `"+string(cited.path[glob])+"` reads as a glob, and a citation has to name one file; write the path it means")
+		return
+	}
 	target := c.resolveRef(shell.DirName(cited.src), cited.path)
 	if target == "" {
-		c.addCitationFinding(cited, "unresolvable citation path: "+position+" -> "+shell.Oneline(cited.path))
+		c.addCitationFinding(cited, "unresolvable citation path: "+citedPath)
 		return
 	}
 	// Reported even when the section resolves today: undelimited is how it stops resolving in
 	// silence. An undelimited name truncates at the first comma, so half a heading satisfies the
 	// citation and a rename then breaks it without a word.
 	if !cited.isDelimited {
-		c.addCitationFinding(cited, "undelimited section citation: "+position+" -> "+shell.Oneline(cited.path)+
+		c.addCitationFinding(cited, "undelimited section citation: "+citedPath+
 			" → "+shell.Oneline(cited.section)+" is not wrapped in ** or backticks")
 	}
 	// The cited path resolved through whatever the reviewed tree pointed it at, and pathExists
@@ -77,25 +96,32 @@ func (c *checker) reportCitation(cited citation) {
 	// return. Reported rather than skipped: a target nothing read must not be indistinguishable from
 	// a checked one.
 	if !shell.IsRegularFile(target) {
-		c.addCitationFinding(cited, "citation target is not a regular file: "+position+" -> "+shell.Oneline(cited.path)+
+		c.addCitationFinding(cited, "citation target is not a regular file: "+citedPath+
 			" — it was NOT read")
 		return
 	}
+	if c.sectionResolves(target, cited.section) {
+		return
+	}
+	c.addCitationFinding(cited, "dangling section ref: "+citedPath+" → "+
+		shell.Oneline(cited.section)+" — "+c.danglingVariant(cited, target))
+}
+
+// Whether the cited section names a heading of the target. Prose runs on past the heading it names,
+// so the longest leading run that is itself a heading answers yes.
+func (c *checker) sectionResolves(target, section string) bool {
 	headings := c.markdownHeadings(target)
-	// Prose runs on past the heading it names, so accept the longest leading run that is a heading.
-	named := plainText(cited.section)
-	for want := named; want != ""; {
+	for want := plainText(section); want != ""; {
 		if _, isHeading := headings[want]; isHeading {
-			return
+			return true
 		}
 		cut := strings.LastIndexByte(want, ' ')
 		if cut < 0 {
-			break
+			return false
 		}
 		want = want[:cut]
 	}
-	c.addCitationFinding(cited, "dangling section ref: "+position+" -> "+shell.Oneline(cited.path)+" → "+
-		shell.Oneline(cited.section)+" — "+c.danglingVariant(cited, target))
+	return false
 }
 
 // Which of the four ways a section citation dangles this one is. All four read as correct to a human

@@ -536,6 +536,36 @@ var mutants = []mutant{
 	{"traversal: an out-of-root ref is stat'ed after all", "tree.go", "./eco-check/", "TestATraversalLinkIsNotStatted", `	rel, err := filepath.Rel(c.root.Named(), path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")`, `	_, err := filepath.Rel(c.root.Named(), path)
 	return err == nil || true`},
+	// The three pieces that make one tree answer one way however its root was spelled. Whether a cited
+	// path names a file here used to depend on the caller's typing, and no finding may. Each label
+	// below is a separate way that could come back.
+	{"canonical index: the root's own name is not a key", "tree.go", "./eco-check/", "TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed", "\tt.suffixes[entry.canonical] = append(t.suffixes[entry.canonical], entry.path)\n", ""},
+	{"canonical index: the root is indexed as it was spelled", "tree.go", "./eco-check/", "TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed", `	absolute, err := filepath.Abs(start)
+	if err != nil {
+		return shell.BaseName(start)
+	}
+	return shell.BaseName(absolute)`, `	_, err := filepath.Abs(start)
+	if err != nil {
+		return shell.BaseName(start)
+	}
+	return shell.BaseName(start)`},
+	{"canonical index: a doubled separator survives the root cut", "tree.go", "./eco-check/", "TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed", `strings.TrimLeft(strings.TrimPrefix(path, t.start), "/")`, `strings.TrimPrefix(path, t.start)`},
+	// The fourth way, and the only one the spelling-agreement case above cannot see: an anchor reaching
+	// *above* the root instead of falling short of it. tree.go's rootName carries what that one leaks.
+	{"canonical index: the anchor reaches above the root", "tree.go", "./eco-check/", "TestACitationNamingADirectoryAboveTheRootDoesNotResolve", "\treturn shell.BaseName(absolute)", "\treturn strings.TrimPrefix(absolute, \"/\")"},
+	// The tails, which are the other half of the index and the shape prose writes most often. Taken
+	// from the spelled path they carry whatever the caller typed above the root, which is the leak the
+	// case above names.
+	{"canonical index: the tails taken from the spelled path", "tree.go", "./eco-check/", "TestACitationNamingADirectoryAboveTheRootDoesNotResolve", `	for i := 0; i < len(entry.canonical); i++ {
+		if entry.canonical[i] == '/' {
+			tail := entry.canonical[i+1:]`, `	for i := 0; i < len(entry.path); i++ {
+		if entry.path[i] == '/' {
+			tail := entry.path[i+1:]`},
+	// What keeps the index answering a name rather than a pattern. citations.go → globInCitation says
+	// why the cited path is the one token that can carry one, and what refusing it buys. Removed, the
+	// citation falls through to `unresolvable citation path` and sends its reader hunting for a file
+	// nobody is missing. Nothing would then stand in front of the resolver if a matcher ever came back.
+	{"citations: a pattern in a cited path is matched rather than refused", "citations.go", "./eco-check/", "TestAPatternInACitedPathIsRefusedRatherThanMatched", `	if glob := strings.IndexAny(cited.path, globInCitation); glob >= 0 {`, `	if glob := strings.IndexAny(cited.path, globInCitation); glob >= 0 && false {`},
 	{"headings: the target re-parsed once per citation", "headings.go", "./eco-check/", "TestAMarkdownFileIsParsedOncePerRun", `	if cached, ok := c.headings[path]; ok {
 		return cached
 	}`, ``},
