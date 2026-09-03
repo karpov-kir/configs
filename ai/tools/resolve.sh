@@ -8,11 +8,16 @@
 #
 # Order: a binary already at bin/<tool>, then a local `go build` when the source is here. The first
 # branch is what a release install lands on, and why installing these skills needs no Go toolchain.
-# ECO_TOOLS_BUILD=1 skips it. That binary is served only while no Go source in the module is newer
-# than it; otherwise this rebuilds, so an edit is not measured through the build before it. bin/ is
-# gitignored, so no checkout carries a binary: install.sh downloads one afterwards, newer than every
-# source, and an install still pays no build. Where it is older and nothing here can rebuild, it is
-# served with a warning on stderr.
+# ECO_TOOLS_BUILD=1 skips it. That binary is served only while it was built from the source beside
+# it: source-stamp.sh hashes that source, and the stamp written next to the binary says what the
+# binary came from. When the two differ this rebuilds, so an edit is never measured through the
+# build that came before it.
+#
+# A hash and not a timestamp, because the binary that has to be caught is one NEWER than the source
+# it disagrees with, and every downloaded release binary is. source-stamp.sh's header has the rest.
+#
+# Where the binary came from something else, or cannot be compared at all, and nothing here can
+# rebuild, it is served with a warning on stderr.
 #
 # Every failure exits 2 and names what did not happen. These tools report findings, so exit 0 with
 # none is what a clean tree looks like, and a tool that could not run must never reach a caller as
@@ -48,18 +53,26 @@ serve() {
   exit 0
 }
 
-# The whole module, never just `$tools/$tool`: every tool imports `kk-flavor/tools/shell` and most
-# import `eco-root`, so an edit there leaves the tool's directory untouched and its binary stale.
+# Written by whoever puts the binary there — this script after a build, install.sh after a download.
+stamp="$binary.stamp"
+
+# Three answers: 0 built from this source, 1 built from something else, 2 could not tell. The third
+# earns its place for the reason the whole file exists: a check that could not run must never be
+# served as one that came back clean.
 #
-# Three answers: 0 newer, 1 nothing newer, 2 could not tell. The third earns its place because a
-# `find` that runs and fails prints nothing, and on the output alone that is byte-for-byte what a
-# clean tree looks like. Reading the status is what stops "it broke" from being served as "nothing
-# is newer" — the defect the branch below exists to close, one layer further in.
-sources_newer_than() {
-  local listing status=0
-  listing=$(find "$tools" -name '*.go' -newer "$1" -print 2>/dev/null) || status=$?
-  [ "$status" -eq 0 ] || return 2
-  [ -n "$listing" ]
+# The stamp covers every non-test Go file in the module rather than a guess at which of them this
+# tool compiles. source-stamp.sh carries why: the guess went blind on a library that cmd/ also backs.
+built_from_this_source() {
+  local want held
+  # A checkout carrying binaries with no Go source beside them — the shape a skill mounted from a
+  # source-less checkout has — leaves nothing to compare against, so there is no doubt to report. Not
+  # a release install: that lands its binaries in a full checkout, which does carry the source.
+  if [ ! -d "$tools/$tool" ] && [ ! -d "$tools/cmd/$tool" ]; then
+    return 0
+  fi
+  want="$("$tools/source-stamp.sh" "$tool")" || return 2
+  held="$(cat "$stamp" 2>/dev/null)" || return 2
+  [ "$held" = "$want" ]
 }
 
 if [ "${ECO_TOOLS_BUILD:-}" != 1 ] && [ -e "$binary" ]; then
@@ -68,34 +81,27 @@ if [ "${ECO_TOOLS_BUILD:-}" != 1 ] && [ -e "$binary" ]; then
   [ -f "$binary" ] || die "$binary exists but is not a regular file — remove it and install again"
   [ -x "$binary" ] || die "$binary is not executable — the install did not complete; chmod +x it or install again"
   # What this catches: someone edits the Go, and every run afterwards measures the previous build
-  # while reading exactly like a run against the edit. It rests on install.sh landing bin/<tool>
-  # after the checkout; an installer that preserved the asset's own timestamp would invert it.
+  # while reading exactly like a run against the edit.
   #
-  # `|| staleness=$?` because 1 and 2 are answers, and `set -e` would take the shell down on both.
-  staleness=0
-  sources_newer_than "$binary" || staleness=$?
-  # A `find` that is absent lands here alongside one that ran and failed: the missing one exits 127
-  # out of the command substitution, which is a status like any other. Either way the question went
-  # unanswered, and answering it "nothing is newer" would be the stale-binary defect above wearing
-  # the shape of a pass. So the cause is named and the gap printed instead of guessed at.
-  if [ "$staleness" -eq 2 ]; then
-    if command -v find >/dev/null 2>&1; then
-      cause='find failed here'
-    else
-      cause='no find on PATH'
-    fi
-    printf 'resolve.sh: %s, so whether %s is older than its sources was NOT checked — it is served unchecked\n' \
-      "$cause" "$binary" >&2
+  # `|| verdict=$?` because 1 and 2 are answers, and `set -e` would take the shell down on both.
+  verdict=0
+  built_from_this_source || verdict=$?
+  if [ "$verdict" -eq 0 ]; then
     serve
   fi
-  if [ "$staleness" -eq 1 ]; then
-    serve
-  fi
-  # Rebuilding needs both the source and a toolchain. Without them this binary is the only way to
-  # run the tool at all, so it is served and the doubt printed alongside it.
+  # Past here the binary is either wrong or unproven, and a rebuild settles both outright, so
+  # reporting is only what is left when one is impossible. Rebuilding needs the source and a
+  # toolchain; without them this binary is the only way to run the tool at all, so it is served and
+  # the doubt printed alongside it. Keep the two messages apart: one says the bytes are wrong, the
+  # other says nobody knows.
   if [ ! -d "$tools/$tool" ] || ! command -v go >/dev/null 2>&1; then
-    printf 'resolve.sh: %s is older than the Go sources beside it and cannot be rebuilt here — what %s reports may not be the code you are reading\n' \
-      "$binary" "$tool" >&2
+    if [ "$verdict" -eq 1 ]; then
+      printf 'resolve.sh: %s was not built from the source beside it and cannot be rebuilt here — what %s reports may not be the code you are reading\n' \
+        "$binary" "$tool" >&2
+    else
+      printf 'resolve.sh: %s could NOT be compared with the source beside it, so it is served unchecked — a check that did not run is not a clean one\n' \
+        "$binary" >&2
+    fi
     serve
   fi
 fi
@@ -126,5 +132,14 @@ mv -f "$staging" "$binary" || {
   rm -f "$staging"
   die "$tool built but could not be moved to $binary, so it did NOT run"
 }
+
+# What these bytes were built from, so the next run can hold them against the source without
+# rebuilding. A stamp that cannot be written is removed rather than left: an old one beside new bytes
+# is a wrong answer, and a missing one only costs the next run a rebuild.
+if source_stamp="$("$tools/source-stamp.sh" "$tool")"; then
+  printf '%s\n' "$source_stamp" >"$stamp" || rm -f "$stamp"
+else
+  rm -f "$stamp"
+fi
 
 serve
