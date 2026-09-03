@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
 )
 
@@ -583,10 +584,10 @@ func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r.write("a.go", strings.Repeat("x", 70000)+"\n")
 	r.write("z.go", heavy(8, 1))
 
-	realCap := maxDiffLineBytes
-	maxDiffLineBytes = 64 * 1024
+	realCap := diffscan.MaxDiffLineBytes
+	diffscan.MaxDiffLineBytes = 64 * 1024
 	r.run("HEAD")
-	maxDiffLineBytes = realCap
+	diffscan.MaxDiffLineBytes = realCap
 	r.expectCode(2)
 	r.expectStderrHas("the scan did NOT run over all of it")
 	r.expectStderrHas("Not a clean result")

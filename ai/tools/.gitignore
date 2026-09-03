@@ -11,6 +11,7 @@ dist/
 /cmd/score/score
 /cmd/tree-fingerprint/tree-fingerprint
 /cmd/gate/gate
+/cmd/dup-literals/dup-literals
 /cmd/eco-report/eco-report
 /cmd/eco-stats/eco-stats
 /cmd/handoff-check/handoff-check

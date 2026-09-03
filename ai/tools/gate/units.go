@@ -60,7 +60,7 @@ func (g *gate) unitsFromFile() int {
 }
 
 // The real unit table: the four Go checks, one unit per discovered shell suite, and one per mutated
-// script from each harness's own listing.
+// file go-mutate lists.
 func (g *gate) discoverUnits() int {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
@@ -80,10 +80,11 @@ func (g *gate) discoverUnits() int {
 	if code := g.discoverShellSuites(); code != 0 {
 		return code
 	}
-	if code := g.discoverGoMutants(); code != 0 {
-		return code
-	}
-	return g.discoverShellMutants()
+	// go-mutate alone. `ai/shell-mutate.sh` is gone: it existed to mutate cadence.sh,
+	// comment-density.sh and dup-literals.sh, and all three are Go now, so every mutated file in the
+	// repository is one go-mutate reaches. A second harness listing nothing would be a discovery arm
+	// that can only ever report the tree broken.
+	return g.discoverGoMutants()
 }
 
 // Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
@@ -125,9 +126,9 @@ func (g *gate) discoverShellSuites() int {
 	return 0
 }
 
-// The mutation units, one per mutated script, each harness reporting its own. Nothing here restates
-// which mutants live where: that mapping has one home, in the harness's own list, and a copy of it
-// kept here is a copy that goes stale the first time a mutant moves.
+// The mutation units, one per mutated file, from go-mutate's own listing. Nothing here restates which
+// mutants live where: that mapping has one home, in the harness's own list, and a copy of it kept here
+// is a copy that goes stale the first time a mutant moves.
 func (g *gate) discoverGoMutants() int {
 	g.goMutateBinary = "ai/tools/go-mutate/go-mutate"
 	build := exec.Command("go", "build", "-o", "go-mutate/go-mutate", "./go-mutate")
@@ -172,33 +173,6 @@ func (g *gate) discoverGoMutants() int {
 		// shell.go, and two units under one id would share one cache record.
 		id := "mutants:go:" + strings.TrimPrefix(target, "ai/tools/")
 		g.add(id, "mutation", inputs, g.goMutateBinary+" -file "+shellQuote(file))
-	}
-	return 0
-}
-
-func (g *gate) discoverShellMutants() int {
-	listing, err := g.capture("ai/shell-mutate.sh", "-l")
-	if err != nil {
-		return g.fail("shell-mutate.sh could not list its units — nothing ran")
-	}
-	if strings.TrimSpace(listing) == "" {
-		return g.fail("shell-mutate.sh listed no units — read this as the harness broken, never as nothing to check")
-	}
-	for _, line := range strings.Split(listing, "\n") {
-		fields := strings.Split(line, "\t")
-		if len(fields) < 3 || fields[0] == "" {
-			continue
-		}
-		key, script, suite := fields[0], fields[1], fields[2]
-		if err := safeToken("mutant key", key); err != nil {
-			return g.fail("%s", err)
-		}
-		inputs := []string{
-			strings.TrimPrefix(strings.TrimPrefix(script, g.root), "/"),
-			strings.TrimPrefix(strings.TrimPrefix(suite, g.root), "/"),
-			"ai/shell-mutate.sh",
-		}
-		g.add("mutants:shell:"+key, "mutation", inputs, "ai/shell-mutate.sh -k "+shellQuote(key))
 	}
 	return 0
 }

@@ -892,27 +892,27 @@ var mutants = []mutant{
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},
 	{"density: the minimum comment-line floor is removed", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`entry.comments < s.cfg.MinLines ||`, `entry.comments < 0 ||`},
-	{"density: a file is anchored on the +++ line alone", "../comment-density/density.go", "./comment-density/", "TestAnAddedLineShapedLikeADiffHeader",
-		`if pending {`, `if pending || true {`},
+	{"density: a file is anchored on the +++ line alone", "../diffscan/diffscan.go", "./comment-density/", "TestAnAddedLineShapedLikeADiffHeader",
+		`case pending && strings.HasPrefix(raw, "+++ "):`, `case strings.HasPrefix(raw, "+++ "):`},
 	{"density: prose and data files are counted", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
 		`if line == "" || isProseOrData(file) {`, `if line == "" {`},
 	{"density: a bare star counts as a comment", "../comment-density/density.go", "./comment-density/", "TestAStarThatIsNotAComment",
 		`return rest == "" || rest[0] == ' ' || rest[0] == '\t'`,
 		`return rest == "" || rest[0] == ' ' || rest[0] == '\t' || true`},
-	{"density: an option is scanned instead of refused", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+	{"density: an option is scanned instead of refused", "../diffscan/diffscan.go", "./comment-density/", "TestARevisionIsNotAPath",
 		`if strings.HasPrefix(arg, "-") {`, `if strings.HasPrefix(arg, "-") && false {`},
-	{"density: a path is scanned as though it were a revision", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
-		`if _, err := os.Stat(path.Join(cwd, arg)); err == nil && !resolvesAsRevision(cwd, arg) {`,
-		`if _, err := os.Stat(path.Join(cwd, arg)); (err == nil && !resolvesAsRevision(cwd, arg)) && false {`},
-	{"density: --text is dropped from the diff", "../comment-density/density.go", "./comment-density/", "TestADiffAttributeDoesNotSuppressTheScan",
-		`"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--text",`,
-		`"diff", "--no-ext-diff", "--no-textconv", "--no-color",`},
-	{"density: a non-ASCII path arrives C-quoted", "../comment-density/density.go", "./comment-density/", "TestANonASCIIPathIsStillAssigned",
+	{"density: a path is scanned as though it were a revision", "../diffscan/diffscan.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"if resolvesAsRevision(cwd, arg) {\n\t\t\tcontinue\n\t\t}",
+		"if true {\n\t\t\tcontinue\n\t\t}"},
+	{"density: --text is dropped from the diff", "../diffscan/diffscan.go", "./comment-density/", "TestADiffAttributeDoesNotSuppressTheScan",
+		`"--text", "--src-prefix=a/", "--dst-prefix=b/",`,
+		`"--src-prefix=a/", "--dst-prefix=b/",`},
+	{"density: a non-ASCII path arrives C-quoted", "../diffscan/diffscan.go", "./comment-density/", "TestANonASCIIPathIsStillAssigned",
 		`"-c", "core.quotePath=false",`, `"-c", "core.quotePath=true",`},
 	// The unquoting the flag above stopped being the only defence for. git C-quotes a control character
 	// whatever core.quotePath says, so this is the half that is observable — and dropping it hides the
 	// file from the scan while `diff --git` has already counted it as reached.
-	{"density: a C-quoted header path is never unquoted", "../comment-density/density.go", "./comment-density/", "TestATrackedPathWithAControlCharacterIsStillAssigned",
+	{"density: a C-quoted header path is never unquoted", "../diffscan/diffscan.go", "./comment-density/", "TestATrackedPathWithAControlCharacterIsStillAssigned",
 		"if strings.HasPrefix(field, `\"`) {", "if strings.HasPrefix(field, `\"`) && false {"},
 	{"density: the untracked half runs even when revisions were named", "../comment-density/density.go", "./comment-density/", "TestATwoRevisionRangeIsScanned",
 		`if len(args) == 0 {`, `if len(args) == 0 || true {`},
@@ -929,6 +929,24 @@ var mutants = []mutant{
 		`cfg.MinLines = value`, `cfg.MinLines = defaultMinLines + value*0`},
 	{"density: DENSITY_MAX_FILE_BYTES parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
 		`cfg.MaxFileBytes = value`, `cfg.MaxFileBytes = defaultMaxFileBytes + value*0`},
+
+	// dup-literals and the half it shares with comment-density. `ai/shell-mutate.sh` carried 43 mutants
+	// over the shell form and is gone with it; these are what replaced them, and they sit on the two
+	// guards a reader of the report cannot check for themselves.
+	{"dup: the length floor stops applying to a whole line", "../dup-literals/dup.go", "./dup-literals/", "TestTheLengthFloor",
+		`if len([]rune(trimmed)) >= cfg.MinLength {`, "if true {"},
+	{"dup: a literal appearing once counts as repeated", "../dup-literals/dup.go", "./dup-literals/", "TestASingleOccurrenceIsNotADuplicate",
+		"for text, n := range tokens {\n\t\tif n >= 2 {", "for text, n := range tokens {\n\t\tif n >= 1 {"},
+	{"dup: the display cap stops bounding the report", "../dup-literals/dup.go", "./dup-literals/", "TestPastTheDisplayCap",
+		"const maxShown = 200", "const maxShown = 100000"},
+	// The one that puts a secret in the report. A name-marked file read is a token printed.
+	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSecretNamedFileIsNeverRead",
+		"if opts.SkipSecretNamed && secretNamed(name) {", "if false {"},
+
+	{"diffscan: an oversized diff line is truncated rather than refused", "../diffscan/diffscan.go", "./comment-density/", "TestADiffLinePastTheCapRefusesRatherThanReportingClean",
+		"return scanner.Err()", "return nil"},
+	{"diffscan: a binary untracked file is read", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedBinaryFileIsSkippedAndCounted",
+		"if isBinary(body) {", "if false {"},
 }
 
 // A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same
