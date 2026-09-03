@@ -739,6 +739,36 @@ else
   record_fail "and the casks agree too" "bootstrap='$boot_casks' readme='$readme_casks'"
 fi
 
+# --- the parent of a root-level target -------------------------------------------------------------
+
+# `${target%/*}` on `/.zshrc` is the EMPTY string, not `/`. The `|| parent="/"` fallback is what keeps
+# this equivalent to the `dirname` it replaced, and without it the script reaches `mkdir -p ""` and
+# refuses naming a parent it cannot print — a message that sends a reader looking for a directory that
+# was never the problem. Both spellings refuse, so only the wording tells them apart, and the wording
+# is the whole of what a human acts on.
+#
+# Reached with an empty HOME, which is the only way a target lands at the root. Verified untested
+# before it was written: deleting the fallback left this suite at 114 passed, 0 failed.
+if [ "$(id -u)" = 0 ]; then
+  # Exit 2, not a skip counted as a pass: this case lets bootstrap.sh attempt `ln -s` at `/`, which a
+  # normal user cannot complete and root would. A suite that quietly passed here would report the
+  # branch as covered on the one kind of machine where it did not run it.
+  echo "bootstrap-test: running as root, where the empty-HOME case would write to / — that branch was NOT tested" >&2
+  exit 2
+fi
+
+out=$(HOME= bash "$script" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+case "$out" in
+  *"could not create "[[:space:]]*) record_fail "an empty HOME names / as the parent, not nothing" "the parent came back empty: $out" ;;
+  *) record_pass "an empty HOME names / as the parent, not nothing" ;;
+esac
+# And it got past computing the parent to attempt the link itself, so the case is about the fallback
+# rather than about any earlier refusal that happens to keep the message out.
+case "$out" in
+  *"/.zshrc"*) record_pass "and reaches the root-level target it computed" ;;
+  *) record_fail "and reaches the root-level target it computed" "no root-level target in: $out" ;;
+esac
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]

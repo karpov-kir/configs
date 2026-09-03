@@ -133,12 +133,16 @@ link() {
     refuse "$target exists and is not a symlink — move it aside, then re-run"
     return 1
   fi
-  parent="$(dirname -- "$target")"
   if $dry_run; then
     say "  would link $target -> $source"
     return 0
   fi
-  mkdir -p -- "$parent" || {
+  # `%/` first, or `${target%/*}` names a trailing-slash target itself: `mkdir -p` then creates it
+  # and `ln -s` links inside it. An empty `$HOME` leaves the expansion empty, hence the `/`.
+  parent="${target%/}"
+  parent="${parent%/*}"
+  [ -n "$parent" ] || parent="/"
+  [ -d "$parent" ] || mkdir -p -- "$parent" || {
     refuse "could not create $parent"
     return 1
   }
@@ -175,8 +179,10 @@ skill_sources=()
 skill_targets=()
 for dir in "$repo"/ai/skills/*/; do
   [ -d "$dir" ] || continue
-  skill_sources+=("${dir%/}")
-  skill_targets+=("$HOME/.claude/skills/$(basename -- "${dir%/}")")
+  # `%/` first: `##*/` on a path ending in `/` returns nothing, pointing every skill at one target.
+  skill_dir="${dir%/}"
+  skill_sources+=("$skill_dir")
+  skill_targets+=("$HOME/.claude/skills/${skill_dir##*/}")
 done
 
 # --- is this machine already mounted somewhere else? ----------------------------------------------

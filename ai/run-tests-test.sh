@@ -206,6 +206,25 @@ if command -v git >/dev/null; then
     "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
   check "and the summary says git answered discovery" "1" "$(printf '%s' "$out" | grep -c 'discovered by git')"
 
+  # A tracked suite deleted from the working tree but not yet staged. `ls-files` still lists it, so
+  # without the existence filter discovery hands `bash` a path that is not there, bash exits 127, and
+  # the loop reads that as a failing suite — an ordinary unstaged deletion turning the whole sweep red
+  # with a message that reads like a broken test. `git rm` is not an option for the caller either: the
+  # index is shared, so a deletion waits unstaged until they commit.
+  rm "$tmp/ignored/tracked-test.sh"
+  out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
+  check "a tracked suite absent from the working tree does not fail the run" "0" "$rc"
+  check "and is reported as absent rather than as a failure" "1" \
+    "$(printf '%s' "$out" | grep -c '^ABSENT .*tracked-test.sh')"
+  check "and never reaches bash, so nothing reports it as not found" "0" \
+    "$(printf '%s' "$out" | grep -c 'No such file or directory')"
+  check "and the summary carries it, so a run that read fewer files does not print the same line" "1" \
+    "$(printf '%s' "$out" | grep -c 'tracked but absent from the working tree')"
+  check "and the suites that are there still run" "1" \
+    "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
+  # Restored, because the -s cases below name this file.
+  printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/ignored/tracked-test.sh"
+
   # -s executes whatever it names, so it has to refuse what discovery refuses. Without this it runs
   # exactly the suite the control above proves is never executed, and the guarantee holds only for
   # callers that did not pass -s.

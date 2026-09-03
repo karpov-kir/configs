@@ -39,6 +39,7 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 - **A skill the human always initiates carries `disable-model-invocation: true`**, which drops its description out of every session's context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.claude/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
+- **A script is Go under `ai/tools/`, reached by the `shared:tool-stub` region; shell only where Go cannot yet run.** The install path and the stub settle whether Go can run, at the moment the script runs.
 - **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes.** **An override file that is present but unusable refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
 - **An edit in a worktree is not what a spawned agent reads.** The mounts resolve to the main checkout, so a stage you spawn reads the landed version of every skill and standard, not the tree you are editing. Land it, or exercise it inline, before spawning anything to test it.
 - **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it. **The mount is proven by running the instruction lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script.
@@ -60,7 +61,7 @@ A move away from the common path is only a win when that path genuinely never ne
 - A rule a script can enforce belongs in the script; prose duplicating what a script already enforces is a deletion.
 - **A change to a shared script lands its call site in the same edit.**
 - **A script is held to the bar it enforces** — converting prose into a script moves the cost rather than removing it.
-- **The conversion is a win only where the enforcement is known to fire.** Each script's header states its test position: the `-test.sh` that covers it, or `# untested: <why>`. The instruction lane's wiring check proves both — that the position is stated, and that the `-test.sh` it names exists.
+- **The conversion is a win only where the enforcement is known to fire.** Each shell script's header states its test position: the `-test.sh` that covers it, or `# untested: <why>`. The instruction lane's wiring check proves both — that the position is stated, and that the `-test.sh` it names exists.
 
 ## Memory
 

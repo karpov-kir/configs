@@ -113,9 +113,52 @@ commit_all() {
   }
 }
 
+# Exit 2 like the fixture helpers above, because a failed write is silent in exactly the place that
+# matters: the file stays empty, an empty tracked file is a change set with nothing in it, and the
+# 99-character under-the-floor case below then reads exit 0 and passes without measuring a floor.
+write_twice() {
+  local file="$1" content="$2"
+  printf '%s\n%s\n' "$content" "$content" >"$repo/$file" || {
+    echo "dup-literals-test: could not write the fixture '$file' in $repo — stopping, since the case reading it would pass over an empty file" >&2
+    exit 2
+  }
+}
+
+# The negative control for that guard, since a guard nothing exercises is one a later rewrite drops in
+# silence. A missing directory component and not a permission bit: root ignores mode bits and would
+# write the file (`~/.kk-flavor/standards/testing.md` -> **4. Setup strategy**). The subshell holds the
+# guard's own exit, which would end the suite here otherwise, and an unguarded write leaves 1 in its
+# place — so this pins the 2 that `ai/run-tests.sh` counts as "did not measure" rather than as a pass.
+(
+  repo="$base"
+  write_twice 'no-such-directory/fixture.ts' x
+) >/dev/null 2>&1
+write_probe=$?
+[ "$write_probe" -eq 2 ] || {
+  echo "dup-literals-test: write_twice exited $write_probe rather than 2 for a fixture it could not write — nothing was tested, since a silent write failure leaves the cases below reading empty files and passing" >&2
+  exit 2
+}
+unset write_probe
+
 # A run of one character, of the length a case is about. Every literal below comes from here.
+#
+# A loop rather than `${pad// /$1}`: no spelling of that expansion works on both shells. Unquoted, `&`
+# means "the text that matched" from bash 5.2 on. Quoted, bash 3.2 — the only bash on GitHub's macOS
+# runners — puts the quote characters in the result. `ai/mcp-sync.sh` has the long version.
 repeat_char() {
-  printf "%${2}s" "" | tr ' ' "$1"
+  local out="" i n="$2"
+  # The length lands in an arithmetic context, where bash resolves `name[...]` as an array subscript
+  # by running what is inside the brackets: `repeat_char x 'repo[$(rm -rf ~)]'` executes that
+  # substitution on 3.2 and 5.3 alike. `set -u` above stops only the spelling that names an unset
+  # variable. Every call below passes a literal, so this refuses on behalf of the one added later.
+  case "$n" in
+    '' | *[!0-9]*)
+      echo "dup-literals-test: repeat_char was given '$n' as a length, which is not a number" >&2
+      return 1
+      ;;
+  esac
+  for ((i = 0; i < n; i++)); do out+="$1"; done
+  printf '%s' "$out"
 }
 
 # Probed here, in the suite's own shell, and not inside the helper: every call site reads it through
@@ -127,10 +170,32 @@ case "$probe" in
   *[!x]*) probe="" ;;
 esac
 [ "${#probe}" -eq 100 ] || {
-  echo "dup-literals-test: 'printf | tr' builds no 100-character run on this machine — nothing was tested, since every literal below comes from it" >&2
+  echo "dup-literals-test: repeat_char builds no 100-character run on this shell — nothing was tested, since every literal below comes from it" >&2
   exit 2
 }
 unset probe
+
+# `&` as well as `x`, because a drift back to the expansion form above returns spaces for it on bash
+# 5.2 and later — a fixture of spaces, which no case below is named for.
+[ "$(repeat_char '&' 4)" = "&&&&" ] || {
+  echo "dup-literals-test: repeat_char does not repeat '&' on this shell — nothing was tested, since a fixture built from it would be spaces" >&2
+  exit 2
+}
+
+# The negative control for `repeat_char`'s length guard. The subscript names a variable that is set,
+# which is the spelling `set -u` does not stop; an unset one is refused before the substitution runs
+# and would prove nothing.
+#
+# The file is what this asserts, not a status. Unguarded, the call runs the substitution, evaluates the
+# subscript to a length of zero, and returns empty with exit 0 on 3.2 and 5.3 alike — so the injection
+# shows up on disk and nowhere else. `$(...)` keeps that empty return out of the report.
+arith_probe=0
+ran=$(repeat_char x 'arith_probe[$(touch "$base/arith-ran")]' 2>/dev/null)
+[ ! -e "$base/arith-ran" ] || {
+  echo "dup-literals-test: repeat_char ran its length argument as code — nothing was tested, since every literal below comes from it" >&2
+  exit 2
+}
+unset ran arith_probe
 
 # `</dev/null` is load-bearing: a mutated copy that stops exiting where a case expects must fail the
 # case rather than block on the terminal this suite inherited. A suite that hangs when a guard is
@@ -264,10 +329,7 @@ track_empty dupes.ts
 # by the ellipsis — and a case asserting the truncated form passes either way, which is a case that
 # cannot fail. The tail being a different character is what makes the cut visible.
 literal="$(repeat_char x 60)$(repeat_char y 50)"
-{
-  printf '%s\n' "$literal"
-  printf '%s\n' "$literal"
-} >"$repo/dupes.ts"
+write_twice dupes.ts "$literal"
 run HEAD -- dupes.ts
 expect_status "a pathspec after -- is scanned rather than refused" 1
 expect_out "and the pathspec selected the file" "2x token (110 chars)"
@@ -302,17 +364,11 @@ expect_not_out "so this run is not reported as having read nothing" "nothing rea
 new_repo
 track_empty floor.ts
 under=$(repeat_char y 99)
-{
-  printf '%s\n' "$under"
-  printf '%s\n' "$under"
-} >"$repo/floor.ts"
+write_twice floor.ts "$under"
 run HEAD
 expect_status "a 99-character duplicate is under the default floor" 0
 at_floor=$(repeat_char y 100)
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/floor.ts"
+write_twice floor.ts "$at_floor"
 run HEAD
 expect_status "a 100-character duplicate reaches it" 1
 expect_out "and its length is reported" "2x token (100 chars)"
@@ -321,10 +377,7 @@ expect_out "and its length is reported" "2x token (100 chars)"
 # environment and ignored everywhere else.
 new_repo
 track_empty short.ts
-{
-  printf 'abcdefghij\n'
-  printf 'abcdefghij\n'
-} >"$repo/short.ts"
+write_twice short.ts "abcdefghij"
 run HEAD
 expect_status "a ten-character duplicate is clean at the default" 0
 run_env DUP_MIN_LEN=10 HEAD
@@ -367,10 +420,7 @@ expect_out "and are reported as a line, at the trimmed length" "2x line  (121 ch
 new_repo
 track_empty short-tokens.ts
 line_at_floor="$(repeat_char c 60) $(repeat_char d 39)"
-{
-  printf '%s\n' "$line_at_floor"
-  printf '%s\n' "$line_at_floor"
-} >"$repo/short-tokens.ts"
+write_twice short-tokens.ts "$line_at_floor"
 run HEAD
 expect_status "a 100-character line of short tokens reaches the floor" 1
 expect_out "and is reported as a line at that length" "2x line  (100 chars)"
@@ -379,10 +429,7 @@ expect_out "and is reported as a line at that length" "2x line  (100 chars)"
 # would double every count in the report an agent reads back.
 new_repo
 track_empty once.ts
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/once.ts"
+write_twice once.ts "$at_floor"
 run_stdout HEAD
 expect_status "a duplicate that is both a line and a token exits 1" 1
 expect_line_count "and is reported once, not twice" 1
@@ -397,10 +444,7 @@ expect_out "as the token" "2x token"
 new_repo
 track_empty plus.ts
 plus_prefix="++ "
-{
-  printf '%s%s\n' "$plus_prefix" "$at_floor"
-  printf '%s%s\n' "$plus_prefix" "$at_floor"
-} >"$repo/plus.ts"
+write_twice plus.ts "$plus_prefix$at_floor"
 run HEAD
 expect_status "duplicated lines that begin with a plus are still compared" 1
 expect_out "and the duplicate is reported" "2x token (100 chars)"
@@ -411,10 +455,7 @@ expect_out "and the duplicate is reported" "2x token (100 chars)"
 # untracked file is in no change set. Both halves, from one fixture: the pair is what proves the branch
 # is taken on the argument count rather than always or never.
 new_repo
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/fresh.ts"
+write_twice fresh.ts "$at_floor"
 run
 expect_status "an untracked file is scanned when no revision is given" 1
 expect_out "and the untracked file's duplicate is reported" "2x token (100 chars)"
@@ -449,15 +490,12 @@ expect_out "and the binary skip reaches the denominator too" "1 file(s) skipped 
 # refusal for the arm that had none, and without it these two lines report as a duplicate.
 new_repo
 track_empty blob.bin
-control_run=$(printf "%100s" "" | tr ' ' '\001')
+control_run=$(repeat_char $'\001' 100)
 [ "${#control_run}" -eq 100 ] || {
   echo "dup-literals-test: could not build a 100-byte control-character run — stopping, since the binary case below is made of one" >&2
   exit 2
 }
-{
-  printf '%s\n' "$control_run"
-  printf '%s\n' "$control_run"
-} >"$repo/blob.bin"
+write_twice blob.bin "$control_run"
 run_stdout HEAD
 expect_status "a tracked binary file yields no duplicate" 0
 expect_no_out "and its bytes are not reported as literals"
@@ -536,10 +574,7 @@ expect_out "and the literal they share is the duplicate" "2x token (100 chars)"
 # deliberate, and a copy of the other one's guard into this one would be a silent loss of coverage.
 new_repo
 newline_name=$(printf 'weird\nsecond line')
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/$newline_name"
+write_twice "$newline_name" "$at_floor"
 run
 expect_status "an untracked path whose name holds a newline is still scanned" 1
 expect_out "and the newline-named file's duplicate is reported" "2x token (100 chars)"
@@ -550,10 +585,7 @@ expect_out "and the newline-named file's duplicate is reported" "2x token (100 c
 # or a fixture is as much a copy-paste as one in code.
 new_repo
 track_empty notes.md
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/notes.md"
+write_twice notes.md "$at_floor"
 run HEAD
 expect_status "a duplicate in a markdown file is reported too" 1
 
@@ -563,10 +595,7 @@ new_repo
 track_empty attrs.ts
 printf '*.ts -diff\n' >"$repo/.gitattributes"
 commit_all
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/attrs.ts"
+write_twice attrs.ts "$at_floor"
 run HEAD
 expect_status "a duplicate survives a -diff attribute" 1
 expect_out "and the duplicate still arrives" "2x token (100 chars)"
@@ -574,10 +603,7 @@ expect_out "and the duplicate still arrives" "2x token (100 chars)"
 # Two revisions, the form a pipeline orchestrator passes. `"${@:-HEAD}"` has to forward all of them.
 new_repo
 track_empty pair.ts
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/pair.ts"
+write_twice pair.ts "$at_floor"
 commit_all
 # A third copy on top, uncommitted, so that the range is a real range. Without it `git diff HEAD~1`
 # reaches the working tree and counts the same two, and the case would pass for a script that
@@ -605,10 +631,7 @@ expect_line_count "and exactly the cap is printed above the announcement" 201
 # staged change has to be in exactly the same state afterwards.
 new_repo
 track_empty staged.ts
-{
-  printf '%s\n' "$at_floor"
-  printf '%s\n' "$at_floor"
-} >"$repo/staged.ts"
+write_twice staged.ts "$at_floor"
 git -C "$repo" add -- staged.ts >/dev/null || {
   echo "dup-literals-test: could not stage staged.ts in $repo — stopping, since the case below is about a staged change" >&2
   exit 2

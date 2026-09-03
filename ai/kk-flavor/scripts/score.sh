@@ -13,215 +13,60 @@
 # machine-local file. An override in effect is always announced: a bar moved locally produces a
 # verdict no other machine reproduces, and silence about it is the hazard.
 #
-# The refusals below are the enforcement, not convenience: read the comment at one before removing it.
-# What `default` is, and why an unknown lane exits rather than landing on it, is stated at that lane in
+# The refusals are the enforcement, not convenience: read the comment at one before removing it. What
+# `default` is, and why an unknown lane exits rather than landing on it, is stated at that lane in
 # `../thresholds.conf`.
 #
-# tested by: score-test.sh
+# tested by: the Go suite beside the tool, `ai/tools/score/score_test.go`, which drives every case in
+# one process; the shared stub region below by tool-stub-test.sh, and the resolver by resolve-test.sh.
+
 set -euo pipefail
 
-# `CDPATH=`: set in the environment, it makes `cd` echo the directory it landed on, so `here` comes
-# back two lines long and the config resolves nowhere.
-here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-config="$here/../thresholds.conf"
-# Machine-local overrides live outside the repo, so tweaking a bar is never a dirty working tree, and
-# outside `~/.kk-flavor`, which is a symlink into it.
-override="${XDG_CONFIG_HOME:-$HOME/.config}/kk-flavor/thresholds.conf"
+tool="score"
 
-lanes= found= level= override_note=
-
+# --- shared:tool-stub ---
+# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
+# sourced because sourcing a file is executing it, and these run from whatever repo the human is in.
 die() {
-  printf 'score.sh: %s\n' "$1" >&2
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
 }
 
-# Exit 3, not 2: a caller that cannot tell "refused" from "did not run" treats a refusal as a broken
-# tool and moves on.
-die3() {
-  printf 'score.sh: %s\n' "$1" >&2
-  exit 3
-}
+# `CDPATH=` because `cd` echoes where it landed when the path is relative, which would put a second
+# line into this substitution and corrupt every path built from it. `pwd -P` resolves the symlink the
+# skill is mounted by, so the tools directory is found from this file's real location, not from cwd.
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
+  die "cannot resolve my own directory, so $tool could not be located"
 
-# Either config is read here, with a redirect rather than a pipe or `$(...)`: either of those puts the
-# loop in a subshell, where `die` exits only that subshell and the caller carries on with an empty
-# result. A malformed config is then reported as a missing lane. `found` and `lanes` are set rather
-# than printed for that same reason.
-#
-# Field-by-field, never a pattern built from a config or from `$want`: a lane name is data, and in a
-# regexp it would be metacharacters. Same reason `$name` stays quoted in the `case` patterns below;
-# unquoted, a lane named `*` matches every lane there is.
-#
-# `allow`, when set, is the lane list the tracked config rules; a lane outside it is refused. What
-# that buys is a loud typo: `instructions` for `instruction` would otherwise tune nothing, silently.
-# Not the threshold a caller gets. `threshold_for` refuses any lane the tracked config omits first.
-scan_config() {
-  local path="$1" want="$2" allow="${3-}" name verb op line_level rest
-  found=
-  # `|| [ -n "$name" ]`, as in the stdin loop below: a config whose last lane has no trailing newline
-  # would otherwise lose it, and the failure reads as "no lane 'x'" for a lane that is right there.
-  while read -r name verb op line_level rest || [ -n "$name" ]; do
-    case "$name" in '' | '#'*) continue ;; esac
-    # A lane name is data, and every message below prints it back. Raw, a control byte in it overwrites
-    # the line already on the reader's terminal, and an `\033]` sequence reaches the terminal itself.
-    # Refused rather than neutralised, because no lane a config can legitimately rule carries one, and
-    # refusing keeps every message downstream clean by construction, `lanes` included.
-    case "$name" in
-      *[[:cntrl:]]*) die "$path: the lane name '${name//[[:cntrl:]]/ }' carries a control character" ;;
-    esac
-    [ "$verb" = cut ] && [ "$op" = '<=' ] && [ -z "$rest" ] ||
-      die "$path: cannot read the line naming '$name' — the form is '<lane> cut <= <n>'"
-    case "$line_level" in
-      '' | *[!0-9]*) die "$path: '$name' has a non-numeric level" ;;
-    esac
-    [ "$line_level" -le 10 ] || die "$path: '$name' is $line_level, over the 0-10 scale"
-    if [ -n "$allow" ]; then
-      case " $allow " in
-        *" $name "*) ;;
-        *) die "$path: '$name' is not a lane $config rules — an override moves a lane, never adds one" ;;
-      esac
-    fi
-    lanes="$lanes $name"
-    if [ "$name" = "$want" ]; then
-      found="$line_level"
-    fi
-  done <"$path"
-}
+# Walked up rather than counted. This region is byte-identical in every stub, and the stubs do not all
+# sit at one depth — a skill's `scripts/` is three below `ai/`, `kk-flavor/scripts/` is two — so a fixed
+# run of `..` lands on the tools directory from some of them and silently on a stranger from the rest.
+# The walk stops at the first `tools/resolve.sh` above this file, which inside a checkout is always
+# `ai/`'s. `${probe%/*}` rather than `dirname`, because this runs on every invocation of every stub.
+resolver=""
+probe="$here"
+while [ -n "$probe" ]; do
+  if [ -e "$probe/tools/resolve.sh" ]; then
+    resolver="$probe/tools/resolve.sh"
+    break
+  fi
+  probe="${probe%/*}"
+done
+[ -n "$resolver" ] ||
+  die "no tools/resolve.sh above $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+[ -x "$resolver" ] ||
+  die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
-# The override note is built here and printed by the caller, because where it may go differs per mode.
-threshold_for() {
-  local want="$1" ruled=
-  lanes= found= level= override_note=
-  scan_config "$config" "$want"
-  [ -n "$found" ] || die "no lane '$want' in $config — it lists:$lanes"
-  level="$found"
-  # Absent is the common case, and the only one that falls back silently. A path that exists but is not
-  # a readable file is refused: a directory, a fifo, a dangling symlink, or a mode denying us. Falling
-  # back there would restore the tracked bar while its owner believed their tuning was live, which is
-  # the same silent-default hole a malformed line is refused for.
-  #
-  # `[` reports ENOENT and EACCES alike, so one case stays open: an override under a directory this user
-  # cannot search reads as absent and falls back without a word. Closing it needs a stat this script
-  # forks for nowhere else. The refusal above is about the file's own mode, never the path leading to it.
-  [ -e "$override" ] || [ -L "$override" ] || return 0
-  # `$XDG_CONFIG_HOME` is neutralised, not refused, for the reason the note below states.
-  [ -f "$override" ] && [ -r "$override" ] ||
-    die "${override//[[:cntrl:]]/ } is not a readable file. Fix or remove it; skipping it would restore the tracked bar without saying so"
-  ruled="$lanes"
-  lanes=
-  scan_config "$override" "$want" "$ruled"
-  # A lane the override does not name keeps the tracked number: the overlay is per lane, so tuning
-  # one bar never silently detaches the rest from the file that rules them.
-  [ -n "$found" ] || return 0
-  # Neutralised rather than refused, because `$override` carries `$XDG_CONFIG_HOME`, a path its owner
-  # may legitimately hold. Under `cut` this note prints into the report body above the verdict lines, so
-  # a newline in that variable would put a forged `keep 10 <item>` among the real verdicts while the
-  # counts below still said the item was cut. `$want` stays raw wherever it is matched: neutralising it
-  # there would let `reply\r` resolve as `reply` and defeat the unknown-lane exit.
-  override_note="lane $want overridden by $override: $level ruled, $found in effect"
-  override_note="${override_note//[[:cntrl:]]/ }"
-  level="$found"
-}
+# The resolver names its own failures on stderr, so nothing is re-reported here. Its status is NOT
+# passed through, and the 2 below is deliberate rather than a copy of it: every way a resolver can fail
+# means the tool did not run, which is 2 in this repo's vocabulary, and 3 — ran and refuses a result —
+# must never reach a caller for a binary that never started. `ai/tools/resolve.sh` exits 2 for all of
+# them today, so this collapses nothing now; it is what keeps the guarantee if it ever grows a code.
+binary="$("$resolver" "$tool")" || exit 2
+[ -n "$binary" ] && [ -x "$binary" ] ||
+  die "the resolver named no runnable binary for $tool, so it did NOT run"
 
-# `-r` as well as `-f`, matching the override's own test above: without it an unreadable tracked config
-# reaches the redirect and exits 1 on bash's error rather than the ruled 2.
-[ -f "$config" ] && [ -r "$config" ] || die "no readable threshold config at $config"
-[ $# -ge 2 ] || die "usage: score.sh threshold <lane> | score.sh cut <lane> <what a 10 is here>"
-
-# `"${1:-}"`, though the argument count above already guarantees $1 is set. The spelling is the whole of
-# it: eco-check's subcommand call-site scan matches `case "${1:-}" in` and nothing else. While this line
-# read `case "$1" in`, neither `threshold` nor `cut` was ever checked for a call site, and the scan said
-# nothing about this file because it never looked at it. Revert the spelling and it goes quiet again
-# without failing.
-case "${1:-}" in
-  threshold)
-    [ $# -eq 2 ] || die "threshold takes one lane"
-    threshold_for "$2"
-    # stderr, never stdout: this mode's stdout is the number, read straight back by its caller.
-    [ -z "$override_note" ] || printf 'score.sh: %s\n' "$override_note" >&2
-    printf '%s\n' "$level"
-    ;;
-  cut)
-    shift
-    kept_all_why=
-    if [ "${1:-}" = --kept-all ]; then
-      [ $# -ge 2 ] && [ -n "${2//[[:space:]]/}" ] ||
-        die "--kept-all needs the reason nothing fell below the line, in your own words"
-      kept_all_why="$2"
-      shift 2
-    fi
-    [ $# -ge 2 ] || die "cut needs the anchor: what a 10 is for this artifact, in your own words"
-    lane="$1"
-    shift
-    anchor="$*"
-    # Whitespace, not just absence: `cut prose ""` satisfies an argument count and anchors nothing,
-    # which is the refusal above defeated while still reading as enforced.
-    [ -n "${anchor//[[:space:]]/}" ] ||
-      die "the anchor is blank — write what a 10 is for this artifact before any score is read"
-    threshold_for "$lane"
-    printf 'lane %s, cutting at or below %s\n' "$lane" "$level"
-    # In the report body here, not on stderr: the bar a verdict was judged against belongs beside the
-    # verdict, and stderr is exactly what a caller piping this report to a file loses.
-    [ -z "$override_note" ] || printf '%s\n' "$override_note"
-    printf '10 here means: %s\n\n' "$anchor"
-    kept=0 gone=0
-    # Set before the loop, because `read` returns without assigning it when stdin cannot be read at
-    # all — closed, or a directory. Unset, `set -u` kills the run on the `[ -n "$line" ]` beside it,
-    # and the caller gets bash's own error and exit 1 in place of the refusal below.
-    line=
-    # `|| [ -n "$line" ]`: at EOF without a trailing newline `read` fills the variable and still
-    # returns non-zero, so the plain form drops the last item, and a caller piping a heredoc has none.
-    # The item is then neither kept nor cut while the counts still add up.
-    #
-    # Bash's own `score.sh: line N: read: 0: read error` on stderr stays, however much it reads as
-    # noise. `read` returns 1 for end of input and for a failed read alike, so that line is the only
-    # thing here that tells the two apart. Redirect it away and stdin dying after three items prints
-    # `2 kept, 1 cut` at exit 0 — the shape a whole scored list takes, over a list that stopped.
-    #
-    # The refusal below does not cover this. It answers a list that never arrived, and one item read
-    # already satisfies it.
-    while IFS= read -r line || [ -n "$line" ]; do
-      [ -n "$line" ] || continue
-      score="${line%%	*}"
-      label="${line#*	}"
-      [ "$label" != "$line" ] ||
-        die "no tab in '${line//[[:cntrl:]]/ }' — each line is '<score><TAB><label>'"
-      # A label is text from the artifact under review, printed back into a report its caller reads.
-      # A control character rewrites that report rather than appearing in it: `\r` overwrites the
-      # verdict on the line and `\v` opens a second one, so an item this cut renders as one it kept
-      # while the counts still say it was cut.
-      score="${score//[[:cntrl:]]/ }"
-      label="${label//[[:cntrl:]]/ }"
-      case "$score" in
-        '' | *[!0-9]*) die "'$score' is not a score 0-10" ;;
-      esac
-      [ "$score" -le 10 ] || die "'$score' is over the 0-10 scale"
-      if [ "$score" -le "$level" ]; then
-        printf 'CUT   %2s  %s\n' "$score" "$label"
-        gone=$((gone + 1))
-      else
-        printf 'keep  %2s  %s\n' "$score" "$label"
-        kept=$((kept + 1))
-      fi
-    done
-    # Nothing arrived at all — stdin empty or unreadable, which read the same to a caller. `0 kept,
-    # 0 cut` at exit 0 looks exactly like a run that scored a list and cut none of it, so this is the
-    # one report the script must never produce. Exit 2, never 3: 3 refuses a result, and there is no
-    # result here. `--kept-all` cannot excuse it — that flag answers a list that was read and survived.
-    [ "$((kept + gone))" -gt 0 ] ||
-      die "nothing was scored — no '<score><TAB><label>' line reached stdin. Feed the list in"
-    printf '\n%s kept, %s cut\n' "$kept" "$gone"
-    # Everything clearing the bar is what scoring against no anchor looks like: the scale never gets
-    # used, every item lands mid-band, and the run reads as a pass. The anchor refusal cannot catch
-    # it, because the anchor is a free string written before the scores exist. This exits rather than
-    # prints, because a notice at the end of a list is the one thing a caller skims.
-    #
-    # A tight artifact really can cut nothing, so the exit is refusable, but only by writing down why.
-    # Exit 3, never 2: the scan ran.
-    if [ "$gone" -eq 0 ] && [ "$kept" -gt 0 ]; then
-      [ -n "$kept_all_why" ] ||
-        die3 "nothing scored at or below $level. Re-score against the anchor, or re-run with --kept-all '<why nothing fell below it>'"
-      printf 'nothing cut, accepted: %s\n' "${kept_all_why//[[:cntrl:]]/ }"
-    fi
-    ;;
-  *) die "unknown command '$1' — threshold or cut" ;;
-esac
+# `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
+# it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
+exec -a "$0" "$binary" "$@"
+# --- end shared:tool-stub ---

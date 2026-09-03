@@ -90,28 +90,26 @@ fi
 # gate, which is worse than the hang the watchdog is here to stop.
 suite_limit=120
 
-# The three keys, each one a script, the suite that covers it, and the variable that suite reads to
-# be pointed at a copy. Three lookups rather than one table: bash 3.2 has no associative arrays.
+# The keys, each one a script, the suite that covers it, and the variable that suite reads to be
+# pointed at a copy. Three lookups rather than one table: bash 3.2 has no associative arrays.
+#
+# `cadence` and `density` were two of these and are not: each script is now a stub over a Go tool
+# whose cases run in one process, and whose mutants belong to go-mutate. A shell key over a stub
+# would mutate the resolver, not the logic.
 script_of() {
   case "$1" in
-    cadence) printf '%s\n' "$here/skills/idsd-ship/scripts/cadence.sh" ;;
-    density) printf '%s\n' "$here/skills/kk-humanize/scripts/comment-density.sh" ;;
     dup) printf '%s\n' "$here/skills/kk-refactor/scripts/dup-literals.sh" ;;
   esac
 }
 
 suite_of() {
   case "$1" in
-    cadence) printf '%s\n' "$here/skills/idsd-ship/scripts/cadence-test.sh" ;;
-    density) printf '%s\n' "$here/skills/kk-humanize/scripts/comment-density-test.sh" ;;
     dup) printf '%s\n' "$here/skills/kk-refactor/scripts/dup-literals-test.sh" ;;
   esac
 }
 
 var_of() {
   case "$1" in
-    cadence) printf '%s\n' "CADENCE_UNDER_TEST" ;;
-    density) printf '%s\n' "COMMENT_DENSITY_UNDER_TEST" ;;
     dup) printf '%s\n' "DUP_LITERALS_UNDER_TEST" ;;
   esac
 }
@@ -120,7 +118,7 @@ var_of() {
 # three that survived each found a real defect. It stays out because of the coverage tail below. A key
 # in scope needs every case name proven or excused, and gate-test.sh holds close to ninety: roughly
 # thirty-five more mutants at about 130s each.
-keys="cadence density dup"
+keys="dup"
 
 # Membership in a space-separated key list. `-k` narrows `$keys` in place, so every loop below asks
 # this before doing anything with a mutant, and a run without `-k` answers yes for all of them.
@@ -284,412 +282,6 @@ fail_separator="  $(printf '\342\200\224') "
 #
 # Every one aims at a guard with a case behind it. A mutation that kills nothing means the guard is
 # unobserved, and that is a finding about the suite rather than a reason to drop either side.
-
-# cadence.sh. Exits 1 and 2 both end in "no offer made", so the whole file is about telling a
-# not-due apart from an undetermined; most of these break one and check the other stays put.
-mutant cadence "cadence: the interval moves out by two days" \
-  "past the interval is due" \
-  'interval_days=7' \
-  'interval_days=9'
-
-mutant cadence "cadence: the interval boundary becomes strictly greater" \
-  "the seventh day is due" \
-  '-ge "$interval_days"' \
-  '-gt "$interval_days"'
-
-mutant cadence "cadence: the date pattern accepts any shape" \
-  "a date with unpadded fields is undetermined" \
-  'if ($0 !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) exit 1' \
-  'if (0) exit 1'
-
-mutant cadence "cadence: the month and day ranges go unchecked" \
-  "a day out of range is undetermined" \
-  'if (m < 1 || m > 12 || d < 1 || d > 31) exit 1' \
-  'if (0) exit 1'
-
-mutant cadence "cadence: a date that would not parse becomes day zero" \
-  "a record holding a non-date is undetermined" \
-  '[ -n "$stamp_day" ] || undetermined' \
-  '[ -n "$stamp_day" ] || stamp_day=0 #'
-
-mutant cadence "cadence: the record is read from its last line" \
-  "a record with a trailing line still resolves from its first" \
-  'head -n 1 "$state" 2>/dev/null' \
-  'tail -n 1 "$state" 2>/dev/null'
-
-mutant cadence "cadence: a stamp from the future is not refused" \
-  "a stamp later than today is undetermined" \
-  '[ "$elapsed" -ge 0 ] ||' \
-  '[ 0 -ge 0 ] ||'
-
-mutant cadence "cadence: the undetermined message loses its disclaimer" \
-  "and says outright that it is not one" \
-  ' nothing was determined; this is not a '"'"'not due'"'"'.' \
-  ' nothing was determined.'
-
-mutant cadence "cadence: the undetermined message goes to stdout" \
-  "and a future stamp leaves nothing on stdout" \
-  'this is not a '"'"'not due'"'"'." >&2' \
-  'this is not a '"'"'not due'"'"'."'
-
-mutant cadence "cadence: the usage goes to stdout" \
-  "the usage leaves nothing on stdout for a caller to read as a verdict" \
-  '{due|asked}" >&2
-  exit 2' \
-  '{due|asked}"
-  exit 2'
-
-mutant cadence "cadence: the usage exits 1, which reads as a not-due" \
-  "no arguments exit 2" \
-  '{due|asked}" >&2
-  exit 2' \
-  '{due|asked}" >&2
-  exit 1'
-
-mutant cadence "cadence: the usage stops naming the topic and actions" \
-  "and prints the usage naming the topic and actions" \
-  'usage: cadence.sh audit {due|asked}' \
-  'run: cadence.sh'
-
-mutant cadence "cadence: the audit record follows the worktree, not the repository" \
-  "and a linked worktree sees that same record" \
-  'rev-parse --git-common-dir 2>/dev/null' \
-  'rev-parse --git-dir 2>/dev/null'
-
-mutant cadence "cadence: the git dir is left relative to the caller" \
-  "and no git dir is invented beside the caller" \
-  '*) git_dir="$repo_root/$git_dir" ;;' \
-  '*) ;;'
-
-mutant cadence "cadence: the audit record moves under the throwaway intent dir" \
-  "and nothing was written under .idsd" \
-  'state="$git_dir/idsd-audit-offer"' \
-  'state="$repo_root/'"$intent_dir"'/audit-offer"'
-
-mutant cadence "cadence: outside a repository, the cwd is used as one" \
-  "and says there is no per-repo record" \
-  '|| repo_root=""' \
-  '|| repo_root="."'
-
-mutant cadence "cadence: a record that is not a regular file reads as never offered" \
-  "a record that cannot be read is undetermined" \
-  'if [ ! -e "$state" ]; then' \
-  'if [ ! -f "$state" ]; then'
-
-mutant cadence "cadence: a failed write reports the offer as recorded" \
-  "a record that cannot be written exits 2" \
-  'printf '"'"'%s\n'"'"' "$today" >"$state" || {' \
-  'printf '"'"'%s\n'"'"' "$today" >"$state" || true
-  true || {'
-
-mutant cadence "cadence: the record is written with a fixed date" \
-  "and the record lands in the repository's git dir" \
-  'printf '"'"'%s\n'"'"' "$today" >"$state" ||' \
-  'printf '"'"'%s\n'"'"' "1970-01-01" >"$state" ||'
-
-mutant cadence "cadence: recording no longer names the date it wrote" \
-  "and names the date it recorded" \
-  'echo "recorded the $topic offer on $today."' \
-  'echo "recorded the offer."'
-
-mutant cadence "cadence: a never-offered topic is not an offer" \
-  "an audit never offered is due" \
-  'echo "due: no $topic has ever been offered (no $state)."
-      exit 0' \
-  'echo "due: no $topic has ever been offered (no $state)."
-      exit 1'
-
-mutant cadence "cadence: a not-due exits 0, which reads as an offer" \
-  "the offer just recorded is not due" \
-  'days ago (interval $interval_days days)."
-    exit 1' \
-  'days ago (interval $interval_days days)."
-    exit 0'
-
-mutant cadence "cadence: the elapsed count is off by one" \
-  "and the elapsed count is the script's arithmetic, not this suite's" \
-  'elapsed=$((today_day - stamp_day))' \
-  'elapsed=$((today_day - stamp_day - 1))'
-
-mutant cadence "cadence: no repository at all is not undetermined" \
-  "an audit outside any repository is undetermined" \
-  'so there is no per-repo record — nothing was determined." >&2
-      exit 2' \
-  'so there is no per-repo record — nothing was determined." >&2
-      exit 0'
-
-mutant cadence "cadence: the never-offered answer stops saying which topic" \
-  "and says why it is due" \
-  'echo "due: no $topic has ever been offered (no $state)."' \
-  'echo "due: never offered."'
-
-mutant cadence "cadence: recording the offer exits 1" \
-  "recording the offer exits 0" \
-  'echo "recorded the $topic offer on $today."' \
-  'echo "recorded the $topic offer on $today."
-  exit 1'
-
-# The four wordings, each aimed at the same defect from a different door: an answer that is not a
-# not-due printing as one, or printing where a caller reading stdout takes it for the verdict. The
-# wording is the interface here — 1 and 2 both end in "no offer made", so the sentence is all the
-# caller has — and a mutant that rewrites it is breaking a guard, not inventing a defect.
-mutant cadence "cadence: the undetermined verdict reads as a not-due" \
-  "and an unreadable record does not read as a 'not due'" \
-  'echo "undetermined: $* — nothing was determined' \
-  'echo "not due: $* — nothing was determined'
-
-mutant cadence "cadence: the never-offered verdict reads as a not-due" \
-  "and a never-offered audit does not read as a 'not due'" \
-  'echo "due: no $topic has ever been offered' \
-  'echo "not due: no $topic has ever been offered'
-
-mutant cadence "cadence: the no-repository refusal reads as a not-due" \
-  "and no repository does not read as a 'not due'" \
-  'echo "cadence.sh: not inside a git repository' \
-  'echo "not due: not inside a git repository'
-
-mutant cadence "cadence: the no-repository message goes to stdout" \
-  "and an audit outside a repository leaves nothing on stdout" \
-  'so there is no per-repo record — nothing was determined." >&2' \
-  'so there is no per-repo record — nothing was determined."'
-
-# The usage warning. `due` and `asked` read as two spellings of one query and only one of them is, so
-# a caller probing the grammar overwrites the record it was asking about. The warning is the only
-# thing at the point of that mistake that says so.
-mutant cadence "cadence: the usage stops warning that asked writes" \
-  "and warns that asked writes where due only reads" \
-  'OVERWRITES it with today' \
-  'mentions today'
-
-# comment-density.sh. Two doors exit 2 and only their wording tells a live refusal from a dead tool,
-# so each door gets a mutant for its status, its wording and the stream it prints on.
-
-mutant density "density: an option is no longer refused as one" \
-  "and the refusal names it as an option" \
-  '    case "$arg" in
-      -*)' \
-  '    case "$arg" in
-      --no-such-option)'
-
-mutant density "density: a path argument is scanned instead of refused" \
-  "a path argument exits 2" \
-  'if [ -e "$arg" ] && ! git rev-parse --verify --quiet "$arg^{}" >/dev/null 2>&1; then' \
-  'if false; then'
-
-mutant density "density: validation does not stop at the double dash" \
-  "a pathspec after -- is scanned rather than refused" \
-  '[ "$arg" = "--" ] && break' \
-  '[ "$arg" = "--" ] && true'
-
-mutant density "density: the path refusal goes to stdout" \
-  "and a refused run leaves nothing on stdout" \
-  'is a path, not a git-diff revision — the scan did NOT run." >&2' \
-  'is a path, not a git-diff revision — the scan did NOT run."'
-
-mutant density "density: a non-ASCII path arrives quoted and is never assigned" \
-  "a non-ASCII path is still assigned" \
-  '-c core.quotePath=false diff' \
-  '-c core.quotePath=true diff'
-
-mutant density "density: a -diff attribute suppresses the whole scan" \
-  "a -diff attribute does not suppress the scan" \
-  '--no-color --text --src-prefix=a/' \
-  '--no-color --src-prefix=a/'
-
-mutant density "density: git rejecting the arguments reads as clean" \
-  "a revision git cannot resolve exits 2" \
-  '|| {
-    echo "comment-density.sh: git rejected these arguments' \
-  '|| true
-  true || {
-    echo "comment-density.sh: git rejected these arguments'
-
-mutant density "density: the git-rejected message is swallowed by the report pipe" \
-  "and says git rejected the arguments" \
-  'the scan did NOT run. Not a clean result." >&2' \
-  'the scan did NOT run. Not a clean result."'
-
-mutant density "density: untracked files are scanned even for a named revision" \
-  "and is not scanned when one is" \
-  'if [ "$#" -eq 0 ]; then
-    emit_untracked_as_diff' \
-  'if true; then
-    emit_untracked_as_diff'
-
-mutant density "density: untracked files are never scanned" \
-  "an untracked file is scanned when no revision is given" \
-  'if [ "$#" -eq 0 ]; then
-    emit_untracked_as_diff' \
-  'if false; then
-    emit_untracked_as_diff'
-
-mutant density "density: the untracked byte cap is removed" \
-  "an untracked file over the byte cap is skipped" \
-  '[ "$bytes" -le "$max_file_bytes" ] &&' \
-  '[ "$bytes" -le 99999999 ] &&'
-
-mutant density "density: the byte cap stops reading its variable" \
-  "an untracked file over the byte cap is skipped" \
-  'max_file_bytes="${DENSITY_MAX_FILE_BYTES:-262144}"' \
-  'max_file_bytes="262144"'
-
-mutant density "density: the ratio bar stops reading its variable" \
-  "raising the ratio clears the outlier" \
-  'max_ratio="${COMMENT_MAX_RATIO:-0.3}"' \
-  'max_ratio="0.3"'
-
-mutant density "density: the comment floor stops reading its variable" \
-  "raising the floor clears it too" \
-  'min_lines="${COMMENT_MIN_LINES:-5}"' \
-  'min_lines="5"'
-
-mutant density "density: the binary test never fires" \
-  "an untracked binary file is skipped" \
-  ' | wc -c)" -eq 0 ]' \
-  ' | wc -c)" -ge 0 ]'
-
-mutant density "density: the binary test reads four bytes, not eight kilobytes" \
-  "an untracked binary file is skipped" \
-  '[ "$(head -c 8192 "./$file" 2>/dev/null | tr -cd' \
-  '[ "$(head -c 4 "./$file" 2>/dev/null | tr -cd'
-
-mutant density "density: a newline in an untracked name is announced but not acted on" \
-  "an untracked path whose name holds a newline is skipped" \
-  'it was NOT scanned." >&2
-        continue' \
-  'it was NOT scanned." >&2
-        :'
-
-mutant density "density: the emitted header loses its diff --git anchor" \
-  "and is reported by name" \
-  'printf '"'"'diff --git a/%s b/%s\n+++ b/%s\n'"'"' "$file" "$file" "$file"' \
-  'printf '"'"'+++ b/%s\n'"'"' "$file"'
-
-mutant density "density: the emitter fuses a file with no final newline into the next" \
-  "and the first is reported on its own counts" \
-  'awk '"'"'{ print "+" $0 }'"'"' "./$file" 2>/dev/null || true' \
-  'sed '"'"'s/^/+/'"'"' "./$file" 2>/dev/null || true'
-
-mutant density "density: an added line can reassign the file it is in" \
-  "and never to the path the added line names" \
-  '/^\+\+\+ / { if (pending) { pending = 0; if ($0 ~ /^\+\+\+ b\//) file = substr($0, 7) } next }' \
-  '/^\+\+\+ / { pending = 0; if ($0 ~ /^\+\+\+ b\//) file = substr($0, 7); next }'
-
-mutant density "density: markdown stops being excluded as prose" \
-  "prose, data and lockfiles are not counted" \
-  'file ~ /\.(md|markdown|txt|json|lock)$/' \
-  'file ~ /\.(markdown|txt|json|lock)$/'
-
-mutant density "density: a lockfile named by shape stops being excluded" \
-  "prose, data and lockfiles are not counted" \
-  'file ~ /(^|\/)[^\/]*lock[^\/]*\.(yaml|yml)$/' \
-  '0'
-
-mutant density "density: a blank added line is counted as code" \
-  "blank added lines do not dilute the ratio" \
-  'if (line == "" || file == "") next' \
-  'if (file == "") next'
-
-mutant density "density: the hash comment form stops counting" \
-  "and the code line is the only one counted as code" \
-  'if (line ~ /^(\/\/|\/\*|\*\/?([[:space:]]|$)|#)/)' \
-  'if (line ~ /^(\/\/|\/\*|\*\/?([[:space:]]|$))/)'
-
-mutant density "density: an indented comment is counted as code" \
-  "block, star, closing, hash and indented forms all count as comments" \
-  'gsub(/^[[:space:]]+/, "", line)' \
-  'gsub(/^[[:space:]]+$/, "", line)'
-
-mutant density "density: the ratio bar becomes inclusive" \
-  "a ratio exactly at the bar is not an outlier" \
-  'ratio > max_ratio' \
-  'ratio >= max_ratio'
-
-mutant density "density: the comment floor becomes exclusive" \
-  "five added comment lines reach the floor" \
-  'comments[file] >= min_lines' \
-  'comments[file] > min_lines'
-
-mutant density "density: an outlier no longer exits 1" \
-  "a comment-heavy file exits 1" \
-  'exit (found > 0)' \
-  'exit 0'
-
-mutant density "density: the cap and its announcement diverge" \
-  "and exactly the cap is printed above the announcement" \
-  'if (++shown <= max_shown)' \
-  'if (++shown <= 199)'
-
-mutant density "density: a suppressed outlier is dropped in silence" \
-  "and the ones past the cap are announced, not dropped" \
-  'if (found > max_shown) printf' \
-  'if (found > 100000) printf'
-
-mutant density "density: only the first revision is forwarded to git" \
-  "and reports against that range" \
-  '"${@:-HEAD}"' \
-  '"${1:-HEAD}"'
-
-mutant density "density: a clean tree exits 1" \
-  "an unchanged tree exits 0" \
-  'exit (found > 0)' \
-  'exit 1'
-
-mutant density "density: the path refusal wears the other door's wording" \
-  "and is not the message a scan git rejected prints" \
-  'comment-density.sh: '"'"'$arg'"'"' is a path' \
-  'comment-density.sh: git rejected these arguments, and '"'"'$arg'"'"' is a path'
-
-mutant density "density: the git-rejected message wears the path refusal's wording" \
-  "and is not the path refusal" \
-  'git rejected these arguments — exit 2' \
-  'git rejected these arguments, and it is a path, not a git-diff revision — exit 2'
-
-mutant density "density: the comment floor is removed" \
-  "four added comment lines are under the floor" \
-  'comments[file] >= min_lines' \
-  'comments[file] >= 0'
-
-mutant density "density: the report stops naming what it counted" \
-  "and prints its counts and ratio" \
-  'printf "%.200s: %d comment / %d code added lines (%.2f)' \
-  'printf "%.200s: %d %d %.2f'
-
-# The announcement is the only thing the report prints that no outlier is behind, so it is the one
-# break that puts a line on a clean tree's stdout without moving the exit code off 0.
-mutant density "density: the announcement fires over a clean tree" \
-  "and prints nothing" \
-  'if (found > max_shown) printf' \
-  'if (found >= 0) printf'
-
-# The index is the caller's, and nothing in this script writes it — so the case guarding that is
-# proven by putting the write in rather than by taking a guard out. After the diff has been emitted,
-# so the run still reports the staged change it was handed and only the index assertion moves.
-mutant density "density: the scan unstages what the caller staged" \
-  "and the caller's index is untouched" \
-  'emit_untracked_as_diff() {' \
-  'emit_untracked_as_diff() {
-  git reset -q >/dev/null 2>&1'
-
-# The denominator. Without it an empty report at exit 0 is byte-identical whether the scan read the
-# whole change set and found nothing, or read no file at all — a mistyped range, a range selecting
-# nothing. The report either side is the same, so the number is the only thing these can break.
-mutant density "density: the summary stops naming how much was read" \
-  "and the denominator says no file reached it" \
-  'printf "comment-density.sh: %d file(s) reached the scan, %d with countable added lines, %d outlier(s), %d untracked file(s) skipped unread.\n",' \
-  'printf "comment-density.sh: scan finished.\n",'
-
-mutant density "density: a run that read nothing stops saying so" \
-  "and names that as saying nothing about the change set" \
-  'if (reached + 0 == 0)' \
-  'if (reached + 0 < 0)'
-
-# A second anchor rather than the comparison above, so the two halves of that line are proven apart:
-# this one leaves the comparison alone and stops the counter feeding it.
-mutant density "density: files reaching the scan are never counted" \
-  "so this run is not reported as having read nothing" \
-  '/^diff --git / { file = ""; pending = 1; reached++; next }' \
-  '/^diff --git / { file = ""; pending = 1; next }'
 
 # dup-literals.sh. The same two doors, plus the comparison itself: what counts as one literal, and
 # what the diff-header anchor keeps from being read as a header.
@@ -932,8 +524,7 @@ mutant dup "dup: the skip list swallows every untracked file" \
 
 # --- cases no single break reaches ---
 
-unreachable cadence "the fixture root is outside any repository" \
-  "it asserts the suite's own fixture and never reaches the script; reddened by pointing that fixture at a repository"
+# None. The one that stood here belonged to cadence, whose suite is now Go.
 
 # --- the run ---
 

@@ -5,7 +5,10 @@ dist/
 # that directory. bin/ and dist/ cover neither. Left untracked, a `git add -A` in any session commits
 # a ~3MB binary. gitignore cannot say "a file named after its directory", so this list is written out,
 # and gitignore_test.go is what notices when a tool is added and this list is not.
+/cmd/cadence/cadence
+/cmd/comment-density/comment-density
 /cmd/eco-check/eco-check
+/cmd/score/score
 /cmd/eco-report/eco-report
 /cmd/eco-stats/eco-stats
 /cmd/handoff-check/handoff-check

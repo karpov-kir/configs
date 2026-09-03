@@ -62,6 +62,20 @@ report_repo="$base/report-repo"
 mkdir -p "$report_repo"
 (CDPATH= cd "$report_repo" && git init -q .) || exit 1
 
+# comment-density.sh scans a diff, so its probe needs a repository with a COMMIT — `git diff HEAD` on an
+# unborn HEAD exits 2, which is indistinguishable here from the stub failing to reach its tool.
+density_repo="$base/density-repo"
+mkdir -p "$density_repo"
+(
+  CDPATH= cd "$density_repo" &&
+    git init -q . &&
+    git config user.email t@t &&
+    git config user.name t &&
+    printf 'x := 1\n' >seed.go &&
+    git add seed.go &&
+    git commit -qm seed
+) >/dev/null 2>&1 || exit 1
+
 # skill | script | cwd for the probe | args | a string the tool prints when it really ran
 stubs() {
   cat <<TABLE
@@ -70,10 +84,31 @@ kk-reduce|stats.sh|$base|$ai|prose:
 idsd-qualify|report.sh|$report_repo|list|no reports
 kk-ecosystem|ruleecho.sh|$base|$echo_root|rule stated twice
 kk-ecosystem|cite-graph.sh|$base|$echo_root|citation edge(s)
+kk-humanize|comment-density.sh|$density_repo|HEAD|reached the scan
 TABLE
 }
 
 echo "shared:tool-stub"
+
+# score.sh in situ, and it is the reason the shared region walks up instead of counting `..`. Every
+# other stub sits at `skills/<skill>/scripts/`, three below the tools directory; this one is at
+# `kk-flavor/scripts/`, two below. The copied fixtures further down prove a walk works at either depth
+# in a throwaway tree; this proves the real file at the real depth reaches its real tool. The probe
+# table cannot hold it because that harness passes exactly one argument and `threshold` needs a lane.
+score_stub="$ai/kk-flavor/scripts/score.sh"
+if [ -x "$score_stub" ]; then
+  out=$(CDPATH= cd "$base" && "$score_stub" threshold instruction 2>&1)
+  status=$?
+  if [ "$status" -eq 0 ] && [ "$out" -eq "$out" ] 2>/dev/null; then
+    record_pass "score.sh reaches its tool from two levels below tools/, in the tree not a fixture"
+  else
+    record_fail "score.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
+      "exit $status, output: $out"
+  fi
+else
+  record_fail "score.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
+    "$score_stub is not executable, so the one stub at that depth went unchecked"
+fi
 
 # The negative control, and the regression the stub exists for.
 while IFS='|' read -r skill script cwd args marker; do
@@ -116,6 +151,47 @@ while IFS='|' read -r skill script cwd args marker; do
   status=$?
   expect_status "$script exits 2 when the resolver is not executable" 2
   expect_out "$script says to chmod it" "chmod"
+done <<<"$(stubs)"
+
+# The region walks up for `tools/resolve.sh` rather than counting `..`, and the two things that makes
+# possible are what these cases hold. Nothing else in the tree does: every stub shipped today sits three
+# below the tools directory, so a fixed count and a walk agree everywhere, and a silent regression to
+# counting would pass every case above.
+while IFS='|' read -r skill script cwd args marker; do
+  [ -n "$skill" ] || continue
+
+  # A stub two levels below the tools directory instead of three — the depth `kk-flavor/scripts/` sits
+  # at. Under a fixed `../../../` this resolves above the fixture root entirely and the tool never runs.
+  shallow="$base/shallow-$script"
+  mkdir -p "$shallow/scripts"
+  cp -R "$tools" "$shallow/tools"
+  cp "$skills/$skill/scripts/$script" "$shallow/scripts/$script"
+  chmod 755 "$shallow/scripts/$script"
+  out=$(CDPATH= cd "$cwd" && "$shallow/scripts/$script" "$args" 2>&1)
+  status=$?
+  if [ "$status" -eq 2 ]; then
+    record_fail "$script reaches its tool from two levels below tools/" "exit 2 — the walk did not find the resolver: $out"
+  else
+    record_pass "$script reaches its tool from two levels below tools/"
+  fi
+
+  # And the walk takes the NEAREST tools/ above it, not the first one it can reach by any route. With a
+  # decoy resolver further up that would exit 2, a stub reading the wrong one is loud rather than silent.
+  nearest="$base/nearest-$script"
+  mkdir -p "$nearest/tools" "$nearest/inner/scripts"
+  printf '#!/usr/bin/env bash\necho "decoy resolver reached" >&2\nexit 2\n' > "$nearest/tools/resolve.sh"
+  chmod 755 "$nearest/tools/resolve.sh"
+  cp -R "$tools" "$nearest/inner/tools"
+  cp "$skills/$skill/scripts/$script" "$nearest/inner/scripts/$script"
+  chmod 755 "$nearest/inner/scripts/$script"
+  out=$(CDPATH= cd "$cwd" && "$nearest/inner/scripts/$script" "$args" 2>&1)
+  case "$out" in
+    *"decoy resolver reached"*)
+      record_fail "$script takes the nearest tools/ above it, not a further one" \
+        "it walked past $nearest/inner/tools and reached the decoy: $out"
+      ;;
+    *) record_pass "$script takes the nearest tools/ above it, not a further one" ;;
+  esac
 done <<<"$(stubs)"
 
 # argv[0] survives the exec. The tools derive the skill directory from argv[0], so a stub that let the

@@ -46,6 +46,7 @@ root="${1:-$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)}
 # not a checkout, and that path keeps the node_modules exclusion it always had. Which one answered is
 # reported: two runs that read different file sets must not print one line.
 suites=()
+absent=0
 if [ -n "$named_suite" ]; then
   # One named suite is still discovery, and it obeys the same rule: naming a file that is not there
   # is the caller's typo, and answering it with an empty run would report a clean tree for a suite
@@ -85,6 +86,19 @@ elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   discovery="git"
   while IFS= read -r suite; do
     [ -n "$suite" ] || continue
+    # `ls-files` answers what git knows about, and a deletion that is not yet staged is still tracked
+    # — but the working tree is what runs. Without this the runner reaches `bash <gone>`, which exits
+    # 127, which the loop below reads as a FAILING suite: an ordinary unstaged deletion reddens the
+    # whole sweep with a message that looks like a broken suite. The `find` arm below never had this
+    # because `-type f` already answers the working tree.
+    #
+    # Announced rather than dropped. Discovery finding fewer files than git listed is a fact about the
+    # run, and a summary that read the same either way is how the difference stops being visible.
+    if [ ! -f "$root/$suite" ]; then
+      printf 'ABSENT %-47s tracked by git, not in the working tree — NOT run\n' "$suite"
+      absent=$((absent + 1))
+      continue
+    fi
     suites+=("$root/$suite")
   done < <(git -C "$root" ls-files --cached --others --exclude-standard -- '*-test.sh' | sort -u)
 else
@@ -199,8 +213,10 @@ else
   containment=", containment unchecked"
 fi
 
-printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s, discovered by %s\n' \
-  "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$containment" "$discovery"
+absent_note=""
+[ "$absent" -eq 0 ] || absent_note=", $absent tracked but absent from the working tree"
+printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s, discovered by %s\n' \
+  "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$containment" "$discovery"
 
 # A red outranks a non-measurement: something is known to be wrong, which is the more urgent fact. A
 # moved checkout sits between them — it refuses every line of the result rather than one of them, so it
