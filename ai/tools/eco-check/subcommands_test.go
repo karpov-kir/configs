@@ -9,44 +9,36 @@ import (
 	"strings"
 	"testing"
 
+	ecocheck "kk-flavor/tools/eco-check"
 	"kk-flavor/tools/shell"
 )
 
+// Each head is bound to the constant the emit site and report.go's rank table both lead with, so a
+// reworded kind stops compiling here rather than leaving a case matching text nothing prints. The
+// tails below them are this file's own.
 const (
-	noCallSite = "subcommand with no call site"
-	weldedName = "subcommand call sites not checked"
+	noCallSite = ecocheck.SubcommandWithNoCallSite
+	weldedName = ecocheck.SubcommandCallSitesNotChecked
 	// Every way this scan can hold a script with subcommands and name none of them says so under one
 	// class prefix, and report.go ranks on that prefix. `toyIsUnread` carries the fixture script's own
 	// path after it, so a case pins the file it is about and not merely that something went unread.
-	unreadable       = "subcommand dispatch not read: "
+	unreadable       = ecocheck.UnreadDispatch
 	toyIsUnread      = "/skills/toy.sh ("
-	acceptsUnnamed   = "accepts a subcommand its usage does not name"
-	namesUnaccepted  = "usage names a subcommand its dispatch does not accept"
+	acceptsUnnamed   = ecocheck.SubcommandUsageDoesNotName
+	namesUnaccepted  = ecocheck.SubcommandDispatchDoesNotAccept
 	unreadArms       = "(it opens a case dispatch on $1 and no arm of it could be read)"
 	noWayToADispatch = `it names no tool="<name>" to reach one through, and opens no case dispatch on $1`
 )
 
 // The tool source the stub below execs: a dispatch, found by the `usage: toy.sh {` line its refusing
 // arm carries rather than by the name of the function around it.
-const toyDispatch = `package toy
+var toyDispatch = newDispatch("toy.sh {alpha|beta}", "alpha", "beta")
 
-func (r *run) dispatch() {
-	switch r.arg(0) {
-	case "alpha":
-		r.alpha()
-	case "beta":
-		r.beta()
-	default:
-		r.refuse("usage: toy.sh {alpha|beta}")
-	}
-}
-`
-
-// A switch that is not the dispatch, ahead of one that is. Its arms are string literals of the same
-// shape, so only the marker tells the two apart.
-const toyDecoyAndDispatch = `package toy
-
-func (r *run) stageOf(name string) string {
+// The same dispatch with a decoy switch written ahead of it. The decoy's arms are string literals of
+// the same shape, so only the usage line in the refusing arm tells the two apart — which is what a
+// scan taking the first switch it finds would get wrong.
+var toyDecoyAndDispatch = strings.Replace(newDispatch("toy.sh {alpha}", "alpha"), dispatchFunc,
+	`func (r *run) stageOf(name string) string {
 	switch name {
 	case "pending":
 		return "p"
@@ -56,29 +48,21 @@ func (r *run) stageOf(name string) string {
 	return ""
 }
 
-func (r *run) dispatch() {
-	switch r.arg(0) {
-	case "alpha":
-		r.alpha()
-	default:
-		r.refuse("usage: toy.sh {alpha}")
-	}
-}
-`
+`+dispatchFunc, 1)
 
 func TestGoDispatchSubcommandCallSites(t *testing.T) {
 	t.Run("fires on a Go-dispatched subcommand no file documents a call site for", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha|beta}", toyDispatch).reports(noCallSite + ": beta")
+		newToolStub(t, "toy.sh {alpha|beta}", toyDispatch).reports(noCallSite + "beta")
 	})
 
 	t.Run("accepts one a document does name", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
 		f.write(f.root+"/kk-flavor/standards/how.md", "run `toy.sh beta` when the stage returns\n")
-		f.doesNotReport(noCallSite + ": beta")
+		f.doesNotReport(noCallSite + "beta")
 	})
 
 	t.Run("reads a grammar wrapped across comment lines", func(t *testing.T) {
-		newWrappedGrammarStub(t).reports(noCallSite + ": gamma")
+		newWrappedGrammarStub(t).reports(noCallSite + "gamma")
 	})
 
 	t.Run("and agrees with the dispatch about the wrapped half", func(t *testing.T) {
@@ -86,12 +70,12 @@ func TestGoDispatchSubcommandCallSites(t *testing.T) {
 	})
 
 	t.Run("takes labels from the dispatch and not from another switch beside it", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch).doesNotReport(noCallSite + ": pending")
+		newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch).doesNotReport(noCallSite + "pending")
 	})
 
 	// Without this the case above passes on a run that read no dispatch at all.
 	t.Run("while still taking the dispatch's own (control for the case above)", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch).reports(noCallSite + ": alpha")
+		newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch).reports(noCallSite + "alpha")
 	})
 }
 
@@ -108,7 +92,7 @@ func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
 	})
 
 	t.Run("and still checks the subcommands the usage names", func(t *testing.T) {
-		newStubWithoutSource(t).reports(noCallSite + ": beta")
+		newStubWithoutSource(t).reports(noCallSite + "beta")
 	})
 
 	t.Run("fires when the source holds no switch carrying the stub's usage line", func(t *testing.T) {
@@ -135,11 +119,11 @@ func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
 // what keeps either from silently becoming the only authority.
 func TestUsageAndDispatchAreHeldAgainstEachOther(t *testing.T) {
 	t.Run("fires on a subcommand the dispatch accepts and the usage does not name", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha}", toyDispatch).reports(acceptsUnnamed + ": beta")
+		newToolStub(t, "toy.sh {alpha}", toyDispatch).reports(acceptsUnnamed + "beta")
 	})
 
 	t.Run("fires on one the usage names and the dispatch does not accept", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch).reports(namesUnaccepted + ": gamma")
+		newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch).reports(namesUnaccepted + "gamma")
 	})
 
 	t.Run("stays quiet when the two agree", func(t *testing.T) {
@@ -153,18 +137,12 @@ func TestSubcommandCountIsBounded(t *testing.T) {
 	// floods the one finding class both cases read out of, and the control below would then fail on
 	// the flood rather than on the bound.
 	newFloodedDispatch := func(t *testing.T) *fixture {
-		var source, grammar strings.Builder
-		source.WriteString("package toy\n\nfunc (r *run) dispatch() {\n\tswitch r.arg(0) {\n")
+		var names []string
 		for i := 1; i <= 300; i++ {
-			fmt.Fprintf(&source, "\tcase \"s%03d\":\n\t\tr.s%03d()\n", i, i)
-			if i > 1 {
-				grammar.WriteString("|")
-			}
-			fmt.Fprintf(&grammar, "s%03d", i)
+			names = append(names, fmt.Sprintf("s%03d", i))
 		}
-		usage := "toy.sh {" + grammar.String() + "}"
-		fmt.Fprintf(&source, "\tdefault:\n\t\tr.refuse(%q)\n\t}\n}\n", "usage: "+usage)
-		return newToolStub(t, usage, source.String())
+		usage := "toy.sh {" + strings.Join(names, "|") + "}"
+		return newToolStub(t, usage, newDispatch(usage, names...))
 	}
 
 	t.Run("reports the subcommands it did not carry", func(t *testing.T) {
@@ -180,7 +158,7 @@ func TestSubcommandCountIsBounded(t *testing.T) {
 
 	// Without this the case above passes on a run that checked none of them.
 	t.Run("and carries the ones up to the bound (control for the case above)", func(t *testing.T) {
-		newFloodedDispatch(t).reports(noCallSite + ": s001")
+		newFloodedDispatch(t).reports(noCallSite + "s001")
 	})
 }
 
@@ -209,17 +187,17 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 	// The report replaces the check rather than sitting beside it. A finding that cannot be attributed
 	// to one of two files is not printed against either.
 	t.Run("and withholds the finding it can no longer attribute", func(t *testing.T) {
-		newSharedScriptName(t).doesNotReport(noCallSite + ": beta")
+		newSharedScriptName(t).doesNotReport(noCallSite + "beta")
 	})
 
 	// Without this the case above passes on a fixture whose dispatch was never read.
 	t.Run("while one script of that name is checked as before (control)", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha|beta}", toyDispatch).reports(noCallSite + ": beta")
+		newToolStub(t, "toy.sh {alpha|beta}", toyDispatch).reports(noCallSite + "beta")
 	})
 
 	t.Run("and names that one by path, not by basename", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
-		f.reports(f.root + "/skills/toy.sh " + noCallSite + ": beta")
+		f.reports(noCallSite + "beta — " + f.root + "/skills/toy.sh")
 	})
 
 	// The findings that go on being printed for a welded name. Each is about one stub's own grammar,
@@ -229,13 +207,13 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 	t.Run("says a dispatch finding names one of several files rather than guessing", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch)
 		f.newScript("other/scripts/toy.sh", "#!/usr/bin/env bash\n# untested: fixture\ntrue")
-		f.reports("toy.sh (one of the 2 files of that name — which is not in the tree) " + namesUnaccepted)
+		f.reports(namesUnaccepted + "gamma — toy.sh (one of the 2 files of that name — which is not in the tree)")
 	})
 
 	// Without this the case above passes on a tree where the two stubs never disagreed at all.
 	t.Run("while one script of that name is named by its path (control)", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch)
-		f.reports(f.root + "/skills/toy.sh " + namesUnaccepted)
+		f.reports(namesUnaccepted + "gamma — " + f.root + "/skills/toy.sh")
 	})
 }
 
@@ -265,6 +243,56 @@ func TestAnUnreadableDispatchPathSaysItWasCut(t *testing.T) {
 	})
 }
 
+// The name each of these three findings leads with is a case label or a usage alternative: the
+// branch's own text, and as long as it likes. Cut only at the printer's 500-byte bound, the tail that
+// goes is the path and the sentence naming the defect. The reader is left a name and no file.
+//
+// One case per site, because each reaches its name through a different half of the scan. Each asserts
+// the marker together with the text that has to survive it.
+func TestALongSubcommandNameIsCutBeforeItsAttribution(t *testing.T) {
+	long := strings.Repeat("z", 200)
+
+	t.Run("marks a cut call-site name and keeps the path after it", func(t *testing.T) {
+		f := newShellScript(t, "case \"$1\" in\n  "+long+")\n    :\n    ;;\nesac")
+		f.reports(shell.CutMarker + " — " + f.root + "/skills/toy.sh takes it")
+	})
+
+	t.Run("and marks one the dispatch accepts and the usage does not name", func(t *testing.T) {
+		usage := "toy.sh {alpha}"
+		f := newToolStub(t, usage, newDispatch(usage, "alpha", long))
+		f.reports(shell.CutMarker + " — " + f.root + "/skills/toy.sh accepts it")
+	})
+
+	t.Run("and marks one the usage names and the dispatch does not accept", func(t *testing.T) {
+		usage := "toy.sh {alpha|" + long + "}"
+		f := newToolStub(t, usage, newDispatch(usage, "alpha"))
+		f.reports(shell.CutMarker + " — " + f.root + "/skills/toy.sh names it in its usage")
+	})
+
+	// Without this the three above would pass on a checker that marked every name, cut or not.
+	t.Run("and leaves a name that fits whole, with no mark on it", func(t *testing.T) {
+		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
+		f.doesNotReport(noCallSite + "beta" + shell.CutMarker)
+	})
+}
+
+// The line every fixture's dispatch opens on, and the anchor the decoy above is spliced in front of.
+const dispatchFunc = "func (r *run) dispatch() {"
+
+// The `package toy` source of a tool whose dispatch accepts exactly `names` and refuses with `usage`.
+// The scan finds the switch by that usage line and never by the function around it, so `usage` is the
+// caller's to state: a builder writing its own refuses under a grammar the case never set up, and the
+// case then observes a disagreement it did not build.
+func newDispatch(usage string, names ...string) string {
+	var source strings.Builder
+	source.WriteString("package toy\n\n" + dispatchFunc + "\n\tswitch r.arg(0) {\n")
+	for _, name := range names {
+		fmt.Fprintf(&source, "\tcase %q:\n\t\tr.run()\n", name)
+	}
+	fmt.Fprintf(&source, "\tdefault:\n\t\tr.refuse(%q)\n\t}\n}\n", "usage: "+usage)
+	return source.String()
+}
+
 // A shell dispatch is the same dispatch in every spelling of its opening line, and an author reaches
 // for whichever one they like. Matched as the single literal `case "${1:-}" in`, this scan checked the
 // subcommands of the spellings it knew and said nothing whatever about the rest: one stub was
@@ -286,7 +314,7 @@ func TestAShellDispatchIsReadInEverySpellingOfItsOpening(t *testing.T) {
 			f := newShellDispatch(t, opening)
 			// The whole finding, path and subcommand together: `beta` is a name other fixtures in this
 			// file produce too, and a bare substring would pass on any of their findings.
-			f.reports(f.root + "/skills/toy.sh " + noCallSite + ": beta")
+			f.reports(noCallSite + "beta — " + f.root + "/skills/toy.sh")
 		})
 	}
 }
@@ -324,7 +352,7 @@ func TestADispatchWhoseArmsCannotBeReadIsReported(t *testing.T) {
 func TestATopLevelCaseIsNotAlwaysADispatch(t *testing.T) {
 	t.Run("reads no dispatch out of a top-level case over another value", func(t *testing.T) {
 		f := newShellScript(t, "flag=\"$2\"\ncase \"$flag\" in\n  alpha)\n    :\n    ;;\nesac")
-		f.doesNotReport(f.root + "/skills/toy.sh " + noCallSite + ": alpha")
+		f.doesNotReport(noCallSite + "alpha — " + f.root + "/skills/toy.sh")
 	})
 
 	t.Run("nor out of a lookup table inside a function", func(t *testing.T) {
@@ -336,7 +364,7 @@ func TestATopLevelCaseIsNotAlwaysADispatch(t *testing.T) {
 	// one they would pass on a pattern matching none.
 	t.Run("while a dispatch on the first argument still is one (control)", func(t *testing.T) {
 		f := newShellDispatch(t, `case "$1" in`)
-		f.reports(f.root + "/skills/toy.sh " + noCallSite + ": alpha")
+		f.reports(noCallSite + "alpha — " + f.root + "/skills/toy.sh")
 	})
 }
 
@@ -364,7 +392,7 @@ func TestAUsageGrammarWithNoDispatchBehindItIsReported(t *testing.T) {
 	})
 
 	t.Run("and still checks the subcommands its usage names", func(t *testing.T) {
-		newUnreachableDispatch(t).reports(noCallSite + ": beta")
+		newUnreachableDispatch(t).reports(noCallSite + "beta")
 	})
 
 	// The two determinations that stay quiet. Each is an answer this scan reached, not one it failed
@@ -459,23 +487,8 @@ func newWrappedGrammarStub(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
 	f.mkdirAll(f.root + "/tools/toy")
-	f.write(f.root+"/tools/toy/toy.go", `package toy
-
-func (r *run) dispatch() {
-	switch r.arg(0) {
-	case "alpha":
-		r.alpha()
-	case "beta":
-		r.beta()
-	case "gamma":
-		r.gamma()
-	case "delta":
-		r.delta()
-	default:
-		r.refuse("usage: toy.sh {alpha <x>|beta|gamma \"<y>\"|delta} [<z>]")
-	}
-}
-`)
+	f.write(f.root+"/tools/toy/toy.go",
+		newDispatch(`toy.sh {alpha <x>|beta|gamma "<y>"|delta} [<z>]`, "alpha", "beta", "gamma", "delta"))
 	f.newScript("toy.sh", "#!/usr/bin/env bash\n# untested: fixture\n"+
 		"#   usage: toy.sh {alpha <x>|beta|\n"+
 		"#                  gamma \"<y>\"|delta} [<z>]\n"+

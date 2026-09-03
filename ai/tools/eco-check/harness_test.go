@@ -19,26 +19,29 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The finding substrings the cases match on. `basenames` carries no other finding's text whole —
+// The finding substrings the cases match on. Each head is bound to the constant the emit site and
+// report.go's rank table both lead with, so a reworded kind stops compiling here rather than leaving a
+// case matching text nothing prints. `uncounted`, `unfamiliedSkill` and `unclaimedRouter` are tails
+// rather than heads, and stay written out. `basenames` carries no other finding's text whole —
 // direction.go's scan comment says why.
 const (
-	cites           = "shared layer cites into a lane"
-	names           = "shared layer names a lane"
-	basenames       = "shared layer reaches into a lane by basename"
-	unchecked       = "basename not checked"
-	neverRan        = "direction scan read no files"
-	refused         = "import refused"
+	cites           = ecocheck.SharedLayerCitesLane
+	names           = ecocheck.SharedLayerNamesLane
+	basenames       = ecocheck.SharedLayerReachesLaneByBasename
+	unchecked       = ecocheck.BasenameNotChecked
+	neverRan        = ecocheck.DirectionScanReadNoFiles
+	refused         = ecocheck.ImportRefused
 	uncounted       = "uncounted import"
-	undelimited     = "undelimited section citation"
-	missingTest     = "script names a missing test"
-	welded          = "script names an ambiguous test"
-	noPosition      = "script declares no test position"
-	notRegular      = "citation target is not a regular file"
-	bareRule        = "bare rule-ID citation"
-	dangling        = "dangling section ref"
-	unresolved      = "unresolvable citation path"
-	uncheckable     = "uncheckable citation"
-	crossFamily     = "any-repo skill names the workflow family"
+	undelimited     = ecocheck.UndelimitedSectionCitation
+	missingTest     = ecocheck.ScriptNamesMissingTest
+	welded          = ecocheck.ScriptNamesAmbiguousTest
+	noPosition      = ecocheck.ScriptDeclaresNoTestPosition
+	notRegular      = ecocheck.CitationTargetNotRegular
+	bareRule        = ecocheck.BareRuleIDCitation
+	dangling        = ecocheck.DanglingSectionRef
+	unresolved      = ecocheck.UnresolvableCitationPath
+	uncheckable     = ecocheck.UncheckableCitation
+	crossFamily     = ecocheck.AnyRepoNamesWorkflowFamily
 	unfamiliedSkill = "is in neither declared family"
 	unclaimedRouter = "claims no exception"
 )
@@ -160,6 +163,17 @@ func (f *fixture) floodWithLinks(target string, count int, format string) {
 	var flood strings.Builder
 	for i := 1; i <= count; i++ {
 		fmt.Fprintf(&flood, format+"\n", i)
+	}
+	f.write(target, flood.String())
+}
+
+// The rank-5 flood a floor case buries its needles under. Zero-padded, so byte order over these
+// lines is the numeric one. They dangle because nothing under a fixture's `$HOME` answers to them.
+func (f *fixture) floodWithHomeRefs(target string, count int) {
+	f.t.Helper()
+	var flood strings.Builder
+	for i := 1; i <= count; i++ {
+		fmt.Fprintf(&flood, "- ~/.kk-flavor/nope%03d.md\n", i)
 	}
 	f.write(target, flood.String())
 }
@@ -331,16 +345,18 @@ func (f *fixture) checkWith(args ...string) string {
 	return output.String()
 }
 
-// Both asserts take the whole output and a fixed substring, never a pattern: a match that a regexp
+// Both asserts take the whole output and fixed substrings, never a pattern: a match that a regexp
 // would have swallowed turns a doesNotReport case into a silent pass.
-func (f *fixture) reports(needle string) {
+//
+// Both are variadic, because a fixture runs once: `isolate` calls t.Parallel or t.Setenv, neither of
+// which a case may call twice. A property that needs a second finding checked against the same tree
+// would otherwise have to rebuild the whole fixture in a case of its own, and the two copies then
+// drift.
+func (f *fixture) reports(needles ...string) {
 	f.t.Helper()
-	f.found(f.run(), needle)
+	f.found(f.run(), needles...)
 }
 
-// Variadic, because a fixture runs once: `isolate` calls t.Parallel or t.Setenv, neither of which a
-// case may call twice. A property that needs a second finding checked against the same tree would
-// otherwise have to rebuild the whole fixture in a case of its own, and the two copies then drift.
 func (f *fixture) doesNotReport(needles ...string) {
 	f.t.Helper()
 	f.absent(f.run(), needles...)
@@ -364,10 +380,12 @@ func (f *fixture) doesNotReportWithRootNamed(dir, root string, needles ...string
 }
 
 // The message each assertion fails with, held once so no caller can word it differently.
-func (f *fixture) found(output, needle string) {
+func (f *fixture) found(output string, needles ...string) {
 	f.t.Helper()
-	if !strings.Contains(output, needle) {
-		f.t.Errorf("expected a finding containing %q\n%s", needle, indent(output))
+	for _, needle := range needles {
+		if !strings.Contains(output, needle) {
+			f.t.Errorf("expected a finding containing %q\n%s", needle, indent(output))
+		}
 	}
 }
 

@@ -37,7 +37,23 @@ var mutants = []mutant{
 	// `|| true`, not the `&& false` the header above describes: the anchored condition is the one
 	// that *skips* a finding, so appending to it is what leaves the floor keeping nothing.
 	{"report: the per-class floor removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) {", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) || true {"},
-	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestASuppressionNoteCountsOnlyItsOwnClass", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	// Both rows go, or the mutation shows nothing: with one left, the catch-all still holds a single
+	// kind and the report reads the same. The defect needs two kinds in one class. The floor then
+	// keeps one line between them, and whichever sorts second prints nothing at all.
+	{"report: two rank-5 kinds put back in one class", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{skillDirWithoutSkillFile, 5},\n\t{skillWithoutDescription, 5},\n", ""},
+	// The half that removing one row does show. A kind with no row keeps its floor line but loses its
+	// own count. The rest of its flood then leaves through the trailing "further finding(s) not
+	// shown", attributed to nothing.
+	{"report: a flooded rank-5 kind left noteless", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{danglingHomeRef, 5},\n", ""},
+	// The shared-region rows, on the same reasoning as the two rank-5 mutants above. `not checked for
+	// drift` is the one that then prints nothing at all, and it is the graver of the two: the drift
+	// check did not run on that region.
+	{"report: two shared-region kinds put back in one class", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{sharedRegionHasDrifted, 1},\n\t{sharedRegionNotChecked, 1},\n", ""},
+	// The third row on its own, which the pair above leaves standing. This kind is what a deleted copy
+	// of a shared region produces. Removing its row leaves it alone in the catch-all, where the floor
+	// still prints it. So what moves is where the line lands, and the case that notices reads its rank.
+	{"report: a shared region with no counterpart left at the default rank", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{sharedRegionWithoutCounterpart, 1},\n", ""},
 	// findingCap is the right number only for the class that filled the rank. Every class the floor
 	// left at one line then gets a negative count, so a case that only asserts a note is there stays
 	// green.
@@ -54,8 +70,8 @@ var mutants = []mutant{
 	// The head that keeps a finding's first bytes the checker's own. Removed, the finding leads with a
 	// basename two committed scripts share, joins whatever class that text matches, and takes the one
 	// line the floor reserves for it.
-	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandMismatch + c.scriptNamed(base) + \" accepts", "c.scriptNamed(base) + \" accepts"},
-	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t\t{unreadDispatch, 2},\n", ""},
+	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandUsageDoesNotName + shell.CutBytesMarked(shell.Oneline(name), findingNameCap) +\n\t\t\t\" — \" + c.scriptNamed(base) + \" accepts it\")", "c.scriptNamed(base) + \" accepts \" + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))"},
+	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t{unreadDispatch, 2},\n", ""},
 	// Ranking on the whole line rather than its head: a crafted link target then carries a ranked
 	// phrase into a `dangling link:` finding and promotes the flood above what it is burying. The case
 	// that observes this passed over the mutation until its forged phrase was one the rank table still
@@ -86,7 +102,7 @@ var mutants = []mutant{
 	// in for the quiet one's, which proves nothing about it.
 	{"refs: bare rule-ID scan never fires", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
 	{"refs: bare rule-ID scan reports the form it recommends", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
-	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `"syntax: "+shell.Oneline(line)`, `"syntax: "+line`},
+	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `syntaxError+shell.Oneline(line)`, `syntaxError+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", "shell.Oneline(mountHave)", "mountHave"},
 	// The name each of the three mount messages leads with, one mutant per message. A skill directory
 	// name is the branch's own text, and the sanitiser on it is a separate call from the one on the
@@ -114,7 +130,7 @@ var mutants = []mutant{
 	{"mounts: a skipped scan never says it was skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() || true {"},
 	{"mounts: a scan that ran reported as skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() && false {"},
 	// Its rank, which decides whether the finding is read at all under a flood.
-	{"report: a mount without a skill left at the default rank", "report.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "\t\t{\"mount without a skill\", 1},\n", ""},
+	{"report: a mount without a skill left at the default rank", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{mountWithoutASkill, 1},\n", ""},
 
 	// The delimited-citation half. Undelimited is how a section citation stops resolving in silence,
 	// so both directions are needed: the finding never firing, and it firing on the two forms the
@@ -231,10 +247,23 @@ var mutants = []mutant{
 	// or each also matches the import refusal in the same file.
 	{"stats: refused budget name cut without a mark", "../eco-stats/budget.go", "./eco-stats/", "TestACutMessageSaysThatItWasCut", "s.root.Named(), shell.CutBytesMarked(shell.Oneline(name), 80))", "s.root.Named(), shell.CutBytes(shell.Oneline(name), 80))"},
 	{"stats: unreadable reason cut without a mark", "../eco-stats/measure.go", "./eco-stats/", "TestACutMessageSaysThatItWasCut", "shell.CutBytesMarked(shell.Oneline(err.Error()), 160)", "shell.CutBytes(shell.Oneline(err.Error()), 160)"},
-	{"check: refused budget name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))`, `") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), 80))`},
-	{"check: refused import name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `"), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))`, `"), named but not counted: " + shell.CutBytes(shell.Oneline(name), 80))`},
+	{"check: refused budget name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))`, `") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), findingNameCap))`},
+	{"check: refused import name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `"), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))`, `"), named but not counted: " + shell.CutBytes(shell.Oneline(name), findingNameCap))`},
 	{"citations: uncheckable head cut without a mark", "citations.go", "./eco-check/", "TestAnUncheckableCitationSaysWhenItsHeadWasCut", "shell.CutBytesMarked(shell.Oneline(cited.head), 60)", "shell.CutBytes(shell.Oneline(cited.head), 60)"},
 	{"subcommands: unread dispatch path cut without a mark", "subcommands.go", "./eco-check/", "TestAnUnreadableDispatchPathSaysItWasCut", "shell.CutBytesMarked(shell.Oneline(dir), 120)", "shell.CutBytes(shell.Oneline(dir), 120)"},
+	// The subcommand name the same file's three kind-first findings lead with, one mutant per site. The
+	// latter two carry the kind string, or each anchor also matches the other and preflight refuses the
+	// run. Reverting one leaves the finding firing with a name that reads whole. The path it cut off the
+	// end is the half the reader needs.
+	{"subcommands: a cut call-site name left unmarked", "subcommands.go", "./eco-check/", "TestALongSubcommandNameIsCutBeforeItsAttribution", "shell.CutBytesMarked(shell.Oneline(site.subcommand), findingNameCap)", "shell.CutBytes(shell.Oneline(site.subcommand), findingNameCap)"},
+	{"subcommands: a cut usage-gap name left unmarked", "subcommands.go", "./eco-check/", "TestALongSubcommandNameIsCutBeforeItsAttribution", "subcommandUsageDoesNotName + shell.CutBytesMarked(shell.Oneline(name), findingNameCap)", "subcommandUsageDoesNotName + shell.CutBytes(shell.Oneline(name), findingNameCap)"},
+	{"subcommands: a cut dispatch-gap name left unmarked", "subcommands.go", "./eco-check/", "TestALongSubcommandNameIsCutBeforeItsAttribution", "subcommandDispatchDoesNotAccept + shell.CutBytesMarked(shell.Oneline(name), findingNameCap)", "subcommandDispatchDoesNotAccept + shell.CutBytes(shell.Oneline(name), findingNameCap)"},
+	// The region name the three shared-region findings lead with. One mutant, not three: the cut is one
+	// call above the switch. Every arm reads the same `named`, so one revert reaches all of them.
+	{"scripts: a cut region name left unmarked", "scripts.go", "./eco-check/", "TestALongSharedRegionNameIsCutBeforeItsDetail", "named := shell.CutBytesMarked(name, findingNameCap)", "named := shell.CutBytes(name, findingNameCap)"},
+	// The bound itself, which the mark above says nothing about: removed, the name runs to the printer's
+	// own 500-byte cut and takes the detail after it off the line.
+	{"scripts: the region-name bound removed", "scripts.go", "./eco-check/", "TestALongSharedRegionNameIsCutBeforeItsDetail", "named := shell.CutBytesMarked(name, findingNameCap)", "named := shell.CutBytesMarked(name, 100000)"},
 	// The printer's own width bound, which runs after every one of the marks above and would otherwise
 	// take one off with the tail it removes.
 	{"report: a finding line cut without a mark", "report.go", "./eco-check/", "TestACutFindingLineSaysThatItWasCut", "shell.CutBytesMarked(line.text, lineWidthCap)", "shell.CutBytes(line.text, lineWidthCap)"},

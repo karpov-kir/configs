@@ -8,6 +8,9 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// The head this scan's findings lead with, which report.go's rankTable ranks them on.
+const bareRuleIDCitation = "bare rule-ID citation: "
+
 var (
 	// A rule named by its number, and the `##` heading that number opens. A literal space between the
 	// words, never `[[:space:]]`: this is a phrase written in prose, and a tab or a line break between
@@ -46,7 +49,7 @@ func (c *checker) scanBareRuleIDs() {
 			if resolving == "" {
 				resolving = unresolvedHeading
 			}
-			c.add("bare rule-ID citation: " + safeFile + ":" + strconv.Itoa(hit.line) + " — " + shell.Oneline(hit.match) +
+			c.add(bareRuleIDCitation + safeFile + ":" + strconv.Itoa(hit.line) + " — " + shell.Oneline(hit.match) +
 				" resolves in no file; cite it as " + principlesRef + " → **" + shell.Oneline(resolving) +
 				"** (writing.md → **Readability floor**)")
 		}

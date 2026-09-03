@@ -12,6 +12,14 @@ package ecocheck
 // the two is a finding rather than a silence. A scan that reports nothing while having looked at
 // nothing is the one result this file must not be able to produce, and every single-literal anchor
 // here is one way to produce it.
+//
+// Every finding here leads with its kind and puts the file it is about after that. report.go classes
+// a finding on the head of its line, and no table can name a head the reviewed branch wrote.
+//
+// The subcommand name between the two is the branch's text as well. Nothing bounds how long a case
+// label or a usage alternative may be, so each site cuts the name at findingNameCap, with the mark
+// that says it cut. Uncut, the printer's own 500-byte bound reaches the line first, and the tail it
+// takes is the path and the sentence naming the defect.
 
 import (
 	"bytes"
@@ -43,18 +51,25 @@ var (
 // rest are reported and NOT checked — an unchecked subcommand must never read as one with a call site.
 const subcommandCap = 256
 
-// What every way of failing to read a dispatch is said under. One class, because it is one fact
-// however it is reached — this scan holds a script that has subcommands and could name none of them —
-// and because report.go ranks a finding on the head of its line, so a path-led one would sort into
-// rank 5. The tail of each says what was checked in the dispatch's place, or that nothing was.
-const unreadDispatch = "subcommand dispatch not read: "
-
-// The head the two usage-versus-dispatch findings lead with. They are the only findings reached
-// through `scriptNamed`, which answers a shared basename with the basename itself — text the reviewed
-// tree wrote. Led with that, the finding joined whatever class in report.go's table its first bytes
-// matched, took that class's one reserved line, and left the genuine finding to a rank the same tree
-// had already flooded. Every finding's first bytes are this checker's now.
-const subcommandMismatch = "subcommand mismatch: "
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
+//
+// Every way of failing to read a dispatch is said under `unreadDispatch`. One class, because it is one
+// fact however it is reached — this scan holds a script that has subcommands and could name none of
+// them. The tail of each says what was checked in the dispatch's place, or that nothing was.
+//
+// The last two are the only findings reached through `scriptNamed`, which answers a shared basename
+// with the basename itself: text the reviewed tree wrote. Led with that, such a finding joined
+// whatever class its first bytes matched, took that class's one reserved line, and left the genuine
+// finding to a rank the same tree had already flooded. They are two heads rather than one because
+// they are two kinds, and a class holding both could not say whose findings it withheld.
+const (
+	unreadDispatch                  = "subcommand dispatch not read: "
+	subcommandWithNoCallSite        = "subcommand with no call site: "
+	subcommandCallSitesNotChecked   = "subcommand call sites not checked"
+	subcommandScanAtItsBound        = "subcommand call-site scan is at its"
+	subcommandUsageDoesNotName      = "subcommand its usage does not name: "
+	subcommandDispatchDoesNotAccept = "subcommand its dispatch does not accept: "
+)
 
 // How much of a wrapped `usage: <name> {…}` grammar is read. The stub is a file the reviewed branch
 // wrote, so an unterminated brace would otherwise collect the rest of it.
@@ -78,7 +93,8 @@ func (c *checker) scanSubcommandCallSites() {
 			continue
 		}
 		if !queries[site.script+" "+site.subcommand] {
-			c.add(shell.Oneline(c.scriptOwners[site.script][0]) + " subcommand with no call site: " + shell.Oneline(site.subcommand))
+			c.add(subcommandWithNoCallSite + shell.CutBytesMarked(shell.Oneline(site.subcommand), findingNameCap) + " — " +
+				shell.Oneline(c.scriptOwners[site.script][0]) + " takes it and nothing in this tree names it")
 		}
 	}
 }
@@ -134,7 +150,7 @@ func (c *checker) subcommandsToFind() (wanted []callSite, queries map[string]boo
 		want(base, c.toolSubcommands(base, lines, opened))
 	}
 	if capped > 0 {
-		c.add(fmt.Sprintf("subcommand call-site scan is at its %d-subcommand bound: %d more were NOT checked",
+		c.add(fmt.Sprintf(subcommandScanAtItsBound+" %d-subcommand bound: %d more were NOT checked",
 			subcommandCap, capped))
 	}
 	return wanted, queries
@@ -188,7 +204,7 @@ func (c *checker) reportWeldedScriptNames(owners map[string][]string) {
 		for _, path := range paths {
 			named = append(named, shell.Oneline(path))
 		}
-		welded = append(welded, fmt.Sprintf("subcommand call sites not checked: %d scripts are named %s (%s) — a call site naming it cannot be attributed to one of them; rename one",
+		welded = append(welded, fmt.Sprintf(subcommandCallSitesNotChecked+": %d scripts are named %s (%s) — a call site naming it cannot be attributed to one of them; rename one",
 			len(paths), shell.Oneline(base), strings.Join(shell.SortUnique(named), ", ")))
 	}
 	for _, finding := range shell.SortUnique(welded) {
@@ -261,10 +277,12 @@ func (c *checker) toolSubcommands(base string, lines []string, opened bool) []st
 		return documented
 	}
 	for _, name := range onlyIn(dispatched, documented) {
-		c.add(subcommandMismatch + c.scriptNamed(base) + " accepts a subcommand its usage does not name: " + shell.Oneline(name))
+		c.add(subcommandUsageDoesNotName + shell.CutBytesMarked(shell.Oneline(name), findingNameCap) +
+			" — " + c.scriptNamed(base) + " accepts it")
 	}
 	for _, name := range onlyIn(documented, dispatched) {
-		c.add(subcommandMismatch + c.scriptNamed(base) + " usage names a subcommand its dispatch does not accept: " + shell.Oneline(name))
+		c.add(subcommandDispatchDoesNotAccept + shell.CutBytesMarked(shell.Oneline(name), findingNameCap) +
+			" — " + c.scriptNamed(base) + " names it in its usage")
 	}
 	return shell.SortUnique(append(append([]string{}, dispatched...), documented...))
 }
@@ -273,8 +291,8 @@ func (c *checker) toolSubcommands(base string, lines []string, opened bool) []st
 // which way it could not be read, and that the grammar's own list was checked in its place. One home
 // for it, so the three ways cannot drift into three wordings a reader has to learn separately.
 func (c *checker) reportUnreadDispatch(base, why string, documented []string) {
-	c.add(fmt.Sprintf("%s%s (%s) — the %d subcommand(s) its usage names were checked against that usage alone",
-		unreadDispatch, c.scriptNamed(base), why, len(documented)))
+	c.add(unreadDispatch + fmt.Sprintf("%s (%s) — the %d subcommand(s) its usage names were checked against that usage alone",
+		c.scriptNamed(base), why, len(documented)))
 }
 
 // The file a finding about a basename is about. Every finding here is reached through a basename,

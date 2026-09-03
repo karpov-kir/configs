@@ -161,7 +161,7 @@ func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
 		f := newPatternProbe(t, "see `standards/target.md` → **One home** for the rule")
 		output := f.run()
 		f.absent(output, "pattern in a citation path", unresolved)
-		f.found(output, dangling+": "+f.root+"/kk-flavor/standards/citer.md:1 -> standards/target.md → One home")
+		f.found(output, dangling+f.root+"/kk-flavor/standards/citer.md:1 -> standards/target.md → One home")
 	})
 }
 

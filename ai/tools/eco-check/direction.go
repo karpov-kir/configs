@@ -9,6 +9,16 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on. The four
+// bounded ones are passed to addBounded as the class, so each also heads its own bound notice.
+const (
+	directionScanReadNoFiles         = "direction scan read no files"
+	sharedLayerCitesLane             = "shared layer cites into a lane"
+	sharedLayerNamesLane             = "shared layer names a lane"
+	sharedLayerReachesLaneByBasename = "shared layer reaches into a lane by basename"
+	basenameNotChecked               = "basename not checked"
+)
+
 // A boundary character comes back with the match, so the basename scan strips it; the pattern
 // excludes `/` and `~` so a token inside a path the cites scan already reported does not come back
 // here as a second finding for the same text.
@@ -72,7 +82,7 @@ func (c *checker) scanDirection() {
 		}
 	}
 	if !wasFlavorScanned {
-		c.add("direction scan read no files under " + c.root.Flavor() + " — a check that did not run is not a clean one")
+		c.add(directionScanReadNoFiles + " under " + c.root.Flavor() + " — a check that did not run is not a clean one")
 	}
 }
 
@@ -142,7 +152,7 @@ func (c *checker) addBounded(count *int, class, file string, detail func() strin
 
 func (c *checker) reportLaneCitations(counters *directionCounters, safeFile string, lines []string, pattern *regexp.Regexp) {
 	for _, hit := range grepNumbered(lines, pattern) {
-		c.addBounded(&counters.cites, "shared layer cites into a lane", safeFile, func() string {
+		c.addBounded(&counters.cites, sharedLayerCitesLane, safeFile, func() string {
 			return safeFile + ":" + shell.Oneline(hit.String()) +
 				" — move the rule to a standard (ecosystem.md → **One home**)"
 		})
@@ -163,7 +173,7 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 		if !c.holdsRegularFile(c.skillFilePath(named)) {
 			continue
 		}
-		c.addBounded(&counters.names, "shared layer names a lane", safeFile, func() string {
+		c.addBounded(&counters.names, sharedLayerNamesLane, safeFile, func() string {
 			return safeFile + ":" + shell.Oneline(hit.String()) +
 				" — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
 		})
@@ -188,7 +198,7 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 		if !basenames.underOneLane[named] {
 			continue
 		}
-		c.addBounded(&counters.basenames, "shared layer reaches into a lane by basename", safeFile, func() string {
+		c.addBounded(&counters.basenames, sharedLayerReachesLaneByBasename, safeFile, func() string {
 			// The line number alone, never the match: echoing it would carry the boundary character
 			// the pattern consumed, so the finding would show an unbalanced tick for a name written
 			// `` `doit.sh` ``.
@@ -204,7 +214,7 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 // `kk-flavor/` named after a lane file and every mention of that file stops being checked, while no
 // other scan names the file the branch committed. A narrowed scan reports that it narrowed.
 func (c *checker) reportUncheckedBasename(counters *directionCounters, safeFile, lineNumber, named string) {
-	c.addBounded(&counters.ambiguous, "basename not checked", safeFile, func() string {
+	c.addBounded(&counters.ambiguous, basenameNotChecked, safeFile, func() string {
 		return safeFile + ":" + lineNumber + " — " + shell.Oneline(named) +
 			" names a file under both a lane and the shared layer, so this scan cannot tell which was meant; rename one of them (ecosystem.md → **One home**)"
 	})

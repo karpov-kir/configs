@@ -21,6 +21,19 @@ const (
 	namedSuiteCap = 8
 )
 
+// The heads this file's findings lead with, which report.go's rankTable ranks them on.
+const (
+	syntaxError                    = "syntax: "
+	scriptNotExecutable            = "script not executable"
+	scriptNamesTooManySuites       = "script names more suites than the scan reads"
+	scriptDeclaresNoTestPosition   = "script declares no test position: "
+	scriptNamesMissingTest         = "script names a missing test"
+	scriptNamesAmbiguousTest       = "script names an ambiguous test"
+	sharedRegionNotChecked         = "shared region not checked for drift: "
+	sharedRegionWithoutCounterpart = "shared region without a counterpart: "
+	sharedRegionHasDrifted         = "shared region has drifted: "
+)
+
 var (
 	namedTestSuite    = regexp.MustCompilePOSIX(`[A-Za-z0-9_.-]+-test\.sh`)
 	untestedDeclared  = regexp.MustCompilePOSIX(`^#[[:space:]]*untested:[[:space:]]*[^[:space:]]`)
@@ -61,7 +74,7 @@ func (c *checker) scanScriptsParse() {
 	scripts := c.filesNamed(c.root.Named(), "*.sh")
 	for _, script := range scripts {
 		if !isExecutable(script) {
-			c.add("script not executable: " + shell.Oneline(script))
+			c.add(scriptNotExecutable + ": " + shell.Oneline(script))
 		}
 	}
 	// Two forks per script is the dominant cost of the whole check, and each is independent of
@@ -131,7 +144,7 @@ func parseErrors(binaries []string, script string) []string {
 		// byte, the same one every other finding is echoed through: this message quotes the
 		// script's own text and its path, both chosen by the reviewed tree.
 		for _, line := range shell.SplitLines(string(output)) {
-			findings = append(findings, "syntax: "+shell.Oneline(line))
+			findings = append(findings, syntaxError+shell.Oneline(line))
 		}
 	}
 	return findings
@@ -217,24 +230,24 @@ func (c *checker) reportTestPosition(script string, lines []string, carriers map
 	// carrying one basename produced byte-identical findings, and identical findings collapse in the
 	// sort, so one of the two scripts went unmentioned by the check that had just found it.
 	if len(named) > namedSuiteCap {
-		c.add(fmt.Sprintf("script names more suites than the scan reads: %s names %d in its first %d lines, of which %d are read",
+		c.add(fmt.Sprintf(scriptNamesTooManySuites+": %s names %d in its first %d lines, of which %d are read",
 			shell.Oneline(script), len(named), headerLineCap, namedSuiteCap))
 		named = named[:namedSuiteCap]
 	}
 	if len(named) == 0 {
 		if !anyMatch(header, untestedDeclared) {
-			c.add("script declares no test position: " + shell.Oneline(script) +
+			c.add(scriptDeclaresNoTestPosition + shell.Oneline(script) +
 				" names no -test.sh and carries no '# untested: <why>'")
 		}
 		return
 	}
 	for _, suite := range named {
 		if len(carriers[suite]) == 0 {
-			c.add("script names a missing test: " + shell.Oneline(script) + " names " + shell.Oneline(suite))
+			c.add(scriptNamesMissingTest + ": " + shell.Oneline(script) + " names " + shell.Oneline(suite))
 			continue
 		}
 		if suiteIsAmbiguous(script, suite, carriers[suite]) {
-			c.add(fmt.Sprintf("script names an ambiguous test: %s names %s, which %d files answer to and none of them sits beside it — nothing here says which one covers it",
+			c.add(fmt.Sprintf(scriptNamesAmbiguousTest+": %s names %s, which %d files answer to and none of them sits beside it — nothing here says which one covers it",
 				shell.Oneline(script), shell.Oneline(suite), len(carriers[suite])))
 		}
 	}
@@ -326,13 +339,21 @@ func (c *checker) scanSharedRegions() {
 			distinct[region.body] = true
 			isOversize = isOversize || region.isOversize
 		}
+		// Three kinds, not one, and the region's name is the branch's own text. So each finding leads
+		// with its kind and puts the name after it; report.go's rank table has the rest.
+		//
+		// The marker charset bounds what a name may contain and never how long it may be. So the name is
+		// cut at findingNameCap, with the mark that says it cut. Uncut, the printer's 500-byte bound
+		// reaches the line first, and the tail it takes is the detail saying what is wrong with the
+		// region.
+		named := shell.CutBytesMarked(name, findingNameCap)
 		switch {
 		case isOversize:
-			c.add("shared region " + name + " is too large to compare — it was NOT checked for drift")
+			c.add(sharedRegionNotChecked + named + " — it is too large to compare")
 		case len(found) < 2:
-			c.add(fmt.Sprintf("shared region %s has %d copy — the marker names a counterpart no file carries", name, len(found)))
+			c.add(fmt.Sprintf(sharedRegionWithoutCounterpart+"%s — %d copy, and the marker names one no file carries", named, len(found)))
 		case len(distinct) > 1:
-			c.add(fmt.Sprintf("shared region %s has drifted: %d copies, %d distinct versions", name, len(found), len(distinct)))
+			c.add(fmt.Sprintf(sharedRegionHasDrifted+"%s — %d copies, %d distinct versions", named, len(found), len(distinct)))
 		}
 	}
 }

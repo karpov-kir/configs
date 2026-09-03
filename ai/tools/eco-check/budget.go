@@ -8,6 +8,14 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
+const (
+	injectListsMissingDoc    = "inject.md lists '"
+	budgetFileRefused        = "budget file refused"
+	budgetRefusalsSuppressed = "further budget-file refusals suppressed"
+	importRefused            = "import refused"
+)
+
 // The always-loaded budget: the root CLAUDE.md every system prompt carries, inject.md, and every doc
 // it lists under "Read always".
 func (c *checker) reportBudget(out io.Writer) {
@@ -104,7 +112,7 @@ func (c *checker) absentOrOutOfReach(doc, listed string) {
 // One wording for a listed doc this tree does not hold, because two callers reach it and a reader
 // comparing a gated run against a bare one may not meet two spellings of one fact.
 func (c *checker) reportAbsentBudgetDoc(doc string) {
-	c.add("inject.md lists '" + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
+	c.add(injectListsMissingDoc + shell.Oneline(doc) + "' under Read always, but " + c.root.Flavor() + "/" +
 		shell.Oneline(doc) + " does not exist")
 }
 
@@ -115,10 +123,10 @@ func (c *checker) reportAbsentBudgetDoc(doc string) {
 func (c *checker) refuseBudgetFile(name string) {
 	c.budgetRefusals++
 	if c.budgetRefusals <= budgetRefusalCap {
-		c.add("budget file refused (symlink, unreadable, or resolves outside " + c.root.Named() +
-			") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))
+		c.add(budgetFileRefused + " (symlink, unreadable, or resolves outside " + c.root.Named() +
+			") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))
 	} else if c.budgetRefusals == budgetRefusalCap+1 {
-		c.add("further budget-file refusals suppressed; the count above is not the total")
+		c.add(budgetRefusalsSuppressed + "; the count above is not the total")
 	}
 }
 
@@ -132,7 +140,7 @@ func (c *checker) withImports(files []string) (budget, uncounted []string) {
 		Read:     c.readLines,
 		Resolved: func(target string) { budget = append(budget, target) },
 		Refused: func(name, reason string) {
-			c.add("import refused (" + reason + "), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))
+			c.add(importRefused + " (" + reason + "), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))
 		},
 	})
 	return budget, uncounted

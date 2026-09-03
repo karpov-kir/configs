@@ -8,7 +8,11 @@ package ecocheck_test
 // refused. Both are the same claim — a file nothing read must not be indistinguishable from one that
 // held nothing — and only the bound was making it.
 
-import "testing"
+import (
+	"testing"
+
+	ecocheck "kk-flavor/tools/eco-check"
+)
 
 // A markdown file the walk reaches and the read cannot open. Root reads a mode-000 file whatever the
 // mode says, and nothing else builds this condition: every other way to make the read fail is refused
@@ -30,7 +34,7 @@ func newUnreadableStandard(t *testing.T) *fixture {
 // zero that cannot be told from "never looked".
 func TestUnreadableFileIsReportedNotSilentlySkipped(t *testing.T) {
 	t.Run("names a file the read could not open", func(t *testing.T) {
-		newUnreadableStandard(t).reports("file could not be read")
+		newUnreadableStandard(t).reports(ecocheck.FileCouldNotBeRead)
 	})
 
 	t.Run("and says it was not checked rather than leaving it to read as empty", func(t *testing.T) {
@@ -43,7 +47,7 @@ func TestUnreadableFileIsReportedNotSilentlySkipped(t *testing.T) {
 	t.Run("and reaches the screen through a flood of link findings", func(t *testing.T) {
 		f := newUnreadableStandard(t)
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
-		f.ranksAbove("file could not be read", "dangling link: ")
+		f.ranksAbove(ecocheck.FileCouldNotBeRead, ecocheck.DanglingLink)
 	})
 }
 
@@ -55,7 +59,7 @@ func TestOversizeFileIsReportedNotRead(t *testing.T) {
 	}
 
 	t.Run("reports a file past the read bound", func(t *testing.T) {
-		oversize(t).reports("file too large to scan")
+		oversize(t).reports(ecocheck.FileTooLargeToScan)
 	})
 
 	// An unchecked file must never look like a checked one, so the finding has to say plainly that
@@ -79,7 +83,7 @@ func TestOversizeBudgetFileIsReportedNotCounted(t *testing.T) {
 	}
 
 	t.Run("reports a budget file past the bound", func(t *testing.T) {
-		listed(t).reports("file too large to scan")
+		listed(t).reports(ecocheck.FileTooLargeToScan)
 	})
 
 	// Counted but unread is the shape that lies. The census line would carry a figure for a file
@@ -109,7 +113,7 @@ func TestOversizeFileIsNotReadByTheCallSiteScan(t *testing.T) {
 	// The control. The pass is live on this fixture, so the silence above is a refusal and not a scan
 	// that never ran.
 	t.Run("while the scan itself is live on that tree", func(t *testing.T) {
-		searched(t).reports("subcommand with no call site: alpha")
+		searched(t).reports(noCallSite + "alpha — ")
 	})
 }
 
@@ -135,6 +139,6 @@ func TestUnreadableFileIsNotSearchedForCallSitesInSilence(t *testing.T) {
 	// call site `alpha` has, so the run reports a subcommand as uncalled on evidence it never read.
 	// Both findings have to be there for a reader to tell those two facts apart.
 	t.Run("while still reporting the subcommand it could not find a site for", func(t *testing.T) {
-		searched(t).reports("subcommand with no call site: alpha")
+		searched(t).reports(noCallSite + "alpha — ")
 	})
 }
