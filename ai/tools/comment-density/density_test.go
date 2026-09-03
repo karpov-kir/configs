@@ -5,12 +5,6 @@
 //
 // Every case runs in this process against a throwaway repository copied from one seed, so the suite
 // costs the seed's six git processes plus two per scan rather than a process per case.
-//
-// ONE case from the shell suite is deliberately gone, replaced by its opposite: the shell skipped an
-// untracked file whose name held a newline, because such a name wrote a second line into the text
-// stream it built for awk and forged a file header. Nothing here builds that stream, so the name
-// cannot corrupt anything and the file is scanned like any other. TestANewlineInAPathIsNoLongerAHazard
-// holds that, and it is the case to read first if this is ever ported back.
 package density
 
 import (
@@ -20,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 var seedRepo string
@@ -112,7 +108,6 @@ func copyTree(src, dst string) error {
 	})
 }
 
-// write puts a file in the working tree, creating parents.
 func (r *repo) write(name, body string) {
 	r.t.Helper()
 	full := filepath.Join(r.dir, name)
@@ -189,7 +184,6 @@ func (r *repo) expectStderrLacks(unwanted string) {
 	}
 }
 
-// heavy builds a file of n comment lines and m code lines.
 func heavy(comments, code int) string {
 	var b strings.Builder
 	for i := 0; i < comments; i++ {
@@ -518,22 +512,91 @@ func TestUntrackedFiles(t *testing.T) {
 	})
 }
 
-// The shell skipped an untracked file whose name held a newline, and announced the skip: such a name
-// wrote a second line into the pseudo-diff it built for awk, which is the one file header a caller
-// could forge. Nothing here builds that stream — the file is opened by name and its lines never become
-// diff text — so the hazard does not exist and the file is scanned like any other.
+// A newline in a path corrupts nothing: the file is opened by name and its lines never become diff
+// text, so it is scanned like any other.
 //
-// This is the case that replaces the shell's, and it asserts the opposite. A scan that silently
-// declined a file was a hole in the denominator; now there is nothing to decline.
+// It is still one report line per outlier. The name reaches the report through shell.Oneline, so the
+// newline arrives as a space: a report where the count of lines and the count of outliers disagree is
+// unreadable to the caller ranking them, and the second half of a split name reads as a record of its
+// own.
 func TestANewlineInAPathIsNoLongerAHazard(t *testing.T) {
 	r := newRepo(t)
 	name := "odd\nname.go"
 	r.write(name, heavy(8, 1))
 	r.run()
 	r.expectCode(1)
-	r.expectStdoutHas("odd\nname.go")
+	r.expectStdoutHas("odd name.go: 8 comment / 1 code")
+	r.expectStdoutLacks("odd\nname.go")
+	if lines := strings.Count(strings.TrimRight(r.stdout.String(), "\n"), "\n") + 1; lines != 1 {
+		t.Errorf("the report is %d lines over one outlier, wanted 1: %q", lines, r.stdout.String())
+	}
 	r.expectStderrHas("1 file(s) reached the scan")
 	r.expectStderrHas("0 untracked file(s) skipped unread")
+}
+
+// A path long enough to be cut says it was cut. Unmarked, a name truncated at the bound is a shorter
+// different name, and a caller grepping the report for the file it changed finds nothing and reads
+// that as "not an outlier".
+func TestAnOverlongPathIsCutAndSaysSo(t *testing.T) {
+	r := newRepo(t)
+	name := strings.Repeat("d", maxPathBytes) + "/over.go"
+	r.write(name, heavy(8, 1))
+	r.run()
+	r.expectCode(1)
+	r.expectStdoutHas(shell.CutMarker + ": 8 comment / 1 code")
+	r.expectStdoutLacks("over.go")
+	for _, line := range strings.Split(strings.TrimRight(r.stdout.String(), "\n"), "\n") {
+		reported, _, _ := strings.Cut(line, ": ")
+		if len(reported) > maxPathBytes {
+			t.Errorf("the reported path is %d bytes, over the %d-byte bound", len(reported), maxPathBytes)
+		}
+	}
+}
+
+// git C-quotes a path holding a control character even under core.quotePath=false, so the `b/` test
+// misses the header and the file is never assigned. Unassigned, every added line in it is dropped —
+// while `diff --git` has already counted the file as reached, so the run reports a denominator it did
+// not cover and a name nobody can read becomes a way to hide a file from the scan.
+func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
+	r := newRepo(t)
+	name := "tab\there.go"
+	r.write(name, "package fixture\n")
+	r.commit("base")
+	r.write(name, heavy(8, 1))
+	r.run("HEAD")
+	r.expectCode(1)
+	// Through Oneline on the way out, like every other path in the report.
+	r.expectStdoutHas("tab here.go: 8 comment / 1 code")
+	r.expectStderrHas("1 file(s) reached the scan, 1 with countable added lines")
+}
+
+// A diff line past the cap ends the read where it stands, and every file after it in the diff goes
+// unscanned. Reported as a clean 0 that is a scan which covered part of a change set and answered for
+// all of it, so the run refuses instead. The cap is dropped to the scanner's own starting buffer for
+// the case; at the real 16MB the fixture would have to be 16MB.
+func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
+	r := newRepo(t)
+	r.write("a.go", "package fixture\n")
+	r.write("z.go", "package fixture\n")
+	r.commit("base")
+	// a.go sorts first, so the long line lands ahead of the outlier and hides it.
+	r.write("a.go", strings.Repeat("x", 70000)+"\n")
+	r.write("z.go", heavy(8, 1))
+
+	realCap := maxDiffLineBytes
+	maxDiffLineBytes = 64 * 1024
+	r.run("HEAD")
+	maxDiffLineBytes = realCap
+	r.expectCode(2)
+	r.expectStderrHas("the scan did NOT run over all of it")
+	r.expectStderrHas("Not a clean result")
+	r.expectNoStdout()
+
+	// The negative control for the assertions above: the same tree under the real cap reaches the
+	// outlier the long line was hiding, so the refusal was the cap firing and not a clean fixture.
+	r.run("HEAD")
+	r.expectCode(1)
+	r.expectStdoutHas("z.go")
 }
 
 // --- ranges, caps and the index ---------------------------------------------------------------------
@@ -544,9 +607,15 @@ func TestATwoRevisionRangeIsScanned(t *testing.T) {
 	r.commit("base")
 	r.write("ranged.go", heavy(8, 1))
 	r.commit("dense")
+	// Untracked, comment-heavy, and in neither of the two commits the caller named. The untracked half
+	// runs only with no revisions, and this file is the only thing here that can show it staying out:
+	// with nothing untracked in the fixture, that half running anyway moves no assertion in this case.
+	r.write("stray.go", heavy(9, 1))
 	r.run("HEAD~1..HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("ranged.go")
+	r.expectStdoutLacks("stray.go")
+	r.expectStderrHas("1 file(s) reached the scan")
 }
 
 // A suppressed outlier is announced, never dropped — which holds only while the cap on the loop and
@@ -582,9 +651,7 @@ func TestAStagedChangeIsStillReported(t *testing.T) {
 
 // --- the thresholds themselves ----------------------------------------------------------------------
 
-// A threshold that does not parse is a scan that did not run, never one against the default: the shell
-// handed the raw string to awk, where `ratio > "junk"` is a string comparison, and the scan reported a
-// result against a bar nobody chose.
+// A threshold that does not parse is a scan that did not run, never one against the default.
 func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	cases := []struct{ name, key, value string }{
 		{"a ratio that is not a number", "COMMENT_MAX_RATIO", "junk"},
@@ -619,8 +686,7 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	})
 }
 
-// Two runs over one tree print one report. The shell iterated an awk hash, whose order is unspecified,
-// so a diff of two reports was unreadable and the display cap took a different 200 each time.
+// Two runs over one tree print one report.
 func TestTheReportIsOrdered(t *testing.T) {
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")
@@ -637,4 +703,74 @@ func TestTheReportIsOrdered(t *testing.T) {
 	if !(first < second && second < third) {
 		t.Errorf("the report is not in path order:\n%s", got)
 	}
+}
+
+// Refusing what does not parse is half the contract; the other half is that what DOES parse moves the
+// bar. An override read, parsed and then dropped leaves every refusal case above green while the scan
+// runs against a default nobody chose — the same silent-default hole, reached from the other side.
+// Each case asserts the value ConfigFromEnv returns AND the scan's answer under it, because a Config
+// nothing scans with is a struct rather than a threshold.
+func TestAThresholdOverrideTakesEffect(t *testing.T) {
+	only := func(key, value string) func(string) (string, bool) {
+		return func(asked string) (string, bool) {
+			if asked == key {
+				return value, true
+			}
+			return "", false
+		}
+	}
+	// 7 comments of 20 added lines is 0.35 — over the 0.3 default, under a 0.9 override, and under a
+	// floor of 100.
+	dense := func(t *testing.T) *repo {
+		t.Helper()
+		r := newRepo(t)
+		r.write("over.go", "package fixture\n")
+		r.commit("base")
+		r.write("over.go", heavy(7, 13))
+		return r
+	}
+
+	t.Run("COMMENT_MAX_RATIO moves the ratio bar", func(t *testing.T) {
+		cfg, err := ConfigFromEnv(only("COMMENT_MAX_RATIO", "0.9"))
+		if err != nil {
+			t.Fatalf("0.9 was refused: %v", err)
+		}
+		if cfg.MaxRatio != 0.9 {
+			t.Errorf("the ratio bar is %v, wanted the 0.9 that was asked for", cfg.MaxRatio)
+		}
+		r := dense(t)
+		r.runWith(cfg, "HEAD")
+		r.expectCode(0)
+		r.expectNoStdout()
+	})
+
+	t.Run("COMMENT_MIN_LINES moves the floor", func(t *testing.T) {
+		cfg, err := ConfigFromEnv(only("COMMENT_MIN_LINES", "100"))
+		if err != nil {
+			t.Fatalf("100 was refused: %v", err)
+		}
+		if cfg.MinLines != 100 {
+			t.Errorf("the floor is %d, wanted the 100 that was asked for", cfg.MinLines)
+		}
+		r := dense(t)
+		r.runWith(cfg, "HEAD")
+		r.expectCode(0)
+		r.expectNoStdout()
+	})
+
+	t.Run("DENSITY_MAX_FILE_BYTES moves the untracked byte cap", func(t *testing.T) {
+		cfg, err := ConfigFromEnv(only("DENSITY_MAX_FILE_BYTES", "32"))
+		if err != nil {
+			t.Fatalf("32 was refused: %v", err)
+		}
+		if cfg.MaxFileBytes != 32 {
+			t.Errorf("the byte cap is %d, wanted the 32 that was asked for", cfg.MaxFileBytes)
+		}
+		r := newRepo(t)
+		r.write("big.go", heavy(400, 1))
+		r.runWith(cfg)
+		r.expectCode(0)
+		r.expectStdoutLacks("big.go")
+		r.expectStderrHas("1 untracked file(s) skipped unread")
+	})
 }

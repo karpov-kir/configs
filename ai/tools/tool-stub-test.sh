@@ -16,7 +16,15 @@ here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 tools=$here
 ai=$(CDPATH= cd -P "$here/.." && pwd -P)
 skills="$ai/skills"
-base=$(mktemp -d) || exit 1
+# Exit 2, not 1, at every fixture site below. `run-tests.sh` reads 1 as FAIL and prints the last
+# fifteen lines of output under it — which, for a fixture that died before the first case, is
+# nothing. A red suite with an empty block sends a reader hunting a defect in the stubs when the
+# truth is that this harness could not be built and NOTHING was tested. 2 is that fact in this
+# repo's vocabulary, and run-tests.sh counts it apart as NOMEASURE.
+base=$(mktemp -d) || {
+  echo "tool-stub-test: mktemp -d refused, so no fixture root exists and nothing was tested" >&2
+  exit 2
+}
 trap 'rm -rf "$base"' EXIT
 
 passed=0
@@ -60,7 +68,10 @@ printf '# B\n\n**%s**\n' "$rule" >"$echo_root/b/two.md"
 # report.sh reads the repository from its cwd, so its probe needs one; the other three take a root.
 report_repo="$base/report-repo"
 mkdir -p "$report_repo"
-(CDPATH= cd "$report_repo" && git init -q .) || exit 1
+(CDPATH= cd "$report_repo" && git init -q .) || {
+  echo "tool-stub-test: could not init the report.sh fixture repository, so nothing was tested" >&2
+  exit 2
+}
 
 # comment-density.sh scans a diff, so its probe needs a repository with a COMMIT — `git diff HEAD` on an
 # unborn HEAD exits 2, which is indistinguishable here from the stub failing to reach its tool.
@@ -74,7 +85,10 @@ mkdir -p "$density_repo"
     printf 'x := 1\n' >seed.go &&
     git add seed.go &&
     git commit -qm seed
-) >/dev/null 2>&1 || exit 1
+) >/dev/null 2>&1 || {
+  echo "tool-stub-test: could not init the comment-density fixture repository, so nothing was tested" >&2
+  exit 2
+}
 
 # skill | script | cwd for the probe | args | a string the tool prints when it really ran
 stubs() {
@@ -90,20 +104,26 @@ TABLE
 
 echo "shared:tool-stub"
 
-# score.sh in situ, and it is the reason the shared region walks up instead of counting `..`. Every
-# other stub sits at `skills/<skill>/scripts/`, three below the tools directory; this one is at
-# `kk-flavor/scripts/`, two below. The copied fixtures further down prove a walk works at either depth
-# in a throwaway tree; this proves the real file at the real depth reaches its real tool. The probe
-# table cannot hold it because that harness passes exactly one argument and `threshold` needs a lane.
+# score.sh in situ, and it is the reason the shared region names two candidate depths rather than one.
+# Every other stub sits at `skills/<skill>/scripts/`, three below the tools directory; this one is at
+# `kk-flavor/scripts/`, two below. The copied fixtures further down drive both depths in a throwaway
+# tree; this drives the real file at the real depth against its real tool. The probe table cannot hold
+# it because that harness passes exactly one argument and `threshold` needs a lane.
 score_stub="$ai/kk-flavor/scripts/score.sh"
 if [ -x "$score_stub" ]; then
-  out=$(CDPATH= cd "$base" && "$score_stub" threshold instruction 2>&1)
+  # stdout alone, and the whole reason the two streams are held apart: `threshold` prints the number
+  # on stdout and announces a machine-local override on stderr. Merged, the reader's own override for
+  # this lane makes `$out` two lines, the numeric test refuses it, and the case reddens about their
+  # config rather than about the stub. stderr is kept for the failure message, where it is the thing
+  # that says what went wrong.
+  score_err="$base/score-probe.err"
+  out=$(CDPATH= cd "$base" && "$score_stub" threshold instruction 2>"$score_err")
   status=$?
   if [ "$status" -eq 0 ] && [ "$out" -eq "$out" ] 2>/dev/null; then
     record_pass "score.sh reaches its tool from two levels below tools/, in the tree not a fixture"
   else
     record_fail "score.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
-      "exit $status, output: $out"
+      "exit $status, stdout: $out, stderr: $(cat "$score_err" 2>/dev/null)"
   fi
 else
   record_fail "score.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
@@ -153,44 +173,56 @@ while IFS='|' read -r skill script cwd args marker; do
   expect_out "$script says to chmod it" "chmod"
 done <<<"$(stubs)"
 
-# The region walks up for `tools/resolve.sh` rather than counting `..`, and the two things that makes
-# possible are what these cases hold. Nothing else in the tree does: every stub shipped today sits three
-# below the tools directory, so a fixed count and a walk agree everywhere, and a silent regression to
-# counting would pass every case above.
+# The region consults exactly two named candidates — `../../tools/` and `../../../tools/` — and nothing
+# else. These two cases are the halves of that: the shallower candidate is really reached, and nothing
+# outside the two is. Every case above sits at the deeper depth, so without these two a regression to
+# any other shape would pass.
 while IFS='|' read -r skill script cwd args marker; do
   [ -n "$skill" ] || continue
 
-  # A stub two levels below the tools directory instead of three — the depth `kk-flavor/scripts/` sits
-  # at. Under a fixed `../../../` this resolves above the fixture root entirely and the tool never runs.
+  # The shallower of the two candidates: a stub two levels below the tools directory rather than three.
+  # The in-situ case at the top of this file drives the one real stub at that depth; this fixture drives
+  # every stub body there.
+  #
+  # The `sub/` matters. Built as `$shallow/scripts/` beside `$shallow/tools/`, the resolver would be one
+  # level up — a position no stub in this repo occupies — and the case would pass off a shape it never
+  # models.
   shallow="$base/shallow-$script"
-  mkdir -p "$shallow/scripts"
+  mkdir -p "$shallow/sub/scripts"
   cp -R "$tools" "$shallow/tools"
-  cp "$skills/$skill/scripts/$script" "$shallow/scripts/$script"
-  chmod 755 "$shallow/scripts/$script"
-  out=$(CDPATH= cd "$cwd" && "$shallow/scripts/$script" "$args" 2>&1)
+  cp "$skills/$skill/scripts/$script" "$shallow/sub/scripts/$script"
+  chmod 755 "$shallow/sub/scripts/$script"
+  out=$(CDPATH= cd "$cwd" && "$shallow/sub/scripts/$script" "$args" 2>&1)
   status=$?
   if [ "$status" -eq 2 ]; then
-    record_fail "$script reaches its tool from two levels below tools/" "exit 2 — the walk did not find the resolver: $out"
+    record_fail "$script reaches its tool from two levels below tools/" "exit 2 — the resolver was not found: $out"
   else
     record_pass "$script reaches its tool from two levels below tools/"
   fi
 
-  # And the walk takes the NEAREST tools/ above it, not the first one it can reach by any route. With a
-  # decoy resolver further up that would exit 2, a stub reading the wrong one is loud rather than silent.
-  nearest="$base/nearest-$script"
-  mkdir -p "$nearest/tools" "$nearest/inner/scripts"
-  printf '#!/usr/bin/env bash\necho "decoy resolver reached" >&2\nexit 2\n' > "$nearest/tools/resolve.sh"
-  chmod 755 "$nearest/tools/resolve.sh"
-  cp -R "$tools" "$nearest/inner/tools"
-  cp "$skills/$skill/scripts/$script" "$nearest/inner/scripts/$script"
-  chmod 755 "$nearest/inner/scripts/$script"
-  out=$(CDPATH= cd "$cwd" && "$nearest/inner/scripts/$script" "$args" 2>&1)
+  # And a checkout that ships no ai/tools/ refuses, rather than reaching one that belongs to somebody
+  # else. The decoy sits FOUR levels above the stub, past both named candidates, so anything that
+  # reached it resolved by some rule other than the two.
+  #
+  # Asserted from both ends: the refusal must name the missing tools directory, AND the decoy must never
+  # have run. Either alone passes for the wrong reason — a stub that died before resolving anything
+  # satisfies the second, and a stub that ran the decoy and then failed could satisfy the first.
+  escape="$base/escape-$script"
+  mkdir -p "$escape/tools" "$escape/root/skills/$skill/scripts"
+  printf '#!/usr/bin/env bash\necho "decoy resolver reached" >&2\nexit 2\n' > "$escape/tools/resolve.sh"
+  chmod 755 "$escape/tools/resolve.sh"
+  cp "$skills/$skill/scripts/$script" "$escape/root/skills/$skill/scripts/$script"
+  chmod 755 "$escape/root/skills/$skill/scripts/$script"
+  out=$(CDPATH= cd "$cwd" && "$escape/root/skills/$skill/scripts/$script" "$args" 2>&1)
+  status=$?
+  expect_status "$script exits 2 rather than reaching a tools/ outside the checkout" 2
+  expect_out "$script names the missing tools directory rather than resolving past it" "does not ship ai/tools/"
   case "$out" in
     *"decoy resolver reached"*)
-      record_fail "$script takes the nearest tools/ above it, not a further one" \
-        "it walked past $nearest/inner/tools and reached the decoy: $out"
+      record_fail "$script never reaches a resolver four levels above it" \
+        "it resolved past both named candidates and ran $escape/tools/resolve.sh: $out"
       ;;
-    *) record_pass "$script takes the nearest tools/ above it, not a further one" ;;
+    *) record_pass "$script never reaches a resolver four levels above it" ;;
   esac
 done <<<"$(stubs)"
 
@@ -202,7 +234,11 @@ ledger_name=stats.md
 real_ledger="$skills/kk-reduce/$ledger_name"
 # Copied and compared with cmp rather than hashed, so the case needs no particular checksum tool.
 before="$base/ledger-before"
-cp "$real_ledger" "$before"
+cp "$real_ledger" "$before" || {
+  echo "tool-stub-test: could not copy $real_ledger, so the case that proves this checkout's own" >&2
+  echo "  ledger stays untouched has no before-image to compare against, and nothing was tested" >&2
+  exit 2
+}
 
 fake="$base/fake"
 mkdir -p "$fake/tools/bin" "$fake/skills/kk-reduce/scripts"
@@ -238,21 +274,38 @@ fi
 # tomorrow is covered without a row here, and finding no stub at all fails rather than passes empty.
 region='--- shared:tool-stub ---'
 stubs_scanned=0
+stubs_outside_skills=0
 while IFS= read -r stub_file; do
   [ -n "$stub_file" ] || continue
   grep -q -e "$region" "$stub_file" || continue
   stubs_scanned=$((stubs_scanned + 1))
+  case "$stub_file" in
+    "$skills"/*) ;;
+    *) stubs_outside_skills=$((stubs_outside_skills + 1)) ;;
+  esac
   stub_base=${stub_file##*/}
   name="$stub_base documents itself in the lowercase form eco-check anchors on"
   grep -q "usage: $stub_base" "$stub_file" &&
     record_pass "$name" ||
     record_fail "$name" "no 'usage: $stub_base' line — a capitalised Usage: is outside both scans in subcommands.go"
-done <<<"$(find "$skills" -name '*.sh' -type f -not -name '*-test.sh' | sort)"
+done <<<"$(find "$ai" -name '*.sh' -type f -not -name '*-test.sh' | sort)"
 
 if [ "$stubs_scanned" -gt 0 ]; then
   record_pass "the usage-form scan found $stubs_scanned stub(s) to read"
 else
-  record_fail "the usage-form scan found stub(s) to read" "nothing under $skills carries the shared region, so the form went unchecked"
+  record_fail "the usage-form scan found stub(s) to read" "nothing under $ai carries the shared region, so the form went unchecked"
+fi
+
+# Rooted at ai/, not at ai/skills/, and this case is what holds it there. A stub outside the skills
+# tree goes unread if the walk starts inside it, and the count above cannot see that — one stub short
+# of all of them is still above zero. So the observable is whether the walk got past the skills tree at
+# all. Not a row naming the stub that lives out there: a row is what the comment above says should
+# never be needed, and it would go stale the day that file moves.
+if [ "$stubs_outside_skills" -gt 0 ]; then
+  record_pass "and the walk reached past the skills tree, where $stubs_outside_skills of them live"
+else
+  record_fail "and the walk reached past the skills tree" \
+    "every stub it found is under $skills, so one outside it is unscanned — which is how score.sh went unread"
 fi
 
 echo

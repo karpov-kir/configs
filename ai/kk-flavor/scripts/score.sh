@@ -3,7 +3,7 @@
 # and cut a scored list against one. It never produces a score — "how much this reader needs it" is a
 # judgment, so the caller scores and this decides what that score buys.
 #
-# Usage: score.sh threshold <lane>
+# usage: score.sh threshold <lane>
 #        score.sh cut [--kept-all <why>] <lane> <what a 10 is here>
 #            reads `<score><TAB><label>` lines on stdin; exit 3 if nothing fell below the line
 #
@@ -13,9 +13,9 @@
 # machine-local file. An override in effect is always announced: a bar moved locally produces a
 # verdict no other machine reproduces, and silence about it is the hazard.
 #
-# The refusals are the enforcement, not convenience: read the comment at one before removing it. What
-# `default` is, and why an unknown lane exits rather than landing on it, is stated at that lane in
-# `../thresholds.conf`.
+# The tool is Go, in `ai/tools/score/`; this reaches that binary and nothing else. Its refusals are the
+# enforcement, not convenience: read the comment at one before removing it. What `default` is, and why
+# an unknown lane exits rather than landing on it, is stated at that lane in `../thresholds.conf`.
 #
 # tested by: the Go suite beside the tool, `ai/tools/score/score_test.go`, which drives every case in
 # one process; the shared stub region below by tool-stub-test.sh, and the resolver by resolve-test.sh.
@@ -38,22 +38,23 @@ die() {
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so $tool could not be located"
 
-# Walked up rather than counted. This region is byte-identical in every stub, and the stubs do not all
-# sit at one depth — a skill's `scripts/` is three below `ai/`, `kk-flavor/scripts/` is two — so a fixed
-# run of `..` lands on the tools directory from some of them and silently on a stranger from the rest.
-# The walk stops at the first `tools/resolve.sh` above this file, which inside a checkout is always
-# `ai/`'s. `${probe%/*}` rather than `dirname`, because this runs on every invocation of every stub.
+# Two candidates, named, and NOT a walk upward. The stubs sit at exactly two depths — a skill's
+# `scripts/` is three below the tools directory, `kk-flavor/scripts/` is two — so both are written out
+# and nothing else is consulted.
+#
+# An unbounded walk was here and was a hole: where a checkout genuinely does not ship `ai/tools/`, it
+# climbed out of the checkout and ran the first `tools/resolve.sh` it met in any ancestor, exec'ing a
+# stranger's binary at exit 0 where the refusal below is the whole point. Bounding it by depth alone
+# does not close that — an ancestor can sit inside the bound. Naming the two real candidates does.
 resolver=""
-probe="$here"
-while [ -n "$probe" ]; do
-  if [ -e "$probe/tools/resolve.sh" ]; then
-    resolver="$probe/tools/resolve.sh"
+for candidate in "$here/../../tools/resolve.sh" "$here/../../../tools/resolve.sh"; do
+  if [ -e "$candidate" ]; then
+    resolver="$candidate"
     break
   fi
-  probe="${probe%/*}"
 done
 [ -n "$resolver" ] ||
-  die "no tools/resolve.sh above $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+  die "no tools/resolve.sh at either depth above $here — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
 [ -x "$resolver" ] ||
   die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 

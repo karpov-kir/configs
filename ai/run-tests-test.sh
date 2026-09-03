@@ -17,11 +17,11 @@ runner="$here/run-tests.sh"
 
 pass=0
 fail=0
-# Counted, and printed as its own field. Nineteen cases below sit behind `command -v git`, and a
+# Counted, and printed as its own field. Thirty-one cases below sit behind `command -v git`, and a
 # two-field summary line asserts that no case is conditional — `~/.kk-flavor/standards/testing.md` →
 # **7. What a suite reports**. Worse than untidy: `run-tests.sh` reads `skipped` BY NAME to decide
-# vacuity, so on a machine without git this suite would report "36 passed, 0 failed" and the runner
-# would accept it as a clean run with nineteen cases silently gone.
+# vacuity, so on a machine without git this suite would report "37 passed, 0 failed" and the runner
+# would accept it as a clean run with thirty-one cases silently gone.
 skipped=0
 
 # <count> <why>. The count is how many cases the guarded block holds, a literal because nothing here
@@ -206,11 +206,9 @@ if command -v git >/dev/null; then
     "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
   check "and the summary says git answered discovery" "1" "$(printf '%s' "$out" | grep -c 'discovered by git')"
 
-  # A tracked suite deleted from the working tree but not yet staged. `ls-files` still lists it, so
-  # without the existence filter discovery hands `bash` a path that is not there, bash exits 127, and
-  # the loop reads that as a failing suite — an ordinary unstaged deletion turning the whole sweep red
-  # with a message that reads like a broken test. `git rm` is not an option for the caller either: the
-  # index is shared, so a deletion waits unstaged until they commit.
+  # Why a tracked suite missing from the working tree must not go red is in run-tests.sh, at the
+  # guard. `git rm` is not an option for the caller either: the index is shared, so a deletion waits
+  # unstaged until they commit.
   rm "$tmp/ignored/tracked-test.sh"
   out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
   check "a tracked suite absent from the working tree does not fail the run" "0" "$rc"
@@ -223,6 +221,34 @@ if command -v git >/dev/null; then
   check "and the suites that are there still run" "1" \
     "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
   # Restored, because the -s cases below name this file.
+  printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/ignored/tracked-test.sh"
+
+  # A suite that is PRESENT but cannot be run. The fixture is untracked, so landing in the absent arm
+  # above would announce "tracked by git" about a file git does not track. Why `-f` alone cannot tell
+  # the two apart is in run-tests.sh, at the guard.
+  ln -s no-such-target.sh "$tmp/ignored/dangling-test.sh"
+  out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
+  check "a suite present but not runnable does not pass green" "2" "$rc"
+  check "and is reported as broken rather than as absent" "1" \
+    "$(printf '%s' "$out" | grep -c '^BROKEN .*dangling-test.sh')"
+  check "and nothing claims git tracks it, because git does not" "0" \
+    "$(printf '%s' "$out" | grep -c '^ABSENT .*dangling-test.sh')"
+  check "and the summary carries it, apart from the unmeasured count" "1" \
+    "$(printf '%s' "$out" | grep -c 'present but not runnable')"
+  check "and the suites that are there still run" "1" \
+    "$(printf '%s' "$out" | grep -c '^ok   fresh-test.sh')"
+  rm "$tmp/ignored/dangling-test.sh"
+
+  # The same hazard through the door that costs a real suite: one git tracks, replaced by a dangling
+  # symlink. git reports ` T` and still lists it, so discovery finds it, and a green run here means a
+  # suite that used to be covered stopped being covered with nothing saying so.
+  rm "$tmp/ignored/tracked-test.sh"
+  ln -s gone.sh "$tmp/ignored/tracked-test.sh"
+  out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
+  check "a tracked suite replaced by a dangling symlink does not pass green" "2" "$rc"
+  check "and is reported as broken, not as an ordinary deletion" "1" \
+    "$(printf '%s' "$out" | grep -c '^BROKEN .*tracked-test.sh')"
+  rm "$tmp/ignored/tracked-test.sh"
   printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/ignored/tracked-test.sh"
 
   # -s executes whatever it names, so it has to refuse what discovery refuses. Without this it runs
@@ -241,8 +267,21 @@ if command -v git >/dev/null; then
   out="$("$runner" -s fresh-test.sh "$tmp/ignored" 2>&1)"; rc=$?
   check "-s runs an untracked suite git does not ignore" "0" "$rc"
   check "and reports it as the one suite found" "1" "$(printf '%s' "$out" | grep -c '^1 suite(s) found')"
+
+  # A tracked suite whose name is not plain ASCII. `ls-files` C-quotes it, because `core.quotePath` is
+  # on by default, and the quoted text names no file — so the absent arm above fires, the run announces
+  # a suite that is plainly there as missing from the working tree, and exits 0 having never run it.
+  # Renaming a suite is the whole of it. Before the absent arm existed this went red at `bash`, so the
+  # classification turned a loud failure into a silent pass; `-z` is what stops git quoting at all.
+  # Last in this block, so nothing after it depends on the tree this leaves.
+  printf '#!/usr/bin/env bash\necho "1 passed, 0 failed"\n' > "$tmp/ignored/café-test.sh"
+  ( cd "$tmp/ignored" && git add "café-test.sh" && git commit -qm accented ) >/dev/null 2>&1
+  out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
+  check "a tracked suite with a non-ASCII name is run rather than reported absent" "1" \
+    "$(printf '%s' "$out" | grep -c '^ok   café-test.sh')"
+  check "control: and the run does not pass green over it" "0" "$rc"
 else
-  record_skip 10 "this machine has no git, so discovery could not be driven through it"
+  record_skip 24 "this machine has no git, so discovery could not be driven through it"
 fi
 
 # Two runs that read different file sets must not print one line, for the same reason the containment
@@ -295,6 +334,21 @@ check "and does not run it" "0" "$(printf '%s' "$out" | grep -c '1 passed')"
 
 out="$("$runner" -z "$tmp/named" 2>&1)"; rc=$?
 check "an unknown flag exits 2" "2" "$rc"
+
+# The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
+# and it drifts where nobody looks: the only machine that prints them is the one without git. So they
+# are held against the source they describe, here, on every machine, rather than against a reader's
+# memory on the one machine that would notice.
+drift="$(awk '
+  /^if command -v git >\/dev\/null; then$/ { inblock = 1; n = 0; next }
+  inblock == 1 && /^else$/                  { inblock = 2; next }
+  inblock == 1 && /^  check /               { n++; next }
+  inblock == 2 && /^  record_skip /         {
+    if ($2 != n) { printf "line %d declares %s skipped over a block holding %d case(s); ", NR, $2, n }
+    inblock = 0
+  }
+' "$0")"
+check "every record_skip count matches the cases its block holds" "" "$drift"
 
 echo "$pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

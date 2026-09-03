@@ -13,8 +13,8 @@ import (
 )
 
 func main() {
-	// The directory the caller stood in is what the repository is resolved from. A failure to read it
-	// is not a "not due": it reaches Run as a path git will refuse, and comes back undetermined.
+	// A working directory that will not read is not a "not due": it reaches Run as a path git will
+	// refuse, and comes back undetermined.
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "."

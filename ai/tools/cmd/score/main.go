@@ -7,24 +7,16 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"kk-flavor/tools/score"
 )
 
 func main() {
-	// argv[0] as the stub was invoked by, which `exec -a` preserved: the tracked thresholds file sits
-	// beside the scripts directory that path is in, so a checkout reached through its symlink mount
-	// still finds its own config rather than the install's.
+	// The whole argv[0] the stub was invoked as, which `exec -a` preserved. ConfigPaths resolves the
+	// tracked thresholds file relative to it, so it must not be shortened on the way there. Only Run
+	// takes the basename, which is the name the human typed and the one a refusal prints.
 	self := os.Args[0]
 	env := score.ConfigPaths(self, os.LookupEnv)
-	name := self
-	if cut := len(name) - 1; cut >= 0 {
-		for i := cut; i >= 0; i-- {
-			if name[i] == '/' {
-				name = name[i+1:]
-				break
-			}
-		}
-	}
-	os.Exit(score.Run(name, os.Args[1:], env, os.Stdin, os.Stdout, os.Stderr))
+	os.Exit(score.Run(filepath.Base(self), os.Args[1:], env, os.Stdin, os.Stdout, os.Stderr))
 }

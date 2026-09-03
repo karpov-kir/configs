@@ -15,12 +15,6 @@
 //
 // A targeting aid, not a bar: it counts ADDED lines, so rewording a comment the base already carried
 // moves it into the added set, and the ratio can rise across a pass that cut comments.
-//
-// The shell this replaces built one text stream — a real `git diff` with a hand-made pseudo-diff for
-// untracked files appended — because awk could only be handed one. Here the two sources feed one
-// counter directly. That removes the pseudo-diff's whole failure surface: the shell had to defend a
-// forged `diff --git` header, a newline in a path writing a second line into the stream, and a missing
-// final newline fusing two files together. None of those can be expressed now.
 package density
 
 import (
@@ -34,9 +28,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"kk-flavor/tools/shell"
 )
 
-// Defaults, and the one place each is written down.
 const (
 	defaultMaxRatio     = 0.3
 	defaultMinLines     = 5
@@ -47,12 +42,15 @@ const (
 // somebody else wrote. A suppressed outlier is announced, never dropped — which holds only while this
 // cap and the one in the announcement stay the same number.
 const (
-	maxShown    = 200
-	maxPathRune = 200
+	maxShown     = 200
+	maxPathBytes = 200
 )
 
-// Binary is a NUL in the first 8KB — the same probe the shell used, and the same window.
 const binaryProbeBytes = 8192
+
+// The longest diff line the scan will read. A var rather than a const so the suite can drive the
+// refusal it causes without a 16MB fixture; nothing in production assigns it.
+var maxDiffLineBytes = 16 * 1024 * 1024
 
 const (
 	exitClean     = 0
@@ -97,8 +95,7 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return cfg, nil
 }
 
-// tally is the denominator every run ends with. A report with no tally cannot say whether an empty
-// result means "nothing was comment-heavy" or "nothing was read", and those are opposite facts.
+// tally is the denominator every run ends with.
 type tally struct {
 	reached   int // files the scan opened, tracked and untracked
 	countable int // of those, the ones with at least one added line it could classify
@@ -111,14 +108,21 @@ type counts struct {
 	code     int
 }
 
-// Run executes one invocation and returns its exit code.
+// scan is one run's accumulating state. Held together because all four arms read the config and write
+// both of the others, and a count that reached `files` without reaching `tally` is the one
+// inconsistency they must not be able to express.
+type scan struct {
+	cfg   Config
+	files map[string]*counts
+	tally tally
+}
+
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	if code, refused := refuseNonRevisions(self, args, cwd, stderr); refused {
 		return code
 	}
 
-	files := map[string]*counts{}
-	var t tally
+	s := &scan{cfg: cfg, files: map[string]*counts{}}
 
 	// The tracked half. Its failure is exit 2 and says so: a scan that never ran must never reach a
 	// caller looking like a clean tree.
@@ -127,18 +131,21 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 		fmt.Fprintf(stderr, "%s: git rejected these arguments — exit 2, the scan did NOT run. Not a clean result.\n", self)
 		return exitDidNotRun
 	}
-	scanDiff(diff, cfg, files, &t)
+	if err := s.scanDiff(diff); err != nil {
+		fmt.Fprintf(stderr, "%s: the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.\n", self, err)
+		return exitDidNotRun
+	}
 
 	// The untracked half runs only with no revisions: with revisions the caller named two commits, and
 	// a file in neither of them is not part of what they asked about.
 	if len(args) == 0 {
-		if err := scanUntracked(cwd, cfg, files, &t, stderr); err != nil {
+		if err := s.scanUntracked(cwd); err != nil {
 			fmt.Fprintf(stderr, "%s: could not list untracked files — exit 2, the scan did NOT run over them.\n", self)
 			return exitDidNotRun
 		}
 	}
 
-	return report(self, cfg, files, t, stdout, stderr)
+	return s.report(self, stdout, stderr)
 }
 
 // Arguments are git-diff *revisions*, never paths — `git diff <path>` is legal and diffs against the
@@ -195,9 +202,9 @@ func gitDiff(cwd string, revisions []string) ([]byte, error) {
 // carries a `+`, `-` or space prefix, so no file content can forge a `diff --git`. Anchored on `+++`
 // alone, an added line reading `+++ b/x.txt` reassigns the file and every added line after it is
 // counted against the wrong one.
-func scanDiff(diff []byte, cfg Config, files map[string]*counts, t *tally) {
+func (s *scan) scanDiff(diff []byte) error {
 	scanner := bufio.NewScanner(bytes.NewReader(diff))
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxDiffLineBytes)
 	file := ""
 	pending := false
 	for scanner.Scan() {
@@ -206,24 +213,44 @@ func scanDiff(diff []byte, cfg Config, files map[string]*counts, t *tally) {
 		case strings.HasPrefix(line, "diff --git "):
 			file = ""
 			pending = true
-			t.reached++
+			s.tally.reached++
 		case strings.HasPrefix(line, "+++ "):
 			if pending {
 				pending = false
-				if strings.HasPrefix(line, "+++ b/") {
-					file = line[len("+++ b/"):]
-				}
+				file = headerPath(line[len("+++ "):])
 			}
 		case strings.HasPrefix(line, "+"):
 			if file != "" {
-				count(file, line[1:], cfg, files, t)
+				s.count(file, line[1:])
 			}
 		}
 	}
+	// A line past the cap ends the scan where it stands, and every file after it in the diff goes
+	// unread. Returned rather than swallowed: silently, the run exits 0 over a change set it did not
+	// cover, which is the one answer this tool must never give.
+	return scanner.Err()
 }
 
-// scanUntracked reads what no diff mentions. It never touches the index.
-func scanUntracked(cwd string, cfg Config, files map[string]*counts, t *tally, stderr io.Writer) error {
+// headerPath is the added-side path a `+++ ` line names, or "" when the line names none. git C-quotes a
+// path holding a control character even under `core.quotePath=false`, so the bare `b/` test misses it —
+// and that file's added lines are then dropped while `diff --git` has already counted the file as
+// reached. A name nobody can read must not be a way to hide a file from the scan.
+func headerPath(field string) string {
+	if strings.HasPrefix(field, `"`) {
+		unquoted, err := strconv.Unquote(field)
+		if err != nil {
+			return ""
+		}
+		field = unquoted
+	}
+	if !strings.HasPrefix(field, "b/") {
+		return ""
+	}
+	return field[len("b/"):]
+}
+
+// scanUntracked never touches the index.
+func (s *scan) scanUntracked(cwd string) error {
 	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "-z")
 	cmd.Dir = cwd
 	out, err := cmd.Output()
@@ -239,25 +266,25 @@ func scanUntracked(cwd string, cfg Config, files map[string]*counts, t *tally, s
 		if err != nil || !info.Mode().IsRegular() {
 			// A file that vanished mid-scan, or was never a regular file, contributes nothing — but it
 			// was still never read, so it reaches the tally rather than disappearing from it.
-			t.skipped++
+			s.tally.skipped++
 			continue
 		}
-		if info.Size() > cfg.MaxFileBytes {
-			t.skipped++
+		if info.Size() > s.cfg.MaxFileBytes {
+			s.tally.skipped++
 			continue
 		}
 		body, err := os.ReadFile(full)
 		if err != nil {
-			t.skipped++
+			s.tally.skipped++
 			continue
 		}
 		if isBinary(body) {
-			t.skipped++
+			s.tally.skipped++
 			continue
 		}
-		t.reached++
-		for _, line := range strings.Split(string(body), "\n") {
-			count(name, line, cfg, files, t)
+		s.tally.reached++
+		for _, line := range shell.SplitLines(string(body)) {
+			s.count(name, line)
 		}
 	}
 	return nil
@@ -271,17 +298,16 @@ func isBinary(body []byte) bool {
 	return bytes.IndexByte(window, 0) >= 0
 }
 
-// count classifies one added line against one file.
-func count(file, raw string, cfg Config, files map[string]*counts, t *tally) {
-	line := strings.TrimLeft(raw, " \t\r\n\v\f")
+func (s *scan) count(file, raw string) {
+	line := strings.TrimLeft(raw, shell.SpaceBytes)
 	if line == "" || isProseOrData(file) {
 		return
 	}
-	entry, seen := files[file]
+	entry, seen := s.files[file]
 	if !seen {
 		entry = &counts{}
-		files[file] = entry
-		t.countable++
+		s.files[file] = entry
+		s.tally.countable++
 	}
 	if isComment(line) {
 		entry.comments++
@@ -324,56 +350,43 @@ func isComment(line string) bool {
 	return rest == "" || rest[0] == ' ' || rest[0] == '\t'
 }
 
-func report(self string, cfg Config, files map[string]*counts, t tally, stdout, stderr io.Writer) int {
-	// Sorted, so two runs over one tree print one report. The shell iterated an awk hash, whose order
-	// is unspecified — which made a diff of two reports unreadable and a suppressed-outlier cap pick a
-	// different 200 each time.
-	names := make([]string, 0, len(files))
-	for name := range files {
+func (s *scan) report(self string, stdout, stderr io.Writer) int {
+	// Sorted, so two runs over one tree print one report.
+	names := make([]string, 0, len(s.files))
+	for name := range s.files {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
 	shown := 0
 	for _, name := range names {
-		entry := files[name]
+		// count creates an entry only while incrementing one of the two counters, so total is at
+		// least 1 here and the ratio below has no zero denominator to guard.
+		entry := s.files[name]
 		total := entry.comments + entry.code
-		if total == 0 {
-			continue
-		}
 		ratio := float64(entry.comments) / float64(total)
-		if entry.comments < cfg.MinLines || ratio <= cfg.MaxRatio {
+		if entry.comments < s.cfg.MinLines || ratio <= s.cfg.MaxRatio {
 			continue
 		}
-		t.outliers++
+		s.tally.outliers++
 		if shown < maxShown {
 			shown++
 			fmt.Fprintf(stdout, "%s: %d comment / %d code added lines (%.2f)\n",
-				truncateRunes(name, maxPathRune), entry.comments, entry.code, ratio)
+				shell.CutBytesMarked(shell.Oneline(name), maxPathBytes), entry.comments, entry.code, ratio)
 		}
 	}
-	if t.outliers > maxShown {
-		fmt.Fprintf(stdout, "… and %d further outlier(s), not shown\n", t.outliers-maxShown)
+	if s.tally.outliers > maxShown {
+		fmt.Fprintf(stdout, "… and %d further outlier(s), not shown\n", s.tally.outliers-maxShown)
 	}
 
 	// The denominator goes on stderr so the report on stdout stays exactly the outliers.
 	fmt.Fprintf(stderr, "%s: %d file(s) reached the scan, %d with countable added lines, %d outlier(s), %d untracked file(s) skipped unread.\n",
-		self, t.reached, t.countable, t.outliers, t.skipped)
-	if t.reached == 0 {
+		self, s.tally.reached, s.tally.countable, s.tally.outliers, s.tally.skipped)
+	if s.tally.reached == 0 {
 		fmt.Fprintf(stderr, "%s: nothing reached the scan, so this run says nothing about the change set.\n", self)
 	}
-	if t.outliers > 0 {
+	if s.tally.outliers > 0 {
 		return exitFound
 	}
 	return exitClean
-}
-
-// Bounded by runes rather than bytes, so a path of multi-byte characters is not cut mid-character into
-// a report that then holds invalid UTF-8.
-func truncateRunes(text string, limit int) string {
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return text
-	}
-	return string(runes[:limit])
 }

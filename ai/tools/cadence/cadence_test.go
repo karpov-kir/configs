@@ -29,17 +29,15 @@ import (
 	"time"
 )
 
-// A fixed instant, and every expected date below is derived from it by AddDate.
 var fixedNow = time.Date(2026, 9, 3, 14, 30, 0, 0, time.UTC)
 
 func clock() time.Time { return fixedNow }
 
 func today() string { return fixedNow.Format(dateLayout) }
 
-// daysAgo is Go's calendar arithmetic, not this package's. A negative offset is in the future.
+// A negative offset is in the future.
 func daysAgo(n int) string { return fixedNow.AddDate(0, 0, -n).Format(dateLayout) }
 
-// seedRepo is built once. Every fixture repository is a copy of it.
 var seedRepo string
 
 func TestMain(m *testing.M) {
@@ -282,8 +280,7 @@ func TestOutsideAnyRepository(t *testing.T) {
 
 // --- the record's own three answers -------------------------------------------------------------
 
-// Never offered is due. This is the first run in a fresh checkout, and it has to be an offer rather
-// than a silence.
+// Never offered is due: the first run in a fresh checkout.
 func TestNeverOfferedIsDue(t *testing.T) {
 	f := newRepo(t)
 	f.run("audit", "due")
@@ -318,8 +315,7 @@ func TestRecordingAnOffer(t *testing.T) {
 	f.expectOut(t, "0 days ago")
 }
 
-// The interval, both sides of it. `>=` is what makes the seventh day an offer; `>` would move every
-// cadence in the tree out by one day, invisibly.
+// The interval, both sides of it.
 func TestTheInterval(t *testing.T) {
 	t.Run("six days after the last offer is not due", func(t *testing.T) {
 		f := newRepo(t)
@@ -349,16 +345,32 @@ func TestTheInterval(t *testing.T) {
 	})
 }
 
-// The stamp is the first line. A record that grew a second — an editor, a merge — must still resolve
-// rather than fall through to undetermined.
+// A record that grew a second line must still resolve rather than fall through to undetermined.
 func TestATrailingLineStillResolves(t *testing.T) {
-	f := newRepo(t)
-	if err := os.WriteFile(f.state, []byte(daysAgo(30)+"\nleftover second line\n"), 0o644); err != nil {
-		t.Fatalf("could not write the fixture record: %v", err)
-	}
-	f.run("audit", "due")
-	f.expectCode(t, 0)
-	f.expectOut(t, "30 days ago")
+	t.Run("a second line is ignored", func(t *testing.T) {
+		f := newRepo(t)
+		if err := os.WriteFile(f.state, []byte(daysAgo(30)+"\nleftover second line\n"), 0o644); err != nil {
+			t.Fatalf("could not write the fixture record: %v", err)
+		}
+		f.run("audit", "due")
+		f.expectCode(t, 0)
+		f.expectOut(t, "30 days ago")
+	})
+
+	// A record written where lines end CRLF — a Windows editor, a checkout with autocrlf. The date is
+	// the line's content and the \r is its ending, so a \r carried into the stamp makes an eleven-byte
+	// string the shape check refuses. The offer is then undetermined forever: exits 1 and 2 both end in
+	// "no offer made", so the pass simply never comes due and nothing says why.
+	t.Run("a CRLF line ending is not part of the stamp", func(t *testing.T) {
+		f := newRepo(t)
+		if err := os.WriteFile(f.state, []byte(daysAgo(30)+"\r\n"), 0o644); err != nil {
+			t.Fatalf("could not write the fixture record: %v", err)
+		}
+		f.run("audit", "due")
+		f.expectCode(t, 0)
+		f.expectOut(t, "30 days ago")
+		f.expectNotOut(t, "which is no YYYY-MM-DD date")
+	})
 }
 
 // --- everything that is undetermined, and never a 'not due' -------------------------------------
@@ -372,16 +384,14 @@ func TestAFutureStampIsUndetermined(t *testing.T) {
 	f.expectCode(t, 2)
 	f.expectOut(t, "later than today")
 	f.expectNotOut(t, "not due:")
-	// The message says outright which of the two it is. That sentence is the only thing standing
-	// between an undetermined run and a reader who has just seen two exits that both mean "no offer
-	// made".
+	// The message says outright which of the two it is.
 	f.expectOut(t, "this is not a 'not due'")
 	f.expectNoStdout(t)
 }
 
 func TestARecordThatIsNoDate(t *testing.T) {
-	// Each of these reaches the refusal through a different guard, and the comment on each says which
-	// one it is the only case for.
+	// Each of these reaches the refusal through a different guard, and `why` names it in the subtest,
+	// so a red case says which one it was the only case for.
 	cases := []struct {
 		name  string
 		stamp string
@@ -402,9 +412,18 @@ func TestARecordThatIsNoDate(t *testing.T) {
 		// the ranges the calendar checks. The shape check is the only thing between it and a day
 		// number computed from a string that is not the date it looks like.
 		{"a date with unpadded fields", "2025-1-15", "the shape check's fixed widths"},
+		// Longer than a date, and the only case reaching the length guard from ABOVE. Every other stamp
+		// here is ten bytes or fewer, which leaves that guard looking redundant beside the per-byte loop
+		// under it. It is not: the loop indexes the LAYOUT at the input's own offsets, so without the
+		// length test an eleven-byte record walks off the end of `2006-01-02` and the tool panics where it
+		// was meant to refuse.
+		{"a stamp longer than a date", "2026-01-021", "the shape check's length, before any byte is indexed"},
+		// A separator where a date has one and this record does not. Nothing else here puts a wrong byte
+		// at position 4.
+		{"a wrong separator between the fields", "2026:01-02", "the shape check's separators"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name+" is undetermined", func(t *testing.T) {
+		t.Run(tc.name+" is undetermined, by "+tc.why, func(t *testing.T) {
 			f := newRepo(t)
 			f.record(t, tc.stamp)
 			f.run("audit", "due")
@@ -428,8 +447,7 @@ func TestARecordThatCannotBeRead(t *testing.T) {
 	f.expectOut(t, "could not be read")
 	f.expectNotOut(t, "not due:")
 
-	// The write failing is the other half: the offer was NOT recorded, so the next run must offer
-	// again, and the caller has to be told rather than left believing the date is on disk.
+	// The write failing is the other half; writeRefused carries why the caller has to be told.
 	f.run("audit", "asked")
 	f.expectCode(t, 2)
 	f.expectOut(t, "was NOT recorded")
@@ -438,9 +456,8 @@ func TestARecordThatCannotBeRead(t *testing.T) {
 
 // --- which repository the record belongs to -----------------------------------------------------
 
-// Run from a subdirectory. `--git-common-dir` answers relative to the caller in an ordinary repo, so
-// without absolutising it the record is written to a .git the subdirectory does not have — created on
-// the spot, invisible to every other caller, and the offer repeats forever.
+// Run from a subdirectory, which is where an unabsolutised `--git-common-dir` invents a .git of its
+// own. recordPath carries why.
 func TestRecordingFromASubdirectory(t *testing.T) {
 	f := newRepo(t)
 	deep := filepath.Join(f.repo, "deep", "deeper")

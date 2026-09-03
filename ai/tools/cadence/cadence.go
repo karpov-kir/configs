@@ -8,9 +8,9 @@
 // `.idsd/`, and a cadence the ship itself deletes can never come due.
 //
 // Every message names the caller by the `self` Run is given rather than by a constant, because the
-// stub execs this binary with `-a "$0"`: a reader who ran `cadence.sh` is told about cadence.sh. It is
-// a parameter and not a read of os.Args[0] so the suite drives the real messages — under `go test`
-// that global holds the test binary's own name, and every usage assertion would be about that.
+// stub execs this binary with `-a "$0"`. It is a parameter and not a read of os.Args[0] so the suite
+// drives the real messages: under `go test` that global holds the test binary's own name, and every
+// usage assertion would be about that.
 package cadence
 
 import (
@@ -24,10 +24,11 @@ import (
 	"time"
 )
 
-// The interval, and the one place it is written down.
 const intervalDays = 7
 
-// The record's name under the repository's shared git dir.
+// A second topic would be a second record name.
+const auditTopic = "audit"
+
 const recordName = "idsd-audit-offer"
 
 const dateLayout = "2006-01-02"
@@ -60,8 +61,8 @@ func Run(self string, args []string, cwd string, now Clock, stdout, stderr io.Wr
 	}
 
 	// Dispatched on the topic first, so an unknown one is refused before anything resolves a
-	// repository. `audit` is the only topic; a second would be a second record name.
-	if topic != "audit" {
+	// repository.
+	if topic != auditTopic {
 		return usage(self, stderr)
 	}
 
@@ -79,14 +80,26 @@ func Run(self string, args []string, cwd string, now Clock, stdout, stderr io.Wr
 		return exitUndetermined
 	}
 
+	run := offer{self: self, state: state, now: now, stdout: stdout, stderr: stderr}
 	switch action {
 	case "due":
-		return due(topic, state, now, stdout, stderr)
+		return run.due()
 	case "asked":
-		return asked(self, topic, state, now, stdout, stderr)
+		return run.asked()
 	default:
 		return usage(self, stderr)
 	}
+}
+
+// offer is one invocation's fixed context. Held together because both arms need all of it, and a
+// `due` reading one record while `asked` writes another is the one inconsistency the two must not be
+// able to express.
+type offer struct {
+	self   string
+	state  string
+	now    Clock
+	stdout io.Writer
+	stderr io.Writer
 }
 
 // `due` and `asked` read as two spellings of one query, and only one of them is: `asked` overwrites
@@ -99,75 +112,73 @@ func usage(self string, stderr io.Writer) int {
 	return exitUndetermined
 }
 
-// The disclaimer is the only thing standing between an undetermined run and a reader who has just
-// seen two exits that both mean "no offer made", so it is part of the message rather than a comment
-// about it.
-func undetermined(stderr io.Writer, format string, args ...any) int {
-	fmt.Fprintf(stderr, "undetermined: %s — nothing was determined; this is not a 'not due'.\n",
+// The disclaimer is part of the message rather than a comment about it. It is all a reader with only
+// the output has to tell this from a "not due".
+func (o offer) undetermined(format string, args ...any) int {
+	fmt.Fprintf(o.stderr, "undetermined: %s — nothing was determined; this is not a 'not due'.\n",
 		fmt.Sprintf(format, args...))
 	return exitUndetermined
 }
 
-func due(topic, state string, now Clock, stdout, stderr io.Writer) int {
-	recorded, err := readStamp(state)
+func (o offer) due() int {
+	recorded, err := readStamp(o.state)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		// The first run in a fresh checkout, and it has to be an offer rather than a silence.
-		fmt.Fprintf(stdout, "due: no %s has ever been offered (no %s).\n", topic, state)
+		fmt.Fprintf(o.stdout, "due: no %s has ever been offered (no %s).\n", auditTopic, o.state)
 		return exitDue
 	case err != nil:
-		return undetermined(stderr, "%s exists but could not be read", state)
+		return o.undetermined("%s exists but could not be read", o.state)
 	}
 
 	stamped, ok := parseDate(recorded)
 	if !ok {
-		return undetermined(stderr, "%s holds '%s', which is no YYYY-MM-DD date", state, recorded)
+		return o.undetermined("%s holds '%s', which is no YYYY-MM-DD date", o.state, recorded)
 	}
 
-	today := now().Format(dateLayout)
+	today := o.now().Format(dateLayout)
 	todayDate, ok := parseDate(today)
 	if !ok {
 		// Unreachable: the string was produced by Format one line above. Kept as a refusal rather
 		// than a panic so that a future change to how "today" is obtained cannot turn into a day
 		// number computed from something that is not a date.
-		return undetermined(stderr, "the clock produced '%s', which is no YYYY-MM-DD date", today)
+		return o.undetermined("the clock produced '%s', which is no YYYY-MM-DD date", today)
 	}
 
 	elapsed := int(todayDate.Sub(stamped).Hours() / 24)
 	if elapsed < 0 {
 		// A clock change, a bad edit, a merge from a machine ahead. Reading this as a small negative
 		// elapsed would print "not due" and hold the offer off indefinitely.
-		return undetermined(stderr, "the last %s offer is recorded as %s, which is later than today", topic, recorded)
+		return o.undetermined("the last %s offer is recorded as %s, which is later than today", auditTopic, recorded)
 	}
 
 	// `>=` is what makes the seventh day an offer; `>` would move every cadence in the tree out by
 	// one day, invisibly.
 	if elapsed >= intervalDays {
-		fmt.Fprintf(stdout, "due: %s last offered %s, %d days ago (interval %d days).\n", topic, recorded, elapsed, intervalDays)
+		fmt.Fprintf(o.stdout, "due: %s last offered %s, %d days ago (interval %d days).\n", auditTopic, recorded, elapsed, intervalDays)
 		return exitDue
 	}
-	fmt.Fprintf(stdout, "not due: %s last offered %s, %d days ago (interval %d days).\n", topic, recorded, elapsed, intervalDays)
+	fmt.Fprintf(o.stdout, "not due: %s last offered %s, %d days ago (interval %d days).\n", auditTopic, recorded, elapsed, intervalDays)
 	return exitNotDue
 }
 
-func asked(self, topic, state string, now Clock, stdout, stderr io.Writer) int {
-	today := now().Format(dateLayout)
-	if err := os.MkdirAll(filepath.Dir(state), 0o755); err != nil {
-		return writeRefused(self, topic, state, stderr)
+func (o offer) asked() int {
+	today := o.now().Format(dateLayout)
+	if err := os.MkdirAll(filepath.Dir(o.state), 0o755); err != nil {
+		return o.writeRefused()
 	}
-	if err := os.WriteFile(state, []byte(today+"\n"), 0o644); err != nil {
-		return writeRefused(self, topic, state, stderr)
+	if err := os.WriteFile(o.state, []byte(today+"\n"), 0o644); err != nil {
+		return o.writeRefused()
 	}
-	fmt.Fprintf(stdout, "recorded the %s offer on %s.\n", topic, today)
-	// Not exitDue: this arm answers no question about whether a pass is owed. It is the ordinary
-	// success of having written the record.
+	fmt.Fprintf(o.stdout, "recorded the %s offer on %s.\n", auditTopic, today)
+	// Not exitDue: this arm answers no question about whether a pass is owed.
 	return 0
 }
 
 // The write failing is the half a caller cannot see: the offer was NOT recorded, so the next run must
 // offer again, and saying so is what stops the caller believing the date is on disk.
-func writeRefused(self, topic, state string, stderr io.Writer) int {
-	fmt.Fprintf(stderr, "%s: could not write %s — the %s offer was NOT recorded, so the next run will offer again.\n", self, state, topic)
+func (o offer) writeRefused() int {
+	fmt.Fprintf(o.stderr, "%s: could not write %s — the %s offer was NOT recorded, so the next run will offer again.\n", o.self, o.state, auditTopic)
 	return exitUndetermined
 }
 

@@ -693,6 +693,111 @@ var mutants = []mutant{
 	// A backticked span is as often a command as a path. Read as citations, `report.sh root` and every
 	// other quoted token become exemptions handed out at random.
 	{"ruleecho: any backticked span read as a citation", "../rule-echo/match.go", "./rule-echo/", "TestCitedTargetsReadsBothFormsAndNothingElse", `if strings.HasSuffix(target, ".md") {`, "if true {"},
+
+	// cadence, comment-density and score are ports of three shell scripts, and nothing had shown their
+	// suites' cases able to fail. Without these the port traded a proof for a promise, in a repo whose
+	// whole gate story is that something has.
+	{"cadence: the interval moves out by two days", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
+		`const intervalDays = 7`, `const intervalDays = 9`},
+	{"cadence: the interval boundary becomes strictly greater", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
+		`if elapsed >= intervalDays {`, `if elapsed > intervalDays {`},
+	{"cadence: a stamp later than today reads as a not-due", "../cadence/cadence.go", "./cadence/", "TestAFutureStampIsUndetermined",
+		`if elapsed < 0 {`, `if elapsed < 0 && false {`},
+	{"cadence: the date's shape goes unchecked", "../cadence/cadence.go", "./cadence/", "TestARecordThatIsNoDate",
+		`if len(text) != len(dateLayout) {`, `if len(text) != len(dateLayout) && false {`},
+	{"cadence: a non-digit in a date position is accepted", "../cadence/cadence.go", "./cadence/", "TestARecordThatIsNoDate",
+		`if char < '0' || char > '9' {`, `if (char < '0' || char > '9') && false {`},
+	{"cadence: an unknown topic is dispatched anyway", "../cadence/cadence.go", "./cadence/", "TestUsage",
+		`if topic != auditTopic {`, `if topic != auditTopic && false {`},
+	{"cadence: the record hangs off the per-worktree git dir", "../cadence/cadence.go", "./cadence/", "TestALinkedWorktreeSeesTheMainTreesRecord",
+		`"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-dir"`},
+	{"cadence: the shared git dir is left relative to the caller's cwd", "../cadence/cadence.go", "./cadence/", "TestRecordingFromASubdirectory",
+		`if !filepath.IsAbs(gitDir) {`, `if !filepath.IsAbs(gitDir) && false {`},
+	{"cadence: the record is read whole rather than by its first line", "../cadence/cadence.go", "./cadence/", "TestATrailingLineStillResolves",
+		`strings.Cut(string(body), "\n")`, `strings.Cut(string(body), "\x00")`},
+	{"cadence: a carriage return survives into the stamp", "../cadence/cadence.go", "./cadence/", "TestATrailingLineStillResolves",
+		`strings.TrimRight(first, "\r")`, `first`},
+
+	{"score: the cut boundary excludes the bar itself", "../score/score.go", "./score/", "TestCutReadsTheList",
+		`if value <= level {`, `if value < level {`},
+	{"score: a list that never arrived reads as a clean run", "../score/score.go", "./score/", "TestNothingScoredExitsTwo",
+		`if kept+gone == 0 {`, `if kept+gone == 0 && false {`},
+	{"score: cutting nothing passes unrefused", "../score/score.go", "./score/", "TestNothingCutExitsThree",
+		`if gone == 0 && kept > 0 {`, `if gone == 0 && kept > 0 && false {`},
+	// `1 kept, 1 cut` at exit 0 is the shape a whole scored list takes, so a list that stopped mid-read
+	// must never be able to produce it. Only a reader that fails reaches the guard, which is why it
+	// stood with no case behind it.
+	{"score: a list that stopped mid-read reports the counts it reached", "../score/score.go", "./score/", "TestAListThatStoppedMidReadIsNotAWholeOne",
+		`if err := scanner.Err(); err != nil {`, `if err := scanner.Err(); err != nil && false {`},
+	{"score: a blank anchor is accepted", "../score/score.go", "./score/", "TestCutRefusesBeforeItReads",
+		`if strings.TrimSpace(anchor) == "" {`, `if strings.TrimSpace(anchor) == "" && false {`},
+	{"score: --kept-all takes an empty reason", "../score/score.go", "./score/", "TestCutRefusesBeforeItReads",
+		`if strings.TrimSpace(keptAllWhy) == "" {`, `if strings.TrimSpace(keptAllWhy) == "" && false {`},
+	{"score: a label's control characters reach the report", "../score/score.go", "./score/", "TestAControlCharacterInALabelIsNeutralised",
+		`label = shell.Oneline(label)`, `label = label + ""`},
+	{"score: a lane name's control character is not refused", "../score/score.go", "./score/", "TestAControlCharacterInALaneNameIsRefused",
+		`if shell.Oneline(name) != name {`, `if shell.Oneline(name) != name && false {`},
+	{"score: a level over the scale is accepted", "../score/score.go", "./score/", "TestAMalformedConfigIsRefused",
+		`if level > maxScore {`, `if level > maxScore && false {`},
+	{"score: the config's line form goes unchecked", "../score/score.go", "./score/", "TestAMalformedConfigIsRefused",
+		`if len(fields) != 4 || fields[1] != "cut" || fields[2] != "<=" {`,
+		`if (len(fields) != 4 || fields[1] != "cut" || fields[2] != "<=") && false {`},
+	// An override moves a lane, never adds one — without this a typo tunes nothing, silently.
+	{"score: an override may add a lane the tracked config never ruled", "../score/score.go", "./score/", "TestTheOverride",
+		`if _, ruled := allow.level[name]; !ruled {`, `if _, ruled := allow.level[name]; !ruled && false {`},
+	{"score: a signed score is accepted", "../score/score.go", "./score/", "TestCutRefusesAMalformedItem",
+		`if text[i] < '0' || text[i] > '9' {`, `if (text[i] < '0' || text[i] > '9') && false {`},
+	// Not obvious which case, and it is two: `a directory in its place is refused, not skipped` and `a
+	// dangling symlink is refused, not read as absent` reach this guard by different shapes of "exists
+	// and is not a readable regular file", and either alone leaves the other's silent fallback
+	// unobserved.
+	{"score: an unreadable override falls back to the tracked bar", "../score/score.go", "./score/", "TestTheOverride",
+		`if err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath) {`,
+		`if (err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath)) && false {`},
+	{"score: an override that names no lane moves it anyway", "../score/score.go", "./score/", "TestTheOverride",
+		`if !named {`, `if !named && false {`},
+
+	{"density: the ratio bar becomes strictly greater", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
+		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},
+	{"density: the minimum comment-line floor is removed", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
+		`entry.comments < s.cfg.MinLines ||`, `entry.comments < 0 ||`},
+	{"density: a file is anchored on the +++ line alone", "../comment-density/density.go", "./comment-density/", "TestAnAddedLineShapedLikeADiffHeader",
+		`if pending {`, `if pending || true {`},
+	{"density: prose and data files are counted", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
+		`if line == "" || isProseOrData(file) {`, `if line == "" {`},
+	{"density: a bare star counts as a comment", "../comment-density/density.go", "./comment-density/", "TestAStarThatIsNotAComment",
+		`return rest == "" || rest[0] == ' ' || rest[0] == '\t'`,
+		`return rest == "" || rest[0] == ' ' || rest[0] == '\t' || true`},
+	{"density: an option is scanned instead of refused", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+		`if strings.HasPrefix(arg, "-") {`, `if strings.HasPrefix(arg, "-") && false {`},
+	{"density: a path is scanned as though it were a revision", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+		`if _, err := os.Stat(path.Join(cwd, arg)); err == nil && !resolvesAsRevision(cwd, arg) {`,
+		`if _, err := os.Stat(path.Join(cwd, arg)); (err == nil && !resolvesAsRevision(cwd, arg)) && false {`},
+	{"density: --text is dropped from the diff", "../comment-density/density.go", "./comment-density/", "TestADiffAttributeDoesNotSuppressTheScan",
+		`"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--text",`,
+		`"diff", "--no-ext-diff", "--no-textconv", "--no-color",`},
+	{"density: a non-ASCII path arrives C-quoted", "../comment-density/density.go", "./comment-density/", "TestANonASCIIPathIsStillAssigned",
+		`"-c", "core.quotePath=false",`, `"-c", "core.quotePath=true",`},
+	// The unquoting the flag above stopped being the only defence for. git C-quotes a control character
+	// whatever core.quotePath says, so this is the half that is observable — and dropping it hides the
+	// file from the scan while `diff --git` has already counted it as reached.
+	{"density: a C-quoted header path is never unquoted", "../comment-density/density.go", "./comment-density/", "TestATrackedPathWithAControlCharacterIsStillAssigned",
+		"if strings.HasPrefix(field, `\"`) {", "if strings.HasPrefix(field, `\"`) && false {"},
+	{"density: the untracked half runs even when revisions were named", "../comment-density/density.go", "./comment-density/", "TestATwoRevisionRangeIsScanned",
+		`if len(args) == 0 {`, `if len(args) == 0 || true {`},
+	{"density: the report is emitted in reverse", "../comment-density/density.go", "./comment-density/", "TestTheReportIsOrdered",
+		`sort.Strings(names)`, `sort.Sort(sort.Reverse(sort.StringSlice(names)))`},
+	{"density: the display cap is removed", "../comment-density/density.go", "./comment-density/", "TestPastTheDisplayCap",
+		`if shown < maxShown {`, `if shown < maxShown || true {`},
+	// Aimed at the case that drives an override that PARSES. A suite testing only the refusal path
+	// leaves these three alive: the override would parse, be discarded, and every assertion still pass.
+	// `+ value*0` rather than a bare default, so `value` keeps its last read and the mutant builds.
+	{"density: COMMENT_MAX_RATIO parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
+		`cfg.MaxRatio = value`, `cfg.MaxRatio = defaultMaxRatio + value*0`},
+	{"density: COMMENT_MIN_LINES parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
+		`cfg.MinLines = value`, `cfg.MinLines = defaultMinLines + value*0`},
+	{"density: DENSITY_MAX_FILE_BYTES parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
+		`cfg.MaxFileBytes = value`, `cfg.MaxFileBytes = defaultMaxFileBytes + value*0`},
 }
 
 // A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same
@@ -716,6 +821,37 @@ type unreachableMutant struct {
 }
 
 var unreachableMutants = []unreachableMutant{
+	{
+		"cadence: a non-digit in a date position is accepted",
+		"equivalent, not unobserved: the per-byte loop only ever rejects, and every input it rejects " +
+			"time.ParseInLocation rejects too. On the ten-byte string the length guard has already " +
+			"admitted, the layout `2006-01-02` demands a digit at each of the eight non-separator offsets " +
+			"— stdLongYear tests isDigit and then atoi, which refuses a four-byte year it cannot consume " +
+			"whole, and month and day go through getnum in its fixed two-digit form. Checked rather than " +
+			"argued: all 256 byte values were substituted into a valid date at each of the eight offsets, " +
+			"singly and in every pair of offsets, and the guarded and unguarded parsers agreed on every " +
+			"one of the 2,099,200 inputs. No case can tell them apart because there is nothing to tell " +
+			"apart. What stands behind the guard is TestARecordThatIsNoDate, whose length, separator and " +
+			"calendar cases drive every refusal parseDate can actually make — including the over-length " +
+			"stamp that reaches the length test from above, where the loop would index the layout past " +
+			"its end.",
+	},
+	{
+		"density: a non-ASCII path arrives C-quoted",
+		"equivalent, not unobserved, and only since headerPath landed: the +++ field is unquoted with " +
+			"strconv.Unquote before the b/ prefix is tested, so both settings of the flag resolve to the same " +
+			"path and no case can tell them apart. It did kill this case before that. Checked rather than " +
+			"argued: git's quote_c_style escapes only the seven C control escapes, the double quote, the " +
+			"backslash, and everything else as three-digit octal — every one of which is also a Go string " +
+			"escape — and strconv.Unquote was run over each form it can emit, an accented name, an emoji, an " +
+			"embedded quote, a backslash, DEL, a lone 0xff and a raw 0x9b, recovering the exact bytes every " +
+			"time, invalid UTF-8 included. The flag stays rather than going with its mutant, because it keeps " +
+			"the common non-ASCII path unquoted instead of round-tripping it through an escape form. What " +
+			"stands behind the guard is TestATrackedPathWithAControlCharacterIsStillAssigned, which drives " +
+			"the quoted spelling head-on: git C-quotes a control character whatever core.quotePath says, so " +
+			"the parser has to read that form either way, and that case is what holds it to doing so — and " +
+			"the unquoting now carries its own mutant beside this flag, which that same case kills.",
+	},
 	{
 		"override config: an unreadable config passes as a checked one",
 		"unreachable behind an earlier guard: os.Lstat can only fail here for a path that " +

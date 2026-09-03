@@ -93,9 +93,8 @@ suite_limit=120
 # The keys, each one a script, the suite that covers it, and the variable that suite reads to be
 # pointed at a copy. Three lookups rather than one table: bash 3.2 has no associative arrays.
 #
-# `cadence` and `density` were two of these and are not: each script is now a stub over a Go tool
-# whose cases run in one process, and whose mutants belong to go-mutate. A shell key over a stub
-# would mutate the resolver, not the logic.
+# No key for `cadence` or `density`: each is a stub over a Go tool, so a key here would mutate the
+# resolver rather than the logic. Their mutants live in go-mutate.
 script_of() {
   case "$1" in
     dup) printf '%s\n' "$here/skills/kk-refactor/scripts/dup-literals.sh" ;;
@@ -521,10 +520,6 @@ mutant dup "dup: the skip list swallows every untracked file" \
   "and is reported" \
   '      *credential* | *secret*) secret_named=1 ;;' \
   '      *) secret_named=1 ;;'
-
-# --- cases no single break reaches ---
-
-# None. The one that stood here belonged to cadence, whose suite is now Go.
 
 # --- the run ---
 

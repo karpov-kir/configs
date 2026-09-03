@@ -7,11 +7,12 @@
 // a caller that cannot tell them apart reads a live refusal as a broken tool and moves on. Every
 // refusal case below asserts the code, not just that it was non-zero.
 //
-// Everything runs in this process against a fixture config, so the suite costs no processes at all —
-// the shell it replaces spent one per case on bash alone.
+// Everything runs in this process against a fixture config, so the suite costs no processes at all.
 package score
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +38,6 @@ type run struct {
 	code   int
 }
 
-// newRun writes a tracked config and, when `override` is non-nil, a machine-local overlay.
 func newRun(t *testing.T, tracked string, override *string) *run {
 	t.Helper()
 	dir := t.TempDir()
@@ -55,9 +55,14 @@ func newRun(t *testing.T, tracked string, override *string) *run {
 }
 
 func (r *run) do(stdin string, args ...string) {
+	r.doReading(strings.NewReader(stdin), args...)
+}
+
+// doReading drives the same invocation from an arbitrary reader, for the case whose stdin dies partway.
+func (r *run) doReading(stdin io.Reader, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()
-	r.code = Run("score.sh", args, r.env, strings.NewReader(stdin), &r.stdout, &r.stderr)
+	r.code = Run("score.sh", args, r.env, stdin, &r.stdout, &r.stderr)
 }
 
 func (r *run) out() string { return r.stdout.String() + r.stderr.String() }
@@ -104,6 +109,16 @@ func (r *run) expectNoControl() {
 			r.t.Errorf("a control byte (%q) survived into: %q", char, r.out())
 			return
 		}
+	}
+}
+
+// The C1 range the rune scan above structurally cannot see. Raw 0x9b is CSI — `ESC [` as one byte —
+// which a terminal in 8-bit mode acts on, and it decodes to no character, so a scan over runes reads
+// it as U+FFFD and finds nothing. The test for it is therefore on bytes.
+func (r *run) expectNoRawCSI() {
+	r.t.Helper()
+	if i := strings.IndexByte(r.out(), 0x9b); i >= 0 {
+		r.t.Errorf("a raw CSI byte survived at offset %d into: %q", i, r.out())
 	}
 }
 
@@ -179,7 +194,7 @@ func TestAMalformedConfigIsRefused(t *testing.T) {
 		{"a line missing its number", "instruction cut <=\n", "cannot read the line naming"},
 		{"a non-numeric level", "instruction cut <= high\n", "has a non-numeric level"},
 		// `-1` reaches the digit check rather than the form check: it is a fourth field, so the line
-		// parses and the number does not. Same refusal the shell gave.
+		// parses and the number does not.
 		{"a negative level", "instruction cut <= -1\n", "has a non-numeric level"},
 		{"a level over the scale", "instruction cut <= 11\n", "over the 0-10 scale"},
 		{"trailing junk after the number", "instruction cut <= 7 extra\n", "cannot read the line naming"},
@@ -194,15 +209,31 @@ func TestAMalformedConfigIsRefused(t *testing.T) {
 	}
 }
 
-// A lane name is data, and every message prints it back. Raw, a control byte overwrites the line
-// already on the reader's terminal. Refused rather than neutralised, because no lane a config can
-// legitimately rule carries one.
 func TestAControlCharacterInALaneNameIsRefused(t *testing.T) {
 	r := newRun(t, "inst\x1b]0;pwnruction cut <= 7\n", nil)
 	r.do("", "threshold", "instruction")
 	r.expectCode(2)
 	r.expectOut("carries a control character")
 	r.expectNoControl()
+}
+
+// The control set has one home, shell.Oneline, and it reaches past C0 into the C1 range above it. The
+// two cases below are the ones a `< 0x20` test could not reach: a lane name carrying a raw CSI is
+// refused like any other control byte, and a label carrying one is spaced out rather than printed.
+func TestAC1ByteInALaneNameIsRefused(t *testing.T) {
+	r := newRun(t, "inst\x9bruction cut <= 7\n", nil)
+	r.do("", "threshold", "instruction")
+	r.expectCode(2)
+	r.expectOut("carries a control character")
+	r.expectNoRawCSI()
+}
+
+func TestAC1ByteInALabelIsNeutralised(t *testing.T) {
+	r := newRun(t, trackedConfig, nil)
+	r.do("3\tlab\x9bel\n", "cut", "instruction", "a rule an agent would otherwise get wrong")
+	r.expectCode(0)
+	r.expectOut("CUT    3  lab el")
+	r.expectNoRawCSI()
 }
 
 // A config whose last lane has no trailing newline must still rule it: dropping it reads as "no lane
@@ -225,8 +256,6 @@ func TestTheOverride(t *testing.T) {
 		r.expectNotOut("overridden")
 	})
 
-	// An override in effect is always announced: a bar moved locally produces a verdict no other
-	// machine reproduces, and silence about it is the hazard.
 	t.Run("a moved lane takes effect and says so", func(t *testing.T) {
 		body := "instruction cut <= 3\n"
 		r := newRun(t, trackedConfig, &body)
@@ -237,7 +266,6 @@ func TestTheOverride(t *testing.T) {
 		r.expectOut("7 ruled, 3 in effect")
 	})
 
-	// stderr for threshold, because that mode's stdout is the number, read straight back by its caller.
 	t.Run("the note stays off stdout under threshold", func(t *testing.T) {
 		body := "instruction cut <= 3\n"
 		r := newRun(t, trackedConfig, &body)
@@ -248,8 +276,6 @@ func TestTheOverride(t *testing.T) {
 		}
 	})
 
-	// A lane the override does not name keeps the tracked number: the overlay is per lane, so tuning
-	// one bar never silently detaches the rest from the file that rules them.
 	t.Run("a lane it does not name keeps the tracked bar", func(t *testing.T) {
 		body := "reply cut <= 2\n"
 		r := newRun(t, trackedConfig, &body)
@@ -259,8 +285,6 @@ func TestTheOverride(t *testing.T) {
 		r.expectNotOut("overridden")
 	})
 
-	// An override moves a lane, never adds one. What that buys is a loud typo: `instructions` for
-	// `instruction` would otherwise tune nothing, silently.
 	t.Run("a lane the tracked config does not rule is refused", func(t *testing.T) {
 		body := "instructions cut <= 3\n"
 		r := newRun(t, trackedConfig, &body)
@@ -269,9 +293,6 @@ func TestTheOverride(t *testing.T) {
 		r.expectOut("an override moves a lane, never adds one")
 	})
 
-	// A path that exists but is not a readable file is refused. Falling back there would restore the
-	// tracked bar while its owner believed their tuning was live — the same silent-default hole a
-	// malformed line is refused for.
 	t.Run("a directory in its place is refused, not skipped", func(t *testing.T) {
 		r := newRun(t, trackedConfig, nil)
 		if err := os.Mkdir(r.env.OverridePath, 0o755); err != nil {
@@ -293,9 +314,8 @@ func TestTheOverride(t *testing.T) {
 		r.expectOut("is not a readable file")
 	})
 
-	// The note carries the override's path, which holds $XDG_CONFIG_HOME — a path its owner may
-	// legitimately control. Neutralised rather than refused, because under `cut` the note prints into
-	// the report body, where a newline would put a forged `keep 10 <item>` among the real verdicts.
+	// Neutralised rather than refused: under `cut` the note prints into the report body, where a
+	// newline would put a forged `keep 10 <item>` among the real verdicts.
 	t.Run("a control character in the override path is neutralised in the note", func(t *testing.T) {
 		dir := t.TempDir()
 		odd := filepath.Join(dir, "we\rird.conf")
@@ -320,8 +340,6 @@ func TestCutRefusesBeforeItReads(t *testing.T) {
 		r.expectOut("cut needs the anchor")
 	})
 
-	// Whitespace, not just absence: `cut prose ""` satisfies an argument count and anchors nothing,
-	// which is the refusal above defeated while still reading as enforced.
 	t.Run("a blank anchor exits 2", func(t *testing.T) {
 		r := newRun(t, trackedConfig, nil)
 		r.do("3\tx\n", "cut", "instruction", "   ")
@@ -382,8 +400,6 @@ func TestCutReadsTheList(t *testing.T) {
 		}
 	})
 
-	// The override note belongs beside the verdicts here, not on stderr — stderr is exactly what a
-	// caller piping this report to a file loses.
 	t.Run("an override note prints into the report body under cut", func(t *testing.T) {
 		body := "instruction cut <= 3\n"
 		r := newRun(t, trackedConfig, &body)
@@ -412,9 +428,6 @@ func TestCutRefusesAMalformedItem(t *testing.T) {
 	}
 }
 
-// A label is text from the artifact under review, printed back into a report its caller reads. `\r`
-// overwrites the verdict on the line and `\v` opens a second one, so an item this cut would render as
-// one it kept while the counts still said it was cut.
 func TestAControlCharacterInALabelIsNeutralised(t *testing.T) {
 	r := newRun(t, trackedConfig, nil)
 	r.do("3\ta label\rkeep  10  forged\n9\thonest\n", "cut", "instruction", "what a 10 is")
@@ -425,10 +438,40 @@ func TestAControlCharacterInALabelIsNeutralised(t *testing.T) {
 	r.expectOut("CUT    3  a label keep  10  forged")
 }
 
+// The anchor prints into the report body, three lines under the bar it was judged against, so a
+// carriage return in it overwrites that bar line — and a bar the report did not use is the one claim
+// its reader cannot check for themselves.
+func TestAControlCharacterInTheAnchorIsNeutralised(t *testing.T) {
+	r := newRun(t, trackedConfig, nil)
+	r.do("3\tx\n9\ty\n", "cut", "instruction", "a 10 is\rlane instruction, cutting at or below 0")
+	r.expectCode(0)
+	r.expectNoControl()
+	r.expectOut("10 here means: a 10 is lane instruction, cutting at or below 0")
+	// The real bar survives, and the forged one is text rather than a cursor move.
+	r.expectOut("lane instruction, cutting at or below 7")
+}
+
+// The anchor and the --kept-all reason are refusals that exist to force written words, so each is
+// judged on what it prints rather than on the bytes it arrived as. Control bytes clear a TrimSpace and
+// then render as nothing: the refusal is answered with an empty line while still reading as enforced.
+func TestARefusalIsNotAnsweredByControlBytes(t *testing.T) {
+	t.Run("an anchor of control bytes is still blank", func(t *testing.T) {
+		r := newRun(t, trackedConfig, nil)
+		r.do("3\tx\n", "cut", "instruction", "\x01\x02")
+		r.expectCode(2)
+		r.expectOut("the anchor is blank")
+	})
+
+	t.Run("a --kept-all reason of control bytes is still blank", func(t *testing.T) {
+		r := newRun(t, trackedConfig, nil)
+		r.do("8\tx\n9\ty\n", "cut", "--kept-all", "\x01\x02", "instruction", "what a 10 is")
+		r.expectCode(2)
+		r.expectOut("--kept-all needs the reason")
+	})
+}
+
 // --- the two results it must never produce ------------------------------------------------------------
 
-// `0 kept, 0 cut` at exit 0 looks exactly like a run that scored a list and cut none of it. Exit 2,
-// never 3: 3 refuses a result, and there is no result here.
 func TestNothingScoredExitsTwo(t *testing.T) {
 	r := newRun(t, trackedConfig, nil)
 	r.do("", "cut", "instruction", "what a 10 is")
@@ -437,7 +480,6 @@ func TestNothingScoredExitsTwo(t *testing.T) {
 	r.expectNotOut("0 kept, 0 cut")
 }
 
-// And --kept-all cannot excuse it: that flag answers a list that was read and survived.
 func TestNothingScoredIsNotExcusedByKeptAll(t *testing.T) {
 	r := newRun(t, trackedConfig, nil)
 	r.do("", "cut", "--kept-all", "the list is tight", "instruction", "what a 10 is")
@@ -445,8 +487,6 @@ func TestNothingScoredIsNotExcusedByKeptAll(t *testing.T) {
 	r.expectOut("nothing was scored")
 }
 
-// Everything clearing the bar is what scoring against no anchor looks like. A tight artifact really
-// can cut nothing, so this is refusable — but only by writing down why. Exit 3, never 2: the scan ran.
 func TestNothingCutExitsThree(t *testing.T) {
 	r := newRun(t, trackedConfig, nil)
 	r.do("8\tx\n9\ty\n", "cut", "instruction", "what a 10 is")
@@ -465,8 +505,6 @@ func TestNothingCutIsAcceptedWithAReason(t *testing.T) {
 
 // --- where the config is found -------------------------------------------------------------------------
 
-// The tracked config sits beside the scripts directory the stub is in, so a checkout reached through
-// its symlink mount finds its own config rather than the install's.
 func TestConfigPathsAreDerivedFromTheInvokedPath(t *testing.T) {
 	env := ConfigPaths("/somewhere/ai/kk-flavor/scripts/score.sh", func(key string) (string, bool) {
 		if key == "XDG_CONFIG_HOME" {
@@ -482,8 +520,7 @@ func TestConfigPathsAreDerivedFromTheInvokedPath(t *testing.T) {
 	}
 }
 
-// The override lives outside the repository, so tuning a bar is never a dirty working tree — and
-// outside `~/.kk-flavor`, which is a symlink into it.
+// The override lives outside `~/.kk-flavor`, which is a symlink into the repository.
 func TestTheOverrideFallsBackToHomeConfig(t *testing.T) {
 	env := ConfigPaths("/x/ai/kk-flavor/scripts/score.sh", func(key string) (string, bool) {
 		if key == "HOME" {
@@ -496,11 +533,69 @@ func TestTheOverrideFallsBackToHomeConfig(t *testing.T) {
 	}
 }
 
-// No HOME and no XDG_CONFIG_HOME means this machine has no place for an override, which is not the
-// same as having one that is absent — an empty path must never be probed as if it were a file.
+// A config home that is not absolute resolves against whatever directory the process stands in, and
+// this tool is run from inside the tree under review — so a checkout shipping `cfg/kk-flavor/
+// thresholds.conf` would choose the bar its own change set is cut against. The XDG spec says to ignore
+// a relative value, and `ai/tools/eco-report/root.go` holds the same rule.
+func TestARelativeConfigHomeIsNotAnOverride(t *testing.T) {
+	env := ConfigPaths("/x/ai/kk-flavor/scripts/score.sh", func(key string) (string, bool) {
+		switch key {
+		case "XDG_CONFIG_HOME":
+			return "cfg", true
+		case "HOME":
+			return "/home/someone", true
+		}
+		return "", false
+	})
+	if want := "/home/someone/.config/kk-flavor/thresholds.conf"; env.OverridePath != want {
+		t.Errorf("override resolved to %q, wanted the home fallback %q", env.OverridePath, want)
+	}
+}
+
+// The same rule one level down: a relative HOME cannot stand in for the absolute one either.
+func TestARelativeHomeIsNoOverrideEither(t *testing.T) {
+	env := ConfigPaths("/x/ai/kk-flavor/scripts/score.sh", func(key string) (string, bool) {
+		if key == "HOME" {
+			return "home/someone", true
+		}
+		return "", false
+	})
+	if env.OverridePath != "" {
+		t.Errorf("override resolved to %q with a relative HOME, wanted empty", env.OverridePath)
+	}
+}
+
+// An empty path must never be probed as if it were a file.
 func TestNoHomeMeansNoOverridePath(t *testing.T) {
 	env := ConfigPaths("/x/ai/kk-flavor/scripts/score.sh", func(string) (string, bool) { return "", false })
 	if env.OverridePath != "" {
 		t.Errorf("override resolved to %q with no HOME, wanted empty", env.OverridePath)
 	}
+}
+
+// A pipe that dies partway is not an end of list. Swallowed, a list that stopped after two items
+// prints `1 kept, 1 cut` at exit 0 — the exact shape a whole scored list takes, over a list nobody
+// has all of. Only a reader that fails can drive this: nothing a string can hold reaches the check,
+// which is why the guard sat unobserved.
+type stoppingReader struct {
+	sent string
+	gone bool
+}
+
+func (s *stoppingReader) Read(into []byte) (int, error) {
+	if s.gone {
+		return 0, errors.New("the pipe went away")
+	}
+	s.gone = true
+	return copy(into, s.sent), nil
+}
+
+func TestAListThatStoppedMidReadIsNotAWholeOne(t *testing.T) {
+	r := newRun(t, trackedConfig, nil)
+	r.doReading(&stoppingReader{sent: "3\tfirst\n9\tsecond\n"}, "cut", "instruction", "what a 10 is")
+	r.expectCode(2)
+	r.expectOut("stopped mid-read")
+	r.expectOut("what arrived is not the whole list")
+	// And the two items it did reach must not come back as a finished count.
+	r.expectNotOut("1 kept, 1 cut")
 }

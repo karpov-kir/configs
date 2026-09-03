@@ -47,6 +47,7 @@ root="${1:-$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)}
 # reported: two runs that read different file sets must not print one line.
 suites=()
 absent=0
+broken=0
 if [ -n "$named_suite" ]; then
   # One named suite is still discovery, and it obeys the same rule: naming a file that is not there
   # is the caller's typo, and answering it with an empty run would report a clean tree for a suite
@@ -84,28 +85,44 @@ if [ -n "$named_suite" ]; then
   suites+=("$named_suite")
 elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   discovery="git"
-  while IFS= read -r suite; do
+  # `-z`, and a NUL-delimited read: without it `ls-files` C-quotes any path that is not plain ASCII —
+  # `core.quotePath` is on by default — and the quoted text names no file. The `[ ! -f ]` below then
+  # fires, and the run announces a suite that is sitting right there as absent from the working tree,
+  # exits 0, and drops it from the gate. Renaming a suite is enough to stop it being run.
+  while IFS= read -r -d '' suite; do
     [ -n "$suite" ] || continue
-    # `ls-files` answers what git knows about, and a deletion that is not yet staged is still tracked
-    # — but the working tree is what runs. Without this the runner reaches `bash <gone>`, which exits
-    # 127, which the loop below reads as a FAILING suite: an ordinary unstaged deletion reddens the
-    # whole sweep with a message that looks like a broken suite. The `find` arm below never had this
-    # because `-type f` already answers the working tree.
-    #
-    # Announced rather than dropped. Discovery finding fewer files than git listed is a fact about the
-    # run, and a summary that read the same either way is how the difference stops being visible.
+    # `ls-files` answers what git knows about, and an unstaged deletion is still tracked, but the
+    # working tree is what runs. Without this the runner reaches `bash <gone>`, gets 127, and the loop
+    # below reads that as a failing suite, so an ordinary unstaged deletion reddens the whole sweep.
+    # Announced rather than skipped in silence: a run that read fewer files than git listed must not
+    # print the same summary as one that read them all.
     if [ ! -f "$root/$suite" ]; then
+      # `-f` follows symlinks and answers false for a dangling one, so two different facts arrive
+      # here and only one of them is harmless. Gone is the unstaged deletion above, and the run is
+      # still sound. Present but not a runnable regular file — a dangling symlink, a directory, a
+      # device — is a broken suite: reporting it as "not in the working tree" states a thing nobody
+      # checked, and passing green over it means a suite that is plainly there was never run.
+      #
+      # `-e` alone cannot tell them apart, because it follows the link too; `-L` is what sees the
+      # link itself.
+      if [ -e "$root/$suite" ] || [ -L "$root/$suite" ]; then
+        printf 'BROKEN %-47s present but not a runnable file — NOT run\n' "$suite"
+        broken=$((broken + 1))
+        continue
+      fi
       printf 'ABSENT %-47s tracked by git, not in the working tree — NOT run\n' "$suite"
       absent=$((absent + 1))
       continue
     fi
     suites+=("$root/$suite")
-  done < <(git -C "$root" ls-files --cached --others --exclude-standard -- '*-test.sh' | sort -u)
+  done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- '*-test.sh' | sort -z -u)
 else
   discovery="find"
-  while IFS= read -r suite; do
+  # NUL-delimited for the same reason the git arm is: a newline in a path splits one file into two
+  # names, and neither of them is a file.
+  while IFS= read -r -d '' suite; do
     suites+=("$suite")
-  done < <(find "$root" -name "*-test.sh" -type f -not -path "*/node_modules/*" | sort)
+  done < <(find "$root" -name "*-test.sh" -type f -not -path "*/node_modules/*" -print0 | sort -z)
 fi
 
 [ "${#suites[@]}" -gt 0 ] || {
@@ -113,7 +130,7 @@ fi
   exit 2
 }
 
-# A suite's own count for a named field, read by name rather than position: score-test.sh reports
+# A suite's own count for a named field, read by name rather than position: run-tests-test.sh reports
 # three fields where most report two, so counting words in would take the wrong number.
 summary_field() { # <field> <the suite's last line>
   RT_FIELD="$1" RT_LINE="$2" awk 'BEGIN {
@@ -215,8 +232,10 @@ fi
 
 absent_note=""
 [ "$absent" -eq 0 ] || absent_note=", $absent tracked but absent from the working tree"
-printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s, discovered by %s\n' \
-  "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$containment" "$discovery"
+broken_note=""
+[ "$broken" -eq 0 ] || broken_note=", $broken present but not runnable"
+printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discovered by %s\n' \
+  "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$broken_note" "$containment" "$discovery"
 
 # A red outranks a non-measurement: something is known to be wrong, which is the more urgent fact. A
 # moved checkout sits between them — it refuses every line of the result rather than one of them, so it
@@ -226,6 +245,11 @@ printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s, discovered
 # ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead
 # tool. Non-zero either way, so a workspace that really is exclusive still reddens gates.yml, which
 # runs this bare and fails the step on any status.
+#
+# A broken suite sits with `unmeasured` rather than with `failed`: nothing about it went red, it was
+# never run at all, and that is what 2 means here. It must not be silent, because a file that is
+# plainly there reads to everyone as a suite that ran.
 [ "$failed" -eq 0 ] || exit 1
 [ "$checkout_moved" -eq 0 ] || exit 3
+[ "$broken" -eq 0 ] || exit 2
 [ "$unmeasured" -eq 0 ] || exit 2

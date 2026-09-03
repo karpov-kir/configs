@@ -17,8 +17,6 @@ func main() {
 	if err != nil {
 		cwd = "."
 	}
-	// A threshold that does not parse is a scan that did not run, never one against the default: the
-	// caller asked for something, and answering with 0.3 reports a result they did not ask for.
 	cfg, err := density.ConfigFromEnv(os.LookupEnv)
 	if err != nil {
 		os.Stderr.WriteString(self + ": " + err.Error() + "\n")
