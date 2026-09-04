@@ -49,8 +49,6 @@ jobs:
       # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: the test
       # cache is keyed on the module, and several suites read files from outside it. The measurement
       # and the negative control are there.
-      # `-timeout 30m` because the eco-report suite runs past Go's 10m default on a loaded runner, and
-      # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
       - name: Gate
         working-directory: ai/tools
         run: |
@@ -61,6 +59,8 @@ jobs:
             exit 1
           fi
           go vet ./...
+          # -timeout, and this value, for the reason ai/gate.sh states at gotest_timeout. The two have
+          # to match.
           go test -count=1 -timeout 30m ./...
 
       # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is

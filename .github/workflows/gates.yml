@@ -76,8 +76,6 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
-      # `-timeout 30m` because the eco-report suite runs past Go's 10m default on a loaded runner, and
-      # overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
       - name: Gate
         working-directory: ai/tools
         run: |
@@ -88,6 +86,8 @@ jobs:
             exit 1
           fi
           go vet ./...
+          # -timeout, and this value, for the reason ai/gate.sh states at gotest_timeout. The two have
+          # to match.
           go test -count=1 -timeout 30m ./...
 
   # Proves the shell suites' cases can actually fail. ai/run-tests.sh cannot cover this — it discovers
@@ -191,8 +191,8 @@ jobs:
   # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file
   # that does not exist reaches main with nothing looking at it.
   #
-  # `check.sh` exits 1 with findings and 2 when it could not run at all, and both fail the job — a
-  # check that did not run is not a clean one, which is the rule the script's own header states.
+  # `check.sh` exits 1 with findings and 2 when it could not run at all, and both fail the job:
+  # a check that did not run is not a clean one, which is the rule the script's own header states.
   wiring:
     runs-on: ubuntu-latest
     steps:

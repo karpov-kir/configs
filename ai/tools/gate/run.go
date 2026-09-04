@@ -216,10 +216,14 @@ func (g *gate) runGofmt() (string, string, int) {
 // Go's own cache is content-keyed over the module and is exactly right there: a warm `go test ./...`
 // is 2.4s against 185s cold, and it does not cache failures. What it cannot see is the files outside
 // the module that the fixtures copy in, so those packages are forced with -count=1 whenever one moved.
+// goSuiteTimeout is the bound every `go test` here carries, and it has one home so the two workflows
+// can be held to the same number. `go test`'s default is 10 minutes and the eco-report package alone
+// can run past that on a loaded machine; an overrun prints a goroutine dump, which reads as a deadlock
+// in os/exec rather than as a slow pass, and has twice been reported here as a red gate that was not
+// one. `workflows_test.go` reads this line, so keep the assignment at column zero and on one line.
+const goSuiteTimeout = "30m"
+
 func (g *gate) runGotest() (string, string, int) {
-	// `go test`'s default is 10 minutes, and the eco-report package alone can run past that on a loaded
-	// machine — an overrun prints a goroutine dump, which reads as a deadlock rather than a slow pass.
-	const timeout = "30m"
 	var groups []string
 	if g.changedSinceGreen([]string{extFlavor}) {
 		groups = append(groups, "eco-report")
@@ -235,7 +239,7 @@ func (g *gate) runGotest() (string, string, int) {
 	}
 	tools := filepath.Join(g.root, "ai", "tools")
 	if len(groups) == 0 {
-		out, err := runIn(tools, "go", "test", "-timeout", timeout, "./...")
+		out, err := runIn(tools, "go", "test", "-timeout", goSuiteTimeout, "./...")
 		return out, "", exitCode(err)
 	}
 	module, err := runIn(tools, "go", "list", "-m")
@@ -273,13 +277,13 @@ func (g *gate) runGotest() (string, string, int) {
 	if len(rest) > 0 {
 		// The forced packages come OUT of the cached run rather than being run in both. Left in, the
 		// whole of eco-report is measured twice.
-		body, err := runIn(tools, "go", append([]string{"test", "-timeout", timeout}, rest...)...)
+		body, err := runIn(tools, "go", append([]string{"test", "-timeout", goSuiteTimeout}, rest...)...)
 		out.WriteString(body)
 		if err != nil {
 			status = 1
 		}
 	}
-	body, err := runIn(tools, "go", append([]string{"test", "-timeout", timeout, "-count=1"}, forcedList...)...)
+	body, err := runIn(tools, "go", append([]string{"test", "-timeout", goSuiteTimeout, "-count=1"}, forcedList...)...)
 	out.WriteString(body)
 	if err != nil {
 		status = 1

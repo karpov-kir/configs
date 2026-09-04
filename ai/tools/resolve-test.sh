@@ -8,9 +8,29 @@
 # wiring check as a citation and reported against the real checkout.
 set -u
 
+# A fixture this suite could not build is a run that did not happen, never a resolver that is broken.
+# `ai/run-tests.sh` reads any non-zero status that is not 2 as `FAIL <suite>`, so exiting 1 when
+# `mktemp` fails reports resolve.sh as the thing at fault — the same misreading this suite's own
+# subject exists to stop, one layer up. So: exit 2, and name the fixture.
+# See testing.md → **What a suite reports**.
+# No summary line follows it. The passes behind it are real, and the run they belong to is not a result.
+nomeasure() { # <what could not be built>
+  printf 'resolve-test.sh: %s — no verdict was reached, so this is not a result\n' "$1" >&2
+  exit 2
+}
+
 here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 resolver="$here/resolve.sh"
-base=$(mktemp -d) || exit 1
+
+# Most cases below build a real binary before they can assert anything about serving one, so an
+# ambient `go` is a fixture like the temp directory is. Without it they fail one after another and
+# the suite prints a summary full of FAILs — a machine missing a toolchain, reported as a broken
+# resolver. The no-toolchain cases are unaffected: each strips `go` from PATH for itself, which is
+# the state under test rather than the state of this machine.
+command -v go >/dev/null 2>&1 ||
+  nomeasure "there is no go on PATH, and the fixtures below have to build a binary before any case can assert on one"
+
+base=$(mktemp -d) || nomeasure "could not create a temp directory to hold the fixtures"
 trap 'rm -rf "$base"' EXIT
 
 passed=0
@@ -64,21 +84,32 @@ expect_refusal() { # <name> <the wording only this cause produces>, over $status
 tool=widget
 new_tools() {
   local dir="$1"
-  mkdir -p "$dir/$tool" || exit 1
-  cp "$resolver" "$dir/resolve.sh" || exit 1
+  mkdir -p "$dir/$tool" || nomeasure "could not build the tool directory in $dir"
+  cp "$resolver" "$dir/resolve.sh" || nomeasure "could not copy the resolver under test into $dir"
   chmod 755 "$dir/resolve.sh"
   printf 'module fixture\n\ngo 1.24\n' >"$dir/go.mod"
   printf 'package main\n\nfunc main() {}\n' >"$dir/$tool/main.go"
+}
+
+# A PATH directory holding only the commands named, so a case can model a machine missing one of the
+# others. Symlinks, so what runs is the real binary anywhere a case has not put a shim beside them.
+new_path_dir() { # <directory> <commands the fixture keeps>
+  local dir="$1" needed
+  shift
+  mkdir -p "$dir" || nomeasure "could not build the PATH fixture at $dir"
+  for needed in "$@"; do
+    ln -s "$(command -v "$needed")" "$dir/$needed"
+  done
 }
 
 # A PATH holding what the resolver needs to reach its `go` check, and no `go`. An empty PATH breaks
 # `#!/usr/bin/env bash` before the script starts and a missing `dirname` kills it at self-resolution;
 # both still exit 2, which is why the cases that use it assert on the wording of the refusal.
 bare="$base/bare-path"
-mkdir -p "$bare" || exit 1
-for needed in bash dirname mkdir mv rm; do
-  ln -s "$(command -v "$needed")" "$bare/$needed"
-done
+# `find` is in here because this fixture models a machine with no Go toolchain, not one with no
+# POSIX utilities: the staleness check asks `find` its whole question, and without it the resolver
+# takes the "could not check" branch instead of the one these cases are about.
+new_path_dir "$bare" bash dirname mkdir mv rm find
 
 echo "resolve.sh"
 
@@ -205,6 +236,112 @@ if [ "$status" -eq 0 ] && [ "$lines" = 1 ]; then
 else
   record_fail "prints one line on stdout and sends the build log to stderr" "exit $status, $lines line(s): $out"
 fi
+
+# The staleness branch. What these assert is that the second resolve *rewrote* the binary: a marker
+# dropped between the two runs, and the binary newer than it afterwards. Asserting the path came
+# back would pass on the stale-serving resolver too.
+rebuilt_since() {
+  [ -n "$(find "$1" -newer "$2" -print 2>/dev/null)" ]
+}
+
+# The source edit three of the cases below turn on, written once so what differs between them is the
+# fixture and nothing else.
+edit_main() { # <fixture tools directory>
+  printf 'package main\n\nfunc main() { _ = "edited" }\n' >|"$1/$tool/main.go"
+}
+
+# Edited in the tool's own package.
+nine="$base/nine"
+new_tools "$nine"
+out=$("$nine/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "builds a first binary before the staleness cases" 0
+nine_binary="$out"
+touch "$base/nine-marker"
+edit_main "$nine"
+out=$("$nine/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "an edited source still resolves" 0
+rebuilt_since "$nine_binary" "$base/nine-marker" &&
+  record_pass "rebuilds rather than serving a binary older than its own package" ||
+  record_fail "rebuilds rather than serving a binary older than its own package" "$nine_binary was not rewritten"
+
+# Edited in a package the tool's own directory does not contain. This is the shape the module-wide
+# scan exists for: a check scoped to `$tools/$tool` would serve the stale binary here.
+ten="$base/ten"
+new_tools "$ten"
+mkdir -p "$ten/shell" || nomeasure "could not build the sibling package the module-wide scan is checked against"
+printf 'package shell\n' >|"$ten/shell/shell.go"
+out=$("$ten/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "builds a first binary with a sibling package present" 0
+ten_binary="$out"
+touch "$base/ten-marker"
+printf 'package shell\n\nconst Edited = true\n' >|"$ten/shell/shell.go"
+out=$("$ten/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "an edited sibling package still resolves" 0
+rebuilt_since "$ten_binary" "$base/ten-marker" &&
+  record_pass "rebuilds when a package outside the tool's own directory moved" ||
+  record_fail "rebuilds when a package outside the tool's own directory moved" "$ten_binary was not rewritten"
+
+# Stale with nothing to rebuild with. It is still served, so what these assert is that the doubt is
+# audible on stderr.
+eleven="$base/eleven"
+new_tools "$eleven"
+out=$("$eleven/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "builds a first binary before the no-toolchain case" 0
+edit_main "$eleven"
+out=$(PATH="$bare" "$eleven/resolve.sh" "$tool" 2>&1)
+status=$?
+expect_status "serves a stale binary when there is no Go to rebuild with" 0
+expect_out "and says on stderr that it may not be the code you are reading" "may not be the code you are reading"
+out=$(PATH="$bare" "$eleven/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+lines=$(printf '%s\n' "$out" | wc -l | tr -d ' ')
+# The status and the emptiness are checked alongside the count because `printf '%s\n' ""` is itself one
+# line: on the count alone, a resolver that exited 2 having printed nothing would record a pass here.
+[ "$status" -eq 0 ] && [ -n "$out" ] && [ "$lines" = 1 ] &&
+  record_pass "and keeps that warning off stdout" ||
+  record_fail "and keeps that warning off stdout" "exit $status, $lines line(s) on stdout: $out"
+
+# And the question itself failing to be askable. A missing `find` is the one gap the staleness check
+# cannot answer, so it has to say it did not check.
+nofind="$base/nofind-path"
+new_path_dir "$nofind" bash dirname mkdir mv rm
+twelve="$base/twelve"
+new_tools "$twelve"
+out=$("$twelve/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "builds a first binary before the no-find case" 0
+edit_main "$twelve"
+out=$(PATH="$nofind" "$twelve/resolve.sh" "$tool" 2>&1)
+status=$?
+expect_status "serves the binary when find is missing" 0
+expect_out "and says the staleness question was NOT checked" "was NOT checked"
+
+# And the question asked but not answered. A `find` that runs and fails prints nothing, which is
+# byte-for-byte what a clean tree looks like, so its exit status is the only thing that separates
+# them. Without that read the resolver serves the stale binary in silence — measured on the resolver
+# before the status was read: exit 0, empty stderr, over a source edited after the build.
+#
+# A shim rather than a broken tree: what has to be exercised is find answering badly, and a fixture
+# that made a real find fail would be denying the suite's own directory to itself.
+badfind="$base/badfind-path"
+new_path_dir "$badfind" bash dirname mkdir mv rm
+printf '#!/bin/sh\nexit 1\n' >|"$badfind/find"
+chmod 755 "$badfind/find" || nomeasure "could not make the failing find shim executable"
+thirteen="$base/thirteen"
+new_tools "$thirteen"
+out=$("$thirteen/resolve.sh" "$tool" 2>/dev/null)
+status=$?
+expect_status "builds a first binary before the failing-find case" 0
+edit_main "$thirteen"
+out=$(PATH="$badfind" "$thirteen/resolve.sh" "$tool" 2>&1)
+status=$?
+expect_status "serves the binary when find runs and fails" 0
+expect_out "and says so rather than answering the question clean" "find failed here"
 
 echo
 echo "$passed passed, $failed failed"

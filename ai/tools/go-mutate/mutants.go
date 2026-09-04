@@ -606,6 +606,36 @@ var mutants = []mutant{
 	{"traversal: an out-of-root ref is stat'ed after all", "tree.go", "./eco-check/", "TestATraversalLinkIsNotStatted", `	rel, err := filepath.Rel(c.root.Named(), path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")`, `	_, err := filepath.Rel(c.root.Named(), path)
 	return err == nil || true`},
+	// The three pieces that make one tree answer one way however its root was spelled. Whether a cited
+	// path names a file here used to depend on the caller's typing, and no finding may. Each label
+	// below is a separate way that could come back.
+	{"canonical index: the root's own name is not a key", "tree.go", "./eco-check/", "TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed", "\tt.suffixes[entry.canonical] = append(t.suffixes[entry.canonical], entry.path)\n", ""},
+	{"canonical index: the root is indexed as it was spelled", "tree.go", "./eco-check/", "TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed", `	absolute, err := filepath.Abs(start)
+	if err != nil {
+		return shell.BaseName(start)
+	}
+	return shell.BaseName(absolute)`, `	_, err := filepath.Abs(start)
+	if err != nil {
+		return shell.BaseName(start)
+	}
+	return shell.BaseName(start)`},
+	{"canonical index: a doubled separator survives the root cut", "tree.go", "./eco-check/", "TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed", `strings.TrimLeft(strings.TrimPrefix(path, t.start), "/")`, `strings.TrimPrefix(path, t.start)`},
+	// The fourth way, and the only one the spelling-agreement case above cannot see: an anchor reaching
+	// *above* the root instead of falling short of it. tree.go's rootName carries what that one leaks.
+	{"canonical index: the anchor reaches above the root", "tree.go", "./eco-check/", "TestACitationNamingADirectoryAboveTheRootDoesNotResolve", "\treturn shell.BaseName(absolute)", "\treturn strings.TrimPrefix(absolute, \"/\")"},
+	// The tails, which are the other half of the index and the shape prose writes most often. Taken
+	// from the spelled path they carry whatever the caller typed above the root, which is the leak the
+	// case above names.
+	{"canonical index: the tails taken from the spelled path", "tree.go", "./eco-check/", "TestACitationNamingADirectoryAboveTheRootDoesNotResolve", `	for i := 0; i < len(entry.canonical); i++ {
+		if entry.canonical[i] == '/' {
+			tail := entry.canonical[i+1:]`, `	for i := 0; i < len(entry.path); i++ {
+		if entry.path[i] == '/' {
+			tail := entry.path[i+1:]`},
+	// What keeps the index answering a name rather than a pattern. citations.go → globInCitation says
+	// why the cited path is the one token that can carry one, and what refusing it buys. Removed, the
+	// citation falls through to `unresolvable citation path` and sends its reader hunting for a file
+	// nobody is missing. Nothing would then stand in front of the resolver if a matcher ever came back.
+	{"citations: a pattern in a cited path is matched rather than refused", "citations.go", "./eco-check/", "TestAPatternInACitedPathIsRefusedRatherThanMatched", `	if glob := strings.IndexAny(cited.path, globInCitation); glob >= 0 {`, `	if glob := strings.IndexAny(cited.path, globInCitation); glob >= 0 && false {`},
 	{"headings: the target re-parsed once per citation", "headings.go", "./eco-check/", "TestAMarkdownFileIsParsedOncePerRun", `	if cached, ok := c.headings[path]; ok {
 		return cached
 	}`, ``},
@@ -998,16 +1028,18 @@ var unreachableMutants = []unreachableMutant{
 	},
 	{
 		"gate: the filtered tree rebuilt from a literal",
-		"unobservable until the field it protects exists. keepCommittable copies the walked tree and " +
-			"resets only `entries` and `suffixes`, so a field added to `tree` reaches the filtered copy " +
-			"too; while `tree` holds nothing else, rebuilding from a literal is identical and no case " +
-			"can tell the two apart. A STALE CLAIM here is the signal that `tree` has gained a field — " +
-			"`start`, at the time of writing, which keys the suffix index on the root's canonical name " +
-			"rather than the caller's spelling. That is the moment the guard starts mattering: dropped, " +
-			"a gated run keys differently from a bare one and every finding depends again on how the " +
-			"root was typed. Delete THIS ENTRY and keep the mutant. Do not revert keepCommittable and " +
-			"do not delete the mutant — it is doing its job, and the case that now kills it is " +
-			"TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed.",
+		"unobservable because nothing reads the copied fields after the walk. keepCommittable copies " +
+			"the walked tree and resets `entries` and `suffixes`; the other two fields, `start` and " +
+			"`canonicalRoot`, are read by newEntry during the walk alone, while add keys each entry on " +
+			"the `canonical` name that entry already carries. So a filtered copy rebuilt from a literal " +
+			"loses both and still produces byte-identical findings. " +
+			"The condition is a field READ AT FILTER TIME, never merely a field on `tree`: `start` " +
+			"exists and this mutant still kills nothing. Measured both ways — dropping those fields " +
+			"from newWalk reddens TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed, and " +
+			"dropping them from the filtered copy reddens no case at all. A STALE CLAIM here means " +
+			"keepCommittable or add has come to read something a literal would drop, and the guard is " +
+			"load-bearing from that moment: delete THIS ENTRY and keep the mutant. Do not revert " +
+			"keepCommittable and do not delete the mutant.",
 	},
 	{
 		"override config: an unreadable config passes as a checked one",

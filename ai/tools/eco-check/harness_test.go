@@ -283,7 +283,7 @@ func (f *fixture) runTwice() string {
 }
 
 // HOME is process-global, so a case that needs its own mount has to run alone and every other case
-// can run alongside the rest. The decision is made here, once per case, never at each t.Run. Split
+// can run alongside the rest. Both halves are settled once per case rather than at each t.Run: split
 // across every case, the two sets would drift — and a case running twice may call neither t.Setenv
 // nor t.Parallel a second time.
 //
@@ -291,11 +291,20 @@ func (f *fixture) runTwice() string {
 // that later grows a mount panics in t.Setenv rather than quietly racing one.
 func (f *fixture) isolate() {
 	f.t.Helper()
+	f.mountHome()
+	if f.home == "" {
+		f.t.Parallel()
+	}
+}
+
+// The mount half of `isolate` on its own, because the root-spelling helpers below need it without the
+// parallel one. TestARootSpellingCaseStillGetsItsOwnHomeMount fails if one of them stops calling it,
+// and says what that costs.
+func (f *fixture) mountHome() {
+	f.t.Helper()
 	if f.home != "" {
 		f.t.Setenv("HOME", f.home)
-		return
 	}
-	f.t.Parallel()
 }
 
 func (f *fixture) check() string {
@@ -303,8 +312,9 @@ func (f *fixture) check() string {
 	return f.checkWith(f.root)
 }
 
-// The same run under whatever arguments a case needs — the gate cases pass --gate beside the root, and
-// every other caller passes the root alone.
+// The same run under whatever arguments a case needs — the gate cases pass --gate beside the root, the
+// spelling cases pass the root named some other way, and every other caller passes the root alone.
+// Which spelling a caller used is not meant to change a finding, which is what those cases assert.
 func (f *fixture) checkWith(args ...string) string {
 	f.t.Helper()
 	var output bytes.Buffer
@@ -318,10 +328,7 @@ func (f *fixture) checkWith(args ...string) string {
 // would have swallowed turns a doesNotReport case into a silent pass.
 func (f *fixture) reports(needle string) {
 	f.t.Helper()
-	output := f.run()
-	if !strings.Contains(output, needle) {
-		f.t.Errorf("expected a finding containing %q\n%s", needle, indent(output))
-	}
+	f.found(f.run(), needle)
 }
 
 // Variadic, because a fixture runs once: `isolate` calls t.Parallel or t.Setenv, neither of which a
@@ -329,7 +336,36 @@ func (f *fixture) reports(needle string) {
 // otherwise have to rebuild the whole fixture in a case of its own, and the two copies then drift.
 func (f *fixture) doesNotReport(needles ...string) {
 	f.t.Helper()
-	output := f.run()
+	f.absent(f.run(), needles...)
+}
+
+// The same two assertions over a run that names the root `root` from working directory `dir`. t.Chdir
+// is process-global and refuses a parallel case, so these run alone whatever the fixture is. That is
+// the half of `isolate` they replace; `mountHome` is the other.
+func (f *fixture) reportsWithRootNamed(dir, root, needle string) {
+	f.t.Helper()
+	f.mountHome()
+	f.t.Chdir(dir)
+	f.found(f.checkWith(root), needle)
+}
+
+func (f *fixture) doesNotReportWithRootNamed(dir, root string, needles ...string) {
+	f.t.Helper()
+	f.mountHome()
+	f.t.Chdir(dir)
+	f.absent(f.checkWith(root), needles...)
+}
+
+// The message each assertion fails with, held once so no caller can word it differently.
+func (f *fixture) found(output, needle string) {
+	f.t.Helper()
+	if !strings.Contains(output, needle) {
+		f.t.Errorf("expected a finding containing %q\n%s", needle, indent(output))
+	}
+}
+
+func (f *fixture) absent(output string, needles ...string) {
+	f.t.Helper()
 	for _, needle := range needles {
 		if strings.Contains(output, needle) {
 			f.t.Errorf("expected no finding containing %q\n%s", needle, indent(output))
@@ -341,18 +377,12 @@ func (f *fixture) doesNotReport(needles ...string) {
 // behind must not change what this one says.
 func (f *fixture) reportsOnASecondRun(needle string) {
 	f.t.Helper()
-	output := f.runTwice()
-	if !strings.Contains(output, needle) {
-		f.t.Errorf("expected a second run to still report %q\n%s", needle, indent(output))
-	}
+	f.found(f.runTwice(), needle)
 }
 
 func (f *fixture) doesNotReportOnASecondRun(needle string) {
 	f.t.Helper()
-	output := f.runTwice()
-	if strings.Contains(output, needle) {
-		f.t.Errorf("expected a second run to still report nothing containing %q\n%s", needle, indent(output))
-	}
+	f.absent(f.runTwice(), needle)
 }
 
 // The checker prints its budget lines before any finding, so a leak from a scan loop lands ahead of

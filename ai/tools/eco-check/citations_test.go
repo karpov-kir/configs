@@ -120,6 +120,51 @@ func newCitation(t *testing.T, citation string) *fixture {
 	return newCitedHeading(t, targetSection, citation)
 }
 
+// A cited path holding a glob. The citation scan is the one whose token can carry a metacharacter at
+// all, for the reason citations.go → globInCitation gives. Both ways of writing a citation reach the
+// refusal, so both are covered here.
+func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
+	// The target carries no section, so every pattern below matches a file that has no `One home`
+	// heading: a resolver that still globbed would resolve the path and say `dangling section ref`
+	// against it. That is why each case asserts the refusal *and* that nothing resolved — asserting
+	// only the refusal would pass over a resolver answering these as find(1) does.
+	newPatternProbe := func(t *testing.T, citation string) *fixture {
+		t.Helper()
+		f := newCitedTarget(t, "")
+		f.write(f.root+"/kk-flavor/standards/citer.md", citation+"\n")
+		return f
+	}
+	refused := func(t *testing.T, f *fixture, ref string) {
+		t.Helper()
+		output := f.run()
+		f.found(output, "pattern in a citation path: "+f.root+"/kk-flavor/standards/citer.md:1 -> "+ref)
+		f.absent(output, dangling, unresolved)
+	}
+
+	// One case per metacharacter, because the refusal names the byte it found and each is a separate
+	// way in. `\` is doubled only for Go's own literal.
+	for _, ref := range []string{"standards/targ*t.md", "standards/targ?t.md", "standards/[st]arget.md", "standards/targe\\t.md"} {
+		t.Run("refuses a backticked citation holding "+ref, func(t *testing.T) {
+			refused(t, newPatternProbe(t, "see `"+ref+"` → **One home** for the rule"), ref)
+		})
+	}
+
+	// The link form takes its token from a different arm of the parser, whose filter is `[^()]*` — so
+	// refusing in only one of the two arms would leave the other resolving patterns.
+	t.Run("and a markdown-link citation holding one", func(t *testing.T) {
+		refused(t, newPatternProbe(t, "see [x](targ*t.md) → **One home** for the rule"), "targ*t.md")
+	})
+
+	// The control: the same citation without the metacharacter resolves, so the refusal above cannot be
+	// a scan that stopped reading citations altogether.
+	t.Run("while the same citation naming the file outright still resolves", func(t *testing.T) {
+		f := newPatternProbe(t, "see `standards/target.md` → **One home** for the rule")
+		output := f.run()
+		f.absent(output, "pattern in a citation path", unresolved)
+		f.found(output, dangling+": "+f.root+"/kk-flavor/standards/citer.md:1 -> standards/target.md → One home")
+	})
+}
+
 // A citation wraps. A hard line break between the cited file and its section, or inside the section
 // name, is what a formatter leaves behind, and a line-oriented split cannot see across one: the
 // citation then resolves against nothing and the whole scan goes quiet, which is the one outcome a
@@ -368,14 +413,11 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 	return f
 }
 
-// A suite covering anything citation-shaped has to put a citation in a fixture, and a literal one is
-// content this scan reads: the suite reports its own test data against the checkout, from a case that
-// passed. It has caught four suites out. The rule taken is that such a fixture is assembled at run
-// time, and the finding is where that rule is stated — the alternatives were measured and refused,
-// which citations.go records beside the note.
+// The note that rides a citation finding against a test harness. Why it exists, what rule it states
+// and what taking that rule costs are at citations.go → harnessCitationNote.
 //
 // This file writes its own citations out, because no scan reads a `.go` file. A shell suite covering
-// the same ground could not, and that asymmetry is the whole reason the note exists.
+// the same ground could not, which is the asymmetry that note answers.
 func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
 	t.Run("names the rule on a finding against a suite", func(t *testing.T) {
 		newHarnessCitation(t, "fixture-test.sh").reports("assemble it at run time")
