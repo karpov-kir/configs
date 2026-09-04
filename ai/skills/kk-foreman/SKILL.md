@@ -36,6 +36,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 | The work | The answer |
 |---|---|
+| Something is broken, slow or flaky, and the cause is unknown | `kk-diagnose`, alone, and **before any change exists to review** — a lane reading a diff cannot reach a cause nobody has reproduced. |
 | Code or tooling changed | `kk-qualify`, alone — it owns the stage order and what each stage's trigger is. Queuing those stages here instead runs the pipeline without its round. |
 | A PR to review | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. **A PR of the human's own too**, where the code row would leave the fixes uncommitted and the PR stale. |
 | Changes were requested on a PR | `kk-pr-review`, alone, and **pass its `fix` token** — on someone else's PR, without it the skill only drafts a review. |

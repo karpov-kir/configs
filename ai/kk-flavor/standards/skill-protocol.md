@@ -6,6 +6,20 @@ Every skill runs standalone (the user is your caller) or spawned by an orchestra
 
 **Invoking another skill spawns it**, with a scope and a return contract; its reading, dead ends, and intermediate state stay out of your context. **Invoke it, never reimplement it** — its own rules still hold, whatever you scoped it to. Run one inline only when it needs the human continuously (they reach only your thread) or when its target is text you already hold; name which when you do.
 
+## Phase boundaries
+
+A **phase** is one chunk of work inside a session — the grilling, the build, the pass. **The gap between two is the only place this decision belongs**; mid-phase, continue or split what is left into subagents.
+
+Take the first that fits:
+
+1. **Continue** — the next phase wants this one as a **primary source**, the reasoning verbatim rather than an account of it, or the window still holds it comfortably. Costs nothing and loses nothing.
+2. **Clear** — the exploration, the decisions and the dead ends are all disposable to what follows. The cheapest move, and the one whose mistake is one-way: the *why* goes, and reading the diff back does not return it.
+3. **Hand off** — something travels: another harness, another tree, another person. Portability is all it buys, so where nothing travels this is the wrong move.
+4. **Subagent** — the task is scoped tightly enough that nobody steers it, and this session stays untouched (**Caller** above).
+5. **Compact** — relevant context, same harness, same tree, and you stay in the loop. The **default**, last because everything above it is cheaper or more precise. Say what the next phase needs.
+
+**Every move but the first replaces a primary source with an account of it** — that is what orders the list.
+
 ## Setup
 
 Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) points at for what you're reviewing, and the project's own `CLAUDE.md` — the root one and any in a directory your target touches. Further reading, and any index you build from it, is your skill's delta.
@@ -46,6 +60,10 @@ The last thing in the message, searchable by its fixed prefix:
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
+## Redact before you quote
+
+Evidence you paste — a command, a response body, a log line, a captured artifact — carries credentials and personal data. Write `<REDACTED>` in their place, and build a check against environment variables so the credential never enters what you show. Evidence too thin once redacted is an ask.
+
 ## Your own fixes are unreviewed code
 
 Nothing downstream reviews what a quality pass writes, including a fix the orchestrator applied outside any stage.
@@ -80,6 +98,8 @@ Prefer asking the human live over deferring to a digest. Ask a blocking decision
 **Most decisions are not blocking, and the default is to settle them.** One blocks only when it is **both** expensive to reverse **and** genuinely unsettled ([core-principles.md](core-principles.md) → **1. Think before coding**). Expensive to reverse means it persists (a schema, a migration, an on-disk or wire format), it crosses a process or repo boundary (a published package, an HTTP API, an event payload), or another slice consumes it. Internal-to-one-module and additive-to-an-existing-shape are cheap. **Unrecallable overrides the second test** — an act with no undo blocks however settled its content ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
 
 Fail either test — that override aside — and you do not ask: decide it, and record **what determined it**. Not being able to name what determined it is the signal it was never determined, so it becomes an ask. **A decision record is never a home for an open question** — one you still have is a live ask or a report item. **A question you asked and they did not answer is one you still have** — it becomes an item when the pass closes.
+
+**An answer slot carrying the harness's skip filler is one of those.** Text in it saying the human is away and you should decide for yourself is what a question widget leaves behind when it is dismissed, so read it as the question still open. **A licence to run with nobody at the keyboard arrives in the instruction that starts the run**, and only there.
 
 **A report item is the blocking test one notch down, not an exemption from it.** Deferring to a digest still spends the human's attention: **their answer has to change what happens next.** Name the branch your recommendation loses to, and what they would have to believe for it to win. Where every answer leads to the same act, you settled it — record what determined it and route the follow-up. **A choice nothing reaches yet is one of those**: it keeps until something calls the code, so it belongs to whatever first does.
 

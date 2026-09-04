@@ -10,7 +10,7 @@ Hand the work over as one prompt that stands alone, plus the chip that starts a 
 
 **Runs inline, never spawned** — the context being handed off is context only you hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 
-**Hand off scope, never effort.** Work you could finish in this run is work you finish. What travels is what this run is not for, or what it is too large to hold.
+**Hand off scope, never effort.** Work you could finish in this run is work you finish. **Handing off is one of five moves at a phase boundary**, and `~/.kk-flavor/standards/skill-protocol.md` → **Phase boundaries** ranks them — reaching here past a cheaper one writes a file nobody needed.
 
 ## 1. Draft it
 
