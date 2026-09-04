@@ -194,7 +194,7 @@ for suite in "${suites[@]}"; do
 done
 
 # A suite that passes while corrupting the checkout has measured something, and the measurement was
-# not the whole effect. bootstrap-test.sh linked a temp HOME at this repository and wrote through the
+# not the whole effect. A bootstrap suite linked a temp HOME at this repository and wrote through the
 # link, replacing real config files while reporting every case green.
 #
 # It cannot say which caused a delta: a concurrent editor looks the same from here. Naming a suite

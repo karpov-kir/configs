@@ -133,7 +133,7 @@ new_failing_suite "$tmp/both/failing-test.sh"
 out="$("$runner" "$tmp/both" 2>&1)"; rc=$?
 check "a red outranks a non-measurement" "1" "$rc"
 
-# bootstrap-test.sh linked a temp HOME at this repository and wrote through the link, replacing real
+# A bootstrap suite linked a temp HOME at this repository and wrote through the link, replacing real
 # config files while reporting every case green. A suite like that has measured something and the
 # measurement was not the whole effect, so the run has to notice the checkout moved under it.
 if command -v git >/dev/null; then

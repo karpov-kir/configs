@@ -148,7 +148,7 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 	})
 }
 
-// Where bootstrap.sh puts a mount, under the same name the checker reaches it by. newHome builds
+// Where ai/bootstrap.sh puts a mount, under the same name the checker reaches it by. newHome builds
 // $HOME/.claude and stops there, so a case wanting the mount directory makes it itself.
 func (f *fixture) skillsMount() string {
 	return f.home + "/.claude/skills"
@@ -285,7 +285,7 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		newMountWithAControlByte(t).doesNotReport("\x1b")
 	})
 
-	// The name arm. bootstrap.sh mounts every directory under skills/ and unmounts none. So a branch
+	// The name arm. ai/bootstrap.sh mounts every directory under skills/ and unmounts none. So a branch
 	// that adds a skill whose directory name carries an ESC, gets bootstrapped, then deletes it, leaves
 	// a mount at $HOME whose *name* is the branch's own bytes, and this finding is the one that echoes
 	// it. The target here is clean, so only the name's sanitiser can keep the ESC out.
