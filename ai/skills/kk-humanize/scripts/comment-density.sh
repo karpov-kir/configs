@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
-# Comment-density detector — flags changed source files whose ADDED lines are comment-heavy.
+# Comment-density detector. By default it flags changed source files whose ADDED lines are
+# comment-heavy; with `--bar` it holds the whole change set to the host repo's own comment rate.
 #
-#   usage: comment-density.sh [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
+#   usage: comment-density.sh [--bar] [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
 #          a path argument is refused with exit 2, never scanned
 #   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines (default 0.3)
 #          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this (default 5)
-#          DENSITY_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
+#          DENSITY_MAX_FILE_BYTES — skip a file larger than this unread: only untracked files in the
+#          default mode, every file under --bar (default 262144)
 #
-# Prints each outlier with its counts. Exits 1 when any found, 0 when clean, 2 when the scan did not
-# run — git rejecting the arguments, a path passed where a revision belongs, or a threshold that is no
-# number. Prose/data files (md, txt, json, lockfiles) don't count. With no diff args, untracked text
-# files are scanned too; the index is never touched.
+# Exits 1 with findings, 0 when clean, 2 when the scan did not run — git rejecting the arguments, a
+# path passed where a revision belongs, or a threshold that is no number. Prose/data files (md, txt,
+# json, lockfiles) don't count. With no diff args, untracked text files are scanned too; the index is
+# never touched.
 #
-# Every run ends with its denominator on stderr — files reached, files with countable added lines,
-# outliers, untracked files skipped unread. Read it: an empty report at exit 0 means "nothing was
-# comment-heavy" only when that first number is above zero, and "nothing was read" when it is not.
+# The default mode prints each outlier with its counts and ends with its denominator on stderr — files
+# reached, files with countable added lines, outliers, untracked files skipped unread. Read it: an empty
+# report at exit 0 means "nothing was comment-heavy" only when that first number is above zero, and
+# "nothing was read" when it is not. It is a targeting aid, not a bar. It counts ADDED lines, so
+# rewording a comment the base already carried moves it into the added set, and the ratio can rise
+# across a pass that cut comments.
 #
-# A targeting aid, not a bar: it counts ADDED lines, so rewording a comment the base already carried
-# moves it into the added set, and the ratio can rise across a pass that cut comments.
+# `--bar` counts each changed file as it will land, against the rate the repo's untouched files run at,
+# and reports what has to go. Two runs over one tree print one verdict, so re-run it after every cut.
+# Files are read as they sit in the working tree; revisions only choose which files. Only a file new
+# since the diff's base is held to the per-file ceiling: one the repo already carried has the repo's own
+# density, and its added lines are the default mode's to flag. The two COMMENT_* thresholds do not
+# apply to it, and it exits 2 as well when no file outside the change set carries countable lines.
 #
 # tested by: the Go suite beside the tool, `ai/tools/comment-density/`; the shared stub region below
 # by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
