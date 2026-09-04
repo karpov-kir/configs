@@ -82,14 +82,7 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	// Without this the case below passes on a run that raised no mount finding at all.
-	t.Run("reports a skill mounted somewhere else (control for the case below)", func(t *testing.T) {
-		newSkillMountedElsewhere(t).reports("skill mounted elsewhere")
-	})
-
-	t.Run("and no control byte reaches the output", func(t *testing.T) {
-		newSkillMountedElsewhere(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "a skill mounted somewhere else", "skill mounted elsewhere", newSkillMountedElsewhere)
 
 	// The name arm, which the target arm above never reaches: the two ends of the message are
 	// sanitised by two separate calls, and a case exercising one says nothing about the other. This
@@ -102,13 +95,7 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a skill whose own name carries one (control for the case below)", func(t *testing.T) {
-		newSkillNamedWithAControlByte(t).reports("skill not mounted")
-	})
-
-	t.Run("and no control byte from that name reaches the output", func(t *testing.T) {
-		newSkillNamedWithAControlByte(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "a skill whose own name carries one", "skill not mounted", newSkillNamedWithAControlByte)
 
 	// The elsewhere arm of the same name. It is a third message built from a third pair of calls, and
 	// the two arms above leave it untouched: the case just above never reaches it, because a skill with
@@ -122,13 +109,8 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports that name mounted somewhere else (control for the case below)", func(t *testing.T) {
-		newSkillNamedWithAControlByteMountedElsewhere(t).reports("skill mounted elsewhere")
-	})
-
-	t.Run("and no control byte from it reaches the output either", func(t *testing.T) {
-		newSkillNamedWithAControlByteMountedElsewhere(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "that name mounted somewhere else", "skill mounted elsewhere",
+		newSkillNamedWithAControlByteMountedElsewhere)
 }
 
 // Where bootstrap.sh puts a mount, under the same name the checker reaches it by. newHome builds
@@ -155,9 +137,9 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f.reports("mount without a skill")
 	})
 
-	// Every mount this machine was set up from the README with reads back with a trailing slash, this
-	// one included. Nothing here trims it: the scan reads the mount's parent through shell.DirName,
-	// which answers dirname(1) and so trims for it. This case is what would catch that going away.
+	// The README's install line leaves a trailing slash on every mount it makes, this one included.
+	// Nothing here trims it: the scan reads the mount's parent through shell.DirName, which answers
+	// dirname(1) and so trims for it. This case is what would catch that going away.
 	t.Run("and reports one whose target carries the README-era trailing slash", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone/")
@@ -172,8 +154,8 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f.doesNotReport("mount without a skill")
 	})
 
-	// $HOME carries skills from other checkouts — this machine mounts two. Reporting one would be a
-	// finding about a tree this checkout does not own.
+	// $HOME carries skills from other checkouts. Reporting one would be a finding about a tree this
+	// checkout does not own.
 	t.Run("says nothing about a mount into another checkout", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.mkdirAll(f.base + "/other/skills/atlassian")
@@ -250,8 +232,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 }
 
 // The reverse finding echoes a mount name read out of $HOME and a link target read off that mount,
-// neither of which the reviewed branch chooses — defence in depth, for the reason the file header
-// gives for the elsewhere arm's case.
+// neither of which the reviewed branch chooses — defence in depth, like the elsewhere arm above.
 func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 	newMountWithAControlByte := func(t *testing.T) *fixture {
 		f := newInstalledRoot(t)
@@ -259,14 +240,7 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	// Without this the case below passes on a run that raised no reverse finding at all.
-	t.Run("reports the mount (control for the case below)", func(t *testing.T) {
-		newMountWithAControlByte(t).reports("mount without a skill")
-	})
-
-	t.Run("and no control byte reaches the output", func(t *testing.T) {
-		newMountWithAControlByte(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "the mount", "mount without a skill", newMountWithAControlByte)
 
 	// The name arm. bootstrap.sh mounts every directory under skills/ and unmounts none. So a branch
 	// that adds a skill whose directory name carries an ESC, gets bootstrapped, then deletes it, leaves
@@ -278,11 +252,5 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a mount whose own name carries one (control for the case below)", func(t *testing.T) {
-		newMountNamedWithAControlByte(t).reports("mount without a skill")
-	})
-
-	t.Run("and no control byte from that name reaches the output", func(t *testing.T) {
-		newMountNamedWithAControlByte(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "a mount whose own name carries one", "mount without a skill", newMountNamedWithAControlByte)
 }

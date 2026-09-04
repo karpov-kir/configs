@@ -72,7 +72,7 @@ func (r *run) cmdPromote() {
 	// Refuse a symlinked .gitignore before anything is written: afterwards the append has already
 	// landed in whatever the link points at, and no refusal below undoes that write.
 	if shell.IsSymlink(gitignore) {
-		r.refuse("error: "+gitignore+" is a symlink -> "+readLink(gitignore)+" — not promoted, and nothing was written.",
+		r.refuse("error: "+gitignore+" is a symlink -> "+shell.Oneline(readLink(gitignore))+" — not promoted, and nothing was written.",
 			"  git ignores nothing it cannot read, so entries added through the link would take effect nowhere",
 			"  while this reported success and staged the report. Replace it with a regular file, then re-run.")
 	}
@@ -155,7 +155,7 @@ func (r *run) refuseUnmoved(from, to string, lines ...string) {
 // side's charter would win and the other would vanish with nothing said.
 func (r *run) assertPromotionTargetIsClear(target string) {
 	if shell.IsSymlink(target) {
-		r.refuse("error: "+target+" is a symlink -> "+readLink(target)+" — not promoted, and nothing was written.",
+		r.refuse("error: "+target+" is a symlink -> "+shell.Oneline(readLink(target))+" — not promoted, and nothing was written.",
 			"  .idsd/ in the tree is always a real directory. Remove the link, then re-run.")
 	}
 	if !shell.PathExists(target) {

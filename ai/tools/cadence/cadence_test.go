@@ -359,8 +359,7 @@ func TestATrailingLineStillResolves(t *testing.T) {
 
 	// A record written where lines end CRLF — a Windows editor, a checkout with autocrlf. The date is
 	// the line's content and the \r is its ending, so a \r carried into the stamp makes an eleven-byte
-	// string the shape check refuses. The offer is then undetermined forever: exits 1 and 2 both end in
-	// "no offer made", so the pass simply never comes due and nothing says why.
+	// string the shape check refuses, and the offer is then undetermined forever.
 	t.Run("a CRLF line ending is not part of the stamp", func(t *testing.T) {
 		f := newRepo(t)
 		if err := os.WriteFile(f.state, []byte(daysAgo(30)+"\r\n"), 0o644); err != nil {
@@ -412,11 +411,10 @@ func TestARecordThatIsNoDate(t *testing.T) {
 		// the ranges the calendar checks. The shape check is the only thing between it and a day
 		// number computed from a string that is not the date it looks like.
 		{"a date with unpadded fields", "2025-1-15", "the shape check's fixed widths"},
-		// Longer than a date, and the only case reaching the length guard from ABOVE. Every other stamp
-		// here is ten bytes or fewer, which leaves that guard looking redundant beside the per-byte loop
-		// under it. It is not: the loop indexes the LAYOUT at the input's own offsets, so without the
-		// length test an eleven-byte record walks off the end of `2006-01-02` and the tool panics where it
-		// was meant to refuse.
+		// Longer than a date, and the only case reaching the length guard from ABOVE — every other stamp
+		// here is ten bytes or fewer. The guard is not redundant beside the per-byte loop under it: that
+		// loop indexes the LAYOUT at the input's own offsets, so without the length test an eleven-byte
+		// record walks off the end of `2006-01-02` and the tool panics where it was meant to refuse.
 		{"a stamp longer than a date", "2026-01-021", "the shape check's length, before any byte is indexed"},
 		// A separator where a date has one and this record does not. Nothing else here puts a wrong byte
 		// at position 4.

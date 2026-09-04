@@ -327,9 +327,19 @@ func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 
 // The load-bearing one. This tool echoes 60 bytes of every duplicate, so a file whose NAME marks it as
 // secret-bearing is never read — and the skip is announced and counted, never silent.
+// The uppercase spellings are cases in their own right, not tidiness: a name is not a keyword, and on
+// a case-insensitive filesystem `.ENV` IS `.env`. The modern key types are here for the same reason —
+// `id_ed25519` is what ssh-keygen writes by default, so a list stopping at `id_rsa` covers the key
+// nobody generates any more and misses the one everybody has.
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	secret := repeated('S', 130)
-	for _, name := range []string{".env", ".env.local", "config/.env.production", "id_rsa", "server.pem", "app.key", "my-credentials.txt", "secrets.yaml"} {
+	for _, name := range []string{
+		".env", ".env.local", "config/.env.production", "id_rsa", "server.pem", "app.key",
+		"my-credentials.txt", "secrets.yaml",
+		".ENV", "Server.PEM", "ID_RSA",
+		"id_ecdsa", "id_ed25519", "id_ed25519.bak",
+		".netrc", ".npmrc", "AuthKey_A1B2C3D4E5.p8",
+	} {
 		t.Run(name+" is skipped unread", func(t *testing.T) {
 			r := newRepo(t)
 			r.write(name, secret+"\n"+secret+"\n")
@@ -393,8 +403,8 @@ func TestPastTheDisplayCap(t *testing.T) {
 	}
 }
 
-// Two runs over one tree print one report. The shell form iterated an awk hash, whose order is
-// unspecified, so a diff of two reports was unreadable and the cap took a different 200 each time.
+// Two runs over one tree print one report, or a diff of two is unreadable and the display cap takes a
+// different 200 each time.
 func TestTheReportIsOrdered(t *testing.T) {
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")

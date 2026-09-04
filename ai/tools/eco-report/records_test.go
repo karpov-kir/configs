@@ -236,6 +236,18 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	linked.assertReports("always a regular file", "by the guard that names the rule, not by the open failing")
 	linked.record("and nothing was written through it",
 		!strings.Contains(linked.read(outside), "steered"), linked.read(outside))
+
+	// The refusal quotes where the link points, and a target is arbitrary text that never has to
+	// resolve — so it is external text on the same footing as an entry, and the case above sends it to
+	// the terminal. Anyone who can write the scratch directory can plant one; the agent reading the
+	// refusal is who the erased lines are for.
+	escaped := newRepo(t)
+	escaped.mkdirAll(escaped.scratch())
+	escaped.symlink("/nowhere\x1b[1A\x1b[2K/decisions.md", recordFile(escaped, "decisions"))
+	escaped.runReport("record", "append", "decisions", "steered")
+	escaped.assertRefused("a symlinked record whose target holds an escape is still refused")
+	escaped.record("and the target is collapsed rather than driving the terminal",
+		!strings.Contains(escaped.out, "\x1b"), strconv.Quote(escaped.evidence()))
 }
 
 // An entry is external text that lands in a file every agent in every worktree reads, and that the tool

@@ -16,15 +16,12 @@ import (
 //
 // Without it two checkouts of one commit answer differently, because the walk reads whatever sits on
 // disk. A gitignored file — a scratch record, a local note — is in one checkout and not another, and
-// the scans have no way to tell it from a committed one: a `findings.md` nobody ever staged turned
-// the commit gate red in the install while every worktree of the same commit was green. A verdict
-// that depends on which directory you ran from is not one a gate may hold.
+// the scans have no way to tell it from a committed one.
 //
 // Ignored, never merely untracked. A blanket untracked-skip would hide a newly authored skill
 // directory from the very scan that proves a new skill is mounted (ecosystem.md → **Conventions a new
-// file joins**), and a green meaning nothing is worse than the red it replaces. `git check-ignore`
-// consults the index, so a tracked file matching an ignore pattern stays under review and a new,
-// unstaged skill is never filtered out.
+// file joins**). `git check-ignore` consults the index, so a tracked file matching an ignore pattern
+// stays under review and a new, unstaged skill is never filtered out.
 const gateFlag = "--gate"
 
 // How many skipped paths the report names before it stops at the count. Bounded for the reason
@@ -44,9 +41,8 @@ type gateFilter struct {
 }
 
 // Whether the gate is on and holds this path — the one predicate every reach asks, so there is one
-// place to change what the flag means. Two kinds of reach ask it: the three that decide a *set* of
-// files — walkTree, existsUnderRoot and skillDirNames — and the ones below that answer for a path a
-// scan named for itself.
+// place to change what the flag means. Two kinds of reach ask it: those that decide a *set* of files,
+// and the ones below that answer for a path a scan named for itself.
 func (c *checker) isSkippedByGate(path string) bool {
 	return c.gate != nil && c.gate.holds(path)
 }
@@ -54,9 +50,9 @@ func (c *checker) isSkippedByGate(path string) bool {
 // Whether the filter dropped this path, compared in cleaned form and never as the two strings were
 // spelled. The walk and the ignored set are both built by concatenation, so those two always agree —
 // but a citation is a path *prose* wrote, and `./notes.md` names the same file as `notes.md` while
-// comparing unequal to it. Raw, a gitignored file went on answering every citation spelled any way but
-// the walk's, under a flag whose whole claim is that a fresh clone says the same thing: the run
-// printed the file on its own skipped list and then resolved a reference through it.
+// comparing unequal to it. Raw, a gitignored file went on answering every citation spelled any way
+// but the walk's: the run printed the file on its own skipped list and then resolved a reference
+// through it.
 //
 // Cleaning only the comparison, never what a finding prints: shell.Join concatenates so that a `./ai`
 // root stays `./ai` in every echoed path, and that is still what the reader gets.
@@ -68,14 +64,11 @@ func (g *gateFilter) holds(path string) bool {
 // a skill's own SKILL.md, the root CLAUDE.md. Each is the shell predicate that site already used with
 // the gate term in front, so under the flag a gitignored path answers no and the scan sees the tree a
 // commit carries rather than the directory it is running in. Without them a gitignored SKILL.md left
-// `skill dir without SKILL.md` unreported under a flag whose whole claim is that a fresh clone would
-// say the same thing.
+// `skill dir without SKILL.md` unreported.
 //
 // Two functions over six reaches, because everywhere else the walk filter already answers: a scan
-// that stats a path and then reads it through filesNamed cannot see a file the walk dropped, and a
-// guard the walk makes unobservable is one go-mutate reports as killing nothing. Every reach that
-// names a path is here — a SKILL.md missed by one of them let a gated run call a skill known that a
-// fresh clone calls unknown, which is the flag's own claim failing.
+// that stats a path and then reads it through filesNamed cannot see a file the walk dropped. Every
+// reach that names a path is here.
 func (c *checker) holdsRegularFile(path string) bool {
 	return !c.isSkippedByGate(path) && shell.IsRegularFile(path)
 }

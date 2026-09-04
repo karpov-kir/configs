@@ -29,10 +29,8 @@ type tree struct {
 }
 
 // The one place the reviewed tree becomes a set of files, so the one place --gate narrows it: every
-// scan reaches its files through filesNamed below, every citation resolves through matchPath, and the
-// skill-directory scan reads these entries straight. Filtering here is all three at once, and a scan
-// added later inherits it — gate.go holds why a checkout's local files may not decide a commit's
-// verdict.
+// scan and every citation reaches its files through here, and one added later inherits the filter.
+// gate.go holds why a checkout's local files may not decide a commit's verdict.
 func (c *checker) walkTree(start string) *tree {
 	if cached, ok := c.trees[start]; ok {
 		return cached
@@ -90,10 +88,9 @@ func (t *tree) add(entry fsEntry) {
 		return
 	}
 	// The whole path is a key too, not only the tails after each `/`. A ref can name the tree from its
-	// very root — `ai/tools/resolve.sh`, cited from a file inside `ai/` — and when the root is spelled
-	// without a leading segment (`check.sh ai` rather than `check.sh ./ai`) that ref IS the walked path,
-	// with nothing before it to match. Indexed by tails alone, every such ref reported as dangling while
-	// the same tree answered clean through `./ai`: a verdict that depended on how the root was typed.
+	// root — `ai/tools/resolve.sh`, cited from a file inside `ai/` — and under `check.sh ai` rather than
+	// `check.sh ./ai` that ref IS the walked path, with nothing before it for a tail to match. Indexed
+	// by tails alone, such a ref came back dangling through `ai` and clean through `./ai`.
 	t.suffixes[entry.path] = append(t.suffixes[entry.path], entry.path)
 	for i := 0; i < len(entry.path); i++ {
 		if entry.path[i] == '/' {
@@ -104,8 +101,7 @@ func (t *tree) add(entry fsEntry) {
 }
 
 // The regular files whose path a `*/<ref>` pattern matches, or which the ref names whole, in walk
-// order. Both, for the reason the index above states: with a root spelled without a leading segment,
-// a ref naming the tree from its root has nothing before it for `*/` to consume.
+// order. Both, for the reason the index in add above states.
 func (t *tree) matchPath(ref string) []string {
 	if !strings.ContainsAny(ref, `*?[\`) {
 		return t.suffixes[ref]
@@ -229,9 +225,14 @@ func (c *checker) refExists(dir, ref string) bool {
 // shell's `"$skills"/*/` glob produced them.
 //
 // Read straight off the directory rather than out of the walk, so the gate term is asked here too.
-// The mount scan lists skills from this, and it runs only in the install: a gitignored skill
-// directory would be `skill not mounted` there and nothing at all in a worktree of the same commit,
-// which is the exact split the flag exists to close.
+// The mount scan lists skills from this and runs only in the install: without it a gitignored skill
+// directory is `skill not mounted` there and nothing at all in a worktree of the same commit.
+// Where a skill's own SKILL.md sits, given the directory name. Three scans ask whether one is there,
+// and each built the nested Join for itself.
+func (c *checker) skillFilePath(name string) string {
+	return shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
+}
+
 func (c *checker) skillDirNames() []string {
 	entries, err := os.ReadDir(c.root.Skills())
 	if err != nil {

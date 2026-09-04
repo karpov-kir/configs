@@ -30,6 +30,11 @@ func (c *checker) reportBudget(out io.Writer) {
 		budgetLines, budgetWords, len(counted), uncountedNote(uncounted))
 }
 
+// How a doc inject.md lists under Read always is named when it is refused. One spelling for the three
+// sites that refuse one, for the reason reportAbsentBudgetDoc gives: a reader comparing two runs may
+// not meet two wordings of one fact.
+const readAlwaysTargetPrefix = "inject.md Read-always target "
+
 // Every budget file is contained under the root before it is read — CLAUDE.md and inject.md
 // included, not just the docs one of them lists. All three are attacker-authored when this runs as a
 // PR review's ecosystem stage (quality-pipeline.md → **The stages**), and the import scan prints
@@ -64,16 +69,16 @@ func (c *checker) budgetFiles() []string {
 		// back refused when the reviewing machine held that file and "does not exist" when it did
 		// not.
 		case !c.underRoot(listed):
-			c.refuseBudgetFile("inject.md Read-always target " + doc)
-		// Under --gate a gitignored doc is not there as far as a commit is concerned, and this says what
-		// a fresh clone's run says. Ahead of absentOrOutOfReach, whose Lstat would find the file sitting
-		// right where the router points and report that nothing could answer for it.
+			c.refuseBudgetFile(readAlwaysTargetPrefix + doc)
+		// Under --gate a gitignored doc is not there as far as a commit is concerned. Ahead of
+		// absentOrOutOfReach, whose Lstat would find the file sitting right where the router points and
+		// report that nothing could answer for it.
 		case c.isSkippedByGate(listed):
 			c.reportAbsentBudgetDoc(doc)
 		case !shell.PathExists(listed) && !shell.IsSymlink(listed):
 			c.absentOrOutOfReach(doc, listed)
 		case !c.root.Contains(listed):
-			c.refuseBudgetFile("inject.md Read-always target " + doc)
+			c.refuseBudgetFile(readAlwaysTargetPrefix + doc)
 		default:
 			files = append(files, listed)
 		}
@@ -93,7 +98,7 @@ func (c *checker) absentOrOutOfReach(doc, listed string) {
 		c.reportAbsentBudgetDoc(doc)
 		return
 	}
-	c.refuseBudgetFile("inject.md Read-always target " + doc + ": " + reason)
+	c.refuseBudgetFile(readAlwaysTargetPrefix + doc + ": " + reason)
 }
 
 // One wording for a listed doc this tree does not hold, because two callers reach it and a reader

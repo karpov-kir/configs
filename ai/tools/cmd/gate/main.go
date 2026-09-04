@@ -23,15 +23,15 @@ func main() {
 	}
 	if env.Root == "" {
 		// argv[0] as the stub was invoked by, which `exec -a` preserved. The repository is the parent of
-		// the directory holding it — `ai/gate.sh` sits one below the root — which is the same place the
-		// shell form derived from `$0`. Never the process's own cwd: the gate is run from anywhere in
-		// the tree, and a root taken from there would scope every unit to a subdirectory.
-		env.Root = filepath.Dir(filepath.Dir(mustAbs(os.Args[0])))
+		// the directory holding it — `ai/gate.sh` sits one below the root. Never the process's own cwd:
+		// the gate runs from anywhere in the tree, and a root taken from there would scope every unit
+		// to a subdirectory.
+		env.Root = filepath.Dir(filepath.Dir(absoluteOrAsGiven(os.Args[0])))
 	}
 	os.Exit(gate.Run(os.Args[1:], env, os.Stdout, os.Stderr))
 }
 
-func mustAbs(path string) string {
+func absoluteOrAsGiven(path string) string {
 	if abs, err := filepath.Abs(path); err == nil {
 		return abs
 	}

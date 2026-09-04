@@ -46,7 +46,7 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 	routedSkills := 0
 	skillTotal := 0
 	for _, name := range c.skillDirNames() {
-		file := shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
+		file := c.skillFilePath(name)
 		if !c.holdsRegularFile(file) {
 			continue
 		}

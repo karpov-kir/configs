@@ -42,13 +42,6 @@ const (
 	maxShown     = 200
 	maxPathBytes = 200
 )
-
-const binaryProbeBytes = 8192
-
-// The longest diff line the scan will read. A var rather than a const so the suite can drive the
-// refusal it causes without a 16MB fixture; nothing in production assigns it.
-var maxDiffLineBytes = 16 * 1024 * 1024
-
 const (
 	exitClean     = 0
 	exitFound     = 1
@@ -92,17 +85,14 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return cfg, nil
 }
 
-// The denominator every run ends with. Reached and SkippedUnread are the shared scan's; countable and
-// outliers are this tool's own.
-
 type counts struct {
 	comments int
 	code     int
 }
 
-// scan is one run's accumulating state. Held together because all four arms read the config and write
-// both of the others, and a count that reached `files` without reaching `tally` is the one
-// inconsistency they must not be able to express.
+// scan is one run's accumulating state. Held together because every arm reads the config and writes
+// the counts, and a file that reached `files` without reaching `countable` is the one inconsistency
+// they must not be able to express.
 type scan struct {
 	cfg    Config
 	files  map[string]*counts
@@ -116,9 +106,8 @@ type scan struct {
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	// Reaching the added lines is `kk-flavor/tools/diffscan`'s, shared with dup-literals: which
 	// arguments are refused, the git flags that pin the diff's shape, what counts as binary, and the
-	// `diff --git` anchor that stops a file's own content forging a header. Two copies of that had
-	// already drifted on `core.quotePath` and on the source prefixes.
-	if err := diffscan.RefuseNonRevisions(self, args, cwd); err != nil {
+	// `diff --git` anchor that stops a file's own content forging a header.
+	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", self, err)
 		return exitDidNotRun
 	}

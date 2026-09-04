@@ -32,10 +32,7 @@ type mutant struct {
 // that, and it proves nothing about the guard — but it prints beside `killed` in the same column, and
 // six mutants sat there reading as a finished list. Appending keeps every name in the condition read.
 var mutants = []mutant{
-	{"direction: cites bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "counters.cites <= findingCap", "counters.cites <= 100000"},
-	{"direction: names bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "counters.names <= findingCap", "counters.names <= 100000"},
-	{"direction: basename bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "counters.basenames <= findingCap", "counters.basenames <= 100000"},
-	{"direction: unchecked notice unbounded", "direction.go", "./eco-check/", "TestDirectionScan", "counters.ambiguous <= findingCap", "counters.ambiguous <= 100000"},
+	{"direction: the shared finding bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "*count <= findingCap", "*count <= 100000"},
 	{"report: per-class cap removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "shown[r] <= findingCap", "shown[r] <= 100000"},
 	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
 	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
@@ -593,7 +590,7 @@ var mutants = []mutant{
 	{"executable: -x asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "syscall.Access(path, 0x1)", "syscall.Access(path, 0x0)"},
 	// `join`, not `records`: that prefix now names the two shared record files. A label is a mutant's
 	// whole identity in the verdict column, so a prefix naming two subjects sends the reader of a
-	// survivor to the wrong file. This one is joinRecords', here in shell.go.
+	// survivor to the wrong file.
 	{"join: the trailing newline dropped from every rewrite", "../eco-report/shell.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `out.WriteString("\n")`, `out.WriteString("")`},
 	// The case puts an *empty* directory at init's staged path: os.Remove takes one happily where
 	// `rm -f` refuses, and a directory with anything in it fails the removal either way.
@@ -652,7 +649,7 @@ var mutants = []mutant{
 	// A citation is a path prose wrote, so it arrives spelled however its author spelled it. Compared
 	// as written rather than cleaned, `./notes.md` misses an ignored set keyed on `notes.md` while
 	// naming the same file — the run lists that file as skipped and then resolves a reference through
-	// it, which is a false green under the one flag that exists to make false greens impossible.
+	// it.
 	{"gate: the skip compared as spelled instead of cleaned", "gate.go", "./eco-check/", "TestACitationSpelledNonCanonicallyStillHitsTheGate", "return g.ignored[filepath.Clean(path)]", "return g.ignored[path]"},
 	// The filtered tree is copied from the walk rather than declared fresh, so a field the walk gains
 	// is carried into it. Unobservable while `tree` holds only the two fields the copy resets by hand,
@@ -664,9 +661,9 @@ var mutants = []mutant{
 	// each needs its own shape in the case that kills it: the alternation shows only through a
 	// citation, the whole-token re-test only through a token that is not itself a lane name, and the
 	// unknown-skill scan only through the bare name.
-	{"gate: a gitignored SKILL.md still builds a lane name", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`, `		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`},
-	{"gate: a gitignored SKILL.md still passes the whole-token re-test", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {`, `		if !shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {`},
-	{"gate: a gitignored SKILL.md still counts as a known skill", "refs.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if name == "kk-flavor" || c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`, `		if name == "kk-flavor" || shell.IsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {`},
+	{"gate: a gitignored SKILL.md still builds a lane name", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(c.skillFilePath(name)) {`, `		if !shell.IsRegularFile(c.skillFilePath(name)) {`},
+	{"gate: a gitignored SKILL.md still passes the whole-token re-test", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(c.skillFilePath(named)) {`, `		if !shell.IsRegularFile(c.skillFilePath(named)) {`},
+	{"gate: a gitignored SKILL.md still counts as a known skill", "refs.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if name == "kk-flavor" || c.holdsRegularFile(c.skillFilePath(name)) {`, `		if name == "kk-flavor" || shell.IsRegularFile(c.skillFilePath(name)) {`},
 	// A second path overwriting the first rather than being refused: the run then scans a tree the
 	// caller named second while believing it asked about the first, and a mistyped flag reaches that
 	// arm too — an unfiltered run under a caller that asked for a gated one.
@@ -825,9 +822,8 @@ var mutants = []mutant{
 	// other quoted token become exemptions handed out at random.
 	{"ruleecho: any backticked span read as a citation", "../rule-echo/match.go", "./rule-echo/", "TestCitedTargetsReadsBothFormsAndNothingElse", `if strings.HasSuffix(target, ".md") {`, "if true {"},
 
-	// cadence, comment-density and score are ports of three shell scripts, and nothing had shown their
-	// suites' cases able to fail. Without these the port traded a proof for a promise, in a repo whose
-	// whole gate story is that something has.
+	// cadence, comment-density and score are ports of three shell scripts. Nothing else shows their
+	// suites' cases can fail.
 	{"cadence: the interval moves out by two days", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
 		`const intervalDays = 7`, `const intervalDays = 9`},
 	{"cadence: the interval boundary becomes strictly greater", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
@@ -909,9 +905,9 @@ var mutants = []mutant{
 		`"--src-prefix=a/", "--dst-prefix=b/",`},
 	{"density: a non-ASCII path arrives C-quoted", "../diffscan/diffscan.go", "./comment-density/", "TestANonASCIIPathIsStillAssigned",
 		`"-c", "core.quotePath=false",`, `"-c", "core.quotePath=true",`},
-	// The unquoting the flag above stopped being the only defence for. git C-quotes a control character
-	// whatever core.quotePath says, so this is the half that is observable — and dropping it hides the
-	// file from the scan while `diff --git` has already counted it as reached.
+	// The unquoting, which the flag above is no longer the only defence for. git C-quotes a control
+	// character whatever core.quotePath says, so this is the half that is observable — and dropping it
+	// hides the file from the scan while `diff --git` has already counted it as reached.
 	{"density: a C-quoted header path is never unquoted", "../diffscan/diffscan.go", "./comment-density/", "TestATrackedPathWithAControlCharacterIsStillAssigned",
 		"if strings.HasPrefix(field, `\"`) {", "if strings.HasPrefix(field, `\"`) && false {"},
 	{"density: the untracked half runs even when revisions were named", "../comment-density/density.go", "./comment-density/", "TestATwoRevisionRangeIsScanned",
@@ -930,9 +926,8 @@ var mutants = []mutant{
 	{"density: DENSITY_MAX_FILE_BYTES parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
 		`cfg.MaxFileBytes = value`, `cfg.MaxFileBytes = defaultMaxFileBytes + value*0`},
 
-	// dup-literals and the half it shares with comment-density. `ai/shell-mutate.sh` carried 43 mutants
-	// over the shell form and is gone with it; these are what replaced them, and they sit on the two
-	// guards a reader of the report cannot check for themselves.
+	// dup-literals and the half it shares with comment-density. These sit on the two guards a reader of
+	// the report cannot check for themselves.
 	{"dup: the length floor stops applying to a whole line", "../dup-literals/dup.go", "./dup-literals/", "TestTheLengthFloor",
 		`if len([]rune(trimmed)) >= cfg.MinLength {`, "if true {"},
 	{"dup: a literal appearing once counts as repeated", "../dup-literals/dup.go", "./dup-literals/", "TestASingleOccurrenceIsNotADuplicate",

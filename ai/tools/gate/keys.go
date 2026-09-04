@@ -12,9 +12,8 @@ import (
 // units overlap heavily, and hashing ai/tools once instead of forty times is the difference between a
 // key computation that is free and one that is the slowest thing here.
 //
-// In process. The shell version reached this through `xargs shasum` over every declared input and then
-// a `shasum` per unit on top — on a machine that charges for every exec, keying the gate cost more
-// than several of the units it was deciding about.
+// In process, because on a machine that charges for every exec, keying the gate would otherwise cost
+// more than several of the units it is deciding about.
 func (g *gate) buildManifest() int {
 	declared := map[string]bool{}
 	var patterns []string
@@ -49,8 +48,9 @@ func (g *gate) buildManifest() int {
 	}
 	sort.Strings(paths)
 
-	// Existing files only, since ls-files still lists one that was deleted but not yet staged. The path
-	// list itself goes into every key below, so a deletion still moves the key it should move.
+	// Existing files only, since ls-files still lists one that was deleted but not yet staged. Skipping
+	// it is what MOVES that unit's key rather than what hides the deletion: a key is built from the
+	// manifest lines alone, so one line fewer is a different key and the unit runs.
 	for _, path := range paths {
 		full := filepath.Join(g.root, path)
 		info, err := os.Stat(full)

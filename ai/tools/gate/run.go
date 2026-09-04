@@ -201,16 +201,16 @@ func exitCode(err error) int {
 }
 
 func (g *gate) runGofmt() (string, string, int) {
-	cmd := exec.Command("gofmt", "-l", ".")
-	cmd.Dir = filepath.Join(g.root, "ai", "tools")
-	out, err := cmd.Output()
+	// Both streams, because a parse error goes to stderr and exits 2 with an empty stdout — captured
+	// one-sided, that unit prints FAILED and not one word about which file will not parse.
+	out, err := runIn(filepath.Join(g.root, "ai", "tools"), "gofmt", "-l", ".")
 	if err != nil {
-		return string(out), "", 1
+		return out, "", 1
 	}
-	if strings.TrimSpace(string(out)) == "" {
+	if strings.TrimSpace(out) == "" {
 		return "", "", 0
 	}
-	return "gofmt would rewrite:\n" + string(out), "", 1
+	return "gofmt would rewrite:\n" + out, "", 1
 }
 
 // Go's own cache is content-keyed over the module and is exactly right there: a warm `go test ./...`

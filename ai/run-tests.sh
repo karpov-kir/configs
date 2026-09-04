@@ -86,35 +86,33 @@ if [ -n "$named_suite" ]; then
 elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   discovery="git"
   # `-z`, and a NUL-delimited read: without it `ls-files` C-quotes any path that is not plain ASCII —
-  # `core.quotePath` is on by default — and the quoted text names no file. The `[ ! -f ]` below then
-  # fires, and the run announces a suite that is sitting right there as absent from the working tree,
-  # exits 0, and drops it from the gate. Renaming a suite is enough to stop it being run.
+  # `core.quotePath` is on by default — and the quoted text names no file. The absent arm below then
+  # fires: a suite sitting right there is announced absent, the run exits 0, and the gate loses it.
   while IFS= read -r -d '' suite; do
     [ -n "$suite" ] || continue
+    if [ -f "$root/$suite" ]; then
+      suites+=("$root/$suite")
+      continue
+    fi
+    # `-f` follows symlinks, so it is false for two things and only one is harmless. Gone is an
+    # ordinary unstaged deletion. Present but not a runnable regular file — a dangling symlink, a
+    # directory, a device — is a broken suite: calling that "not in the working tree" states a
+    # thing nobody checked, and green over it means a suite plainly there never ran.
+    #
+    # `-e` alone cannot tell the two apart, because it follows the link too; `-L` sees the link
+    # itself.
+    if [ -e "$root/$suite" ] || [ -L "$root/$suite" ]; then
+      printf 'BROKEN %-47s present but not a runnable file — NOT run\n' "$suite"
+      broken=$((broken + 1))
+      continue
+    fi
     # `ls-files` answers what git knows about, and an unstaged deletion is still tracked, but the
     # working tree is what runs. Without this the runner reaches `bash <gone>`, gets 127, and the loop
     # below reads that as a failing suite, so an ordinary unstaged deletion reddens the whole sweep.
     # Announced rather than skipped in silence: a run that read fewer files than git listed must not
     # print the same summary as one that read them all.
-    if [ ! -f "$root/$suite" ]; then
-      # `-f` follows symlinks and answers false for a dangling one, so two different facts arrive
-      # here and only one of them is harmless. Gone is the unstaged deletion above, and the run is
-      # still sound. Present but not a runnable regular file — a dangling symlink, a directory, a
-      # device — is a broken suite: reporting it as "not in the working tree" states a thing nobody
-      # checked, and passing green over it means a suite that is plainly there was never run.
-      #
-      # `-e` alone cannot tell them apart, because it follows the link too; `-L` is what sees the
-      # link itself.
-      if [ -e "$root/$suite" ] || [ -L "$root/$suite" ]; then
-        printf 'BROKEN %-47s present but not a runnable file — NOT run\n' "$suite"
-        broken=$((broken + 1))
-        continue
-      fi
-      printf 'ABSENT %-47s tracked by git, not in the working tree — NOT run\n' "$suite"
-      absent=$((absent + 1))
-      continue
-    fi
-    suites+=("$root/$suite")
+    printf 'ABSENT %-47s tracked by git, not in the working tree — NOT run\n' "$suite"
+    absent=$((absent + 1))
   done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- '*-test.sh' | sort -z -u)
 else
   discovery="find"

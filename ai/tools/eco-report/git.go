@@ -57,17 +57,12 @@ type gitAnswer struct {
 
 // The repository questions that cannot change while one invocation runs, asked once each.
 //
-// They were not being asked once. `ls-files .idsd`, `rev-parse --git-common-dir`, `rev-parse
-// --show-toplevel` and `rev-parse --git-path` were 4448 of this package's 4640 child processes, each
-// re-asked five and six times a run. On a machine whose security agent inspects every exec, that count
-// IS the runtime: the suite spends its time in fork, not in git.
-//
 // Keyed on the arguments and not on the stderr writer, which differs between callers. A cached answer
 // therefore re-emits nothing on stderr — harmless here because every caller that passes a real writer
 // refuses on a non-zero status, so a failed call ends the run before a second could read it.
 //
-// ONE of these can move under us, and it is the reason this is a memo rather than a package cache:
-// `git add` changes the index, so `stagedIndex` clears the entry instead of leaving a stale
+// ONE of them can move under us after all, and that is why this is a memo rather than a package
+// cache: `git add` changes the index, so `stagedIndex` clears the entry instead of leaving a stale
 // "throwaway" behind a tree that is now committed. `discard` reads that answer before deleting, so a
 // stale one is not a slow report — it is the wrong one, over a tracked .idsd/.
 func (r *run) memoGit(stderr io.Writer, args ...string) (string, int) {

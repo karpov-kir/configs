@@ -10,9 +10,6 @@
 // such a file from the walk entirely — and it could then be rewritten between two runs with the
 // fingerprint unmoved. That is a stale ledger passing as a valid resume point, which is the failure
 // this whole recipe exists to prevent.
-//
-// Two cases from the shell suite are gone rather than ported: both drove `CDPATH` corrupting the
-// script's own `cd`-based root resolution, and there is no `cd` here to corrupt.
 package treefingerprint
 
 import (
@@ -24,8 +21,11 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// The developer's own git config must not reach these fixtures.
+	// The developer's own git config must not reach these fixtures. Both variables, because NOSYSTEM
+	// blocks /etc/gitconfig alone: a global core.excludesFile is what actually reaches in here, and
+	// one holding *.txt turns every case below red on correct code.
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	os.Exit(m.Run())
 }
 

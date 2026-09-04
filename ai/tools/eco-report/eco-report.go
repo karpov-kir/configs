@@ -88,14 +88,12 @@ type Invocation struct {
 	// a fixture instead of the developer's own.
 	ConfigHome string
 	Out, Err   io.Writer
-	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS — the tool
-	// used to spawn `tree-fingerprint.sh`, which cost a bash, an mktemp and a rev-parse on top of the
-	// three git calls that do the work, about 110 times across this package's suite.
+	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS rather than
+	// spawned as `tree-fingerprint.sh`.
 	//
 	// A seam rather than a hardcoded call because two properties still need observing from outside: how
 	// MANY times a run fingerprints (one, cached), and what a failed fingerprint does to the commands
-	// that read one. Both used to be watched by shimming the script; a func watches the same two
-	// without a process, and the compiler checks its shape.
+	// that read one.
 	Fingerprint func(root string) (string, error)
 }
 
@@ -219,9 +217,9 @@ func (r *run) absPath(path string) string {
 }
 
 func (r *run) resolveRoot() {
-	// Idempotent: several subcommands resolve the root on the way to their own work, and this was
-	// spawning `rev-parse --show-toplevel` 937 times across the suite for an answer that is fixed the
-	// moment the invocation starts.
+	// Idempotent: several subcommands resolve the root on the way to their own work, and the answer is
+	// fixed the moment the invocation starts. Without the guard each of them spawns another
+	// `rev-parse --show-toplevel`.
 	if r.root != "" {
 		return
 	}

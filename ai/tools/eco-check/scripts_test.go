@@ -250,14 +250,7 @@ func TestParseErrorsCarryNoControlByte(t *testing.T) {
 		return f
 	}
 
-	// Without this the case below passes on a run that reported no syntax error at all.
-	t.Run("still reports the syntax error (control for the case below)", func(t *testing.T) {
-		newEscapedScriptName(t).reports("syntax: ")
-	})
-
-	t.Run("and no control byte reaches the output", func(t *testing.T) {
-		newEscapedScriptName(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "the syntax error", "syntax: ", newEscapedScriptName)
 }
 
 // `bash -n` reads the script and nothing else, so two files holding the same bytes have the same

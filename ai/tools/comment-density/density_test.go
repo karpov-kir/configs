@@ -131,8 +131,14 @@ func (r *repo) commit(message string) {
 	}
 }
 
+// The thresholds a case gets unless it says otherwise. A function rather than a package var, so a
+// case that moves one knob gets its own copy and the other two stay where the tool's defaults put them.
+func baseConfig() Config {
+	return Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
+}
+
 func (r *repo) run(args ...string) {
-	r.runWith(Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}, args...)
+	r.runWith(baseConfig(), args...)
 }
 
 func (r *repo) runWith(cfg Config, args ...string) {
@@ -354,7 +360,9 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.write("over.go", "package fixture\n")
 		r.commit("base")
 		r.write("over.go", heavy(7, 13))
-		r.runWith(Config{MaxRatio: 0.9, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}, "HEAD")
+		cfg := baseConfig()
+		cfg.MaxRatio = 0.9
+		r.runWith(cfg, "HEAD")
 		r.expectCode(0)
 	})
 
@@ -363,7 +371,9 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.write("over.go", "package fixture\n")
 		r.commit("base")
 		r.write("over.go", heavy(7, 13))
-		r.runWith(Config{MaxRatio: defaultMaxRatio, MinLines: 100, MaxFileBytes: defaultMaxFileBytes}, "HEAD")
+		cfg := baseConfig()
+		cfg.MinLines = 100
+		r.runWith(cfg, "HEAD")
 		r.expectCode(0)
 	})
 
@@ -485,7 +495,9 @@ func TestUntrackedFiles(t *testing.T) {
 	t.Run("one over the byte cap is skipped, and the skip is counted rather than silent", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("big.go", heavy(400, 1))
-		r.runWith(Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: 32})
+		cfg := baseConfig()
+		cfg.MaxFileBytes = 32
+		r.runWith(cfg)
 		r.expectCode(0)
 		r.expectStdoutLacks("big.go")
 		r.expectStderrHas("1 untracked file(s) skipped unread")
@@ -572,9 +584,9 @@ func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 }
 
 // A diff line past the cap ends the read where it stands, and every file after it in the diff goes
-// unscanned. Reported as a clean 0 that is a scan which covered part of a change set and answered for
-// all of it, so the run refuses instead. The cap is dropped to the scanner's own starting buffer for
-// the case; at the real 16MB the fixture would have to be 16MB.
+// unscanned. Report that as a clean 0 and the run has covered part of a change set and answered for
+// all of it, so it refuses instead. The cap is dropped to the scanner's own starting buffer for the
+// case; at the real 16MB the fixture would have to be 16MB.
 func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r := newRepo(t)
 	r.write("a.go", "package fixture\n")

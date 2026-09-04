@@ -4,13 +4,11 @@
 // `comment-density` and `dup-literals` ask different questions of those lines — one classifies them,
 // the other compares them — but reach them the same way, and every subtlety in getting there is one a
 // second copy would drift on: which arguments are refused and why, the git flags that pin the diff's
-// shape, what counts as binary, and the anchor that stops a file's own content forging a header. Both
-// were shell, both stated this separately, and the two copies had already diverged on `core.quotePath`
-// and on the source prefixes.
+// shape, what counts as binary, and the anchor that stops a file's own content forging a header.
 //
 // The denominator is part of the contract, not decoration. An empty report at exit 0 means "nothing
 // matched" only when files actually reached the scan, and "nothing was read" when they did not — so
-// every caller gets Reached, Countable and SkippedUnread back and must print them.
+// every caller gets Reached, SkippedUnread and BinaryLines back and must print them.
 package diffscan
 
 import (
@@ -71,7 +69,7 @@ type AddedLine struct {
 // change set and exits 0 — indistinguishable from a clean tree. `--output=` alone drains the diff into
 // a file, so the scan sees nothing and exits 0 over a real hit. Both are refused rather than skipped,
 // and refused before the scan rather than during it, so the tool fails closed.
-func RefuseNonRevisions(self string, args []string, cwd string) error {
+func RefuseNonRevisions(args []string, cwd string) error {
 	for _, arg := range args {
 		if arg == "--" {
 			return nil
@@ -120,7 +118,14 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 	var out, errBuf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errBuf
 	if err := cmd.Run(); err != nil {
-		return nil, errors.New("git rejected these arguments — exit 2, the scan did NOT run. Not a clean result.")
+		// git's own account, not just this package's summary of it: a bad revision, an unborn HEAD and a
+		// directory that is not a repository all reach here, and one sentence for the three sends a
+		// reader looking in the wrong place.
+		refusal := "git rejected these arguments — exit 2, the scan did NOT run. Not a clean result."
+		if reason := strings.TrimSpace(errBuf.String()); reason != "" {
+			refusal += "\n  git said: " + reason
+		}
+		return nil, errors.New(refusal)
 	}
 	return out.Bytes(), nil
 }
@@ -240,9 +245,19 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 // tool, because a hash is not something a reader can go and look for. The name-shaped patterns match
 // the basename, so a nested `config/.env.local` is caught; `credential` and `secret` match anywhere,
 // so a directory named for its contents is caught too.
+//
+// Matched lowercased, because a name is not a keyword: `.ENV` and `Server.PEM` name exactly what
+// `.env` and `server.pem` name, and on a case-insensitive filesystem they are the same file. Matched
+// case-sensitively, either one was read and echoed.
+//
+// Every key type ssh-keygen writes. `id_ed25519` has been its default for years, and a list naming
+// `id_rsa` alone reads as deliberate while covering the key nobody generates any more.
 func secretNamed(name string) bool {
-	base := path.Base(name)
-	for _, glob := range []string{".env*", "*.pem", "*.key", "id_rsa*", "id_dsa*"} {
+	base := strings.ToLower(path.Base(name))
+	for _, glob := range []string{
+		".env*", "*.pem", "*.key", "*.p8", ".netrc", ".npmrc",
+		"id_rsa*", "id_dsa*", "id_ecdsa*", "id_ed25519*",
+	} {
 		if ok, _ := path.Match(glob, base); ok {
 			return true
 		}

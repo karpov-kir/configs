@@ -13,9 +13,8 @@ import (
 // a rule restated cannot catch a rule that is wrong. What is held is that it gives GIT'S OWN ANSWER,
 // asked side by side, for every shape this package's fixtures build.
 //
-// A rule-shaped test would have passed on the first draft of `layoutRoot`, which returned the logical
-// path where git returns the physical one — right by the documented rule and wrong on every fixture
-// under macOS's /var.
+// A rule-shaped test passes a `layoutRoot` that returns the logical path where git returns the
+// physical one — right by the documented rule and wrong on every fixture under macOS's /var.
 func TestTheLayoutResolverAgreesWithGit(t *testing.T) {
 	base := t.TempDir()
 	main := filepath.Join(base, "main")
@@ -111,7 +110,7 @@ func TestTheResolverDeclinesWhenTheEnvironmentOverridesTheLayout(t *testing.T) {
 	if _, ok := layoutRoot(base); !ok {
 		t.Fatalf("the resolver declined a plain repository, so the case below proves nothing")
 	}
-	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"} {
+	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_CEILING_DIRECTORIES"} {
 		t.Run(name+" set", func(t *testing.T) {
 			t.Setenv(name, base+"/elsewhere")
 			if _, ok := layoutRoot(base); ok {
@@ -167,7 +166,7 @@ func askGit(t *testing.T, dir string, args ...string) string {
 // git answers `--git-dir` and friends relative to the CALLER'S DIRECTORY in an ordinary repo, and
 // absolute in a linked worktree, so a comparison has to absolutize against that directory before it
 // means anything. Against the repo ROOT instead, a call from two levels down resolves two levels too
-// high — which is what the first draft of this file did, and what its own failure caught.
+// high.
 func absolute(root, path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)

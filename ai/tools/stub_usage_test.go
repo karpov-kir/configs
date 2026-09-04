@@ -1,8 +1,7 @@
 // A stub's header documents a usage line and the binary behind it prints one when it refuses a bad
-// invocation. Nothing compared the two until now: the binary's is asserted in eco-check's own suite
-// and the stub's is only grepped for its lowercase prefix by tool-stub-test.sh, so the flag list in
-// each could drift apart with both suites green. This change is the first to put a flag list in both
-// places, which is what makes the drift reachable.
+// invocation. Nothing else compares the two: the binary's is asserted in eco-check's own suite and the
+// stub's is only grepped for its lowercase prefix by tool-stub-test.sh, so the flag list in each could
+// drift apart with both suites green.
 //
 // The binary's line is taken by driving the refusal rather than by reading the source for a literal:
 // a test that greps the constant out of eco-check.go would agree with the code however wrong the

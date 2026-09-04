@@ -36,10 +36,9 @@ type stats struct {
 	outsideWords  int
 	outsideSkills int
 	// Whether the mounted-outside scan ran at all, which is not the same question as whether it
-	// counted anything. The report needs both, and asking IsInstalled a second time there would be a
-	// second copy of budget.go's gate — one that answers before the first has been consulted, so
-	// deleting the first changes no output at all. The mutation harness reported exactly that: the
-	// gate's own mutant killed nothing.
+	// counted anything — the report needs both. Don't ask IsInstalled again there instead: that is a
+	// second copy of budget.go's gate, answering before the first is consulted, so deleting the first
+	// changes no output at all.
 	outsideMeasured bool
 
 	// The refused file's name is attacker-chosen, so it is bounded in length and in count. The count

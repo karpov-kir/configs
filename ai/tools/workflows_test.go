@@ -38,16 +38,13 @@ func TestEveryWorkflowGateRunsTheGoSuiteWithItsFlagsPinned(t *testing.T) {
 	}
 }
 
-// The gate is the third runner of that suite and the one a human actually watches, so the flag it most
-// needs is the one nothing was checking. It cannot carry `goSuiteRun` verbatim — it selects packages
-// rather than running `./...`, and forces some with `-count=1` because the Go cache cannot see the
-// fixtures' external inputs — so what is held here is the part that must not vary: no invocation of
-// `go test` may go out without a timeout. Dropped, the eco-report package overruns Go's 10m default on
-// a loaded machine and prints a goroutine dump, which reads as a deadlock rather than a slow pass.
+// The local gate is the third runner of that suite and the one a human actually watches. It cannot
+// carry `goSuiteRun` verbatim — it selects packages rather than running `./...`, and forces some with
+// `-count=1` because the Go cache cannot see the fixtures' external inputs — so what is held here is
+// the part that must not vary: no invocation of `go test` may go out without a timeout, for the
+// reason goSuiteRun above gives.
 //
-// Read from the Go source, which is where those invocations live now. It used to read ai/gate.sh, and
-// when the gate became a stub over this package the case failed rather than passing over a file with
-// no `go test` left in it — the zero-invocation guard below is what caught that.
+// Read from the Go source, which is where those invocations live now.
 func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
 	const source = "gate/run.go"
 	body, err := os.ReadFile(source)

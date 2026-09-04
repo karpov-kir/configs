@@ -59,8 +59,8 @@ func (f *fixture) ignores(patterns ...string) {
 	f.write(f.base+"/.gitignore", strings.Join(patterns, "\n")+"\n")
 }
 
-// A markdown file under skills/ citing a section that does not exist — the shape of the scratch record
-// that turned the real commit gate red from one checkout while every worktree of the commit was green.
+// A markdown file under skills/ citing a section that does not exist: the shape a scratch record takes,
+// and a finding a commit cannot carry.
 func (f *fixture) newScratchRecord(path string) {
 	f.t.Helper()
 	f.write(f.root+"/skills/"+path, "# Scratch\n\nSee one.md → "+missingRegion+".\n")
@@ -312,8 +312,7 @@ func TestAGitignoredReadAlwaysTargetIsReportedAbsent(t *testing.T) {
 // A citation is a path *prose* wrote, so it arrives spelled however its author spelled it. Compared
 // as written, `./notes.md` misses an ignored set keyed on `notes.md` and names the same file: the run
 // printed that file on its own skipped list and then resolved a reference through it, reporting
-// `wiring: clean` where a fresh clone reports an unresolvable citation. A false green under the one
-// flag whose whole claim is that it cannot produce one.
+// `wiring: clean` where a fresh clone reports an unresolvable citation.
 func TestACitationSpelledNonCanonicallyStillHitsTheGate(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-demo")
@@ -402,8 +401,6 @@ func newSpellingTree(t *testing.T, base string) {
 // They did not: a ref naming the tree from its root resolved through `./r` and dangled through `r`,
 // because the suffix index held only the tails after each `/` and `*/` had nothing to consume; and a
 // trailing slash doubled the separator in every walked path, so `r/` matched nothing that `r` did.
-// Fifteen false findings in this repository came from the two, and `check.sh ai` exited 1 while
-// `check.sh ./ai` exited 0 over the same commit.
 func TestTheFindingsAreTheSameHoweverTheRootIsNamed(t *testing.T) {
 	base := t.TempDir()
 	newSpellingTree(t, base)
@@ -454,7 +451,7 @@ func runLines(t *testing.T, args ...string) []string {
 // The three reaches that ask about a skill's own SKILL.md by name rather than through the walk: the
 // lane alternation, the whole-token re-test that alternation's matches are checked against, and the
 // unknown-skill scan. A gitignored SKILL.md left in any of them makes the gated run call a skill known
-// that a fresh clone calls unknown — the flag's own claim failing, and quietly.
+// that a fresh clone calls unknown.
 //
 // Three shapes on one tree, because each reach is masked by a different sibling if a case names only
 // its own. The alternation is reached through a *citation*, which nothing re-tests; the whole-token

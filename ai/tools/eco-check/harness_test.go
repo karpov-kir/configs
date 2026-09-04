@@ -381,6 +381,18 @@ func (f *fixture) ranksAbove(above, below string) {
 	}
 }
 
+// A finding built from text this checker did not choose, asserted twice over one fixture: that the
+// finding appears at all, and that no ESC reaches the output through it. The control is not optional —
+// without it the second half passes on a run that raised no finding.
+func assertNoControlByteEscapes(t *testing.T, what, finding string, build func(*testing.T) *fixture) {
+	t.Run("reports "+what+" (control for the case below)", func(t *testing.T) {
+		build(t).reports(finding)
+	})
+	t.Run("and no control byte from "+what+" reaches the output", func(t *testing.T) {
+		build(t).doesNotReport("\x1b")
+	})
+}
+
 // The number of output lines that start with the given prefix — the `grep -c '^…'` one case counts a
 // forged finding line with.
 func (f *fixture) countLinesStartingWith(prefix string) (int, string) {

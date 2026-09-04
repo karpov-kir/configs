@@ -1,6 +1,6 @@
 // The pre-commit gate: every check this repo gates on, run only where the change could have moved it.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <path>]
+//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>]
 //	       (no flag)  the fast path — run what is stale, skip what is not, defer the mutation harnesses
 //	       --full     run everything from cold, ignoring and then refreshing every cached verdict
 //	       --mutants  settle the deferred mutation units, and nothing else
@@ -21,11 +21,9 @@
 //   - Skip something quietly. Every run prints one line per unit, and the deferred mutation units get
 //     their own block with the command that settles them.
 //
-// Go rather than shell, and this is where the shell version spent itself: the cost on this class of
-// machine is process spawns, not CPU, and keying 60-odd units meant a `shasum` and an `awk` each on
-// top of an `xargs shasum` over every declared input. All of that is a library call here. What is left
-// spawning is the work itself — git's file list, the two mutation harnesses' listings, and each unit's
-// own command.
+// Go rather than shell, because the cost on this class of machine is process spawns rather than CPU,
+// and keying 60-odd units on their declared inputs is a library call here. What is left spawning is
+// the work itself — git's file list, the two mutation harnesses' listings, and each unit's own command.
 //
 // This is a fast path beside the full sweep, never instead of it: .github/workflows/gates.yml still
 // runs every command from cold on every push, and `--full` is the same sweep on demand.
@@ -249,7 +247,10 @@ func (g *gate) resolveMachine() int {
 	}
 	common, err := g.capture("git", "rev-parse", "--git-common-dir")
 	if err != nil || common == "" {
-		return g.fail("this is not a git repository, so there is nothing to scope a change against — nothing ran")
+		// The root is named because it is DERIVED, not chosen: cmd/gate/main.go takes it from argv[0]
+		// when GATE_ROOT is unset, so a binary run from outside the stub's place judges a directory the
+		// caller never picked — and "not a git repository" reads as a claim about where they stand.
+		return g.fail("%s is not a git repository, so there is nothing to scope a change against — nothing ran", g.root)
 	}
 	if !filepath.IsAbs(common) {
 		common = filepath.Join(g.root, common)

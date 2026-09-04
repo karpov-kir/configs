@@ -3,9 +3,8 @@
 // **Queue**).
 //
 // Go rather than shell, and importable rather than only runnable, because the caller that runs this
-// most is another Go tool: `eco-report` spawned the script about 110 times across its suite, and each
-// spawn cost a bash, an mktemp and a rev-parse on top of the three git calls that do the actual work.
-// In process those three are all that is left.
+// most is another Go tool. A spawn cost a bash, an mktemp and a rev-parse on top of the three git
+// calls that do the actual work; in process those three are all that is left.
 //
 // The three git calls stay git. Building a tree object means hashing every file the ignore rules admit
 // and writing them into the object store in git's own format — reimplementing that would be a second
@@ -63,9 +62,8 @@ func Fingerprint(root string) (string, error) {
 	// This seed is not an optimisation. Git applies ignore rules only to paths the index does not
 	// already hold, so an index built from nothing treats every tracked file as untracked — and a
 	// tracked file matching an ignore rule is then dropped from the walk entirely. Such a file could be
-	// rewritten between two runs with the fingerprint unmoved, which is a stale ledger passing as a
-	// valid resume point: the skill reads the head as matching, resumes, and skips every file it
-	// believes already has a verdict.
+	// rewritten between two runs with the fingerprint unmoved: the skill reads the ledger head as
+	// matching, resumes, and skips every file it believes already has a verdict.
 	//
 	// Seeded from HEAD rather than from the caller's index, which this must never read or write. No
 	// commit means nothing is tracked and there is nothing to seed, so an unborn HEAD is not a failure;

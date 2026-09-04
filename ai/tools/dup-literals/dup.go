@@ -1,6 +1,11 @@
-// Repeated-long-literal detector — byte-identical long strings appearing 2+ times among the diff's
-// ADDED lines: copy-pasted tokens, keys, fixtures. Run by kk-refactor's setup, and by a pipeline
+// Repeated-long-literal detector — byte-identical long text appearing 2+ times among the diff's ADDED
+// lines: copy-pasted tokens, keys, fixtures. Run by kk-refactor's setup, and by a pipeline
 // orchestrator before the refactor stage.
+//
+// Two granularities, and the difference decides what it can see: a whole trimmed line that repeats,
+// and a repeated run of characters between delimiters, which is what finds a literal sitting in lines
+// that otherwise differ. A space is one of those delimiters (isDelimiter below holds the list), so a
+// long string with a space inside it is found only when its whole line repeats.
 //
 //	usage: dup-literals.sh [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
 //	       a path argument is refused with exit 2, never scanned
@@ -76,16 +81,26 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return cfg, nil
 }
 
+// Which of the two shapes a duplicate turned up in. An enum rather than a string field: the value is
+// compared at a call site, and a rename has to ripple through the type checker rather than through a
+// grep for a quoted word.
+type findingKind int
+
+const (
+	tokenFinding findingKind = iota
+	lineFinding
+)
+
 // A repeated literal, and what it is.
 type finding struct {
-	kind   string // "token" or "line"
+	kind   findingKind
 	text   string
 	count  int
 	length int
 }
 
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
-	if err := diffscan.RefuseNonRevisions(self, args, cwd); err != nil {
+	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", self, err)
 		return exitDidNotRun
 	}
@@ -157,18 +172,17 @@ func report(self string, tokens, lines map[string]int, result diffscan.Result, s
 	var found []finding
 	for text, n := range tokens {
 		if n >= 2 {
-			found = append(found, finding{kind: "token", text: text, count: n, length: len([]rune(text))})
+			found = append(found, finding{kind: tokenFinding, text: text, count: n, length: len([]rune(text))})
 		}
 	}
 	for text, n := range lines {
 		// A line whose whole text is also a token is one duplicate, not two.
 		if n >= 2 && tokens[text] == 0 {
-			found = append(found, finding{kind: "line", text: text, count: n, length: len([]rune(text))})
+			found = append(found, finding{kind: lineFinding, text: text, count: n, length: len([]rune(text))})
 		}
 	}
-	// Ordered, so two runs over one tree print one report. The shell form iterated an awk hash, whose
-	// order is unspecified: a diff of two reports was unreadable and the display cap took a different
-	// 200 each time.
+	// Ordered, so two runs over one tree print one report. Unordered, a diff of two is unreadable and
+	// the display cap takes a different 200 each time.
 	sort.Slice(found, func(i, j int) bool {
 		if found[i].count != found[j].count {
 			return found[i].count > found[j].count
@@ -181,7 +195,7 @@ func report(self string, tokens, lines map[string]int, result diffscan.Result, s
 			break
 		}
 		label := "token"
-		if f.kind == "line" {
+		if f.kind == lineFinding {
 			label = "line "
 		}
 		fmt.Fprintf(stdout, "%dx %s (%d chars): %s…\n", f.count, label, f.length,

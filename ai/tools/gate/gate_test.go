@@ -22,6 +22,16 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	// The developer's own git config must not reach these fixtures. The gate drives `git ls-files
+	// --exclude-standard`, so a global core.excludesFile hides a fixture's own declared inputs and
+	// every unit below takes the NO INPUTS refusal on correct code. NOSYSTEM alone does not stop it:
+	// it blocks /etc/gitconfig, and ~/.gitconfig is the one that reaches in here.
+	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	os.Exit(m.Run())
+}
+
 type fixture struct {
 	t      *testing.T
 	root   string
@@ -68,18 +78,35 @@ func (f *fixture) table(lines ...string) {
 	}
 }
 
+// Pinned so a key does not move with the test binary, which would make every "fresh on the second
+// run" case depend on nothing having recompiled in between.
 func (f *fixture) run(args ...string) {
+	f.t.Helper()
+	f.runAs("test-digest", args...)
+}
+
+// The same run under a stated digest of the deciding code, for the one case that is about the digest.
+func (f *fixture) runAs(digest string, args ...string) {
 	f.t.Helper()
 	f.stdout.Reset()
 	f.stderr.Reset()
 	f.code = Run(args, Env{
-		Root:      f.root,
-		Cache:     f.cache,
-		UnitsFile: f.units,
-		// Pinned so a key does not move with the test binary, which would make every "fresh on the
-		// second run" case depend on nothing having recompiled in between.
-		SelfDigest: "test-digest",
+		Root:       f.root,
+		Cache:      f.cache,
+		UnitsFile:  f.units,
+		SelfDigest: digest,
 	}, &f.stdout, &f.stderr)
+}
+
+// Commit whatever is in the fixture tree, so a later deletion reads as tracked-but-gone.
+func (f *fixture) commit() {
+	f.t.Helper()
+	for _, args := range [][]string{{"add", "-A"}, {"commit", "-qm", "seed"}} {
+		cmd := exec.Command("git", append([]string{"-C", f.root}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			f.t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
 }
 
 func (f *fixture) out() string { return f.stdout.String() + f.stderr.String() }
@@ -274,6 +301,28 @@ func TestATableWhoseEveryInputIsMissingExitsTwoAndRunsNothing(t *testing.T) {
 	}
 }
 
+// A path git still lists and the filesystem no longer has. It reaches further in than the case above:
+// the listing is not empty, so the refusal that fires is the manifest's own, and the run must stop
+// there. Both refusals exit 2, so the exit code alone cannot tell them apart — the wording is the
+// assertion. Past the manifest guard the unit resolves to no key material at all and is reported as
+// NO INPUTS, which names the table for a file the working tree lost.
+func TestAnInputTrackedButGoneFromTheWorkingTreeStopsAtTheManifest(t *testing.T) {
+	f := newFixture(t)
+	f.write("gone.txt", "one\n")
+	f.commit()
+	if err := os.Remove(filepath.Join(f.root, "gone.txt")); err != nil {
+		t.Fatalf("could not remove the fixture input: %v", err)
+	}
+	f.table("one\tcheck\tgone.txt\t" + marker("ran.log", 0))
+	f.run()
+	f.expectCode(2)
+	f.expectOut("not one input path resolved to a file")
+	f.expectNotOut("NO INPUTS")
+	if got := f.runCount("ran.log"); got != 0 {
+		t.Errorf("the gate ran a unit keyed on a file that is not there (%d times)", got)
+	}
+}
+
 // Two units under one cache record share a verdict, so running either reports the other fresh over
 // inputs nothing read. Asked about STEMS rather than ids, because the stem is the record's name.
 func TestTwoIdsNamingOneCacheRecordExitTwo(t *testing.T) {
@@ -352,6 +401,11 @@ func TestMutantsDoesNotRunTheChecks(t *testing.T) {
 	if got := f.runCount("ran.log"); got != 0 {
 		t.Errorf("--mutants ran a check %d times", got)
 	}
+	// Nothing ran and nothing was answered from cache, which is exit 2 and not a pass. Asserted here
+	// rather than in a case of its own, because this table — every unit set aside — is the shape that
+	// reaches that guard, and a run over it exiting 0 is the gate reporting a clean sweep it never took.
+	f.expectCode(2)
+	f.expectOut("nothing was measured and nothing was answered from cache")
 }
 
 // --full ignores a record and then refreshes it, so a unit that has started failing is caught rather
@@ -373,6 +427,58 @@ func TestFullRunsAgainOverUnchangedInputsAndDropsTheRecordWhenItFails(t *testing
 	f.run()
 	f.expectCode(1)
 	f.expectOut("FAILED")
+}
+
+// The case above cannot see the record being dropped, and neither could anything else here: it moves
+// the COMMAND to turn the unit red, and the command is part of the key, so the second run misses the
+// green record rather than finding it removed. Every guard is still green with the removal deleted.
+//
+// So the unit's verdict turns on a file that is not one of its declared inputs. The key then holds
+// still across all three runs, the green record from the first is the one the third would answer out
+// of, and the removal is the only thing standing between a FAILED run and a clean gate over it.
+func TestAFailingRunDropsTheGreenRecordItAlreadyHad(t *testing.T) {
+	f := newFixture(t)
+	f.write("watched.txt", "one\n")
+	f.table("one\tcheck\twatched.txt\tprintf 'x ' >> ran.log; test ! -f flip")
+
+	f.run()
+	f.expectCode(0)
+	f.expectOut("ran ok")
+
+	// --full, because the fast path would report the unit fresh and never reach the command at all.
+	f.write("flip", "")
+	f.run("--full")
+	f.expectCode(1)
+	f.expectOut("FAILED")
+
+	f.run()
+	f.expectCode(1)
+	f.expectOut("FAILED")
+	f.expectNotOut("inputs unchanged since it last passed")
+	if got := f.runCount("ran.log"); got != 3 {
+		t.Errorf("the command ran %d times over three runs, wanted 3 — the failing run left its green record behind", got)
+	}
+}
+
+// A verdict is a statement about these inputs under THIS deciding code, so the digest of that code is
+// in every key. Dropped from the key material, every verdict recorded by one gate binary answers for
+// the next one — including the edit that broke a guard.
+func TestAChangedGateBinaryIsNotAnsweredOutOfTheOldCache(t *testing.T) {
+	f := newFixture(t)
+	f.write("watched.txt", "one\n")
+	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 0))
+
+	f.runAs("digest-before")
+	f.expectCode(0)
+	f.expectOut("ran ok")
+
+	f.runAs("digest-after")
+	f.expectCode(0)
+	f.expectOut("ran ok")
+	f.expectNotOut("inputs unchanged since it last passed")
+	if got := f.runCount("ran.log"); got != 2 {
+		t.Errorf("the unit ran %d times across two gate binaries, wanted 2 — the digest is not in the key", got)
+	}
 }
 
 // --- the table itself ---------------------------------------------------------------------------------

@@ -186,9 +186,9 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	f.mkdirAll(f.repo)
 	f.newFlavorHome()
 	f.newSkillCopy()
-	// COPIED from one seed rather than built with git. This ran 94 times across the package at five
-	// git processes each, and on a machine whose security agent inspects every exec that is the suite's
-	// runtime rather than an incidental cost.
+	// COPIED from one seed rather than built with git: five git processes per fixture, and on a machine
+	// whose security agent inspects every exec that is the suite's runtime rather than an incidental
+	// cost.
 	//
 	// The guards the built form carried are not dropped, they are moved: seedRepoOnce runs them ONCE
 	// against the seed, with real git, and what is checked here is that this copy is a faithful one.

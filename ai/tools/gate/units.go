@@ -80,10 +80,8 @@ func (g *gate) discoverUnits() int {
 	if code := g.discoverShellSuites(); code != 0 {
 		return code
 	}
-	// go-mutate alone. `ai/shell-mutate.sh` is gone: it existed to mutate cadence.sh,
-	// comment-density.sh and dup-literals.sh, and all three are Go now, so every mutated file in the
-	// repository is one go-mutate reaches. A second harness listing nothing would be a discovery arm
-	// that can only ever report the tree broken.
+	// go-mutate alone: every mutated file in the repository is one it reaches. A second harness listing
+	// nothing would be a discovery arm that can only ever report the tree broken.
 	return g.discoverGoMutants()
 }
 

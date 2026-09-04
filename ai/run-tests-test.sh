@@ -11,6 +11,12 @@
 # all. Both report a clean tree that was never read.
 set -uo pipefail
 export LC_ALL=C
+# The machine's own git config must not reach these fixtures. Both, because NOSYSTEM blocks
+# /etc/gitconfig alone and ~/.gitconfig is the one that reaches in: a global core.excludesFile holding
+# `*.conf` refuses new_greedy_checkout's `git add kept.conf`, and the whole containment family below
+# then goes red on a runner that is working perfectly.
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL=/dev/null
 
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 runner="$here/run-tests.sh"
@@ -282,12 +288,9 @@ if command -v git >/dev/null; then
   check "-s runs an untracked suite git does not ignore" "0" "$rc"
   check "and reports it as the one suite found" "1" "$(matching_output_lines '^1 suite(s) found')"
 
-  # A tracked suite whose name is not plain ASCII. `ls-files` C-quotes it, because `core.quotePath` is
-  # on by default, and the quoted text names no file — so the absent arm above fires, the run announces
-  # a suite that is plainly there as missing from the working tree, and exits 0 having never run it.
-  # Renaming a suite is the whole of it. Before the absent arm existed this went red at `bash`, so the
-  # classification turned a loud failure into a silent pass; `-z` is what stops git quoting at all.
-  # Last in this block, so nothing after it depends on the tree this leaves.
+  # A tracked suite whose name is not plain ASCII, which `ls-files` C-quotes. Why that ends in a run
+  # announcing a suite that is plainly there as absent, and exiting 0 having never run it, is in
+  # run-tests.sh, at the `-z`. Last in this block, so nothing after it depends on the tree this leaves.
   new_suite "$tmp/ignored/café-test.sh" "1 passed, 0 failed"
   ( cd "$tmp/ignored" && git add "café-test.sh" && git commit -qm accented ) >/dev/null 2>&1
   out="$("$runner" "$tmp/ignored" 2>&1)"; rc=$?
@@ -350,9 +353,8 @@ out="$("$runner" -z "$tmp/named" 2>&1)"; rc=$?
 check "an unknown flag exits 2" "2" "$rc"
 
 # The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
-# and it drifts where nobody looks: the only machine that prints them is the one without git. So they
-# are held against the source they describe, here, on every machine, rather than against a reader's
-# memory on the one machine that would notice.
+# and it drifts where nobody looks: the only machine that prints them is the one without git. Held
+# against the source they describe instead, on every machine.
 drift="$(awk '
   /^if command -v git >\/dev\/null; then$/ { inblock = 1; n = 0; next }
   inblock == 1 && /^else$/                  { inblock = 2; next }

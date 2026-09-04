@@ -82,15 +82,13 @@ func (s *stats) appendRow(self, note string, out, errOut io.Writer) int {
 // scripts/ directory inside it. Resolved lexically, the way the shell's logical `cd` resolved it, so
 // a path reached through a symlinked directory keeps the name it was invoked by.
 //
-// The stub execs `-a "$0"`, so the self name is whatever the caller typed. One that places no
-// program is refused, not resolved. Guessing wrong doesn't fail: `createLedger` creates a ledger
-// under whatever directory came back. Two shapes place nothing. One carries no slash, and PATH
-// found the program from a working directory that says nothing about where it lives. The other ends
-// in a slash, naming a directory rather than a file.
+// The stub execs `-a "$0"`, so the self name is whatever the caller typed, and guessing wrong
+// doesn't fail. `createLedger` creates a ledger under whatever directory came back. So a name that
+// doesn't place the program is refused: no slash means PATH found it from a working directory that
+// says nothing about where it lives, and a trailing slash names a directory rather than a file.
 //
-// `./stats.sh` is neither, and resolves. It names this program from the program's own directory and
-// nowhere else, so the working directory is the answer. `DirName` answers `.` for it too, which is
-// why the test has to be the shape of the name.
+// `./stats.sh` does place it, and has to keep resolving. Don't re-guard on what `DirName` returned;
+// it answers `.` for that one too. The test has to be the shape of the name.
 func ownDirectory(self string) (string, bool) {
 	if !strings.Contains(self, "/") || strings.HasSuffix(self, "/") {
 		return "", false

@@ -15,18 +15,18 @@ import (
 // `.git`; a linked worktree's `.git` is a file naming its git dir; and that git dir's `commondir`
 // names the shared one.
 //
-// Read rather than spawned because each was a child process per invocation — across this package's
-// suite, `rev-parse --show-toplevel` 937 times, `--git-common-dir` 891, `--git-path` 731. On a machine
-// whose security agent inspects every exec, that count IS the runtime: the suite spent its time in
-// fork, not in git.
+// Read rather than spawned, because each was a child process per invocation and, on a machine whose
+// security agent inspects every exec, that cost is the runtime.
 //
 // Two things keep this honest. Every answer is proven equal to git's own, for each shape the suite
 // builds, by TestTheLayoutResolverAgreesWithGit — a differential case, not a restatement of the rules
 // below. And where the ENVIRONMENT overrides the layout, this refuses and the caller asks git instead:
-// GIT_DIR, GIT_WORK_TREE and GIT_COMMON_DIR move the answer in ways the on-disk layout does not show,
-// so guessing past them would be confidently wrong rather than slow.
+// GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR and GIT_CEILING_DIRECTORIES move the answer in ways the
+// on-disk layout does not show, so guessing past them would be confidently wrong rather than slow. The
+// ceiling is the one that does not redirect but STOPS: with it set at the root, git refuses a
+// subdirectory this walk would happily resolve.
 func layoutOverridden() bool {
-	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"} {
+	for _, name := range []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_CEILING_DIRECTORIES"} {
 		if os.Getenv(name) != "" {
 			return true
 		}
