@@ -28,6 +28,10 @@ const (
 	noGuardAtAll      = "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n"
 )
 
+// A timed-out suite's own words, in the shape `go test` prints them. The bound in it is arbitrary:
+// verdictOf keys on `test timed out` and never on the number, so this does not track suiteTimeout.
+const timedOutSuiteOutput = "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
+
 // What preflight is told the suite holds: `./p/` and the one test the mutants below name. A fresh map
 // each call, so no case can leave a name behind for the next.
 func newHeldTests() map[string]map[string]bool {
@@ -226,7 +230,7 @@ func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 // has to survive the run rather than be read and dropped. Every other verdict carries none: an
 // evidence block under a `killed` line would claim the suite said something it did not.
 func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
-	timedOut := "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
+	timedOut := timedOutSuiteOutput
 	if verdict, evidence := verdictWithEvidence(true, timedOut); verdict != "TIMED OUT" || evidence != timedOut {
 		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d", verdict, len(evidence), len(timedOut))
 	}
@@ -266,7 +270,7 @@ func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
 // tell a slow compile from a timeout.
 func TestATimedOutMutantPrintsTheSuitesOwnWords(t *testing.T) {
 	selected := []mutant{{label: "the bound", file: "guard.go", suite: "./p/"}}
-	evidence := "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
+	evidence := timedOutSuiteOutput
 
 	stdout := os.Stdout
 	reader, writer, err := os.Pipe()

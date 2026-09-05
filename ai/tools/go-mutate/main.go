@@ -40,8 +40,7 @@ func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 		return "unreachable", false
 	}
 	// A suite that never finished says nothing about the guard either way, so it is neither a finding
-	// nor an excuse — the caller counts it apart and exits 2, the reading `shell-mutate.sh` gives its
-	// own watchdog kills.
+	// nor an excuse.
 	if verdict == "TIMED OUT" {
 		return "TIMED OUT", false
 	}
@@ -78,10 +77,9 @@ func suitesNamed(list []mutant) []string {
 
 // The baseline run's argv after `go`.
 //
-// `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout 30m` because
-// this runs whole suites, not one filtered test, and eco-report's alone runs past Go's 10m default on
-// a loaded machine — overrunning it panics, and main reads that non-zero exit as a suite that does not
-// pass unmutated, printing BASELINE RED for what was machine load.
+// `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout` because an
+// overrun panics: main reads that non-zero exit as a suite that does not pass unmutated, and prints
+// BASELINE RED for what was machine load.
 //
 // It is a function so main_test.go can pin both flags: each fails silently when absent, and nothing
 // else in the harness would catch one going.
@@ -154,17 +152,14 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 	return stale
 }
 
-// How long a suite gets before the run is read as not having happened. Explicit, because `go test`
-// otherwise applies its own 10m default. eco-report alone has been measured at 684s, 1058s, 1166s and
-// 1390s on a loaded machine: one of those is past 20m and two are within three minutes of it.
+// Explicit, because `go test` otherwise applies its own 10m default, and eco-report alone has been
+// measured as long as 23 minutes on a loaded machine.
 //
-// Generous on purpose, and the cost of firing is why. A bound reached makes the mutant read as "did
-// not measure", which says nothing about the guard it names — so a bound tight enough to catch load
-// buys nothing and costs the coverage. This bounds a hang; it does not police a slow suite.
+// Do not tighten it to catch load. A suite that runs past this reads as "did not measure", which
+// says nothing about the guard the mutant names. Tightening it costs coverage and buys no signal.
 //
-// The same number as `goSuiteTimeout` in `ai/tools/gate/run.go`, and not the same fact: that one
-// bounds each test binary in the gate's own suite run, this one bounds one mutant's suite. They are
-// free to diverge.
+// `goSuiteTimeout` in `ai/tools/gate/run.go` holds the same number, and not the same fact: that one
+// bounds each test binary in the gate's own suite run, while this bounds one mutant's suite.
 const suiteTimeout = "30m"
 
 // What one suite run says about the guard the mutant removed. The four answers print in the same
@@ -533,9 +528,9 @@ func main() {
 	// last line reads like a whole one is exactly the narrowing this harness is not allowed to hide.
 	fmt.Printf("%d mutation(s) run, %d not run (out of scope), %d that proved nothing, %d that never measured, %d declared unreachable, %.1fs wall clock\n",
 		len(selected), len(mutants)-len(selected), bad, unmeasured, declared, time.Since(started).Seconds())
-	// A finding about the code outranks one about the machine, the reading `shell-mutate.sh`'s own
-	// last lines take. Exit 2 alone means nothing was found wrong and something never ran, which a
-	// caller may never read as a pass — `ai/gate.sh` maps it to NO MEASURE for exactly that.
+	// A finding about the code outranks one about the machine. Exit 2 alone means nothing was found
+	// wrong and something never ran. A caller may never read that as a pass: `ai/gate.sh` maps it to
+	// NO MEASURE for exactly that.
 	if bad > 0 {
 		os.Exit(1)
 	}
