@@ -1,6 +1,6 @@
 ---
 name: idsd-audit
-description: Audit the .idsd/ intent set for cross-intent consistency — links, build order, milestones, charter scope, inherited constraints. Use for "audit the intents", "do these intents still hang together". Read-only; each fix routes to its owning skill. The whole set — one intent's own ambiguities are idsd-intent's clarify pass.
+description: Audit the .idsd/ intent set for cross-intent consistency. Use for "audit the intents", "do these intents still hang together". The whole set — one intent's own ambiguities are idsd-intent's clarify pass.
 ---
 
 ## Phase 1 — Load the set
@@ -28,4 +28,6 @@ Skip a check only when its inputs are absent.
 
 One report, grouped by severity — **Blocker** (breaks a build or ships a violation), **Fix** (drift to reconcile), **Nit** — plus the informational **Build batches** list when any intent is unbuilt.
 
-Each finding names the file(s), the **owning skill** to fix it through — `idsd-intent` (intents, links, scope sync, `language.md`), `idsd-charter` (vision, scope, `constraints.md`) — and the smallest reconciling move, never a redesign.
+Each finding names the file(s), the **owning skill** to fix it through — `idsd-intent` (intents, links, scope sync, `language.md`), `idsd-charter` (vision, scope, `constraints.md`), `idsd-build` (the `archive/` move, `roadmap.md` regeneration, follow-up closure) — and the smallest reconciling move, never a redesign.
+
+**You write nothing but this report.** Every fix goes through the skill that owns it, so one you apply here is a change that skill's own rules never saw.

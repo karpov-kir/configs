@@ -1,6 +1,6 @@
 ---
 name: idsd-charter
-description: Write or edit .idsd/charter.md — an IDSD project's what & why — and .idsd/constraints.md, the thresholds every intent inherits. Use for "seed the project", "set the project vision/charter", "define scope", "add a project-wide constraint". The level-0 files; one feature's intent is idsd-intent's.
+description: Write or edit .idsd/charter.md — an IDSD project's what & why — and .idsd/constraints.md, the thresholds every intent inherits. Use for "seed the project", "set the project charter", "add a project-wide constraint". The level-0 files; one feature's intent is idsd-intent's.
 argument-hint: "the vision, scope or constraint to set, or omit to seed both files"
 ---
 
@@ -16,7 +16,7 @@ Write `.idsd/charter.md` and `.idsd/constraints.md`. Don't list features (that's
 
 ## Phase 2 — Grill the gaps only
 
-Invoke `kk-grill` **inline**, at project scope, over the sections of `templates/charter-template.md` and over the constraints. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear.
+Invoke `kk-grill` at project scope, over the sections of `templates/charter-template.md` and over the constraints. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear.
 
 **On the Scope boundaries, the test between Out and Not yet specified is sharpness, not certainty.** Ask whether the question can be *phrased* precisely now — never whether it can be answered.
 
