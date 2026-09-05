@@ -367,7 +367,14 @@ func TestAnEntryRoundTripsWhateverTextItCarries(t *testing.T) {
 func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
+	// Timed, because the hold below is a multiple of it. This case has to tell a write that waited
+	// from one that was merely slow, and a fixed window measures that against a constant while the
+	// machine moves. A second was that constant once: under a mutation run's concurrency this same
+	// invocation ran past a second, and the case read the unfinished write as a wait. Taken here,
+	// the baseline carries whatever load the contended write meets moments later.
+	uncontendedAt := time.Now()
 	f.runReport("record", "append", "decisions", "already here")
+	uncontended := time.Since(uncontendedAt)
 	path := recordFile(f, "decisions")
 
 	// Held SHARED, deliberately. A writer taking an exclusive lock must wait for it; one that took a
@@ -382,31 +389,46 @@ func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 	}
 
 	landed := make(chan struct{})
+	// Written in the goroutine, read only after a receive on `landed`: the close publishes all three.
+	var startedAt, landedAt time.Time
+	var writeStatus int
 	go func() {
-		f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "decisions", "waited for the lock"})
+		startedAt = time.Now()
+		writeStatus = f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "decisions", "waited for the lock"})
+		landedAt = time.Now()
 		close(landed)
 	}()
-	// A second, against the milliseconds the same invocation takes with nothing holding the file. A
-	// machine slow enough to spend a second here would report a pass it has not earned, so this case
-	// belongs with a mutation run rather than standing alone.
+	// The multiple is what a merely slow write has to beat before it can pass for one that waited.
+	hold := min(max(20*uncontended, time.Second), 10*time.Second)
 	select {
 	case <-landed:
-		f.record("a write waits while another holds the record", false,
-			"it appended while a lock was held:\n"+f.read(path))
-	case <-time.After(time.Second):
-		f.record("a write waits while another holds the record",
-			!strings.Contains(f.read(path), "waited for the lock"), f.read(path))
+	case <-time.After(hold):
 	}
 
 	if err := syscall.Flock(int(handle.Fd()), syscall.LOCK_UN); err != nil {
 		t.Fatalf("could not release the lock: %v", err)
 	}
+	releasedAt := time.Now()
 	handle.Close()
 	select {
 	case <-landed:
 	case <-time.After(30 * time.Second):
 		t.Fatal("the waiting write never completed after the lock was released")
 	}
+	// An ordering, not a deadline: the write began before the release, landed after it, and exited 0.
+	// Starting before the release rules out a goroutine scheduled only afterwards, which would satisfy
+	// the other two without ever contending. Exiting 0 rules out a refusal, which also lands after the
+	// release.
+	//
+	// One gap stays open, and the hold cannot close it: the write could start on time and still
+	// reach the flock call only after the release, bracketing it without ever contending. To do
+	// that it would have to spend everything from its own start to the release on the work before
+	// that call — twenty uncontended invocations, or ten seconds once the ceiling caps the hold.
+	f.record("a write waits while another holds the record",
+		writeStatus == 0 && startedAt.Before(releasedAt) && landedAt.After(releasedAt),
+		fmt.Sprintf("exit %d, started at +%v, released at +%v, landed at +%v, uncontended %v\n%s",
+			writeStatus, startedAt.Sub(uncontendedAt), releasedAt.Sub(uncontendedAt),
+			landedAt.Sub(uncontendedAt), uncontended, f.read(path)))
 	f.record("and lands as soon as the lock is released",
 		strings.Contains(f.read(path), "| waited for the lock\n"), f.read(path))
 }
