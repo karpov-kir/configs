@@ -21,14 +21,14 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 | code-review | `kk-code-review` | — | `code-review` |
 | security-review | `kk-security-review` | — | `security` |
 | prose | `kk-tighten` | — | — |
-| outward-text | `kk-humanize` | `~/.claude/skills/kk-humanize/scripts/comment-density.sh` | `comments` |
+| outward-text | `kk-humanize` | `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar` | `comments` |
 | refactor | `kk-refactor` | `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
 
 **This table is the map for any caller running a lane by name.**
 
-**Diagnosis is a destination, never a stage of the round** — you route a symptom there and wait, rather than queuing it with the rest (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**).
+**Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 
-**Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills and this table leaves out; and a retrospective, which is no lane at all and belongs to `kk-retro`. **A change set holding the instruction tree names it in your return; a retrospective you never even offer.**
+**Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills; and a retrospective, which is no lane at all and belongs to `kk-retro`.
 
 **You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, **every tiered row goes out in the round's one message — `kk-refactor` and `kk-humanize` alongside the reviews, never after them**. The **Tier** column is what each one's spawn prompt carries in its patch-queue slot. A lane with no tier runs unstreamed: prose in the round with the rest, drive still the gate before it.
 

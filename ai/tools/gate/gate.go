@@ -79,12 +79,18 @@ type unit struct {
 	inputs []string
 	cmd    string
 	stem   string
-	// viaCompiledBinary marks a unit that reaches the Go tree only by running a tool `resolve.sh`
-	// built, never by compiling or running the module's own suites. `go build` does not compile
-	// `_test.go`, so no such file can change what that unit observes, and hashing them into its key
-	// only retires a cached verdict that is still good. Set on the shell suites that exec a stub;
-	// left off — the conservative value — everywhere else.
-	viaCompiledBinary bool
+	// blindToGoTests marks a unit that cannot observe the module's `_test.go` files, so hashing them
+	// into its key only retires a cached verdict that is still good. Two kinds of unit qualify, for
+	// two different reasons, and each has to be argued rather than assumed:
+	//
+	//   - the shell suites that exec a tool `resolve.sh` built, because `go build` does not compile a
+	//     test file into a binary;
+	//   - `wiring`, because eco-check skips them by name when it reads Go sources for subcommand
+	//     dispatches (`eco-check/subcommands.go`), and everything else it walks is `*.sh` or SKILL.md.
+	//
+	// Left off — the conservative value — everywhere else. Narrowing a key wrongly is the direction
+	// that reports a pass nobody earned.
+	blindToGoTests bool
 }
 
 type gate struct {
@@ -170,9 +176,8 @@ func (g *gate) run(args []string) int {
 	return g.runUnits(selected, started)
 }
 
-func parseArgs(args []string, errOut io.Writer) (mode, string, string, int) {
-	selected := modeFast
-	why, path := "", ""
+func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string, code int) {
+	selected = modeFast
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--full":

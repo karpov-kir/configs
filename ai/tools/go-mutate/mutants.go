@@ -33,10 +33,28 @@ type mutant struct {
 // six mutants sat there reading as a finished list. Appending keeps every name in the condition read.
 var mutants = []mutant{
 	{"direction: the shared finding bound removed", "direction.go", "./eco-check/", "TestDirectionScan", "*count <= findingCap", "*count <= 100000"},
-	{"report: per-class cap removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "shown[r] <= findingCap", "shown[r] <= 100000"},
+	{"report: the per-rank cap removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "return shownInRank[rank] >= findingCap", "return shownInRank[rank] >= 100000"},
+	// `|| true`, not the `&& false` the header above describes: the anchored condition is the one
+	// that *skips* a finding, so appending to it is what leaves the floor keeping nothing.
+	{"report: the per-class floor removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) {", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) || true {"},
+	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	// findingCap is the right number only for the class that filled the rank. Every class the floor
+	// left at one line then gets a negative count, so a case that only asserts a note is there stays
+	// green.
+	{"report: a note counting its whole rank's withheld findings", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "class.total-class.shown, suppressedMarker", "class.total-findingCap, suppressedMarker"},
+	// The flag is set here and read at the tally. Unset, every note counts as a finding and the
+	// trailing "further finding(s) not shown" is short by one per note.
+	{"report: a note counted as one of the findings", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "rankedLine{rank: class.rank, isNote: true,", "rankedLine{rank: class.rank, isNote: false,"},
+	// Only observable on a tree whose own committed path holds the marker wording, which is why the
+	// case builds that filename out of the constant.
+	{"report: notes told apart by their text", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if !line.isNote {", "if !strings.Contains(bounded, suppressedMarker) {"},
 	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
 	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
 	// crafted links hides them and the report reads clean of the very thing they exist to say.
+	// The head that keeps a finding's first bytes the checker's own. Removed, the finding leads with a
+	// basename two committed scripts share, joins whatever class that text matches, and takes the one
+	// line the floor reserves for it.
+	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandMismatch + c.scriptNamed(base) + \" accepts", "c.scriptNamed(base) + \" accepts"},
 	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t\t{unreadDispatch, 2},\n", ""},
 	// Ranking on the whole line rather than its head: a crafted link target then carries a ranked
 	// phrase into a `dangling link:` finding and promotes the flood above what it is burying. The case
@@ -1020,6 +1038,10 @@ var mutants = []mutant{
 		"return scanner.Err()", "return nil"},
 	{"diffscan: a binary untracked file is read", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedBinaryFileIsSkippedAndCounted",
 		"if isBinary(body) {", "if false {"},
+	// The other way a secret reaches the report: followed instead of read directly. Stat answers about
+	// the target, so this mutant is the whole of the symlink defence.
+	{"diffscan: an untracked symlink is followed to its target", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSymlinkIsSkippedAndCounted",
+		"info, err := os.Lstat(full)", "info, err := os.Stat(full)"},
 
 	// The did-not-measure counter. Every guard here decides whether CI keeps passing over guards
 	// nothing has proved, which is a thing no reader of a green tick can check for themselves.
@@ -1045,13 +1067,13 @@ var mutants = []mutant{
 
 	// The gate's key narrowing. Both directions are guards: dropping too little only costs time, but
 	// dropping too much stops the gate watching code a tool is built from, which reads as a clean run.
-	{"gate: a compiled-binary unit is keyed on test files after all", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
-		"if u.viaCompiledBinary {", "if u.viaCompiledBinary && false {"},
-	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
+	{"gate: a compiled-binary unit is keyed on test files after all", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
+		"if u.blindToGoTests {", "if u.blindToGoTests && false {"},
+	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
-	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
-	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
@@ -1060,6 +1082,22 @@ var mutants = []mutant{
 		`if strings.HasPrefix(id, "shell:") {`, `if false && strings.HasPrefix(id, "shell:") {`},
 	{"gate: a lane per shell suite, so two of them overlap", "../gate/run.go", "./gate/", "TestTheShellLaneRunsBesideTheRestAndNeverBesideItself",
 		`return "shell"`, `return "shell" + id`},
+	// The property that makes the lane safe to widen at all, and it is about the suites rather than
+	// the gate: a suite on a fixed path would race its siblings.
+	{"scratch: any suite counts as owning its scratch", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
+		"\tcase strings.Contains(text, \"mktemp -d\"):\n\t\treturn true", "\tcase true:\n\t\treturn true"},
+	{"scratch: the no-scratch marker stops exempting", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
+		"\tcase strings.Contains(text, noScratchMarker):\n\t\treturn true", "\tcase strings.Contains(text, noScratchMarker) && false:\n\t\treturn true"},
+	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim
+	// about ANOTHER package. Both halves get a mutant: the flag itself, and the check that eco-check
+	// still behaves the way the flag assumes.
+	{"gate: wiring keyed on the module's test files again", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
+		`g.addBlindToGoTests("wiring"`, `g.add("wiring"`},
+	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
+		`g.add("gotest", "check", gotestInputs, "@gotest")`, `g.addBlindToGoTests("gotest", "check", gotestInputs, "@gotest")`},
+
+	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
+		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
 		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
 }

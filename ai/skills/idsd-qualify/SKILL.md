@@ -24,7 +24,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
-**Report post-processing.** After stamping, when the report has items, apply `kk-humanize`'s lens **inline** over this pass's report file before presenting — the exception that `~/.kk-flavor/standards/skill-protocol.md` → **Caller** names. **The report is outward text**, so `kk-tighten`'s internal-prose lens never runs over it. **Lossless, against `kk-humanize`'s lossy license**: every item and its stakes survive, and a `- [ ]` is never dropped or softened. (The report is check-ignored, so this never invalidates the stamp.)
+**Report post-processing.** After stamping, when the report has items, apply `kk-humanize`'s lens over this pass's report file before presenting — **inline**, since it is text you already hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). **The report is outward text**, so `kk-tighten`'s internal-prose lens never runs over it. **Lossless, where `kk-humanize` deletes**: every item and its stakes survive, and a `- [ ]` is never dropped or softened. (The report is check-ignored, so this never invalidates the stamp.)
 
 ## Report
 

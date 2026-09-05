@@ -2,6 +2,7 @@ package gate
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -58,6 +59,17 @@ func (g *gate) unitLine(state, id, detail string) {
 // concurrency added here is exactly one boundary: the shell block against everything else, with the
 // block itself as serial as it has always been.
 //
+// Widening it to three was tried and backed out, and what settles the question is not yet measured.
+// The suites themselves are safe to overlap: eleven ran concurrently five times over, every one green,
+// with `ai/run-tests.sh`'s checkout-moved guard live on each — `TestEveryShellSuiteOwnsItsScratch` is
+// what keeps that true. Whether overlapping them PAYS inside the gate is the open part. Every spawn
+// here goes through one serialised security inspection, and `gotest` already spends that budget on
+// eighteen packages, so more spawners may queue behind it rather than beside it.
+//
+// Do not settle it with two wall-clock readings. This machine is shared, and the same gate measured
+// 131s and 2877s on identical code at different loads. It takes an interleaved A/B — narrow, wide,
+// narrow, wide — on a quiet machine, or total CPU time rather than wall clock.
+//
 // Everything else shares the default group, which is also what a units-file table gets. That keeps
 // every fixture in this package's suite on the serial path it was written for, and a fixture reaches
 // the concurrent path by naming a unit `shell:<something>` — the same rule discovery uses, from the
@@ -69,6 +81,18 @@ func serialGroupFor(id string) string {
 	return ""
 }
 
+// The state a unit reached without executing. settledRan is the zero value: a unit that did not
+// settle matches no arm of the switch that reads this, and falls through to the executed path.
+type settledState int
+
+const (
+	settledRan settledState = iota
+	settledEmpty
+	settledFresh
+	settledDeferred
+	settledUnasked
+)
+
 // One unit's outcome, filled by whichever lane owns it and read by the printer.
 //
 // The printer walks the units in declared order and blocks on each `done` in turn, so the report is
@@ -78,7 +102,7 @@ type slot struct {
 	unit    unit
 	key     string
 	lines   []manifestLine
-	settled string // the state a unit reached without executing: "", "empty", "fresh", "deferred", "unasked"
+	settled settledState
 	output  string
 	note    string
 	status  int
@@ -104,15 +128,15 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		slots[i] = sl
 		switch {
 		case len(lines) == 0:
-			sl.settled = "empty"
+			sl.settled = settledEmpty
 		case selected != modeFull && g.hasRecord(u, key):
-			sl.settled = "fresh"
+			sl.settled = settledFresh
 		case u.kind == "mutation" && selected == modeFast:
-			sl.settled = "deferred"
+			sl.settled = settledDeferred
 		case u.kind == "check" && selected == modeMutants:
-			sl.settled = "unasked"
+			sl.settled = settledUnasked
 		}
-		if sl.settled != "" {
+		if sl.settled != settledRan {
 			close(sl.done)
 			continue
 		}
@@ -139,13 +163,13 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		inputsFile := filepath.Join(g.cache, u.stem+".inputs")
 
 		switch sl.settled {
-		case "empty":
+		case settledEmpty:
 			// An input set that resolves to no file is a rename or a typo quietly narrowing the gate. It
 			// is the one state this treats as worse than a failure, because it looks exactly like a pass.
 			g.unitLine("NO INPUTS", u.id, "declared: "+strings.Join(u.inputs, " "))
 			empty++
 			continue
-		case "fresh":
+		case settledFresh:
 			// A fresh hit says these exact inputs are green, so it can also repair the sidecar the
 			// forcing reads. Without this, one failed run deletes the sidecar and every later run
 			// over-forces.
@@ -155,12 +179,12 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			g.unitLine("fresh", u.id, key[:12]+" — inputs unchanged since it last passed")
 			fresh++
 			continue
-		case "deferred":
+		case settledDeferred:
 			g.unitLine("DEFERRED", u.id, "inputs moved — not run on the fast path")
 			deferred++
 			deferredIDs = append(deferredIDs, u.id)
 			continue
-		case "unasked":
+		case settledUnasked:
 			g.unitLine("not asked", u.id, "--mutants settles the mutation units only")
 			continue
 		}
@@ -277,7 +301,8 @@ func exitCode(err error) int {
 	if err == nil {
 		return 0
 	}
-	if exit, ok := err.(*exec.ExitError); ok {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
 		return exit.ExitCode()
 	}
 	return 127

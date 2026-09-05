@@ -49,6 +49,13 @@ const subcommandCap = 256
 // rank 5. The tail of each says what was checked in the dispatch's place, or that nothing was.
 const unreadDispatch = "subcommand dispatch not read: "
 
+// The head the two usage-versus-dispatch findings lead with. They are the only findings reached
+// through `scriptNamed`, which answers a shared basename with the basename itself — text the reviewed
+// tree wrote. Led with that, the finding joined whatever class in report.go's table its first bytes
+// matched, took that class's one reserved line, and left the genuine finding to a rank the same tree
+// had already flooded. Every finding's first bytes are this checker's now.
+const subcommandMismatch = "subcommand mismatch: "
+
 // How much of a wrapped `usage: <name> {…}` grammar is read. The stub is a file the reviewed branch
 // wrote, so an unterminated brace would otherwise collect the rest of it.
 const usageGrammarCap = 4096
@@ -254,10 +261,10 @@ func (c *checker) toolSubcommands(base string, lines []string, opened bool) []st
 		return documented
 	}
 	for _, name := range onlyIn(dispatched, documented) {
-		c.add(c.scriptNamed(base) + " accepts a subcommand its usage does not name: " + shell.Oneline(name))
+		c.add(subcommandMismatch + c.scriptNamed(base) + " accepts a subcommand its usage does not name: " + shell.Oneline(name))
 	}
 	for _, name := range onlyIn(documented, dispatched) {
-		c.add(c.scriptNamed(base) + " usage names a subcommand its dispatch does not accept: " + shell.Oneline(name))
+		c.add(subcommandMismatch + c.scriptNamed(base) + " usage names a subcommand its dispatch does not accept: " + shell.Oneline(name))
 	}
 	return shell.SortUnique(append(append([]string{}, dispatched...), documented...))
 }

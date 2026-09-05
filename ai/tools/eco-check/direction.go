@@ -237,10 +237,8 @@ func (c *checker) reportBoundReached(class, file string) {
 // The two sets travel together because the order they are tested in is the guard, and two bare maps
 // in a signature can be transposed silently where one value cannot.
 type laneBasenameSets struct {
-	// The basenames that name exactly one file under `$skills`.
 	underOneLane map[string]bool
-	// The subset of those the shared layer carries too, which no scan can attribute to either.
-	ambiguous map[string]bool
+	ambiguous    map[string]bool
 }
 
 func (s laneBasenameSets) any() bool { return len(s.underOneLane) > 0 || len(s.ambiguous) > 0 }

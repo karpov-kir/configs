@@ -20,8 +20,7 @@ func (c *checker) scanCitations() {
 
 // What a citation finding against a test harness ends on. A suite covering anything citation-shaped
 // has to put a citation in a fixture, and a fixture written as a literal line is content this scan
-// reads: the suite then reports its own test data against the checkout, from a case that passed. Four
-// suites have paid for that diagnosis.
+// reads: the suite then reports its own test data against the checkout, from a case that passed.
 //
 // The rule is that such a fixture is assembled at run time, and this is where it is said — in the
 // finding its author is already looking at, rather than in a convention they had to know first.

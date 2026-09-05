@@ -78,8 +78,7 @@ jobs:
           go test -count=1 -timeout 30m ./...
 
   # Proves the Go suites' cases can actually fail. The `go` job can't: a green suite says its cases
-  # passed, never that any of them could have failed. Without this job, editing a guard quietly
-  # retires the proof that its case can redden.
+  # passed, never that any of them could have failed.
   #
   # No -jobs — the harness defaults to twice the cores and adapts to whatever runner it lands on.
   # Linux only, since "a guard reddens" isn't OS-specific.
@@ -93,10 +92,8 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
-      # What gives a stateless job a running count: each attempt writes an entry under a key unique to
-      # it, and the next run restores the newest entry under the prefix. The count itself, and what it
-      # decides, are `ai/tools/nomeasure`'s. It lives in $HOME rather than the workspace, having no
-      # business in the checkout the harness runs the real suites against.
+      # The count lives in $HOME rather than the workspace, having no business in the checkout the
+      # harness runs the real suites against.
       #
       # `run_attempt` is in the key as well as `run_id`, because a re-run carries the same run_id and
       # `actions/cache/save` won't overwrite a key that already exists. A re-run that finally measured
@@ -118,9 +115,8 @@ jobs:
           key: mutants-nomeasure-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: mutants-nomeasure-${{ github.ref_name }}-
 
-      # Two builds rather than `go run`: `go run` maps a build failure onto the same non-zero exit the
-      # harness uses for its own verdicts, and the arms below would then read a compiler error as a
-      # finding about a guard. Built here, a build failure fails this step before any verdict exists.
+      # Two builds rather than `go run`, which maps a build failure onto the same non-zero exits the
+      # arms below read as verdicts. A compiler error would land as a finding about a guard.
       - name: Build the harness and the counter
         working-directory: ai/tools
         run: |
@@ -192,7 +188,7 @@ jobs:
   # that does not exist reaches main with nothing looking at it.
   #
   # `check.sh` exits 1 with findings and 2 when it could not run at all. Both fail the job: a check
-  # that did not run is not a clean one, which is the rule the script's own header states.
+  # that did not run is not a clean one.
   wiring:
     runs-on: ubuntu-latest
     steps:
