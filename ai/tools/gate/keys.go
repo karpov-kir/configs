@@ -120,10 +120,7 @@ func (g *gate) keyMaterial(u unit) (key string, lines []manifestLine) {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n%s\n%s\n", u.id, u.cmd, g.stamp)
-	for _, line := range lines {
-		b.WriteString(line.String())
-		b.WriteByte('\n')
-	}
+	b.WriteString(renderLines(lines))
 	return hashString(b.String()), lines
 }
 
@@ -150,12 +147,7 @@ func (g *gate) changedSinceGreen(paths []string) bool {
 }
 
 func digestOf(lines []manifestLine) string {
-	var b strings.Builder
-	for _, line := range lines {
-		b.WriteString(line.String())
-		b.WriteByte('\n')
-	}
-	return hashString(b.String())
+	return hashString(renderLines(lines))
 }
 
 func renderLines(lines []manifestLine) string {

@@ -221,8 +221,6 @@ func parseDate(text string) (time.Time, bool) {
 	return parsed, true
 }
 
-// recordPath answers where this repository's record lives, or why it could not be determined.
-//
 // git is asked rather than the layout being walked here. `--git-common-dir` knows about linked
 // worktrees, alternates and `$GIT_DIR`, and reimplementing that would put a second, quietly diverging
 // answer in the tree — one whose failure mode is writing the record somewhere no other caller looks,

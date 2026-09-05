@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -208,13 +207,4 @@ func (g *gate) discoverGoMutants() int {
 // assumed, because the guard and the quoting are two defences and an injection needs both to fail.
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
-}
-
-func sortedUnitIDs(units []unit) []string {
-	ids := make([]string, 0, len(units))
-	for _, u := range units {
-		ids = append(ids, u.id)
-	}
-	sort.Strings(ids)
-	return ids
 }

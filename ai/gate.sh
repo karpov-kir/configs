@@ -8,9 +8,8 @@
 #          --units    print the unit table with each unit's freshness, and stop
 #          --why      print the input files one unit is keyed on, and stop
 #
-# Skipping is sound, not a sample: every check is a pure function of a declared set of input files plus
-# the toolchain, so a unit whose inputs hash to what they hashed on the last green run has a verdict
-# that is already known. A unit whose inputs moved by a byte is run.
+# Skipping is sound, not a sample: every check is a pure function of a declared set of input files
+# plus the toolchain, so a unit whose inputs hash to the last green run's already has its verdict.
 #
 # It may never report a pass for a unit it did not run, resolve a unit to an empty input set, finish
 # having resolved nothing, or skip anything quietly. Each of those exits 2 and says so.

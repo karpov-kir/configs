@@ -1013,6 +1013,10 @@ var mutants = []mutant{
 		"return scanner.Err()", "return nil"},
 	{"diffscan: a binary untracked file is read", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedBinaryFileIsSkippedAndCounted",
 		"if isBinary(body) {", "if false {"},
+	// The other way a secret reaches the report: followed instead of read directly. Stat answers about
+	// the target, so this mutant is the whole of the symlink defence.
+	{"diffscan: an untracked symlink is followed to its target", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSymlinkIsSkippedAndCounted",
+		"info, err := os.Lstat(full)", "info, err := os.Stat(full)"},
 
 	// The did-not-measure counter. Every guard here decides whether CI keeps passing over guards
 	// nothing has proved, which is a thing no reader of a green tick can check for themselves.

@@ -69,10 +69,10 @@ func hasField(fields []string, want string) bool {
 }
 
 // The local gate is the third runner of that suite and the one a human actually watches. It cannot
-// carry `goSuiteRun` verbatim — it selects packages rather than running `./...`, and forces some with
+// carry `goSuiteFlags` verbatim — it selects packages rather than running `./...`, and forces some with
 // `-count=1` because the Go cache cannot see the fixtures' external inputs — so what is held here is
 // the part that must not vary: no invocation of `go test` may go out without a timeout, for the
-// reason goSuiteRun above gives.
+// reason goSuiteFlags above gives.
 //
 // Read from the Go source, which is where those invocations live now.
 func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {

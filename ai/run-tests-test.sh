@@ -330,8 +330,8 @@ check "-s naming a suite that is not there exits 2" "2" "$rc"
 check "and says discovery is broken rather than clean" "1" \
   "$(matching_output_lines 'never as a clean run')"
 
-# The reason -s exists at all: a suite emptied to zero bytes exits 0 in silence, and a caller running
-# it directly reads that as a pass. Through here it is VACUOUS and a failure.
+# The vacuity rule above, concretely: a suite emptied to zero bytes exits 0 in silence, and a caller
+# running it directly reads that as a pass. Through here it is VACUOUS and a failure.
 : > "$tmp/named/empty-test.sh"
 out="$("$runner" -s empty-test.sh "$tmp/named" 2>&1)"; rc=$?
 check "-s over a suite that ran no case at all fails" "1" "$rc"

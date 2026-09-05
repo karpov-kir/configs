@@ -170,9 +170,8 @@ func (g *gate) run(args []string) int {
 	return g.runUnits(selected, started)
 }
 
-func parseArgs(args []string, errOut io.Writer) (mode, string, string, int) {
-	selected := modeFast
-	why, path := "", ""
+func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string, code int) {
+	selected = modeFast
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--full":
