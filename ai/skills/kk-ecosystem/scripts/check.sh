@@ -5,17 +5,14 @@
 # Prints one line per finding, plus two always-loaded budgets: the router's files, and every skill's
 # `description:`. Outside the install it prints `mounts: skipped`; no such line means the mount scan
 # ran. Exits 1 with findings, 0 when clean, and 2 when it could not run: no resolvable root, a scan
-# that could not run, or a check that never started.
-# A check that did not run is not a clean one.
+# that could not run, or a check that never started. Never read a 2 as clean.
 #
 # --gate drops every gitignored path from the walk, so two checkouts of one commit cannot answer
 # differently. The filter is on ignored and never on untracked, so a skill just written and not yet
 # staged is still judged.
 #
-# The scans are Go, in `ai/tools/eco-check/`. This file reaches that binary and nothing else. After a
-# change there run `go test -count=1 -timeout 30m ./...` and then `./bin/go-mutate`, both from
-# `ai/tools`. Keep the timeout: the eco-report package alone runs past the 10m default on a loaded
-# machine, and an overrun dumps every goroutine, which reads as a hang.
+# The scans are Go, in `ai/tools/eco-check/`. This file reaches that binary and nothing else. Verify a
+# change there with `ai/gate.sh`, then `ai/gate.sh --mutants` for the mutation harness.
 #
 # tested by: tool-stub-test.sh, and the resolver it calls by resolve-test.sh
 

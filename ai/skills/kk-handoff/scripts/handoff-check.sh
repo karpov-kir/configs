@@ -14,10 +14,8 @@
 # dirty. Exits 1 with findings, 0 when clean, and 2 when it could not run and said why on stderr. A 2
 # prints no findings, so never read it as a clean draft.
 #
-# The scan is Go, in `ai/tools/handoff-check/`; this reaches that binary and nothing else. Run both
-# from `ai/tools` after a change there: `go test -count=1 -timeout 30m ./...`, then `./bin/go-mutate`.
-# Keep the timeout: the eco-report package alone runs past the 10m default on a loaded machine, and
-# overrunning it prints a goroutine dump that reads as a hang rather than as a slow pass.
+# The scan is Go, in `ai/tools/handoff-check/`; this reaches that binary and nothing else. Verify a
+# change there with `ai/gate.sh`, then `ai/gate.sh --mutants` for the mutation harness.
 #
 # tested by: the shared stub region by tool-stub-test.sh, and the resolver it calls by resolve-test.sh
 
