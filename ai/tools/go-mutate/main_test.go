@@ -217,9 +217,9 @@ func TestAnEmptyScopeSelectsEverything(t *testing.T) {
 	}
 }
 
-// The unit listing is what `ai/gate.sh` builds its mutation units from, one per line, so a file
-// missing from it is a whole unit that stops existing with nothing saying so. Every mutated file has
-// to appear exactly once, carrying its own count and each suite it names.
+// The unit listing is what `ai/tools/gate/units.go` builds its mutation units from, one per line, so a
+// file missing from it is a whole unit that stops existing with nothing saying so. Every mutated file
+// has to appear exactly once, carrying its own count and each suite it names.
 func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
 	list := []mutant{
 		{label: "a", file: "one.go", suite: "./one/"},
