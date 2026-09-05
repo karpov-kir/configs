@@ -470,9 +470,16 @@ func TestOnlyAnAppendCreatesARecord(t *testing.T) {
 	// 0700, as `init` creates this tree: the records carry a project's decisions and are read from a
 	// shared scratch root, so nothing outside this account has business in them.
 	mode, err := os.Stat(f.scratch())
+	// Built before the assertion, because an argument is evaluated whether or not the guard beside it
+	// holds, and `mode` is nil exactly when the stat failed. Folded back into the Sprintf, this line
+	// panics in the one case it exists to describe.
+	perm := "unreadable"
+	if err == nil {
+		perm = mode.Mode().Perm().String()
+	}
 	f.record("and the scratch directory it created is reachable by nobody else",
 		err == nil && mode.Mode().Perm()&0o077 == 0,
-		fmt.Sprintf("%v mode %v", err, mode.Mode().Perm()))
+		fmt.Sprintf("%v mode %v", err, perm))
 }
 
 func TestARecordIsNeverWrittenWhereGitCanReachIt(t *testing.T) {
