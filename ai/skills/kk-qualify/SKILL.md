@@ -17,6 +17,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | Lane | Skill | Scanner to run | Tier |
 |---|---|---|---|
 | diagnosis | `kk-diagnose` | — | — |
+| conformance | `kk-conform` | — | — |
 | drive | `kk-drive` | — | — |
 | code-review | `kk-code-review` | — | `code-review` |
 | security-review | `kk-security-review` | — | `security` |
@@ -24,7 +25,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | outward-text | `kk-humanize` | — | `comments` |
 | refactor | `kk-refactor` | `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
 
-**Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
+**Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**). **Conformance is your caller's gate, run before you are invoked** (`~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**) — its row names the skill filling the lane, never something you run.
 
 **Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills; and a retrospective, which is no lane at all and belongs to `kk-retro`.
 

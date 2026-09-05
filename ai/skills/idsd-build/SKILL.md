@@ -4,7 +4,7 @@ description: Implement one ICE intent — settle the gaps and stack choices it l
 argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 ---
 
-You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. Phases 3–5 run the pipeline's gates and its drive, so read `~/.kk-flavor/standards/quality-pipeline.md` whole rather than entering it a section at a time.
+You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. Phases 3–5 run the pipeline's gates, so read `~/.kk-flavor/standards/quality-pipeline.md` whole rather than entering it a section at a time.
 
 **The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**).
 
@@ -42,7 +42,7 @@ Then two **gap rounds** of `kk-grill`, run **inline**, recomputing what is still
 1. Implement the smallest change that satisfies the goal within the constraints. **Where the change publishes a module surface, settle that surface first** — exports, types, and the contract prose beside them (`~/.kk-flavor/standards/architecture/core.md` → **Module depth**) — then write the body against it. An ordering, not a gate: don't stop and ask.
 2. Encode success/failure scenarios as real acceptance tests, each at the cheapest level that can prove it (`~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, rule 4). Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises — each supported value, threshold, edge branch. Extend hand-written tests; don't clobber them.
 3. Run the gates and the scenario tests. On failure, fix and re-run — bounded to a few iterations; if stuck, stop and report rather than thrash.
-4. **Drive it**, once the gates and scenario tests are green — `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**, handing `kk-drive` this intent's scenarios. Here a divergence is a red result you fix and re-run, not a stop.
+4. **Run the conformance gate**, once the gates and scenario tests are green — `~/.claude/skills/kk-conform/SKILL.md`, per `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**. Its requirement set is this intent's goal, scenarios and constraints. Run it **inline** — only this thread reaches the human (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). A requirement it finds undelivered is a red result you fix and re-run; the rest of its return goes to the checkpoint.
 5. **Name the lanes this build's own edits opened** — the comments and the prose it wrote included — and carry that list to the checkpoint. **`idsd-qualify` is the pass that closes them**, and Phase 5 refuses to archive until one has stamped this tree, so spawn no review of your own here (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**).
 
 Capture every decision, loose end and piece of operating knowledge in the artifact that owns it, never only in chat:
@@ -58,8 +58,7 @@ Present for human judgment:
 - Diff summary — what changed conceptually, not a line dump.
 - **Gate results** — absolute; a red gate blocks merge (fix or escalate).
 - **Scenario results** — pass/fail; the human approves the behaviour.
-- **Observed outcomes** — the drive's per-scenario results and evidence.
-- **Scope delta** — goal and scenarios versus what shipped, every deferral or descope recorded and routed via `idsd-intent`.
+- **Scope delta** — what the conformance gate returned, plus every deferral or descope, recorded and routed via `idsd-intent`.
 - **Open lanes** — what step 5 named, which the qualify pass will run.
 - **Open follow-ups** — every unchecked `- [ ]` and where it will land.
 
@@ -82,7 +81,7 @@ Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (i
 When `idsd-ship` invokes you:
 
 - Run Phases 1–3 unchanged; the interactive gates still fire.
-- Stop when Phase 3 completes — gates green, the drive passed (its evidence is what `idsd-ship` presents as observed outcomes): skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back, naming the lanes step 5 found.
+- Stop when Phase 3 completes — gates green and the conformance gate clear: skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back, naming the lanes step 5 found.
 - `idsd-ship` re-invokes Phase 5 after its own approval — run it then, unchanged.
 
 ## Parallel execution

@@ -24,6 +24,16 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **A symptom whose cause nobody has reproduced goes to the diagnosis lane, never to a review stage.** A divergence the drive gate returns, a red the build leaves, an intermittent failure — a lens reading the diff will produce a theory, and a theory is what the pipeline then treats as a finding.
 
+## Conform it before you review it
+
+**Hold the change set against the ask it was given, before any lens reads it** — every requirement delivered, nothing delivered beyond them, and no contradiction inside the change. This is the **conformance lane**, and it is **a gate, not a stage**: a stage is handed a scope, never the ask, so unasked-for work reads to every lens as correct code and passes.
+
+**The orchestrator owns it, and runs it inside its own loop rather than as a stage of the pass** — like the drive gate below, it asks whether this is the right thing, before any lens asks whether it is good code.
+
+**Its findings split by who can resolve them.** A requirement not delivered is a red result the caller fixes and re-runs. **Delivery beyond the ask, and every contradiction, go to the human** — deleting unasked-for work is a decision, not a fix ([skill-protocol.md](skill-protocol.md) → **Orchestrators — interactive first**). Say plainly when there is neither.
+
+**A change set stating no ask and linking none cannot be checked against one** — say so and ask, before the pass is spent.
+
 ## Drive it before you review it
 
 **Use the change the way its user will, wherever it has observable behaviour, and do it before any lens reads it.**
@@ -31,8 +41,6 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 **Spawn the drive lane, handed only the scenarios the change was asked to satisfy and how to run the project — withhold the diff.** You own that it ran.
 
 **This is a gate, not a stage** — a divergence stops the pipeline as a red gate does.
-
-**A caller whose own loop builds the thing to drive runs the gate inside that loop instead** — after its work rather than before any lens, and a divergence there is a red result it fixes and re-runs. That caller says where it departs. Nothing to drive yet is the only reason that holds.
 
 **A step nobody could drive is an ask, and only after they have been asked may it be dropped** — recording it as something the pass is waiting on is that drop taken without them. The drive lane owns the rest of this, including what a dropped step owes its return.
 
@@ -43,8 +51,6 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 **The numbering is not the execution order** — **The round** above sets it.
 
 **Both review stages are local**: neither posts to GitHub nor runs `gh`. And **a pre-existing defect outside the change is neither fixed nor blocked on** — a serious one is surfaced once, as a separate non-blocking note for the human to route, never folded into the change's findings and never dropped silently. One the change makes reachable or worse is in scope.
-
-**Behaviour the change adds that nothing asked for is surfaced the same way**, and this one is the orchestrator's own: a stage is handed a scope, never the ask, so unasked-for work reads to every lens as correct code and passes. Hold the change set against what it was asked for, name each addition beyond it, and say plainly when there is none.
 
 1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings; record the others.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or an invariant the project's own standards mark security-critical).
