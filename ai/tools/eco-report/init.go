@@ -93,6 +93,14 @@ func (r *run) cmdInit(args []string) {
 		}
 		r.errLines("  nothing above is kept anywhere — route it now if it still matters.")
 	}
+	// A stem's stage markers are cleared by invalidate, close and discard, but a stem can also be
+	// reached by a fresh init over a report that ended in none of those — a crash, a deleted file, a
+	// --force. Every marker is a claim about a pass, and `stamp` reads them as preconditions it may
+	// stop asking about: an inherited `decisions-reviewed` earns a stamp for a pass that never opened
+	// the decision log. So the stem starts empty here, the same as it ends.
+	if err := os.RemoveAll(r.stageReturnsDir); err != nil {
+		r.refuse("error: could not clear " + r.stageReturnsDir + " (" + err.Error() + ") — the report was NOT initialized, since a stage marker left from an earlier pass is one this pass would never have to earn.")
+	}
 	err := r.rewriteReport(
 		r.report+" still carries the template's placeholder intent",
 		"could not write the intent line into "+r.report,

@@ -22,6 +22,8 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
+**A symptom whose cause nobody has reproduced goes to the diagnosis lane, never to a review stage.** A divergence the drive gate returns, a red the build leaves, an intermittent failure — a lens reading the diff will produce a theory, and a theory is what the pipeline then treats as a finding.
+
 ## Drive it before you review it
 
 **Use the change the way its user will, wherever it has observable behaviour, and do it before any lens reads it.**
@@ -41,6 +43,8 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 **The numbering is not the execution order** — **The round** above sets it.
 
 **Both review stages are local**: neither posts to GitHub nor runs `gh`. And **a pre-existing defect outside the change is neither fixed nor blocked on** — a serious one is surfaced once, as a separate non-blocking note for the human to route, never folded into the change's findings and never dropped silently. One the change makes reachable or worse is in scope.
+
+**Behaviour the change adds that nothing asked for is surfaced the same way**, and this one is the orchestrator's own: a stage is handed a scope, never the ask, so unasked-for work reads to every lens as correct code and passes. Hold the change set against what it was asked for, name each addition beyond it, and say plainly when there is none.
 
 1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings; record the others.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or an invariant the project's own standards mark security-critical).

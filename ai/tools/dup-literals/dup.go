@@ -99,6 +99,15 @@ type finding struct {
 	length int
 }
 
+// scan is one run's accumulating state. Held together because both walks feed the same two tallies
+// and the report reads all of them beside the denominator.
+type scan struct {
+	cfg    Config
+	tokens map[string]int
+	lines  map[string]int
+	result diffscan.Result
+}
+
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", self, err)
@@ -118,23 +127,8 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 		return exitDidNotRun
 	}
 
-	tokens := map[string]int{}
-	lines := map[string]int{}
-	var result diffscan.Result
-	count := func(added diffscan.AddedLine) {
-		// The whole trimmed line, for copy-pasted statements.
-		trimmed := strings.TrimSpace(added.Text)
-		if len([]rune(trimmed)) >= cfg.MinLength {
-			lines[trimmed]++
-		}
-		// Whitespace- and delimiter-separated tokens, for long literals embedded in differing lines.
-		for _, token := range strings.FieldsFunc(added.Text, isDelimiter) {
-			if len([]rune(token)) >= cfg.MinLength {
-				tokens[token]++
-			}
-		}
-	}
-	if err := result.WalkDiff(diff, count); err != nil {
+	s := &scan{cfg: cfg, tokens: map[string]int{}, lines: map[string]int{}}
+	if err := s.result.WalkDiff(diff, s.count); err != nil {
 		fmt.Fprintf(stderr, "%s: the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.\n", self, err)
 		return exitDidNotRun
 	}
@@ -149,13 +143,27 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 				fmt.Fprintf(stderr, "%s: %s\n", self, line)
 			},
 		}
-		if err := result.WalkUntracked(cwd, opts, count); err != nil {
+		if err := s.result.WalkUntracked(cwd, opts, s.count); err != nil {
 			fmt.Fprintf(stderr, "%s: could not list untracked files — the scan did NOT run\n", self)
 			return exitDidNotRun
 		}
 	}
 
-	return report(self, tokens, lines, result, stdout, stderr)
+	return s.report(self, stdout, stderr)
+}
+
+func (s *scan) count(added diffscan.AddedLine) {
+	// The whole trimmed line, for copy-pasted statements.
+	trimmed := strings.TrimSpace(added.Text)
+	if len([]rune(trimmed)) >= s.cfg.MinLength {
+		s.lines[trimmed]++
+	}
+	// Whitespace- and delimiter-separated tokens, for long literals embedded in differing lines.
+	for _, token := range strings.FieldsFunc(added.Text, isDelimiter) {
+		if len([]rune(token)) >= s.cfg.MinLength {
+			s.tokens[token]++
+		}
+	}
 }
 
 // The delimiters a literal is split on. Whitespace, quotes, backtick, comma, semicolon and brackets:
@@ -168,16 +176,16 @@ func isDelimiter(r rune) bool {
 	return false
 }
 
-func report(self string, tokens, lines map[string]int, result diffscan.Result, stdout, stderr io.Writer) int {
+func (s *scan) report(self string, stdout, stderr io.Writer) int {
 	var found []finding
-	for text, n := range tokens {
+	for text, n := range s.tokens {
 		if n >= 2 {
 			found = append(found, finding{kind: tokenFinding, text: text, count: n, length: len([]rune(text))})
 		}
 	}
-	for text, n := range lines {
+	for text, n := range s.lines {
 		// A line whose whole text is also a token is one duplicate, not two.
-		if n >= 2 && tokens[text] == 0 {
+		if n >= 2 && s.tokens[text] == 0 {
 			found = append(found, finding{kind: lineFinding, text: text, count: n, length: len([]rune(text))})
 		}
 	}
@@ -207,8 +215,8 @@ func report(self string, tokens, lines map[string]int, result diffscan.Result, s
 
 	// The denominator, on stderr so the report on stdout stays exactly the duplicates.
 	fmt.Fprintf(stderr, "%s: %d file(s) reached the scan, %d duplicate(s), %d file(s) skipped unread, %d binary line(s) ignored.\n",
-		self, result.Reached, len(found), result.SkippedUnread, result.BinaryLines)
-	if result.Reached == 0 {
+		self, s.result.Reached, len(found), s.result.SkippedUnread, s.result.BinaryLines)
+	if s.result.Reached == 0 {
 		fmt.Fprintf(stderr, "%s: nothing reached the scan, so this run says nothing about the change set.\n", self)
 	}
 	if len(found) > 0 {

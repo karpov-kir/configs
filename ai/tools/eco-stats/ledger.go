@@ -13,8 +13,7 @@ import (
 
 // stats.md owns the rules below — kk-reduce's SKILL.md says so, and its reader arrives at the file,
 // not at the skill — so a fresh one has to carry them or it begins life with none of the protection
-// the ledger exists to have. The shell version's copy had already drifted out of all three: no
-// `, start`, no campaign-cut-versus-drift, no never-edited absolute.
+// the ledger exists to have.
 //
 // This and the live stats.md are a .md/source pair, which no drift check covers — the shared-region
 // scan reads `*.sh` — so a case in stats_test.go compares the two directly. It runs only where there

@@ -410,9 +410,9 @@ var (
 	allStagesStampedAs = strings.Join(allStages, ",")
 )
 
-// Everything a stamp demands short of the stamp itself: this pass invalidated, and every stage
-// marked returned and then empty. Invalidate comes first because a marker means nothing until it is
-// known which pass made it.
+// Everything a stamp demands short of the stamp itself: this pass invalidated, every stage marked
+// returned and then empty, and the decision log accounted for. Invalidate comes first because a
+// marker means nothing until it is known which pass made it.
 func (f *fixture) armFullPass(ship string) {
 	f.t.Helper()
 	f.armFullPassIn(f.repo, ship)
@@ -435,6 +435,7 @@ func (f *fixture) armFullPassIn(dir, ship string) {
 		f.runReportIn(dir, "stage-returned", stage, ship)
 		f.runReportIn(dir, "no-items", stage, ship)
 	}
+	f.runReportIn(dir, "decisions-reviewed", ship)
 }
 
 func (f *fixture) stampFullPassIn(dir, ship string) {

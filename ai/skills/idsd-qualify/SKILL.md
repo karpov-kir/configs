@@ -44,11 +44,13 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 `.idsd/decisions.md`. **Written for the next agent, not the human** — nothing here is presented. It holds **decisions a stage settled without asking**, each with what determined it, and **standing observations** — monitor-only notes and pointers to follow-ups routed out of the report. The companion rule is `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
 
-It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 40 lines.**
+It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta.
 
-**Write it only through `report.sh record {append|bump|evict} decisions "<text>"`.** Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
+**Write it only through `report.sh record {append|bump|revise|evict|admit} decisions "<text>"`.** Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
 
-Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale. **Read it at pass start**: its standing observations are re-evaluated each pass.
+Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale.
+
+**Read it at pass start and re-evaluate every entry against the tree — the log is pruned here and nowhere else.** An entry whose subject is gone from the code, or which a later one supersedes, goes now: `record evict`, whatever its count. One still binding on what this pass examines takes `record bump`. **Then `report.sh decisions-reviewed <intent>`, after this pass's `invalidate`** — `stamp` refuses until you have, and `invalidate` clears it, so no pass inherits another's reading of the log.
 
 ### The residue
 

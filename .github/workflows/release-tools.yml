@@ -32,7 +32,7 @@ jobs:
   release-tools:
     runs-on: ubuntu-latest
     env:
-      # The tools that ship. `go-mutate` is a developer harness and stays out deliberately —
+      # The tools that ship. `go-mutate` is a developer harness and stays out deliberately;
       # ai/tools/shipped_test.go fails if this list and that judgement drift apart.
       SHIPPED: eco-check eco-stats eco-report rule-echo cite-graph handoff-check cadence comment-density score tree-fingerprint gate dup-literals
     steps:
@@ -40,15 +40,13 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          # From go.mod, so the release is built by the toolchain the module declares.
           go-version-file: ai/tools/go.mod
           # Off for the reason `.github/workflows/gates.yml` states in its header: setup-go looks for
           # its cache key file in the repo root, and this module is in ai/tools.
           cache: false
 
       # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: the test
-      # cache is keyed on the module, and several suites read files from outside it. The measurement
-      # and the negative control are there.
+      # cache is keyed on the module, and several suites read files from outside it.
       - name: Gate
         working-directory: ai/tools
         run: |
@@ -59,8 +57,7 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/gate.sh states at gotest_timeout. The two have
-          # to match.
+          # `-timeout` and this value must match goSuiteTimeout in ai/tools/gate/run.go, which says why.
           go test -count=1 -timeout 30m ./...
 
       # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is
@@ -99,9 +96,8 @@ jobs:
         with:
           subject-path: ai/tools/dist/*
 
-      # `create` when the tag has no release yet, `upload --clobber` when it does — the tag can be
-      # pushed before or after the release is drafted, and re-running this workflow must not fail on
-      # assets it uploaded itself.
+      # The tag can be pushed before or after the release is drafted, and re-running this workflow
+      # must not fail on assets it uploaded itself.
       - name: Attach to the release
         working-directory: ai/tools
         env:

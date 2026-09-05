@@ -333,9 +333,10 @@ var mutants = []mutant{
 	{"discard: the review exception removed", "../eco-report/paths.go", "./eco-report/", "TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed", `if slug == "review" {`, "if false {"},
 	// The durable three are a table, and a table gets a row each: each one kept .idsd/ standing
 	// with nothing observing that it did.
-	{"surviving: charter.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", `[]string{"charter.md", "language.md", "playbook.md"}`, `[]string{"language.md", "playbook.md"}`},
-	{"surviving: language.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "playbook.md"}`},
-	{"surviving: playbook.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "language.md"}`},
+	{"surviving: charter.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"constraints.md", "language.md", "playbook.md"}`},
+	{"surviving: constraints.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "language.md", "playbook.md"}`},
+	{"surviving: language.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "constraints.md", "playbook.md"}`},
+	{"surviving: playbook.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "constraints.md", "language.md"}`},
 	{"surviving: a parallel ship's report no longer counted", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", "if left := len(r.reportNames()); left != 0 {", "if left := len(r.reportNames()); left < 0 {"},
 	{"surviving: another ship's intent file no longer counted", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if shell.PathExists(intents) || shell.PathExists(archive) {", "if false {"},
 	{"surviving: stray content counted as intents", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if left := countMarkdownFiles(intents, archive); left > 0 {", "if left := countMarkdownFiles(intents, archive); left >= 0 {"},
@@ -425,8 +426,11 @@ var mutants = []mutant{
 	// root.go — where the throwaway scratch lives. Every mutant here turns the fix back into the defect
 	// it replaced, and each one still reports success on every command, which is why they are worth
 	// pinning: the failure mode being guarded is silence, not an error.
-	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestEveryWorktreeOfACloneSeesTheOneScratchDirectory", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
-	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheLocationIsResolvedFromTheRootNotTheCallersDirectory", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
+	// These three sit on the `rev-parse` fallback under layout.go, which every other fixture in the
+	// package skips by reading the filesystem instead. They name the case that switches the reader
+	// off rather than the case that describes the property, because only that one reaches them.
+	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
+	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
 	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(real))", "name := shell.BaseName(r.root)"},
 	{"root: a broken override falls back to the default in silence", "../eco-report/root.go", "./eco-report/", "TestABrokenOverrideRefusesRatherThanFallingBack", "if root == \"\" {\n\t\tr.refuse(\"error: \"+path+\" sets no", "if false {\n\t\tr.refuse(\"error: \"+path+\" sets no"},
 	{"root: an override inside the working tree is accepted", "../eco-report/root.go", "./eco-report/", "TestAnOverrideInsideTheWorkingTreeIsRefused", `if scratch != root && !strings.HasPrefix(scratch, root+"/") {`, "if true {"},
@@ -438,7 +442,7 @@ var mutants = []mutant{
 	// Only observable where a write goes through the answer, so the case is `check-ignore` run *in* a
 	// linked worktree: prefixed with the root, the absolute git dir names a tree inside the worktree,
 	// and the exclusion lands there while git goes on ignoring nothing.
-	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestPerWorktreeStateGoesToTheWorktreesOwnGitDir", `if strings.HasPrefix(path, "/") {`, "if false {"},
+	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `if strings.HasPrefix(path, "/") {`, "if false {"},
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
 	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
 	// The arm order is load-bearing, so the two forms of info/exclude are asked separately: the
@@ -455,16 +459,42 @@ var mutants = []mutant{
 	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if err != nil || tree == "" {`, "if false {"},
 	{"fingerprint: the walk repeated once per ship", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if r.cachedTree != "" {`, "if false {"},
 
-	// records.go — the two records every worktree of the clone shares. Every guard here stands between
+	// intent_ready.go — the build-blocker over the ICE. Every guard here fails open: lose one and the
+	// gate still prints "intent ready", so a build starts against a placeholder nobody filled.
+	{"intent-ready: the placeholder scan disabled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" {`, `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" && false {`},
+	{"intent-ready: a comparison read as a placeholder", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if body != "" && body[0] != ' ' && !strings.HasPrefix(body, "!--") {`, `if body != "" && !strings.HasPrefix(body, "!--") {`},
+	{"intent-ready: an empty required section read as filled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if inSection && strings.TrimSpace(line) != "" {`, "if inSection {"},
+	{"intent-ready: the field's own comment read as a sign-off", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyReadsTheTemplatesCommentAsNoSignOff", `if strings.HasPrefix(value, "#") {`, "if false {"},
+	{"intent-ready: an archived dependency read as unbuilt", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnADependencyThatHasNotShipped", `case where == "archive":`, `case where == "archive" && false:`},
+	{"gate: the intent's own follow-ups never scanned", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", `if intent := r.intentFilePath(); intent != "" {`, `if intent := r.intentFilePath(); intent != "" && false {`},
+
+	// records.go — the four records every worktree of the clone shares. Every guard here stands between
 	// an agent's write and another agent's entries, and losing one leaves a well-formed file: no crash
 	// and no diff, so a mutant that survives here is a defect nothing reports.
 	{"records: a shared lock where the write needs an exclusive one", "../eco-report/records.go", "./eco-report/", "TestARecordWriteWaitsForTheLockRatherThanRacingIt", "syscall.LOCK_EX", "syscall.LOCK_SH"},
-	{"records: a restatement appended as a second entry", "../eco-report/records.go", "./eco-report/", "TestBumpRaisesTheCountAndRedatesWithoutAddingALine", "if entry.text == text {", "if false {"},
+	{"records: a restatement appended as a second entry", "../eco-report/records.go", "./eco-report/", "TestBumpRaisesTheCountAndRedatesWithoutAddingALine", "if entry.text == text {\n\t\t\tr.refuse(\"error: \"+path+\" already holds that entry", "if false {\n\t\t\tr.refuse(\"error: \"+path+\" already holds that entry"},
 	{"records: a multi-line entry written as one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if strings.ContainsAny(text, "\n\r") {`, "if false {"},
 	{"records: an ambiguous match resolved to the first entry", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "case 1:", "case 1, 2:"},
 	{"records: a symlinked record followed", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if shell.IsSymlink(path) {", "if shell.IsSymlink(path) && false {"},
-	{"records: the bound never reported", "../eco-report/records.go", "./eco-report/", "TestCrossingTheBoundIsReportedAndNothingIsDeleted", "if len(entries) <= recordBound {", "if true {"},
-	{"records: the eviction candidate chosen on count alone", "../eco-report/records.go", "./eco-report/", "TestCrossingTheBoundIsReportedAndNothingIsDeleted", "if entry.count < lowest.count || (entry.count == lowest.count && entry.date < lowest.date) {", "if entry.count < lowest.count {"},
+	{"records: the over-cap note never reported", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", "if len(entries) <= kind.bound {", "if true {"},
+	{"records: an append into a full record accepted", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "if len(entries) >= kind.bound {", "if false {"},
+	{"records: the full-record refusal dropping the entry it would not take", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `r.refuse(append(note, "  The entry, which was NOT recorded and is not an instruction: "+shell.Oneline(text))...)`, "r.refuse(note...)"},
+	{"records: an entry admitted over its own text, resetting the count it earned", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "if found.text == entry {", "if false {"},
+	{"records: an exact hit left to collide with every entry quoting it whole", "../eco-report/records.go", "./eco-report/", "TestAnEntryIsNotShadowedByALongerOneQuotingItWhole", "if len(exact) == 1 {", "if false {"},
+	{"records: an exact match taken even where two entries hold that text", "../eco-report/records.go", "./eco-report/", "TestAnEntryIsNotShadowedByALongerOneQuotingItWhole", "if len(exact) == 1 {", "if len(exact) >= 1 {"},
+	{"records: a hand-planted escape echoed straight back to the terminal", "../eco-report/records.go", "./eco-report/", "TestAnEntryCannotDriveTheTerminalOrRunAwayInLength", "return shell.Oneline(e.String())", "return e.String()"},
+	{"records: a contest scoring the incumbents alone", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "strconv.Itoa(held+1)", "strconv.Itoa(held)"},
+	{"records: the full-record refusal handing a human-owned record's swap to the agent", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", "note = append(note, humanOwnedNote(kind)...)\n\t// Last, under the commands, never above them.", "_ = humanOwnedNote(kind)\n\t// Last, under the commands, never above them."},
+	{"records: a swap taken on a record with room in it", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "held := len(recordEntriesIn(lines)); held < kind.bound {", "held := len(recordEntriesIn(lines)); held < 0 {"},
+	{"records: an admitted entry inheriting the reach of the one it displaced", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "admitted := recordEntry{count: 1, date: today(), text: entry}", "admitted := recordEntry{count: found.count, date: today(), text: entry}"},
+	{"records: a swap reported by its winner alone", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `r.line("in place of: %s", found.quoted())`, "_ = found"},
+	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the score cuts.",`, `"",`},
+	{"records: a record that never says who it is written for", "../eco-report/records.go", "./eco-report/", "TestFirstWriteCreatesTheRecordWithItsHeader", `"Written for the next agent — never presented to a human, and no human maintains it.\n" +`, `"" +`},
+	{"records: a revision that resets the entry's reach", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "revised := recordEntry{count: found.count, date: today(), text: replacement}", "revised := recordEntry{count: 1, date: today(), text: replacement}"},
+	{"records: a revision onto a duplicate of another entry", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "if entry.text == replacement {", "if false {"},
+	{"records: the over-cap note handing a human-owned record's moves to the agent", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", "note = append(note, humanOwnedNote(kind)...)\n\tr.errLines(note...)", "_ = humanOwnedNote(kind)\n\tr.errLines(note...)"},
+	{"records: every record's over-cap note quoting the decision log's", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `strconv.Itoa(kind.bound) + " — every append refuses until it is back down.",`, `strconv.Itoa(decisionsBound) + " — every append refuses until it is back down.",`},
+	{"records: every full-record refusal quoting the decision log's cap", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `strconv.Itoa(held) + " entries, its cap.`, `strconv.Itoa(decisionsBound) + " entries, its cap.`},
 	{"records: an entry appended onto an unterminated last line", "../eco-report/records.go", "./eco-report/", "TestAMutationNeverLosesALineItDidNotTarget", "} else if !ended {", "} else if !ended && false {"},
 	{"records: a no-match refusal that never says the text is in the file", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if strings.Contains(line, text) {", "if strings.Contains(line, text) && false {"},
 	{"records: the not-an-entry hint fired for a line that is one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if _, isEntry := parseRecordEntry(i, line); isEntry {", "if _, isEntry := parseRecordEntry(i, line); isEntry && false {"},
@@ -473,10 +503,11 @@ var mutants = []mutant{
 	{"records: a bump creating the record it could not find", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", "flags := os.O_RDWR | syscall.O_NOFOLLOW", "flags := os.O_RDWR | syscall.O_NOFOLLOW | os.O_CREATE"},
 	{"records: a write into a scratch root git can reach", "../eco-report/records.go", "./eco-report/", "TestARecordIsNeverWrittenWhereGitCanReachIt", "r.assertScratchIsUnreachableByGit()", "_ = r.root"},
 	{"records: a rewrite that never trims what it shrank", "../eco-report/records.go", "./eco-report/", "TestAnEvictLeavesNoTailOfWhatItRemoved", "if err := handle.Truncate(int64(len(content))); err != nil {", "if err := error(nil); err != nil {"},
-	{"records: an unknown operation reaching the scratch directory", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", `if op != "append" && op != "bump" && op != "evict" {`, "if false {"},
+	{"records: an unknown operation reaching the scratch directory", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", `if op != "append" && op != "bump" && op != "revise" && op != "evict" && op != "admit" {`, "if false {"},
 	{"records: an empty entry recorded as one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if strings.TrimSpace(text) == "" {`, "if false {"},
-	{"records: a record name outside the two this tool owns", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if kind == nil {", "if false {"},
-	{"records: a call with the wrong argument count reaching the switch", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if len(args) != 3 {", "if false {"},
+	{"records: a record name outside the ones this tool owns", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if kind == nil {", "if false {"},
+	{"records: a call with the wrong argument count reaching the switch", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "if len(args) < 3 || len(args) > 4 {", "if false {"},
+	{"records: a fourth argument accepted by an op that takes three", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if (op == "revise" || op == "admit") != (len(args) == 4) {`, "if false {"},
 	{"records: a scratch directory anyone on the machine can read", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", "os.MkdirAll(r.idsdDir, 0o700)", "os.MkdirAll(r.idsdDir, 0o777)"},
 
 	// gate.go — the merge gate, the items a re-qualify must carry, and the routing token.
@@ -556,7 +587,13 @@ var mutants = []mutant{
 	{"stamp: this pass never invalidated", "../eco-report/stamp.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `if stamped := r.reviewedTree(); stamped != "pending" {`, "if stamped := r.reviewedTree(); len(stamped) < 0 {"},
 	{"stamp: a skipped stage demands a marker anyway", "../eco-report/stamp.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `if strings.Contains(entry, ":skipped(") {`, "if false {"},
 	{"stamp: the per-stage marker check removed", "../eco-report/stamp.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `if reason := r.stageBlockReason(stage); reason != "" {`, "if reason := r.stageBlockReason(stage); len(reason) < 0 {"},
-	{"invalidate: last pass's stage returns survive it", "../eco-report/stamp.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "_ = os.RemoveAll(r.stageReturnsDir)\n\tr.line(\"invalidated", "_ = os.RemoveAll(r.stageReturnsDir + \"/no-such-stage\")\n\tr.line(\"invalidated"},
+	// A stage marker IS the precondition stamp reads instead of re-checking the stage, so the three
+	// below are all one defect wearing different clothes: a marker this pass never earned.
+	{"init: a fresh report adopting the dead pass's stage markers", "../eco-report/init.go", "./eco-report/", "TestAFreshReportInheritsNoStageMarkerFromTheOneBeforeIt", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {\n\t\tr.refuse(\"error: could not clear \" + r.stageReturnsDir + \" (\" + err.Error() + \") — the report was NOT initialized", "if err := error(nil); err != nil {\n\t\tr.refuse(\"error: could not clear \" + r.stageReturnsDir + \" (\" + err.Error() + \") — the report was NOT initialized"},
+	{"stages: a marker directory any local account can write", "../eco-report/stages.go", "./eco-report/", "TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine", "os.MkdirAll(r.stageReturnsDir, 0o700)", "os.MkdirAll(r.stageReturnsDir, 0o777)"},
+	{"stages: a marker file any local account can forge", "../eco-report/stages.go", "./eco-report/", "TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine", `[]byte(value+"\n"), 0o600)`, `[]byte(value+"\n"), 0o666)`},
+	{"stamp: a pass that never accounted for the decision log", "../eco-report/stamp.go", "./eco-report/", "TestAStampDemandsThePassAccountForTheDecisionLog", "if !r.stageWasMarkedReturned(decisionsMarker) {", "if false {"},
+	{"invalidate: last pass's stage returns survive it", "../eco-report/stamp.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {", "if err := os.RemoveAll(r.stageReturnsDir + \"/no-such-stage\"); err != nil {"},
 	{"stage vocabulary: any word accepted as a stage", "../eco-report/stages.go", "./eco-report/", "TestAStageNameThatIsNotAStageIsRefused", "if stage == known {", "if stage != known {"},
 	{"stage vocabulary: a stage renamed out of the pipeline", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `const stageNames = "code-review security-review tighten refactor"`, `const stageNames = "code-review security-review tighten refactors"`},
 	// SURVIVOR, and unreachable rather than merely unobserved — so it stays one. reportChecksum answers
@@ -918,8 +955,12 @@ var mutants = []mutant{
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},
 	{"density: the minimum comment-line floor is removed", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`entry.comments < s.cfg.MinLines ||`, `entry.comments < 0 ||`},
+	// `pending || true` rather than dropping the name: `pending` is read nowhere else, so removing it
+	// from this condition costs it its last use, Go refuses to compile, and the mutant reports `broken`
+	// — which says nothing about the guard. The disjunction leaves the name read and the guard gone,
+	// which is the edit this mutant means.
 	{"density: a file is anchored on the +++ line alone", "../diffscan/diffscan.go", "./comment-density/", "TestAnAddedLineShapedLikeADiffHeader",
-		`case pending && strings.HasPrefix(raw, "+++ "):`, `case strings.HasPrefix(raw, "+++ "):`},
+		`case pending && strings.HasPrefix(raw, "+++ "):`, `case (pending || true) && strings.HasPrefix(raw, "+++ "):`},
 	{"density: prose and data files are counted", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
 		`if line == "" || isProseOrData(file) {`, `if line == "" {`},
 	{"density: a bare star counts as a comment", "../comment-density/density.go", "./comment-density/", "TestAStarThatIsNotAComment",
@@ -959,9 +1000,9 @@ var mutants = []mutant{
 	// dup-literals and the half it shares with comment-density. These sit on the two guards a reader of
 	// the report cannot check for themselves.
 	{"dup: the length floor stops applying to a whole line", "../dup-literals/dup.go", "./dup-literals/", "TestTheLengthFloor",
-		`if len([]rune(trimmed)) >= cfg.MinLength {`, "if true {"},
+		`if len([]rune(trimmed)) >= s.cfg.MinLength {`, "if true {"},
 	{"dup: a literal appearing once counts as repeated", "../dup-literals/dup.go", "./dup-literals/", "TestASingleOccurrenceIsNotADuplicate",
-		"for text, n := range tokens {\n\t\tif n >= 2 {", "for text, n := range tokens {\n\t\tif n >= 1 {"},
+		"for text, n := range s.tokens {\n\t\tif n >= 2 {", "for text, n := range s.tokens {\n\t\tif n >= 1 {"},
 	{"dup: the display cap stops bounding the report", "../dup-literals/dup.go", "./dup-literals/", "TestPastTheDisplayCap",
 		"const maxShown = 200", "const maxShown = 100000"},
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
@@ -972,12 +1013,44 @@ var mutants = []mutant{
 		"return scanner.Err()", "return nil"},
 	{"diffscan: a binary untracked file is read", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedBinaryFileIsSkippedAndCounted",
 		"if isBinary(body) {", "if false {"},
+
+	// The did-not-measure counter. Every guard here decides whether CI keeps passing over guards
+	// nothing has proved, which is a thing no reader of a green tick can check for themselves.
+	{"nomeasure: the escalation threshold moves out by one", "../nomeasure/nomeasure.go", "./nomeasure/", "TestThreeDidNotMeasureRunsRunningEscalate",
+		"const escalateAt = 3", "const escalateAt = 4"},
+	{"nomeasure: a status other than the harness's did-not-measure one is counted", "../nomeasure/nomeasure.go", "./nomeasure/", "TestAMeasuredRunClearsTheCount",
+		"harnessDidNotMeasure = 2", "harnessDidNotMeasure = 3"},
+	// Nine digits or fewer parse, so only the length bound refuses a stored 1234567890 — and without it
+	// that entry sits above the threshold and fails the job for good.
+	{"nomeasure: a stored count too long to be one is carried on from", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountThatDoesNotParseIsNoHistory",
+		"len(stored) >= 10", "len(stored) >= 99"},
+	// `|| true` rather than `return true`: the shorter edit costs `s` its last use, Go refuses to
+	// compile it, and the mutant reports `broken` — which proves nothing about the guard.
+	{"nomeasure: a status that is no number is accepted as one", "../nomeasure/nomeasure.go", "./nomeasure/", "TestTheArmsThatDecideNothing",
+		"return strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0",
+		"return strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0 || true"},
+	{"nomeasure: a count file that would not take the write is reported as counted", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountFileThatWillNotTakeTheWriteDecidesNothing",
+		"if !record(countFile, count, stderr) {", "if !record(countFile, count, stderr) && false {"},
+	{"nomeasure: a reset that would not take the write is reported as measured", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountFileThatWillNotTakeTheWriteDecidesNothing",
+		"if !record(countFile, 0, stderr) {", "if !record(countFile, 0, stderr) && false {"},
+	{"nomeasure: a status with no count file picks a path instead of refusing", "../nomeasure/nomeasure.go", "./nomeasure/", "TestTheArmsThatDecideNothing",
+		"if len(args) < 2 || args[0] == \"\"", "if len(args) < 1 || args[0] == \"\""},
+
+	// The gate's key narrowing. Both directions are guards: dropping too little only costs time, but
+	// dropping too much stops the gate watching code a tool is built from, which reads as a clean run.
+	{"gate: a compiled-binary unit is keyed on test files after all", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
+		"if u.viaCompiledBinary {", "if u.viaCompiledBinary && false {"},
+	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
+		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
+	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
+	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
 }
 
-// A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same
-// situation and this is its Go twin, down to the vocabulary: a guard whose triggering condition an
-// earlier guard already refuses cannot be observed from outside, and a mutation of it that changes
-// nothing observable cannot be killed by any case anyone could write.
+// A mutant no case can redden, and why: a guard whose triggering condition an earlier guard already
+// refuses cannot be observed from outside, and a mutation of it that changes nothing observable
+// cannot be killed by any case anyone could write.
 //
 // Declaring one is what makes every OTHER survivor a failure of this run. Undeclared, they print in
 // the same column, the run ends "N that proved nothing" and exits 1 every single time — and a column

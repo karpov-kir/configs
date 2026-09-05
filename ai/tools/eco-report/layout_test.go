@@ -37,33 +37,38 @@ func TestTheLayoutResolverAgreesWithGit(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 
-	shapes := []struct{ name, dir string }{
-		{"an ordinary repository, from its root", main},
-		{"an ordinary repository, from a subdirectory", deep},
-	}
-
 	// A linked worktree is the shape the whole common-dir distinction exists for, and the one a
 	// filesystem read is most likely to get wrong: its `.git` is a FILE, and its git dir is not its
-	// common dir. Skipped rather than failed where git cannot build one, since that is the machine's
-	// limitation and not this resolver's.
+	// common dir.
 	linked := filepath.Join(base, "linked")
-	if err := exec.Command("git", "-C", main, "worktree", "add", "-q", linked, "-b", "other").Run(); err == nil {
-		shapes = append(shapes, struct{ name, dir string }{"a linked worktree", linked})
-		sub := filepath.Join(linked, "c")
-		if err := os.MkdirAll(sub, 0o755); err == nil {
-			shapes = append(shapes, struct{ name, dir string }{"a linked worktree, from a subdirectory", sub})
-		}
-	} else {
-		t.Log("git worktree add is unavailable here, so the linked-worktree shapes were not compared")
-	}
-	// The control on the instrument: two shapes is the ordinary pair, and a run that compared only
-	// those has not touched the case the resolver is most likely to fail.
-	if len(shapes) < 3 {
-		t.Log("only the ordinary shapes were compared — the linked-worktree arms did not run")
+	worktreeErr := exec.Command("git", "-C", main, "worktree", "add", "-q", linked, "-b", "other").Run()
+
+	shapes := []struct {
+		name, dir     string
+		needsWorktree bool
+	}{
+		{name: "an ordinary repository, from its root", dir: main},
+		{name: "an ordinary repository, from a subdirectory", dir: deep},
+		{name: "a linked worktree", dir: linked, needsWorktree: true},
+		{name: "a linked worktree, from a subdirectory", dir: filepath.Join(linked, "c"), needsWorktree: true},
 	}
 
 	for _, shape := range shapes {
 		t.Run(shape.name, func(t *testing.T) {
+			// t.Skip, never a t.Log: a machine that cannot build a worktree used to drop these two
+			// shapes and report a clean pass, with the decline visible only under -v and counted
+			// nowhere. The skip puts it in the run's own tally, where a reader sees that the arm most
+			// likely to fail is the arm that did not run. Every sibling suite here does the same.
+			if shape.needsWorktree {
+				if worktreeErr != nil {
+					t.Skipf("git worktree add is unavailable here, so this shape cannot be built: %v", worktreeErr)
+				}
+				// Only reached once the worktree exists, so a failure here is this machine's disk and
+				// not its git — a fatal, not a second skip.
+				if err := os.MkdirAll(shape.dir, 0o755); err != nil {
+					t.Fatalf("making %s inside the linked worktree: %v", shape.dir, err)
+				}
+			}
 			gotRoot, ok := layoutRoot(shape.dir)
 			if !ok {
 				t.Fatalf("the resolver declined %s, so nothing was compared", shape.dir)

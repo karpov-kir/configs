@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -30,8 +31,19 @@ const (
 // keyed on — and not the whole skill, whose SKILL.md is prose no fixture reads.
 var extQualify = []string{"ai/skills/idsd-qualify/scripts", "ai/skills/idsd-qualify/templates"}
 
+// A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and
+// `go vet` both compile `_test.go`, so a suite reaching for either sees those files and must stay
+// keyed on them.
+var goSuiteRun = regexp.MustCompile(`\bgo (test|vet)\b`)
+
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
 	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
+}
+
+// A unit whose only reach into the Go tree is through a binary `resolve.sh` compiled. See
+// unit.viaCompiledBinary for what that lets its key drop.
+func (g *gate) addViaCompiledBinary(id, kind string, inputs []string, cmd string) {
+	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd, viaCompiledBinary: true})
 }
 
 func (g *gate) buildUnits() int {
@@ -106,19 +118,35 @@ func (g *gate) discoverShellSuites() int {
 			inputs = append(inputs, sibling)
 		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
-		// observe.
+		// observe. What they observe is a compiled binary, though, so the key drops the module's own
+		// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
+		// puts in a binary.
+		viaBinary := false
 		if body, err := os.ReadFile(filepath.Join(g.root, suite)); err == nil {
 			for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
 				if strings.Contains(string(body), marker) {
 					inputs = append(inputs, goTree)
+					viaBinary = true
 					break
 				}
+			}
+			// A suite that compiles or runs the module's suites itself is not reached through a binary,
+			// whatever markers it holds, and takes the tree whole.
+			if goSuiteRun.Match(body) {
+				viaBinary = false
 			}
 		}
 		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result —
 		// exit 2 is "did not measure", and a suite exiting 0 having run no case at all is VACUOUS and a
 		// failure. Run directly, a suite emptied to zero bytes exits 0 silently and reads as `ran ok`.
-		name := strings.TrimSuffix(filepath.Base(suite), "-test.sh")
+		// Keyed on the suite's path, not its basename: two directories may each hold a `bootstrap-test.sh`,
+		// and one id over both is a cache record that cannot say whose verdict it holds — which is a
+		// discovery arm that refuses before anything runs.
+		name := strings.TrimSuffix(suite, "-test.sh")
+		if viaBinary {
+			g.addViaCompiledBinary("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
+			continue
+		}
 		g.add("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
 	}
 	return 0

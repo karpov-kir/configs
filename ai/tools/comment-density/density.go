@@ -71,22 +71,22 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
 	if raw, ok := lookup("COMMENT_MAX_RATIO"); ok && raw != "" {
 		value, err := strconv.ParseFloat(raw, 64)
-		if err != nil {
-			return cfg, fmt.Errorf("COMMENT_MAX_RATIO is %q, which is no number — the scan did NOT run", raw)
+		if err != nil || value < 0 || value > 1 {
+			return cfg, fmt.Errorf("COMMENT_MAX_RATIO is %q, which is no share between 0 and 1 — the scan did NOT run", raw)
 		}
 		cfg.MaxRatio = value
 	}
 	if raw, ok := lookup("COMMENT_MIN_LINES"); ok && raw != "" {
 		value, err := strconv.Atoi(raw)
-		if err != nil {
-			return cfg, fmt.Errorf("COMMENT_MIN_LINES is %q, which is no whole number — the scan did NOT run", raw)
+		if err != nil || value < 1 {
+			return cfg, fmt.Errorf("COMMENT_MIN_LINES is %q, which is no positive whole number — the scan did NOT run", raw)
 		}
 		cfg.MinLines = value
 	}
 	if raw, ok := lookup("DENSITY_MAX_FILE_BYTES"); ok && raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil {
-			return cfg, fmt.Errorf("DENSITY_MAX_FILE_BYTES is %q, which is no whole number — the scan did NOT run", raw)
+		if err != nil || value < 0 {
+			return cfg, fmt.Errorf("DENSITY_MAX_FILE_BYTES is %q, which is no whole number of bytes — the scan did NOT run", raw)
 		}
 		cfg.MaxFileBytes = value
 	}

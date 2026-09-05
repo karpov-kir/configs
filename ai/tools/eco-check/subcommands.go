@@ -29,8 +29,8 @@ var (
 	// `case $1 in`, `case "${1:-}" in`, `case "${1-}" in`. Deliberately looser than caseLabel above,
 	// which reads the arms — this decides only that a dispatch is *there*, and a dispatch this
 	// matches whose arms that one cannot read is reported rather than passed over. Column 0, so an
-	// in-function lookup table (`install.sh`, `shell-mutate.sh`) is not one. The character after the 1
-	// is what tells the first argument from `$10`, and every legal spelling puts one there.
+	// in-function lookup table — `install.sh` has one — is not read as a dispatch. The character
+	// after the 1 is what tells the first argument from `$10`, and every legal spelling puts one there.
 	dispatchOpening = regexp.MustCompilePOSIX(`^case [^#]*\$\{?1[^0-9]`)
 	// How a stub names the tool it execs. The charset is resolve.sh's, which refuses everything else:
 	// a name that resolver would not touch is not one to build a path from here either.

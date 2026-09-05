@@ -12,8 +12,10 @@ import (
 )
 
 // Built here rather than shipped, so a release does not carry them. go-mutate rewrites this module's
-// own source and runs its suites; it is run from a checkout, by someone changing the code.
-var developerOnly = map[string]bool{"go-mutate": true}
+// own source and runs its suites; it is run from a checkout, by someone changing the code. nomeasure
+// reads go-mutate's exit status and a count file the mutants workflow caches, so it only ever runs on
+// the runner that just built the harness beside it — no stub reaches for it and no skill resolves it.
+var developerOnly = map[string]bool{"go-mutate": true, "nomeasure": true}
 
 const workflow = "../../.github/workflows/release-tools.yml"
 

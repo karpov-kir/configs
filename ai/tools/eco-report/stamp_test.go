@@ -4,6 +4,8 @@ package ecoreport_test
 // it did not do.
 
 import (
+	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,7 +14,7 @@ import (
 func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	t.Parallel()
 	uninvalidated := newShip(t, "review: stamp guard")
-	uninvalidated.runReport("stamp", "code-review,security-review,tighten,refactor")
+	uninvalidated.runReport("stamp", allStagesStampedAs)
 	uninvalidated.assertRefused("stamp refuses before this pass has invalidated")
 	uninvalidated.assertReports("never invalidated", "and names invalidate as what is missing")
 
@@ -28,6 +30,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	// The other three are cleared first so the re-marked one is the only stage the stamp below can block on.
 	resumed := newShip(t, "review: resumed stage")
 	resumed.runReport("invalidate")
+	resumed.runReport("decisions-reviewed")
 	for _, cleared := range []string{"security-review", "tighten", "refactor"} {
 		resumed.runReport("stage-returned", cleared)
 		resumed.runReport("no-items", cleared)
@@ -39,7 +42,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	// re-mark is the stamp's demand that the stage's items reach the report: it rewrites the same
 	// checksum, so the report still has not moved, and a stamp taken here would record a review whose
 	// findings were never written down.
-	resumed.runReport("stamp", "code-review,security-review,tighten,refactor")
+	resumed.runReport("stamp", allStagesStampedAs)
 	resumed.assertRefused("and the re-mark leaves the stamp still gated on that stage's unrecorded items")
 	resumed.assertReports("unchanged since", "and names the unrecorded items as the reason")
 	resumed.record("and nothing was stamped over them",
@@ -47,7 +50,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	// The positive control for the refusal above: the same stamp lands once that one stage is accounted
 	// for, so what blocked it was the unrecorded items and nothing else on the way.
 	resumed.runReport("no-items", "code-review")
-	resumed.runReport("stamp", "code-review,security-review,tighten,refactor")
+	resumed.runReport("stamp", allStagesStampedAs)
 	resumed.record("and stamps once that stage's items are accounted for",
 		resumed.status == 0 && !containsLine(resumed.read(resumed.reportPath("")), "reviewed-tree: pending"),
 		resumed.evidence())
@@ -58,11 +61,12 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	// `refactor` as the one thing between this pass and a stamp it never earned.
 	unmarked := newShip(t, "review: unmarked stage")
 	unmarked.runReport("invalidate")
+	unmarked.runReport("decisions-reviewed")
 	for _, cleared := range []string{"code-review", "security-review", "tighten"} {
 		unmarked.runReport("stage-returned", cleared)
 		unmarked.runReport("no-items", cleared)
 	}
-	unmarked.runReport("stamp", "code-review,security-review,tighten,refactor")
+	unmarked.runReport("stamp", allStagesStampedAs)
 	unmarked.assertRefused("stamp refuses a stage recorded as having run that was never marked returned")
 	unmarked.assertReports("never marked returned", "and names the stage-returned call that never happened")
 	unmarked.record("and stamped nothing for the pass that skipped it",
@@ -70,10 +74,98 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	// And the same stamp lands once that stage is marked too, so the refusal above was this guard alone.
 	unmarked.runReport("stage-returned", "refactor")
 	unmarked.runReport("no-items", "refactor")
-	unmarked.runReport("stamp", "code-review,security-review,tighten,refactor")
+	unmarked.runReport("stamp", allStagesStampedAs)
 	unmarked.record("and stamps once every stage carries a marker",
 		unmarked.status == 0 && !containsLine(unmarked.read(unmarked.reportPath("")), "reviewed-tree: pending"),
 		unmarked.evidence())
+}
+
+// `records.md` → **Every entry is dated and counted** makes the bump a judgment no tool can take for
+// the agent, so the stamp enforces the one thing it can: that the pass said it worked the log. Without
+// it a pass that never opened the record stamps exactly like one that pruned it.
+func TestAStampDemandsThePassAccountForTheDecisionLog(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "review: decision log account")
+	f.runReport("invalidate")
+	for _, stage := range allStages {
+		f.runReport("stage-returned", stage)
+		f.runReport("no-items", stage)
+	}
+	f.runReport("stamp", allStagesStampedAs)
+	f.assertRefused("stamp refuses before this pass has accounted for the decision log")
+	f.assertReports("decisions-reviewed", "and names the subcommand that answers it")
+	f.record("and stamped nothing",
+		containsLine(f.read(f.reportPath("")), "reviewed-tree: pending"), "")
+
+	// The positive control: the same stamp lands once the account is on record, so nothing else on the
+	// way was blocking it.
+	f.runReport("decisions-reviewed")
+	f.runReport("stamp", allStagesStampedAs)
+	f.record("and stamps once the account is recorded",
+		f.status == 0 && !containsLine(f.read(f.reportPath("")), "reviewed-tree: pending"), f.evidence())
+
+	// The account belongs to the pass that made it. `invalidate` starts the next one, and a marker left
+	// standing would let that pass stamp on this one's reading of the log.
+	f.runReport("invalidate")
+	for _, stage := range allStages {
+		f.runReport("stage-returned", stage)
+		f.runReport("no-items", stage)
+	}
+	f.runReport("stamp", allStagesStampedAs)
+	f.assertRefused("and the next pass cannot inherit it")
+	f.assertReports("decisions-reviewed", "and is sent to account for the log again")
+}
+
+// A stem's markers are cleared by invalidate, close and discard. `init` is the fourth way onto a
+// stem, and the only one that does not follow a pass ending — a crash, a deleted report, a --force.
+// Every marker is a precondition `stamp` reads instead of re-checking the stage, so one surviving
+// into a fresh report is a claim about a pass that never ran.
+func TestAFreshReportInheritsNoStageMarkerFromTheOneBeforeIt(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-inherited-markers")
+	markers := f.repo + "/.git/idsd-stage-returns/001-inherited-markers"
+
+	// A pass that got as far as accounting for the decision log and marking every stage, then died —
+	// no invalidate, no close, no discard. The markers are on disk.
+	f.runReport("decisions-reviewed")
+	for _, stage := range allStages {
+		f.runReport("stage-returned", stage)
+		f.runReport("no-items", stage)
+	}
+	f.record("the abandoned pass left its markers behind",
+		f.isFile(markers+"/decisions-reviewed"), f.evidence())
+
+	// Someone starts over on the same intent.
+	f.runReport("init", "001-inherited-markers", "--force")
+	f.record("a fresh init clears them rather than adopting them",
+		f.status == 0 && !f.isFile(markers+"/decisions-reviewed"), f.evidence())
+
+	// The proof that matters: the new pass cannot reach a stamp on the dead one's account of the log.
+	f.runReport("invalidate")
+	for _, stage := range allStages {
+		f.runReport("stage-returned", stage)
+		f.runReport("no-items", stage)
+	}
+	f.runReport("stamp", allStagesStampedAs)
+	f.assertRefused("so the new pass must account for the decision log itself")
+	f.assertReports("decisions-reviewed", "and is told which account is missing")
+}
+
+// The markers ARE the merge precondition: `stamp` reads them rather than re-checking the stage. A
+// mode the umask decides is one another local account can write, and a forged marker there buys a
+// stamp the pass never earned.
+func TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-marker-modes")
+	f.runReport("decisions-reviewed")
+	markers := f.repo + "/.git/idsd-stage-returns/001-marker-modes"
+
+	dir, dirErr := os.Stat(markers)
+	f.record("the marker directory is reachable only by its owner",
+		dirErr == nil && dir.Mode().Perm() == 0o700, fmt.Sprint(dirErr, " ", dir))
+	marker, markerErr := os.Stat(markers + "/decisions-reviewed")
+	f.record("and the marker itself is writable only by its owner",
+		markerErr == nil && marker.Mode().Perm() == 0o600, fmt.Sprint(markerErr, " ", marker))
 }
 
 func TestAStageNameThatIsNotAStageIsRefused(t *testing.T) {
@@ -121,7 +213,7 @@ func TestInvalidateClearsThePassItStarts(t *testing.T) {
 
 	// And the markers. Left behind, the next stamp is satisfied by the previous pass's returns, so a
 	// pass that has run nothing since stamps a full review over the tree as it now stands.
-	f.runReport("stamp", "code-review,security-review,tighten,refactor", "001-invalidating")
+	f.runReport("stamp", allStagesStampedAs, "001-invalidating")
 	f.assertRefused("and a stamp taken straight after invalidate is refused")
 	f.assertReports("never marked returned", "because none of this pass's stages has returned")
 	f.record("and nothing was stamped over the cleared record",
@@ -136,13 +228,13 @@ func TestNoItemsDemandsTheStageHaveReturnedFirst(t *testing.T) {
 	f := newShip(t, "001-no-items")
 	f.runReport("invalidate", "001-no-items")
 	markers := f.repo + "/.git/idsd-stage-returns/001-no-items"
-	for _, stage := range []string{"code-review", "security-review", "tighten", "refactor"} {
+	for _, stage := range allStages {
 		f.runReport("no-items", stage, "001-no-items")
 		f.assertRefused("no-items refuses " + stage + " before it has been marked returned")
 		f.assertReports("was never marked returned", "and names the stage-returned call missing for "+stage)
 	}
 	f.record("and wrote no marker for any of them", len(f.entries(markers)) == 0, joinLines(f.entries(markers)))
-	f.runReport("stamp", "code-review,security-review,tighten,refactor", "001-no-items")
+	f.runReport("stamp", allStagesStampedAs, "001-no-items")
 	f.assertRefused("so a pass that ran nothing cannot stamp")
 	f.record("and nothing was stamped",
 		containsLine(f.read(f.reportPath("001-no-items")), "reviewed-tree: pending"), "")

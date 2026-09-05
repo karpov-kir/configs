@@ -24,17 +24,19 @@ Apply each; surface only what the run evidences:
 4. **Missed-late** — what a stage should have caught that only surfaced later.
 5. **Friction** — avoidable churn, rework, or round-trips, communication included: when the human had to re-read a message or ask back about a report, that cost a round. Judge the run's messages against `~/.kk-flavor/standards/writing.md` → **Readability floor**.
 6. **Tooling ergonomics** — when the run changed its own tooling (a skill, standard, prompt or shared script), judge it against `~/.kk-flavor/standards/ecosystem.md`. **Bloat the run itself added is a finding here** — the tree's standing bloat is `kk-ecosystem`'s lane, not this lens's.
+7. **Tool economy** — what a call cost against what it returned: rounds spent to reach one fact, output arriving mostly as noise, a CLI or MCP server whose rendering is too lossy to act on. **Lens 6 is tooling the run changed; this is tooling it used.**
+8. **Information access** — a fact the run needed and could not reach, where the fix is standing access rather than a sharper search. A log nobody tees, a service the run could only read about, a state it had no way to observe. Name the access, never the workaround it forced.
 
 ## The findings file
 
-`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 50 lines.**
+`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 50 entries, and it is pruned here and nowhere else.** **Written by hand, under that standard's exception**: only a human starts a retro, so two runs cannot reach this file at once.
 
 **Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new.
 
 **A repeat puts the earlier fix in scope: say whether it landed at all.** Append to `findings.md` after the lenses, one line per finding:
 
 ```
-- 1x | <YYYY-MM-DD> | <repo> | <target> | <the finding in a clause> -> <where it routed>
+1x | <YYYY-MM-DD> | <repo> | <target> | <the finding in a clause> -> <where it routed>
 ```
 
 ## Output

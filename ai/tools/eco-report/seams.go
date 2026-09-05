@@ -5,9 +5,10 @@ import (
 	"strconv"
 )
 
-// The two scripts this tool calls rather than reimplements. Both own a recipe that is dangerous to
-// get half right, and both are located by the same rule the shell version used, so a copied skill
-// directory still resolves its own.
+// The two recipes this tool reaches for rather than reimplements. Both are dangerous to get half
+// right. `todo-gate.sh` is spawned, and is located by the same rule the shell version used, so a
+// copied skill directory still resolves its own; the tree-fingerprint recipe is imported from
+// `ai/tools/tree-fingerprint/` and runs in process.
 
 // The open-item scan. 0 = nothing open, 1 = items on stdout, anything else = the scan did not run,
 // and its output is then empty — which read as "nothing open" would pass the merge gate on a scan
@@ -20,13 +21,19 @@ import (
 // every reader here treats anything above 1 as "did not run" — so this buys the reason, not the
 // refusal.
 func (r *run) runTodoGate() (string, int) {
+	return r.runTodoGateOn(r.report)
+}
+
+// The same scan over any one file. `gate` needs it for the intent's own `## Follow-ups`, which live
+// outside the report and which nothing else reads before a merge.
+func (r *run) runTodoGateOn(path string) (string, int) {
 	if !isExecutable(r.todoGate) {
 		errLinesTo(r.errOut,
 			"error: "+r.todoGate+" is missing or not executable — the open-item scan did not run.",
 			"  It is located from this program's own path, so an invocation that renamed argv[0] resolves it somewhere else entirely.")
 		return "", 2
 	}
-	return r.capture(r.errOut, r.todoGate, r.report)
+	return r.capture(r.errOut, r.todoGate, path)
 }
 
 // The report's open `- [ ]`, for every caller that must refuse rather than read a failed scan as
@@ -57,7 +64,7 @@ func (r *run) currentTree(errOut io.Writer) (string, bool) {
 	if !isExecutable(r.fingerprintBin) {
 		errLinesTo(errOut,
 			"error: "+r.fingerprintBin+" is missing or not executable — the tree could not be fingerprinted.",
-			"  It owns the fingerprint recipe; there is deliberately no local fallback, because a second copy is what put untracked working files in .git/objects for good.")
+			"  The recipe itself runs in process, from ai/tools/tree-fingerprint/; this guard is about the install being complete. There is deliberately no local fallback, because a second copy is what put untracked working files in .git/objects for good.")
 		return "", false
 	}
 	// In process, not spawned. The guard above still asks whether the shipped script is there and
