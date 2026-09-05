@@ -12,8 +12,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// --- the arguments it refuses --------------------------------------------------------------------
-
 func TestARevisionIsNotAPath(t *testing.T) {
 	t.Run("a directory path exits 2 and is named as a path", func(t *testing.T) {
 		r := newRepo(t)
@@ -131,8 +129,6 @@ func TestADiffAttributeDoesNotSuppressTheScan(t *testing.T) {
 	r.expectStdoutHas("attr.go")
 }
 
-// --- the untracked arm -----------------------------------------------------------------------------
-
 func TestUntrackedFiles(t *testing.T) {
 	t.Run("scanned when no revision is given, not when one is", func(t *testing.T) {
 		r := newRepo(t)
@@ -168,8 +164,6 @@ func TestUntrackedFiles(t *testing.T) {
 		r.expectStderrHas("1 untracked file(s) skipped unread")
 	})
 
-	// Two files are two files. In the shell these shared one text stream, so a missing final newline on
-	// the first fused its last line to the second's header and neither was counted as itself.
 	t.Run("two are counted apart when the first has no final newline", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("first.go", strings.TrimSuffix(heavy(8, 1), "\n"))
@@ -234,7 +228,6 @@ func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 	r.write(name, heavy(8, 1))
 	r.run("HEAD")
 	r.expectCode(1)
-	// Through Oneline on the way out, like every other path in the report.
 	r.expectStdoutHas("tab here.go: 8 comment / 1 code")
 	r.expectStderrHas("1 file(s) reached the scan, 1 with countable added lines")
 }

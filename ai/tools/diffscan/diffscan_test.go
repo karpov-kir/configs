@@ -17,7 +17,6 @@ import (
 const crlfBody = "// one\r\n// two\r\nx := 1\r\n"
 const lfBody = "// one\n// two\nx := 1\n"
 
-// countedLines drives one arm and returns how many non-empty lines reached the visitor per file.
 func countedLines(t *testing.T, walk func(*Result, func(AddedLine)) error) (map[string]int, Result) {
 	t.Helper()
 	var result Result
@@ -42,8 +41,6 @@ func TestTheUntrackedArmReadsCRLFLikeTheDiffArm(t *testing.T) {
 		return r.WalkUntracked(dir, Options{MaxFileBytes: 1 << 20}, visit)
 	})
 
-	// The LF file is the control: identical content, one byte per line different. If it also came back
-	// empty the case would be measuring a broken fixture rather than the \r.
 	if seen["lf.go"] != 3 {
 		t.Fatalf("the LF control yielded %d countable lines, wanted 3 — the fixture is wrong, not the code", seen["lf.go"])
 	}
@@ -69,8 +66,6 @@ func TestTheDiffArmReadsCRLF(t *testing.T) {
 	}
 }
 
-// A real control byte still marks the line binary. Without this the fix above could have been "stop
-// checking for control bytes", which would let a NUL-bearing line into a report.
 func TestARealControlByteIsStillBinary(t *testing.T) {
 	dir := t.TempDir()
 	initRepo(t, dir)
@@ -158,8 +153,6 @@ func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
 	}
 	run("add", "a.go")
 
-	// The control: the bare form has always seen this, so a run that finds nothing here is the harness
-	// failing rather than the split.
 	bare, err := Diff(dir, nil)
 	if err != nil {
 		t.Fatalf("the bare form failed: %v", err)

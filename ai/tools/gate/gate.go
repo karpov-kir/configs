@@ -42,9 +42,6 @@ import (
 	"time"
 )
 
-// Env is what a caller — or a suite — can move. Each field is a seam the shell version had as an
-// environment variable, and each exists for the same reason: without them a suite could only test the
-// gate by writing fixtures into the checkout the gate is gating.
 type Env struct {
 	// Root is the repository the gate runs over. GATE_ROOT.
 	Root string
@@ -121,10 +118,6 @@ func Run(args []string, env Env, out, errOut io.Writer) int {
 	return g.run(args)
 }
 
-// The flags this accepts, in one place. ai/gate.sh's own header quotes it, and
-// `TestTheGateStubDocumentsTheUsageItsBinaryPrints` in cli_test.go is what holds the two together.
-// Not the similarly named case in ../stub_usage_test.go: that one reads check.sh against eco-check
-// and says nothing about this line.
 const usageLine = "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]"
 
 func (g *gate) fail(format string, a ...any) int {
@@ -308,7 +301,6 @@ func (g *gate) resolveMachine() int {
 	return 0
 }
 
-// One child process, in the root, with its output captured.
 func (g *gate) capture(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = g.root

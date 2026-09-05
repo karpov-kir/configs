@@ -45,12 +45,10 @@ func (r *run) capture(stderr io.Writer, name string, args ...string) (string, in
 	return strings.TrimRight(out.String(), "\n"), status
 }
 
-// `git -C "$root" …`, which is every git call but the first.
 func (r *run) captureGit(stderr io.Writer, args ...string) (string, int) {
 	return r.capture(stderr, "git", append([]string{"-C", r.root}, args...)...)
 }
 
-// One answer git gave, kept for the rest of the invocation.
 type gitAnswer struct {
 	out    string
 	status int
@@ -79,8 +77,6 @@ func (r *run) memoGit(stderr io.Writer, args ...string) (string, int) {
 	return out, status
 }
 
-// Called by anything about to stage, so the next index read asks git again rather than answering from
-// what the index held before.
 func (r *run) forgetIndexAnswers() {
 	r.gitMemo = nil
 }
@@ -154,11 +150,6 @@ func (r *run) ignoreSourceOf(path string) string {
 // `.git/info/exclude` are one machine's, so they answer the plain `-q` question while ignoring nothing
 // on anybody else's clone, and the next `git add -A` there stages the report. Returns the source it
 // read, so a caller can name it.
-//
-// `.git/info/exclude` is rejected here, which it once was not: throwaway mode wrote the scratch
-// exclusion into that file, and this predicate had to accept its own work. Nothing writes it any more,
-// and the only caller left is committed mode — where a rule no clone can see is exactly what must not
-// pass.
 //
 // Absolute paths are rejected before `*/.gitignore` is matched, or `core.excludesFile=~/.gitignore` —
 // the common global setup — passes as a repo-relative rule.
@@ -242,8 +233,6 @@ func appendLine(file, entry string) error {
 	return err
 }
 
-// `[ -n "$(tail -c 1 "$file")" ]` inverted: a last byte that is a newline, or a file too short to
-// have one.
 func endsWithNewline(file string) bool {
 	handle, err := os.Open(file)
 	if err != nil {

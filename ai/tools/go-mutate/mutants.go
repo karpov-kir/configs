@@ -247,10 +247,6 @@ var mutants = []mutant{
 	// about it.
 	{"imports: uncounted list cut without a mark", "../eco-root/imports.go", "./eco-check/", "TestACutUncountedListSaysThatItWasCut", "shell.CutBytesMarked(joined.String(), 200)", "shell.CutBytes(joined.String(), 200)"},
 
-	// Where an unread path was. The mounted-outside scan reads out of the user's home, and both
-	// shortfall messages used to place every unread path under the root — sending a reader hunting for
-	// a file through a checkout it is not in.
-	//
 	// ecostats' own skip note, both directions: only the pair makes absence of that line readable as
 	// "the scan ran and counted none". Its gate's mutant is `stats: mounted-outside gate removed`, below.
 	{"stats: a skipped mount scan reported as a measured zero", "../eco-stats/report.go", "./eco-stats/", "TestASkillMountedFromOutsideTheTreeIsReportedApart", "if !s.outsideMeasured {", "if !s.outsideMeasured && false {"},
@@ -1039,6 +1035,15 @@ var mutants = []mutant{
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
 	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSecretNamedFileIsNeverRead",
 		"if opts.SkipSecretNamed && secretNamed(name) {", "if false {"},
+	// The other half of that skip: the announcement naming the file it declined. The name is the
+	// branch author's, `.env*` matches whatever follows the prefix, and this is the one message
+	// diffscan builds itself rather than handing to a scanner that sanitises on the way out. Two
+	// mutants, one per claim the treatment makes, and neither drops `shell` from the call — bare, the
+	// package loses its only use of that import here and the mutant comes back `broken`.
+	{"diffscan: the skip announcement's name left unsanitised", "../diffscan/diffscan.go", "./dup-literals/", "TestTheSkipAnnouncementIsSanitised",
+		"shell.CutBytesMarked(shell.Oneline(name), maxAnnouncedPathBytes)", "shell.CutBytesMarked(name, maxAnnouncedPathBytes)"},
+	{"diffscan: the skip announcement's name left unbounded", "../diffscan/diffscan.go", "./dup-literals/", "TestTheSkipAnnouncementIsSanitised",
+		"shell.CutBytesMarked(shell.Oneline(name), maxAnnouncedPathBytes)", "shell.Oneline(name)"},
 
 	{"diffscan: an oversized diff line is truncated rather than refused", "../diffscan/diffscan.go", "./comment-density/", "TestADiffLinePastTheCapRefusesRatherThanReportingClean",
 		"return scanner.Err()", "return nil"},

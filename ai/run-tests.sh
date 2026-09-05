@@ -3,22 +3,17 @@
 #   usage: run-tests.sh [-s <suite>] [<root>]   # <root> defaults to the repository this script lives in
 #          -s  run just this one suite, by path, instead of discovering them all
 #
-# `-s` is for a caller that already knows which suite a change could have moved (`ai/gate.sh` is one)
-# and still wants this file's reading of the result: the exit-2 "did not measure", and the vacuity
-# check that makes a suite exiting 0 having run no case a failure rather than a pass. A caller running
-# `bash <suite>` itself gets neither.
+# `-s` gives a caller that already knows which suite a change could have moved (`ai/gate.sh` is one)
+# this file's reading of the result: the exit-2 "did not measure", and the vacuity check that makes a
+# suite exiting 0 having run no case a failure. `bash <suite>` gives neither.
 #
-# Discovery rather than a list, so a suite written tomorrow runs without anyone remembering to
-# register it. The cost of discovery is a gate that finds nothing and reports success, so finding
-# zero suites exits 2 here rather than passing empty.
+# Discovery rather than a list, so a suite written tomorrow runs without anyone registering it. Its
+# cost is a gate that finds nothing and reports success, so finding zero suites exits 2.
 #
 # tested by: run-tests-test.sh
 set -uo pipefail
 export LC_ALL=C
 
-# Named from $0 rather than typed, so the script's own name has one home. The same four lines every
-# stub in this repo carries, deliberately outside any `# --- shared:<name> ---` markers: this is not
-# part of the stub region the wiring check holds byte-identical.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
@@ -26,8 +21,7 @@ die() {
 
 # `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so any path built from a
 # bare `cd ... && pwd` comes back two lines long and the checks below refuse a directory that is
-# really there. `-P` resolves symlinks, and `--` keeps a directory named like an option out of `cd`'s
-# flags.
+# really there.
 real_dir() { # <directory>
   CDPATH= cd -P -- "$1" && pwd -P
 }
@@ -48,20 +42,15 @@ root="${1:-$(real_dir "$(dirname -- "${BASH_SOURCE[0]}")/..")}"
 [ -d "$root" ] || die "not a directory: $root"
 
 # Discovery asks git first, because every file this finds is then executed. `--cached --others
-# --exclude-standard` is tracked files plus new untracked ones and nothing else: a suite written five
-# minutes ago still runs without anyone registering it, while a build artefact, a vendored tree or
-# anything else .gitignore already excludes does not get to execute as a suite.
+# --exclude-standard` is tracked files plus new untracked ones and nothing else, so a build artefact,
+# a vendored tree or anything .gitignore already excludes never gets to execute as a suite.
 #
-# `find` stays as the fallback, because the suites can legitimately be run over a directory that is
-# not a checkout, and that path keeps the node_modules exclusion it always had. Which one answered is
+# `find` stays as the fallback, for a root that is legitimately not a checkout. Which one answered is
 # reported: two runs that read different file sets must not print one line.
 suites=()
 absent=0
 broken=0
 if [ -n "$named_suite" ]; then
-  # One named suite is still discovery, and it obeys the same rule: naming a file that is not there
-  # is the caller's typo, and answering it with an empty run would report a clean tree for a suite
-  # nothing executed.
   discovery="named"
   case "$named_suite" in
     /*) ;;
@@ -69,10 +58,9 @@ if [ -n "$named_suite" ]; then
   esac
   [ -f "$named_suite" ] ||
     die "no suite at $named_suite — read this as discovery broken, never as a clean run"
-  # Everything this script finds, it then executes, so -s has to earn the same two guarantees the
-  # discovery arm gives: inside the root, and not something .gitignore already excludes. Behind an
-  # `[ -f ]` alone, `-s ../../../x` executes a file outside the repository entirely, and
-  # `-s vendor/dropped-test.sh` executes exactly what run-tests-test.sh proves discovery refuses.
+  # -s has to earn the same two guarantees the discovery arm gives: inside the root, and not something
+  # .gitignore excludes. Behind an `[ -f ]` alone, `-s ../../../x` executes a file outside the
+  # repository, and `-s vendor/dropped-test.sh` executes what run-tests-test.sh proves discovery refuses.
   root_real="$(real_dir "$root")" || exit 2
   suite_real="$(real_dir "$(dirname "$named_suite")" 2>/dev/null)/$(basename "$named_suite")"
   case "$suite_real" in
@@ -101,19 +89,14 @@ elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     fi
     # `-f` follows symlinks, so it is false for two things and only one is harmless. Gone is an
     # ordinary unstaged deletion. Present but not a runnable regular file — a dangling symlink, a
-    # directory, a device — is a broken suite: calling that "not in the working tree" states a
-    # thing nobody checked, and green over it means a suite plainly there never ran.
-    #
-    # `-e` alone cannot tell the two apart, because it follows the link too; `-L` sees the link
-    # itself.
+    # directory, a device — is a broken suite, and green over it means a suite plainly there never ran.
     if [ -e "$root/$suite" ] || [ -L "$root/$suite" ]; then
       printf 'BROKEN %-47s present but not a runnable file — NOT run\n' "$suite"
       broken=$((broken + 1))
       continue
     fi
-    # `ls-files` answers what git knows about, and an unstaged deletion is still tracked, but the
-    # working tree is what runs. Without this the runner reaches `bash <gone>`, gets 127, and the loop
-    # below reads that as a failing suite, so an ordinary unstaged deletion reddens the whole sweep.
+    # `ls-files` answers what git knows about, and an unstaged deletion is still tracked. Without this
+    # the runner reaches `bash <gone>`, gets 127, and an ordinary deletion reddens the whole sweep.
     printf 'ABSENT %-47s tracked by git, not in the working tree — NOT run\n' "$suite"
     absent=$((absent + 1))
   done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- '*-test.sh' | sort -z -u)
@@ -140,9 +123,9 @@ summary_field() { # <field> <the suite's last line>
   }'
 }
 
-# The repository's own dirty set, so a suite that writes into the checkout is caught once here
-# rather than needing a case in every suite. Empty output with a non-zero status means git could not
-# answer, which is not the same as a clean tree — the caller distinguishes them.
+# The repository's own dirty set, so a suite that writes into the checkout is caught once here rather
+# than in every suite. Empty output with a non-zero status means git could not answer, which is not
+# the same as a clean tree — the caller distinguishes them.
 tree_state() {
   git -C "$root" status --porcelain 2>/dev/null
 }
@@ -150,8 +133,6 @@ tree_state() {
 passed=0
 failed=0
 unmeasured=0
-# A flag, not a fourth count: containment is one fact about the run, not a tally of suites
-# (`~/.kk-flavor/standards/testing.md` → **7. What a suite reports**).
 checkout_moved=0
 
 before_tree="$(tree_state)"
@@ -196,14 +177,10 @@ done
 # A suite that passes while corrupting the checkout has measured something, and the measurement was
 # not the whole effect.
 #
-# Don't name the suite. A concurrent editor looks the same from here, so naming one is a false
-# diagnosis that sends someone hunting through code that is fine. Don't reach for CI or
-# GITHUB_ACTIONS to guess either: anyone can export them, and what would actually narrow it down is a
-# checkout belonging to one run, which is a property of the workspace rather than of CI. A
-# self-hosted runner reusing its workspace is as ambiguous as a laptop.
-#
-# So it goes out as its own result, not a failure. `failed` counts suites that went red, and folding a
-# delta no suite need have caused into it makes the summary claim a red suite that does not exist.
+# Don't name the suite: a concurrent editor looks the same from here, so naming one is a false
+# diagnosis that sends someone hunting through code that is fine. So it goes out as its own result
+# rather than a failure — `failed` counts suites that went red, and folding a delta no suite need have
+# caused into it makes the summary claim a red suite that does not exist.
 if [ "$tree_readable" -eq 0 ]; then
   after_tree="$(tree_state)"
   if [ "$before_tree" != "$after_tree" ]; then
@@ -216,7 +193,6 @@ if [ "$tree_readable" -eq 0 ]; then
     checkout_moved=1
   fi
 else
-  # Not a defect: the suites can be run outside a checkout, and they did measure.
   containment=", containment unchecked"
 fi
 
@@ -227,17 +203,15 @@ broken_note=""
 printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discovered by %s\n' \
   "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$broken_note" "$containment" "$discovery"
 
-# A red outranks a non-measurement: something is known to be wrong, which is the more urgent fact. A
-# moved checkout sits between them, because it refuses every line of the result rather than one of
-# them, so it outranks a single suite declining to measure.
+# A red outranks a non-measurement: something is known to be wrong. A moved checkout sits between
+# them, because it refuses every line of the result rather than one of them.
 #
 # Exit 3 for it, on `~/.kk-flavor/scripts/score.sh`'s vocabulary: 2 is did-not-measure, 3 is
 # ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead
 # tool.
 #
-# A broken suite sits with `unmeasured` rather than with `failed`: nothing about it went red, it was
-# never run at all, and that is what 2 means here. It must not be silent, because a file that is
-# plainly there reads to everyone as a suite that ran.
+# A broken suite sits with `unmeasured` rather than `failed`: nothing about it went red, it was never
+# run at all. It must not be silent, because a file plainly there reads as a suite that ran.
 [ "$failed" -eq 0 ] || exit 1
 [ "$checkout_moved" -eq 0 ] || exit 3
 [ "$broken" -eq 0 ] || exit 2

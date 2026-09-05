@@ -1,8 +1,5 @@
 package duplicates
 
-// The seed repository, the per-case copies taken from it, and the assertions the cases are
-// written against.
-
 import (
 	"os"
 	"os/exec"
@@ -169,5 +166,4 @@ func (r *repo) expectStderrHas(want string) {
 	}
 }
 
-// A run of one character, of the length a case is about. Every literal below comes from here.
 func repeated(char rune, n int) string { return strings.Repeat(string(char), n) }

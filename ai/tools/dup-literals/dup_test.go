@@ -16,9 +16,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-)
 
-// --- an unchanged tree --------------------------------------------------------------------------
+	"kk-flavor/tools/shell"
+)
 
 func TestAnUnchangedTree(t *testing.T) {
 	r := newRepo(t)
@@ -29,8 +29,6 @@ func TestAnUnchangedTree(t *testing.T) {
 	// The denominator is what tells "nothing repeated" from "nothing was read".
 	r.expectStderrHas("says nothing about the change set")
 }
-
-// --- the arguments it refuses -------------------------------------------------------------------
 
 func TestARevisionIsNotAPath(t *testing.T) {
 	t.Run("a path exits 2 and is named as a path", func(t *testing.T) {
@@ -61,8 +59,6 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectNoStdout()
 	})
 }
-
-// --- what counts as a duplicate ------------------------------------------------------------------
 
 func TestARepeatedLineIsFound(t *testing.T) {
 	r := newRepo(t)
@@ -126,7 +122,6 @@ func TestTheLengthFloor(t *testing.T) {
 	})
 }
 
-// A literal appearing once is not a duplicate, however long.
 func TestASingleOccurrenceIsNotADuplicate(t *testing.T) {
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")
@@ -136,8 +131,6 @@ func TestASingleOccurrenceIsNotADuplicate(t *testing.T) {
 	r.expectCode(0)
 	r.expectNoStdout()
 }
-
-// --- the diff shape ------------------------------------------------------------------------------
 
 // `diff --git` is the anchor, never `+++` alone. TWO plus signs in the source: the diff prefixes every
 // added line with one, so `++ b/decoy.go` is what arrives as `+++ b/decoy.go` and could be mistaken
@@ -155,8 +148,6 @@ func TestAnAddedLineShapedLikeADiffHeaderDoesNotReassignTheFile(t *testing.T) {
 	// would drop every line after it out of the scan entirely.
 	r.expectStdoutHas("2x")
 }
-
-// --- the untracked arm ----------------------------------------------------------------------------
 
 func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 	r := newRepo(t)
@@ -202,6 +193,41 @@ func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 			r.expectStderrHas("1 file(s) skipped unread")
 		})
 	}
+}
+
+// The skip announcement names a file somebody else put in the tree, and it is the one path in this
+// scan that reaches a terminal without a report's own sanitising in front of it. `.env*` matches
+// whatever follows the prefix, so the name that triggers the announcement is the attacker's to choose.
+func TestTheSkipAnnouncementIsSanitised(t *testing.T) {
+	secret := repeated('S', 130)
+
+	// Raw, the escape clears the reader's screen or rewrites the lines above it, and a reader who
+	// cannot trust the report stops reading it — including on the run that skipped a real secret.
+	// ESC alone: a lone 0x9b, the 8-bit CSI, is not valid UTF-8 and APFS refuses to name a file with
+	// it, so the fixture cannot carry that byte. Oneline maps the whole 0x80-0x9f band the same way.
+	t.Run("an escape in the name does not reach stderr", func(t *testing.T) {
+		r := newRepo(t)
+		r.write(".env\x1b[2J", secret+"\n"+secret+"\n")
+		r.run()
+		r.expectStderrHas("its name marks it as secret-bearing")
+		if strings.Contains(r.stderr.String(), "\x1b") {
+			t.Errorf("the announcement carries a raw escape: %q", r.stderr.String())
+		}
+	})
+
+	// Cut without the marker, an overlong name is a shorter different name, and the reader looking for
+	// the file that was skipped does not find it.
+	t.Run("an overlong name is cut and says so", func(t *testing.T) {
+		r := newRepo(t)
+		name := strings.Repeat("d", 200) + "/.env"
+		r.write(name, secret+"\n"+secret+"\n")
+		r.run()
+		r.expectStderrHas("its name marks it as secret-bearing")
+		r.expectStderrHas(shell.CutMarker)
+		if strings.Contains(r.stderr.String(), name) {
+			t.Errorf("the whole %d-byte name reached stderr uncut: %q", len(name), r.stderr.String())
+		}
+	})
 }
 
 // And the control: an ordinary untracked file with the same content IS read, or the case above would
@@ -254,8 +280,6 @@ func TestAnUntrackedFileOverTheByteCapIsSkippedAndCounted(t *testing.T) {
 	r.expectCode(0)
 	r.expectStderrHas("1 file(s) skipped unread")
 }
-
-// --- the report itself -----------------------------------------------------------------------------
 
 // A suppressed duplicate is announced, never dropped, and exactly the cap is printed above the
 // announcement.

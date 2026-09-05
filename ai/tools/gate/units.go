@@ -39,8 +39,6 @@ func (g *gate) add(id, kind string, inputs []string, cmd string) {
 	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
 }
 
-// A unit that cannot observe the module's test files. See unit.blindToGoTests for the two ways a unit
-// earns that and why each has to be argued.
 func (g *gate) addBlindToGoTests(id, kind string, inputs []string, cmd string) {
 	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
 }
@@ -70,8 +68,6 @@ func (g *gate) unitsFromFile() int {
 	return 0
 }
 
-// The four checks over the Go module itself. Split from discoverUnits so a case can observe which of
-// them is blind to the module's test files without building go-mutate to get there.
 func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
@@ -92,8 +88,6 @@ func (g *gate) addGoChecks() {
 		"ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate")
 }
 
-// The real unit table: the four Go checks, one unit per discovered shell suite, and one per mutated
-// file go-mutate lists.
 func (g *gate) discoverUnits() int {
 	g.addGoChecks()
 

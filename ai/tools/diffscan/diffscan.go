@@ -23,15 +23,18 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"kk-flavor/tools/shell"
 )
 
 const binaryProbeBytes = 8192
+
+const maxAnnouncedPathBytes = 200
 
 // The longest diff line a scan will read. A var rather than a const so a suite can drive the refusal
 // it causes without a 16MB fixture; nothing in production assigns it.
 var MaxDiffLineBytes = 16 * 1024 * 1024
 
-// Options are the parts the two scanners differ on.
 type Options struct {
 	// MaxFileBytes skips an untracked file larger than this, unread.
 	MaxFileBytes int64
@@ -39,11 +42,9 @@ type Options struct {
 	// scanner that echoes file CONTENT back into its report: two .env files sharing one API token is
 	// the ordinary case, and the token would print. A scanner that reports only paths leaves it off.
 	SkipSecretNamed bool
-	// Announce receives a line for each skip that has to be visible rather than merely counted.
-	Announce func(string)
+	Announce        func(string)
 }
 
-// Result is what a scan read, and what it did not.
 type Result struct {
 	// Reached is files the scan opened — the denominator. Zero means this run says nothing about the
 	// change set, which is a different statement from "nothing matched".
@@ -51,8 +52,7 @@ type Result struct {
 	// SkippedUnread is files the scan declined without reading: over the byte cap, binary, or named as
 	// secret-bearing. They have to reach the tally or the summary claims a denominator it never covered.
 	SkippedUnread int
-	// BinaryLines is added lines dropped for holding a control byte.
-	BinaryLines int
+	BinaryLines   int
 }
 
 // An added line, with the file it belongs to. File is empty for a diff whose header the scan could not
@@ -254,7 +254,12 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 func (r *Result) bodyToScan(full, name string, opts Options) ([]byte, bool) {
 	if opts.SkipSecretNamed && secretNamed(name) {
 		if opts.Announce != nil {
-			opts.Announce(fmt.Sprintf("skipping untracked '%s' — its name marks it as secret-bearing; it was NOT scanned.", name))
+			// Through Oneline and the bound, like every other path this package's callers print. The
+			// name is the branch author's, `.env*` matches it whatever follows the prefix, and an
+			// announcement is the one path here that reaches a terminal without a scanner's own
+			// sanitising in front of it.
+			opts.Announce(fmt.Sprintf("skipping untracked '%s' — its name marks it as secret-bearing; it was NOT scanned.",
+				shell.CutBytesMarked(shell.Oneline(name), maxAnnouncedPathBytes)))
 		}
 		r.SkippedUnread++
 		return nil, false
@@ -318,7 +323,6 @@ func secretNamed(name string) bool {
 	return strings.Contains(lower, "credential") || strings.Contains(lower, "secret")
 }
 
-// isBinary reads a NUL in the first binaryProbeBytes as binary — the probe the untracked arm uses.
 func isBinary(body []byte) bool {
 	probe := body
 	if len(probe) > binaryProbeBytes {

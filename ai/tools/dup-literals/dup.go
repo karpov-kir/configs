@@ -39,9 +39,6 @@ const (
 	defaultMaxFileBytes = 262144
 )
 
-// A suppressed duplicate is announced, never dropped, which holds only while this cap and the one in
-// the announcement are the same number. Under kk-pr-review both the path and the line come from a
-// branch someone else wrote.
 const maxShown = 200
 
 // The width of the prefix each finding shows. A reader has to recognise the literal to go and find it,
@@ -81,9 +78,6 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return cfg, nil
 }
 
-// Which of the two shapes a duplicate turned up in. An enum rather than a string field: the value is
-// compared at a call site, and a rename has to ripple through the type checker rather than through a
-// grep for a quoted word.
 type findingKind int
 
 const (
@@ -91,7 +85,6 @@ const (
 	lineFinding
 )
 
-// A repeated literal, and what it is.
 type finding struct {
 	kind   findingKind
 	text   string
@@ -129,9 +122,7 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 
 	if len(revisions) == 0 {
 		opts := diffscan.Options{
-			MaxFileBytes: cfg.MaxFileBytes,
-			// This tool prints 60 bytes of every duplicate, so a file whose NAME marks it as
-			// secret-bearing is never read.
+			MaxFileBytes:    cfg.MaxFileBytes,
 			SkipSecretNamed: true,
 			Announce: func(line string) {
 				fmt.Fprintf(stderr, "%s: %s\n", self, line)
@@ -147,12 +138,10 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 }
 
 func (s *scan) count(added diffscan.AddedLine) {
-	// The whole trimmed line, for copy-pasted statements.
 	trimmed := strings.TrimSpace(added.Text)
 	if len([]rune(trimmed)) >= s.cfg.MinLength {
 		s.lines[trimmed]++
 	}
-	// Whitespace- and delimiter-separated tokens, for long literals embedded in differing lines.
 	for _, token := range strings.FieldsFunc(added.Text, isDelimiter) {
 		if len([]rune(token)) >= s.cfg.MinLength {
 			s.tokens[token]++

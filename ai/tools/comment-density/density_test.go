@@ -13,8 +13,6 @@ import (
 	"testing"
 )
 
-// --- an unchanged tree -------------------------------------------------------------------------
-
 func TestAnUnchangedTree(t *testing.T) {
 	r := newRepo(t)
 	r.run("HEAD")
@@ -27,8 +25,6 @@ func TestAnUnchangedTree(t *testing.T) {
 	r.run()
 	r.expectCode(0)
 }
-
-// --- the ratio, and both sides of both bars ------------------------------------------------------
 
 func TestTheRatioAndItsFloors(t *testing.T) {
 	t.Run("a comment-heavy file exits 1 and prints its counts and ratio", func(t *testing.T) {
@@ -43,7 +39,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.expectStdoutHas("dense.go: 8 comment / 2 code added lines (0.80)")
 	})
 
-	// The floor, both sides. Four is under it and five reaches it — `>=`, not `>`.
 	t.Run("four added comment lines are under the floor", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("few.go", "package fixture\n")
@@ -67,7 +62,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.expectStdoutHas("five.go")
 	})
 
-	// The bar, both sides. Exactly at it is not an outlier — `>`, not `>=`.
 	t.Run("a ratio exactly at the bar is not an outlier", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("edge.go", "package fixture\n")
@@ -125,8 +119,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 	})
 }
 
-// --- what counts as a comment --------------------------------------------------------------------
-
 func TestTheCommentForms(t *testing.T) {
 	r := newRepo(t)
 	r.write("forms.go", "package fixture\n")
@@ -150,8 +142,6 @@ func TestAStarThatIsNotAComment(t *testing.T) {
 	r.expectNoStdout()
 }
 
-// --- what is not counted at all -------------------------------------------------------------------
-
 func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
@@ -166,8 +156,6 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	// a line this tool counts.
 	r.expectStderrHas("7 file(s) reached the scan, 0 with countable added lines")
 }
-
-// --- ranges, caps and the index ---------------------------------------------------------------------
 
 func TestATwoRevisionRangeIsScanned(t *testing.T) {
 	r := newRepo(t)
@@ -217,8 +205,6 @@ func TestAStagedChangeIsStillReported(t *testing.T) {
 	r.expectStdoutHas("staged.go")
 }
 
-// --- the thresholds themselves ----------------------------------------------------------------------
-
 // A threshold that does not parse is a scan that did not run, never one against the default.
 func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	cases := []struct{ name, key, value string }{
@@ -262,7 +248,6 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	})
 }
 
-// Two runs over one tree print one report.
 func TestTheReportIsOrdered(t *testing.T) {
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")

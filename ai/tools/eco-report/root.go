@@ -148,8 +148,7 @@ func (r *run) overrideRoot() string {
 // below this one judges the value, and a value an attacker chose passes all of them. A world-writable
 // `idsd.conf` — or a world-writable directory holding it — lets any local account name a root of their
 // own, and the root they name will be a perfectly ordinary 0700 directory that satisfies every check
-// downstream. A security review closed the root's own substitution routes and said so plainly: the
-// guard it hardened is only as strong as the file that feeds it.
+// downstream. The root's own guards are only as strong as the file that feeds them.
 //
 // A symlinked config is refused outright rather than judged by its target. `IsRegularFile` above
 // follows the link, so a link to a good file passes there — but whoever can repoint the link chooses
@@ -231,7 +230,6 @@ func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
 	}
 }
 
-// The half of the trust check that is about who else can reach the root, rather than about the root.
 func (r *run) assertNothingAboveTheRootCanSubstituteIt(configPath, root string) {
 	for _, above := range directoriesAbove(root) {
 		info, err := os.Stat(above)
@@ -255,9 +253,6 @@ func (r *run) assertNothingAboveTheRootCanSubstituteIt(configPath, root string) 
 // entry you do not own, so a sticky world-writable directory is not substitutable; without the
 // exemption `/tmp` would be refused on macOS and Linux alike, and a scratch root under it is an
 // ordinary thing to want.
-//
-// One predicate rather than the same condition in two walks: they judge different paths for the same
-// reason, and a rule stated twice drifts.
 func isSubstitutableDir(info fs.FileInfo) bool {
 	mode := info.Mode()
 	return mode.Perm()&0o022 != 0 && mode&os.ModeSticky == 0

@@ -1,8 +1,5 @@
 package gate
 
-// The throwaway repository each case drives the gate over, the units-file seam that stands in for
-// the real table, and the assertions the cases are written against.
-
 import (
 	"os"
 	"os/exec"
@@ -75,7 +72,6 @@ func (f *fixture) run(args ...string) {
 	f.runAs("test-digest", args...)
 }
 
-// The same run under a stated digest of the deciding code, for the one case that is about the digest.
 func (f *fixture) runAs(digest string, args ...string) {
 	f.t.Helper()
 	f.stdout.Reset()
@@ -133,7 +129,6 @@ func (f *fixture) runCount(name string) int {
 	return len(strings.Fields(string(body)))
 }
 
-// A command that records that it ran, then exits with the given code.
 func marker(name string, code int) string {
 	return "printf 'x ' >> " + name + "; exit " + strconv.Itoa(code)
 }

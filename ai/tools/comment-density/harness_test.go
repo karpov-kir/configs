@@ -1,8 +1,5 @@
 package density
 
-// The seed repository, the per-case copies taken from it, and the assertions the cases are
-// written against.
-
 import (
 	"fmt"
 	"os"
@@ -72,8 +69,6 @@ func git(dir string, args ...string) error {
 	return cmd.Run()
 }
 
-// --- fixtures --------------------------------------------------------------------------------
-
 type repo struct {
 	t      *testing.T
 	dir    string
@@ -123,7 +118,6 @@ func (r *repo) write(name, body string) {
 	}
 }
 
-// commit tracks and commits everything currently in the tree, so later writes read as changes.
 func (r *repo) commit(message string) {
 	r.t.Helper()
 	if err := git(r.dir, "add", "-A"); err != nil {

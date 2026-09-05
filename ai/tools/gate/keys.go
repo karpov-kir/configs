@@ -8,12 +8,6 @@ import (
 	"strings"
 )
 
-// Every input file of every unit, hashed once. One pass over the union rather than one per unit: the
-// units overlap heavily, and hashing ai/tools once instead of forty times is the difference between a
-// key computation that is free and one that is the slowest thing here.
-//
-// In process, because on a machine that charges for every exec, keying the gate would otherwise cost
-// more than several of the units it is deciding about.
 // What every arm below says when the union of declared inputs comes to nothing. One home, because the
 // three arms state one fact — the gate cannot tell a table that narrowed itself from a clean run.
 const noInputsRefusal = "not one input path resolved to a file — nothing ran"
@@ -63,9 +57,6 @@ func (g *gate) buildManifest() int {
 		}
 		hash, err := hashFile(full)
 		if err != nil {
-			// A file that could not be read used to vanish from the manifest silently, which takes it
-			// out of every key that declared it — its edits then stop invalidating anything, and the
-			// gate narrows itself exactly as its header swears it will not.
 			return g.fail("could not read the declared input %s, so some file's changes would stop invalidating its unit — nothing ran", path)
 		}
 		g.manifest = append(g.manifest, manifestLine{hash: hash, path: path})

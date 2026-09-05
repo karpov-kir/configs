@@ -103,7 +103,6 @@ func storedCount(countFile string) int {
 	if !allDigits(stored) || len(stored) >= 10 {
 		return 0
 	}
-	// Unreachable by any other route: allDigits and the length bound have already settled it.
 	n, err := strconv.Atoi(stored)
 	if err != nil {
 		return 0
@@ -112,7 +111,7 @@ func storedCount(countFile string) int {
 }
 
 // Whether the count reached the file. Says why on stderr when it did not, and the next run then reads
-// stale history. A bool rather than an error because the caller has exactly one thing to do with it.
+// stale history.
 func wasRecorded(countFile string, count int, stderr io.Writer) bool {
 	if err := os.WriteFile(countFile, []byte(strconv.Itoa(count)), 0o644); err != nil {
 		fmt.Fprintf(stderr, "nomeasure: could not write %s — the count is unchanged, so the next run reads stale history and this one proved nothing.\n", countFile)

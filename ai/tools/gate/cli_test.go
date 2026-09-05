@@ -1,8 +1,5 @@
 package gate
 
-// What the gate answers without running a unit: the table listing, --why, --help, --check-path,
-// the name guard that decides what may be built into a command, and the key those answers echo.
-
 import (
 	"os"
 	"path/filepath"
@@ -123,9 +120,6 @@ func keyFrom(t *testing.T, output string) string {
 	return ""
 }
 
-// `--help` answers and stops. It used to return 0 from the argument parser, which run() reads as
-// "these arguments are fine" — so help printed and then the entire gate ran, writing verdict records
-// for someone who asked what the flags were.
 func TestHelpAnswersWithoutRunningTheGate(t *testing.T) {
 	for _, flag := range []string{"-h", "--help"} {
 		t.Run(flag, func(t *testing.T) {
@@ -146,8 +140,6 @@ func TestHelpAnswersWithoutRunningTheGate(t *testing.T) {
 	}
 }
 
-// The usage text has one home, and the stub's header quotes it. They drifted once: the binary grew
-// --check-path and the header did not, so the flag existed and was documented nowhere a reader looks.
 func TestTheGateStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join("..", "..", "gate.sh"))
 	if err != nil {

@@ -1,9 +1,5 @@
 package score
 
-// The fixture threshold config every case is judged against, the in-process invocation, and the
-// assertions — including the two that read bytes rather than runes, for the C1 range a rune scan
-// structurally cannot see.
-
 import (
 	"io"
 	"os"
@@ -12,7 +8,6 @@ import (
 	"testing"
 )
 
-// The tracked config's real shape, so a case reads what the repository actually rules.
 const trackedConfig = `# What a score has to beat to stay.
 default        cut <= 7
 reply          cut <= 7
@@ -52,7 +47,6 @@ func (r *run) do(stdin string, args ...string) {
 	r.doReading(strings.NewReader(stdin), args...)
 }
 
-// doReading drives the same invocation from an arbitrary reader, for the case whose stdin dies partway.
 func (r *run) doReading(stdin io.Reader, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()

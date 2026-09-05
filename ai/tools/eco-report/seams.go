@@ -17,15 +17,6 @@ func (r *run) runTodoGate() (string, int) {
 	return r.runTodoGateOn(r.report)
 }
 
-// The same scan over any one file. `gate` needs it for the intent's own `## Follow-ups`, which live
-// outside the report and which nothing else reads before a merge.
-//
-// Checked before it is run, the way currentTree checks the fingerprint script below. Both seams answer
-// the same question and answering it two ways is the defect: `todoGate` is built from argv[0], so a
-// slash-less one resolves it against the invocation's directory rather than the skill's, and what the
-// caller then reads is a bare exit status with no name in it. The status alone already fails closed —
-// every reader here treats anything above 1 as "did not run" — so this buys the reason, not the
-// refusal.
 func (r *run) runTodoGateOn(path string) (string, int) {
 	if !isExecutable(r.todoGate) {
 		errLinesTo(r.errOut,
