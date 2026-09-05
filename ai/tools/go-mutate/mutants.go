@@ -37,7 +37,23 @@ var mutants = []mutant{
 	// `|| true`, not the `&& false` the header above describes: the anchored condition is the one
 	// that *skips* a finding, so appending to it is what leaves the floor keeping nothing.
 	{"report: the per-class floor removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) {", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) || true {"},
-	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestASuppressionNoteCountsOnlyItsOwnClass", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	// Both rows go, or the mutation shows nothing: with one left, the catch-all still holds a single
+	// kind and the report reads the same. The defect needs two kinds in one class. The floor then
+	// keeps one line between them, and whichever sorts second prints nothing at all.
+	{"report: two rank-5 kinds put back in one class", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{skillDirWithoutSkillFile, 5},\n\t{skillWithoutDescription, 5},\n", ""},
+	// The half that removing one row does show. A kind with no row keeps its floor line but loses its
+	// own count. The rest of its flood then leaves through the trailing "further finding(s) not
+	// shown", attributed to nothing.
+	{"report: a flooded rank-5 kind left noteless", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{danglingHomeRef, 5},\n", ""},
+	// The shared-region rows, on the same reasoning as the two rank-5 mutants above. `not checked for
+	// drift` is the one that then prints nothing at all, and it is the graver of the two: the drift
+	// check did not run on that region.
+	{"report: two shared-region kinds put back in one class", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{sharedRegionHasDrifted, 1},\n\t{sharedRegionNotChecked, 1},\n", ""},
+	// The third row on its own, which the pair above leaves standing. This kind is what a deleted copy
+	// of a shared region produces. Removing its row leaves it alone in the catch-all, where the floor
+	// still prints it. So what moves is where the line lands, and the case that notices reads its rank.
+	{"report: a shared region with no counterpart left at the default rank", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{sharedRegionWithoutCounterpart, 1},\n", ""},
 	// findingCap is the right number only for the class that filled the rank. Every class the floor
 	// left at one line then gets a negative count, so a case that only asserts a note is there stays
 	// green.
@@ -51,11 +67,8 @@ var mutants = []mutant{
 	// The head that keeps a finding's first bytes the checker's own. Removed, the finding leads with a
 	// basename two committed scripts share, joins whatever class that text matches, and takes the one
 	// line the floor reserves for it.
-	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandMismatch + c.scriptNamed(base) + \" accepts", "c.scriptNamed(base) + \" accepts"},
-	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
-	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
-	// crafted links hides them and the report reads clean of the very thing they exist to say.
-	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t\t{unreadDispatch, 2},\n", ""},
+	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandUsageDoesNotName + shell.CutBytesMarked(shell.Oneline(name), findingNameCap) +\n\t\t\t\" — \" + c.scriptNamed(base) + \" accepts it\")", "c.scriptNamed(base) + \" accepts \" + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))"},
+	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t{unreadDispatch, 2},\n", ""},
 	// Ranking on the whole line rather than its head: a crafted link target then carries a ranked
 	// phrase into a `dangling link:` finding and promotes the flood above what it is burying. The case
 	// that observes this passed over the mutation until its forged phrase was one the rank table still
@@ -86,7 +99,7 @@ var mutants = []mutant{
 	// in for the quiet one's, which proves nothing about it.
 	{"refs: bare rule-ID scan never fires", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
 	{"refs: bare rule-ID scan reports the form it recommends", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
-	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `"syntax: "+shell.Oneline(line)`, `"syntax: "+line`},
+	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `syntaxError+shell.Oneline(line)`, `syntaxError+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", "shell.Oneline(mountHave)", "mountHave"},
 	// The name each of the three mount messages leads with, one mutant per message. A skill directory
 	// name is the branch's own text, and the sanitiser on it is a separate call from the one on the
@@ -114,7 +127,7 @@ var mutants = []mutant{
 	{"mounts: a skipped scan never says it was skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() || true {"},
 	{"mounts: a scan that ran reported as skipped", "mounts.go", "./eco-check/", "TestTheMountScanAsksOnlyAboutTheInstalledCheckout", "if c.root.IsInstalled() {", "if c.root.IsInstalled() && false {"},
 	// Its rank, which decides whether the finding is read at all under a flood.
-	{"report: a mount without a skill left at the default rank", "report.go", "./eco-check/", "TestAMountThatOutlivedItsSkillIsReported", "\t\t{\"mount without a skill\", 1},\n", ""},
+	{"report: a mount without a skill left at the default rank", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{mountWithoutASkill, 1},\n", ""},
 
 	// The delimited-citation half. Undelimited is how a section citation stops resolving in silence,
 	// so both directions are needed: the finding never firing, and it firing on the two forms the
@@ -164,7 +177,7 @@ var mutants = []mutant{
 	// mutants share the opening pattern's anchor, because they are three different questions about
 	// one line: whether it still reaches every spelling, and the two ways a looser one over-reaches.
 	// The first is the defect as it stood — matched as a single literal, the scan checked neither of
-	// `score.sh`'s subcommands and reported nothing about the file.
+	// that stub's subcommands and reported nothing about the file.
 	{"subcommands: the dispatch opening matched as one literal again", "subcommands.go", "./eco-check/", "TestAShellDispatchIsReadInEverySpellingOfItsOpening", `^case [^#]*\$\{?1[^0-9]`, `^case "\$\{1:-\}" in`},
 	{"subcommands: any top-level case read as a dispatch", "subcommands.go", "./eco-check/", "TestATopLevelCaseIsNotAlwaysADispatch", `^case [^#]*\$\{?1[^0-9]`, `^case `},
 	{"subcommands: an in-function lookup table read as a dispatch", "subcommands.go", "./eco-check/", "TestATopLevelCaseIsNotAlwaysADispatch", `^case [^#]*\$\{?1[^0-9]`, `case [^#]*\$\{?1[^0-9]`},
@@ -231,10 +244,23 @@ var mutants = []mutant{
 	// or each also matches the import refusal in the same file.
 	{"stats: refused budget name cut without a mark", "../eco-stats/budget.go", "./eco-stats/", "TestACutMessageSaysThatItWasCut", "s.root.Named(), shell.CutBytesMarked(shell.Oneline(name), 80))", "s.root.Named(), shell.CutBytes(shell.Oneline(name), 80))"},
 	{"stats: unreadable reason cut without a mark", "../eco-stats/measure.go", "./eco-stats/", "TestACutMessageSaysThatItWasCut", "shell.CutBytesMarked(shell.Oneline(err.Error()), 160)", "shell.CutBytes(shell.Oneline(err.Error()), 160)"},
-	{"check: refused budget name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))`, `") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), 80))`},
-	{"check: refused import name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `"), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), 80))`, `"), named but not counted: " + shell.CutBytes(shell.Oneline(name), 80))`},
+	{"check: refused budget name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `") — not read, not counted: " + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))`, `") — not read, not counted: " + shell.CutBytes(shell.Oneline(name), findingNameCap))`},
+	{"check: refused import name cut without a mark", "budget.go", "./eco-check/", "TestACutRefusalSaysThatItWasCut", `"), named but not counted: " + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))`, `"), named but not counted: " + shell.CutBytes(shell.Oneline(name), findingNameCap))`},
 	{"citations: uncheckable head cut without a mark", "citations.go", "./eco-check/", "TestAnUncheckableCitationSaysWhenItsHeadWasCut", "shell.CutBytesMarked(shell.Oneline(cited.head), 60)", "shell.CutBytes(shell.Oneline(cited.head), 60)"},
 	{"subcommands: unread dispatch path cut without a mark", "subcommands.go", "./eco-check/", "TestAnUnreadableDispatchPathSaysItWasCut", "shell.CutBytesMarked(shell.Oneline(dir), 120)", "shell.CutBytes(shell.Oneline(dir), 120)"},
+	// The subcommand name the same file's three kind-first findings lead with, one mutant per site. The
+	// latter two carry the kind string, or each anchor also matches the other and preflight refuses the
+	// run. Reverting one leaves the finding firing with a name that reads whole. The path it cut off the
+	// end is the half the reader needs.
+	{"subcommands: a cut call-site name left unmarked", "subcommands.go", "./eco-check/", "TestALongSubcommandNameIsCutBeforeItsAttribution", "shell.CutBytesMarked(shell.Oneline(site.subcommand), findingNameCap)", "shell.CutBytes(shell.Oneline(site.subcommand), findingNameCap)"},
+	{"subcommands: a cut usage-gap name left unmarked", "subcommands.go", "./eco-check/", "TestALongSubcommandNameIsCutBeforeItsAttribution", "subcommandUsageDoesNotName + shell.CutBytesMarked(shell.Oneline(name), findingNameCap)", "subcommandUsageDoesNotName + shell.CutBytes(shell.Oneline(name), findingNameCap)"},
+	{"subcommands: a cut dispatch-gap name left unmarked", "subcommands.go", "./eco-check/", "TestALongSubcommandNameIsCutBeforeItsAttribution", "subcommandDispatchDoesNotAccept + shell.CutBytesMarked(shell.Oneline(name), findingNameCap)", "subcommandDispatchDoesNotAccept + shell.CutBytes(shell.Oneline(name), findingNameCap)"},
+	// The region name the three shared-region findings lead with. One mutant, not three: the cut is one
+	// call above the switch. Every arm reads the same `named`, so one revert reaches all of them.
+	{"scripts: a cut region name left unmarked", "scripts.go", "./eco-check/", "TestALongSharedRegionNameIsCutBeforeItsDetail", "named := shell.CutBytesMarked(name, findingNameCap)", "named := shell.CutBytes(name, findingNameCap)"},
+	// The bound itself, which the mark above says nothing about: removed, the name runs to the printer's
+	// own 500-byte cut and takes the detail after it off the line.
+	{"scripts: the region-name bound removed", "scripts.go", "./eco-check/", "TestALongSharedRegionNameIsCutBeforeItsDetail", "named := shell.CutBytesMarked(name, findingNameCap)", "named := shell.CutBytesMarked(name, 100000)"},
 	// The printer's own width bound, which runs after every one of the marks above and would otherwise
 	// take one off with the tail it removes.
 	{"report: a finding line cut without a mark", "report.go", "./eco-check/", "TestACutFindingLineSaysThatItWasCut", "shell.CutBytesMarked(line.text, lineWidthCap)", "shell.CutBytes(line.text, lineWidthCap)"},
@@ -320,8 +346,8 @@ var mutants = []mutant{
 	// stamp it writes is what the merge gate trusts — so the weight below is on the three questions
 	// where being wrong is unrecoverable: which report an invocation resolves to, what `discard`
 	// decides is this ship's scratch and not the human's, and what the stamp will accept as a review
-	// that happened. Its suite runs in seven seconds whole, so naming the test here buys attribution
-	// rather than budget: "some case went red" would not say which guard is observed.
+	// that happened. Naming the test here buys attribution rather than budget: "some case went red" would
+	// not say which guard is observed.
 
 	// paths.go — which report an invocation acts on, and what else on disk belongs to the ship it
 	// names.
@@ -345,7 +371,7 @@ var mutants = []mutant{
 	{"discard: the ship-exists guard never refuses", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "func (r *run) assertShipExists(slug string) {\n\tif shell.IsRegularFile(r.report) {", "func (r *run) assertShipExists(slug string) {\n\tif true {"},
 	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"discard: the review exception removed", "../eco-report/paths.go", "./eco-report/", "TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed", `if slug == "review" {`, "if false {"},
-	// The durable three are a table, and a table gets a row each: each one kept .idsd/ standing
+	// The durable files are a table, and a table gets a row each: each one kept .idsd/ standing
 	// with nothing observing that it did.
 	{"surviving: charter.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"constraints.md", "language.md", "playbook.md"}`},
 	{"surviving: constraints.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "language.md", "playbook.md"}`},
@@ -468,7 +494,7 @@ var mutants = []mutant{
 	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
 
 	// seams.go — the two scripts this tool calls rather than reimplements.
-	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "if status > 1 {", "if false {"},
+	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "func (r *run) readOpenTodos(consequence string) {\n\titems, status := r.runTodoGate()\n\tif status > 1 {", "func (r *run) readOpenTodos(consequence string) {\n\titems, status := r.runTodoGate()\n\tif false {"},
 	{"fingerprint: a missing script recomputed locally", "../eco-report/seams.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "if !isExecutable(r.fingerprintBin) {", "if false {"},
 	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if err != nil || tree == "" {`, "if false {"},
 	{"fingerprint: the walk repeated once per ship", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if r.cachedTree != "" {`, "if false {"},
@@ -477,6 +503,7 @@ var mutants = []mutant{
 	// gate still prints "intent ready", so a build starts against a placeholder nobody filled.
 	{"intent-ready: the placeholder scan disabled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" {`, `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" && false {`},
 	{"intent-ready: a comparison read as a placeholder", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if body != "" && body[0] != ' ' && !strings.HasPrefix(body, "!--") {`, `if body != "" && !strings.HasPrefix(body, "!--") {`},
+	{"intent-ready: a placeholder standing after a comparison is skipped", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", "\t\tif strings.HasPrefix(body, \"!--\") {\n\t\t\tstart += end\n\t\t}\n", "\t\tstart += end\n"},
 	{"intent-ready: an empty required section read as filled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if inSection && strings.TrimSpace(line) != "" {`, "if inSection {"},
 	{"intent-ready: the field's own comment read as a sign-off", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyReadsTheTemplatesCommentAsNoSignOff", `if strings.HasPrefix(value, "#") {`, "if false {"},
 	{"intent-ready: an archived dependency read as unbuilt", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnADependencyThatHasNotShipped", `case where == "archive":`, `case where == "archive" && false:`},
@@ -502,7 +529,7 @@ var mutants = []mutant{
 	{"records: a swap taken on a record with room in it", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "held := len(recordEntriesIn(lines)); held < kind.bound {", "held := len(recordEntriesIn(lines)); held < 0 {"},
 	{"records: an admitted entry inheriting the reach of the one it displaced", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "admitted := recordEntry{count: 1, date: today(), text: entry}", "admitted := recordEntry{count: found.count, date: today(), text: entry}"},
 	{"records: a swap reported by its winner alone", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `r.line("in place of: %s", found.quoted())`, "_ = found"},
-	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the score cuts.",`, `"",`},
+	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the judge names.",`, `"",`},
 	{"records: a record that never says who it is written for", "../eco-report/records.go", "./eco-report/", "TestFirstWriteCreatesTheRecordWithItsHeader", `"Written for the next agent — never presented to a human, and no human maintains it.\n" +`, `"" +`},
 	{"records: a revision that resets the entry's reach", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "revised := recordEntry{count: found.count, date: today(), text: replacement}", "revised := recordEntry{count: 1, date: today(), text: replacement}"},
 	{"records: a revision onto a duplicate of another entry", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "if entry.text == replacement {", "if false {"},
@@ -530,7 +557,13 @@ var mutants = []mutant{
 	{"gate: a turnaround trim no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `case trims != "":`, "case false:"},
 	{"gate: a scan that did not run no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "case status > 1:", "case false:"},
 	{"gate: an open item no longer blocks the merge", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case todos != "":`, "case false:"},
-	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tr.line(\"gate clean: tree fresh, untrimmed qualify, no open TODOs\")\n", ""},
+	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tr.line(\"gate clean: tree fresh, untrimmed qualify, %s, no open TODOs\", r.intentClaim())\n", ""},
+	{"gate: an intent that never reached approved no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "\tdefault:\n\t\treturn path, status\n", "\tdefault:\n\t\treturn path, \"\"\n"},
+	{"gate: a missing status reads as an approval", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "\tcase \"\":\n\t\treturn path, \"<none>\"\n", "\tcase \"\":\n\t\treturn path, \"\"\n"},
+	{"gate: a ship with no intent file reads as an unapproved one", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tif path == \"\" {\n\t\treturn \"\", \"\"\n\t}\n", ""},
+	{"gate: the clean line claims an approval it never read", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", "\tif r.intentFilePath() == \"\" {\n\t\treturn \"no intent to check\"\n\t}\n", ""},
+	{"state token: the ICE's own follow-ups never reach the token", "../eco-report/seams.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", "\tif intent == \"\" {\n\t\treturn false\n\t}\n", "\tif intent == \"\" || true {\n\t\treturn false\n\t}\n"},
+	{"state token: an unapproved intent answers ready anyway", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "if r.intentIsUnapproved() {", "if false {"},
 	{"carry: the open items go unprinted", "../eco-report/gate.go", "./eco-report/", "TestCarryPrintsTheItemsARequalifyMustNotLose", "if r.openTodos != \"\" {\n\t\tr.line(\"%s\", r.openTodos)", "if false {\n\t\tr.line(\"%s\", r.openTodos)"},
 	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
 	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
@@ -538,7 +571,7 @@ var mutants = []mutant{
 	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"state token: an unstamped report no longer answers resume", "../eco-report/gate.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if isUnstamped(reviewed) {", "if false {"},
 	{"state token: a moved tree answers ready", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `return "re-qualify" // reviewed once, tree moved since`, `return "ready" // reviewed once, tree moved since`},
-	{"state token: open items no longer answer decide", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if r.openTodos != \"\" {\n\t\treturn \"decide\"", "if false {\n\t\treturn \"decide\""},
+	{"state token: open items no longer answer decide", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if r.anyOpenItemsBeforeMerge(\"the state is unknown.\") {", "if false {"},
 	{"state token: a trimmed pass answers ready", "../eco-report/gate.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `if isUnstamped(r.reviewedStages()) || r.turnaroundTrims() != "" {`, "if false {"},
 	{"list: a partial listing streamed as it goes", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `listing += name + "\t" + r.stateToken() + "\n"`, `r.line("%s\t%s", name, r.stateToken())`},
 	{"list: the readability guard removed", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `r.assertReportIsReadable("nothing was printed, this listing included")`, "_ = r.report"},
@@ -603,7 +636,7 @@ var mutants = []mutant{
 	{"stamp: the per-stage marker check removed", "../eco-report/stamp.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `if reason := r.stageBlockReason(stage); reason != "" {`, "if reason := r.stageBlockReason(stage); len(reason) < 0 {"},
 	// A stage marker IS the precondition stamp reads instead of re-checking the stage, so the three
 	// below are all one defect wearing different clothes: a marker this pass never earned.
-	{"init: a fresh report adopting the dead pass's stage markers", "../eco-report/init.go", "./eco-report/", "TestAFreshReportInheritsNoStageMarkerFromTheOneBeforeIt", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {\n\t\tr.refuse(\"error: could not clear \" + r.stageReturnsDir + \" (\" + err.Error() + \") — the report was NOT initialized", "if err := error(nil); err != nil {\n\t\tr.refuse(\"error: could not clear \" + r.stageReturnsDir + \" (\" + err.Error() + \") — the report was NOT initialized"},
+	{"init: a fresh report adopting the dead pass's stage markers", "../eco-report/init.go", "./eco-report/", "TestAFreshReportInheritsNoStageMarkerFromTheOneBeforeIt", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {", "if err := error(nil); err != nil {"},
 	{"stages: a marker directory any local account can write", "../eco-report/stages.go", "./eco-report/", "TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine", "os.MkdirAll(r.stageReturnsDir, 0o700)", "os.MkdirAll(r.stageReturnsDir, 0o777)"},
 	{"stages: a marker file any local account can forge", "../eco-report/stages.go", "./eco-report/", "TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine", `[]byte(value+"\n"), 0o600)`, `[]byte(value+"\n"), 0o666)`},
 	{"stamp: a pass that never accounted for the decision log", "../eco-report/stamp.go", "./eco-report/", "TestAStampDemandsThePassAccountForTheDecisionLog", "if !r.stageWasMarkedReturned(decisionsMarker) {", "if false {"},
@@ -639,7 +672,7 @@ var mutants = []mutant{
 	{"slug charset: a path separator let into the set", "../eco-report/shell.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `b == '.' || b == '_' || b == '-'`, `b == '.' || b == '_' || b == '-' || b == '/'`},
 	{"readable: -r asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", "syscall.Access(path, 0x4)", "syscall.Access(path, 0x0)"},
 	{"executable: -x asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "syscall.Access(path, 0x1)", "syscall.Access(path, 0x0)"},
-	// `join`, not `records`: that prefix now names the two shared record files. A label is a mutant's
+	// `join`, not `records`: that prefix now names the four shared record files. A label is a mutant's
 	// whole identity in the verdict column, so a prefix naming two subjects sends the reader of a
 	// survivor to the wrong file.
 	{"join: the trailing newline dropped from every rewrite", "../eco-report/shell.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `out.WriteString("\n")`, `out.WriteString("")`},
@@ -903,7 +936,7 @@ var mutants = []mutant{
 	// other quoted token become exemptions handed out at random.
 	{"ruleecho: any backticked span read as a citation", "../rule-echo/match.go", "./rule-echo/", "TestCitedTargetsReadsBothFormsAndNothingElse", `if strings.HasSuffix(target, ".md") {`, "if true {"},
 
-	// cadence, comment-density and score are ports of three shell scripts. Nothing else shows their
+	// cadence and comment-density are ports of two shell scripts. Nothing else shows their
 	// suites' cases can fail.
 	{"cadence: the interval moves out by two days", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
 		`const intervalDays = 7`, `const intervalDays = 9`},
@@ -925,58 +958,6 @@ var mutants = []mutant{
 		`strings.Cut(string(body), "\n")`, `strings.Cut(string(body), "\x00")`},
 	{"cadence: a carriage return survives into the stamp", "../cadence/cadence.go", "./cadence/", "TestATrailingLineStillResolves",
 		`strings.TrimRight(first, "\r")`, `first`},
-
-	{"score: the cut boundary excludes the bar itself", "../score/score.go", "./score/", "TestCutReadsTheList",
-		`if value <= level {`, `if value < level {`},
-	{"score: a list that never arrived reads as a clean run", "../score/score.go", "./score/", "TestNothingScoredExitsTwo",
-		`if kept+gone == 0 {`, `if kept+gone == 0 && false {`},
-	{"score: cutting nothing passes unrefused", "../score/score.go", "./score/", "TestNothingCutExitsThree",
-		`if gone == 0 && kept > 0 {`, `if gone == 0 && kept > 0 && false {`},
-	// `1 kept, 1 cut` at exit 0 is the shape a whole scored list takes, so a list that stopped mid-read
-	// must never be able to produce it. Only a reader that fails reaches the guard, which is why it
-	// stood with no case behind it.
-	{"score: a list that stopped mid-read reports the counts it reached", "../score/score.go", "./score/", "TestAListThatStoppedMidReadIsNotAWholeOne",
-		`if err := scanner.Err(); err != nil {`, `if err := scanner.Err(); err != nil && false {`},
-	{"score: a blank anchor is accepted", "../score/score.go", "./score/", "TestCutRefusesBeforeItReads",
-		`if strings.TrimSpace(anchor) == "" {`, `if strings.TrimSpace(anchor) == "" && false {`},
-	{"score: --kept-all takes an empty reason", "../score/score.go", "./score/", "TestCutRefusesBeforeItReads",
-		`if strings.TrimSpace(keptAllWhy) == "" {`, `if strings.TrimSpace(keptAllWhy) == "" && false {`},
-	{"score: a label's control characters reach the report", "../score/score.go", "./score/", "TestAControlCharacterInALabelIsNeutralised",
-		`label = shell.Oneline(label)`, `label = label + ""`},
-	{"score: a lane name's control character is not refused", "../score/score.go", "./score/", "TestAControlCharacterInALaneNameIsRefused",
-		`if shell.Oneline(name) != name {`, `if shell.Oneline(name) != name && false {`},
-	{"score: a level over the scale is accepted", "../score/score.go", "./score/", "TestAMalformedConfigIsRefused",
-		`if level > maxScore {`, `if level > maxScore && false {`},
-	{"score: the config's line form goes unchecked", "../score/score.go", "./score/", "TestAMalformedConfigIsRefused",
-		`if len(fields) != 4 || fields[1] != "cut" || fields[2] != "<=" {`,
-		`if (len(fields) != 4 || fields[1] != "cut" || fields[2] != "<=") && false {`},
-	// An override moves a lane, never adds one — without this a typo tunes nothing, silently.
-	{"score: an override may add a lane the tracked config never ruled", "../score/score.go", "./score/", "TestTheOverride",
-		`if _, ruled := allow.level[name]; !ruled {`, `if _, ruled := allow.level[name]; !ruled && false {`},
-	{"score: a signed score is accepted", "../score/score.go", "./score/", "TestCutRefusesAMalformedItem",
-		`if text[i] < '0' || text[i] > '9' {`, `if (text[i] < '0' || text[i] > '9') && false {`},
-	// Not obvious which case, and it is two: `a directory in its place is refused, not skipped` and `a
-	// dangling symlink is refused, not read as absent` reach this guard by different shapes of "exists
-	// and is not a readable regular file", and either alone leaves the other's silent fallback
-	// unobserved.
-	{"score: an unreadable override falls back to the tracked bar", "../score/score.go", "./score/", "TestTheOverride",
-		`if err != nil || !info.Mode().IsRegular() || !isReadable(env.OverridePath) {`,
-		`if (err != nil || !info.Mode().IsRegular() || !isReadable(env.OverridePath)) && false {`},
-	{"score: an override that names no lane moves it anyway", "../score/score.go", "./score/", "TestTheOverride",
-		`if !named {`, `if !named && false {`},
-	// The tracked config is derived from argv0. Without the shape guard a bare `score.sh` resolves it
-	// against the working directory, which is the tree under review — the same outcome the XDG rule
-	// beside it refuses, reached by the other input.
-	{"score: the tracked config resolved from a bare argv0", "../score/score.go", "./score/", "TestTheTrackedConfigIsNotResolvedAgainstTheWorkingDirectory",
-		`if strings.Contains(argv0, "/") && !strings.HasSuffix(argv0, "/") {`, "if true {"},
-	{"score: an unlocatable config read as a usable one", "../score/score.go", "./score/", "TestAnUnlocatableConfigRefusesRatherThanGuessing",
-		"\tif path == \"\" {", "\tif false {"},
-	// The fixture claiming to mirror ai/kk-flavor/thresholds.conf, held to it. It drifted once already,
-	// when a lane reached the real file through a merge and the fixture stayed behind — so the mutant
-	// re-creates that drift rather than disabling the comparison. Disabling it kills nothing while the
-	// two agree, which is the state the case exists to preserve.
-	{"score: the fixture drifts a lane behind the tracked config", "../score/harness_test.go", "./score/", "TestTheFixtureRulesTheSameLanesAsTheTrackedConfig",
-		"record-entry   cut <= 7\n", ""},
 
 	{"density: the ratio bar becomes strictly greater", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},

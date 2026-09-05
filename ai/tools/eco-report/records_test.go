@@ -215,13 +215,13 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 			strings.Index(f.out, "report.sh record admit") < strings.Index(f.out, "is not an instruction"), f.evidence())
 	f.record("and works the ladder before the contest that costs an entry",
 		strings.Contains(f.out, "promote what must not be lost") &&
-			strings.Index(f.out, "promote what must not be lost") < strings.Index(f.out, "score the new entry"), f.evidence())
-	// The newcomer is scored alongside the incumbents, not against the weakest of them: a record that
+			strings.Index(f.out, "promote what must not be lost") < strings.Index(f.out, "run the judge over the new entry"), f.evidence())
+	// The newcomer is judged alongside the incumbents, not against the weakest of them: a record that
 	// always admits the newest is the last N in arrival order, which is the trim `records.md` forbids.
 	f.record("and the contest counts the new entry among the candidates",
 		strings.Contains(f.out, "lowest of the 101"), f.evidence())
 	// No entry is singled out, so nothing steers the agent at the lowest-count line before it has
-	// scored the file.
+	// judged the file.
 	f.record("and no entry is named as the one to drop",
 		!strings.Contains(f.out, "the quiet one a count would sacrifice") && !strings.Contains(f.out, "filler"),
 		f.evidence())
@@ -342,7 +342,7 @@ func TestTheCapCarriesTheRecordsOwnNumberAndItsOwner(t *testing.T) {
 		f.status == 0 && strings.Contains(f.out, "over its cap of 50") &&
 			strings.Count(f.read(path), "x | ") == 51, f.evidence())
 	f.record("and the note names the ladder to work rather than a verdict",
-		strings.Contains(f.out, "promote what") && strings.Contains(f.out, "evict what the score cuts"), f.evidence())
+		strings.Contains(f.out, "promote what") && strings.Contains(f.out, "evict what the judge names"), f.evidence())
 	f.record("and names no entry as the one to drop",
 		!strings.Contains(f.out, "fifty-first") && !strings.Contains(f.out, "constraint 7"), f.evidence())
 	f.record("and the human's record is told to propose each move",

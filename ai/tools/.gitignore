@@ -8,7 +8,7 @@ dist/
 /cmd/cadence/cadence
 /cmd/comment-density/comment-density
 /cmd/eco-check/eco-check
-/cmd/score/score
+/cmd/bloat-judge/bloat-judge
 /cmd/tree-fingerprint/tree-fingerprint
 /cmd/gate/gate
 /cmd/dup-literals/dup-literals

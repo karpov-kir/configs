@@ -38,6 +38,16 @@ const harnessCitationNote = " — this file is a test harness: if that citation 
 // still has to know what one looks like.
 const globInCitation = `*?[\`
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
+const (
+	uncheckableCitation        = "uncheckable citation: "
+	citationPathIsPattern      = "pattern in a citation path: "
+	unresolvableCitationPath   = "unresolvable citation path: "
+	undelimitedSectionCitation = "undelimited section citation: "
+	citationTargetNotRegular   = "citation target is not a regular file: "
+	danglingSectionRef         = "dangling section ref: "
+)
+
 // Findings from this scan go through here so a harness pays the note once, wherever it was reported.
 func (c *checker) addCitationFinding(cited citation, finding string) {
 	if isTestHarness(cited.src) {
@@ -59,7 +69,7 @@ func (c *checker) reportCitation(cited citation) {
 	// chose the length of. Marked when the bound bites: a head cut at 60 bytes reads as the whole of
 	// one, and the reader then hunts their own file for a string nobody wrote.
 	if cited.path == "" {
-		c.addCitationFinding(cited, "uncheckable citation: "+position+" -> `"+shell.CutBytesMarked(shell.Oneline(cited.head), 60)+
+		c.addCitationFinding(cited, uncheckableCitation+position+" -> `"+shell.CutBytesMarked(shell.Oneline(cited.head), 60)+
 			"` → "+shell.Oneline(cited.section)+
 			" — the text before the arrow names no markdown file, so nothing checks that section; write the file's path")
 		return
@@ -73,20 +83,20 @@ func (c *checker) reportCitation(cited citation) {
 	// Refusing costs the resolver its whole pattern arm, which is the point: nothing reaches it once
 	// this is here.
 	if glob := strings.IndexAny(cited.path, globInCitation); glob >= 0 {
-		c.addCitationFinding(cited, "pattern in a citation path: "+citedPath+
+		c.addCitationFinding(cited, citationPathIsPattern+citedPath+
 			" — `"+string(cited.path[glob])+"` reads as a glob, and a citation has to name one file; write the path it means")
 		return
 	}
 	target := c.resolveRef(shell.DirName(cited.src), cited.path)
 	if target == "" {
-		c.addCitationFinding(cited, "unresolvable citation path: "+citedPath)
+		c.addCitationFinding(cited, unresolvableCitationPath+citedPath)
 		return
 	}
 	// Reported even when the section resolves today: undelimited is how it stops resolving in
 	// silence. An undelimited name truncates at the first comma, so half a heading satisfies the
 	// citation and a rename then breaks it without a word.
 	if !cited.isDelimited {
-		c.addCitationFinding(cited, "undelimited section citation: "+citedPath+
+		c.addCitationFinding(cited, undelimitedSectionCitation+citedPath+
 			" → "+shell.Oneline(cited.section)+" is not wrapped in ** or backticks")
 	}
 	// The cited path resolved through whatever the reviewed tree pointed it at, and pathExists
@@ -94,14 +104,14 @@ func (c *checker) reportCitation(cited citation) {
 	// return. Reported rather than skipped: a target nothing read must not be indistinguishable from
 	// a checked one.
 	if !shell.IsRegularFile(target) {
-		c.addCitationFinding(cited, "citation target is not a regular file: "+citedPath+
+		c.addCitationFinding(cited, citationTargetNotRegular+citedPath+
 			" — it was NOT read")
 		return
 	}
 	if c.sectionResolves(target, cited.section) {
 		return
 	}
-	c.addCitationFinding(cited, "dangling section ref: "+citedPath+" → "+
+	c.addCitationFinding(cited, danglingSectionRef+citedPath+" → "+
 		shell.Oneline(cited.section)+" — "+c.danglingVariant(cited, target))
 }
 

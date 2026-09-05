@@ -8,7 +8,7 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 **Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
 
-**Then score what survived** ([writing.md](writing.md) → **Score what survives**) on its `outward-text` lane, or `code-comment` for a comment.
+**Then run `~/.kk-flavor/scripts/bloat-judge.sh <kind>` over what survived, and delete what it names.** The kind is the artifact's class: `--changed comment <file>` for a source file (`--changed=<revisions>` where the scope is git revisions); `pr-body`, `review`, `commit`, `ticket` or `slack` on stdin. A class with no kind — a doc, an email — ends at the keep test above.
 
 **Deleting is the only exit from either cut, and it needs no home and no permission.**
 

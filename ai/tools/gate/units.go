@@ -16,7 +16,7 @@ import (
 //
 // Named file by file, from the literal `../../` constants in the suites, rather than by taking the
 // whole tree each one sits in. eco-report's harness copies in exactly this one script out of
-// kk-flavor, so keying on all of kk-flavor made editing score.sh force eco-report — 233s for a package
+// kk-flavor, so keying on all of kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package
 // that cannot read it.
 const (
 	goTree       = "ai/tools"

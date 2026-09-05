@@ -133,16 +133,18 @@ func (r *run) cmdStamp() {
 
 func (r *run) cmdInvalidate() {
 	r.requireReport(r.arg(1))
+	// Before the stamp, not after: the sentence below is only true while the stamp still stands. Clearing
+	// it first and failing here leaves a report that reads as invalidated under a refusal saying it is not.
+	// Last pass's stage returns would otherwise satisfy this pass's stamp for free.
+	if err := os.RemoveAll(r.stageReturnsDir); err != nil {
+		r.refuse("error: could not clear " + r.stageReturnsDir + " (" + err.Error() + ") — the pass is NOT invalidated, and the markers still standing would let the next stamp skip what it has to re-earn.")
+	}
 	err := r.rewriteReport(
 		"the stamp was NOT cleared; it still describes an older tree",
 		"could not clear the stamp in "+r.report+" — it still describes an older tree",
 		rewriteInvalidated)
 	if err != nil {
 		r.exit(2)
-	}
-	// Last pass's stage returns would otherwise satisfy this pass's stamp for free.
-	if err := os.RemoveAll(r.stageReturnsDir); err != nil {
-		r.refuse("error: could not clear " + r.stageReturnsDir + " (" + err.Error() + ") — the pass is NOT invalidated, and the markers still standing would let the next stamp skip what it has to re-earn.")
 	}
 	r.line("invalidated reviewed-tree — restamp when the pass completes")
 }

@@ -206,7 +206,7 @@ printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discover
 # A red outranks a non-measurement: something is known to be wrong. A moved checkout sits between
 # them, because it refuses every line of the result rather than one of them.
 #
-# Exit 3 for it, on `~/.kk-flavor/scripts/score.sh`'s vocabulary: 2 is did-not-measure, 3 is
+# Exit 3 for it, on the tools' shared exit vocabulary: 2 is did-not-measure, 3 is
 # ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead
 # tool.
 #

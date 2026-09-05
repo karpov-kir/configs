@@ -8,6 +8,14 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
+const (
+	skillsNotMounted      = "skills not mounted"
+	skillNotMounted       = "skill not mounted"
+	skillMountedElsewhere = "skill mounted elsewhere"
+	mountWithoutASkill    = "mount without a skill"
+)
+
 // The mounts every `~/...` citation resolves through, checked against *this checkout*. Anywhere that
 // is not the install — a clone, a PR review's worktree, a CI runner with a bare $HOME — the mounts
 // point at somebody else's tree or at nothing, and every finding below would be about that rather than
@@ -29,7 +37,7 @@ func (c *checker) scanMounts() {
 	}
 	skillsMount := c.root.SkillsMount()
 	if !shell.IsDir(skillsMount) {
-		c.add("skills not mounted: " + skillsMount + " is not a directory — no skill here is loadable and every ~/.claude/skills/ citation dangles")
+		c.add(skillsNotMounted + ": " + skillsMount + " is not a directory — no skill here is loadable and every ~/.claude/skills/ citation dangles")
 		return
 	}
 	skillNames := c.skillDirNames()
@@ -38,9 +46,9 @@ func (c *checker) scanMounts() {
 		mountHave := shell.CanonicalDir(shell.Join(skillsMount, name))
 		switch {
 		case mountHave == "":
-			c.add("skill not mounted: " + shell.Join(skillsMount, shell.Oneline(name)) + " is missing — the skill exists here and cannot be invoked")
+			c.add(skillNotMounted + ": " + shell.Join(skillsMount, shell.Oneline(name)) + " is missing — the skill exists here and cannot be invoked")
 		case mountHave != mountWant:
-			c.add("skill mounted elsewhere: " + shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(mountHave) + ", not " + shell.Oneline(mountWant))
+			c.add(skillMountedElsewhere + ": " + shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(mountHave) + ", not " + shell.Oneline(mountWant))
 		}
 	}
 	c.scanMountsWithoutSkills(skillsMount, skillNames)
@@ -107,7 +115,7 @@ func (c *checker) scanMountsWithoutSkills(skillsMount string, skillNames []strin
 		if shell.IsDir(mountPath) {
 			continue
 		}
-		c.add("mount without a skill: " + shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(target) +
+		c.add(mountWithoutASkill + ": " + shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(target) +
 			", which this checkout does not have — remove it once the deletion has landed; ai/bootstrap.sh drops no mount of its own")
 	}
 }

@@ -27,6 +27,14 @@ import (
 // to. Both are here so raising either is one edit.
 const findingCap = 40
 
+// How much of a name a finding carries before the cut mark. Every finding leads with its kind and puts
+// the name after it, so this is what a reader gets of that name. Every such name is the reviewed tree's
+// own text — a case label, a usage alternative, a shared-region marker, a budget path — and nothing
+// bounds its length. Uncut, the printer's own 500-byte bound reaches the line first and the tail it
+// takes is the path and the sentence naming the defect. One number for all of them, because a reader
+// comparing two findings may not meet two ideas of how much of a name they get.
+const findingNameCap = 80
+
 // How many budget-file refusals are named before the rest are summarised. Named where the relation to
 // the suppression note is visible: written as a bare 5 and 6, a change to one silently outruns the
 // other and the note never prints.

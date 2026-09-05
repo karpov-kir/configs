@@ -7,6 +7,14 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
+const (
+	danglingLink           = "dangling link: "
+	danglingHomeRef        = "dangling home ref: "
+	danglingPathRef        = "dangling path ref: "
+	unknownSkillReferenced = "unknown skill referenced: "
+)
+
 var (
 	// Wider than the shell.LinkTargets budget.go uses: that one excludes `#`, because a budget target
 	// with a fragment names no file to count, while a citation with one names a file *and* a section,
@@ -46,7 +54,7 @@ func (c *checker) reportDanglingLinks(file string, lines []string) {
 			if isTemplate && !isTraversal(target) {
 				continue
 			}
-			c.add("dangling link: " + shell.Oneline(file) + " -> " + shell.Oneline(link))
+			c.add(danglingLink + shell.Oneline(file) + " -> " + shell.Oneline(link))
 		}
 	}
 }
@@ -70,7 +78,7 @@ func (c *checker) scanHomeRefs() {
 	}
 	for _, ref := range shell.SortUnique(refs) {
 		if c.resolveRef("", ref) == "" {
-			c.add("dangling home ref: " + shell.Oneline(ref))
+			c.add(danglingHomeRef + shell.Oneline(ref))
 		}
 	}
 }
@@ -101,7 +109,7 @@ func (c *checker) scanPathRefs() {
 			if skillRoot != dir && c.refExists(skillRoot, token) {
 				continue
 			}
-			c.add("dangling path ref: " + shell.Oneline(file) + " -> " + shell.Oneline(token))
+			c.add(danglingPathRef + shell.Oneline(file) + " -> " + shell.Oneline(token))
 		}
 	}
 }
@@ -151,7 +159,7 @@ func (c *checker) scanUnknownSkills() {
 		// happens to wear the family's shape (`kk-drive-verified`). Suppressing a token whose
 		// prefix is a real skill would mask the first — `kk-drives` is exactly that shape — so the
 		// message carries both readings instead.
-		c.add("unknown skill referenced: " + shell.Oneline(name) + " — no skills/" + shell.Oneline(name) +
+		c.add(unknownSkillReferenced + shell.Oneline(name) + " — no skills/" + shell.Oneline(name) +
 			"/SKILL.md. If this is prose rather than a skill, reword it so it does not read as one")
 	}
 }

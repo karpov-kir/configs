@@ -1,7 +1,6 @@
 ---
 name: idsd-qualify
 description: Run the quality pipeline over the working tree with a merge stamp. Use for "qualify the changes" inside an IDSD project. The `.idsd` report layer over kk-qualify — the same pass without a report is that skill's, and its description discriminates the rest.
-argument-hint: "[score threshold]"
 ---
 
 Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. You orchestrate, so read `~/.kk-flavor/standards/skill-protocol.md` whole.
@@ -14,7 +13,7 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
 3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have.
 
-**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included, not just the round's. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
+**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
@@ -59,15 +58,14 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 <optional: context several items share, stated once here, never per item>
 
-- [ ] **<N> · <Falsified | Fork | Pending evidence> · <score>/10 —** <the action, one line>
+- [ ] **<N> · <Falsified | Fork | Pending evidence> —** <the action, one line>
   <the case: what it is, why it matters, the evidence>
   **Recommend:** <the answer>
 ```
 
-**What earns an item, how it is scored, and the order it lands in are `~/.claude/skills/kk-qualify/SKILL.md` → **The residue**.** This file adds only where that residue is written:
+**What earns an item and the order it lands in are `~/.claude/skills/kk-qualify/SKILL.md` → **The residue**.** This file adds only where that residue is written:
 
 - **One group, `Decide`** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
-- **What the threshold cuts gets no `- [ ]`**, and no decision-log entry either — a question you still hold is barred from that log.
 - **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry <intent>` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass

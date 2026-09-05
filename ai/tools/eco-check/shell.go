@@ -47,11 +47,17 @@ func isAlnumByte(b byte) bool {
 // is what keeps an unchecked file distinguishable from a checked one.
 const maxFileBytes = shell.MaxFileBytes
 
+// The heads the two findings below lead with, which report.go's rankTable ranks them on.
+const (
+	fileTooLargeToScan = "file too large to scan: "
+	fileCouldNotBeRead = "file could not be read: "
+)
+
 // The one wording every bounded read here reports itself with, ending on what this reader did not do.
 // Three scans hit the bound and each says something different about the consequence; only that half
 // differs, and a second copy of the rest would drift from the bound it quotes.
 func tooLargeToScan(name string, size int64, consequence string) string {
-	return fmt.Sprintf("file too large to scan: %s is %d bytes, over the %d-byte bound — %s",
+	return fmt.Sprintf(fileTooLargeToScan+"%s is %d bytes, over the %d-byte bound — %s",
 		name, size, maxFileBytes, consequence)
 }
 
@@ -63,7 +69,7 @@ func tooLargeToScan(name string, size int64, consequence string) string {
 // files that cited them, a census line 34 words short under an unchanged denominator, and nothing on
 // stderr. Reported, the skip is still a skip and the run can no longer exit 0 over it.
 func couldNotRead(name, consequence string) string {
-	return fmt.Sprintf("file could not be read: %s — %s", name, consequence)
+	return fmt.Sprintf(fileCouldNotBeRead+"%s — %s", name, consequence)
 }
 
 func (c *checker) readLines(path string) ([]string, error) {

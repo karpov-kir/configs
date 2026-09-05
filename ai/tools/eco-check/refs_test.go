@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	ecocheck "kk-flavor/tools/eco-check"
 )
 
 // A link target is written by the branch under review, and `..` is in its charset, so the scan used
@@ -26,14 +28,14 @@ func TestATraversalLinkIsNotStatted(t *testing.T) {
 
 	t.Run("reports a traversal to a file that is not there", func(t *testing.T) {
 		f, _, fake := newProbe(t)
-		f.reports("dangling link: " + f.root + "/kk-flavor/standards/probe.md -> " + fake)
+		f.reports(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/probe.md -> " + fake)
 	})
 
 	// The half that closes the oracle. Without it the present target goes unreported, and that gap
 	// between the two findings is the leak.
 	t.Run("and reports the one that is there identically", func(t *testing.T) {
 		f, real, _ := newProbe(t)
-		f.reports("dangling link: " + f.root + "/kk-flavor/standards/probe.md -> " + real)
+		f.reports(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/probe.md -> " + real)
 	})
 
 	// The control. Without it, a scan that reported every link would pass here just as well as one
@@ -42,7 +44,7 @@ func TestATraversalLinkIsNotStatted(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/standards/sibling.md", "# S\n")
 		f.write(f.root+"/kk-flavor/standards/probe.md", "- [a](sibling.md)\n- [b](../inject.md)\n")
-		f.doesNotReport("dangling link: " + f.root + "/kk-flavor/standards/probe.md")
+		f.doesNotReport(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/probe.md")
 	})
 }
 
@@ -54,7 +56,7 @@ func TestATraversalHomeRefIsNotStatted(t *testing.T) {
 	up := "../../../../../../../../../../../../../../../../../../../../"
 	f.write(f.root+"/kk-flavor/standards/probe.md",
 		"see `~/.kk-flavor/"+up+strings.TrimPrefix(f.base+"/present.md", "/")+"`\n")
-	f.reports("dangling home ref: ~/.kk-flavor/" + up)
+	f.reports(ecocheck.DanglingHomeRef + "~/.kk-flavor/" + up)
 }
 
 // One tree, every way `check.sh` lets a caller spell its root, and the same answer required from each.
@@ -68,7 +70,7 @@ func TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed(t *testing.
 	// finding, echoed file included. A needle built from the head and the tail alone matches no line
 	// the checker ever prints, and every case below would then pass over any behaviour at all.
 	finding := func(root string) string {
-		return "dangling path ref: " + root + "/kk-flavor/standards/probe.md -> r/sibling.md"
+		return ecocheck.DanglingPathRef + root + "/kk-flavor/standards/probe.md -> r/sibling.md"
 	}
 	newSpellingProbe := func(t *testing.T) *fixture {
 		f := newRoot(t)
@@ -111,7 +113,7 @@ func TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed(t *testing.
 	t.Run("while a citation naming nothing still dangles under the same spelling", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/standards/probe.md", "see `r/absent.md`\n")
-		f.reportsWithRootNamed(f.base, "r", "dangling path ref: r/kk-flavor/standards/probe.md -> r/absent.md")
+		f.reportsWithRootNamed(f.base, "r", ecocheck.DanglingPathRef+"r/kk-flavor/standards/probe.md -> r/absent.md")
 	})
 
 	// And the other half of the control: a bare basename is the shape prose writes most often, and it
@@ -121,7 +123,7 @@ func TestAPathRefThroughTheRootsOwnNameResolvesHoweverTheRootIsNamed(t *testing.
 		f := newRoot(t)
 		f.write(f.root+"/sibling.sh", "#!/usr/bin/env bash\n")
 		f.write(f.root+"/kk-flavor/standards/probe.md", "see `sibling.sh`\n")
-		f.doesNotReportWithRootNamed(f.root, ".", "dangling path ref: ./kk-flavor/standards/probe.md -> sibling.sh")
+		f.doesNotReportWithRootNamed(f.root, ".", ecocheck.DanglingPathRef+"./kk-flavor/standards/probe.md -> sibling.sh")
 	})
 }
 
@@ -138,7 +140,7 @@ func TestACitationNamingADirectoryAboveTheRootDoesNotResolve(t *testing.T) {
 	f.write(f.root+"/kk-flavor/standards/probe.md",
 		"see `"+parent+"/r/sibling.md` and `"+grandparent+"/"+parent+"/r/sibling.md`\n")
 
-	head := "dangling path ref: " + f.root + "/kk-flavor/standards/probe.md -> "
+	head := ecocheck.DanglingPathRef + f.root + "/kk-flavor/standards/probe.md -> "
 	output := f.run()
 	f.found(output, head+parent+"/r/sibling.md")
 	f.found(output, head+grandparent+"/"+parent+"/r/sibling.md")

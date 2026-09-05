@@ -41,6 +41,6 @@ Apply each; surface only what the run evidences:
 
 ## Output
 
-**Evidence-backed** findings; the cost of a fix is not a reason to drop one. Each states the improvement, its **target** (a skill, arch doc, prompt, pipeline, project standard or backlog — whatever it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
+The cost of a fix is not a reason to drop a finding. Each states the improvement, its **target** (a skill, arch doc, prompt, pipeline, project standard or backlog — whatever it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
 
-Present the findings and let the human route them. The retro only flags: `findings.md` is the one file it writes.
+Present the findings and let the human route them; `findings.md` is the one file this skill writes.

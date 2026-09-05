@@ -1,29 +1,25 @@
 #!/usr/bin/env bash
-# Apply `~/.kk-flavor/standards/writing.md` → **Score what survives**: hold the per-lane thresholds,
-# and cut a scored list against one. It never produces a score: "how much this reader needs it" is a
-# judgment, so the caller scores and this decides what that score buys.
+# The judge: what a named reader would delete from an outward text, decided by a model that sees only
+# what that reader sees.
 #
-# usage: score.sh threshold <lane>
-#        score.sh cut [--kept-all <why>] <lane> <what a 10 is here>
-#            reads `<score><TAB><label>` lines on stdin; exit 3 if nothing fell below the line
+#   usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # comment|instruction take a file; every other kind reads stdin
 #
-# Prints to stdout. Exit 2 means it did not run; exit 3 means it ran and refuses the result.
+# Prints the artifact with the judged units deleted, or with --numbers only the 1-based line numbers
+# deleted. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
+# unreadable path, a model that did not answer, or an answer that was not numbers.
 #
-# Thresholds come from `../thresholds.conf`, which is tracked, overlaid per lane by an untracked
-# machine-local file. An override in effect is always announced, because a bar moved locally produces
-# a verdict no other machine reproduces.
+# The model returns numbers and nothing else, and the tool applies them. It never rewrites and never
+# explains, so there is nothing to negotiate with; for a source file the units are its comment blocks
+# alone, so code cannot be touched whatever the model says.
 #
-# The tool is Go, in `ai/tools/score/`; this reaches that binary and nothing else. Its refusals are the
-# enforcement, not convenience: read the comment at one before removing it. What `default` is, and why
-# an unknown lane exits rather than landing on it, is stated at that lane in `../thresholds.conf`.
-#
-# tested by: the Go suite beside the tool, `ai/tools/score/`; the shared stub region below by
+# tested by: the Go suite beside the tool, `ai/tools/bloat-judge/`; the shared stub region below by
 # tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 
-tool="score"
-# How far THIS file sits above the tools directory.
+tool="bloat-judge"
+# How far THIS file sits above the tools directory. The shared region below resolves exactly this one
+# path and consults nothing else, so a stub can only ever reach the directory it names.
 tools_offset="../.."
 
 # --- shared:tool-stub ---

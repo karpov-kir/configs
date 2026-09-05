@@ -8,6 +8,8 @@ package ecocheck_test
 import (
 	"fmt"
 	"testing"
+
+	ecocheck "kk-flavor/tools/eco-check"
 )
 
 func TestDirectionScan(t *testing.T) {
@@ -173,11 +175,11 @@ func TestDirectionScan(t *testing.T) {
 	// four, one per grep shape the shell version used.
 	t.Run("reads a markdown link past a NUL byte", func(t *testing.T) {
 		f := newNulByteFile(t)
-		f.reports("dangling link: " + f.root + "/kk-flavor/standards/nul.md -> nowhere.md")
+		f.reports(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/nul.md -> nowhere.md")
 	})
 
 	t.Run("and reads a skill name past one, rather than reporting grep's own notice as the name", func(t *testing.T) {
-		newNulByteFile(t).reports("unknown skill referenced: kk-nonesuch")
+		newNulByteFile(t).reports(ecocheck.UnknownSkillReferenced + "kk-nonesuch")
 	})
 
 	// The cited path is echoed whole. One trailing segment stops it at `.../kk-humanize/scripts` and

@@ -33,7 +33,7 @@ const recordName = "idsd-audit-offer"
 
 const dateLayout = "2006-01-02"
 
-// Exit codes, on `~/.kk-flavor/scripts/score.sh`'s vocabulary. 1 is a verdict — the pass is not due
+// Exit codes, on the tools' shared exit vocabulary. 1 is a verdict — the pass is not due
 // yet — and 2 is the absence of one. Nothing here ever returns 1 for a question it could not answer:
 // exits 1 and 2 both end in "no offer made", so a caller that cannot tell them apart suppresses the
 // pass for as long as the bad record sits there, and it looks identical from the outside.

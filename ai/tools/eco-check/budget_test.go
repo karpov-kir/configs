@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	ecocheck "kk-flavor/tools/eco-check"
 	"kk-flavor/tools/shell"
 )
 
@@ -158,7 +159,7 @@ func TestATraversalReadAlwaysTargetIsNotStatted(t *testing.T) {
 	// The control: the Read-always list was read and a target was refused, so the silence below is a
 	// refusal rather than a fixture that never reached the budget scan.
 	t.Run("refuses a target that resolves outside the root (control for the case below)", func(t *testing.T) {
-		newProbe(t).reports("budget file refused")
+		newProbe(t).reports(ecocheck.BudgetFileRefused)
 	})
 
 	// The leaked bit itself. Present, the target came back refused; absent, it came back through the
@@ -169,7 +170,7 @@ func TestATraversalReadAlwaysTargetIsNotStatted(t *testing.T) {
 	// the checker did. The subtest is named clear of the phrase too — t.TempDir() puts the subtest's
 	// own name inside every path the run echoes.
 	t.Run("and does not report either through the arm that says it is absent", func(t *testing.T) {
-		newProbe(t).doesNotReport("inject.md lists '")
+		newProbe(t).doesNotReport(ecocheck.InjectListsMissingDoc)
 	})
 
 	// The control. Without it, a checker that refused every listed target would pass the three cases
@@ -179,7 +180,7 @@ func TestATraversalReadAlwaysTargetIsNotStatted(t *testing.T) {
 		f.write(f.root+"/kk-flavor/standards/real.md", "one two three\n")
 		f.write(f.root+"/kk-flavor/inject.md",
 			"# Flavor\n\n## Read always\n\n- [a](standards/real.md)\n")
-		f.doesNotReport("budget file refused")
+		f.doesNotReport(ecocheck.BudgetFileRefused)
 	})
 }
 
@@ -207,14 +208,14 @@ func TestAnUnreachableReadAlwaysTargetIsRefusedNotCalledAbsent(t *testing.T) {
 	}
 
 	t.Run("refuses a target it could not reach", func(t *testing.T) {
-		newUnreachable(t).reports("budget file refused")
+		newUnreachable(t).reports(ecocheck.BudgetFileRefused)
 	})
 
 	// Matched on the head of the absent arm's line because that wording opens the arm and no other
 	// finding carries it. Not for the reason the sibling case above gives: these paths are short, and
 	// the line lands around 240 bytes, well inside the printer's width bound.
 	t.Run("and does not report it through the arm that says it is absent", func(t *testing.T) {
-		newUnreachable(t).doesNotReport("inject.md lists '")
+		newUnreachable(t).doesNotReport(ecocheck.InjectListsMissingDoc)
 	})
 
 	// The control, and the half that keeps the fix honest: a target nobody wrote is still absent, and
@@ -223,14 +224,14 @@ func TestAnUnreachableReadAlwaysTargetIsRefusedNotCalledAbsent(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/inject.md",
 			"# Flavor\n\n## Read always\n\n- [a](standards/nowhere.md)\n")
-		f.reports("inject.md lists '")
+		f.reports(ecocheck.InjectListsMissingDoc)
 	})
 }
 
-// The bound both refusals below quote a name under, restated here because the package under test does
-// not export it, and a name long enough to run past it.
+// The bound both refusals below quote a name under, read from the package rather than restated, and a
+// name long enough to run past it.
 const (
-	budgetMessageBound          = 80
+	budgetMessageBound          = ecocheck.FindingNameCap
 	overEveryBudgetMessageBound = 200
 )
 
@@ -254,7 +255,7 @@ func TestACutRefusalSaysThatItWasCut(t *testing.T) {
 	}
 
 	t.Run("refuses a budget file whose name runs past the bound (control)", func(t *testing.T) {
-		newLongRefusedTarget(t).reports("budget file refused")
+		newLongRefusedTarget(t).reports(ecocheck.BudgetFileRefused)
 	})
 
 	t.Run("and marks that name rather than printing a shorter wrong one", func(t *testing.T) {

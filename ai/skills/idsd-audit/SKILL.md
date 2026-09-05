@@ -1,13 +1,13 @@
 ---
 name: idsd-audit
-description: Audit the .idsd/ intent set for cross-intent consistency — links, build order, milestones, charter scope. Read-only; each fix routes to its owning skill.
+description: Audit the .idsd/ intent set for cross-intent consistency — links, build order, milestones, charter scope, inherited constraints. Read-only; each fix routes to its owning skill.
 ---
 
 Check the invariants that surface **across** intents; a single intent's own ambiguities are `idsd-intent`'s clarify pass, not this.
 
 ## Phase 1 — Load the set
 
-**The set you are auditing lives under the resolved scratch root, which is not always in the repo** — `~/.claude/skills/idsd-qualify/SKILL.md` → **Report** owns that rule and names what prints the directory.
+**The set you are auditing lives under the resolved scratch root, which is not always in the repo** — `~/.claude/skills/idsd-qualify/SKILL.md` → **Report** names what prints the directory.
 
 Read the intent set under `.idsd/`: active intents (`intents/`), built ones (`archive/`), `charter.md`, `constraints.md`, `language.md`, `roadmap.md`, `decisions.md`. No `.idsd/` → say so and stop.
 
@@ -15,12 +15,12 @@ Read the intent set under `.idsd/`: active intents (`intents/`), built ones (`ar
 
 Skip a check only when its inputs are absent.
 
-- **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`, nothing else) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow `idsd-intent`'s **Links rule**.
-- **Build batches (parallel schedule)** — group the unbuilt intents into batches whose members share no unbuilt dependency; each batch is safe to build concurrently, one worktree per intent.
+- **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`, nothing else) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow the Links rule in `~/.claude/skills/idsd-intent/SKILL.md` → **Rules**.
+- **Build batches (parallel schedule)** — group the unbuilt intents into batches whose members share no unbuilt dependency — one worktree per intent.
 - **Milestone coherence** — no `mvp` intent depends on a `vnext`/unscheduled or still-`draft` one.
 - **Inherited constraints** — flag an entry in `constraints.md` no `mvp` intent satisfies, and any intent constraint contradicting one.
-- **Charter scope** — flag intents outside the charter's Scope, in-scope areas no intent covers, and intents orphaned by a past scope cut. Scope's **Not yet specified** bucket is none of those: it is in scope and deliberately unsharp, so flagging it repeats the charter grill on every run.
-- **Language** — the set's vocabulary against `language.md`: a domain term the intents lean on with no entry; **two terms in use for one thing** (`~/.kk-flavor/standards/writing.md` → **Readability floor**); two entries that cannot both hold (`~/.kk-flavor/standards/writing.md` → **Density**); an entry no artifact uses any more (`~/.kk-flavor/standards/records.md` → **Deletion is not eviction**).
+- **Charter scope** — flag intents outside the charter's Scope, in-scope areas no intent covers, and intents orphaned by a past scope cut. Scope's **Not yet specified** bucket is none of those: it is in scope and deliberately unsharp.
+- **Language** — the set's vocabulary against `language.md`: a domain term the intents lean on with no entry; **two terms in use for one thing**; two entries that cannot both hold; an entry no artifact uses any more (`~/.kk-flavor/standards/records.md` → **Promotion is the exit upward**).
 - **Duplication** — overlapping goals/constraints across intents; a constraint recurring in ≥3 intents, or a choice `decisions.md` has re-settled that often → propose promoting it to `.idsd/constraints.md`.
 - **Well-formedness** — each intent has a goal with a real *why*, 3–7 constraints, and ≥1 success + ≥1 failure scenario; a goal joined by "and" is either mis-named (rename) or two intents (split); scenario coverage shouldn't be thin for the intent's surface. Flag the gap; don't re-grill here.
 - **Status hygiene** — `built` intents live in `archive/`, not `intents/`; numbers are unique and contiguous; flag `collaborative: true` intents missing `approved-by`; `roadmap.md` matches current frontmatter.

@@ -27,6 +27,14 @@ const (
 	workflowFamily = "idsd-"
 )
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on. The quote on
+// the first is what tells it from the other `skill…` heads: the tree's own directory name follows it.
+const (
+	skillInNeitherFamily       = "skill '"
+	anyRepoNamesWorkflowFamily = "any-repo skill names the workflow family"
+	familyRouterFinding        = "router "
+)
+
 // The one skill allowed to name the other family, by the exception ecosystem.md → **Family direction** grants. Held
 // as a name rather than sniffed out of the prose, so the exception is a decision recorded in one place
 // instead of a phrase any file could start matching by accident.
@@ -63,7 +71,7 @@ func (c *checker) scanFamilyDirection() {
 			// The permitted direction: a workflow skill may name and cite an any-repo one.
 			continue
 		case !strings.HasPrefix(name, anyRepoFamily):
-			c.add("skill '" + name + "' is in neither declared family (" + anyRepoFamily + ", " +
+			c.add(skillInNeitherFamily + name + "' is in neither declared family (" + anyRepoFamily + ", " +
 				workflowFamily + ") — nothing checks its citation direction (ecosystem.md → **Family direction**)")
 			continue
 		case name == familyRouter:
@@ -91,14 +99,10 @@ func (c *checker) reportFamilyLeaks(name string, workflowName, stateDir *regexp.
 		safeFile := shell.Oneline(file)
 		for _, pattern := range []*regexp.Regexp{workflowName, stateDir} {
 			for _, hit := range grepNumbered(lines, pattern) {
-				found++
-				if found <= findingCap {
-					c.add("any-repo skill names the workflow family: " + safeFile + ":" +
-						shell.Oneline(hit.String()) +
-						" — name the capability, not the skill or directory that has it (ecosystem.md → **Family direction**)")
-				} else if found == findingCap+1 {
-					c.reportBoundReached("any-repo skill names the workflow family", safeFile)
-				}
+				c.addBounded(&found, anyRepoNamesWorkflowFamily, safeFile, func() string {
+					return safeFile + ":" + shell.Oneline(hit.String()) +
+						" — name the capability, not the skill or directory that has it (ecosystem.md → **Family direction**)"
+				})
 			}
 		}
 	}
@@ -111,7 +115,7 @@ func (c *checker) assertRouterClaimsItsException(name string) {
 	path := shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
 	lines, err := c.readLines(path)
 	if err != nil {
-		c.add("router " + shell.Oneline(path) + " could not be read, so its family exception is unverified" +
+		c.add(familyRouterFinding + shell.Oneline(path) + " could not be read, so its family exception is unverified" +
 			" — every cross-family finding in it is suppressed on the strength of a file nothing opened")
 		return
 	}
@@ -120,6 +124,6 @@ func (c *checker) assertRouterClaimsItsException(name string) {
 			return
 		}
 	}
-	c.add("router " + shell.Oneline(path) + " names the workflow family but claims no exception" +
+	c.add(familyRouterFinding + shell.Oneline(path) + " names the workflow family but claims no exception" +
 		" — cite " + routerClaimCitation + " in it, or stop naming that family")
 }

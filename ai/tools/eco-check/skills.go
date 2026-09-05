@@ -6,6 +6,13 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
+const (
+	skillDirWithoutSkillFile = "skill dir without SKILL.md: "
+	skillNameDirMismatch     = "skill name/dir mismatch"
+	skillWithoutDescription  = "skill without a description: "
+)
+
 // Each defect here makes a skill unreachable rather than merely mis-linked: the loader finds a skill
 // by its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
 func (c *checker) scanSkillDirectories() {
@@ -15,7 +22,7 @@ func (c *checker) scanSkillDirectories() {
 			continue
 		}
 		if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {
-			c.add("skill dir without SKILL.md: " + shell.Oneline(entry.path))
+			c.add(skillDirWithoutSkillFile + shell.Oneline(entry.path))
 		}
 	}
 	// A skill's frontmatter name is how it is invoked; a mismatch with its directory makes it
@@ -31,10 +38,10 @@ func (c *checker) scanSkillDirectories() {
 		}
 		declared := shell.FrontmatterName(lines)
 		if declared != shell.BaseName(shell.DirName(file)) {
-			c.add("skill name/dir mismatch: " + shell.Oneline(file) + " declares '" + shell.Oneline(declared) + "'")
+			c.add(skillNameDirMismatch + ": " + shell.Oneline(file) + " declares '" + shell.Oneline(declared) + "'")
 		}
 		if shell.FrontmatterDescription(lines) == "" {
-			c.add("skill without a description: " + shell.Oneline(file))
+			c.add(skillWithoutDescription + shell.Oneline(file))
 		}
 	}
 }

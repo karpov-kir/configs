@@ -444,12 +444,14 @@ func (f *fixture) stampFullPassIn(dir, ship string) {
 	f.runReportIn(dir, "stamp", allStagesStampedAs, ship)
 }
 
-// An intent file for one slug. Its body is a fixed constant because no case asserts on it: what they
-// care about is the file's presence, and whether `discard` takes it or leaves it.
+// An intent file for one slug. The body is fixed because no case asserts on it — what they care about
+// is the file's presence, and whether `discard` takes it or leaves it. The frontmatter is not: the
+// merge gate refuses an intent that never reached `status: approved`, so a status-less fixture would
+// make every gate case block for a reason it is not about. A case about that arm writes its own file.
 func (f *fixture) newIntentFile(slug string) {
 	f.t.Helper()
 	f.mkdirAll(f.scratch() + "/intents")
-	f.write(f.scratch()+"/intents/"+slug+".md", "# intent\n")
+	f.write(f.scratch()+"/intents/"+slug+".md", "---\nstatus: approved\n---\n\n# intent\n")
 }
 
 // The human's own durable file, in the SCRATCH dir rather than the tree: what keeps the scratch

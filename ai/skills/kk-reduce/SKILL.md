@@ -1,6 +1,6 @@
 ---
 name: kk-reduce
-description: Shrink and refine a whole ecosystem of agent instructions as a multi-agent campaign — over-cut, adjudicate, fan out scoped passes, reconcile, converge, repair, drive. Use for "shrink the ecosystem", "cut this in half", "de-bloat everything". The campaign above kk-ecosystem, which is one scope's pass; expensive, so run it deliberately.
+description: Shrink and refine a whole ecosystem of agent instructions as a multi-agent campaign — over-cut, arbitrate, fan out scoped passes, reconcile, converge, repair, drive. Use for "shrink the ecosystem", "cut this in half", "de-bloat everything". The campaign above kk-ecosystem, which is one scope's pass; expensive, so run it deliberately.
 argument-hint: "the ecosystem root (default: the kk-flavor + skills tree)"
 disable-model-invocation: true
 ---
@@ -23,9 +23,9 @@ Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — withou
 
 One agent, told plainly that **quality is not its job** and that a reviewer will restore what it takes too far. Give it Phase 0's target and instruct it that under-cutting is the only way it fails. Ask for structural collapses — whole files, merged skills, relocated sections — not just line edits, and require a real word count per cut and enough quoted text to locate each one.
 
-## 2. Adjudicate
+## 2. Arbitrate
 
-A second agent turns that list into the plan. Its bias must be stated as explicitly as the cutter's: **default to accept**, because a review that rescues most of the list has failed exactly as badly as a cutter that proposed nothing.
+A second agent — the **arbiter** — turns that list into the plan. Its bias must be stated as explicitly as the cutter's: **default to accept**, because a review that rescues most of the list has failed exactly as badly as a cutter that proposed nothing.
 
 Three things it must do:
 
@@ -51,8 +51,6 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 ## 4. Reconcile
 
-The checks below need the whole tree at once, which no Phase 3 agent had.
-
 - **One home, and no home.** Reconcile rules living in several files. Then grep-verify **every `DELETED:` line every agent returned** — open the file each names as still covering the rule and confirm the text is there — not only what the plan rescued: **de-duplication to zero** survives the plan when two agents each delete their own copy. A line whose named home no longer holds it is a rule deleted twice; restore one copy.
 - **Stale claims.** A wiring check proves the path and the heading a citation names; nothing proves that section still says the thing. Read every citation into a file that was heavily cut.
 - **Prefer the mechanism.** Move prose a script can assert into the script (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**).
@@ -71,9 +69,9 @@ Cutting damages prose: it stitches sentences together, strands pronouns, leaves 
 
 **Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. A header stating `# untested:` instead (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**) leaves this step covering that script with nothing; read its reason. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
 
-**Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh`** with no arguments, which scans the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start. A comment's bar is `~/.kk-flavor/standards/code-style.md` → **Comments**.
+**Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar`** with no arguments, which reads the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start.
 
-**Its outliers are yours to route, never to fix.** Spawn `kk-humanize` over them, handing it the scan output, which its own first step otherwise re-runs. Re-run the scan when it returns.
+**The files it names are yours to route, never to fix**: spawn `kk-humanize` over them.
 
 **Then drain the handoffs the phases returned** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**) — nothing else here reads a script as code.
 

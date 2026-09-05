@@ -1,7 +1,7 @@
 ---
 name: kk-humanize
 description: Rewrite outward text — PR/ticket text, commit messages, chat, email, README-grade docs — and code comments so they read as a person wrote them. Use for "humanize", "de-AI this", "make the comments readable". The outward counterpart to kk-tighten; comment placement and truth belong to other lanes.
-argument-hint: "file, git scope (\"the changes\", \"staged\"), or the text itself; plus an optional score threshold"
+argument-hint: "file, git scope (\"the changes\", \"staged\"), or the text itself"
 ---
 
 Rewrite the text resolved from `$ARGUMENTS`.
@@ -10,7 +10,7 @@ Rewrite the text resolved from `$ARGUMENTS`.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`; deltas below.
 
-**Where the scope holds code, run `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar`** — no arguments for the uncommitted changes, or the git revisions to scan. Each file it names is a target, and its exit is the pass's check: re-run it after your edits, and a set still over is a `WARN`.
+**Where the scope holds code, run `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar`** — no arguments for the uncommitted changes, or the git revisions to scan — and read the files it names first. A thermometer, never the pass's check — `bloat-judge` (**Budget**, below) decides what goes.
 
 ## The lens
 

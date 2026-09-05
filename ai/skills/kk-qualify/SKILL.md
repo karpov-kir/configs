@@ -1,7 +1,7 @@
 ---
 name: kk-qualify
 description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the pass written down with a merge stamp layers that on top of this one.
-argument-hint: "[scope: a path, a diff selector, or natural language] [score threshold]"
+argument-hint: "[scope: a path, a diff selector, or natural language]"
 ---
 
 **The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another. **Nothing waits on your pass unless your caller says it does**: bare, you may trim for turnaround, and you say what you trimmed.
@@ -21,10 +21,8 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 | code-review | `kk-code-review` | — | `code-review` |
 | security-review | `kk-security-review` | — | `security` |
 | prose | `kk-tighten` | — | — |
-| outward-text | `kk-humanize` | `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar` | `comments` |
+| outward-text | `kk-humanize` | — | `comments` |
 | refactor | `kk-refactor` | `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
-
-**This table is the map for any caller running a lane by name.**
 
 **Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 
@@ -37,16 +35,16 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 **Only what needs the human, never a record of the run.** If they take no action, it is not residue, and there is never a monitor-only group.
 
 - **An item earns its place by the report-item test** in `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** — read it. **An applied fix is not an item**; the diff is its record. Where the fix traded something the human may weigh differently, the open question is *which way* — that is a **fork**, and its default is what the tree now does. **Where the losing branch names no belief the human could hold, it is not a fork either.**
-- **Score what clears that test** (`~/.kk-flavor/standards/writing.md` → **Score what survives**) — here the reader's need is how much it takes their own eyes. At or below the `report` lane's threshold it is one line in the closing reply.
-- **Order by score, highest first** — the kind rides as a label, never a group: **falsified** (a claim this pass disproved), **fork** (a genuine choice still open), **pending evidence** (blocked on a named signal that does not exist yet). A falsified claim is not more urgent than a fork, it is a prerequisite, and the item's own text carries that: **a falsified item has no branch to lose to**, so it closes on what the human must now re-decide; where that is nothing, it is a tidy-up and there is no item.
+- **Order by how much each takes the human's own eyes, most first** — the kind rides as a label, never a group: **falsified** (a claim this pass disproved), **fork** (a genuine choice still open), **pending evidence** (blocked on a named signal that does not exist yet). A falsified claim is not more urgent than a fork, it is a prerequisite, and the item's own text carries that: **a falsified item has no branch to lose to**, so it closes on what the human must now re-decide; where that is nothing, it is a tidy-up and there is no item.
 - **Number the items in the order they land**, so the human can name one. The number is positional and good only for the pass in front of them — say so, because the next pass renumbers.
 - **A blocking question is asked live and never recorded**, except the unanswered one (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). **A drive step the human dropped is neither** — it is one line in the closing reply (**After the pass**); asking before dropping is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**.
 - **Each item stands alone** — someone who never saw the run understands what it is, why it matters, and can act. Cut run-narration and command strings, never the stakes.
 - **Roughly 60 words an item, and the recommendation closes it on its own line** — this skill's bound on the exception `~/.kk-flavor/standards/writing.md` → **Density** licenses. Over the bound the surplus is the case restated for a reader who has just read it. **Having no recommendation is itself an opening**: "nothing — this is a product call" beats a hedge dressed as advice.
+- **Last, with the items written, run `~/.kk-flavor/scripts/bloat-judge.sh report` over the residue's text** — the closing reply's one judge run, in place of the `reply` run `~/.kk-flavor/standards/writing.md` → **Replying to a human** makes. What it names goes, an item excepted: each is a decision the human owes.
 
 ## After the pass
 
-`~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — what the pass ran, and item count by decision kind — then the items in the order above, then **one line for everything the threshold cut** and every drive step the human dropped when asked, named and not argued. No per-stage verdicts.
+`~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — what the pass ran, and item count by decision kind — then the items in the order above, then **one line for every drive step the human dropped when asked**, named and not argued. No per-stage verdicts.
 
 ## Rules
 

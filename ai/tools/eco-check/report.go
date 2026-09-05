@@ -16,13 +16,15 @@ const (
 	lineWidthCap    = 500
 	printedLinesCap = 200
 
-	// What a class closes with once the budget has shown all of it that it will. Only a class
-	// classify's table names gets one. Rank 5 is the single class for every kind that table does not
-	// name, so a note there counts several kinds while sitting under whichever one byte order printed
-	// last: 200 dangling links and 3 unfamilied skills print 40 links and a note saying 163. The
-	// trailing "further finding(s) not shown" carries that remainder instead, attributing it to
-	// nothing.
+	// What a class closes with once the budget has shown as much of it as it will. Only a class
+	// rankTable names gets one. The count is that class's own: a note spanning several kinds would
+	// count findings the block above it is not made of.
 	suppressedMarker = "more of this class, suppressed"
+
+	// What the whole report closes on, counting the findings neither bound let through. Named for the
+	// reason suppressedMarker is: the suite matches on it, and a case that spelled it itself goes
+	// green the next time it is reworded.
+	unshownMarker = "finding(s) not shown in total"
 )
 
 // A finding that means *this check did not check the tree you think* ranks above every reference
@@ -33,47 +35,110 @@ const (
 // The prefix that matches is also the finding's class, and keptWithinTheBudgets holds a floor of one
 // line per class present. Classes come from this table and never from the heads the findings carry,
 // so a reviewed tree can't widen the report by inventing one. The floor therefore costs at most one
-// line per row below, plus one for the class that holds everything no row names.
+// line per row below.
+//
+// Every kind this checker emits has a row, so a class holds one kind. That is what lets a class carry
+// suppressedMarker's count. A kind with no row falls to the empty class, which still prints but stays
+// noteless, so drift lands there rather than in a false count.
+//
+// A row names its kind through the same constant the emit site leads with, so the two cannot drift
+// into different spellings — a head reworded in one place stops compiling in the other.
+// TestEveryEmittedHeadHasARankTableRow is what then catches a kind added with no row at all, since a
+// constant used at an emit site and left out of this table still compiles.
+//
+// A finding leading with a path the reviewed tree chose cannot be a row, so every emit site leads
+// with its kind instead. TestTheRankTableGivesEachKindAClassItCanAfford holds what a row needs. No
+// prefix is a prefix of another, and no rank carries more rows than findingCap, so the floor cannot
+// spend a whole rank on itself.
+var rankTable = []struct {
+	prefix string
+	rank   int
+}{
+	{syntaxError, 0},
+
+	// Three rows, because scanSharedRegions emits three kinds and one row would hold all three as one
+	// class. mutants.go anchors on the first two as a contiguous pair, so reordering them breaks that
+	// anchor.
+	{sharedRegionHasDrifted, 1},
+	{sharedRegionNotChecked, 1},
+	{sharedRegionWithoutCounterpart, 1},
+	{directionScanReadNoFiles, 1},
+	// Emitted by both bounded reads in shell.go and by the call-site scan's whole-file read in
+	// subcommands.go. Each finding ends on what going unread cost: "it was NOT checked", "it was NOT
+	// counted", or "no call site in it was seen".
+	{fileTooLargeToScan, 1},
+	{fileCouldNotBeRead, 1},
+	{skillsNotMounted, 1},
+	{skillNotMounted, 1},
+	{skillMountedElsewhere, 1},
+	{mountWithoutASkill, 1},
+
+	{budgetFileRefused, 2},
+	{scriptNamesMissingTest, 2},
+	{scriptNamesAmbiguousTest, 2},
+	{scriptNamesTooManySuites, 2},
+	{basenameNotChecked, 2},
+	{subcommandCallSitesNotChecked, 2},
+	// Every way that scan can hold a script with subcommands and name none of them. Each leads
+	// with the path of the file it is about, so without an entry here it lands at rank 5, sharing
+	// one budget with `dangling link:`.
+	{unreadDispatch, 2},
+	// The bound this scan withheld subcommands under. Without an entry it sorts by byte order
+	// against the basenames its own findings lead with, so a stub named `alpha.sh` buries it.
+	{subcommandScanAtItsBound, 2},
+
+	{scriptNotExecutable, 3},
+	{skillNameDirMismatch, 3},
+
+	{importRefused, 4},
+
+	// Rank 5, where a reviewed branch decides how many findings it produces of any kind it likes. The
+	// rows keep the kind that is cheapest to mass-produce from spending the whole rank on itself.
+	{anyRepoNamesWorkflowFamily, 5},
+	{bareRuleIDCitation, 5},
+	{citationTargetNotRegular, 5},
+	{danglingHomeRef, 5},
+	{danglingLink, 5},
+	{danglingPathRef, 5},
+	{danglingSectionRef, 5},
+	{budgetRefusalsSuppressed, 5},
+	{injectListsMissingDoc, 5},
+	{citationPathIsPattern, 5},
+	// Both ways the family router can fail to claim its exception. One row, because the loop that
+	// raises them runs once for the single lane named familyRouter and returns after either. So this
+	// class holds one finding or none, and never two kinds at once.
+	{familyRouterFinding, 5},
+	{scriptDeclaresNoTestPosition, 5},
+	// Each of these three also heads its own scan's "already shown, the rest are not listed" notice.
+	// reportBoundReached leads with the class name for that reason, so the notice shares the row.
+	{sharedLayerCitesLane, 5},
+	{sharedLayerNamesLane, 5},
+	{sharedLayerReachesLaneByBasename, 5},
+	// The quote is what separates this from the other `skill…` rows above and below: the tree's own
+	// directory name follows it.
+	{skillInNeitherFamily, 5},
+	{skillDirWithoutSkillFile, 5},
+	{skillWithoutDescription, 5},
+	{subcommandDispatchDoesNotAccept, 5},
+	{subcommandUsageDoesNotName, 5},
+	{subcommandWithNoCallSite, 5},
+	{uncheckableCitation, 5},
+	{undelimitedSectionCitation, 5},
+	{unknownSkillReferenced, 5},
+	{unresolvableCitationPath, 5},
+}
+
+// Where a finding no row names lands. It is the last rank in the table, so a kind whose row is
+// missing still sorts below every kind that has one. Add a rank past this one and that stops holding.
+const unnamedClassRank = 5
+
 func classify(line string) (rank int, prefix string) {
-	byRank := []struct {
-		prefix string
-		rank   int
-	}{
-		{"syntax: ", 0},
-		{"shared region ", 1},
-		{"direction scan read no files", 1},
-		// Emitted by both bounded reads in shell.go; the finding's own text ends on "it was NOT
-		// checked". At the default rank it shares one budget with `dangling link:` and sorts below
-		// every one of them.
-		{"file too large to scan: ", 1},
-		{"file could not be read: ", 1},
-		{"skills not mounted", 1},
-		{"skill not mounted", 1},
-		{"skill mounted elsewhere", 1},
-		{"mount without a skill", 1},
-		{"budget file refused", 2},
-		{"script names a missing test", 2},
-		{"script names an ambiguous test", 2},
-		{"script names more suites than the scan reads", 2},
-		{"basename not checked", 2},
-		{"subcommand call sites not checked", 2},
-		// Every way that scan can hold a script with subcommands and name none of them. Each leads
-		// with the path of the file it is about, so without an entry here it lands at rank 5, sharing
-		// one budget with `dangling link:`.
-		{unreadDispatch, 2},
-		// The bound this scan withheld subcommands under. Without an entry it sorts by byte order
-		// against the basenames its own findings lead with, so a stub named `alpha.sh` buries it.
-		{"subcommand call-site scan is at its", 2},
-		{"script not executable", 3},
-		{"skill name/dir mismatch", 3},
-		{"import refused", 4},
-	}
-	for _, candidate := range byRank {
+	for _, candidate := range rankTable {
 		if strings.HasPrefix(line, candidate.prefix) {
 			return candidate.rank, candidate.prefix
 		}
 	}
-	return 5, ""
+	return unnamedClassRank, ""
 }
 
 // Ordered before it is cut, never alphabetically: showing one class until the cap runs out lets a
@@ -111,7 +176,7 @@ func (c *checker) printFindings(out io.Writer) int {
 	// tree withholding five findings printed "5 more of this class" and then "5 further", and the
 	// reader was told ten. The overstatement grew with every class the floor gave a line to.
 	if len(sorted) > printedFindings {
-		writeLinef(out, "… %d finding(s) not shown in total — fix these and re-run", len(sorted)-printedFindings)
+		writeLinef(out, "… %d "+unshownMarker+" — fix these and re-run", len(sorted)-printedFindings)
 	}
 	return 1
 }
@@ -123,7 +188,7 @@ type rankedLine struct {
 }
 
 type findingClass struct {
-	// Empty for everything classify's table does not name.
+	// Empty for everything rankTable does not name.
 	prefix string
 	rank   int
 	total  int
@@ -140,8 +205,8 @@ type classifiedFinding struct {
 //
 // Two bounds, because two floods reach here. Each rank shows at most findingCap findings. And inside
 // a rank there is a floor: every class present keeps one line. Without it the class the branch under
-// review floods fills the rank by itself and picks which of the others a reviewer never sees,
-// `shared region ` among them. Each class then says how many of its own it withheld.
+// review floods fills the rank by itself and picks which of the others a reviewer never sees, a
+// drifted shared region among them. Each class then says how many of its own it withheld.
 func keptWithinTheBudgets(sorted []string) []rankedLine {
 	findings := classified(sorted)
 	keepWithinEachRank(findings)
@@ -187,7 +252,8 @@ func keepWithinEachRank(findings []classifiedFinding) {
 }
 
 // The kept findings in rank order, each named class's suppression note on the line under the last
-// finding that class shows.
+// finding that class shows. A class rankTable does not name gets no note: its findings are of several
+// kinds, so "of this class" would be false whichever block the line landed under.
 func orderedByRank(findings []classifiedFinding) []rankedLine {
 	var kept []rankedLine
 	isNoted := map[*findingClass]bool{}
