@@ -41,12 +41,10 @@ shift $((OPTIND - 1))
 root="${1:-$(real_dir "$(dirname -- "${BASH_SOURCE[0]}")/..")}"
 [ -d "$root" ] || die "not a directory: $root"
 
-# Discovery asks git first, because every file this finds is then executed. `--cached --others
-# --exclude-standard` is tracked files plus new untracked ones and nothing else, so a build artefact,
-# a vendored tree or anything .gitignore already excludes never gets to execute as a suite.
-#
-# `find` stays as the fallback, for a root that is legitimately not a checkout. Which one answered is
-# reported: two runs that read different file sets must not print one line.
+# Discovery asks git first, because every file it finds is then executed. `--cached --others
+# --exclude-standard` is tracked files plus new untracked ones and nothing else, so a build artefact
+# or a vendored tree never gets to execute as a suite. `find` stays as the fallback for a root that is
+# legitimately not a checkout, and which one answered is reported: two file sets, never one line.
 suites=()
 absent=0
 broken=0
@@ -174,13 +172,10 @@ for suite in "${suites[@]}"; do
   passed=$((passed + 1))
 done
 
-# A suite that passes while corrupting the checkout has measured something, and the measurement was
-# not the whole effect.
-#
-# Don't name the suite: a concurrent editor looks the same from here, so naming one is a false
-# diagnosis that sends someone hunting through code that is fine. So it goes out as its own result
-# rather than a failure — `failed` counts suites that went red, and folding a delta no suite need have
-# caused into it makes the summary claim a red suite that does not exist.
+# A suite that passes while corrupting the checkout measured something, but not its whole effect.
+# Don't name the suite: a concurrent editor looks identical from here, and naming one sends someone
+# hunting through code that is fine. It goes out as its own result rather than a failure — `failed`
+# counts suites that went red, and nothing here shows one did.
 if [ "$tree_readable" -eq 0 ]; then
   after_tree="$(tree_state)"
   if [ "$before_tree" != "$after_tree" ]; then
@@ -203,15 +198,10 @@ broken_note=""
 printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discovered by %s\n' \
   "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$broken_note" "$containment" "$discovery"
 
-# A red outranks a non-measurement: something is known to be wrong. A moved checkout sits between
-# them, because it refuses every line of the result rather than one of them.
-#
-# Exit 3 for it, on the tools' shared exit vocabulary: 2 is did-not-measure, 3 is
-# ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead
-# tool.
-#
-# A broken suite sits with `unmeasured` rather than `failed`: nothing about it went red, it was never
-# run at all. It must not be silent, because a file plainly there reads as a suite that ran.
+# Order: a red outranks a non-measurement, and a moved checkout sits between them — it refuses every
+# line of the result, not one of them. Exit 3 is the shared vocabulary's ran-and-refuses-the-result
+# and 2 its did-not-measure; a caller that confuses them reads a live refusal as a dead tool. A
+# broken suite counts as unmeasured, never failed: it never ran at all, and it must not be silent.
 [ "$failed" -eq 0 ] || exit 1
 [ "$checkout_moved" -eq 0 ] || exit 3
 [ "$broken" -eq 0 ] || exit 2

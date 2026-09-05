@@ -1,11 +1,7 @@
 // A unit that cannot observe the module's `_test.go` files is not keyed on them. Two kinds qualify:
 // the shell suites, which reach Go only through a binary `go build` produced, and `wiring`, whose
-// checker skips test files by name when it reads Go sources. Keying on them retired 66 of 150 inputs'
-// worth of good cached verdicts every time anyone touched a Go test.
-//
-// The narrowing is the dangerous direction: a gate that stops watching a file it should watch reports
-// a pass it did not earn, and looks exactly like a clean run. So every case here checks BOTH sides —
-// that the test file went, and that the ordinary source beside it stayed.
+// checker skips test files by name. Narrowing is the dangerous direction — a gate that stops watching
+// a file it should watch reports a pass it did not earn — so every case here checks BOTH sides.
 package gate
 
 import (
@@ -184,12 +180,6 @@ func TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem(t *testing.T) {
 	}
 }
 
-// A suite whose name holds a space arrives as one name, not two.
-//
-// Listed without `-z`, `strings.Fields` split it; safeToken then accepted both halves, because neither
-// half held a space any more, and the gate built two units keyed on files that do not exist while the
-// real suite was gated by nothing. Fails closed — the phantom units resolve to no input and the run
-// exits 2 — but it blames a filename nobody has and leaves a real suite unchecked.
 func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 	root := t.TempDir()
 	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {

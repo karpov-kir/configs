@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// --- the table itself ---------------------------------------------------------------------------------
-
 func TestUnitsAndWhyPrintWithoutRunningAnything(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")
@@ -48,8 +46,6 @@ func TestAnUnknownArgumentRefuses(t *testing.T) {
 	f.expectOut("unknown argument")
 }
 
-// --- the name guard --------------------------------------------------------------------------------------
-
 // A zero-byte `ai/a;true;#-test.sh` would run as `ai/run-tests.sh -s ai/a` then `true`, so the unit
 // exits 0 and the gate writes a green record for a suite that never ran. The file's contents are
 // empty, so nothing reviewing contents would see it; the executable part is the name.
@@ -68,7 +64,6 @@ func TestTheNameGuardRefusesWhatWouldBecomeSyntax(t *testing.T) {
 			}
 		})
 	}
-	// And the control: an ordinary path is accepted, or the guard above would be refusing everything.
 	if err := safeToken("suite", "ai/skills/kk-one/scripts/a-test.sh"); err != nil {
 		t.Errorf("an ordinary suite path was refused: %v", err)
 	}
@@ -84,8 +79,6 @@ func TestCheckPathAnswersWithoutRunningTheGate(t *testing.T) {
 	f.expectCode(2)
 	f.expectOut("cannot safely put in a command")
 }
-
-// --- the key ------------------------------------------------------------------------------------------
 
 // The key is a statement about the inputs, and an empty one is a record name that says nothing about
 // them — every run afterwards would answer out of it whatever the tree did.

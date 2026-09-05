@@ -49,19 +49,17 @@ type stats struct {
 	refusedOversize map[string]bool
 
 	// Paths under the root this run could not read at all — a directory it could not list, a file it
-	// could not open. A budget refusal says a file is not a member of the always-loaded tier; this says
-	// the counts below are counts of whatever part of the tree happened to be reachable, in the same
-	// shape a count of the whole tree takes. Every swallowed error below feeds it, because a figure
-	// short by an unknown amount is the one thing this tool must never report.
+	// could not open. Distinct from a budget refusal, which says a file is not in the always-loaded
+	// tier: this says the counts below cover whatever part of the tree was reachable. Every swallowed
+	// error below feeds it, because a figure short by an unknown amount is what this must never report.
 	unreadable int
 	// Which paths were already counted unread, so a directory both the prose and the scripts walk reach
 	// is one path rather than two.
 	refusedUnreadable map[string]bool
-	// How many of those paths were not under the root. A skill mounted at `~/.claude/skills` from
-	// somewhere else is read by this run and lives in the user's home, so a shortfall message calling
-	// it a path "under <root>" sends a reader hunting through the wrong tree for a file that is not in
-	// it. The count is not a second gate — every unread path already withholds the row — it only
-	// decides how the one message describes where they were.
+	// How many of those paths were not under the root. A skill mounted at `~/.claude/skills` lives in
+	// the user's home, so a shortfall message calling it a path "under <root>" sends a reader hunting
+	// through the wrong tree. Not a second gate — every unread path already withholds the row — it only
+	// decides how that one message describes where they were.
 	unreadableOutside int
 }
 
@@ -83,13 +81,10 @@ func (s *stats) measure(errOut io.Writer) {
 	s.prose = s.wordsAcross(prose, errOut)
 	s.proseFiles = wcLines(prose)
 
-	// The ledger is a record, not an instruction, and is reported on its own line rather than inside
-	// prose: counted together, the number that decides whether a reduction is owed rises every time a
-	// reduction records that it ran.
-	//
-	// Guarded like a budget file rather than with a bare `[ -f ]`: prose is measured with
-	// `find -type f`, which does not walk a symlink, while `-f` follows one — so a symlink here would
-	// subtract words the total never held.
+	// The ledger is a record, not an instruction, and gets its own line rather than sitting inside
+	// prose: counted together, the number deciding whether a reduction is owed rises every time a
+	// reduction records that it ran. Guarded like a budget file, not a bare `[ -f ]`: prose uses `find
+	// -type f`, which does not walk a symlink, while `-f` follows one and subtracts words never held.
 	ledger := shell.Join(s.root.Skills(), "kk-reduce/stats.md")
 	if s.root.Contains(ledger) {
 		s.ledgerWords = s.wordsInFile(ledger, errOut)
@@ -106,12 +101,10 @@ func (s *stats) measure(errOut io.Writer) {
 
 const noDepthLimit = -1
 
-// `find <start> [-maxdepth n] -name <glob> -type f`, in find's own order — the directory's own order
-// rather than a sorted one, because the concatenation in wordsAcross is sensitive to it.
-//
-// No -L: the starting point is lstat'ed like every entry under it, so a symlinked start yields the
-// link itself and nothing beneath it, and a symlink to a regular file is not `-type f`. That is what
-// keeps a committed link from walking the measurement out of the tree it is measuring.
+// `find <start> [-maxdepth n] -name <glob> -type f`, in find's own order rather than a sorted one,
+// because the concatenation in wordsAcross is sensitive to it. No -L: the starting point is lstat'ed
+// like every entry under it, so a symlinked start yields the link and nothing beneath it, and a symlink
+// to a regular file is not `-type f` — which keeps a committed link from walking out of the tree.
 func (s *stats) findFiles(start, glob string, maxDepth int, errOut io.Writer) []string {
 	var found []string
 	var walk func(path string, depth int)
@@ -137,11 +130,10 @@ func (s *stats) findFiles(start, glob string, maxDepth int, errOut io.Writer) []
 	return found
 }
 
-// os.ReadDir sorts its result and find does not, so this does not either.
-//
-// A directory that cannot be listed is the whole of what a partial scan is made of: it yields no
-// names, the walk finds nothing under it, and nothing distinguishes that from a directory holding no
-// markdown. What one shut directory costs a run is on the guard that acts on it, in eco-stats.go.
+// os.ReadDir sorts its result and find does not, so this does not either. A directory that cannot be
+// listed is the whole of what a partial scan is made of: it yields no names, the walk finds nothing
+// under it, and nothing distinguishes that from a directory holding no markdown. What one shut
+// directory costs a run is on the guard that acts on it, in eco-stats.go.
 func (s *stats) readdirNames(dir string, errOut io.Writer) []string {
 	file, err := os.Open(dir)
 	if err != nil {
@@ -157,12 +149,10 @@ func (s *stats) readdirNames(dir string, errOut io.Writer) []string {
 	return names
 }
 
-// A path this run was meant to measure and could not read. Counted as well as named, because the count
-// is the only reach the exit code has: `stats.sh` and CI branch on the status, and a shortfall that
-// only ever reached stderr arrived at both as a measurement of the whole tree.
-//
-// Capped like a budget refusal and for the same reason — the names are the tree's own, so an
-// attacker-authored branch could otherwise fill the terminal with them. The count stays exact.
+// A path this run was meant to measure and could not read. Counted as well as named, because the
+// count is the only reach the exit code has: `stats.sh` and CI branch on the status, and a shortfall
+// that only ever reached stderr arrived at both as a measurement of the whole tree. Capped like a
+// budget refusal and for the same reason — the names are the tree's own. The count stays exact.
 func (s *stats) refuseUnreadable(errOut io.Writer, path string, err error) {
 	// Once per path, however many walks reach it: prose and scripts are two passes over one tree, so a
 	// directory that will not list is met twice.
@@ -179,10 +169,8 @@ func (s *stats) refuseUnreadable(errOut io.Writer, path string, err error) {
 	case s.unreadable <= budgetRefusalCap:
 		// Capped after the error text is joined on, not before: the message from the OS quotes the path
 		// back, so bounding the path alone lets an attacker-chosen name through at full length anyway.
-		//
 		// Marked, because what is cut here is the reason: on a short root the bound lands inside it and
-		// `permission denied` goes out as `permission de`, which reads as a whole reason rather than a
-		// cut one.
+		// `permission denied` goes out as `permission de`, reading as a whole reason rather than a cut one.
 		fmt.Fprintf(errOut, "stats.sh: could not read, NOT counted: %s\n",
 			shell.CutBytesMarked(shell.Oneline(err.Error()), 160))
 	case s.unreadable == budgetRefusalCap+1:
@@ -192,11 +180,8 @@ func (s *stats) refuseUnreadable(errOut io.Writer, path string, err error) {
 
 // `cat <files> | wc -w`: one word run can span a file boundary, so the state carries across files
 // rather than restarting at each. A file with no final newline glues its last word onto the next
-// file's first, which is one word fewer than summing the files separately. The figure has always been
-// the concatenation's, and summing instead would move every prose and scripts number by however many
-// files end mid-word. A file that cannot be opened contributes nothing and does not stop the run, but
-// it is counted and named: dropped in silence it leaves the total short by an amount nothing here can
-// state.
+// file's first — one word fewer than summing the files separately, and summing instead would move
+// every prose and scripts figure. A file that cannot be opened is counted and named, never dropped.
 func (s *stats) wordsAcross(paths []string, errOut io.Writer) int {
 	run := wordRun{}
 	buffer := make([]byte, 64<<10)
@@ -223,9 +208,6 @@ func (s *stats) wordsAcross(paths []string, errOut io.Writer) int {
 	return run.words
 }
 
-// The running count wordsAcross carries, held as one value because it must survive two boundaries the
-// loop above crosses — the end of a buffer and the end of a file — and wordsAcross states why neither
-// may reset it.
 type wordRun struct {
 	words    int
 	isInWord bool
@@ -299,10 +281,9 @@ func (s *stats) readTreeLines(path string, errOut io.Writer) []string {
 }
 
 // The same read for a path that is, by construction, not under the root — mountedOutside has already
-// asked HoldsSkillFile and been told no. Counted apart so the shortfall message can say where the
-// path was: the read is identical, and the only difference is that the run stops describing a file
-// under the user's home as one under the tree it measured. Measured by what the read added, since the
-// dedupe inside refuseUnreadable means a path already counted adds nothing here either.
+// asked HoldsSkillFile and been told no. Counted apart so the shortfall message can say where the path
+// was; the read itself is identical. Measured by what the read added, since refuseUnreadable's dedupe
+// means a path already counted adds nothing here either.
 func (s *stats) readOutsideLines(path string, errOut io.Writer) []string {
 	before := s.unreadable
 	lines := s.readTreeLines(path, errOut)
@@ -311,13 +292,9 @@ func (s *stats) readOutsideLines(path string, errOut io.Writer) []string {
 }
 
 // The words in a budget file, under the same bound the line read applies. wordsAcross streams and
-// never slurps, so it would happily count a file no reader here may read. refuseBudgetFile, reached
-// over that same file by the import scan, would then print "not read, not counted" and mark an exact
-// figure SHORT in one output.
-//
-// Bounded here instead, so the refusal's own words hold for the figure as well as for the read.
-// ecocheck refuses the same file at the same bound and counts it as no words, so both tools still
-// place it in the same tier.
+// never slurps, so it would happily count a file no reader here may read — and refuseBudgetFile,
+// reached over that same file by the import scan, would then print "not read, not counted" and mark
+// an exact figure SHORT in one output. ecocheck refuses it at the same bound, so the tiers agree.
 func (s *stats) countTreeWords(path string, errOut io.Writer) int {
 	info, err := os.Stat(path)
 	if err != nil {

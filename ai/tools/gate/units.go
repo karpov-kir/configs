@@ -11,13 +11,9 @@ import (
 )
 
 // The files the Go suites read from outside their own module. Go's test cache is keyed on the module
-// and cannot see these, so a plain `go test` reports a cached pass over a changed template. The gate
-// therefore keys on them itself and forces the packages that read them.
-//
-// Named file by file, from the literal `../../` constants in the suites, rather than by taking the
-// whole tree each one sits in. eco-report's harness copies in exactly this one script out of
-// kk-flavor, so keying on all of kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package
-// that cannot read it.
+// and cannot see them, so a plain `go test` reports a cached pass over a changed template; the gate
+// keys on them itself. Named file by file, from the suites' own `../../` constants: keying on all of
+// kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package that cannot read it.
 const (
 	goTree       = "ai/tools"
 	extFlavor    = "ai/kk-flavor/scripts/tree-fingerprint.sh"
@@ -76,14 +72,11 @@ func (g *gate) addGoChecks() {
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit
-	// disagree.
-	//
-	// `.gitignore` is an input BECAUSE of the flag: the rules decide which files the check judges, so
-	// editing them moves this unit's verdict — and a verdict that moves without its key is the stale
-	// green this whole thing exists not to serve.
-	// Blind to the module's test files for a reason of its own: eco-check reads Go sources only to
-	// find subcommand dispatches, and skips `_test.go` by name when it does, because a test file's
-	// fixtures hold dispatch switches of their own. Everything else it walks is `*.sh` or SKILL.md.
+	// disagree. `.gitignore` is an input BECAUSE of the flag: the rules decide which files the check
+	// judges, so editing them moves this unit's verdict — and a verdict that moves without its key is
+	// the stale green this whole thing exists not to serve. Blind to the module's test files for a
+	// reason of its own: eco-check reads Go sources only to find subcommand dispatches, and skips
+	// `_test.go` by name, because a test file's fixtures hold dispatch switches of their own.
 	g.addBlindToGoTests("wiring", "check", []string{"ai/skills", "ai/kk-flavor", "ai/tools", ".gitignore"},
 		"ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate")
 }
@@ -94,22 +87,14 @@ func (g *gate) discoverUnits() int {
 	if code := g.discoverShellSuites(); code != 0 {
 		return code
 	}
-	// go-mutate alone: every mutated file in the repository is one it reaches. A second harness listing
-	// nothing would be a discovery arm that can only ever report the tree broken.
 	return g.discoverGoMutants()
 }
 
-// Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
-// added later is gated without anyone remembering to register it here.
 func (g *gate) discoverShellSuites() int {
-	// `-z` and `core.quotePath=false`, which is the rule ai/run-tests.sh lives by and the reason this
-	// comment cites it. Without them a name holding a space arrives as two tokens: `strings.Fields`
-	// splits it, safeToken accepts both halves because neither holds a space any more, and the gate
-	// builds two units keyed on files that do not exist — while the real suite is gated by nothing. A
-	// non-ASCII name arrives C-quoted instead and takes the whole run to exit 2 blaming the filename.
-	//
-	// Arriving whole, such a name reaches safeToken and is refused by its real path, which is a
-	// statement someone can act on.
+	// `-z` and `core.quotePath=false`, the rule ai/run-tests.sh lives by. Without `-z` a name holding a
+	// space arrives as two tokens: `strings.Fields` splits it, safeToken accepts both halves, and the
+	// gate builds two units keyed on files that do not exist while the real suite is gated by nothing.
+	// Without quotePath a non-ASCII name arrives C-quoted and takes the run to exit 2 blaming the name.
 	out, err := g.capture("git", "-c", "core.quotePath=false", "ls-files", "-z",
 		"--cached", "--others", "--exclude-standard", "--", "*-test.sh")
 	if err != nil || strings.TrimSpace(out) == "" {
@@ -147,18 +132,14 @@ func (g *gate) discoverShellSuites() int {
 					break
 				}
 			}
-			// A suite that compiles or runs the module's suites itself is not reached through a binary,
-			// whatever markers it holds, and takes the tree whole.
 			if goSuiteRun.Match(body) {
 				viaBinary = false
 			}
 		}
-		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result —
-		// exit 2 is "did not measure", and a suite exiting 0 having run no case at all is VACUOUS and a
-		// failure. Run directly, a suite emptied to zero bytes exits 0 silently and reads as `ran ok`.
-		// Keyed on the suite's path, not its basename: two directories may each hold a `bootstrap-test.sh`,
-		// and one id over both is a cache record that cannot say whose verdict it holds — which is a
-		// discovery arm that refuses before anything runs.
+		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit 2
+		// is "did not measure", and a suite exiting 0 having run no case is VACUOUS and a failure. Run
+		// directly, a suite emptied to zero bytes exits 0 silently and reads as `ran ok`. Keyed on the
+		// suite's path, not its basename: two `bootstrap-test.sh` under one id share one cache record.
 		name := strings.TrimSuffix(suite, "-test.sh")
 		addUnit := g.add
 		if viaBinary {
@@ -169,9 +150,6 @@ func (g *gate) discoverShellSuites() int {
 	return 0
 }
 
-// The mutation units, one per mutated file, from go-mutate's own listing. Nothing here restates which
-// mutants live where: that mapping has one home, in the harness's own list, and a copy of it kept here
-// is a copy that goes stale the first time a mutant moves.
 func (g *gate) discoverGoMutants() int {
 	g.goMutateBinary = "ai/tools/go-mutate/go-mutate"
 	build := exec.Command("go", "build", "-o", "go-mutate/go-mutate", "./go-mutate")
@@ -197,9 +175,6 @@ func (g *gate) discoverGoMutants() int {
 		if err := safeToken("mutant file", file); err != nil {
 			return g.fail("%s", err)
 		}
-		// The resolved path comes from the harness's own listing rather than being rebuilt here. The
-		// base a mutant's `file` is relative to is the harness's to know, and a second copy of it here
-		// is a rename away from a gate that resolves nothing.
 		if resolved == "" {
 			return g.fail("the mutation harness listed %s with no resolved path, so the gate cannot say which file the unit is keyed on — nothing ran", file)
 		}
@@ -220,9 +195,8 @@ func (g *gate) discoverGoMutants() int {
 	return 0
 }
 
-// Single quotes, the one form a POSIX shell reads literally throughout. Only ever reached by a token
-// safeToken has already accepted, so there is no quote inside to escape — but written out rather than
-// assumed, because the guard and the quoting are two defences and an injection needs both to fail.
+// Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
+// assumed safe: safeToken and the quoting are two defences, and an injection needs both to fail.
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }

@@ -1,8 +1,7 @@
 // The two arms have to agree about a carriage return. The diff arm reads through bufio.Scanner, whose
 // line split strips a trailing \r; the untracked arm splits on "\n" itself and keeps it. Unstripped,
-// the control-byte guard reads that \r as binary and drops every line of a CRLF file — silently, and
-// after Reached has already counted the file, so the summary reports a denominator it did not cover
-// and the same content answers differently depending on whether git happens to track it.
+// the control-byte guard reads that \r as binary and silently drops every line of a CRLF file after
+// Reached counted it — a denominator the run did not cover, and one answer tracked, another untracked.
 package diffscan
 
 import (

@@ -28,8 +28,6 @@ func TestMain(m *testing.M) {
 
 	seedRepo = filepath.Join(base, "seed")
 	if err := buildSeed(seedRepo); err != nil {
-		// Panic rather than skip: every fixture is a copy of this, so carrying on would report passes
-		// over repositories that do not exist.
 		panic("density tests: could not build the seed repository, so nothing was tested: " + err.Error())
 	}
 	// Removed explicitly rather than left to the defer above: os.Exit runs no deferred call, so the
@@ -128,8 +126,6 @@ func (r *repo) commit(message string) {
 	}
 }
 
-// The thresholds a case gets unless it says otherwise. A function rather than a package var, so a
-// case that moves one knob gets its own copy and the other two stay where the tool's defaults put them.
 func baseConfig() Config {
 	return Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
 }

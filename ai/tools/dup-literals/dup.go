@@ -41,8 +41,8 @@ const (
 
 const maxShown = 200
 
-// The width of the prefix each finding shows. A reader has to recognise the literal to go and find it,
-// so it is echoed rather than hashed — and bounded, because it is someone else's text.
+// Bounded, and echoed rather than hashed: a reader has to recognise the literal, and it is someone
+// else's text.
 const prefixWidth = 60
 
 const (
@@ -56,9 +56,6 @@ type Config struct {
 	MaxFileBytes int64
 }
 
-// ConfigFromEnv reads the two thresholds. A value that does not parse is a scan that did not run,
-// never one against the default: the caller asked for something, and answering with 100 reports a
-// result they did not ask for.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MinLength: defaultMinLength, MaxFileBytes: defaultMaxFileBytes}
 	if raw, ok := lookup("DUP_MIN_LEN"); ok && raw != "" {
@@ -92,8 +89,6 @@ type finding struct {
 	length int
 }
 
-// scan is one run's accumulating state. Held together because both walks feed the same two tallies
-// and the report reads all of them beside the denominator.
 type scan struct {
 	cfg    Config
 	tokens map[string]int
@@ -149,8 +144,6 @@ func (s *scan) count(added diffscan.AddedLine) {
 	}
 }
 
-// The delimiters a literal is split on. Whitespace, quotes, backtick, comma, semicolon and brackets:
-// the punctuation a long token sits between in code.
 func isDelimiter(r rune) bool {
 	switch r {
 	case ' ', '\t', '"', '\'', '`', ',', ';', '(', ')':
@@ -196,7 +189,6 @@ func (s *scan) report(self string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "… and %d further duplicate(s), not shown\n", len(found)-maxShown)
 	}
 
-	// The denominator, on stderr so the report on stdout stays exactly the duplicates.
 	fmt.Fprintf(stderr, "%s: %d file(s) reached the scan, %d duplicate(s), %d file(s) skipped unread, %d binary line(s) ignored.\n",
 		self, s.result.Reached, len(found), s.result.SkippedUnread, s.result.BinaryLines)
 	if s.result.Reached == 0 {

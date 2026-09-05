@@ -43,9 +43,6 @@ func (g *gate) printWhy(want string) int {
 	return g.fail("no unit is called '%s' — run --units for the list", want)
 }
 
-// One unit's line in the run report. The column widths live here rather than at each of the eight
-// states that print one. The duration rides in the detail rather than in a column of its own, because
-// only some states have one.
 func (g *gate) unitLine(state, id, detail string) {
 	fmt.Fprintf(g.out, "  %-11s %-32s %s\n", state, id, detail)
 }
@@ -94,11 +91,10 @@ type runTally struct {
 	empty      int
 }
 
-// One unit's outcome, filled by whichever lane owns it and read by the printer.
-//
-// The printer walks the units in declared order and blocks on each `done` in turn, so the report is
-// byte-for-byte the order it has always been while the lanes run ahead of it. A unit that finishes
-// early waits its turn to be printed; it does not wait to be run.
+// One unit's outcome, filled by whichever lane owns it and read by the printer. The printer walks the
+// units in declared order and blocks on each `done` in turn, so the report is byte-for-byte the order
+// it has always been while the lanes run ahead of it — a unit that finishes early waits its turn to
+// be printed, not to be run.
 type slot struct {
 	unit    unit
 	key     string
@@ -164,8 +160,6 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 
 		switch sl.settled {
 		case settledEmpty:
-			// An input set that resolves to no file is a rename or a typo quietly narrowing the gate. It
-			// is the one state this treats as worse than a failure, because it looks exactly like a pass.
 			g.unitLine("NO INPUTS", u.id, "declared: "+strings.Join(u.inputs, " "))
 			tally.empty++
 			continue
@@ -197,8 +191,6 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		}
 		tally.ran++
 		if status == 0 {
-			// Written only for a verdict this run actually observed, and the inputs it was observed
-			// over are written beside it — that second file is what changedSinceGreen reads.
 			os.WriteFile(record, nil, 0o644)
 			os.WriteFile(inputsFile, []byte(renderLines(lines)), 0o644)
 			g.unitLine("ran ok", u.id, fmt.Sprintf("%ds", took))
@@ -231,8 +223,6 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 	return g.reportRun(started, deferredIDs, tally)
 }
 
-// The cache record for one unit under one key. Built in one place because this name IS a verdict's
-// identity: two units whose stems collide answer for each other, which assignStems refuses outright.
 func (g *gate) recordPath(u unit, key string) string {
 	return filepath.Join(g.cache, u.stem+"."+key)
 }
@@ -257,8 +247,6 @@ func (g *gate) reportRun(started time.Time, deferredIDs []string, tally runTally
 		len(g.units), tally.ran, tally.fresh, tally.deferred, tally.failed, tally.unmeasured, tally.empty,
 		int(time.Since(started).Round(time.Second).Seconds()))
 
-	// A unit that resolved to nothing outranks everything: the gate does not know what it did not look
-	// at, so it may not call the run clean, and it may not call it a failure of the code either.
 	if tally.empty > 0 {
 		fmt.Fprintf(g.errOut, "%d unit(s) resolved to no input file — the gate narrowed itself and cannot report on them. Exit 2, and this is not a pass.\n", tally.empty)
 		return 2
@@ -279,12 +267,10 @@ func (g *gate) reportRun(started time.Time, deferredIDs []string, tally runTally
 	return 0
 }
 
-// One unit's command. The two built-in checks run in process; everything else goes to a shell, because
-// the commands are written as shell and several of them cd.
-//
-// A unit's own output is held back and shown only if it fails, so a unit that needs to explain a cost
-// while it is still passing returns a note instead. Without it, gotest can spend two extra minutes
-// forcing packages and the run says only "ran ok".
+// One unit's command. The two built-in checks run in process; everything else goes to a shell,
+// because the commands are written as shell and several of them cd. A unit's own output is held back
+// and shown only if it fails, so one that needs to explain a cost while still passing returns a note
+// instead — without it, gotest can spend two extra minutes forcing packages and the run says "ran ok".
 func (g *gate) execute(u unit) (output string, note string, status int) {
 	switch u.cmd {
 	case "@gofmt":

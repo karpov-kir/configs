@@ -1,13 +1,3 @@
-// The Go gate — gofmt, vet, test — is written out in two workflows. Why each of them must stay, and
-// why sharing them would cost more than the three commands are worth, is in
-// .github/workflows/gates.yml's own header.
-//
-// So the duplication is a decision, and this is its guard: two copies with a comment hoping to stay
-// aligned is how a fix lands in one and not the other. The cases below hold the copies to each other
-// and to what they should say — agreeing on the wrong thing is still green.
-//
-// This file and gates.yml are a unit and must land in the same commit: with only one workflow
-// carrying a Gate step, they have nothing to hold to account and fail deliberately.
 package tools_test
 
 import (
@@ -23,14 +13,9 @@ const workflowsDir = "../../.github/workflows"
 const gateSource = "gate/run.go"
 
 // What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
-// on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
-// covers a package that fails, and without `./...` the gate runs a subset of the module.
-//
-// The bound is deliberately not in this list. It has one home — `goSuiteTimeout` in ai/tools/gate/run.go — and
-// TestEveryWorkflowGateBoundsGoTestLikeTheGateScript derives it from there. Pinned here as well, the
-// number would have a fourth home, and raising it would take a four-file edit with this case red until
-// the last one landed. That is the drift both cases exist to stop, reintroduced by the guard against
-// it.
+// on two copies wrong together, so each flag is pinned: without `-count=1` a cached `ok` covers a
+// package that fails, and without `./...` the gate runs a subset. The bound is deliberately absent —
+// it has one home in ai/tools/gate/run.go, and pinning it here too makes raising it a four-file edit.
 var goSuiteFlags = []string{"-count=1", "./..."}
 
 func TestEveryWorkflowGateRunsTheGoSuiteWithItsFlagsPinned(t *testing.T) {
@@ -69,12 +54,9 @@ func hasField(fields []string, want string) bool {
 }
 
 // The local gate is the third runner of that suite and the one a human actually watches. It cannot
-// carry `goSuiteFlags` verbatim — it selects packages rather than running `./...`, and forces some with
-// `-count=1` because the Go cache cannot see the fixtures' external inputs — so what is held here is
-// the part that must not vary: no invocation of `go test` may go out without a timeout, for the
-// reason goSuiteFlags above gives.
-//
-// Read from the Go source, which is where those invocations live now.
+// carry `goSuiteFlags` verbatim — it selects packages rather than running `./...`, and forces some
+// with `-count=1` because the Go cache cannot see the fixtures' external inputs — so what is held here
+// is the part that must not vary: no `go test` goes out without a timeout. Read from the Go source.
 func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
 	body, err := os.ReadFile(gateSource)
 	if err != nil {
@@ -150,15 +132,10 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// The `go test` bound is one fact with two homes: `goSuiteTimeout` in ai/tools/gate/run.go, and the `-timeout`
-// each workflow's Gate step passes. The workflows carry a comment pointing at the script instead of
-// repeating its reasoning, and a pointer is only as good as something checking it still points at the
-// same number. This is that check.
-//
-// Both ends have to be found or the case fails outright. A guard comparing two strings it could not
-// locate compares nothing and reports green, which is the same defect as a test case that cannot fail
-// — and the reason the bound exists at all is that a `go test` timeout reads as a deadlock rather than
-// as a slow pass, so drift here is expensive to diagnose and cheap to prevent.
+// The `go test` bound is one fact with two homes: `goSuiteTimeout` in ai/tools/gate/run.go, and the
+// `-timeout` each workflow's Gate step passes. The workflows point at the script instead of repeating
+// its reasoning, and a pointer is only as good as something checking it. Both ends have to be found or
+// this fails outright: a guard comparing two strings it could not locate reports green over nothing.
 func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 	script, err := os.ReadFile(gateSource)
 	if err != nil {
@@ -216,14 +193,9 @@ func gotestTimeout(script string) string {
 }
 
 // The -timeout each `go test` line in a Gate step carries — one entry per line, in order, empty where
-// a line carries none. An empty slice means the step runs no `go test` at all, which says this case is
-// reading the wrong thing rather than that anything drifted.
-//
-// A slice and not one value, because a step may run `go test` more than once. Collapsed to a single
-// bound, one invocation carrying -timeout vouches for a sibling that carries none, and the case reports
-// green over exactly the drift it exists to catch — a case that cannot fail, which is what this file's
-// header declares war on. Comment lines are skipped, because the step's own comment names the flag it
-// is explaining.
+// a line carries none. An empty slice means the step runs no `go test` at all. A slice and not one
+// value, because a step may run `go test` more than once: collapsed to a single bound, one invocation
+// carrying -timeout vouches for a sibling that carries none, and the case reports green over the drift.
 func goTestBounds(step string) []string {
 	var bounds []string
 	for _, fields := range goTestLines(step) {

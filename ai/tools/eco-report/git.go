@@ -13,13 +13,12 @@ import (
 )
 
 // Every git call the tool makes, and the one ignore mechanism it writes through — `.gitignore`, via
-// appendLine, for `promote`. The `.git/info/exclude` mentions below are all READS that classify an
-// ignore source; the code that wrote that file went with the in-tree layout, and what removes a stale
-// entry now lives in migrate.go.
-//
+// appendLine, for `promote`. Every `.git/info/exclude` mention below is a READ that classifies an
+// ignore source; what removes a stale entry lives in migrate.go.
+
 // git is asked rather than reimplemented everywhere it answers a question about ignoring, tracking or
-// worktrees: the answer has to be the one git will give the human's next command, not this tool's model
-// of it.
+// worktrees: the answer has to be the one git will give the human's next command, not this tool's
+// model of it.
 
 // One child process, with the invocation's directory and HOME. HOME matters to more than the
 // fingerprint path: git reads its global config out of it, so a run pointed at another HOME has to
@@ -147,12 +146,9 @@ func (r *run) ignoreSourceOf(path string) string {
 }
 
 // Ignored has to mean ignored by something that travels with the repository. `core.excludesFile` and
-// `.git/info/exclude` are one machine's, so they answer the plain `-q` question while ignoring nothing
-// on anybody else's clone, and the next `git add -A` there stages the report. Returns the source it
-// read, so a caller can name it.
-//
-// Absolute paths are rejected before `*/.gitignore` is matched, or `core.excludesFile=~/.gitignore` —
-// the common global setup — passes as a repo-relative rule.
+// `.git/info/exclude` are one machine's: they satisfy the plain `-q` question while ignoring nothing on
+// anybody else's clone, where the next `git add -A` stages the report. Absolute paths are rejected
+// before `*/.gitignore` is matched, or `core.excludesFile=~/.gitignore` passes as a repo-relative rule.
 func (r *run) ignoredSourceTravels(path string) (string, bool) {
 	source := r.ignoreSourceOf(path)
 	switch {
@@ -168,9 +164,8 @@ func (r *run) ignoredSourceTravels(path string) (string, bool) {
 
 // `check-ignore` is the documented first step, and this is the assertion that it happened. A report
 // written where git does not ignore it sits inside the tree it fingerprints, so `state` answers
-// `re-qualify` straight after a complete four-stage stamp and `gate` blocks on freshness with nothing
-// that can clear it. One predicate for every caller, or `check-ignore` asks a weaker question than
-// `init` enforces and the remedy `init` names cannot satisfy it.
+// `re-qualify` straight after a complete four-stage stamp and `gate` blocks on freshness with
+// nothing to clear it. One predicate for every caller, or `init`'s own remedy cannot satisfy it.
 func (r *run) assertReportsDirIsIgnored() {
 	// Outside the tree, git ignores nothing because git contains nothing: the requirement is met by
 	// the location itself rather than by an ignore rule, and asking check-ignore about a path the repo

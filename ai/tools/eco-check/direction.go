@@ -138,9 +138,8 @@ func laneNamePattern(lanes string) *regexp.Regexp {
 
 // One finding under this scan's shared bound: always counted, printed while under the cap, and
 // announced once at the boundary. `class` both prefixes the finding and names it in the announcement,
-// so the two cannot drift apart — which they could while four copies of this branch each spelled the
-// class twice. `detail` is a closure because the basename shape walks the skills tree to build its
-// text, and must not do that for a finding the cap has already dropped.
+// so the two cannot drift apart. `detail` is a closure because the basename shape walks the skills
+// tree to build its text, and must not do that for a finding the cap has already dropped.
 func (c *checker) addBounded(count *int, class, file string, detail func() string) {
 	*count++
 	if *count <= findingCap {
@@ -161,11 +160,10 @@ func (c *checker) reportLaneCitations(counters *directionCounters, safeFile stri
 
 func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, lines []string, pattern *regexp.Regexp) {
 	for _, hit := range grepNumbered(lines, pattern) {
-		// The trailing run of `.`, `_` and `-` is punctuation the token ends on, not part of the
-		// name. The suffix class carries all three, so the match keeps whatever the token ended on:
-		// the hyphen of a `kk-drive-*` glob, the full stop of a sentence ending on the lane name.
-		// Either would then match no skill directory. Trimmed as a run, never one character: a token
-		// can end on more than one.
+		// The trailing run of `.`, `_` and `-` is punctuation the token ends on, not part of the name —
+		// the hyphen of a `kk-drive-*` glob, the full stop of a sentence ending on the lane name. Either
+		// would match no skill directory. Trimmed as a run, never one character: a token can end on more
+		// than one.
 		named := strings.TrimRight(hit.match, "._-")
 		// The whole token is tested, not the alternation's own match: `kk-drive-verified` starts
 		// with a real lane name and is not one, so matching the prefix alone would report a skill

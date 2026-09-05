@@ -70,7 +70,6 @@ const (
 	modeHelp
 )
 
-// A unit: one check, its declared inputs, and the command that settles it.
 type unit struct {
 	id     string
 	kind   string // "check" or "mutation"
@@ -103,7 +102,6 @@ type gate struct {
 	goMutateBinary string
 }
 
-// One hashed input file, in the form the keys are built from.
 type manifestLine struct {
 	hash string
 	path string
@@ -133,8 +131,6 @@ func (g *gate) run(args []string) int {
 		return code
 	}
 
-	// Answered before anything is discovered or run. Help is the whole of what was asked for, so it
-	// goes to stdout rather than stderr: a caller redirecting it is redirecting the answer.
 	if selected == modeHelp {
 		fmt.Fprintln(g.out, usageLine)
 		return 0
@@ -246,7 +242,6 @@ func safeToken(what, value string) error {
 	return nil
 }
 
-// The toolchain and the deciding code, which go into every key together.
 func (g *gate) resolveMachine() int {
 	root := g.env.Root
 	if root == "" {
@@ -267,9 +262,6 @@ func (g *gate) resolveMachine() int {
 	}
 	common, err := g.capture("git", "rev-parse", "--git-common-dir")
 	if err != nil || common == "" {
-		// The root is named because it is DERIVED, not chosen: cmd/gate/main.go takes it from argv[0]
-		// when GATE_ROOT is unset, so a binary run from outside the stub's place judges a directory the
-		// caller never picked — and "not a git repository" reads as a claim about where they stand.
 		return g.fail("%s is not a git repository, so there is nothing to scope a change against — nothing ran", g.root)
 	}
 	if !filepath.IsAbs(common) {

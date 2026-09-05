@@ -1,13 +1,9 @@
-// Cases for the repeated-literal detector. Two must not be weakened.
-//
-// "a path argument is refused with exit 2, never scanned": `git diff <path>` is legal and diffs
-// against the index, so a path quietly accepted scans the wrong change set and exits 0 —
-// indistinguishable from a clean tree, and the whole point of the tool is lost silently.
-//
-// "an untracked file whose name marks it as secret-bearing is never read": this echoes 60 bytes of
-// every duplicate, so the untracked arm is a route from a secret into the transcript, the qualify
-// report, and any PR comment drafted from either. Two .env files sharing one API token is the ordinary
-// case — the token is over the length floor, appears twice, and would print.
+// Cases for the repeated-literal detector. Two must not be weakened. "A path argument is refused with
+// exit 2, never scanned": `git diff <path>` is legal and diffs against the index, so a path quietly
+// accepted scans the wrong change set and exits 0, indistinguishable from a clean tree. "An untracked
+// file whose name marks it as secret-bearing is never read": this echoes 60 bytes of every duplicate,
+// so the untracked arm is a route from a secret into the transcript and any PR comment drafted from
+// it — two .env files sharing one API token is the ordinary case, and the token would print.
 package duplicates
 
 import (
@@ -84,7 +80,6 @@ func TestARepeatedTokenInsideDifferingLinesIsFound(t *testing.T) {
 	r.expectStdoutHas("130 chars")
 }
 
-// The floor, both sides: one under it is not a finding and one at it is.
 func TestTheLengthFloor(t *testing.T) {
 	t.Run("under the floor is not reported", func(t *testing.T) {
 		r := newRepo(t)
@@ -144,8 +139,6 @@ func TestAnAddedLineShapedLikeADiffHeaderDoesNotReassignTheFile(t *testing.T) {
 	r.write("real.go", "++ b/decoy.go\n"+long+"\n"+long+"\n")
 	r.run("HEAD")
 	r.expectCode(1)
-	// The duplicate is real; what must not have happened is the decoy being read as a header, which
-	// would drop every line after it out of the scan entirely.
 	r.expectStdoutHas("2x")
 }
 
@@ -158,18 +151,15 @@ func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 	r.expectCode(1)
 	r.expectStdoutHas("2x")
 
-	// With revisions the caller named two commits, and a file in neither is not what they asked about.
 	r.run("HEAD")
 	r.expectCode(0)
 	r.expectNoStdout()
 }
 
-// The load-bearing one. This tool echoes 60 bytes of every duplicate, so a file whose NAME marks it as
-// secret-bearing is never read — and the skip is announced and counted, never silent.
-// The uppercase spellings are cases in their own right, not tidiness: a name is not a keyword, and on
-// a case-insensitive filesystem `.ENV` IS `.env`. The modern key types are here for the same reason —
-// `id_ed25519` is what ssh-keygen writes by default, so a list stopping at `id_rsa` covers the key
-// nobody generates any more and misses the one everybody has.
+// The load-bearing one. This tool echoes 60 bytes of every duplicate, so a file whose NAME marks it
+// as secret-bearing is never read, and the skip is announced and counted rather than silent. The
+// uppercase and modern-key rows are cases, not tidiness: on a case-insensitive filesystem `.ENV` IS
+// `.env`, and a list stopping at `id_rsa` misses the `id_ed25519` ssh-keygen writes by default.
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	secret := repeated('S', 130)
 	for _, name := range []string{
@@ -281,13 +271,7 @@ func TestAnUntrackedFileOverTheByteCapIsSkippedAndCounted(t *testing.T) {
 	r.expectStderrHas("1 file(s) skipped unread")
 }
 
-// A suppressed duplicate is announced, never dropped, and exactly the cap is printed above the
-// announcement.
 func TestPastTheDisplayCap(t *testing.T) {
-	// The cap written out, and the fixture and the expectation both built from the literal rather than
-	// from maxShown. Taking either from the constant under test makes the case move with it: raise
-	// maxShown and the fixture grows to match, the announcement still fires, and the count still
-	// agrees — so the case passes over a cap of any size, which is a guard nothing observes.
 	const wantCap = 200
 	if maxShown != wantCap {
 		t.Fatalf("the display cap is %d, and this case pins %d. Changing the cap is a change to what "+
@@ -332,7 +316,6 @@ func TestTheReportIsOrdered(t *testing.T) {
 	}
 }
 
-// A threshold that does not parse is a scan that did not run, never one against the default.
 func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	for _, tc := range []struct{ key, value string }{
 		{"DUP_MIN_LEN", "junk"},
