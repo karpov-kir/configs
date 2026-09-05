@@ -82,6 +82,13 @@ func New(named string) (Root, bool) {
 			}
 		}
 	}
+	// Every path in the walk is joined onto `named`, so a root of `ai/` produces
+	// `ai//tools/resolve.sh` and a citation of `ai/tools/resolve.sh` then matches nothing — the same
+	// finding set answering clean through `ai` and dangling through `ai/`. `/` keeps its slash: it is
+	// the whole path, not a separator on the end of one.
+	for len(named) > 1 && strings.HasSuffix(named, "/") {
+		named = strings.TrimSuffix(named, "/")
+	}
 	if named == "" || !holdsBoth(named) {
 		return Root{}, false
 	}

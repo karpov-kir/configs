@@ -1,132 +1,63 @@
 #!/usr/bin/env bash
-# Offer cadence — idsd-ship offers a periodic pass at most once per interval; this file owns the
-# interval and where its date is kept.
+# Offer cadence — idsd-ship offers a periodic pass at most once per interval; the tool this reaches
+# owns the interval and where its date is kept.
+#
 #   usage: cadence.sh audit due     0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
 #          cadence.sh audit asked   record that the offer was made today, whatever the human answered
+#
 # The audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway
 # `.idsd/`, and a cadence the ship itself deletes can never come due.
-# tested by: cadence-test.sh, whose every case but one is proven able to fail by shell-mutate.sh, one
-# guard broken at a time in a copy; the exception asserts the fixture root rather than this script,
-# and reddens when that root is put inside a repository.
-set -uo pipefail
-export LC_ALL=C
+#
+# Exit 2 is "nothing was determined" and is never a "not due": both end in "no offer made", so a
+# caller that reads one as the other suppresses the pass for as long as the bad record sits there.
+#
+# tested by: the Go suite beside the tool, `ai/tools/cadence/`; the shared stub region below by
+# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
-# Nothing here resolves a path from this script's own location, so nothing consults CDPATH. The
-# `CDPATH= cd "$(dirname "$0")/.."` guard that stood here went with the retro record it resolved.
-# Restore it before resolving anything from `$0` again. With CDPATH set, `cd` echoes where it landed
-# for a relative path that is not dot-led. The two-line result had `due` read a record written today
-# as never offered, and `asked` print "recorded" into a directory named after the corruption.
+set -euo pipefail
 
-topic="${1:-}"
-action="${2:-}"
+tool="cadence"
+# How far THIS file sits above the tools directory. The shared region below resolves exactly this one
+# path and consults nothing else, so a stub can only ever reach the directory it names.
+tools_offset="../../.."
 
-interval_days=7
-
-usage() {
-  # `due` and `asked` read as two spellings of one query, and only one of them is: `asked` overwrites
-  # the record with no undo, so a caller probing the grammar rewrites the state it was asking about.
-  # Hence the warning above the usage line. Keep that order and keep both on stderr — the test anchors
-  # that hold the grammar match on it.
-  echo "cadence.sh: 'due' only reads the record; 'asked' OVERWRITES it with today's date, and nothing undoes that." >&2
-  echo "usage: cadence.sh audit {due|asked}" >&2
+# --- shared:tool-stub ---
+# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
+# sourced because sourcing a file is executing it, and these run from whatever repo the human is in.
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
 }
 
-undetermined() {
-  echo "undetermined: $* — nothing was determined; this is not a 'not due'." >&2
-  exit 2
-}
+# `CDPATH=` because `cd` echoes where it landed when the path is relative, which would put a second
+# line into this substitution and corrupt every path built from it. `pwd -P` resolves the symlink the
+# skill is mounted by, so the tools directory is found from this file's real location, not from cwd.
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
+  die "cannot resolve my own directory, so $tool could not be located"
 
-# Days since 1970-01-01 for a YYYY-MM-DD date; prints nothing when the argument is not one. In awk
-# because neither `date -d` (GNU) nor `date -j -f` (BSD) is portable across the machines this runs on.
-day_number() {
-  printf '%s\n' "$1" | awk '
-    NR == 1 {
-      if ($0 !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) exit 1
-      y = substr($0, 1, 4) + 0; m = substr($0, 6, 2) + 0; d = substr($0, 9, 2) + 0
-      if (m < 1 || m > 12 || d < 1 || d > 31) exit 1
-      # days-from-civil: shift the year to start in March, putting the leap day at its end.
-      if (m <= 2) y--
-      era = int((y >= 0 ? y : y - 399) / 400)
-      yoe = y - era * 400
-      doy = int((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1
-      doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
-      print era * 146097 + doe - 719468
-      exit
-    }'
-}
+# Exactly one path, named by the stub above rather than searched for here. The stubs sit at three
+# depths, and a shared region that guesses between them is a stub reaching a directory it does not
+# name: first a walk upward, which where a checkout ships no `ai/tools/` climbed OUT of it and exec'd
+# the first `tools/resolve.sh` in any ancestor, and then a list of three relative candidates, which is
+# the same hole one step quieter — those offsets are applied to files at DIFFERENT depths, so two of
+# them resolve outside the repository for a stub one level above the tools directory. Demonstrated
+# both times, exit 0 with a stranger's binary run. One named path cannot do either.
+resolver="$here/$tools_offset/tools/resolve.sh"
+[ -e "$resolver" ] ||
+  die "no resolver at $resolver — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+[ -x "$resolver" ] ||
+  die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
-# Dispatched on "${1:-}" rather than on $topic so kk-ecosystem's check.sh recognises this as the
-# top-level case and holds every arm to having a call site.
-case "${1:-}" in
-  audit)
-    # `--git-common-dir`, never `--git-path`: this record is per *repository*, and `--git-path` answers
-    # the per-worktree git dir, so a date written from the main tree is invisible in a linked worktree
-    # and the offer repeats in every one of them.
-    #
-    # `ai/tools/eco-report/root.go` resolves the idsd scratch root by the same rule, and the duplication
-    # is deliberate: that resolver is Go in another skill, so calling it from here would make the audit
-    # cadence fail whenever the qualify tool cannot be built. Fifteen lines of bash is the cheaper of the
-    # two failures. Change one and read the other.
-    # Asked from the root and absolutized against it, because both forms answer relative to the
-    # caller's cwd in an ordinary repo.
-    repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || repo_root=""
-    [ -n "$repo_root" ] || {
-      echo "cadence.sh: not inside a git repository, so there is no per-repo record — nothing was determined." >&2
-      exit 2
-    }
-    git_dir=$(git -C "$repo_root" rev-parse --git-common-dir 2>/dev/null) || git_dir=""
-    [ -n "$git_dir" ] || {
-      echo "cadence.sh: could not resolve the repository's shared git dir — nothing was determined." >&2
-      exit 2
-    }
-    case "$git_dir" in
-      /*) ;;
-      *) git_dir="$repo_root/$git_dir" ;;
-    esac
-    state="$git_dir/idsd-audit-offer"
-    ;;
-  *)
-    usage
-    ;;
-esac
+# The resolver names its own failures on stderr, so nothing is re-reported here. Its status is NOT
+# passed through, and the 2 below is deliberate rather than a copy of it: every way a resolver can fail
+# means the tool did not run, which is 2 in this repo's vocabulary, and 3 — ran and refuses a result —
+# must never reach a caller for a binary that never started. `ai/tools/resolve.sh` exits 2 for all of
+# them today, so this collapses nothing now; it is what keeps the guarantee if it ever grows a code.
+binary="$("$resolver" "$tool")" || exit 2
+[ -n "$binary" ] && [ -x "$binary" ] ||
+  die "the resolver named no runnable binary for $tool, so it did NOT run"
 
-case "$action" in
-  due)
-    if [ ! -e "$state" ]; then
-      echo "due: no $topic has ever been offered (no $state)."
-      exit 0
-    fi
-    if [ ! -r "$state" ] || ! recorded=$(head -n 1 "$state" 2>/dev/null); then
-      undetermined "$state exists but could not be read"
-    fi
-    stamp_day=$(day_number "$recorded")
-    [ -n "$stamp_day" ] || undetermined "$state holds '$recorded', which is no YYYY-MM-DD date"
-    today=$(date +%Y-%m-%d)
-    today_day=$(day_number "$today")
-    [ -n "$today_day" ] || undetermined "date printed '$today', which is no YYYY-MM-DD date"
-    elapsed=$((today_day - stamp_day))
-    [ "$elapsed" -ge 0 ] ||
-      undetermined "the last $topic offer is recorded as $recorded, which is later than today"
-    if [ "$elapsed" -ge "$interval_days" ]; then
-      echo "due: $topic last offered $recorded, $elapsed days ago (interval $interval_days days)."
-      exit 0
-    fi
-    echo "not due: $topic last offered $recorded, $elapsed days ago (interval $interval_days days)."
-    exit 1
-    ;;
-
-  asked)
-    today=$(date +%Y-%m-%d)
-    mkdir -p "$(dirname "$state")" 2>/dev/null
-    printf '%s\n' "$today" >"$state" || {
-      echo "cadence.sh: could not write $state — the $topic offer was NOT recorded, so the next run will offer again." >&2
-      exit 2
-    }
-    echo "recorded the $topic offer on $today."
-    ;;
-
-  *)
-    usage
-    ;;
-esac
+# `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
+# it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
+exec -a "$0" "$binary" "$@"
+# --- end shared:tool-stub ---

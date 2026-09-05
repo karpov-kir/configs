@@ -159,12 +159,12 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 // 1390s on a loaded machine: one of those is past 20m and two are within three minutes of it.
 //
 // Generous on purpose, and the cost of firing is why. A bound reached makes the mutant read as "did
-// not measure", and `ai/nomeasure-count.sh` escalates consecutive non-measuring runs to exit 1 — so a
-// bound tight enough to catch load stops mutation coverage being proved and then reddens the gate for
-// it, on a busy machine rather than on a defect. This bounds a hang; it does not police a slow suite.
+// not measure", which says nothing about the guard it names — so a bound tight enough to catch load
+// buys nothing and costs the coverage. This bounds a hang; it does not police a slow suite.
 //
-// The same number as `gotest_timeout` in ai/gate.sh, and not the same fact: that one bounds each test
-// binary in the gate's own suite run, this one bounds one mutant's suite. They are free to diverge.
+// The same number as `goSuiteTimeout` in `ai/tools/gate/run.go`, and not the same fact: that one
+// bounds each test binary in the gate's own suite run, this one bounds one mutant's suite. They are
+// free to diverge.
 const suiteTimeout = "30m"
 
 // What one suite run says about the guard the mutant removed. The four answers print in the same

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"kk-flavor/tools/shell"
@@ -48,6 +49,40 @@ func (r *run) captureGit(stderr io.Writer, args ...string) (string, int) {
 	return r.capture(stderr, "git", append([]string{"-C", r.root}, args...)...)
 }
 
+// One answer git gave, kept for the rest of the invocation.
+type gitAnswer struct {
+	out    string
+	status int
+}
+
+// The repository questions that cannot change while one invocation runs, asked once each.
+//
+// Keyed on the arguments and not on the stderr writer, which differs between callers. A cached answer
+// therefore re-emits nothing on stderr — harmless here because every caller that passes a real writer
+// refuses on a non-zero status, so a failed call ends the run before a second could read it.
+//
+// ONE of them can move under us after all, and that is why this is a memo rather than a package
+// cache: `git add` changes the index, so `stagedIndex` clears the entry instead of leaving a stale
+// "throwaway" behind a tree that is now committed. `discard` reads that answer before deleting, so a
+// stale one is not a slow report — it is the wrong one, over a tracked .idsd/.
+func (r *run) memoGit(stderr io.Writer, args ...string) (string, int) {
+	key := strings.Join(args, "\x00")
+	if hit, ok := r.gitMemo[key]; ok {
+		return hit.out, hit.status
+	}
+	out, status := r.captureGit(stderr, args...)
+	if r.gitMemo == nil {
+		r.gitMemo = map[string]gitAnswer{}
+	}
+	r.gitMemo[key] = gitAnswer{out, status}
+	return out, status
+}
+
+// Called by anything that stages, so the next index read asks git again.
+func (r *run) stagedIndex() {
+	r.gitMemo = nil
+}
+
 // A child whose output is the caller's: `git add` reports what it could not stage, and that account
 // is the whole of what the human gets when staging fails.
 func (r *run) passThrough(name string, args ...string) int {
@@ -72,7 +107,10 @@ func exitStatus(err error) int {
 // Absolute path to <name> in this worktree's git dir. --git-path answers relative for an ordinary
 // repo, absolute in a linked worktree; an empty answer would build a bare "$root/" in the tree.
 func (r *run) gitPath(name string) string {
-	path, status := r.captureGit(r.errOut, "rev-parse", "--git-path", name)
+	if gitDir, ok := layoutGitDir(r.root); ok {
+		return filepath.Join(gitDir, name)
+	}
+	path, status := r.memoGit(r.errOut, "rev-parse", "--git-path", name)
 	if status != 0 || path == "" {
 		r.refuse("error: could not resolve '" + name + "' inside the git dir (git rev-parse --git-path)")
 	}
@@ -83,7 +121,7 @@ func (r *run) gitPath(name string) string {
 }
 
 func (r *run) repoMode() string {
-	tracked, _ := r.captureGit(nil, "ls-files", ".idsd")
+	tracked, _ := r.memoGit(nil, "ls-files", ".idsd")
 	if tracked != "" {
 		return "committed"
 	}
@@ -94,7 +132,7 @@ func (r *run) repoMode() string {
 // through to `throwaway` deletes a tracked .idsd/. That is why this is a separate assertion rather
 // than a refusal inside repoMode, which every call site reads as a value.
 func (r *run) assertRepoModeReadable() {
-	if _, status := r.captureGit(nil, "ls-files", ".idsd"); status != 0 {
+	if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {
 		r.refuse("error: could not read the index (git ls-files .idsd) — the repo mode is unknown, and it decides whether .idsd/ is the durable record or scratch to delete")
 	}
 }

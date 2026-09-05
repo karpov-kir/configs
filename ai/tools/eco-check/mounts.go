@@ -15,9 +15,8 @@ import (
 // same question (budget.go → mountedOutside).
 //
 // The gate holds for the reverse half below as well. A worktree's mounts point into the main checkout,
-// so not one of them is under the worktree's own root, and a scan run there would have nothing left to
-// select once the mounts belonging to another tree are set aside. The install is where a landed
-// deletion leaves its mount anyway.
+// so none of them is under the worktree's own root. Set those aside and a scan run there has nothing
+// left to select.
 //
 // Past the gate, $HOME/.kk-flavor resolves to this tree by definition, so there is no flavor-mount
 // comparison here: `flavor not mounted` and `flavor mounted elsewhere` would both be restating the
@@ -58,9 +57,9 @@ func (c *checker) reportSkippedMountScan(out io.Writer) {
 }
 
 // The mounts that outlived their skills. The forward loop iterates the directories this tree has, so a
-// mount whose directory was deleted has nothing left to iterate from and is invisible to it by
-// construction. bootstrap.sh mounts every directory under skills/ and unmounts none, so a deletion
-// that lands leaves its symlink behind at $HOME for good.
+// mount whose directory was deleted has nothing left to iterate from and the forward loop never
+// reaches it. bootstrap.sh mounts every directory under skills/ and unmounts none, so a deletion that
+// lands leaves its symlink behind at $HOME for good.
 //
 // Only a mount pointing straight into this tree's own skills/ is spoken about. $HOME legitimately
 // carries skills from other checkouts, and one of those — resolving or dangling — is not this tree's
@@ -68,9 +67,9 @@ func (c *checker) reportSkippedMountScan(out io.Writer) {
 //
 // A skill deleted on a branch is not a defect, and it stays quiet on the path the work actually takes:
 // that branch is checked out in a worktree, where the mount still resolves through the main checkout,
-// which still holds the directory. Checked out in the install itself it does report — the window the
-// forward half already has in the other direction, where a branch that adds a skill reads as one not
-// mounted until bootstrap.sh runs again.
+// which still holds the directory. Checked out in the install itself it does report. The forward half
+// has the same window the other way round: a branch that adds a skill reads as one not mounted until
+// bootstrap.sh runs again.
 //
 // It takes the forward loop's own list rather than reading skills/ a second time, so the two halves
 // cannot disagree about which skills this tree has.
@@ -120,10 +119,6 @@ func mountTarget(mountPath string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	// README-era mounts were written from a `*/` glob and read back as `…/kk-tighten/`, and the
-	// directory of that string is the skill itself rather than skills/ — every one of those mounts
-	// would be taken for another checkout's.
-	target = strings.TrimRight(target, "/")
 	// A relative target resolves against the directory holding the link; CanonicalDir would otherwise
 	// hand it to filepath.Abs and resolve it against this process's working directory. Left that way
 	// the same mount reads as this tree's when the tool is run from the root and as nobody's when it

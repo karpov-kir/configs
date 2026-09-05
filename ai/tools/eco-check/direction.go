@@ -83,7 +83,7 @@ func (c *checker) scanDirection() {
 func (c *checker) laneNames() []string {
 	var names []string
 	for _, name := range c.skillDirNames() {
-		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {
+		if !c.holdsRegularFile(c.skillFilePath(name)) {
 			continue
 		}
 		// `kk-flavor` is the shared layer itself, so a reviewed tree committing `skills/kk-flavor/`
@@ -126,15 +126,26 @@ func laneNamePattern(lanes string) *regexp.Regexp {
 	return regexp.MustCompile(`\b(` + lanes + `)[A-Za-z0-9._-]*`)
 }
 
+// One finding under this scan's shared bound: always counted, printed while under the cap, and
+// announced once at the boundary. `class` both prefixes the finding and names it in the announcement,
+// so the two cannot drift apart — which they could while four copies of this branch each spelled the
+// class twice. `detail` is a closure because the basename shape walks the skills tree to build its
+// text, and must not do that for a finding the cap has already dropped.
+func (c *checker) addBounded(count *int, class, file string, detail func() string) {
+	*count++
+	if *count <= findingCap {
+		c.add(class + ": " + detail())
+	} else if *count == findingCap+1 {
+		c.reportBoundReached(class, file)
+	}
+}
+
 func (c *checker) reportLaneCitations(counters *directionCounters, safeFile string, lines []string, pattern *regexp.Regexp) {
 	for _, hit := range grepNumbered(lines, pattern) {
-		counters.cites++
-		if counters.cites <= findingCap {
-			c.add("shared layer cites into a lane: " + safeFile + ":" + shell.Oneline(hit.String()) +
-				" — move the rule to a standard (ecosystem.md → **One home**)")
-		} else if counters.cites == findingCap+1 {
-			c.reportBoundReached("shared layer cites into a lane", safeFile)
-		}
+		c.addBounded(&counters.cites, "shared layer cites into a lane", safeFile, func() string {
+			return safeFile + ":" + shell.Oneline(hit.String()) +
+				" — move the rule to a standard (ecosystem.md → **One home**)"
+		})
 	}
 }
 
@@ -149,16 +160,13 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 		// The whole token is tested, not the alternation's own match: `kk-drive-verified` starts
 		// with a real lane name and is not one, so matching the prefix alone would report a skill
 		// that does not exist as a lane the shared layer names.
-		if !c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), named), "SKILL.md")) {
+		if !c.holdsRegularFile(c.skillFilePath(named)) {
 			continue
 		}
-		counters.names++
-		if counters.names <= findingCap {
-			c.add("shared layer names a lane: " + safeFile + ":" + shell.Oneline(hit.String()) +
-				" — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)")
-		} else if counters.names == findingCap+1 {
-			c.reportBoundReached("shared layer names a lane", safeFile)
-		}
+		c.addBounded(&counters.names, "shared layer names a lane", safeFile, func() string {
+			return safeFile + ":" + shell.Oneline(hit.String()) +
+				" — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
+		})
 	}
 }
 
@@ -180,18 +188,15 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 		if !basenames.underOneLane[named] {
 			continue
 		}
-		counters.basenames++
-		if counters.basenames <= findingCap {
+		c.addBounded(&counters.basenames, "shared layer reaches into a lane by basename", safeFile, func() string {
 			// The line number alone, never the match: echoing it would carry the boundary character
 			// the pattern consumed, so the finding would show an unbalanced tick for a name written
 			// `` `doit.sh` ``.
 			owner := strings.Join(c.walkTree(c.root.Skills()).matchPath(named), "\n")
-			c.add("shared layer reaches into a lane by basename: " + safeFile + ":" + lineNumber +
+			return safeFile + ":" + lineNumber +
 				" — " + shell.Oneline(named) + " is " + shell.Oneline(owner) +
-				"; move the rule to a standard (ecosystem.md → **One home**)")
-		} else if counters.basenames == findingCap+1 {
-			c.reportBoundReached("shared layer reaches into a lane by basename", safeFile)
-		}
+				"; move the rule to a standard (ecosystem.md → **One home**)"
+		})
 	}
 }
 
@@ -199,13 +204,10 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 // `kk-flavor/` named after a lane file and every mention of that file stops being checked, while no
 // other scan names the file the branch committed. A narrowed scan reports that it narrowed.
 func (c *checker) reportUncheckedBasename(counters *directionCounters, safeFile, lineNumber, named string) {
-	counters.ambiguous++
-	if counters.ambiguous <= findingCap {
-		c.add("basename not checked: " + safeFile + ":" + lineNumber + " — " + shell.Oneline(named) +
-			" names a file under both a lane and the shared layer, so this scan cannot tell which was meant; rename one of them (ecosystem.md → **One home**)")
-	} else if counters.ambiguous == findingCap+1 {
-		c.reportBoundReached("basename not checked", safeFile)
-	}
+	c.addBounded(&counters.ambiguous, "basename not checked", safeFile, func() string {
+		return safeFile + ":" + lineNumber + " — " + shell.Oneline(named) +
+			" names a file under both a lane and the shared layer, so this scan cannot tell which was meant; rename one of them (ecosystem.md → **One home**)"
+	})
 }
 
 // The bound every finding in this scan reports under, and the notice each of them ends on. The

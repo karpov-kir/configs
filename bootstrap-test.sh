@@ -91,11 +91,12 @@ record_fail() {
   echo "  FAIL  $1  — $2"
 }
 
-# No skip counter here, unlike score-test.sh. That suite reports a third field because it has a case
-# it genuinely cannot run as root, and hiding that would make two machines checking different sets
-# look identical. Every case here runs at every uid: the one `chmod` in this file grants a bit rather
-# than restricting one, so there is nothing for a skip to guard. A field that can never be non-zero is
-# decoration wearing the shape of a measurement.
+# No skip counter here, unlike ai/gate-test.sh. That suite reports a third field because it has a case
+# it cannot run where `chmod` does not restrict this user, and hiding that would make two machines
+# checking different sets look identical. Nothing here is declined that way: the one case this file
+# cannot run as root takes the whole suite to exit 2 instead, which says the run is not a result rather
+# than that a case was skipped. A field that can never be non-zero is decoration wearing the shape of a
+# measurement.
 
 # A fresh home per case, so no case inherits another's links. Numbered rather than mktemp'd again so a
 # failure message names which case's home to go and look at.
@@ -738,6 +739,43 @@ if [ "$boot_casks" = "$readme_casks" ]; then
 else
   record_fail "and the casks agree too" "bootstrap='$boot_casks' readme='$readme_casks'"
 fi
+
+# --- the parent of a root-level target -------------------------------------------------------------
+
+# `${target%/*}` on `/.zshrc` is the empty string, not `/`, so the `|| parent="/"` fallback is the
+# whole of what makes a root-level target work. Drop it and the script reaches `mkdir -p ""` and
+# refuses naming a parent it cannot print, sending the reader after a directory that was never the
+# problem. Both spellings refuse, so only the wording tells them apart.
+#
+# An empty HOME is the only way a target lands at the root.
+#
+# `[ -w / ]` rather than `[ "$(id -u)" = 0 ]`, because the thing that decides the harm is whether THIS
+# process can write to `/`, and uid 0 is only the commonest way to be able to. A container user who
+# owns `/`, a group-writable root, an ACL, or `CAP_DAC_OVERRIDE` without root all write there at a
+# non-zero uid — and this is the one case in this file that escapes the containment guard above, since
+# what writes is bootstrap.sh at `/` rather than a fixture under $tmp_real. `test -w` asks access(2),
+# which answers for all of them (`~/.kk-flavor/standards/testing.md` → **4. Setup strategy**: probe
+# rather than read `id -u`).
+if [ -w / ]; then
+  # Exit 2 rather than a quiet skip: this case lets bootstrap.sh attempt `ln -s` at `/`, and a machine
+  # that can complete it would be left holding links at its filesystem root pointing into this
+  # checkout, which nothing here removes. A pass would report the branch as covered on the one kind of
+  # machine that never ran it.
+  echo "bootstrap-test: this process can write to /, where the empty-HOME case would link at the filesystem root — that branch was NOT tested" >&2
+  exit 2
+fi
+
+out=$(HOME= bash "$script" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+case "$out" in
+  *"could not create "[[:space:]]*) record_fail "an empty HOME names / as the parent, not nothing" "the parent came back empty: $out" ;;
+  *) record_pass "an empty HOME names / as the parent, not nothing" ;;
+esac
+# And it got past computing the parent to attempt the link itself, so the case is about the fallback
+# rather than about any earlier refusal that happens to keep the message out.
+case "$out" in
+  *"/.zshrc"*) record_pass "and reaches the root-level target it computed" ;;
+  *) record_fail "and reaches the root-level target it computed" "no root-level target in: $out" ;;
+esac
 
 echo
 echo "$passed passed, $failed failed"

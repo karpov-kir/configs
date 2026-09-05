@@ -60,10 +60,16 @@ func (r *run) currentTree(errOut io.Writer) (string, bool) {
 			"  It owns the fingerprint recipe; there is deliberately no local fallback, because a second copy is what put untracked working files in .git/objects for good.")
 		return "", false
 	}
-	// Its stderr is the caller's, so git's own account of a failed walk reaches them.
-	tree, status := r.capture(errOut, r.fingerprintBin, r.root)
-	if status != 0 || tree == "" {
-		errLinesTo(errOut, "error: "+r.fingerprintBin+" exited "+strconv.Itoa(status)+" without a tree — the tree could not be fingerprinted")
+	// In process, not spawned. The guard above still asks whether the shipped script is there and
+	// runnable, because that is a real property of the install and its absence is a deployment fault
+	// worth naming — but the recipe itself now runs here.
+	tree, err := r.fingerprint(r.root)
+	if err != nil || tree == "" {
+		reason := "returned no tree"
+		if err != nil {
+			reason = err.Error()
+		}
+		errLinesTo(errOut, "error: the tree could not be fingerprinted — "+reason)
 		return "", false
 	}
 	return tree, true

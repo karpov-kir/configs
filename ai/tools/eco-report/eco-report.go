@@ -71,6 +71,7 @@ import (
 	"path/filepath"
 
 	"kk-flavor/tools/shell"
+	treefingerprint "kk-flavor/tools/tree-fingerprint"
 )
 
 // Invocation is one run of the tool. The three fields it would otherwise read from its own process —
@@ -87,6 +88,13 @@ type Invocation struct {
 	// a fixture instead of the developer's own.
 	ConfigHome string
 	Out, Err   io.Writer
+	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS rather than
+	// spawned as `tree-fingerprint.sh`.
+	//
+	// A seam rather than a hardcoded call because two properties still need observing from outside: how
+	// MANY times a run fingerprints (one, cached), and what a failed fingerprint does to the commands
+	// that read one.
+	Fingerprint func(root string) (string, error)
 }
 
 // Run is the entry point the command uses: the process's own directory, argv[0] and HOME.
@@ -117,6 +125,12 @@ func (inv Invocation) Exec() (code int) {
 type stop struct{ code int }
 
 type run struct {
+	// The repository answers already asked, per invocation. git.go → memoGit owns it.
+	gitMemo map[string]gitAnswer
+
+	// The fingerprint recipe, in process. Never nil once Exec has built the run.
+	fingerprint func(root string) (string, error)
+
 	args                  []string
 	dir, home, configHome string
 	out, errOut           io.Writer
@@ -155,12 +169,16 @@ const noItemsMarker = "no-items"
 
 func newRun(inv Invocation) *run {
 	r := &run{
-		args:       inv.Args,
-		dir:        inv.Dir,
-		home:       inv.Home,
-		configHome: inv.ConfigHome,
-		out:        inv.Out,
-		errOut:     inv.Err,
+		args:        inv.Args,
+		dir:         inv.Dir,
+		home:        inv.Home,
+		configHome:  inv.ConfigHome,
+		out:         inv.Out,
+		errOut:      inv.Err,
+		fingerprint: inv.Fingerprint,
+	}
+	if r.fingerprint == nil {
+		r.fingerprint = treefingerprint.Fingerprint
 	}
 	if r.dir == "" {
 		// Failing here would be a directory that no longer exists, which git is about to refuse for
@@ -199,9 +217,20 @@ func (r *run) absPath(path string) string {
 }
 
 func (r *run) resolveRoot() {
-	root, status := r.capture(nil, "git", "rev-parse", "--show-toplevel")
-	if status != 0 {
-		r.refuse("error: not a git repo")
+	// Idempotent: several subcommands resolve the root on the way to their own work, and the answer is
+	// fixed the moment the invocation starts. Without the guard each of them spawns another
+	// `rev-parse --show-toplevel`.
+	if r.root != "" {
+		return
+	}
+	root, ok := layoutRoot(r.dir)
+	if !ok {
+		// The layout could not answer — an environment override, or a shape it does not know. git can.
+		var status int
+		root, status = r.capture(nil, "git", "rev-parse", "--show-toplevel")
+		if status != 0 {
+			r.refuse("error: not a git repo")
+		}
 	}
 	r.root = root
 	r.resolveIdsdDir()

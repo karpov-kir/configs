@@ -271,6 +271,12 @@ func (c *checker) refExists(dir, ref string) bool {
 // The mount scan lists skills from this, and it runs only in the install: a gitignored skill
 // directory would be `skill not mounted` there and nothing at all in a worktree of the same commit,
 // which is the exact split the flag exists to close.
+// One skill's SKILL.md. Named rather than joined at each of the four call sites: the layout is one
+// fact, and four copies of it are four places a rename has to reach.
+func (c *checker) skillFilePath(name string) string {
+	return shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
+}
+
 func (c *checker) skillDirNames() []string {
 	entries, err := os.ReadDir(c.root.Skills())
 	if err != nil {

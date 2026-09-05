@@ -46,7 +46,14 @@ func (r *run) treeIdsdDir() string { return r.root + "/.idsd" }
 // ordinary repo — a bare `.git` from the root — so a relative answer would resolve against whatever
 // directory the next caller happened to stand in.
 func (r *run) gitCommonPath(name string) string {
-	path, status := r.captureGit(r.errOut, "rev-parse", "--git-common-dir")
+	path, ok := "", false
+	if gitDir, found := layoutGitDir(r.root); found {
+		path, ok = layoutCommonDir(gitDir)
+	}
+	status := 0
+	if !ok {
+		path, status = r.memoGit(r.errOut, "rev-parse", "--git-common-dir")
+	}
 	if status != 0 || path == "" {
 		r.refuse("error: could not resolve this repository's shared git dir (git rev-parse --git-common-dir) —",
 			"  the idsd scratch location is unknown, so nothing was read and nothing was written.")

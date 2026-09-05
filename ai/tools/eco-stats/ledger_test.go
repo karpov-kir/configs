@@ -128,26 +128,51 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 	})
 }
 
-// argv[0] is where this program learns its own location, and `dirname` answers `.` for a name with no
-// slash in it. The ledger path is then `<parent of the working directory>/stats.md` — and this is the
-// one write path that *creates* rather than appends, so a run launched through `exec -a stats.sh`
-// seeds a whole ledger somewhere nobody asked for. The stub always execs an absolute path; a caller
-// that did not say where the program lives has not earned a guess taken off the working directory.
-func TestASelfNameWithNoDirectoryAppendsNothing(t *testing.T) {
-	t.Run("refuses rather than resolving the ledger against the working directory", func(t *testing.T) {
-		// Chdir'ed into scratch, and so not parallel. With the guard removed this call resolves the
-		// ledger to `<cwd>/../stats.md` and *creates* it — run from this package's own directory that
-		// is `ai/tools/stats.md`, a whole seeded ledger written into the checkout. A mutation run put
-		// one there, which is the case making its own point about what the guard is worth.
-		t.Chdir(t.TempDir())
+// argv[0] is where this program learns its own location, and the stub passes on whatever path the
+// caller typed. `dirname` answers `.` for `./stats.sh` as readily as for a bare `stats.sh`, so the
+// guard cannot be narrowed to `DirName`'s answer. The case that appends from `./stats.sh` is what
+// holds that line.
+func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
+	// With the guard removed, a bare name resolves its ledger to `<cwd>/../stats.md` and *creates* it.
+	// A row that ran from this package's own directory would put it at `ai/tools/stats.md`, a whole
+	// seeded ledger written into the checkout. The Chdir into scratch is what keeps it out of there.
+	// `scripts/` and `/` carry a slash, so a guard that only looks for one admits them both. `/` is
+	// the worst: its ledger is `//stats.md`, at the filesystem root for any run with the privilege to
+	// create it.
+	for _, c := range []struct{ name, self string }{
+		{"a bare name, found on PATH", "stats.sh"},
+		{"all directory and no program", "scripts/"},
+		{"the filesystem root", "/"},
+	} {
+		t.Run("refuses a self name that is "+c.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			f := newRoot(t)
+			f.write(f.root+"/CLAUDE.md", "one two\n")
+
+			var out, errOut bytes.Buffer
+			status := ecostats.Run(c.self, []string{"--append", "should not land", f.root}, &out, &errOut)
+
+			if status != 2 || !strings.Contains(errOut.String(), "could not resolve") {
+				t.Errorf("status: %d (want 2)\n%s", status, indent(out.String()+errOut.String()))
+			}
+		})
+	}
+
+	// The boundary: this name does place the program, so it appends. Refusing it would take the
+	// ledger away from anyone who runs the stub from the directory it lives in.
+	t.Run("a self name relative to the working directory still appends its row", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two\n")
+		ledger := f.newLedger(ledgerColumns)
+		before := rowsIn(t, ledger)
+		t.Chdir(f.root + "/skills/kk-reduce/scripts")
 
 		var out, errOut bytes.Buffer
-		status := ecostats.Run("stats.sh", []string{"--append", "should not land", f.root}, &out, &errOut)
-
-		if status != 2 || !strings.Contains(errOut.String(), "could not resolve") {
-			t.Errorf("status: %d (want 2)\n%s", status, indent(out.String()+errOut.String()))
+		if status := ecostats.Run("./stats.sh", []string{"--append", "lands", f.root}, &out, &errOut); status != 0 {
+			t.Fatalf("status: %d\n%s", status, indent(out.String()+errOut.String()))
+		}
+		if rowsIn(t, ledger)-before != 1 {
+			t.Errorf("rows appended: %d (want 1)", rowsIn(t, ledger)-before)
 		}
 	})
 

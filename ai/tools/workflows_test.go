@@ -20,13 +20,13 @@ import (
 
 const workflowsDir = "../../.github/workflows"
 
-const gateScript = "../gate.sh"
+const gateSource = "gate/run.go"
 
 // What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
 // on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
 // covers a package that fails, and without `./...` the gate runs a subset of the module.
 //
-// The bound is deliberately not in this list. It has one home — `gotest_timeout` in ai/gate.sh — and
+// The bound is deliberately not in this list. It has one home — `goSuiteTimeout` in ai/tools/gate/run.go — and
 // TestEveryWorkflowGateBoundsGoTestLikeTheGateScript derives it from there. Pinned here as well, the
 // number would have a fourth home, and raising it would take a four-file edit with this case red until
 // the last one landed. That is the drift both cases exist to stop, reintroduced by the guard against
@@ -66,6 +66,38 @@ func hasField(fields []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// The local gate is the third runner of that suite and the one a human actually watches. It cannot
+// carry `goSuiteRun` verbatim — it selects packages rather than running `./...`, and forces some with
+// `-count=1` because the Go cache cannot see the fixtures' external inputs — so what is held here is
+// the part that must not vary: no invocation of `go test` may go out without a timeout, for the
+// reason goSuiteRun above gives.
+//
+// Read from the Go source, which is where those invocations live now.
+func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
+	const source = "gate/run.go"
+	body, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatalf("reading %s: %v", source, err)
+	}
+	var found int
+	for _, line := range strings.Split(string(body), "\n") {
+		trimmed := strings.TrimSpace(line)
+		// The invocations only, never the prose about them: a comment naming `go test` is not a run.
+		if strings.HasPrefix(trimmed, "//") || !strings.Contains(trimmed, `"test"`) {
+			continue
+		}
+		found++
+		if !strings.Contains(trimmed, "-timeout") {
+			t.Errorf("%s runs the Go suite with no -timeout: %s", source, trimmed)
+		}
+	}
+	// Zero invocations means this case is holding nothing to account — the runner moved, or the suite
+	// did, and either way the assertion above passed over nothing.
+	if found == 0 {
+		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", source)
+	}
 }
 
 func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
@@ -119,7 +151,7 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// The `go test` bound is one fact with two homes: `gotest_timeout` in ai/gate.sh, and the `-timeout`
+// The `go test` bound is one fact with two homes: `goSuiteTimeout` in ai/tools/gate/run.go, and the `-timeout`
 // each workflow's Gate step passes. The workflows carry a comment pointing at the script instead of
 // repeating its reasoning, and a pointer is only as good as something checking it still points at the
 // same number. This is that check.
@@ -129,15 +161,15 @@ func gateSteps(t *testing.T) map[string]string {
 // — and the reason the bound exists at all is that a `go test` timeout reads as a deadlock rather than
 // as a slow pass, so drift here is expensive to diagnose and cheap to prevent.
 func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
-	script, err := os.ReadFile(gateScript)
+	script, err := os.ReadFile(gateSource)
 	if err != nil {
-		t.Fatalf("reading %s: %v", gateScript, err)
+		t.Fatalf("reading %s: %v", gateSource, err)
 	}
 	want := gotestTimeout(string(script))
 	if want == "" {
 		t.Fatalf("%s no longer assigns gotest_timeout at the start of a line, so this case has nothing to "+
 			"hold the workflows to and would pass over any value they carry. Restore the assignment, or "+
-			"retire this case deliberately — do not leave it green over nothing.", gateScript)
+			"retire this case deliberately — do not leave it green over nothing.", gateSource)
 	}
 
 	entries, err := os.ReadDir(workflowsDir)
@@ -172,11 +204,11 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 				t.Errorf("`go test` invocation %d in %s's Gate step carries no -timeout, so Go's 10m "+
 					"default applies there while %s uses %s. eco-report alone has been measured past 10m "+
 					"on a loaded runner, and overrunning prints a goroutine dump that reads as a hang "+
-					"rather than a slow pass.", i+1, entry.Name(), gateScript, want)
+					"rather than a slow pass.", i+1, entry.Name(), gateSource, want)
 			case bound != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
 					"gotest_timeout=%s — the two drifted, so the same suite is bounded differently "+
-					"depending on who runs it.", i+1, entry.Name(), bound, gateScript, want)
+					"depending on who runs it.", i+1, entry.Name(), bound, gateSource, want)
 			}
 		}
 	}
@@ -187,13 +219,14 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 	}
 }
 
-// The value `ai/gate.sh` assigns to gotest_timeout. Line-based and anchored at column zero, so a
-// mention inside a comment or a nested scope is not mistaken for the assignment itself.
+// The value the gate assigns to goSuiteTimeout. It used to live in ai/gate.sh as `gotest_timeout=`;
+// the gate is Go now and the bound moved with it. Line-based and anchored at column zero, so a mention
+// inside a comment or a nested scope is not mistaken for the declaration itself.
 func gotestTimeout(script string) string {
-	const assign = "gotest_timeout="
+	const assign = `const goSuiteTimeout = "`
 	for _, line := range strings.Split(script, "\n") {
 		if strings.HasPrefix(line, assign) {
-			return strings.TrimSpace(strings.TrimPrefix(line, assign))
+			return strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(line, assign)), `"`)
 		}
 	}
 	return ""

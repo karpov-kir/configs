@@ -208,8 +208,9 @@ func (r *run) assertShipExists(slug string) {
 // is non-empty", so a stray dotfile cannot keep the dir alive. `decisions.md` is deliberately NOT on
 // the list — `~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log** makes it throwaway
 // scratch by design. `roadmap.md` is off it for its own reason: `~/.claude/skills/idsd-intent/SKILL.md`
-// → **Phase 3 — Emit** generates it from the intents' own frontmatter, so wherever it says anything
-// the arm below is already keeping .idsd/ standing for what it was generated from.
+// → **Phase 3 — Emit** generates it from the intents' own frontmatter, so whenever it holds anything,
+// the intents arm below is already keeping .idsd/ standing for the intents it came from.
+//
 // Read after this ship's own files are gone, so every count it takes is of what survives.
 func (r *run) survivingContent() string {
 	kept := ""
@@ -270,7 +271,7 @@ func (r *run) assertWritePathsAreReal(outcome string) {
 	// `--force` destroying whatever link the human left there — including a dangling one, which an
 	// existence test cannot even see.
 	if shell.IsSymlink(r.report) {
-		r.refuse("error: "+r.report+" is a symlink -> "+readLink(r.report)+" — "+outcome+".",
+		r.refuse("error: "+r.report+" is a symlink -> "+shell.Oneline(readLink(r.report))+" — "+outcome+".",
 			"  the report is always a regular file. Remove the link, then re-run.")
 	}
 }
@@ -283,12 +284,16 @@ func (r *run) assertWritePathsAreReal(outcome string) {
 func (r *run) assertScratchDirsAreReal(outcome string) {
 	for _, writeDir := range []string{r.idsdDir, r.reportsDir} {
 		if shell.IsSymlink(writeDir) {
-			r.refuse("error: "+writeDir+" is a symlink -> "+readLink(writeDir)+" — "+outcome+".",
+			r.refuse("error: "+writeDir+" is a symlink -> "+shell.Oneline(readLink(writeDir))+" — "+outcome+".",
 				"  the scratch directory and its qualify-reports/ are always real directories. Remove the link, then re-run.")
 		}
 	}
 }
 
+// A link's target is arbitrary text that never has to resolve, so it is the one string in a refusal
+// here that nobody in this account wrote. Every caller collapses it through shell.Oneline before
+// printing, the way root.go always has: an ESC in a target erases the lines printed above it, and the
+// agent reading that output acts on what it shows.
 func readLink(path string) string {
 	target, err := os.Readlink(path)
 	if err != nil {

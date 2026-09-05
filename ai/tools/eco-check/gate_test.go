@@ -59,8 +59,8 @@ func (f *fixture) ignores(patterns ...string) {
 	f.write(f.base+"/.gitignore", strings.Join(patterns, "\n")+"\n")
 }
 
-// A markdown file under skills/ citing a section that does not exist — the shape of the scratch record
-// that turned the real commit gate red from one checkout while every worktree of the commit was green.
+// A markdown file under skills/ citing a section that does not exist: the shape a scratch record takes,
+// and a finding a commit cannot carry.
 func (f *fixture) newScratchRecord(path string) {
 	f.t.Helper()
 	f.write(f.root+"/skills/"+path, "# Scratch\n\nSee one.md → "+missingRegion+".\n")
@@ -312,8 +312,7 @@ func TestAGitignoredReadAlwaysTargetIsReportedAbsent(t *testing.T) {
 // A citation is a path *prose* wrote, so it arrives spelled however its author spelled it. Compared
 // as written, `./notes.md` misses an ignored set keyed on `notes.md` and names the same file: the run
 // printed that file on its own skipped list and then resolved a reference through it, reporting
-// `wiring: clean` where a fresh clone reports an unresolvable citation. A false green under the one
-// flag whose whole claim is that it cannot produce one.
+// `wiring: clean` where a fresh clone reports an unresolvable citation.
 func TestACitationSpelledNonCanonicallyStillHitsTheGate(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-demo")
@@ -379,6 +378,11 @@ func newSpellingTree(t *testing.T, base string) {
 	write(root+"/kk-flavor/standards/deep.md", "# Deep\n\n## A Real Section\n")
 	write(root+"/skills/kk-one/SKILL.md",
 		"---\nname: kk-one\ndescription: cites a file only the index can reach\n---\n\nSee deep.md → "+citedSection+".\n")
+	// A path ref naming the tree from its ROOT, which only the whole-path index can resolve. Spelled
+	// `r/...`, it is the entire walked path when the root is named `r` with nothing before it, so `*/`
+	// has no leading component to consume. Every other ref in this fixture resolves some other way.
+	write(root+"/kk-flavor/standards/rooted.md",
+		"# Rooted\n\nThe router is `r/kk-flavor/inject.md`.\n")
 	write(root+"/local.txt", "scratch\n")
 	write(base+"/.gitignore", "r/local.txt\n")
 
@@ -393,6 +397,30 @@ func newSpellingTree(t *testing.T, base string) {
 
 // Both runs over one spelling, compared as sets of lines with the skip line removed — the one line the
 // flag is allowed to add.
+// The findings are a fact about the tree, so every spelling of one root must produce the same set.
+// They did not: a ref naming the tree from its root resolved through `./r` and dangled through `r`,
+// because the suffix index held only the tails after each `/` and `*/` had nothing to consume; and a
+// trailing slash doubled the separator in every walked path, so `r/` matched nothing that `r` did.
+func TestTheFindingsAreTheSameHoweverTheRootIsNamed(t *testing.T) {
+	base := t.TempDir()
+	newSpellingTree(t, base)
+	t.Chdir(base)
+
+	want := runLines(t, "./r")
+	// A control on the instrument: a fixture reporting nothing would make every comparison below hold
+	// no matter what the checker did with the spelling.
+	if len(want) == 0 {
+		t.Fatal("the fixture produced no output at all, so comparing spellings checks nothing")
+	}
+	for _, spelling := range []string{"r", "r/", "./r/", base + "/r", base + "/r/"} {
+		got := runLines(t, spelling)
+		if !slices.Equal(want, got) {
+			t.Errorf("root spelled %q reports a different tree from \"./r\"\nwant:\n%s\ngot:\n%s",
+				spelling, indent(strings.Join(want, "\n")), indent(strings.Join(got, "\n")))
+		}
+	}
+}
+
 func assertGatedMatchesBare(t *testing.T, root string) {
 	t.Helper()
 	bare := runLines(t, root)
@@ -423,7 +451,7 @@ func runLines(t *testing.T, args ...string) []string {
 // The three reaches that ask about a skill's own SKILL.md by name rather than through the walk: the
 // lane alternation, the whole-token re-test that alternation's matches are checked against, and the
 // unknown-skill scan. A gitignored SKILL.md left in any of them makes the gated run call a skill known
-// that a fresh clone calls unknown — the flag's own claim failing, and quietly.
+// that a fresh clone calls unknown.
 //
 // Three shapes on one tree, because each reach is masked by a different sibling if a case names only
 // its own. The alternation is reached through a *citation*, which nothing re-tests; the whole-token

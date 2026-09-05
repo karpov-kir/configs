@@ -144,7 +144,7 @@ func (c *checker) scanUnknownSkills() {
 	}
 	for _, name := range shell.SortUnique(names) {
 		// `kk-flavor` is the shared layer, not a skill.
-		if name == "kk-flavor" || c.holdsRegularFile(shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")) {
+		if name == "kk-flavor" || c.holdsRegularFile(c.skillFilePath(name)) {
 			continue
 		}
 		// Two readings, and the scan cannot tell them apart: a misspelled skill, or prose that

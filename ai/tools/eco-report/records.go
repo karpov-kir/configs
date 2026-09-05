@@ -189,7 +189,7 @@ func (r *run) recordPath(kind *recordKind) string {
 	r.assertScratchIsUnreachableByGit()
 	path := r.idsdDir + "/" + kind.file
 	if shell.IsSymlink(path) {
-		r.refuse("error: "+path+" is a symlink -> "+readLink(path)+" — the record was not written.",
+		r.refuse("error: "+path+" is a symlink -> "+shell.Oneline(readLink(path))+" — the record was not written.",
 			"  A shared record is always a regular file. Remove the link, then re-run.")
 	}
 	return path

@@ -74,9 +74,8 @@ type checker struct {
 // Run checks the tree under args and writes the report to out. The arguments are an optional root and
 // an optional --gate, in either order: an empty root means the two candidates ecoroot tries, in order,
 // and --gate narrows the walk to what a commit can carry (gate.go). It returns the process exit code:
-// 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan.
-// A check that did not run is not a clean one, which is why the last is not folded into either of the
-// others.
+// 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan. A check that
+// did not run is not a clean one, which is why the last is not folded into either of the others.
 func Run(args []string, out, errOut io.Writer) int {
 	root, isGate, ok := parseArgs(args)
 	if !ok {
@@ -90,8 +89,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		}
 		return refuseToRun(errOut, fmt.Sprintf("no root holding both kk-flavor/ and skills/ (tried '%s')", named))
 	}
-	// Before the first scan, so a run that could not ask which files a commit carries reports nothing
-	// rather than a page of findings over the unfiltered tree it was told not to judge.
+	// Before the first scan, for the reason enableGate carries.
 	if isGate {
 		if err := c.enableGate(); err != nil {
 			return refuseToRun(errOut, err.Error())

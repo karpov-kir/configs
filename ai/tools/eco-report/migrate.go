@@ -31,7 +31,7 @@ func (r *run) reconcileTreeIdsdDir() {
 		return
 	}
 	if shell.IsSymlink(tree) {
-		r.refuse("error: "+tree+" is a symlink -> "+readLink(tree)+" — nothing was read or written.",
+		r.refuse("error: "+tree+" is a symlink -> "+shell.Oneline(readLink(tree))+" — nothing was read or written.",
 			"  The scratch directory now lives at "+r.idsdDir+"; remove the link, then re-run.")
 	}
 	// Files, not directory entries. Moving the content out leaves `intents/` and `qualify-reports/`
