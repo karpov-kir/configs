@@ -36,10 +36,6 @@
       "command": "@CONFIGS@/mcp-env.sh",
       "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect"]
     },
-    "amplitude": {
-      "type": "http",
-      "url": "https://mcp.amplitude.com/mcp"
-    },
     "testautomation": {
       "type": "http",
       "url": "https://agentic.bitmovin.systems/testautomation/mcp"
