@@ -4,8 +4,8 @@
 #   usage: run-tests.sh [-s <suite>] [<root>]   # <root> defaults to the repository this script lives in
 #          -s  run just this one suite, by path, instead of discovering them all
 #
-# `-s` is for a caller that already knows which suite a change could have moved — `ai/gate.sh` is one
-# — and still wants this file's reading of the result: the exit-2 "did not measure", and the vacuity
+# `-s` is for a caller that already knows which suite a change could have moved (`ai/gate.sh` is one)
+# and still wants this file's reading of the result: the exit-2 "did not measure", and the vacuity
 # check that makes a suite exiting 0 having run no case a failure rather than a pass. A caller running
 # `bash <suite>` itself gets neither.
 #
@@ -84,8 +84,8 @@ if [ -n "$named_suite" ]; then
   suites+=("$named_suite")
 elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   discovery="git"
-  # `-z`, and a NUL-delimited read: without it `ls-files` C-quotes any path that is not plain ASCII —
-  # `core.quotePath` is on by default — and the quoted text names no file. The absent arm below then
+  # `-z`, and a NUL-delimited read: without it `ls-files` C-quotes any path that is not plain ASCII
+  # (`core.quotePath` is on by default) and the quoted text names no file. The absent arm below then
   # fires: a suite sitting right there is announced absent, the run exits 0, and the gate loses it.
   while IFS= read -r -d '' suite; do
     [ -n "$suite" ] || continue
@@ -205,8 +205,8 @@ if [ "$tree_readable" -eq 0 ]; then
   if [ "$before_tree" != "$after_tree" ]; then
     echo
     echo "the checkout changed while the suites ran, so this result is not trustworthy. Either a suite"
-    echo "wrote into the repository it is testing, or something else edited the tree during the run —"
-    echo "the second is common with several sessions in one checkout and impossible here to tell apart:"
+    echo "wrote into the repository it is testing, or something else edited the tree during the run."
+    echo "With several sessions in one checkout the second is common, and nothing here tells them apart:"
     diff <(printf '%s\n' "$before_tree") <(printf '%s\n' "$after_tree") | sed 's/^/     /'
     containment=", the checkout moved"
     checkout_moved=1
@@ -224,8 +224,8 @@ printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discover
   "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$broken_note" "$containment" "$discovery"
 
 # A red outranks a non-measurement: something is known to be wrong, which is the more urgent fact. A
-# moved checkout sits between them — it refuses every line of the result rather than one of them, so it
-# outranks a single suite declining to measure.
+# moved checkout sits between them, because it refuses every line of the result rather than one of
+# them, so it outranks a single suite declining to measure.
 #
 # Exit 3 for it, on `~/.kk-flavor/scripts/score.sh`'s vocabulary: 2 is did-not-measure, 3 is
 # ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead

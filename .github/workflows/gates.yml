@@ -1,22 +1,21 @@
-# The gates that run on every push. release-tools.yml gates the Go tools too, but only on a tag, so
-# the commits between tags would go unchecked. Its `Gate` step and the `go` job below are deliberate
-# duplicates; folding them together needs a reusable workflow, which is more machinery than three
-# commands justify.
+# release-tools.yml gates the Go tools too, but only on a tag, so the commits between tags would go
+# unchecked. Its `Gate` step and the `go` job below are deliberate duplicates; folding them together
+# needs a reusable workflow, which is more machinery than three commands justify.
 #
 # Don't add a suite list. ai/run-tests.sh discovers every `*-test.sh`, so a suite added later is
 # gated without anyone registering it, and finding none fails instead of passing empty.
 #
-# The suites matrix runs both OSes on purpose. macOS is where these suites are written and where
-# /bin/bash is 3.2; Linux is where they're unproven and where CI is cheap. fail-fast is off so a red
-# leg still reports the other one, since the delta between them is the portability signal.
+# The suites matrix runs both OSes on purpose: these suites are written on macOS against its
+# /bin/bash 3.2, and Linux is where they're unproven. fail-fast is off so a red leg still reports the
+# other one, since the delta between them is the portability signal.
 #
 # Actions carry a major tag rather than an exact pin, because nothing here bumps an exact pin and it
 # would rot. Drop this override once dependabot or renovate lands.
 #
-# Every setup-go step sets `cache: false`. setup-go looks for its cache key file (go.mod) in the repo
-# root and this module lives in ai/tools, so the default annotates every run with a miss that can
-# never hit. cache-dependency-path would point it here, but the only thing to cache is a build cache
-# keyed on a go.mod that never changes.
+# Every setup-go step sets `cache: false`. setup-go looks for go.mod in the repo root and this module
+# lives in ai/tools, so the default annotates every run with a miss that can never hit.
+# cache-dependency-path would point it here, but the only thing to cache is a build cache keyed on a
+# go.mod that never changes.
 name: gates
 
 on:
@@ -51,11 +50,6 @@ jobs:
   # it: eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and todo-gate.sh, and
   # `ai/kk-flavor`'s tree-fingerprint.sh. The cache can't see those, so a plain run answers out of
   # cache over a tree one of them has changed, and this job goes green on exactly that.
-  # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
-  # while `go test ./eco-report/` says `ok (cached)` over the same corrupt tree.
-  #
-  # A cached failure is not the hole. A deliberately failing case appended to eco-root re-ran and
-  # re-failed on two consecutive runs, never once from cache.
   # `.github/workflows/release-tools.yml` cites this comment rather than repeating it.
   #
   # `ai/gate.sh` answers the same hole developer-side, keying on those files itself. Keep this job
@@ -138,8 +132,7 @@ jobs:
       # loudly and passes rather than turning machine load into a code defect, which is how a gate gets
       # `|| true`'d and stops gating. Exit 1, a guard that did not redden, fails.
       #
-      # What a status does to the count, what a garbage count means and where the escalation sits are
-      # `ai/tools/nomeasure`'s, case by case in its own suite.
+      # How a status moves the count, and when the count escalates, are `ai/tools/nomeasure`'s.
       - name: Prove the guards can fail
         working-directory: ai/tools
         run: |
@@ -154,9 +147,9 @@ jobs:
             exit "$status"
           fi
 
-          # An annotation alone lives inside a log fold. A job that warns-and-passes on a permanently
-          # slow runner would never measure and never say so — a green tick over something never
-          # reached. The step summary puts it on the run's face instead.
+          # An annotation alone lives inside a log fold, and a job that warns-and-passes on a
+          # permanently slow runner would never measure and never say so. The step summary is what
+          # keeps that off a green tick.
           if [ "$verdict" -eq 1 ]; then
             echo "::warning::$note"
             {
@@ -170,7 +163,7 @@ jobs:
           if [ "$verdict" -eq 3 ]; then
             echo "::error::$note"
             {
-              echo "### :x: guards unproven, and no longer weather"
+              echo "### :x: guards unproven, and no longer just machine load"
               echo
               echo "$note"
             } >> "$GITHUB_STEP_SUMMARY"

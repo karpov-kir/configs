@@ -675,6 +675,14 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 		{"a ratio that is not a number", "COMMENT_MAX_RATIO", "junk"},
 		{"a floor that is not a whole number", "COMMENT_MIN_LINES", "2.5"},
 		{"a byte cap that is not a whole number", "DENSITY_MAX_FILE_BYTES", "big"},
+		// Values that parse and mean nothing. dup-literals refuses the same shapes on its own two
+		// variables; without these three the ratio bar can be set past 1, where nothing is ever an
+		// outlier, and the byte cap can go negative, where every untracked file is skipped unread and
+		// the run still exits 0.
+		{"a ratio above the share it measures", "COMMENT_MAX_RATIO", "1.5"},
+		{"a negative ratio, under which every file is an outlier", "COMMENT_MAX_RATIO", "-0.1"},
+		{"a floor no file can fall under", "COMMENT_MIN_LINES", "0"},
+		{"a negative byte cap, which skips every untracked file unread", "DENSITY_MAX_FILE_BYTES", "-1"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name+" is refused", func(t *testing.T) {

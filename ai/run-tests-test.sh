@@ -23,15 +23,15 @@ runner="$here/run-tests.sh"
 
 pass=0
 fail=0
-# Counted, and printed as its own field. Thirty-one cases below sit behind `command -v git`, and a
-# two-field summary line asserts that no case is conditional — `~/.kk-flavor/standards/testing.md` →
+# Counted, and printed as its own field. Cases below sit behind `command -v git`, and a two-field
+# summary line asserts that no case is conditional — `~/.kk-flavor/standards/testing.md` →
 # **7. What a suite reports**. Worse than untidy: `run-tests.sh` reads `skipped` BY NAME to decide
-# vacuity, so on a machine without git this suite would report "37 passed, 0 failed" and the runner
-# would accept it as a clean run with thirty-one cases silently gone.
+# vacuity, so on a machine without git this suite would report only the cases that did run and the
+# runner would accept it as a clean run with the guarded ones silently gone.
 skipped=0
 
-# <count> <why>. The count is how many cases the guarded block holds, a literal because nothing here
-# can derive it — keep it in step when a case is added to one of those blocks.
+# <count> <why>. The count is how many cases the guarded block holds. It is a literal, and the drift
+# case at the end of this file is what holds it in step.
 record_skip() {
   skipped=$((skipped + $1))
   echo "skip — $1 case(s) not run: $2"
@@ -133,9 +133,8 @@ new_failing_suite "$tmp/both/failing-test.sh"
 out="$("$runner" "$tmp/both" 2>&1)"; rc=$?
 check "a red outranks a non-measurement" "1" "$rc"
 
-# bootstrap-test.sh linked a temp HOME at this repository and wrote through the link, replacing real
-# config files while reporting every case green. A suite like that has measured something and the
-# measurement was not the whole effect, so the run has to notice the checkout moved under it.
+# A suite can measure something real and still not have measured its whole effect: writing outside its
+# own fixtures while reporting every case green. So the run has to notice the checkout moved under it.
 if command -v git >/dev/null; then
   new_greedy_checkout "$tmp/repo"
   out="$("$runner" "$tmp/repo" 2>&1)"; rc=$?
@@ -144,9 +143,8 @@ if command -v git >/dev/null; then
     "$(matching_output_lines 'the checkout changed while the suites ran')"
   check "control: even though the suite itself reported passing" "1" "$(matching_output_lines '^ok   greedy-test.sh')"
 
-  # The counters stay a tally of suites. Folded into `failed` this read `1 suite(s) found: 1 passed,
-  # 1 failed` — a sum larger than what was found, asserting a red suite that does not exist.
-  # run-tests.sh's guard carries why that phantom was worth a case.
+  # The counters stay a tally of suites. Folded into `failed`, the summary sums to more suites than it
+  # found and asserts a red suite that does not exist. run-tests.sh's guard carries why.
   check "and a moved checkout is named on the summary rather than counted as a failing suite" "1" \
     "$(matching_output_lines '1 suite(s) found: 1 passed, 0 failed, 0 unmeasured, the checkout moved')"
 
@@ -281,9 +279,9 @@ if command -v git >/dev/null; then
   check "control: -s still runs a tracked suite in the same repo" "0" "$rc"
 
   # The shape ai/gate.sh sends every run: a suite that exists and is not ignored but has never been
-  # committed — what every suite is for as long as it is being written. Without this case,
+  # committed, which is what every suite is for as long as it is being written. Without this case,
   # tightening the guard to `--cached` alone leaves every case above green while breaking the gate for
-  # every newly written suite — the silent narrowing this runner exists to stop.
+  # every newly written suite. That is the silent narrowing this runner exists to stop.
   out="$("$runner" -s fresh-test.sh "$tmp/ignored" 2>&1)"; rc=$?
   check "-s runs an untracked suite git does not ignore" "0" "$rc"
   check "and reports it as the one suite found" "1" "$(matching_output_lines '^1 suite(s) found')"
@@ -342,7 +340,7 @@ check "and names it vacuous" "1" "$(matching_output_lines '^VACUOUS')"
 # Everything this script finds it then executes, so a named path that leaves the root is refused
 # rather than run: nothing else stops `-s ../../../x` executing a file outside the repository.
 # The target has to EXIST outside the root, or the missing-file refusal fires first and the case
-# passes on the right exit code for the wrong reason — which is what it did when first written.
+# passes on the right exit code for the wrong reason.
 new_suite "$tmp/outside-test.sh" "1 passed, 0 failed"
 out="$("$runner" -s ../outside-test.sh "$tmp/named" 2>&1)"; rc=$?
 check "-s naming a path outside the root exits 2" "2" "$rc"
