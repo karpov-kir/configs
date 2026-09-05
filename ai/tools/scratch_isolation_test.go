@@ -105,14 +105,25 @@ func sourcesAHarnessThatMktemps(t *testing.T, text string) bool {
 	return false
 }
 
-// Every suite the gate would discover, from the same command it uses.
+// Every suite the gate would discover, from the same command it uses — `-z` and core.quotePath=false
+// included. Split on whitespace instead, a name holding a space arrives as two names and this scan
+// reads two files that do not exist, while the suite it was about goes unchecked. That is the same
+// hazard gate/units.go carries a mutant for, and the claim above is only true while both spell the
+// command the same way.
 func shellSuites(t *testing.T) []string {
 	t.Helper()
-	cmd := exec.Command("git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*-test.sh")
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "ls-files", "-z",
+		"--cached", "--others", "--exclude-standard", "--", "*-test.sh")
 	cmd.Dir = filepath.Join("..", "..")
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("listing the suites: %v", err)
 	}
-	return strings.Fields(string(out))
+	var suites []string
+	for _, name := range strings.Split(string(out), "\x00") {
+		if name != "" {
+			suites = append(suites, name)
+		}
+	}
+	return suites
 }

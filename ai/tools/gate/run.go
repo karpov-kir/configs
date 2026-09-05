@@ -17,7 +17,7 @@ func (g *gate) printUnits() int {
 	for _, u := range g.units {
 		key, _ := g.keyMaterial(u)
 		state := "stale"
-		if _, err := os.Stat(filepath.Join(g.cache, u.stem+"."+key)); err == nil {
+		if g.hasRecord(u, key) {
 			state = "fresh"
 		}
 		fmt.Fprintf(g.out, "%-34s %-9s %-8s %s\n", u.id, u.kind, state, strings.Join(u.inputs, " "))
@@ -97,6 +97,17 @@ const (
 	settledUnasked
 )
 
+// What one run's units came to, carried as one value: six adjacent ints in a signature transpose
+// silently, and reportRun reads all six to decide the exit code.
+type runTally struct {
+	ran        int
+	fresh      int
+	deferred   int
+	failed     int
+	unmeasured int
+	empty      int
+}
+
 // One unit's outcome, filled by whichever lane owns it and read by the printer.
 //
 // The printer walks the units in declared order and blocks on each `done` in turn, so the report is
@@ -118,7 +129,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 	name := map[mode]string{modeFast: "fast", modeFull: "full", modeMutants: "mutants"}[selected]
 	fmt.Fprintf(g.out, "%d unit(s): %s path\n\n", len(g.units), name)
 
-	ran, fresh, deferred, failed, unmeasured, empty := 0, 0, 0, 0, 0, 0
+	tally := runTally{}
 	var deferredIDs []string
 
 	// First pass, serial and cheap: every unit's key, and whether it settles without executing. This
@@ -163,7 +174,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 	for _, sl := range slots {
 		<-sl.done
 		u, key, lines := sl.unit, sl.key, sl.lines
-		record := filepath.Join(g.cache, u.stem+"."+key)
+		record := g.recordPath(u, key)
 		inputsFile := filepath.Join(g.cache, u.stem+".inputs")
 
 		switch sl.settled {
@@ -171,7 +182,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			// An input set that resolves to no file is a rename or a typo quietly narrowing the gate. It
 			// is the one state this treats as worse than a failure, because it looks exactly like a pass.
 			g.unitLine("NO INPUTS", u.id, "declared: "+strings.Join(u.inputs, " "))
-			empty++
+			tally.empty++
 			continue
 		case settledFresh:
 			// A fresh hit says these exact inputs are green, so it can also repair the sidecar the
@@ -181,11 +192,11 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 				os.WriteFile(inputsFile, []byte(renderLines(lines)), 0o644)
 			}
 			g.unitLine("fresh", u.id, key[:12]+" — inputs unchanged since it last passed")
-			fresh++
+			tally.fresh++
 			continue
 		case settledDeferred:
 			g.unitLine("DEFERRED", u.id, "inputs moved — not run on the fast path")
-			deferred++
+			tally.deferred++
 			deferredIDs = append(deferredIDs, u.id)
 			continue
 		case settledUnasked:
@@ -199,7 +210,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 				fmt.Fprintf(g.out, "             %s\n", line)
 			}
 		}
-		ran++
+		tally.ran++
 		if status == 0 {
 			// Written only for a verdict this run actually observed, and the inputs it was observed
 			// over are written beside it — that second file is what changedSinceGreen reads.
@@ -219,32 +230,37 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			// for something the machine did.
 			g.unitLine("NO MEASURE", u.id, fmt.Sprintf("%ds  it exited 2 — it did not run, so nothing is known", took))
 			g.tail(output, 10, "                  ")
-			unmeasured++
+			tally.unmeasured++
 		case 3:
 			// run-tests.sh's "ran, and refuses its own result" — the checkout moved underneath it. Read
 			// as a failure it would name the code for something a neighbouring agent did.
 			g.unitLine("REFUSED", u.id, fmt.Sprintf("%ds  it exited 3 — the checkout moved while it ran, so it refuses its own result", took))
 			g.tail(output, 10, "                  ")
-			unmeasured++
+			tally.unmeasured++
 		default:
 			g.unitLine("FAILED", u.id, fmt.Sprintf("%ds", took))
 			g.tail(output, 40, "                  ")
-			failed++
+			tally.failed++
 		}
 	}
-	return g.reportRun(started, deferredIDs, ran, fresh, deferred, failed, unmeasured, empty)
+	return g.reportRun(started, deferredIDs, tally)
+}
+
+// The cache record for one unit under one key. Built in one place because this name IS a verdict's
+// identity: two units whose stems collide answer for each other, which assignStems refuses outright.
+func (g *gate) recordPath(u unit, key string) string {
+	return filepath.Join(g.cache, u.stem+"."+key)
 }
 
 // Whether this unit already has a green record for exactly these inputs.
 func (g *gate) hasRecord(u unit, key string) bool {
-	_, err := os.Stat(filepath.Join(g.cache, u.stem+"."+key))
+	_, err := os.Stat(g.recordPath(u, key))
 	return err == nil
 }
 
 // The run's own summary and its exit code. Split out so the loop above ends at the last unit's
 // line, and so every counter reaches one place that decides what they mean together.
-func (g *gate) reportRun(started time.Time, deferredIDs []string,
-	ran, fresh, deferred, failed, unmeasured, empty int) int {
+func (g *gate) reportRun(started time.Time, deferredIDs []string, tally runTally) int {
 	if len(deferredIDs) > 0 {
 		fmt.Fprintln(g.out, "\nDEFERRED — these have inputs that moved, and the fast path did not run them:")
 		for _, id := range deferredIDs {
@@ -256,25 +272,26 @@ func (g *gate) reportRun(started time.Time, deferredIDs []string,
 	}
 
 	fmt.Fprintf(g.out, "\n%d unit(s): %d ran, %d fresh from cache, %d deferred, %d failed, %d that never measured, %d with no inputs, %ds wall clock\n",
-		len(g.units), ran, fresh, deferred, failed, unmeasured, empty, int(time.Since(started).Round(time.Second).Seconds()))
+		len(g.units), tally.ran, tally.fresh, tally.deferred, tally.failed, tally.unmeasured, tally.empty,
+		int(time.Since(started).Round(time.Second).Seconds()))
 
 	// A unit that resolved to nothing outranks everything: the gate does not know what it did not look
 	// at, so it may not call the run clean, and it may not call it a failure of the code either.
-	if empty > 0 {
-		fmt.Fprintf(g.errOut, "%d unit(s) resolved to no input file — the gate narrowed itself and cannot report on them. Exit 2, and this is not a pass.\n", empty)
+	if tally.empty > 0 {
+		fmt.Fprintf(g.errOut, "%d unit(s) resolved to no input file — the gate narrowed itself and cannot report on them. Exit 2, and this is not a pass.\n", tally.empty)
 		return 2
 	}
-	if ran == 0 && fresh == 0 {
+	if tally.ran == 0 && tally.fresh == 0 {
 		fmt.Fprintln(g.errOut, "nothing was measured and nothing was answered from cache — exit 2, and this is not a pass.")
 		return 2
 	}
 	// A finding about the code outranks one about the machine. Exit 2 alone means nothing was found
 	// wrong and something never ran, which a caller may never read as a pass.
-	if failed > 0 {
+	if tally.failed > 0 {
 		return 1
 	}
-	if unmeasured > 0 {
-		fmt.Fprintf(g.errOut, "%d unit(s) exited 2 without measuring — nothing is known about them, and this is not a pass.\n", unmeasured)
+	if tally.unmeasured > 0 {
+		fmt.Fprintf(g.errOut, "%d unit(s) exited 2 without measuring — nothing is known about them, and this is not a pass.\n", tally.unmeasured)
 		return 2
 	}
 	return 0
@@ -293,12 +310,8 @@ func (g *gate) execute(u unit) (output string, note string, status int) {
 	case "@gotest":
 		return g.runGotest()
 	}
-	cmd := exec.Command("sh", "-c", u.cmd)
-	cmd.Dir = g.root
-	var buf bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &buf, &buf
-	err := cmd.Run()
-	return buf.String(), "", exitCode(err)
+	out, err := runIn(g.root, "sh", "-c", u.cmd)
+	return out, "", exitCode(err)
 }
 
 func exitCode(err error) int {

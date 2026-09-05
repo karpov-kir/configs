@@ -233,7 +233,7 @@ func resolve(want string, env Env) (int, string, error) {
 		return level, "", nil
 	}
 	info, err := os.Stat(env.OverridePath)
-	if err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath) {
+	if err != nil || !info.Mode().IsRegular() || !isReadable(env.OverridePath) {
 		// Neutralised rather than refused, because the path carries `$XDG_CONFIG_HOME`, which its owner
 		// may legitimately hold.
 		return 0, "", fmt.Errorf("%s is not a readable file. Fix or remove it; skipping it would restore the tracked bar without saying so", shell.Oneline(env.OverridePath))
@@ -254,7 +254,7 @@ func resolve(want string, env Env) (int, string, error) {
 	return moved, shell.Oneline(note), nil
 }
 
-func readable(path string) bool {
+func isReadable(path string) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		return false

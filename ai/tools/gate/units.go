@@ -70,10 +70,8 @@ func (g *gate) unitsFromFile() int {
 	return 0
 }
 
-// The real unit table: the four Go checks, one unit per discovered shell suite, and one per mutated
-// file go-mutate lists.
-// The four checks over the Go module itself. Split from discoverUnits so a case can observe which
-// of them is blind to the module's test files without building go-mutate to get there.
+// The four checks over the Go module itself. Split from discoverUnits so a case can observe which of
+// them is blind to the module's test files without building go-mutate to get there.
 func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
@@ -94,6 +92,8 @@ func (g *gate) addGoChecks() {
 		"ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate")
 }
 
+// The real unit table: the four Go checks, one unit per discovered shell suite, and one per mutated
+// file go-mutate lists.
 func (g *gate) discoverUnits() int {
 	g.addGoChecks()
 
@@ -166,11 +166,11 @@ func (g *gate) discoverShellSuites() int {
 		// and one id over both is a cache record that cannot say whose verdict it holds — which is a
 		// discovery arm that refuses before anything runs.
 		name := strings.TrimSuffix(suite, "-test.sh")
+		addUnit := g.add
 		if viaBinary {
-			g.addBlindToGoTests("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
-			continue
+			addUnit = g.addBlindToGoTests
 		}
-		g.add("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
+		addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
 	}
 	return 0
 }
@@ -210,7 +210,7 @@ func (g *gate) discoverGoMutants() int {
 			return g.fail("the mutation harness listed %s with no resolved path, so the gate cannot say which file the unit is keyed on — nothing ran", file)
 		}
 		target := strings.TrimPrefix(strings.TrimPrefix(resolved, g.root), "/")
-		inputs := []string{target, "ai/tools/go-mutate/mutants.go", "ai/tools/go-mutate/main.go"}
+		inputs := []string{target, "ai/tools/go-mutate"}
 		for _, suite := range strings.Split(suites, ",") {
 			if suite == "" {
 				continue

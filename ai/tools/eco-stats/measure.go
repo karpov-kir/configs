@@ -198,8 +198,7 @@ func (s *stats) refuseUnreadable(errOut io.Writer, path string, err error) {
 // it is counted and named: dropped in silence it leaves the total short by an amount nothing here can
 // state.
 func (s *stats) wordsAcross(paths []string, errOut io.Writer) int {
-	words := 0
-	inWord := false
+	run := wordRun{}
 	buffer := make([]byte, 64<<10)
 	for _, path := range paths {
 		file, err := os.Open(path)
@@ -209,16 +208,7 @@ func (s *stats) wordsAcross(paths []string, errOut io.Writer) int {
 		}
 		for {
 			read, err := file.Read(buffer)
-			for i := 0; i < read; i++ {
-				if shell.IsSpaceByte(buffer[i]) {
-					inWord = false
-					continue
-				}
-				if !inWord {
-					words++
-					inWord = true
-				}
-			}
+			run.count(buffer[:read])
 			if err != nil {
 				// EOF is how a whole file ends; anything else stopped the read partway and left this
 				// file counted up to wherever it failed, which looks exactly like a shorter file.
@@ -230,7 +220,28 @@ func (s *stats) wordsAcross(paths []string, errOut io.Writer) int {
 		}
 		file.Close()
 	}
-	return words
+	return run.words
+}
+
+// The running count wordsAcross carries, held as one value because it must survive two boundaries the
+// loop above crosses — the end of a buffer and the end of a file — and wordsAcross states why neither
+// may reset it.
+type wordRun struct {
+	words    int
+	isInWord bool
+}
+
+func (w *wordRun) count(chunk []byte) {
+	for i := 0; i < len(chunk); i++ {
+		if shell.IsSpaceByte(chunk[i]) {
+			w.isInWord = false
+			continue
+		}
+		if !w.isInWord {
+			w.words++
+			w.isInWord = true
+		}
+	}
 }
 
 // `wc -w <file>` — the same count over one file, where nothing can glue onto it.

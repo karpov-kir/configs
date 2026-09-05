@@ -14,6 +14,10 @@ import (
 //
 // In process, because on a machine that charges for every exec, keying the gate would otherwise cost
 // more than several of the units it is deciding about.
+// What every arm below says when the union of declared inputs comes to nothing. One home, because the
+// three arms state one fact — the gate cannot tell a table that narrowed itself from a clean run.
+const noInputsRefusal = "not one input path resolved to a file — nothing ran"
+
 func (g *gate) buildManifest() int {
 	declared := map[string]bool{}
 	var patterns []string
@@ -32,7 +36,7 @@ func (g *gate) buildManifest() int {
 	args := append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, patterns...)
 	out, err := g.capture("git", args...)
 	if err != nil && out == "" {
-		return g.fail("not one input path resolved to a file — nothing ran")
+		return g.fail("%s", noInputsRefusal)
 	}
 	seen := map[string]bool{}
 	var paths []string
@@ -44,7 +48,7 @@ func (g *gate) buildManifest() int {
 		paths = append(paths, path)
 	}
 	if len(paths) == 0 {
-		return g.fail("not one input path resolved to a file — nothing ran")
+		return g.fail("%s", noInputsRefusal)
 	}
 	sort.Strings(paths)
 
@@ -67,7 +71,7 @@ func (g *gate) buildManifest() int {
 		g.manifest = append(g.manifest, manifestLine{hash: hash, path: path})
 	}
 	if len(g.manifest) == 0 {
-		return g.fail("not one input path resolved to a file — nothing ran")
+		return g.fail("%s", noInputsRefusal)
 	}
 	return 0
 }

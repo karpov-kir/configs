@@ -64,7 +64,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if rawStatus != strconv.Itoa(harnessDidNotMeasure) {
-		if !record(countFile, 0, stderr) {
+		if !wasRecorded(countFile, 0, stderr) {
 			return exitDidNotDecide
 		}
 		fmt.Fprintf(stdout, "%s reached the guards on this run (exit %s), so the did-not-measure count is back to 0.\n", harness, rawStatus)
@@ -72,7 +72,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	count := storedCount(countFile) + 1
-	if !record(countFile, count, stderr) {
+	if !wasRecorded(countFile, count, stderr) {
 		return exitDidNotDecide
 	}
 
@@ -111,9 +111,9 @@ func storedCount(countFile string) int {
 	return n
 }
 
-// Writes the count, or says why the next run will read stale history. Reported rather than returned
-// as an error because the caller has exactly one thing to do with it.
-func record(countFile string, count int, stderr io.Writer) bool {
+// Whether the count reached the file. Says why on stderr when it did not, and the next run then reads
+// stale history. A bool rather than an error because the caller has exactly one thing to do with it.
+func wasRecorded(countFile string, count int, stderr io.Writer) bool {
 	if err := os.WriteFile(countFile, []byte(strconv.Itoa(count)), 0o644); err != nil {
 		fmt.Fprintf(stderr, "nomeasure: could not write %s — the count is unchanged, so the next run reads stale history and this one proved nothing.\n", countFile)
 		return false

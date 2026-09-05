@@ -48,13 +48,13 @@ var mutants = []mutant{
 	// Only observable on a tree whose own committed path holds the marker wording, which is why the
 	// case builds that filename out of the constant.
 	{"report: notes told apart by their text", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if !line.isNote {", "if !strings.Contains(bounded, suppressedMarker) {"},
-	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
-	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
-	// crafted links hides them and the report reads clean of the very thing they exist to say.
 	// The head that keeps a finding's first bytes the checker's own. Removed, the finding leads with a
 	// basename two committed scripts share, joins whatever class that text matches, and takes the one
 	// line the floor reserves for it.
 	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandMismatch + c.scriptNamed(base) + \" accepts", "c.scriptNamed(base) + \" accepts"},
+	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
+	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
+	// crafted links hides them and the report reads clean of the very thing they exist to say.
 	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t\t{unreadDispatch, 2},\n", ""},
 	// Ranking on the whole line rather than its head: a crafted link target then carries a ranked
 	// phrase into a `dangling link:` finding and promotes the flood above what it is burying. The case
@@ -964,8 +964,8 @@ var mutants = []mutant{
 	// and is not a readable regular file", and either alone leaves the other's silent fallback
 	// unobserved.
 	{"score: an unreadable override falls back to the tracked bar", "../score/score.go", "./score/", "TestTheOverride",
-		`if err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath) {`,
-		`if (err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath)) && false {`},
+		`if err != nil || !info.Mode().IsRegular() || !isReadable(env.OverridePath) {`,
+		`if (err != nil || !info.Mode().IsRegular() || !isReadable(env.OverridePath)) && false {`},
 	{"score: an override that names no lane moves it anyway", "../score/score.go", "./score/", "TestTheOverride",
 		`if !named {`, `if !named && false {`},
 	// The tracked config is derived from argv0. Without the shape guard a bare `score.sh` resolves it
@@ -979,7 +979,7 @@ var mutants = []mutant{
 	// when a lane reached the real file through a merge and the fixture stayed behind — so the mutant
 	// re-creates that drift rather than disabling the comparison. Disabling it kills nothing while the
 	// two agree, which is the state the case exists to preserve.
-	{"score: the fixture drifts a lane behind the tracked config", "../score/score_test.go", "./score/", "TestTheFixtureRulesTheSameLanesAsTheTrackedConfig",
+	{"score: the fixture drifts a lane behind the tracked config", "../score/harness_test.go", "./score/", "TestTheFixtureRulesTheSameLanesAsTheTrackedConfig",
 		"record-entry   cut <= 7\n", ""},
 
 	{"density: the ratio bar becomes strictly greater", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
@@ -1074,9 +1074,9 @@ var mutants = []mutant{
 		"return strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0",
 		"return strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0 || true"},
 	{"nomeasure: a count file that would not take the write is reported as counted", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountFileThatWillNotTakeTheWriteDecidesNothing",
-		"if !record(countFile, count, stderr) {", "if !record(countFile, count, stderr) && false {"},
+		"if !wasRecorded(countFile, count, stderr) {", "if !wasRecorded(countFile, count, stderr) && false {"},
 	{"nomeasure: a reset that would not take the write is reported as measured", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountFileThatWillNotTakeTheWriteDecidesNothing",
-		"if !record(countFile, 0, stderr) {", "if !record(countFile, 0, stderr) && false {"},
+		"if !wasRecorded(countFile, 0, stderr) {", "if !wasRecorded(countFile, 0, stderr) && false {"},
 	{"nomeasure: a status with no count file picks a path instead of refusing", "../nomeasure/nomeasure.go", "./nomeasure/", "TestTheArmsThatDecideNothing",
 		"if len(args) < 2 || args[0] == \"\"", "if len(args) < 1 || args[0] == \"\""},
 
@@ -1103,9 +1103,6 @@ var mutants = []mutant{
 		"\tcase strings.Contains(text, \"mktemp -d\"):\n\t\treturn true", "\tcase true:\n\t\treturn true"},
 	{"scratch: the no-scratch marker stops exempting", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		"\tcase strings.Contains(text, noScratchMarker):\n\t\treturn true", "\tcase strings.Contains(text, noScratchMarker) && false:\n\t\treturn true"},
-	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim
-	// about ANOTHER package. Both halves get a mutant: the flag itself, and the check that eco-check
-	// still behaves the way the flag assumes.
 	// Help is an answer, not a run. Returning 0 from the parser said "these arguments are fine", so
 	// help printed and then the whole gate ran, recording verdicts for a caller who asked what the
 	// flags were.
@@ -1120,6 +1117,9 @@ var mutants = []mutant{
 	{"gate: the -z flag dropped from discovery", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
 		`"ls-files", "-z",`, `"ls-files",`},
 
+	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim
+	// about ANOTHER package. Both halves get a mutant: the flag itself, and the check that eco-check
+	// still behaves the way the flag assumes.
 	{"gate: wiring keyed on the module's test files again", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.addBlindToGoTests("wiring"`, `g.add("wiring"`},
 	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",

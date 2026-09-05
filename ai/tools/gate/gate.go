@@ -122,8 +122,9 @@ func Run(args []string, env Env, out, errOut io.Writer) int {
 }
 
 // The flags this accepts, in one place. ai/gate.sh's own header quotes it, and
-// `TestTheStubDocumentsTheUsageItsBinaryPrints` in ../stub_usage_test.go is what holds the two
-// together.
+// `TestTheGateStubDocumentsTheUsageItsBinaryPrints` in cli_test.go is what holds the two together.
+// Not the similarly named case in ../stub_usage_test.go: that one reads check.sh against eco-check
+// and says nothing about this line.
 const usageLine = "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]"
 
 func (g *gate) fail(format string, a ...any) int {

@@ -76,10 +76,9 @@ func hasField(fields []string, want string) bool {
 //
 // Read from the Go source, which is where those invocations live now.
 func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
-	const source = "gate/run.go"
-	body, err := os.ReadFile(source)
+	body, err := os.ReadFile(gateSource)
 	if err != nil {
-		t.Fatalf("reading %s: %v", source, err)
+		t.Fatalf("reading %s: %v", gateSource, err)
 	}
 	var found int
 	for _, line := range strings.Split(string(body), "\n") {
@@ -90,13 +89,13 @@ func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
 		}
 		found++
 		if !strings.Contains(trimmed, "-timeout") {
-			t.Errorf("%s runs the Go suite with no -timeout: %s", source, trimmed)
+			t.Errorf("%s runs the Go suite with no -timeout: %s", gateSource, trimmed)
 		}
 	}
 	// Zero invocations means this case is holding nothing to account — the runner moved, or the suite
 	// did, and either way the assertion above passed over nothing.
 	if found == 0 {
-		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", source)
+		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", gateSource)
 	}
 }
 
@@ -172,29 +171,13 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 			"retire this case deliberately — do not leave it green over nothing.", gateSource)
 	}
 
-	entries, err := os.ReadDir(workflowsDir)
-	if err != nil {
-		t.Fatalf("reading %s: %v", workflowsDir, err)
-	}
-
 	checked := 0
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join(workflowsDir, entry.Name()))
-		if err != nil {
-			t.Fatalf("reading %s: %v", entry.Name(), err)
-		}
-		step, ok := gateStep(string(body))
-		if !ok {
-			continue
-		}
+	for name, step := range gateSteps(t) {
 		bounds := goTestBounds(step)
 		if len(bounds) == 0 {
 			t.Errorf("the Gate step in %s runs no `go test`, so whatever it gates is not this module's "+
 				"suite. Either the step lost its command or this case is looking at the wrong step.",
-				entry.Name())
+				name)
 			continue
 		}
 		for i, bound := range bounds {
@@ -204,11 +187,11 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 				t.Errorf("`go test` invocation %d in %s's Gate step carries no -timeout, so Go's 10m "+
 					"default applies there while %s uses %s. eco-report alone has been measured past 10m "+
 					"on a loaded runner, and overrunning prints a goroutine dump that reads as a hang "+
-					"rather than a slow pass.", i+1, entry.Name(), gateSource, want)
+					"rather than a slow pass.", i+1, name, gateSource, want)
 			case bound != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
 					"goSuiteTimeout to %s — the two drifted, so the same suite is bounded differently "+
-					"depending on who runs it.", i+1, entry.Name(), bound, gateSource, want)
+					"depending on who runs it.", i+1, name, bound, gateSource, want)
 			}
 		}
 	}
