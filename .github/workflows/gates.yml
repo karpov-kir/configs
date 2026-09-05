@@ -86,106 +86,61 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/gate.sh states at gotest_timeout. The two have
-          # to match.
+          # -timeout, and this value, for the reason ai/tools/gate/run.go states at goSuiteTimeout.
+          # The two have to match.
           go test -count=1 -timeout 30m ./...
 
-  # Proves the shell suites' cases can actually fail. ai/run-tests.sh cannot cover this — it discovers
-  # `*-test.sh` and the harness is not one — so without this job, editing a guard retires the proof
+  # Proves the guards can actually fail. `ai/run-tests.sh` cannot cover this — it discovers `*-test.sh`
+  # and the mutation harnesses are not suites — so without this job, editing a guard retires the proof
   # that its case can redden and nothing says so.
   #
-  # No -j: the harness defaults to twice the cores, which adapts to whatever runner it lands on.
   # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.
+  #
+  # This job used to run `ai/shell-mutate.sh` and pass its status to `ai/nomeasure-count.sh`, which
+  # held a count of did-not-measure runs across runs and escalated from warn to fail once they stopped
+  # being weather. Both scripts went when the shell harnesses moved to Go, and the invocations stayed:
+  # each exited 127, this step fell through to its own "did not decide" arm, and the job failed on
+  # every push. What replaced the harness is `ai/gate.sh --mutants`. Nothing replaced the count, and it
+  # is not rebuilt here — so a runner slow enough to never measure now warns on every run and never
+  # escalates. That is a real guard lost, named rather than left to be discovered.
   mutants:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      # What gives a stateless job a running count: each attempt writes its own entry under a key
-      # unique to it, and the next run restores the newest entry under the prefix. The count itself,
-      # and what it decides, are `ai/nomeasure-count.sh`'s. It lives in $HOME rather than the
-      # workspace, having no business in the checkout `shell-mutate.sh` runs the real suites against.
-      #
-      # `run_attempt` is in the key and not only `run_id`, because a re-run carries the same run_id and
-      # `actions/cache/save` will not overwrite a key that already exists. A re-run that finally
-      # measured would leave the previous attempt's count in the cache, and the escalation to exit 1
-      # would outlive the history that earned it, failing the job over runs that did measure.
-      #
-      # The ref is in the key so a run can only escalate on its own history. GitHub lets a pull-request
-      # restore reach the base branch's caches and the default branch's, so without it a PR would
-      # restore main's count and fail over a chain of runs that were never its own. `github.ref_name`
-      # is `<number>/merge` on a pull request, so what a PR accumulates is that PR's. The hole left is
-      # a ref whose name begins with another's plus a hyphen: with these triggers, a manual dispatch
-      # on a branch named `main-…`, which would read main's count.
-      #
-      # Entries are evicted after 7 days, so the count is recent history rather than the repository's.
-      - name: Restore the did-not-measure count
-        uses: actions/cache/restore@v4
+      - uses: actions/setup-go@v6
         with:
-          path: ~/mutants-nomeasure
-          key: mutants-nomeasure-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: mutants-nomeasure-${{ github.ref_name }}-
+          go-version-file: ai/tools/go.mod
+          cache: false
 
-      # Exit 2 is the harness reporting that a loaded machine killed mutants on its watchdog, not that
-      # a guard failed to redden; its own header says not to read those as findings. So this warns
-      # loudly and passes rather than turning machine load into a code defect — which is how a gate
-      # gets `|| true`'d and stops gating. Exit 1, a guard that did not redden, fails.
+      # The gate already separates the two answers this job has to tell apart, so nothing here
+      # reinterprets them: exit 1 is a guard that did not redden, and exit 2 is a unit that did not run
+      # at all — a mutation suite the watchdog killed on a loaded runner, which says nothing about the
+      # guard it names. Reporting load as a code defect is how a gate gets `|| true`'d and stops
+      # gating, so 2 warns and passes.
       #
-      # What a status does to the count, what a garbage count means and where the escalation sits are
-      # `ai/nomeasure-count.sh`'s, case by case in `nomeasure-count-test.sh`. What stays here is what
-      # only CI can do: run the harness, and put the verdict in the annotation and the step summary.
+      # The warning goes to the step summary as well as the annotation. An annotation alone lives
+      # inside a log fold, and a job that warns-and-passes on a permanently slow runner would never
+      # measure and never say so — a green tick over a thing never reached.
       - name: Prove the guards can fail
         run: |
           set +e
-          ai/shell-mutate.sh
+          ai/gate.sh --mutants
           status=$?
-          note="$(ai/nomeasure-count.sh "$status" "$HOME/mutants-nomeasure")"
-          verdict=$?
           set -e
 
-          if [ "$verdict" -eq 0 ]; then
+          if [ "$status" -ne 2 ]; then
             exit "$status"
           fi
 
-          # An annotation alone lives inside a log fold, and a job that warns-and-passes on a
-          # permanently slow runner would never measure and never say so — a green tick over a
-          # thing never reached. The step summary puts it on the run's face instead.
-          if [ "$verdict" -eq 1 ]; then
-            echo "::warning::$note"
-            {
-              echo "### :warning: guards unproven on this run"
-              echo
-              echo "$note"
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
+          note="a mutation unit exited 2 without measuring, so this run says nothing about the guards it names. The reason is in this step's log."
+          echo "::warning::$note"
+          {
+            echo "### :warning: guards unproven on this run"
+            echo
+            echo "$note"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$verdict" -eq 3 ]; then
-            echo "::error::$note"
-            {
-              echo "### :x: guards unproven, and no longer weather"
-              echo
-              echo "$note"
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-          # Every verdict the script defines is handled above, so this arm is reached only when it did
-          # not decide: its own exit 2, or a 126/127 from a file that is missing or not executable.
-          # Falling through to the warn arm would pass the job on an empty note, which is the green
-          # tick over nothing this counter exists to stop.
-          echo "::error::nomeasure-count.sh exited $verdict without deciding, so this run says nothing about the guards and nothing about the count. The reason is in this step's log."
-          exit 1
-
-      # `always()`, or a run that escalates to exit 1 never saves the count that escalated and the
-      # next run starts from the entry before it — the counter would reset itself exactly when it
-      # first mattered.
-      - name: Save the did-not-measure count
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: ~/mutants-nomeasure
-          key: mutants-nomeasure-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
   # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file

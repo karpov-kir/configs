@@ -992,8 +992,8 @@ var mutants = []mutant{
 		"if isBinary(body) {", "if false {"},
 }
 
-// A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same
-// situation and this is its Go twin, down to the vocabulary: a guard whose triggering condition an
+// A mutant no case can redden, and why. The shell harness carried the same idea under the same name
+// until it moved to Go, and the vocabulary came with it: a guard whose triggering condition an
 // earlier guard already refuses cannot be observed from outside, and a mutation of it that changes
 // nothing observable cannot be killed by any case anyone could write.
 //
