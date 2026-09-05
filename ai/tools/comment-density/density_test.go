@@ -1,10 +1,6 @@
-// Cases for the comment-density detector. The one that must not be weakened is "a path argument is
-// refused with exit 2, never scanned": `git diff <path>` is legal and diffs against the index, so a
-// path that is quietly accepted scans the wrong change set and exits 0 — indistinguishable from a
-// clean tree, and the whole point of the tool is lost silently.
-//
-// Every case runs in this process against a throwaway repository copied from one seed, so the suite
-// costs the seed's six git processes plus two per scan rather than a process per case.
+// Cases for the comment-density detector. Don't weaken "a path argument is refused with exit 2, never
+// scanned": `git diff <path>` is legal and diffs against the index, so a path quietly accepted scans
+// the wrong change set and exits 0 — indistinguishable from a clean tree.
 package density
 
 import (
@@ -19,7 +15,6 @@ func TestAnUnchangedTree(t *testing.T) {
 	r.expectCode(0)
 	r.expectNoStdout()
 	r.expectStderrHas("0 file(s) reached the scan")
-	// The denominator is what tells "nothing was comment-heavy" from "nothing was read".
 	r.expectStderrHas("says nothing about the change set")
 
 	r.run()
@@ -47,7 +42,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.run("HEAD")
 		r.expectCode(0)
 		r.expectNoStdout()
-		// The file was read all the same, so this run is not one that read nothing.
 		r.expectStderrHas("1 file(s) reached the scan, 1 with countable added lines")
 		r.expectStderrLacks("says nothing about the change set")
 	})
@@ -77,7 +71,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r := newRepo(t)
 		r.write("over.go", "package fixture\n")
 		r.commit("base")
-		// 7 of 20 is 0.35.
 		r.write("over.go", heavy(7, 13))
 		r.run("HEAD")
 		r.expectCode(1)
@@ -106,7 +99,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.expectCode(0)
 	})
 
-	// Blank added lines are neither comment nor code, so they must not dilute the ratio into a pass.
 	t.Run("blank added lines do not dilute the ratio", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("blanks.go", "package fixture\n")
@@ -114,7 +106,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r.write("blanks.go", "// a\n// b\n// c\n// d\n// e\n\n\n\n\n\n\n\n\n\n\ny := 1\n")
 		r.run("HEAD")
 		r.expectCode(1)
-		// Five comments, one code — the ten blanks counted as neither.
 		r.expectStdoutHas("5 comment / 1 code added lines (0.83)")
 	})
 }
@@ -126,7 +117,6 @@ func TestTheCommentForms(t *testing.T) {
 	r.write("forms.go", "// line\n/* block\n * star\n */\n# hash\n   // indented\nreal := 1\n")
 	r.run("HEAD")
 	r.expectCode(1)
-	// Six comment forms, and the code line the only one counted as code.
 	r.expectStdoutHas("6 comment / 1 code added lines")
 }
 
@@ -152,8 +142,6 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r.run()
 	r.expectCode(0)
 	r.expectNoStdout()
-	// The denominator separates reached from countable: seven files were opened and none of them held
-	// a line this tool counts.
 	r.expectStderrHas("7 file(s) reached the scan, 0 with countable added lines")
 }
 
@@ -163,9 +151,8 @@ func TestATwoRevisionRangeIsScanned(t *testing.T) {
 	r.commit("base")
 	r.write("ranged.go", heavy(8, 1))
 	r.commit("dense")
-	// Untracked, comment-heavy, and in neither of the two commits the caller named. The untracked half
-	// runs only with no revisions, and this file is the only thing here that can show it staying out:
-	// with nothing untracked in the fixture, that half running anyway moves no assertion in this case.
+	// Untracked, comment-heavy, and in neither commit the caller named — the only thing here that can
+	// show the untracked half staying out. Delete it and this case stops testing that.
 	r.write("stray.go", heavy(9, 1))
 	r.run("HEAD~1..HEAD")
 	r.expectCode(1)
@@ -174,8 +161,6 @@ func TestATwoRevisionRangeIsScanned(t *testing.T) {
 	r.expectStderrHas("1 file(s) reached the scan")
 }
 
-// A suppressed outlier is announced, never dropped — which holds only while the cap on the loop and
-// the one in the announcement stay the same number.
 func TestPastTheDisplayCap(t *testing.T) {
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")
@@ -205,16 +190,13 @@ func TestAStagedChangeIsStillReported(t *testing.T) {
 	r.expectStdoutHas("staged.go")
 }
 
-// A threshold that does not parse is a scan that did not run, never one against the default.
 func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	cases := []struct{ name, key, value string }{
 		{"a ratio that is not a number", "COMMENT_MAX_RATIO", "junk"},
 		{"a floor that is not a whole number", "COMMENT_MIN_LINES", "2.5"},
 		{"a byte cap that is not a whole number", "DENSITY_MAX_FILE_BYTES", "big"},
-		// Values that parse and mean nothing. dup-literals refuses the same shapes on its own two
-		// variables; without these three the ratio bar can be set past 1, where nothing is ever an
-		// outlier, and the byte cap can go negative, where every untracked file is skipped unread and
-		// the run still exits 0.
+		// Values that parse and mean nothing. Without these three the ratio bar can be set past 1, where
+		// nothing is ever an outlier, and the byte cap can go negative, skipping every untracked file.
 		{"a ratio above the share it measures", "COMMENT_MAX_RATIO", "1.5"},
 		{"a negative ratio, under which every file is an outlier", "COMMENT_MAX_RATIO", "-0.1"},
 		{"a floor no file can fall under", "COMMENT_MIN_LINES", "0"},
@@ -267,10 +249,8 @@ func TestTheReportIsOrdered(t *testing.T) {
 }
 
 // Refusing what does not parse is half the contract; the other half is that what DOES parse moves the
-// bar. An override read, parsed and then dropped leaves every refusal case above green while the scan
-// runs against a default nobody chose — the same silent-default hole, reached from the other side.
-// Each case asserts the value ConfigFromEnv returns AND the scan's answer under it, because a Config
-// nothing scans with is a struct rather than a threshold.
+// bar. Each case asserts the value ConfigFromEnv returns AND the scan's answer under it: a Config
+// nothing scans with is a struct, not a threshold.
 func TestAThresholdOverrideTakesEffect(t *testing.T) {
 	only := func(key, value string) func(string) (string, bool) {
 		return func(asked string) (string, bool) {

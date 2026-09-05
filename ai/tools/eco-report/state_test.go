@@ -174,9 +174,6 @@ func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {
 	f.runReport("state")
 	f.assertRefused("state refuses rather than answering no-report with two ships open")
 	f.record("and no-report appears nowhere in what it printed", !strings.Contains(f.out, "no-report"), "")
-
-	// Stream separation is not asserted here. TestAnOverrideMovesTheRootAndSaysSo owns it: it asserts
-	// `state` prints one bare token on stdout while the override note goes to stderr.
 }
 
 func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {

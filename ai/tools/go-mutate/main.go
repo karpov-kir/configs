@@ -36,6 +36,20 @@ import (
 // matter are the mismatches: an undeclared survivor is a finding, and a declared one that got killed
 // is a stale declaration. Answered here so a case can reach every arm; reached only from main, it would
 // take a full mutation run to observe one.
+// The two verdicts that say nothing about the guard the mutant names: a suite the watchdog stopped,
+// and a mutant this machine could not set up to run at all. Both are counted apart from findings,
+// because a run that never happened is not evidence that the code is sound or that it is broken.
+const (
+	timedOut = "TIMED OUT"
+	noSetup  = "NO SETUP"
+)
+
+// A mutant that never reached a suite, carrying why. The error is the evidence: without it the reader
+// sees a mutant that measured nothing and no way to tell a full disk from a moved source file.
+func notSetUp(at time.Time, err error) result {
+	return result{verdict: noSetup, elapsed: time.Since(at), evidence: err.Error()}
+}
+
 func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 	switch {
 	case verdict == "killed" && !isDeclared:
@@ -46,10 +60,11 @@ func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 		return "unreachable", false
 	}
 	// A suite that never finished says nothing about the guard either way, so it is neither a finding
-	// nor an excuse — the caller counts it apart and exits 2, which is the reading a watchdog kill has
-	// always been given here.
-	if verdict == "TIMED OUT" {
-		return "TIMED OUT", false
+	// nor an excuse. Neither does a mutant the harness could not set up: a temp dir it could not make
+	// or a source it could not read is this machine failing, and reporting it as a guard that did not
+	// redden names the code for something nothing in the code did.
+	if verdict == timedOut || verdict == noSetup {
+		return verdict, false
 	}
 	// Everything else is a finding whatever was declared: `broken` says the mutant never built, and a
 	// declaration is about a guard being unobservable, never about the edit failing to compile.
@@ -84,10 +99,8 @@ func suitesNamed(list []mutant) []string {
 
 // The baseline run's argv after `go`.
 //
-// `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout 30m` because
-// this runs whole suites, not one filtered test, and eco-report's alone runs past Go's 10m default on
-// a loaded machine — overrunning it panics, and main reads that non-zero exit as a suite that does not
-// pass unmutated, printing BASELINE RED for what was machine load.
+// `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout` because
+// dropping it hands the baseline Go's own 10m default instead of `suiteTimeout`.
 //
 // It is a function so main_test.go can pin both flags: each fails silently when absent, and nothing
 // else in the harness would catch one going.
@@ -160,10 +173,17 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 	return stale
 }
 
-// How long a suite gets before the run is read as not having happened. Explicit, because `go test`
-// otherwise applies its own 10m default and eco-report has been measured at 603s — over the line on a
-// loaded machine. Generous on purpose: this bounds a hang, it does not police a slow suite.
-const suiteTimeout = "20m"
+// The bound on every `go test` this harness spawns — the baseline over each suite in scope, and each
+// mutant's own run. Explicit, because `go test` otherwise applies its own 10m default, and eco-report
+// alone has been measured as long as 23 minutes on a loaded machine.
+//
+// Do not tighten it to catch load. A mutant that runs past this reads as "did not measure", which
+// says nothing about the guard it names. A baseline that runs past it prints BASELINE RED, which
+// reports machine load as a suite that fails unmutated.
+//
+// `goSuiteTimeout` in `ai/tools/gate/run.go` holds the same number and not the same fact: that one
+// bounds each test binary in the gate's own suite run.
+const suiteTimeout = "30m"
 
 // What one suite run says about the guard the mutant removed. The four answers print in the same
 // column, so telling them apart is the whole of what this harness reports: a mutant that never built
@@ -239,13 +259,13 @@ func run(pkgDir string, m mutant, runFilter string) result {
 	at := time.Now()
 	work, err := os.MkdirTemp("", "gomutate")
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	defer os.RemoveAll(work)
 
 	realPath, source, matches, err := m.anchor(pkgDir)
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	if matches != 1 {
 		return result{verdict: fmt.Sprintf("anchor x%d", matches), elapsed: time.Since(at)}
@@ -254,11 +274,11 @@ func run(pkgDir string, m mutant, runFilter string) result {
 	// outside the temp dir. Each mutant has its own work dir, so two basenames cannot collide.
 	mutated := filepath.Join(work, filepath.Base(m.file))
 	if err := os.WriteFile(mutated, []byte(strings.Replace(source, m.from, m.to, 1)), 0o644); err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	overlay, err := writeOverlay(work, realPath, mutated)
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 
 	cmd := exec.Command("go", mutantArgs(m, overlay, runFilter)...)
@@ -311,9 +331,9 @@ func selectByFile(list []mutant, names string) (selected []mutant, unmatched []s
 
 // One line per mutated file: the file, the suites its mutants name, and how many there are. Built
 // from the list rather than restated anywhere else — a second copy of this mapping is a second thing
-// to go stale when a mutant moves. This is the whole of what a caller scopes on — `ai/gate.sh` builds
-// one unit per line — so a file dropped here is a mutation unit that silently stops existing, which
-// is the narrowing that harness exists to refuse.
+// to go stale when a mutant moves. This is the whole of what a caller scopes on — `discoverGoMutants`
+// in `ai/tools/gate/units.go` builds one unit per line — so a file dropped here is a mutation unit
+// that silently stops existing, which is the narrowing that harness exists to refuse.
 func unitLines(list []mutant, pkgDir string) []string {
 	var files []string
 	suites := map[string][]string{}
@@ -331,8 +351,8 @@ func unitLines(list []mutant, pkgDir string) []string {
 	for _, file := range files {
 		// The resolved path of the mutated file is the fourth column, because the caller cannot derive
 		// it: `file` is relative to the package this harness is pointed at, and that base lives here.
-		// `ai/gate.sh` used to hardcode its own copy of it, which is the same mapping in two homes and
-		// a rename away from a gate that resolves nothing.
+		// A gate holding its own copy of that base is the same mapping in two homes, and a rename away
+		// from a gate that resolves nothing.
 		lines = append(lines, fmt.Sprintf("%s\t%s\t%d\t%s",
 			file, strings.Join(suites[file], ","), counts[file], filepath.Join(pkgDir, file)))
 	}
@@ -476,7 +496,7 @@ func report(selected []mutant, results []result) (bad, declared, unmeasured int)
 			if shown == "STALE CLAIM" {
 				fmt.Printf("                  a case reddens it, so it is no longer unreachable — drop the declaration, which says: %s\n", why)
 			}
-		case shown == "TIMED OUT":
+		case shown == timedOut, shown == noSetup:
 			unmeasured++
 			// The only place the suite's own words reach the log. Without them a reader auditing the
 			// run for manufactured kills can only infer from durations.
@@ -577,8 +597,8 @@ func main() {
 	fmt.Printf("%d mutation(s) run, %d not run (out of scope), %d that proved nothing, %d that never measured, %d declared unreachable, %.1fs wall clock\n",
 		len(selected), len(mutants)-len(selected), bad, unmeasured, declared, time.Since(started).Seconds())
 	// A finding about the code outranks one about the machine. Exit 2 alone means nothing was found
-	// wrong and something never ran, which a caller may never read as a pass — `ai/gate.sh` maps it to
-	// NO MEASURE for exactly that.
+	// wrong and something never ran. A caller may never read that as a pass: `ai/tools/gate/run.go`
+	// maps it to NO MEASURE for exactly that.
 	if bad > 0 {
 		os.Exit(1)
 	}

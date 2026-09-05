@@ -414,8 +414,8 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 	return f
 }
 
-// The note that rides a citation finding against a test harness. Why it exists, what rule it states
-// and what taking that rule costs are at citations.go → harnessCitationNote.
+// The note that rides a citation finding against a test harness. The rule it states is its own text,
+// at citations.go → harnessCitationNote; the cost of taking that rule is the third case below.
 //
 // This file writes its own citations out, because no scan reads a `.go` file. A shell suite covering
 // the same ground could not, which is the asymmetry that note answers.

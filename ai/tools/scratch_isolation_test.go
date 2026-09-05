@@ -1,13 +1,3 @@
-// The gate runs the shell lane beside `gotest`, and a suite on a fixed path would race whatever else
-// reaches for that path — a sibling if the lane is ever widened, or one of the Go suites now. The
-// failure would read as a flaky case rather than as a collision.
-//
-// `mktemp -d` is what gives each run a directory nothing else can name. This case holds every suite to
-// it, so nothing in this tree depends on being the only thing running.
-//
-// Sourcing counts: the two bootstrap suites take their scratch from lib/test-harness.sh, which mktemps
-// once for whichever suite sourced it. A suite that needs no scratch at all says so in a line this
-// reads, rather than being silently exempt — an exemption nobody has to state is one that spreads.
 package tools_test
 
 import (
@@ -43,8 +33,6 @@ func TestEveryShellSuiteOwnsItsScratch(t *testing.T) {
 	}
 }
 
-// Whether a suite's text shows it working in scratch of its own — directly, through a harness it
-// sources, or by declaring it needs none.
 func ownsScratch(t *testing.T, text string) bool {
 	t.Helper()
 	switch {
@@ -57,8 +45,6 @@ func ownsScratch(t *testing.T, text string) bool {
 	}
 }
 
-// The three shapes that pass and the one that does not. Without this the case above can only fail on
-// a real suite going wrong, so nothing proves it would notice.
 func TestWhatCountsAsOwningScratch(t *testing.T) {
 	for _, row := range []struct {
 		name  string
@@ -106,10 +92,9 @@ func sourcesAHarnessThatMktemps(t *testing.T, text string) bool {
 }
 
 // Every suite the gate would discover, from the same command it uses — `-z` and core.quotePath=false
-// included. Split on whitespace instead, a name holding a space arrives as two names and this scan
-// reads two files that do not exist, while the suite it was about goes unchecked. That is the same
-// hazard gate/units.go carries a mutant for, and the claim above is only true while both spell the
-// command the same way.
+// included. Split on whitespace instead, a name holding a space arrives as two names, this scan reads
+// two files that do not exist, and the suite it was about goes unchecked. gate/units.go carries a
+// mutant for that hazard, and this claim holds only while both spell the command the same way.
 func shellSuites(t *testing.T) []string {
 	t.Helper()
 	cmd := exec.Command("git", "-c", "core.quotePath=false", "ls-files", "-z",

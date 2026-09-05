@@ -1,14 +1,7 @@
-// The half two scanners share: turning a caller's arguments into the ADDED lines of a change set, and
-// counting what was and was not read while doing it.
-//
-// `comment-density` and `dup-literals` ask different questions of those lines — one classifies them,
-// the other compares them — but reach them the same way, and every subtlety in getting there is one a
-// second copy would drift on: which arguments are refused and why, the git flags that pin the diff's
-// shape, what counts as binary, and the anchor that stops a file's own content forging a header.
-//
-// The denominator is part of the contract, not decoration. An empty report at exit 0 means "nothing
-// matched" only when files actually reached the scan, and "nothing was read" when they did not — so
-// every caller gets Reached, SkippedUnread and BinaryLines back and must print them.
+// The half two scanners share: a caller's arguments turned into the ADDED lines of a change set, plus
+// a count of what was and was not read. `comment-density` classifies those lines, `dup-literals`
+// compares them. The denominator is contract, not decoration: callers get Reached, SkippedUnread and
+// BinaryLines and must print them, or an empty report at exit 0 cannot say whether anything was read.
 package diffscan
 
 import (
@@ -65,12 +58,10 @@ type AddedLine struct {
 	Line int
 }
 
-// RefuseNonRevisions rejects an argument that is a path or an option before any scan runs.
-//
-// `git diff <path>` is legal and diffs against the INDEX, so a path quietly accepted scans the wrong
-// change set and exits 0 — indistinguishable from a clean tree. `--output=` alone drains the diff into
-// a file, so the scan sees nothing and exits 0 over a real hit. Both are refused rather than skipped,
-// and refused before the scan rather than during it, so the tool fails closed.
+// RefuseNonRevisions rejects an argument that is a path or an option before any scan runs, so the tool
+// fails closed. `git diff <path>` is legal and diffs against the INDEX, so a path quietly accepted
+// scans the wrong change set and exits 0 — indistinguishable from a clean tree. `--output=` alone
+// drains the diff into a file, so the scan sees nothing and exits 0 over a real hit.
 func RefuseNonRevisions(args []string, cwd string) error {
 	for _, arg := range args {
 		if arg == "--" {
@@ -110,11 +101,6 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
 		"--text", "--src-prefix=a/", "--dst-prefix=b/",
 	}
-	// `--` separates revisions from pathspecs, and the two halves are not interchangeable here. Passed
-	// through whole, a caller writing `-- src/` had `--` counted as a revision, so HEAD was never
-	// appended and git diffed against the INDEX — every staged change dropped, exit 0, indistinguishable
-	// from a clean tree. That is the failure this package's header says it exists to prevent, and
-	// `--` with a pathspec is the form RefuseNonRevisions' own error text recommends.
 	named, paths := RevisionsNamed(revisions)
 	if len(named) == 0 {
 		args = append(args, "HEAD")
@@ -127,9 +113,6 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 	var out, errBuf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errBuf
 	if err := cmd.Run(); err != nil {
-		// git's own account, not just this package's summary of it: a bad revision, an unborn HEAD and a
-		// directory that is not a repository all reach here, and one sentence for the three sends a
-		// reader looking in the wrong place.
 		refusal := "git rejected these arguments — exit 2, the scan did NOT run. Not a clean result."
 		if reason := strings.TrimSpace(errBuf.String()); reason != "" {
 			refusal += "\n  git said: " + reason
@@ -139,13 +122,10 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// RevisionsNamed answers the revisions a caller named, and the `--` and pathspecs after it, kept
-// apart. Everything up to the first `--` is a revision; the separator and the rest travel to git
-// unchanged, so a path is never read as a commit and a commit is never read as a path.
-//
-// Exported because the callers need the same answer for a different question: whether to scan
-// untracked files. That turns on whether a REVISION was named, never on whether an argument was, and
-// two hand-rolled copies of this loop had already disagreed about it.
+// RevisionsNamed answers the revisions a caller named, and the `--` and pathspecs after it, kept apart:
+// everything up to the first `--` is a revision, and the separator and the rest travel to git unchanged.
+// Exported because both callers need the same answer for a different question — whether to scan
+// untracked files turns on whether a REVISION was named, never on whether an argument was.
 func RevisionsNamed(args []string) (named, paths []string) {
 	for i, arg := range args {
 		if arg == "--" {
@@ -155,15 +135,10 @@ func RevisionsNamed(args []string) (named, paths []string) {
 	return args, nil
 }
 
-// WalkDiff calls visit for every added line, attributing each to its file.
-//
-// `diff --git` is the anchor, never `+++` alone: every line in a diff BODY carries a `+`, `-` or space
-// prefix, so no file content can forge one. Without it an added line reading `++ b/other` arrives as
-// `+++ b/other`, reassigns the file, and every added line after it is counted against a file that is
-// not in the change.
-//
-// A line longer than MaxDiffLineBytes is a refusal, not a truncation: read short, the scan would carry
-// on over a diff it had not seen all of and report a clean tree.
+// `diff --git` is the anchor, never `+++` alone: every diff body line carries a `+`, `-` or space
+// prefix, so no file content can forge one. Without it an added `++ b/other` arrives as `+++ b/other`
+// and every line after it counts against a file not in the change. A line over MaxDiffLineBytes
+// refuses rather than truncates: read short, the scan reports a clean tree over a diff it cut short.
 func (r *Result) WalkDiff(diff []byte, visit func(AddedLine)) error {
 	file := ""
 	isAwaitingPath := false
@@ -268,11 +243,10 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 		}
 		r.Reached++
 		for i, line := range strings.Split(string(body), "\n") {
-			// A trailing \r is this line's ending, not its content. The diff arm reads through
-			// bufio.Scanner, whose line split strips it; this arm splits on "\n" itself, so without
-			// this the guard below reads the \r as a control byte and drops EVERY line of a CRLF
-			// file — while Reached has already counted the file, so the run reports a denominator it
-			// did not cover.
+			// A trailing \r is this line's ending, not its content. The diff arm reads through bufio.Scanner,
+			// whose line split strips it; this arm splits on "\n" itself, so without this the guard below
+			// reads the \r as a control byte and drops EVERY line of a CRLF file — while Reached has already
+			// counted the file, so the run reports a denominator it did not cover.
 			line = strings.TrimSuffix(line, "\r")
 			if hasControl(line) {
 				r.BinaryLines++

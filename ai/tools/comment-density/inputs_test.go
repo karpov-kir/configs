@@ -49,7 +49,6 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectCode(2)
 		r.expectStderrHas("git rejected these arguments")
 		r.expectStderrHas("Not a clean result")
-		// And not the path refusal: the argument was never a path.
 		r.expectStderrLacks("is a path, not a git-diff revision")
 		r.expectNoStdout()
 	})
@@ -85,8 +84,6 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectNoStdout()
 	})
 }
-
-// --- the diff shape it parses ---------------------------------------------------------------------
 
 // `diff --git` is the anchor, never `+++` alone: an added line reading `+++ b/other.go` would reassign
 // the file and every added line after it would be counted against a file that is not in the change.
@@ -137,8 +134,6 @@ func TestUntrackedFiles(t *testing.T) {
 		r.expectCode(1)
 		r.expectStdoutHas("fresh.go")
 
-		// With revisions the caller named two commits, and a file in neither is not what they asked
-		// about.
 		r.run("HEAD")
 		r.expectCode(0)
 		r.expectStdoutLacks("fresh.go")
@@ -176,12 +171,9 @@ func TestUntrackedFiles(t *testing.T) {
 }
 
 // A newline in a path corrupts nothing: the file is opened by name and its lines never become diff
-// text, so it is scanned like any other.
-//
-// It is still one report line per outlier. The name reaches the report through shell.Oneline, so the
-// newline arrives as a space: a report where the count of lines and the count of outliers disagree is
-// unreadable to the caller ranking them, and the second half of a split name reads as a record of its
-// own.
+// text. It is still one report line per outlier — the name reaches the report through shell.Oneline,
+// so the newline arrives as a space. A report whose line count and outlier count disagree is
+// unreadable to the caller ranking them, and half a split name reads as a record of its own.
 func TestANewlineInAPathIsNoLongerAHazard(t *testing.T) {
 	r := newRepo(t)
 	name := "odd\nname.go"

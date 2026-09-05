@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// What every arm below says when the union of declared inputs comes to nothing. One home, because the
-// three arms state one fact — the gate cannot tell a table that narrowed itself from a clean run.
 const noInputsRefusal = "not one input path resolved to a file — nothing ran"
 
 func (g *gate) buildManifest() int {
@@ -88,20 +86,10 @@ func linesUnder(manifest []manifestLine, paths []string) []manifestLine {
 	return out
 }
 
-// A Go test file, which `go build` never compiles into a binary.
-//
-// Matched on the path rather than on the package, because that is the whole of what the exclusion
-// claims: the file is one the toolchain leaves out of every binary. `_test.go` is the compiler's own
-// spelling of that, so this cannot drift away from what `go build` does.
 func isGoTestFile(path string) bool {
 	return strings.HasSuffix(path, "_test.go")
 }
 
-// One unit's key material: three header lines, then the sorted `<hash>  <path>` line per input file.
-//
-// A unit that reaches Go only through a compiled binary drops the module's test files here rather
-// than at discovery, so the narrowing is in one place and `--why` prints exactly what the key was
-// built from.
 func (g *gate) keyMaterial(u unit) (key string, lines []manifestLine) {
 	lines = linesUnder(g.manifest, u.inputs)
 	if u.blindToGoTests {
@@ -126,8 +114,8 @@ func (g *gate) changedSinceGreen(paths []string) bool {
 	recorded := filepath.Join(g.cache, "gotest.inputs")
 	body, err := os.ReadFile(recorded)
 	if err != nil {
-		// Nothing recorded means nothing to compare against, so every group counts as moved.
-		// Conservative in the only safe direction: it over-runs, it never skips.
+		// Nothing recorded means nothing to compare against, so every group counts as moved: it
+		// over-runs, and never skips.
 		return true
 	}
 	var was []manifestLine

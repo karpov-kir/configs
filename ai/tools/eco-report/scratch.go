@@ -71,12 +71,10 @@ func (r *run) cmdPromote() {
 		r.line("already committed — .idsd/ is tracked; nothing to promote")
 		r.exit(0)
 	}
-	// Before anything is written or verified. A repo that ran a throwaway ship under the old layout
-	// still carries a `.idsd/` rule in .git/info/exclude, and every step below reads the wrong answer
-	// through it: git ignores untracked files under .idsd/, so the `git add` stages nothing and exits 0,
-	// the mode check then refuses, and the message blames the human for having nothing durable to
-	// promote. The .gitignore verification is misled too — it reads info/exclude as the ignore source
-	// and refuses saying the entry did not take effect.
+	// Before anything is written or verified. A repo that ran a throwaway ship under the old layout still
+	// carries a `.idsd/` rule in .git/info/exclude, and every step below reads the wrong answer through
+	// it: `git add` stages nothing and exits 0, the mode check refuses, and the message blames the human
+	// for having nothing to promote — while the .gitignore verification reads info/exclude as the source.
 	r.removeStaleExclusion()
 
 	gitignore := r.root + "/.gitignore"
@@ -140,11 +138,9 @@ func (r *run) cmdPromote() {
 }
 
 // A refusal after the move puts the scratch back where it came from. Left in the tree it is the worst
-// of both states: the intents sit untracked in the working tree while the human has been told the
-// promotion did not happen, and the next `git add -A` picks up whatever .gitignore does not cover.
-//
-// The undo is the inverse rename, so it can only fail for a reason the forward move would have failed
-// for. If it does, say where the files actually are — that is the one thing the human needs.
+// of both states: the intents sit untracked while the human has been told the promotion did not
+// happen, and the next `git add -A` picks up whatever .gitignore does not cover. The undo is the
+// inverse rename, so if it fails, say where the files actually are — the one thing the human needs.
 func (r *run) refuseUnmoved(from, to string, lines ...string) {
 	if err := os.Rename(to, from); err != nil {
 		lines = append(lines, "  WARNING: the scratch was moved to "+to+" and could not be put back ("+err.Error()+").",
@@ -182,12 +178,10 @@ func (r *run) assertPromotionTargetIsClear(target string) {
 		"  one side's charter or playbook would silently win. Reconcile them by hand, then re-run.")
 }
 
-// The move itself. A rename, never a recursive copy: a copy has a half-done state, and the thing being
-// copied is in throwaway mode the only version of the human's intents anywhere.
-//
-// A rename cannot cross filesystems, and an override root legitimately can be on another volume. That
-// case refuses and hands the move to the human rather than growing a copier whose partial failures
-// this tool would then have to reason about.
+// The move itself. A rename, never a recursive copy: a copy has a half-done state, and in throwaway
+// mode the thing being copied is the only version of the human's intents anywhere. A rename cannot
+// cross filesystems, and an override root legitimately can be on another volume — that case refuses
+// and hands the move to the human rather than growing a copier with partial failures of its own.
 func (r *run) movePromotedScratch(target string) {
 	if err := os.MkdirAll(shell.DirName(target), 0o777); err != nil {
 		r.refuse("error: could not create " + shell.DirName(target) + " — not promoted, and nothing was moved.")

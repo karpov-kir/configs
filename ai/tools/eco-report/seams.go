@@ -5,11 +5,6 @@ import (
 	"strconv"
 )
 
-// The two recipes this tool reaches for rather than reimplements. Both are dangerous to get half
-// right. `todo-gate.sh` is spawned, and is located by the same rule the shell version used, so a
-// copied skill directory still resolves its own; the tree-fingerprint recipe is imported from
-// `ai/tools/tree-fingerprint/` and runs in process.
-
 // The open-item scan over this run's own report. 0 = nothing open, 1 = items on stdout, anything else
 // = the scan did not run, and its output is then empty — which read as "nothing open" would pass the
 // merge gate on a scan that never happened.
@@ -78,9 +73,6 @@ func (r *run) currentTree(errOut io.Writer) (string, bool) {
 			"  The recipe itself runs in process, from ai/tools/tree-fingerprint/; this guard is about the install being complete. There is deliberately no local fallback, because a second copy is what put untracked working files in .git/objects for good.")
 		return "", false
 	}
-	// In process, not spawned. The guard above still asks whether the shipped script is there and
-	// runnable, because that is a real property of the install and its absence is a deployment fault
-	// worth naming — but the recipe itself now runs here.
 	tree, err := r.fingerprint(r.root)
 	if err != nil || tree == "" {
 		reason := "returned no tree"

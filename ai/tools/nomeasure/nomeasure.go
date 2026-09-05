@@ -31,12 +31,8 @@ import (
 	"strings"
 )
 
-// Three, because two in a row on a shared runner is ordinary and three is not. Changing it changes
-// how long the gate stays green over unproven guards, so it lives here rather than in a workflow.
 const escalateAt = 3
 
-// The exit status the harness uses for "a loaded machine killed mutants before they measured". Every
-// other status means it reached the guards.
 const harnessDidNotMeasure = 2
 
 const (
@@ -46,8 +42,6 @@ const (
 	exitEscalated      = 3
 )
 
-// The name this tool reports the harness by. One constant because it appears in three messages, and a
-// harness rename that reached two of them would leave a CI annotation naming a tool nobody has.
 const harness = "go-mutate"
 
 func Run(args []string, stdout, stderr io.Writer) int {
@@ -85,15 +79,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 }
 
 // The history the count file holds, or zero where it holds anything this tool will not read as one.
-//
-// A stored count that does not parse starts the history over, so the run asking counts as the first.
-// What it must never do is carry on from the garbage.
-//
-// Ten digits or more is refused with the rest, and the length is what refuses it rather than any
-// arithmetic on the value. A count in that range is the one shape a parse cannot catch: anything past
-// int64 fails Atoi and resets on its own, but a stored 1234567890 parses cleanly, sits above the
-// threshold, and would fail the job for good over a number no run ever wrote. A real count never
-// leaves single figures.
+// A count that does not parse starts the history over rather than carrying on from the garbage. Ten
+// digits or more is refused by LENGTH, not by arithmetic: a stored 1234567890 parses cleanly, sits
+// above the threshold, and would fail the job for good over a number no run ever wrote.
 func storedCount(countFile string) int {
 	body, err := os.ReadFile(countFile)
 	if err != nil {
@@ -110,8 +98,6 @@ func storedCount(countFile string) int {
 	return n
 }
 
-// Whether the count reached the file. Says why on stderr when it did not, and the next run then reads
-// stale history.
 func wasRecorded(countFile string, count int, stderr io.Writer) bool {
 	if err := os.WriteFile(countFile, []byte(strconv.Itoa(count)), 0o644); err != nil {
 		fmt.Fprintf(stderr, "nomeasure: could not write %s — the count is unchanged, so the next run reads stale history and this one proved nothing.\n", countFile)

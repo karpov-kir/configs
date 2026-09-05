@@ -19,8 +19,6 @@ import (
 	"testing"
 )
 
-// --- the ordinary path ------------------------------------------------------------------------------
-
 func TestAUnitRunsAndIsThenFresh(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")
@@ -71,8 +69,6 @@ func TestAChangedCommandRunsAgainThoughItsInputsDidNot(t *testing.T) {
 	}
 }
 
-// --- a failure, and what must not be recorded ----------------------------------------------------------
-
 func TestAFailingUnitFailsTheGateAndRecordsNothing(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")
@@ -91,8 +87,6 @@ func TestAFailingUnitFailsTheGateAndRecordsNothing(t *testing.T) {
 		t.Errorf("the failing unit ran %d times over two runs, wanted 2 — a record was written for a failure", got)
 	}
 }
-
-// --- the exit-code vocabulary ---------------------------------------------------------------------------
 
 func TestAUnitExitingTwoIsNeverMeasuredRatherThanFailed(t *testing.T) {
 	f := newFixture(t)
@@ -143,8 +137,6 @@ func TestAFailureBesideAnUnmeasuredUnitExitsOne(t *testing.T) {
 	f.expectOut("NO MEASURE")
 }
 
-// --- the two refusals that outrank everything -------------------------------------------------------------
-
 // A rename or a typo silently narrowing the gate looks exactly like a clean run, which is why this is
 // treated as worse than a failure.
 func TestAUnitResolvingToNoFileExitsTwo(t *testing.T) {
@@ -174,9 +166,8 @@ func TestATableWhoseEveryInputIsMissingExitsTwoAndRunsNothing(t *testing.T) {
 
 // A path git still lists and the filesystem no longer has. It reaches further in than the case above:
 // the listing is not empty, so the refusal that fires is the manifest's own, and the run must stop
-// there. Both refusals exit 2, so the exit code alone cannot tell them apart — the wording is the
-// assertion. Past the manifest guard the unit resolves to no key material at all and is reported as
-// NO INPUTS, which names the table for a file the working tree lost.
+// there. Both refusals exit 2, so the wording is the assertion, not the exit code. Past the manifest
+// guard the unit resolves to no key material and is reported as NO INPUTS.
 func TestAnInputTrackedButGoneFromTheWorkingTreeStopsAtTheManifest(t *testing.T) {
 	f := newFixture(t)
 	f.write("gone.txt", "one\n")
@@ -213,8 +204,6 @@ func TestTwoIdsNamingOneCacheRecordExitTwo(t *testing.T) {
 	}
 }
 
-// --- an id that is not a filename -----------------------------------------------------------------------
-
 // Ids are package-qualified — `mutants:go:eco-check/shell.go` — and a `/` in one names a directory the
 // cache does not have, so every write for such a unit failed silently and `--mutants` reported a pass
 // having recorded nothing.
@@ -233,8 +222,6 @@ func TestAnIdHoldingASlashStillRecords(t *testing.T) {
 		t.Errorf("the unit ran %d times, wanted 1 — its record did not stick", got)
 	}
 }
-
-// --- the modes ------------------------------------------------------------------------------------------
 
 func TestTheFastPathDefersMutationAndMutantsSettlesIt(t *testing.T) {
 	f := newFixture(t)
@@ -300,13 +287,10 @@ func TestFullRunsAgainOverUnchangedInputsAndDropsTheRecordWhenItFails(t *testing
 	f.expectOut("FAILED")
 }
 
-// The case above cannot see the record being dropped, and neither could anything else here: it moves
-// the COMMAND to turn the unit red, and the command is part of the key, so the second run misses the
-// green record rather than finding it removed. Every guard is still green with the removal deleted.
-//
-// So the unit's verdict turns on a file that is not one of its declared inputs. The key then holds
-// still across all three runs, the green record from the first is the one the third would answer out
-// of, and the removal is the only thing standing between a FAILED run and a clean gate over it.
+// The case above cannot see the record being dropped: it moves the COMMAND to turn the unit red, and
+// the command is part of the key, so the second run misses the green record rather than finding it
+// removed. So this unit's verdict turns on a file that is not a declared input: the key holds still
+// across all three runs, and the removal is the only thing between FAILED and a clean gate over it.
 func TestAFailingRunDropsTheGreenRecordItAlreadyHad(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")

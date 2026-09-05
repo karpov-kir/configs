@@ -84,7 +84,6 @@ func (f *fixture) runAs(digest string, args ...string) {
 	}, &f.stdout, &f.stderr)
 }
 
-// Commit whatever is in the fixture tree, so a later deletion reads as tracked-but-gone.
 func (f *fixture) commit() {
 	f.t.Helper()
 	for _, args := range [][]string{{"add", "-A"}, {"commit", "-qm", "seed"}} {
