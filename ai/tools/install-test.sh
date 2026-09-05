@@ -46,6 +46,7 @@ expect_eq() {
 # the fixture broke first, while its name claims the cause. The needle has to be wording no other
 # refusal shares. `command not found` is a stripped PATH killing the script before it reaches any check
 # at all, which install.sh never writes and no case ever means.
+# --- shared:expect-refusal ---
 expect_refusal() { # <name> <the wording only this cause produces>, over $status and $out
   local name="$1" want="$2"
   if [ "$status" -ne 2 ]; then
@@ -58,6 +59,17 @@ expect_refusal() { # <name> <the wording only this cause produces>, over $status
     *"$want"*) record_pass "$name" ;;
     *) record_fail "$name" "wanted '$want' in: $out" ;;
   esac
+}
+# --- end shared:expect-refusal ---
+
+# The refusals below are all-or-nothing, so each one has to show that bin/ stayed empty. Named once:
+# the raw `ls -A` reads as a directory listing rather than as the claim the case is making.
+expect_nothing_installed() { # <name>, over $bin
+  if [ -n "$(ls -A "$bin" 2>/dev/null)" ]; then
+    record_fail "$1" "bin/ holds $(ls -A "$bin" | tr '\n' ' ')"
+  else
+    record_pass "$1"
+  fi
 }
 
 # bash 3.2 — macOS's own, and one leg of the gates workflow — mis-parses a `case` written inline in a
@@ -206,11 +218,17 @@ fi
 # release against the caller's current directory. A `gh` that records its own argv and then fails is
 # a fake at a true external edge, and what it asserts is what this script asked for rather than what
 # GitHub would have answered — so nothing is downloaded and nothing about the network is claimed.
+# A checkout shaped like this repository, holding the install.sh under test and the workflow it reads
+# its tool list out of. The remote is each caller's own, because that is what the case is about.
+new_checkout() { # <directory>
+  mkdir -p "$1/ai/tools" "$1/.github/workflows"
+  cp "$here/install.sh" "$1/ai/tools/install.sh"
+  chmod 755 "$1/ai/tools/install.sh"
+  cp "$workflow" "$1/.github/workflows/release-tools.yml"
+}
+
 pinned="$base/pinned"
-mkdir -p "$pinned/ai/tools" "$pinned/.github/workflows"
-cp "$here/install.sh" "$pinned/ai/tools/install.sh"
-chmod 755 "$pinned/ai/tools/install.sh"
-cp "$workflow" "$pinned/.github/workflows/release-tools.yml"
+new_checkout "$pinned"
 ( cd "$pinned" && git init -q . && git remote add origin https://github.com/pinned/target.git ) >/dev/null 2>&1
 
 fake_gh="$base/fake-gh"
@@ -271,10 +289,7 @@ unnamed() { # <label> <the remote to add, or nothing> <the wording only this cau
   local dir log
   dir="$base/unnamed-$label"
   log="$base/gh-argv-$label"
-  mkdir -p "$dir/ai/tools" "$dir/.github/workflows"
-  cp "$here/install.sh" "$dir/ai/tools/install.sh"
-  chmod 755 "$dir/ai/tools/install.sh"
-  cp "$workflow" "$dir/.github/workflows/release-tools.yml"
+  new_checkout "$dir"
   (
     cd "$dir" && git init -q .
     if [ -n "$remote" ]; then git remote add origin "$remote"; fi
@@ -334,9 +349,21 @@ if [ "$1 $2" = "release download" ]; then
   for tool in $GH_STUB_TOOLS; do
     printf 'fake %s binary\n' "$tool" >"$dir/$tool-$GH_STUB_SUFFIX"
   done
+  # A stamp the case can read back by eye. install.sh records whatever the release recorded and never
+  # reads it, so a real digest here would only hide which tool's stamp landed where.
+  if [ -z "${GH_STUB_NO_STAMPS:-}" ]; then
+    for tool in $GH_STUB_TOOLS; do
+      if [ "$tool" != "${GH_STUB_UNSTAMPED_TOOL:-}" ]; then
+        printf 'stamp-for-%s  %s\n' "$tool" "$tool"
+      fi
+    done >"$dir/STAMPS"
+  fi
+  # `*` and not `*-$GH_STUB_SUFFIX`, so STAMPS is covered the way the release workflow covers it. The
+  # redirect creates SHA256SUMS before the glob runs, so the file has to skip itself.
   (
     cd "$dir" || exit 1
-    for file in *-"$GH_STUB_SUFFIX"; do
+    for file in *; do
+      if [ "$file" = SHA256SUMS ]; then continue; fi
       if command -v shasum >/dev/null 2>&1; then
         printf '%s  ./%s\n' "$(shasum -a 256 "$file" | cut -d' ' -f1)" "$file"
       else
@@ -362,18 +389,21 @@ chmod 755 "$release_gh/gh"
 stub_suffix="$(asset_suffix "$(uname -s)" "$(uname -m)")"
 
 # A fresh checkout per case, so "bin/ holds nothing" is this run's answer and not the previous one's.
+# The two GH_STUB_* knobs a case wants are set on the call itself — `release_no_stamps=1 release_run
+# …` — because bash restores a variable assigned in front of a function call once that call returns.
+# Set-then-reset around the call would leave one forgotten line able to run a later case under this
+# one's stub, and what that corrupts is the "nothing was installed" control, which reads as a pass
+# when the fixture is wrong.
 release_run() { # <label> <the asset basenames with no attestation>, over $out, $status, $bin, $log
   local label="$1" unattested="$2" dir
   dir="$base/release-$label"
   bin="$dir/ai/tools/bin"
   log="$base/gh-calls-$label"
-  mkdir -p "$dir/ai/tools" "$dir/.github/workflows"
-  cp "$here/install.sh" "$dir/ai/tools/install.sh"
-  chmod 755 "$dir/ai/tools/install.sh"
-  cp "$workflow" "$dir/.github/workflows/release-tools.yml"
+  new_checkout "$dir"
   (cd "$dir" && git init -q . && git remote add origin https://github.com/pinned/target.git) >/dev/null 2>&1
   out=$(PATH="$release_gh:$PATH" GH_CALL_LOG="$log" GH_STUB_TOOLS="$tools" \
     GH_STUB_SUFFIX="$stub_suffix" GH_STUB_UNATTESTED="$unattested" \
+    GH_STUB_NO_STAMPS="${release_no_stamps:-}" GH_STUB_UNSTAMPED_TOOL="${release_unstamped_tool:-}" \
     "$dir/ai/tools/install.sh" 2>&1)
   status=$?
 }
@@ -397,9 +427,21 @@ expect_eq "and every shipped tool lands in bin/ executable" "$installed" ""
 # The whole argv, anchored at both ends, because `--repo` alone leaves the signer unpinned — every
 # workflow in the repository that can request an id-token signs attestations gh would accept.
 # `--signer-workflow` is matched literally, so dropping it goes red here.
-expect_eq "control: one attestation check per tool, on the run that passed" \
+# One per asset rather than one per tool: STAMPS decides, on every run afterwards, whether a binary is
+# reported as built from the source beside it, so an unverified STAMPS is a stale binary nobody is
+# ever warned about.
+expect_eq "control: one attestation check per asset, on the run that passed" \
   "$(grep -c "^attestation verify .* --repo pinned/target --signer-workflow karpov-kir/configs/\.github/workflows/release-tools\.yml$" "$log")" \
-  "$(printf '%s\n' "$tools" | wc -l | tr -d ' ')"
+  "$(($(printf '%s\n' "$tools" | wc -l) + 1))"
+
+# The stamp the release recorded, landing beside the binary it belongs to. Without it a release
+# install has nothing to hold its binaries against, and resolve.sh reports every one of them as
+# unknown for as long as it is installed.
+mislaid=""
+for tool in $tools; do
+  [ "$(cat "$bin/$tool.stamp" 2>/dev/null)" = "stamp-for-$tool" ] || mislaid="$mislaid $tool"
+done
+expect_eq "and each tool's own source stamp lands beside it" "$mislaid" ""
 
 # One asset without an attestation, and the whole install stops — the same all-or-nothing the hash
 # loop already had, because resolve.sh prefers whatever binary it finds.
@@ -413,14 +455,30 @@ expect_eq "and names the tool it refused" \
 expect_eq "and carries gh's own reason, since the staging path it names is already deleted" \
   "$(held 'stub-gh: no attestation matching' "$out")" "held"
 # The one that matters: refused *before* anything became executable.
-if [ -n "$(ls -A "$bin" 2>/dev/null)" ]; then
-  record_fail "control: and nothing was installed" "bin/ holds $(ls -A "$bin" | tr '\n' ' ')"
-else
-  record_pass "control: and nothing was installed"
-fi
+expect_nothing_installed "control: and nothing was installed"
 # The hash passed on that run, so the attestation is what refused it and not a broken fixture.
 expect_eq "control: the hashes all matched, so it is provenance that refused" \
   "$(lacked 'does not match its recorded hash' "$out")" "lacked"
+
+# A release cut before source stamps existed. Refused rather than installed unstamped, because an
+# unstamped binary is one resolve.sh reports as unknown on every run, and a warning that never goes
+# away is one that stops being read.
+release_no_stamps=1 release_run no-stamps ""
+# The needle is this refusal's own wording and not the loop's, which says "carries no STAMPS" for any
+# asset that failed to arrive — with the check above deleted that loop still exits 2, so a case
+# matching it would pass while claiming to cover a check nothing runs.
+expect_refusal "a release carrying no STAMPS exits 2" "has no STAMPS asset"
+expect_eq "and names a way to get the tools anyway" "$(held 'take a later one' "$out")" "held"
+expect_nothing_installed "control: and nothing was installed"
+
+# And one tool missing from a STAMPS that is otherwise whole. All or nothing, for the same reason the
+# hash loop is: the one tool nobody could be told about is the one you would never think to check.
+unstamped_tool="$(printf '%s\n' "$tools" | tail -1)"
+release_unstamped_tool="$unstamped_tool" release_run one-unstamped ""
+expect_refusal "a release whose STAMPS omits a tool exits 2" "records no source stamp"
+expect_eq "and names the tool it could not stamp" \
+  "$(held "records no source stamp for $unstamped_tool" "$out")" "held"
+expect_nothing_installed "control: and that one installed nothing either"
 
 echo
 echo "$passed passed, $failed failed"
