@@ -83,6 +83,14 @@ jobs:
                 go build -trimpath -ldflags="-s -w" -o "dist/$tool-$goos-$goarch" "$package"
             done
           done
+          # What each binary was built from, hashed by the same source-stamp.sh the resolver compares
+          # against. Without it, nothing on the install machine can hold a release binary against the
+          # checkout it lands in, and every run there reports it as unknown. Written before the
+          # checksum line below, so the checksums and the attestation cover it like any other asset.
+          for tool in $SHIPPED; do
+            stamp="$(./source-stamp.sh "$tool")"
+            printf '%s  %s\n' "$stamp" "$tool"
+          done > dist/STAMPS
           # Named by basename so the file verifies from whatever directory the assets land in.
           (cd dist && sha256sum ./* > SHA256SUMS)
           ls -l dist
