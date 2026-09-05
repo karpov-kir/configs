@@ -13,6 +13,7 @@ Read a doc only when its trigger below matches what you're doing. A project's ow
 | designing modules, layers or boundaries; wiring dependencies | [standards/architecture/core.md](standards/architecture/core.md) |
 | tracing what calls what, or what a change reaches, past the first grep | [standards/code-navigation.md](standards/code-navigation.md) |
 | writing or reviewing tests, **or changing behaviour that should have one** | [standards/testing.md](standards/testing.md) |
+| writing code against a requirement someone else stated | [standards/building.md](standards/building.md) |
 | writing outward text — anything a person reads as communication | [standards/human-writing.md](standards/human-writing.md) |
 | setting up env, scripts, local dev / Docker; **writing a schema migration; adding or upgrading a dependency** | [standards/project.md](standards/project.md) |
 | committing, pushing, opening a PR | [standards/git.md](standards/git.md) |
