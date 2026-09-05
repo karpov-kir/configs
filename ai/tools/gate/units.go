@@ -39,10 +39,10 @@ func (g *gate) add(id, kind string, inputs []string, cmd string) {
 	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
 }
 
-// A unit whose only reach into the Go tree is through a binary `resolve.sh` compiled. See
-// unit.viaCompiledBinary for what that lets its key drop.
-func (g *gate) addViaCompiledBinary(id, kind string, inputs []string, cmd string) {
-	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd, viaCompiledBinary: true})
+// A unit that cannot observe the module's test files. See unit.blindToGoTests for the two ways a unit
+// earns that and why each has to be argued.
+func (g *gate) addBlindToGoTests(id, kind string, inputs []string, cmd string) {
+	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
 }
 
 func (g *gate) buildUnits() int {
@@ -72,7 +72,9 @@ func (g *gate) unitsFromFile() int {
 
 // The real unit table: the four Go checks, one unit per discovered shell suite, and one per mutated
 // file go-mutate lists.
-func (g *gate) discoverUnits() int {
+// The four checks over the Go module itself. Split from discoverUnits so a case can observe which
+// of them is blind to the module's test files without building go-mutate to get there.
+func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
@@ -85,8 +87,15 @@ func (g *gate) discoverUnits() int {
 	// `.gitignore` is an input BECAUSE of the flag: the rules decide which files the check judges, so
 	// editing them moves this unit's verdict — and a verdict that moves without its key is the stale
 	// green this whole thing exists not to serve.
-	g.add("wiring", "check", []string{"ai/skills", "ai/kk-flavor", "ai/tools", ".gitignore"},
+	// Blind to the module's test files for a reason of its own: eco-check reads Go sources only to
+	// find subcommand dispatches, and skips `_test.go` by name when it does, because a test file's
+	// fixtures hold dispatch switches of their own. Everything else it walks is `*.sh` or SKILL.md.
+	g.addBlindToGoTests("wiring", "check", []string{"ai/skills", "ai/kk-flavor", "ai/tools", ".gitignore"},
 		"ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate")
+}
+
+func (g *gate) discoverUnits() int {
+	g.addGoChecks()
 
 	if code := g.discoverShellSuites(); code != 0 {
 		return code
@@ -143,7 +152,7 @@ func (g *gate) discoverShellSuites() int {
 		// discovery arm that refuses before anything runs.
 		name := strings.TrimSuffix(suite, "-test.sh")
 		if viaBinary {
-			g.addViaCompiledBinary("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
+			g.addBlindToGoTests("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
 			continue
 		}
 		g.add("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))

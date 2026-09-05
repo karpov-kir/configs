@@ -109,7 +109,7 @@ func isGoTestFile(path string) bool {
 // built from.
 func (g *gate) keyMaterial(u unit) (key string, lines []manifestLine) {
 	lines = linesUnder(g.manifest, u.inputs)
-	if u.viaCompiledBinary {
+	if u.blindToGoTests {
 		kept := lines[:0:0]
 		for _, line := range lines {
 			if !isGoTestFile(line.path) {

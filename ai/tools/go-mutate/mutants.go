@@ -1042,13 +1042,13 @@ var mutants = []mutant{
 
 	// The gate's key narrowing. Both directions are guards: dropping too little only costs time, but
 	// dropping too much stops the gate watching code a tool is built from, which reads as a clean run.
-	{"gate: a compiled-binary unit is keyed on test files after all", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
-		"if u.viaCompiledBinary {", "if u.viaCompiledBinary && false {"},
-	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
+	{"gate: a compiled-binary unit is keyed on test files after all", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
+		"if u.blindToGoTests {", "if u.blindToGoTests && false {"},
+	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
-	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
-	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
@@ -1063,6 +1063,14 @@ var mutants = []mutant{
 		"\tcase strings.Contains(text, \"mktemp -d\"):\n\t\treturn true", "\tcase true:\n\t\treturn true"},
 	{"scratch: the no-scratch marker stops exempting", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		"\tcase strings.Contains(text, noScratchMarker):\n\t\treturn true", "\tcase strings.Contains(text, noScratchMarker) && false:\n\t\treturn true"},
+	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim
+	// about ANOTHER package. Both halves get a mutant: the flag itself, and the check that eco-check
+	// still behaves the way the flag assumes.
+	{"gate: wiring keyed on the module's test files again", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
+		`g.addBlindToGoTests("wiring"`, `g.add("wiring"`},
+	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
+		`g.add("gotest", "check", gotestInputs, "@gotest")`, `g.addBlindToGoTests("gotest", "check", gotestInputs, "@gotest")`},
+
 	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
