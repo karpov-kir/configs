@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	ecocheck "kk-flavor/tools/eco-check"
 	"kk-flavor/tools/shell"
 )
 
@@ -137,7 +138,7 @@ func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
 	refused := func(t *testing.T, f *fixture, ref string) {
 		t.Helper()
 		output := f.run()
-		f.found(output, "pattern in a citation path: "+f.root+"/kk-flavor/standards/citer.md:1 -> "+ref)
+		f.found(output, ecocheck.CitationPathIsPattern+f.root+"/kk-flavor/standards/citer.md:1 -> "+ref)
 		f.absent(output, dangling, unresolved)
 	}
 
@@ -160,7 +161,7 @@ func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
 	t.Run("while the same citation naming the file outright still resolves", func(t *testing.T) {
 		f := newPatternProbe(t, "see `standards/target.md` → **One home** for the rule")
 		output := f.run()
-		f.absent(output, "pattern in a citation path", unresolved)
+		f.absent(output, ecocheck.CitationPathIsPattern, unresolved)
 		f.found(output, dangling+f.root+"/kk-flavor/standards/citer.md:1 -> standards/target.md → One home")
 	})
 }
@@ -420,11 +421,11 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 // the same ground could not, which is the asymmetry that note answers.
 func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
 	t.Run("names the rule on a finding against a suite", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-test.sh").reports("assemble it at run time")
+		newHarnessCitation(t, "fixture-test.sh").reports(ecocheck.HarnessCitationNote)
 	})
 
 	t.Run("and on one against a mutation list", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-mutate.sh").reports("assemble it at run time")
+		newHarnessCitation(t, "fixture-mutate.sh").reports(ecocheck.HarnessCitationNote)
 	})
 
 	// The cost this choice takes, stated as a case: there is no escape hatch, so a harness may carry no
@@ -435,7 +436,7 @@ func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
 
 	// The note is scoped to a harness. Every other script pays nothing for it.
 	t.Run("says nothing of the sort on an ordinary script", func(t *testing.T) {
-		newHarnessCitation(t, "fixture.sh").doesNotReport("assemble it at run time")
+		newHarnessCitation(t, "fixture.sh").doesNotReport(ecocheck.HarnessCitationNote)
 	})
 
 	// Without this the case above passes on a fixture whose citation was never read.

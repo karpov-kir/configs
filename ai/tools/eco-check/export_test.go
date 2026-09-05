@@ -6,6 +6,7 @@ import "kk-flavor/tools/shell"
 // in a case: a copy goes stale the next time the original is reworded, and the case stays green.
 const (
 	FindingCap       = findingCap
+	FindingNameCap   = findingNameCap
 	SuppressedMarker = suppressedMarker
 	UnshownMarker    = unshownMarker
 	UnnamedClassRank = unnamedClassRank
@@ -25,11 +26,15 @@ const (
 	DirectionScanReadNoFiles       = directionScanReadNoFiles
 	FileTooLargeToScan             = fileTooLargeToScan
 	FileCouldNotBeRead             = fileCouldNotBeRead
+	SkillsNotMounted               = skillsNotMounted
+	SkillNotMounted                = skillNotMounted
 	SkillMountedElsewhere          = skillMountedElsewhere
 	MountWithoutASkill             = mountWithoutASkill
 
+	BudgetFileRefused             = budgetFileRefused
 	ScriptNamesMissingTest        = scriptNamesMissingTest
 	ScriptNamesAmbiguousTest      = scriptNamesAmbiguousTest
+	ScriptNamesTooManySuites      = scriptNamesTooManySuites
 	BasenameNotChecked            = basenameNotChecked
 	SubcommandCallSitesNotChecked = subcommandCallSitesNotChecked
 	UnreadDispatch                = unreadDispatch
@@ -40,22 +45,33 @@ const (
 
 	AnyRepoNamesWorkflowFamily       = anyRepoNamesWorkflowFamily
 	BareRuleIDCitation               = bareRuleIDCitation
+	CitationPathIsPattern            = citationPathIsPattern
 	CitationTargetNotRegular         = citationTargetNotRegular
+	DanglingHomeRef                  = danglingHomeRef
 	DanglingLink                     = danglingLink
+	DanglingPathRef                  = danglingPathRef
 	DanglingSectionRef               = danglingSectionRef
+	InjectListsMissingDoc            = injectListsMissingDoc
 	ScriptDeclaresNoTestPosition     = scriptDeclaresNoTestPosition
 	SharedLayerCitesLane             = sharedLayerCitesLane
 	SharedLayerNamesLane             = sharedLayerNamesLane
 	SharedLayerReachesLaneByBasename = sharedLayerReachesLaneByBasename
 	SkillDirWithoutSkillFile         = skillDirWithoutSkillFile
+	SkillNameDirMismatch             = skillNameDirMismatch
 	SkillWithoutDescription          = skillWithoutDescription
 	SubcommandDispatchDoesNotAccept  = subcommandDispatchDoesNotAccept
 	SubcommandUsageDoesNotName       = subcommandUsageDoesNotName
 	SubcommandWithNoCallSite         = subcommandWithNoCallSite
 	UncheckableCitation              = uncheckableCitation
 	UndelimitedSectionCitation       = undelimitedSectionCitation
+	UnknownSkillReferenced           = unknownSkillReferenced
 	UnresolvableCitationPath         = unresolvableCitationPath
 )
+
+// The note a citation finding against a test harness ends on. Not a head, but bound for the same
+// reason: a case spelling a fragment of it out asserts nothing once the note is reworded around that
+// fragment, and the case asserting the note is ABSENT is the one that goes green saying so.
+const HarnessCitationNote = harnessCitationNote
 
 // One row of the rank table, exported so a case can hold the properties a row needs without copying
 // the table into the suite. A copy there goes stale the next time a kind is added.

@@ -54,7 +54,7 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) {
 	t.Run("reports the script's own syntax error", func(t *testing.T) {
 		root, output := newDashLeadingRoot(t)
-		needle := "syntax: " + root + "/skills/broken.sh: line 1: syntax error"
+		needle := ecocheck.SyntaxError + root + "/skills/broken.sh: line 1: syntax error"
 		if !strings.Contains(output, needle) {
 			t.Errorf("expected a finding containing %q\n%s", needle, output)
 		}
@@ -125,7 +125,7 @@ func TestScriptTestPosition(t *testing.T) {
 		f.newScript("greedy.sh", "#!/usr/bin/env bash\n"+
 			"# see n1-test.sh n2-test.sh n3-test.sh n4-test.sh n5-test.sh n6-test.sh\n"+
 			"# and n7-test.sh n8-test.sh n9-test.sh n10-test.sh n11-test.sh n12-test.sh\ntrue")
-		f.reports("names more suites than the scan reads")
+		f.reports(ecocheck.ScriptNamesTooManySuites)
 	})
 
 	// The bound on the header read. A declaration past 200 lines is not seen, which is correct, and it
@@ -229,14 +229,14 @@ func TestATestPositionFindingNamesTheScriptByPath(t *testing.T) {
 
 	t.Run("reports both scripts, not one of them twice", func(t *testing.T) {
 		f := newTwoScriptsUnderOneName(t)
-		if count, output := f.countLinesStartingWith("script names a missing test:"); count != 2 {
+		if count, output := f.countLinesStartingWith(missingTest + ":"); count != 2 {
 			t.Errorf("expected one finding per script, got %d\n%s", count, indent(output))
 		}
 	})
 
 	t.Run("and names a path a reader can open", func(t *testing.T) {
 		f := newTwoScriptsUnderOneName(t)
-		f.reports("script names a missing test: " + f.root + "/skills/one/scripts/claims.sh names claims-test.sh")
+		f.reports(missingTest + ": " + f.root + "/skills/one/scripts/claims.sh names claims-test.sh")
 	})
 }
 
@@ -250,7 +250,7 @@ func TestParseErrorsCarryNoControlByte(t *testing.T) {
 		return f
 	}
 
-	assertNoControlByteEscapes(t, "the syntax error", "syntax: ", newEscapedScriptName)
+	assertNoControlByteEscapes(t, "the syntax error", ecocheck.SyntaxError, newEscapedScriptName)
 }
 
 // `bash -n` reads the script and nothing else, so two files holding the same bytes have the same
@@ -280,12 +280,12 @@ func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 		f := newRoot(t)
 		f.newScript("clean.sh", "# marker: one-byte\ntrue; :")
 		f.newScript("broken.sh", "# marker: one-byte\ntrue; (")
-		f.reportsOnASecondRun("syntax: ")
+		f.reportsOnASecondRun(ecocheck.SyntaxError)
 	})
 
 	// The other direction: the saving must not become a finding of its own.
 	t.Run("stays quiet on two copies of a script that parses", func(t *testing.T) {
-		newRepeatedScript(t, "repeated-clean", "# untested: fixture\ntrue").doesNotReportOnASecondRun("syntax: ")
+		newRepeatedScript(t, "repeated-clean", "# untested: fixture\ntrue").doesNotReportOnASecondRun(ecocheck.SyntaxError)
 	})
 }
 
@@ -308,7 +308,7 @@ func TestEachBashVersionIsAskedSeparately(t *testing.T) {
 	}
 	f := newRoot(t)
 	f.newScript("v4.sh", "# untested: fixture\ntrue |& cat")
-	f.reportsOnASecondRun("syntax: ")
+	f.reportsOnASecondRun(ecocheck.SyntaxError)
 }
 
 func refusesTheBash4Pipe(t *testing.T, binary string) bool {

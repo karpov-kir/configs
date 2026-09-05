@@ -4,21 +4,23 @@ package ecocheck_test
 
 import (
 	"testing"
+
+	ecocheck "kk-flavor/tools/eco-check"
 )
 
 // Each defect below makes a skill unreachable rather than merely mis-linked: the loader finds a skill
 // by its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
 func TestSkillDirectory(t *testing.T) {
 	t.Run("fires on a skill directory holding no SKILL.md", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports("skill dir without SKILL.md")
+		newBrokenSkillDirs(t).reports(ecocheck.SkillDirWithoutSkillFile)
 	})
 
 	t.Run("fires when the frontmatter name is not the directory name", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports("skill name/dir mismatch")
+		newBrokenSkillDirs(t).reports(ecocheck.SkillNameDirMismatch)
 	})
 
 	t.Run("fires on a SKILL.md carrying no description", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports("skill without a description")
+		newBrokenSkillDirs(t).reports(ecocheck.SkillWithoutDescription)
 	})
 
 	// A `name:` line in the body is not a declaration. The loader reads the frontmatter block, so a
@@ -28,7 +30,7 @@ func TestSkillDirectory(t *testing.T) {
 		f := newRoot(t)
 		f.mkdirAll(f.root + "/skills/ghost")
 		f.write(f.root+"/skills/ghost/SKILL.md", "# Ghost\n\nname: ghost\n\ndescription: does a thing\n")
-		f.reports("skill name/dir mismatch")
+		f.reports(ecocheck.SkillNameDirMismatch)
 	})
 }
 
@@ -50,15 +52,15 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 	// The control: the run does say the file went unread, so the silences below are a refusal and not
 	// a fixture that never reached the scan.
 	t.Run("names the file it could not read (control for the two below)", func(t *testing.T) {
-		newUnreadableSkill(t).reports("file could not be read")
+		newUnreadableSkill(t).reports(ecocheck.FileCouldNotBeRead)
 	})
 
 	t.Run("does not claim it declares an empty name", func(t *testing.T) {
-		newUnreadableSkill(t).doesNotReport("skill name/dir mismatch")
+		newUnreadableSkill(t).doesNotReport(ecocheck.SkillNameDirMismatch)
 	})
 
 	t.Run("nor that it carries no description", func(t *testing.T) {
-		newUnreadableSkill(t).doesNotReport("skill without a description")
+		newUnreadableSkill(t).doesNotReport(ecocheck.SkillWithoutDescription)
 	})
 }
 

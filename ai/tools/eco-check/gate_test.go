@@ -182,8 +182,8 @@ func TestAGitignoredSkillDirectoryIsNotCounted(t *testing.T) {
 	f.ignores("r/skills/kk-local/")
 
 	gated, bare := f.bothWays()
-	f.assertHolds("a bare run wants the local directory mounted too", bare, "skill not mounted")
-	f.assertLacks("--gate asks only about the skills a commit carries", gated, "skill not mounted")
+	f.assertHolds("a bare run wants the local directory mounted too", bare, ecocheck.SkillNotMounted)
+	f.assertLacks("--gate asks only about the skills a commit carries", gated, ecocheck.SkillNotMounted)
 	f.assertHolds("a bare run counts the directory sitting there", bare, "across 2 of 2 skills")
 	f.assertHolds("--gate counts the skills a commit carries", gated, "across 1 of 1 skills")
 	// A wholly ignored directory is one line, not one per file under it: the count reads as how much
@@ -273,8 +273,8 @@ func TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne(t *testing.T) {
 	f.ignores("r/skills/kk-scratchy/SKILL.md")
 
 	gated, bare := f.bothWays()
-	f.assertLacks("the checkout has the file sitting right there", bare, "skill dir without SKILL.md")
-	f.assertHolds("--gate answers as a fresh clone does", gated, "skill dir without SKILL.md")
+	f.assertLacks("the checkout has the file sitting right there", bare, ecocheck.SkillDirWithoutSkillFile)
+	f.assertHolds("--gate answers as a fresh clone does", gated, ecocheck.SkillDirWithoutSkillFile)
 	f.assertHolds("and counts no skill it cannot read a description from", gated, "across 0 of 0 skills")
 }
 
@@ -306,7 +306,7 @@ func TestAGitignoredReadAlwaysTargetIsReportedAbsent(t *testing.T) {
 	f.assertHolds("a bare run counts it into the budget", bare, "across 2 files")
 	f.assertHolds("--gate counts only what a commit carries", gated, "across 1 files")
 	f.assertHolds("and says the router lists a file the tree does not hold", gated, "does not exist")
-	f.assertLacks("never that nothing could answer for it", gated, "budget file refused")
+	f.assertLacks("never that nothing could answer for it", gated, ecocheck.BudgetFileRefused)
 }
 
 // A citation is a path *prose* wrote, so it arrives spelled however its author spelled it. Compared
@@ -476,6 +476,6 @@ func TestAGitignoredSkillFileIsNotALaneUnderTheFlag(t *testing.T) {
 	f.assertHolds("a bare run names the token as a lane", bare, names)
 	f.assertLacks("--gate does not", gated, names)
 	// The unknown-skill scan, which is what a fresh clone reports instead.
-	f.assertHolds("--gate reports the name as no skill at all, as a clone does", gated, "unknown skill")
-	f.assertLacks("where a bare run finds the file sitting there", bare, "unknown skill")
+	f.assertHolds("--gate reports the name as no skill at all, as a clone does", gated, ecocheck.UnknownSkillReferenced)
+	f.assertLacks("where a bare run finds the file sitting there", bare, ecocheck.UnknownSkillReferenced)
 }

@@ -4,7 +4,11 @@ package ecocheck_test
 // actually mounts. Anywhere else the mounts resolve to somebody else's tree, and the answer would be
 // about that tree rather than this one.
 
-import "testing"
+import (
+	"testing"
+
+	ecocheck "kk-flavor/tools/eco-check"
+)
 
 // An installed checkout: $HOME/.kk-flavor resolves to this tree's kk-flavor, which is what makes the
 // question below apply at all. Every case here builds on it, because a fixture that is not installed
@@ -44,7 +48,7 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 	// The control, and the half that keeps the gate honest: the same unmounted skill on an installed
 	// checkout is still a finding. Without it, gating everything off would pass the case above.
 	t.Run("while an installed checkout with an unmounted skill still reports", func(t *testing.T) {
-		newInstalledRootWithSkillsMount(t).reports("skill not mounted")
+		newInstalledRootWithSkillsMount(t).reports(ecocheck.SkillNotMounted)
 	})
 
 	// The skip itself, which was invisible: without this line a run that checked no mount prints byte
@@ -66,7 +70,7 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 	t.Run("and reports an installed checkout whose skills mount is missing", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
-		f.reports("skills not mounted")
+		f.reports(ecocheck.SkillsNotMounted)
 	})
 }
 
@@ -77,7 +81,7 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 func TestARootSpellingCaseStillGetsItsOwnHomeMount(t *testing.T) {
 	f := newInstalledRootWithSkillsMount(t)
 	// `r` is the root's own directory name, so this is the tree named relatively from `base`.
-	f.reportsWithRootNamed(f.base, "r", "skill not mounted")
+	f.reportsWithRootNamed(f.base, "r", ecocheck.SkillNotMounted)
 }
 
 // The mount findings echo a path resolved through $HOME, which the reviewed branch does not choose —
@@ -101,7 +105,7 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 
 	// Without this the case below passes on a run that raised no mount finding at all.
 	t.Run("reports a skill mounted somewhere else (control for the case below)", func(t *testing.T) {
-		newSkillMountedElsewhere(t).reports("skill mounted elsewhere")
+		newSkillMountedElsewhere(t).reports(ecocheck.SkillMountedElsewhere)
 	})
 
 	t.Run("and no control byte reaches the output", func(t *testing.T) {
@@ -120,7 +124,7 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 	}
 
 	t.Run("reports a skill whose own name carries one (control for the case below)", func(t *testing.T) {
-		newSkillNamedWithAControlByte(t).reports("skill not mounted")
+		newSkillNamedWithAControlByte(t).reports(ecocheck.SkillNotMounted)
 	})
 
 	t.Run("and no control byte from that name reaches the output", func(t *testing.T) {
@@ -140,7 +144,7 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 	}
 
 	t.Run("reports that name mounted somewhere else (control for the case below)", func(t *testing.T) {
-		newSkillNamedWithAControlByteMountedElsewhere(t).reports("skill mounted elsewhere")
+		newSkillNamedWithAControlByteMountedElsewhere(t).reports(ecocheck.SkillMountedElsewhere)
 	})
 
 	t.Run("and no control byte from it reaches the output either", func(t *testing.T) {
@@ -169,7 +173,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("reports a mount into this checkout with no skill behind it", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
-		f.reports("mount without a skill")
+		f.reports(ecocheck.MountWithoutASkill)
 	})
 
 	// Every mount this machine was set up from the README with reads back with a trailing slash, this
@@ -178,7 +182,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("and reports one whose target carries the README-era trailing slash", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone/")
-		f.reports("mount without a skill")
+		f.reports(ecocheck.MountWithoutASkill)
 	})
 
 	// The control for both cases above: the ordinary mount every skill in this tree has.
@@ -186,7 +190,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
 		f.newMountPointingAt("kk-drive", f.root+"/skills/kk-drive")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
 	// $HOME carries skills from other checkouts — this machine mounts two. Reporting one would be a
@@ -195,7 +199,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.mkdirAll(f.base + "/other/skills/atlassian")
 		f.newMountPointingAt("atlassian", f.base+"/other/skills/atlassian")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
 	// The same, with that other checkout deleted. It dangles exactly like the mount this scan is for,
@@ -203,7 +207,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("nor about a mount into another checkout that is gone", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("atlassian", f.base+"/other/skills/atlassian")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
 	// A skill this tree still has, whose own mount resolves nowhere, is the forward half's finding —
@@ -213,7 +217,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
 		f.newMountPointingAt("kk-drive", f.root+"/skills/nowhere")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
 	// A mount whose name this tree has no skill for, but which still resolves to a real directory —
@@ -223,7 +227,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
 		f.newMountPointingAt("kk-drive-old", f.root+"/skills/kk-drive")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
 	// A relative mount target, which the README's own install line produces whenever it is run with a
@@ -232,7 +236,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("reads a relative target against the mount rather than the working directory", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd-gone", "../../../skills/idsd-gone")
-		f.reports("mount without a skill")
+		f.reports(ecocheck.MountWithoutASkill)
 	})
 
 	// The other side of that fix: resolving relative targets must not turn every one of them into this
@@ -243,7 +247,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.mkdirAll(f.root + "/other/skills")
 		f.newMountPointingAt("atlassian", "../../../other/skills/atlassian")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
 	// Rank, not presence. At the default rank this finding sorts under every `dangling link:` line a
@@ -253,7 +257,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
-		f.ranksAbove("mount without a skill", "dangling link: ")
+		f.ranksAbove(ecocheck.MountWithoutASkill, ecocheck.DanglingLink)
 	})
 
 	// And the gate, in the reverse direction: outside the install the mounts are somebody else's, so
@@ -262,7 +266,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 		f := newRoot(t)
 		f.newHomeWithoutFlavorMount()
 		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
-		f.doesNotReport("mount without a skill")
+		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 }
 
@@ -278,7 +282,7 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 
 	// Without this the case below passes on a run that raised no reverse finding at all.
 	t.Run("reports the mount (control for the case below)", func(t *testing.T) {
-		newMountWithAControlByte(t).reports("mount without a skill")
+		newMountWithAControlByte(t).reports(ecocheck.MountWithoutASkill)
 	})
 
 	t.Run("and no control byte reaches the output", func(t *testing.T) {
@@ -296,7 +300,7 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 	}
 
 	t.Run("reports a mount whose own name carries one (control for the case below)", func(t *testing.T) {
-		newMountNamedWithAControlByte(t).reports("mount without a skill")
+		newMountNamedWithAControlByte(t).reports(ecocheck.MountWithoutASkill)
 	})
 
 	t.Run("and no control byte from that name reaches the output", func(t *testing.T) {
