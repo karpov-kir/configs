@@ -49,6 +49,43 @@ func (g *gate) unitLine(state, id, detail string) {
 	fmt.Fprintf(g.out, "  %-11s %-32s %s\n", state, id, detail)
 }
 
+// Which units may never overlap. Units sharing a group run one at a time; different groups run at
+// once.
+//
+// `shell:` is the group that must not overlap. Those suites build temp HOMEs and link into them, and
+// `ai/run-tests.sh` has run them one at a time since it was written — nothing anywhere proves two can
+// share a machine, and the one time containment failed it overwrote real config files. So the
+// concurrency added here is exactly one boundary: the shell block against everything else, with the
+// block itself as serial as it has always been.
+//
+// Everything else shares the default group, which is also what a units-file table gets. That keeps
+// every fixture in this package's suite on the serial path it was written for, and a fixture reaches
+// the concurrent path by naming a unit `shell:<something>` — the same rule discovery uses, from the
+// same function, so the two cannot come apart.
+func serialGroupFor(id string) string {
+	if strings.HasPrefix(id, "shell:") {
+		return "shell"
+	}
+	return ""
+}
+
+// One unit's outcome, filled by whichever lane owns it and read by the printer.
+//
+// The printer walks the units in declared order and blocks on each `done` in turn, so the report is
+// byte-for-byte the order it has always been while the lanes run ahead of it. A unit that finishes
+// early waits its turn to be printed; it does not wait to be run.
+type slot struct {
+	unit    unit
+	key     string
+	lines   []manifestLine
+	settled string // the state a unit reached without executing: "", "empty", "fresh", "deferred", "unasked"
+	output  string
+	note    string
+	status  int
+	took    int
+	done    chan struct{}
+}
+
 func (g *gate) runUnits(selected mode, started time.Time) int {
 	name := map[mode]string{modeFast: "fast", modeFull: "full", modeMutants: "mutants"}[selected]
 	fmt.Fprintf(g.out, "%d unit(s): %s path\n\n", len(g.units), name)
@@ -56,45 +93,79 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 	ran, fresh, deferred, failed, unmeasured, empty := 0, 0, 0, 0, 0, 0
 	var deferredIDs []string
 
-	for _, u := range g.units {
+	// First pass, serial and cheap: every unit's key, and whether it settles without executing. This
+	// stays serial because keyMaterial reads the shared manifest, and because a unit that settles here
+	// costs nothing to decide.
+	slots := make([]*slot, len(g.units))
+	lanes := map[string][]*slot{}
+	for i, u := range g.units {
 		key, lines := g.keyMaterial(u)
-		// An input set that resolves to no file is a rename or a typo quietly narrowing the gate. It is
-		// the one state this treats as worse than a failure, because it looks exactly like a pass.
-		if len(lines) == 0 {
-			g.unitLine("NO INPUTS", u.id, "declared: "+strings.Join(u.inputs, " "))
-			empty++
+		sl := &slot{unit: u, key: key, lines: lines, done: make(chan struct{})}
+		slots[i] = sl
+		switch {
+		case len(lines) == 0:
+			sl.settled = "empty"
+		case selected != modeFull && g.hasRecord(u, key):
+			sl.settled = "fresh"
+		case u.kind == "mutation" && selected == modeFast:
+			sl.settled = "deferred"
+		case u.kind == "check" && selected == modeMutants:
+			sl.settled = "unasked"
+		}
+		if sl.settled != "" {
+			close(sl.done)
 			continue
 		}
+		group := serialGroupFor(u.id)
+		lanes[group] = append(lanes[group], sl)
+	}
+
+	// One goroutine per group, each running its own units in declared order.
+	for _, lane := range lanes {
+		go func(lane []*slot) {
+			for _, sl := range lane {
+				at := time.Now()
+				sl.output, sl.note, sl.status = g.execute(sl.unit)
+				sl.took = int(time.Since(at).Round(time.Second).Seconds())
+				close(sl.done)
+			}
+		}(lane)
+	}
+
+	for _, sl := range slots {
+		<-sl.done
+		u, key, lines := sl.unit, sl.key, sl.lines
 		record := filepath.Join(g.cache, u.stem+"."+key)
 		inputsFile := filepath.Join(g.cache, u.stem+".inputs")
 
-		if selected != modeFull {
-			if _, err := os.Stat(record); err == nil {
-				// A fresh hit says these exact inputs are green, so it can also repair the sidecar the
-				// forcing reads. Without this, one failed run deletes the sidecar and every later run
-				// over-forces.
-				if _, err := os.Stat(inputsFile); err != nil {
-					os.WriteFile(inputsFile, []byte(renderLines(lines)), 0o644)
-				}
-				g.unitLine("fresh", u.id, key[:12]+" — inputs unchanged since it last passed")
-				fresh++
-				continue
+		switch sl.settled {
+		case "empty":
+			// An input set that resolves to no file is a rename or a typo quietly narrowing the gate. It
+			// is the one state this treats as worse than a failure, because it looks exactly like a pass.
+			g.unitLine("NO INPUTS", u.id, "declared: "+strings.Join(u.inputs, " "))
+			empty++
+			continue
+		case "fresh":
+			// A fresh hit says these exact inputs are green, so it can also repair the sidecar the
+			// forcing reads. Without this, one failed run deletes the sidecar and every later run
+			// over-forces.
+			if _, err := os.Stat(inputsFile); err != nil {
+				os.WriteFile(inputsFile, []byte(renderLines(lines)), 0o644)
 			}
-		}
-		if u.kind == "mutation" && selected == modeFast {
+			g.unitLine("fresh", u.id, key[:12]+" — inputs unchanged since it last passed")
+			fresh++
+			continue
+		case "deferred":
 			g.unitLine("DEFERRED", u.id, "inputs moved — not run on the fast path")
 			deferred++
 			deferredIDs = append(deferredIDs, u.id)
 			continue
-		}
-		if u.kind == "check" && selected == modeMutants {
+		case "unasked":
 			g.unitLine("not asked", u.id, "--mutants settles the mutation units only")
 			continue
 		}
 
-		at := time.Now()
-		output, note, status := g.execute(u)
-		took := int(time.Since(at).Round(time.Second).Seconds())
+		output, note, status, took := sl.output, sl.note, sl.status, sl.took
 		if note != "" {
 			for _, line := range strings.Split(strings.TrimRight(note, "\n"), "\n") {
 				fmt.Fprintf(g.out, "             %s\n", line)
@@ -133,7 +204,19 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			failed++
 		}
 	}
+	return g.reportRun(started, deferredIDs, ran, fresh, deferred, failed, unmeasured, empty)
+}
 
+// Whether this unit already has a green record for exactly these inputs.
+func (g *gate) hasRecord(u unit, key string) bool {
+	_, err := os.Stat(filepath.Join(g.cache, u.stem+"."+key))
+	return err == nil
+}
+
+// The run's own summary and its exit code. Split out so the loop above ends at the last unit's
+// line, and so every counter reaches one place that decides what they mean together.
+func (g *gate) reportRun(started time.Time, deferredIDs []string,
+	ran, fresh, deferred, failed, unmeasured, empty int) int {
 	if len(deferredIDs) > 0 {
 		fmt.Fprintln(g.out, "\nDEFERRED — these have inputs that moved, and the fast path did not run them:")
 		for _, id := range deferredIDs {

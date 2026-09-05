@@ -1046,6 +1046,15 @@ var mutants = []mutant{
 		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
 	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
 		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
+
+	// The lane split. One direction costs only time; the other runs two shell suites at once, and
+	// those build temp HOMEs and link into them.
+	{"gate: one lane for every unit, so the lanes never overlap", "../gate/run.go", "./gate/", "TestTheShellLaneRunsBesideTheRestAndNeverBesideItself",
+		`if strings.HasPrefix(id, "shell:") {`, `if false && strings.HasPrefix(id, "shell:") {`},
+	{"gate: a lane per shell suite, so two of them overlap", "../gate/run.go", "./gate/", "TestTheShellLaneRunsBesideTheRestAndNeverBesideItself",
+		`return "shell"`, `return "shell" + id`},
+	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
+		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
 }
 
 // A mutant no case can redden, and why: a guard whose triggering condition an earlier guard already
