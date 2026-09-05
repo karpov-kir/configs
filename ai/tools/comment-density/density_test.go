@@ -23,6 +23,11 @@ var seedRepo string
 
 func TestMain(m *testing.M) {
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	// NOSYSTEM covers /etc/gitconfig and the HOME override below covers ~/.gitconfig, but git
+	// reads $XDG_CONFIG_HOME/git/config as a global source too. A core.excludesFile there empties
+	// `ls-files --others --exclude-standard` and reddens every untracked case on a machine that is
+	// working perfectly. GIT_CONFIG_GLOBAL supersedes both files at once.
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	base, err := os.MkdirTemp("", "density-seed")
 	if err != nil {
 		panic("density tests: no temp dir, so nothing was tested: " + err.Error())

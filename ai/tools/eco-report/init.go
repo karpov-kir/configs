@@ -99,7 +99,7 @@ func (r *run) cmdInit(args []string) {
 	// stop asking about: an inherited `decisions-reviewed` earns a stamp for a pass that never opened
 	// the decision log. So the stem starts empty here, the same as it ends.
 	if err := os.RemoveAll(r.stageReturnsDir); err != nil {
-		r.refuse("error: could not clear " + r.stageReturnsDir + " (" + err.Error() + ") — the report was NOT initialized, since a stage marker left from an earlier pass is one this pass would never have to earn.")
+		r.refuse("error: " + r.report + " was written, but " + r.stageReturnsDir + " could not be cleared (" + err.Error() + ") — do not run the pass against it: a stage marker left from an earlier one is a precondition this pass would never have to earn.")
 	}
 	err := r.rewriteReport(
 		r.report+" still carries the template's placeholder intent",

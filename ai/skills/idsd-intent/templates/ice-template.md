@@ -1,7 +1,7 @@
 ---
 title: <short title>
 milestone: <mvp | vnext | none>
-status: draft        # draft → approved (idsd-build's gap rounds closed) → built (at merge)
+status: draft        # draft → approved (idsd-build's gap rounds closed, every answer landed) → built (at merge)
 collaborative: false # true → idsd-build requires approved-by before running
 approved-by:         # collaborative sign-off; independent of status, may be set while still draft
 links:               # neighbouring intents, one edge per line: "extends NNN — why" (relation: extends | depends-on | blocks; drop the why when the relation + linked title make it obvious)

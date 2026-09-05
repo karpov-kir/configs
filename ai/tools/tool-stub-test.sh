@@ -105,11 +105,12 @@ TABLE
 
 echo "shared:tool-stub"
 
-# bloat-judge.sh in situ, and it is the reason every stub declares its own offset instead of the region
-# holding one depth. Every other stub sits at `skills/<skill>/scripts/`, three below the tools
-# directory; this one is at `kk-flavor/scripts/`, two below. The copied fixtures further down drive both depths in a throwaway
-# tree; this drives the real file at the real depth against its real tool. The probe table cannot hold
-# it because that harness passes exactly one argument and the judge with none prints its usage and exits 2.
+# bloat-judge.sh in situ, and the reason every stub declares its own offset instead of the region holding one
+# depth. Most stubs sit at `skills/<skill>/scripts/`, three below the tools directory; this one and
+# `tree-fingerprint.sh` are at `kk-flavor/scripts/`, two below, and `gate.sh` sits beside `tools/`
+# itself. The copied fixtures further down drive a stub at each depth in a throwaway tree; this drives
+# the real file at the real depth against its real tool. The probe table cannot hold it because that
+# harness passes exactly one argument, and the judge with none prints its usage and exits 2.
 judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
 if [ -x "$judge_stub" ]; then
   judge_err="$base/judge-probe.err"

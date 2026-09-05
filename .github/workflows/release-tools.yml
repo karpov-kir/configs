@@ -18,8 +18,6 @@ on:
     tags:
       - "v*"
 
-# The upload needs to write release assets. Nothing here reads another repository.
-#
 # `id-token: write` and `attestations: write` are the two widest permissions here, and they exist to
 # let the attest step below sign for what it built. install.sh refuses a binary without that
 # signature, so dropping either of them breaks every install.

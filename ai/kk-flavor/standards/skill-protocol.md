@@ -16,7 +16,7 @@ Take the first that fits:
 2. **Clear** — the exploration, the decisions and the dead ends are all disposable to what follows. The cheapest move, and the one whose mistake is one-way: the *why* goes, and reading the diff back does not return it.
 3. **Hand off** — something travels: another harness, another tree, another person.
 4. **Subagent** — the task is scoped tightly enough that nobody steers it, and this session stays untouched (**Caller** above).
-5. **Compact** — relevant context, same harness, same tree, and you stay in the loop. The **default**, last because everything above it is cheaper or more precise. Say what the next phase needs.
+5. **Compact** — relevant context, same harness, same tree, and you stay in the loop. The **default**. Say what the next phase needs.
 
 ## Setup
 
@@ -91,7 +91,7 @@ Prefer asking the human live over deferring to a digest. Ask a blocking decision
 
 **Build every spawn prompt from `~/.kk-flavor/templates/spawn-prompt.md`**, which states its own constraints. **A licence you received goes into every spawn prompt you build, verbatim** — worded to bind you, it binds the stages acting in your place.
 
-**Most decisions are not blocking, and the default is to settle them.** One blocks only when it is **both** expensive to reverse **and** genuinely unsettled ([core-principles.md](core-principles.md) → **1. Think before coding**). Expensive to reverse means it persists (a schema, a migration, an on-disk or wire format), it crosses a process or repo boundary (a published package, an HTTP API, an event payload), or another slice consumes it. Internal-to-one-module and additive-to-an-existing-shape are cheap. **Unrecallable overrides the second test** — an act with no undo blocks however settled its content ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
+**Most decisions are not blocking, and the default is to settle them.** One blocks only when it is **both** expensive to reverse **and** genuinely unsettled. Expensive to reverse means it persists (a schema, a migration, an on-disk or wire format), it crosses a process or repo boundary (a published package, an HTTP API, an event payload), or another slice consumes it. Internal-to-one-module and additive-to-an-existing-shape are cheap. **Unrecallable overrides the second test** — an act with no undo blocks however settled its content ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
 
 Fail either test — that override aside — and you do not ask: decide it, and record **what determined it**. Not being able to name what determined it is the signal it was never determined, so it becomes an ask. **A decision record is never a home for an open question** — one you still have is a live ask or a report item. **A question you asked and they did not answer is one you still have** — it becomes an item when the pass closes.
 

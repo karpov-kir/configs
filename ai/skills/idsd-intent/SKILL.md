@@ -26,7 +26,7 @@ Cover only what's unclear — the heuristic per part:
 
 For a **project map**, also decompose into one ICE per independently-shippable slice and tag each `milestone` (`mvp`, `vnext`, …); parked vNext intents are real files at `status: draft`.
 
-**A slice cuts through every layer its outcome touches** — storage, logic, interface — so one intent is demoable on its own. Slicing by layer instead ("the schema", then "the API", then "the screen") yields intents nobody can accept, because none of them changes what a user can do.
+**Every slice is vertical** — it cuts through each layer its outcome touches, storage to interface, so one intent is demoable on its own. Horizontal slices ("the schema", then "the API", then "the screen") yield intents nobody can accept, because none of them changes what a user can do.
 
 ## Phase 2 — Clarify pass (gate)
 
@@ -51,7 +51,7 @@ If `.idsd/charter.md` exists and this planning adds intents, defers them, or put
 ## Rules
 
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
-- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: `depends-on` points back at what must ship first; `blocks` points forward at what waits on this one, so never point it at an intent already built (that's backwards); a later intent that adds a constraint to a shipped one `extends` it.
+- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: `depends-on` points back at what must ship first; `blocks` points forward at what waits on this one, so never point it at an intent already built; a later intent that adds a constraint to a shipped one `extends` it.
 - Never rewrite the charter — it changes only via `idsd-charter`, on a proposal you make and the human confirms.
 - If the user says "just write it", collapse Phases 1–2 to the fastest pass that still emits the Phase 2 outcome line, then Phase 3 — the gate fires even on the fast path.
 - Don't restate the kk-flavor standards or `CLAUDE.md`; they're Context for `idsd-build`.

@@ -2,6 +2,7 @@ package ecoreport
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -98,7 +99,8 @@ func exitStatus(err error) int {
 	if err == nil {
 		return 0
 	}
-	if exit, ok := err.(*exec.ExitError); ok {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
 		return exit.ExitCode()
 	}
 	return 127

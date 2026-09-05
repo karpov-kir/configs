@@ -379,7 +379,8 @@ func (r *run) recordAppend(kind *recordKind, path, text string) {
 	}
 	// No noteBound here. The cap guard above refuses at the bound, so an append that lands leaves the
 	// record at or under it and the note could never fire — an over-cap file is reachable only by a hand
-	// edit or a lowered cap, and the ops that rewrite one carry the note instead.
+	// edit or a lowered cap, and the ops that grow or hold a record carry the note instead. `evict` is
+	// the exception among the rewriting ops: it only ever shortens the file, so it has none to report.
 	r.line("appended to %s: %s", kind.file, entry)
 }
 

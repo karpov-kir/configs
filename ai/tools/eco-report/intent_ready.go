@@ -86,7 +86,12 @@ func firstPlaceholder(text string) string {
 		if body != "" && body[0] != ' ' && !strings.HasPrefix(body, "!--") {
 			return "<" + body + ">"
 		}
-		start += end
+		// Only a comment swallows what is inside it. A span opening on a space is not a placeholder, but
+		// the `>` that closed it is as likely a real placeholder's: `stays < 300ms for <state>` closes the
+		// space-span on `<state>`'s own bracket, and skipping there steps over the one thing this looks for.
+		if strings.HasPrefix(body, "!--") {
+			start += end
+		}
 	}
 	return ""
 }

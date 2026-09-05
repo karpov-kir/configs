@@ -1,7 +1,7 @@
 package ecoreport_test
 
 // The merge gate itself, and the two things that read the same stamp: the routing token and the
-// carry list. The gate has three block reasons and one clean line, and a gate that never clears is
+// carry list. The gate has four block reasons and one clean line, and a gate that never clears is
 // as useless as one that never blocks — so the clean line is asserted before any of the blocks.
 
 import (
@@ -88,6 +88,22 @@ func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
 	f.record("gate blocks on an open item in the intent file",
 		f.status == 1 && strings.Contains(f.out, "clear each in the intent"), f.evidence())
 	f.assertReports("tell the consumers the payload changed", "and prints the item it blocked on")
+
+	// And the routing token reads the same two files. Answering `ready` here would send `continue` to
+	// present a merge the gate refuses one command later.
+	f.runReport("state", "001-follow-ups")
+	f.record("the routing token sees an item the report does not hold",
+		f.status == 0 && strings.TrimSpace(f.out) == "decide", f.evidence())
+
+	// With no intent file the three intent arms have nothing to read, and the clean line must not claim
+	// they did — "approved intent" over a ship whose ICE is still being authored is the one sentence a
+	// reader takes the gate's word for.
+	f.remove(f.scratch() + "/intents/001-follow-ups.md")
+	f.runReport("gate", "001-follow-ups")
+	f.record("gate clears a ship with no intent file, claiming no approval it did not read",
+		f.status == 0 && strings.Contains(f.out, "no intent to check"), f.evidence())
+	f.record("and never calls that an approved intent",
+		!strings.Contains(f.out, "approved intent"), f.out)
 }
 
 func TestATrimmedPassIsNotAFullOne(t *testing.T) {
@@ -128,4 +144,59 @@ func TestCarryPrintsTheItemsARequalifyMustNotLose(t *testing.T) {
 		strings.Contains(printed, "an item the next pass must carry"), "stdout was: "+printed)
 	f.runReport("carry", "001-carrying")
 	f.record("and exits 0 having printed them", f.status == 0, f.evidence())
+}
+
+// The gate's fourth reason, and the only one that reads the ICE rather than the report: an intent that
+// never reached `approved` is one whose gap rounds did not close, so what it leaves open was answered
+// by an implementer alone. The clearing arm is asserted first — a gate that blocked on every intent
+// would pass every block below while letting nothing merge.
+func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-gating")
+	f.stampFullPass("001-gating")
+
+	// The intent sits in the git-ignored scratch, so writing it moves nothing the fingerprint reads and
+	// the freshness arm stays clear. It carries no `- [ ]`, so the open-item arm stays clear too.
+	writeIntent := func(frontmatter string) {
+		f.mkdirAll(f.scratch() + "/intents")
+		f.write(f.scratch()+"/intents/001-gating.md", "---\ntitle: t\n"+frontmatter+"---\n\n# intent\n")
+	}
+
+	writeIntent("status: approved\n")
+	f.runReport("gate", "001-gating")
+	f.record("gate clears a ship whose intent is approved",
+		f.status == 0 && strings.Contains(f.out, "gate clean"), f.evidence())
+
+	writeIntent("status: draft\n")
+	f.runReport("gate", "001-gating")
+	f.record("gate blocks a ship whose intent is still draft",
+		f.status == 1 && strings.Contains(f.out, "BLOCK (intent)"), f.evidence())
+	f.assertReports("status: draft", "and names the status it read rather than only that it was wrong")
+	f.record("and does not also report itself clean", !strings.Contains(f.out, "gate clean"), f.out)
+
+	// Absent is not approved. Read as one, an ICE nobody filled in reaches the archive — which is the
+	// whole reason this arm exists.
+	writeIntent("")
+	f.runReport("gate", "001-gating")
+	f.record("gate blocks an intent carrying no status line at all",
+		f.status == 1 && strings.Contains(f.out, "status: <none>"), f.evidence())
+
+	// `built` is what Phase 5 sets on its way to archive/, and it is not a licence to merge a second
+	// time: the arm asks for the one state the gap rounds produce.
+	writeIntent("status: built\n")
+	f.runReport("gate", "001-gating")
+	f.record("gate blocks an intent already marked built but still sitting in intents/",
+		f.status == 1 && strings.Contains(f.out, "BLOCK (intent)"), f.evidence())
+
+	// `ready` means the gate will clear. A token that said so over an intent this gate refuses would
+	// route `continue` to a merge, and the human would meet the block one command later.
+	writeIntent("status: draft\n")
+	f.runReport("state", "001-gating")
+	f.record("the routing token sends an unapproved intent back to build rather than to the merge",
+		f.status == 0 && strings.TrimSpace(f.out) == "resume", f.evidence())
+
+	writeIntent("status: approved\n")
+	f.runReport("state", "001-gating")
+	f.record("and answers ready once it is approved, matching the gate it stands in front of",
+		f.status == 0 && strings.TrimSpace(f.out) == "ready", f.evidence())
 }

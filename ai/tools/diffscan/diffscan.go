@@ -248,7 +248,13 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 			continue
 		}
 		full := filepath.Join(cwd, name)
-		info, err := os.Stat(full)
+		// Lstat, never Stat: Stat resolves the link and answers about the TARGET, so a symlink reads as
+		// a regular file and gets opened. The name check above sees only the LINK's name, so
+		// `notes.txt -> ~/.aws/credentials` walks straight past it and the credential is read and
+		// echoed — and the target need not be inside the repository at all. A link's content belongs to
+		// whatever it points at, so it is declined and counted rather than followed. Nothing is lost:
+		// a target that is itself untracked and in the repo is already listed under its own name.
+		info, err := os.Lstat(full)
 		if err != nil || !info.Mode().IsRegular() || info.Size() > opts.MaxFileBytes {
 			r.SkippedUnread++
 			continue
@@ -294,10 +300,18 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 //
 // Every key type ssh-keygen writes. `id_ed25519` has been its default for years, and a list naming
 // `id_rsa` alone reads as deliberate while covering the key nobody generates any more.
+//
+// Both spellings of the dotenv convention. `.env*` is an anchored prefix, so on its own it covers
+// `.env.production` and misses `production.env` — the same file, the same token, named the other way
+// round, and the exact pair the comment above calls the ordinary case. A bare `*token*` substring is
+// deliberately absent: it would skip `tokenizer.go` and shrink the scan, and protecting the secret
+// must not destroy the tool. Nothing here is binary-only — `.p12`, `.pfx` and `.jks` hold keys too,
+// but they carry a NUL and the binary probe already declines them unread.
 func secretNamed(name string) bool {
 	base := strings.ToLower(path.Base(name))
 	for _, glob := range []string{
-		".env*", "*.pem", "*.key", "*.p8", ".netrc", ".npmrc",
+		".env*", "*.env", "*.pem", "*.key", "*.p8", "*.ppk", "*.token",
+		".netrc", ".npmrc", ".pgpass", ".htpasswd", ".pypirc", ".dockercfg",
 		"id_rsa*", "id_dsa*", "id_ecdsa*", "id_ed25519*",
 	} {
 		if ok, _ := path.Match(glob, base); ok {

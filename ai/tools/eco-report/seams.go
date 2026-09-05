@@ -46,6 +46,26 @@ func (r *run) readOpenTodos(consequence string) {
 	r.openTodos = items
 }
 
+// Whether anything is open in either file the merge gate reads. The routing token has to ask the gate's
+// own question: a `ready` over a `- [ ]` sitting in the ICE's `## Follow-ups` routes the human to a merge
+// the gate then refuses. `carry` deliberately does not use this — the report's items are what a
+// re-qualify must not lose, and the ICE carries its own to the build that owns them.
+func (r *run) anyOpenItemsBeforeMerge(consequence string) bool {
+	r.readOpenTodos(consequence)
+	if r.openTodos != "" {
+		return true
+	}
+	intent := r.intentFilePath()
+	if intent == "" {
+		return false
+	}
+	items, status := r.runTodoGateOn(intent)
+	if status > 1 {
+		r.refuse("error: the open-item scan of " + intent + " did not run — todo-gate.sh exited " + strconv.Itoa(status) + "; " + consequence)
+	}
+	return items != ""
+}
+
 func (r *run) openItemsPhrase() string {
 	items, status := r.runTodoGate()
 	switch status {

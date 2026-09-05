@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Runs every shell test suite in this repository — the `*-test.sh` files sitting beside the scripts
-# they cover. CI calls this, and so can you.
+# Runs every shell suite in this repository: the `*-test.sh` files beside the scripts they cover.
 #   usage: run-tests.sh [-s <suite>] [<root>]   # <root> defaults to the repository this script lives in
 #          -s  run just this one suite, by path, instead of discovering them all
 #

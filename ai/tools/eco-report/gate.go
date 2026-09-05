@@ -24,10 +24,11 @@ func (r *run) cmdGate() {
 	stale := r.blocksOnFreshness()
 	trimmed := r.blocksOnStages()
 	open := r.blocksOnOpenTodos()
-	if stale || trimmed || open {
+	unapproved := r.blocksOnUnapprovedIntent()
+	if stale || trimmed || open || unapproved {
 		r.exit(1)
 	}
-	r.line("gate clean: tree fresh, untrimmed qualify, no open TODOs")
+	r.line("gate clean: tree fresh, untrimmed qualify, %s, no open TODOs", r.intentClaim())
 	r.exit(0)
 }
 
@@ -124,6 +125,59 @@ func (r *run) blocksOnOpenTodosIn(path, which string) bool {
 	return false
 }
 
+// True when this ship's ICE has not been through the build's gap rounds. `status: approved` is what
+// those rounds set, so anything else here says an implementer answered the intent's open questions on
+// their own — the failure `intent-ready` refuses at the start of a build, and until this arm nothing
+// refused at the end of one. The value is collapsed for the reason the freshness arm's are: it comes
+// out of a file a human edits by hand.
+//
+// Overridable, unlike an open item, because the block exists to put the human in the loop and a human
+// saying merge anyway IS that. An intent already moved to archive/ has no file here, and a standalone
+// review has no intent at all: both skip.
+func (r *run) blocksOnUnapprovedIntent() bool {
+	path, status := r.intentApproval()
+	if status == "" {
+		return false
+	}
+	r.errLines("BLOCK (intent): " + path + " is status: " + shell.Oneline(status) + ", not approved — the build's gap rounds have not closed, so nobody was asked what the intent leaves open. " + overridableByAHumanOnly)
+	return true
+}
+
+// What the clean line may claim about the ICE. `intentFilePath` is empty for a standalone review, for an
+// intent Phase 5 has already archived, and for one still being authored — in none of those did this run
+// read an approval, and the clean line is the one sentence a reader takes the gate's word for.
+func (r *run) intentClaim() string {
+	if r.intentFilePath() == "" {
+		return "no intent to check"
+	}
+	return "approved intent"
+}
+
+// Whether this ship's ICE has not reached `approved`. One predicate behind both readers, because a gate
+// that refuses where the routing token says `ready` sends the human to a merge it will not let through.
+func (r *run) intentIsUnapproved() bool {
+	_, status := r.intentApproval()
+	return status != ""
+}
+
+// The intent file and, when it is not approved, the status standing in the way — empty where there is
+// nothing in the way, so one return answers both readers. An absent status is not an approval: `<none>`
+// is what an ICE nobody filled in reads as, which is the case this exists for.
+func (r *run) intentApproval() (path, blockingStatus string) {
+	path = r.intentFilePath()
+	if path == "" {
+		return "", ""
+	}
+	switch status := yamlValue(path, "status"); status {
+	case "approved":
+		return path, ""
+	case "":
+		return path, "<none>"
+	default:
+		return path, status
+	}
+}
+
 // This ship's intent file, or empty where there is none to scan — a standalone review, or an intent
 // already moved to archive/ by a Phase 5 that has run.
 func (r *run) intentFilePath() string {
@@ -196,9 +250,14 @@ func (r *run) stateToken() string {
 	if vouch, _ := r.worktreeVouch(); vouch != vouchesForThisWorktree {
 		return "re-qualify"
 	}
-	r.readOpenTodos("the state is unknown.")
-	if r.openTodos != "" {
-		return "decide" // quality done, tree fresh, open `- [ ]` remain
+	// Before the items, because until the intent is approved they were raised against a contract nobody
+	// settled. `resume` rather than `decide` names the remedy: re-entering build runs the Phase 1 rounds
+	// that set it, where `decide` would hand the human items to clear and leave the gate blocking.
+	if r.intentIsUnapproved() {
+		return "resume"
+	}
+	if r.anyOpenItemsBeforeMerge("the state is unknown.") {
+		return "decide" // quality done, tree fresh, open `- [ ]` remain in the report or the ICE
 	}
 	if isUnstamped(r.reviewedStages()) || r.turnaroundTrims() != "" {
 		// Stages trimmed (or unrecorded) and fresh, nothing open — an untrimmed qualify remains.

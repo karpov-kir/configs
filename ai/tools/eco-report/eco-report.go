@@ -41,9 +41,9 @@
 //	                 marks the pass not-full. Refuses when this worktree's identity cannot be
 //	                 established, since gate reads it to tell this tree's review from a sibling's. Run
 //	                 `stamp` bare for the grammar; that usage text is the authority on it
-//	gate             done-blocker: stale tree OR turnaround-trimmed stages (both human-overridable)
-//	                 OR any open `- [ ]` in the report or in the ship's intent file (never
-//	                 overridable) → non-zero + reasons
+//	gate             done-blocker: stale tree OR turnaround-trimmed stages OR a ship whose intent never
+//	                 reached `status: approved` (all three human-overridable) OR any open `- [ ]` in the
+//	                 report or in the ship's intent file (never overridable) → non-zero + reasons
 //	intent-ready <NNN-slug>  build-blocker over the ICE itself: unfilled template placeholders, an
 //	                 empty required section, an unsigned collaborative intent, or a depends-on edge
 //	                 that has not shipped → non-zero + reasons. Judgement is the grill's, not this
@@ -54,7 +54,7 @@
 //	                 directory back where it came from
 //	discard          throwaway only: remove this ship's scratch (report, intent file, stage markers),
 //	                 and the whole scratch directory when nothing else remains. Another intent, or an
-//	                 authored charter/language/playbook, is "something" — those are the
+//	                 authored charter/constraints/language/playbook, is "something" — those are the
 //	                 human's, not this ship's scratch
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
@@ -112,7 +112,7 @@ func Run(args []string, out, errOut io.Writer) int {
 }
 
 // Exec runs one invocation and returns the process exit code. 0 is a result, 1 is a gate's block
-// (`gate` and `check-ignore` alone), and 2 is "this did not run" — never a result.
+// (`gate`, `intent-ready` and `check-ignore` alone), and 2 is "this did not run" — never a result.
 func (inv Invocation) Exec() (code int) {
 	r := newRun(inv)
 	// exit 2 = "this did not run", never a result. Every path that stops halfway leaves by here. A panic
@@ -309,7 +309,8 @@ func (r *run) refuse(lines ...string) {
 	panic(stop{2})
 }
 
-// A code the caller is meant to read as a result: `gate`'s block and `check-ignore`'s warning.
+// A code the caller is meant to read as a result: `gate`'s and `intent-ready`'s block, and
+// `check-ignore`'s warning.
 func (r *run) exit(code int) {
 	panic(stop{code})
 }

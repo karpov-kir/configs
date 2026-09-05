@@ -23,6 +23,11 @@ var seedRepo string
 
 func TestMain(m *testing.M) {
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	// NOSYSTEM covers /etc/gitconfig and the HOME override below covers ~/.gitconfig, but git
+	// reads $XDG_CONFIG_HOME/git/config as a global source too. A core.excludesFile there empties
+	// `ls-files --others --exclude-standard` and reddens every untracked case on a machine that is
+	// working perfectly. GIT_CONFIG_GLOBAL supersedes both files at once.
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	base, err := os.MkdirTemp("", "dup-seed")
 	if err != nil {
 		panic("dup tests: no temp dir, so nothing was tested: " + err.Error())
@@ -344,6 +349,10 @@ func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 		".ENV", "Server.PEM", "ID_RSA",
 		"id_ecdsa", "id_ed25519", "id_ed25519.bak",
 		".netrc", ".npmrc", "AuthKey_A1B2C3D4E5.p8",
+		// The suffix spelling of the same convention. Every name above it is a prefix form, so
+		// without these the table proves only that `.env*` matches `.env*`.
+		"production.env", "staging.env", "env/prod.env", "PRODUCTION.ENV",
+		".pgpass", ".htpasswd", ".pypirc", ".dockercfg", "deploy.ppk", "api.token",
 	} {
 		t.Run(name+" is skipped unread", func(t *testing.T) {
 			r := newRepo(t)
@@ -366,6 +375,28 @@ func TestAnOrdinaryUntrackedFileWithTheSameContentIsRead(t *testing.T) {
 	r.run()
 	r.expectCode(1)
 	r.expectStdoutHas("2x")
+}
+
+// A symlink is declined, not followed. Stat answers about the target, so without Lstat an
+// innocuously named link reads as a regular file and whatever it points at is scanned and echoed
+// under the link's name — the secret check above only ever sees the LINK's name, and the target can
+// sit outside the repository entirely.
+func TestAnUntrackedSymlinkIsSkippedAndCounted(t *testing.T) {
+	r := newRepo(t)
+	body := repeated('L', 130)
+	// Outside the repo, and named so the secret check WOULD catch it if it ever saw this name.
+	outside := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(outside, []byte(body+"\n"+body+"\n"), 0o600); err != nil {
+		t.Fatalf("could not write the link target, so nothing was tested: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(r.dir, "notes.txt")); err != nil {
+		t.Skipf("this filesystem does not do symlinks, so this case says nothing: %v", err)
+	}
+	r.run()
+	r.expectCode(0)
+	// The body is over the floor and appears twice, so a scan that followed the link would print it.
+	r.expectStdoutLacks(body[:60])
+	r.expectStderrHas("1 file(s) skipped unread")
 }
 
 func TestAnUntrackedBinaryFileIsSkippedAndCounted(t *testing.T) {
