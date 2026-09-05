@@ -61,6 +61,9 @@ type Result struct {
 type AddedLine struct {
 	File string
 	Text string
+	// Line is the 1-based line this text sits on in the file as it will land — read off the hunk
+	// header and advanced by every added and context line. 0 where no hunk header preceded it.
+	Line int
 }
 
 // RefuseNonRevisions rejects an argument that is a path or an option before any scan runs.
@@ -142,19 +145,26 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 func (r *Result) WalkDiff(diff []byte, visit func(AddedLine)) error {
 	file := ""
 	pending := false
+	line := 0
 	scanner := bufio.NewScanner(bytes.NewReader(diff))
 	scanner.Buffer(make([]byte, 0, 64*1024), MaxDiffLineBytes)
 	for scanner.Scan() {
 		raw := scanner.Text()
 		switch {
 		case strings.HasPrefix(raw, "diff --git "):
-			file, pending = "", true
+			file, pending, line = "", true, 0
 			r.Reached++
 		case pending && strings.HasPrefix(raw, "+++ "):
 			pending = false
 			file = headerPath(strings.TrimPrefix(raw, "+++ "))
+		case strings.HasPrefix(raw, "@@ "):
+			line = hunkStart(raw)
 		case strings.HasPrefix(raw, "+"):
 			text := raw[1:]
+			at := line
+			if line > 0 {
+				line++
+			}
 			// C0 controls except tab, and DEL. Not `[^[:print:]]`, which would also drop every line
 			// holding a UTF-8 character — a non-ASCII identifier, an em dash in a comment.
 			if hasControl(text) {
@@ -164,10 +174,36 @@ func (r *Result) WalkDiff(diff []byte, visit func(AddedLine)) error {
 			if file == "" {
 				continue
 			}
-			visit(AddedLine{File: file, Text: text})
+			visit(AddedLine{File: file, Text: text, Line: at})
+		case strings.HasPrefix(raw, " "):
+			if line > 0 {
+				line++
+			}
 		}
 	}
 	return scanner.Err()
+}
+
+// hunkStart reads the new-file start out of `@@ -a[,b] +c[,d] @@`, or 0 where the header does not parse.
+func hunkStart(header string) int {
+	plus := strings.Index(header, " +")
+	if plus < 0 {
+		return 0
+	}
+	rest := header[plus+2:]
+	end := strings.IndexAny(rest, ", @")
+	if end < 0 {
+		return 0
+	}
+	start, err := strconv.Atoi(rest[:end])
+	if err != nil || start < 0 {
+		return 0
+	}
+	// A zero-length new side (`+0,0`) numbers nothing; git writes the line before as its start.
+	if start == 0 {
+		return 0
+	}
+	return start
 }
 
 // The path out of a `+++ ` field. Unquoted first: git C-quotes a path holding a control character
@@ -227,7 +263,7 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 			continue
 		}
 		r.Reached++
-		for _, line := range strings.Split(string(body), "\n") {
+		for i, line := range strings.Split(string(body), "\n") {
 			// A trailing \r is this line's ending, not its content. The diff arm reads through
 			// bufio.Scanner, whose line split strips it; this arm splits on "\n" itself, so without
 			// this the guard below reads the \r as a control byte and drops EVERY line of a CRLF
@@ -238,7 +274,7 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 				r.BinaryLines++
 				continue
 			}
-			visit(AddedLine{File: name, Text: line})
+			visit(AddedLine{File: name, Text: line, Line: i + 1})
 		}
 	}
 	return nil

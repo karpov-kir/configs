@@ -1,5 +1,9 @@
 // The bar half of the detector: what the host repo's own comment rate is, and how far over it a change
 // set sits. It counts each changed file whole, so a second run over the same tree reproduces its verdict.
+//
+// A comment's bar is a ratio to the code it sits in. A PR body's is not: measured over player-testing's
+// merged PRs, body length does not scale with the diff (words per changed line 3 at p50, 36 at p90), so a
+// body takes an absolute bar read off the repo's own bodies. That thermometer is not built yet.
 package density
 
 import (
@@ -161,7 +165,7 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) chang
 	return set
 }
 
-// bar measures the change set against the host repo and reports what has to go.
+// bar measures the change set against the host repo and reports how far over it sits.
 func bar(out console, args []string, cwd string, cfg Config) int {
 	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
 		return out.refuse(err)

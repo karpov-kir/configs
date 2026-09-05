@@ -164,7 +164,7 @@ var mutants = []mutant{
 	// mutants share the opening pattern's anchor, because they are three different questions about
 	// one line: whether it still reaches every spelling, and the two ways a looser one over-reaches.
 	// The first is the defect as it stood — matched as a single literal, the scan checked neither of
-	// `score.sh`'s subcommands and reported nothing about the file.
+	// that stub's subcommands and reported nothing about the file.
 	{"subcommands: the dispatch opening matched as one literal again", "subcommands.go", "./eco-check/", "TestAShellDispatchIsReadInEverySpellingOfItsOpening", `^case [^#]*\$\{?1[^0-9]`, `^case "\$\{1:-\}" in`},
 	{"subcommands: any top-level case read as a dispatch", "subcommands.go", "./eco-check/", "TestATopLevelCaseIsNotAlwaysADispatch", `^case [^#]*\$\{?1[^0-9]`, `^case `},
 	{"subcommands: an in-function lookup table read as a dispatch", "subcommands.go", "./eco-check/", "TestATopLevelCaseIsNotAlwaysADispatch", `^case [^#]*\$\{?1[^0-9]`, `case [^#]*\$\{?1[^0-9]`},
@@ -506,7 +506,7 @@ var mutants = []mutant{
 	{"records: a swap taken on a record with room in it", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "held := len(recordEntriesIn(lines)); held < kind.bound {", "held := len(recordEntriesIn(lines)); held < 0 {"},
 	{"records: an admitted entry inheriting the reach of the one it displaced", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "admitted := recordEntry{count: 1, date: today(), text: entry}", "admitted := recordEntry{count: found.count, date: today(), text: entry}"},
 	{"records: a swap reported by its winner alone", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `r.line("in place of: %s", found.quoted())`, "_ = found"},
-	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the score cuts.",`, `"",`},
+	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the judge names.",`, `"",`},
 	{"records: a record that never says who it is written for", "../eco-report/records.go", "./eco-report/", "TestFirstWriteCreatesTheRecordWithItsHeader", `"Written for the next agent — never presented to a human, and no human maintains it.\n" +`, `"" +`},
 	{"records: a revision that resets the entry's reach", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "revised := recordEntry{count: found.count, date: today(), text: replacement}", "revised := recordEntry{count: 1, date: today(), text: replacement}"},
 	{"records: a revision onto a duplicate of another entry", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "if entry.text == replacement {", "if false {"},
@@ -907,7 +907,7 @@ var mutants = []mutant{
 	// other quoted token become exemptions handed out at random.
 	{"ruleecho: any backticked span read as a citation", "../rule-echo/match.go", "./rule-echo/", "TestCitedTargetsReadsBothFormsAndNothingElse", `if strings.HasSuffix(target, ".md") {`, "if true {"},
 
-	// cadence, comment-density and score are ports of three shell scripts. Nothing else shows their
+	// cadence and comment-density are ports of two shell scripts. Nothing else shows their
 	// suites' cases can fail.
 	{"cadence: the interval moves out by two days", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
 		`const intervalDays = 7`, `const intervalDays = 9`},
@@ -929,45 +929,6 @@ var mutants = []mutant{
 		`strings.Cut(string(body), "\n")`, `strings.Cut(string(body), "\x00")`},
 	{"cadence: a carriage return survives into the stamp", "../cadence/cadence.go", "./cadence/", "TestATrailingLineStillResolves",
 		`strings.TrimRight(first, "\r")`, `first`},
-
-	{"score: the cut boundary excludes the bar itself", "../score/score.go", "./score/", "TestCutReadsTheList",
-		`if value <= level {`, `if value < level {`},
-	{"score: a list that never arrived reads as a clean run", "../score/score.go", "./score/", "TestNothingScoredExitsTwo",
-		`if kept+gone == 0 {`, `if kept+gone == 0 && false {`},
-	{"score: cutting nothing passes unrefused", "../score/score.go", "./score/", "TestNothingCutExitsThree",
-		`if gone == 0 && kept > 0 {`, `if gone == 0 && kept > 0 && false {`},
-	// `1 kept, 1 cut` at exit 0 is the shape a whole scored list takes, so a list that stopped mid-read
-	// must never be able to produce it. Only a reader that fails reaches the guard, which is why it
-	// stood with no case behind it.
-	{"score: a list that stopped mid-read reports the counts it reached", "../score/score.go", "./score/", "TestAListThatStoppedMidReadIsNotAWholeOne",
-		`if err := scanner.Err(); err != nil {`, `if err := scanner.Err(); err != nil && false {`},
-	{"score: a blank anchor is accepted", "../score/score.go", "./score/", "TestCutRefusesBeforeItReads",
-		`if strings.TrimSpace(anchor) == "" {`, `if strings.TrimSpace(anchor) == "" && false {`},
-	{"score: --kept-all takes an empty reason", "../score/score.go", "./score/", "TestCutRefusesBeforeItReads",
-		`if strings.TrimSpace(keptAllWhy) == "" {`, `if strings.TrimSpace(keptAllWhy) == "" && false {`},
-	{"score: a label's control characters reach the report", "../score/score.go", "./score/", "TestAControlCharacterInALabelIsNeutralised",
-		`label = shell.Oneline(label)`, `label = label + ""`},
-	{"score: a lane name's control character is not refused", "../score/score.go", "./score/", "TestAControlCharacterInALaneNameIsRefused",
-		`if shell.Oneline(name) != name {`, `if shell.Oneline(name) != name && false {`},
-	{"score: a level over the scale is accepted", "../score/score.go", "./score/", "TestAMalformedConfigIsRefused",
-		`if level > maxScore {`, `if level > maxScore && false {`},
-	{"score: the config's line form goes unchecked", "../score/score.go", "./score/", "TestAMalformedConfigIsRefused",
-		`if len(fields) != 4 || fields[1] != "cut" || fields[2] != "<=" {`,
-		`if (len(fields) != 4 || fields[1] != "cut" || fields[2] != "<=") && false {`},
-	// An override moves a lane, never adds one — without this a typo tunes nothing, silently.
-	{"score: an override may add a lane the tracked config never ruled", "../score/score.go", "./score/", "TestTheOverride",
-		`if _, ruled := allow.level[name]; !ruled {`, `if _, ruled := allow.level[name]; !ruled && false {`},
-	{"score: a signed score is accepted", "../score/score.go", "./score/", "TestCutRefusesAMalformedItem",
-		`if text[i] < '0' || text[i] > '9' {`, `if (text[i] < '0' || text[i] > '9') && false {`},
-	// Not obvious which case, and it is two: `a directory in its place is refused, not skipped` and `a
-	// dangling symlink is refused, not read as absent` reach this guard by different shapes of "exists
-	// and is not a readable regular file", and either alone leaves the other's silent fallback
-	// unobserved.
-	{"score: an unreadable override falls back to the tracked bar", "../score/score.go", "./score/", "TestTheOverride",
-		`if err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath) {`,
-		`if (err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath)) && false {`},
-	{"score: an override that names no lane moves it anyway", "../score/score.go", "./score/", "TestTheOverride",
-		`if !named {`, `if !named && false {`},
 
 	{"density: the ratio bar becomes strictly greater", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},

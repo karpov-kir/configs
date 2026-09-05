@@ -18,8 +18,6 @@ Take the first that fits:
 4. **Subagent** — the task is scoped tightly enough that nobody steers it, and this session stays untouched (**Caller** above).
 5. **Compact** — relevant context, same harness, same tree, and you stay in the loop. The **default**, last because everything above it is cheaper or more precise. Say what the next phase needs.
 
-**Every move but the first replaces a primary source with an account of it** — that is what orders the list.
-
 ## Setup
 
 Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) points at for what you're reviewing, and the project's own `CLAUDE.md` — the root one and any in a directory your target touches. Further reading, and any index you build from it, is your skill's delta.
@@ -51,8 +49,6 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 
 ## Verdict
 
-The last thing in the message, searchable by its fixed prefix:
-
 - Pass: `<Unit> N/M <path> | <lines>L | OK`
 - Fail: the same line with `WARN`, then one line per finding.
 
@@ -60,15 +56,13 @@ The last thing in the message, searchable by its fixed prefix:
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
-**A spawned return carries these and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`; and any override note `score.sh` printed ([writing.md](writing.md) → **Score what survives**).
+**A spawned return carries these and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals — never over the lines whose shape this section fixes — and delete what it names.
 
 ## Redact before you quote
 
 Evidence you paste — a command, a response body, a log line, a captured artifact — carries credentials and personal data. Write `<REDACTED>` in their place, and build a check against environment variables so the credential never enters what you show. Evidence too thin once redacted is an ask.
 
 ## Your own fixes are unreviewed code
-
-Nothing downstream reviews what a quality pass writes, including a fix the orchestrator applied outside any stage.
 
 - **A behaviour-changing fix lands a test per branch it introduces**, whatever its size.
 - **A finding that proposes building a subsystem carries that subsystem's standing cost** — disk, memory, schedule, whatever it will keep consuming.

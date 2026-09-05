@@ -22,7 +22,8 @@
 # across a pass that cut comments.
 #
 # `--bar` counts each changed file as it will land, against the rate the repo's untouched files run at,
-# and reports what has to go. Two runs over one tree print one verdict, so re-run it after every cut.
+# and says how far over it sits and which files carry it. Two runs over one tree print one report. It
+# decides nothing — the judge does; exit 1 is a reading, not a failing check.
 # Files are read as they sit in the working tree; revisions only choose which files. Only a file new
 # since the diff's base is held to the per-file ceiling: one the repo already carried has the repo's own
 # density, and its added lines are the default mode's to flag. The two COMMENT_* thresholds do not

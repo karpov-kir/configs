@@ -24,17 +24,11 @@ The reader understands the text on the first read, without backtracking — in *
 * No backstory, hedging, or justification — describe what is true, not what we tried.
 * **Outward text**: [human-writing.md](human-writing.md) wins over this section on conflict.
 
-## Score what survives
-
-A keep test says only that a thing *may* stay, so alone it keeps whatever can be justified. **Score what it keeps — 0 to 10 for how much this reader needs it, one score per claim the reader acts on, never per sentence.** **A survivor longer than a couple of sentences is scored again inside it** — the unit is the claim, not the container it arrived in. What a score has to beat is per lane, and **at or below** that number the thing goes where that lane sends it.
-
-**Score through `~/.kk-flavor/scripts/score.sh cut`** — it holds the numbers, and it refuses the runs that only look like passes. **A non-zero exit is not a result you may keep**; do what it says. **Any override note goes into your reply**, unscored. **A number the human names replaces the lane's for that run.**
-
 ## Replying to a human
 
 Your own reply in the session, not a message you compose for someone else. [human-writing.md](human-writing.md) → **AI tells** still binds here — a tell marks manufactured writing, whoever reads it.
 
-* Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do — then score what is left, lane `reply`.
+* Carry only what they must know, decide, or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do — then run `~/.kk-flavor/scripts/bloat-judge.sh reply` over what is left, and delete what it names.
 * **No headings, and no bold lead-in restating its own line. Render items as a `*` list.**
 * **Order it so they can stop early** — chronological where the content is a sequence, otherwise what they must decide before what they only need to know.
 * Substance with a durable home (a report, a ticket, a commit) is pointed at, never restated.

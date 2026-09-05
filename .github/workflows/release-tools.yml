@@ -34,7 +34,7 @@ jobs:
     env:
       # The tools that ship. `go-mutate` is a developer harness and stays out deliberately;
       # ai/tools/shipped_test.go fails if this list and that judgement drift apart.
-      SHIPPED: eco-check eco-stats eco-report rule-echo cite-graph handoff-check cadence comment-density score tree-fingerprint gate dup-literals
+      SHIPPED: eco-check eco-stats eco-report rule-echo cite-graph handoff-check cadence comment-density tree-fingerprint gate dup-literals bloat-judge
     steps:
       - uses: actions/checkout@v7
 

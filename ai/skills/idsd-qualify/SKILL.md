@@ -1,7 +1,6 @@
 ---
 name: idsd-qualify
 description: Run the quality pipeline over the working tree with a merge stamp. Use for "qualify the changes" inside an IDSD project. The `.idsd` report layer over kk-qualify — the same pass without a report is that skill's, and its description discriminates the rest.
-argument-hint: "[score threshold]"
 ---
 
 Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. You orchestrate, so read `~/.kk-flavor/standards/skill-protocol.md` whole.
@@ -59,15 +58,14 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 <optional: context several items share, stated once here, never per item>
 
-- [ ] **<N> · <Falsified | Fork | Pending evidence> · <score>/10 —** <the action, one line>
+- [ ] **<N> · <Falsified | Fork | Pending evidence> —** <the action, one line>
   <the case: what it is, why it matters, the evidence>
   **Recommend:** <the answer>
 ```
 
-**What earns an item, how it is scored, and the order it lands in are `~/.claude/skills/kk-qualify/SKILL.md` → **The residue**.** This file adds only where that residue is written:
+**What earns an item and the order it lands in are `~/.claude/skills/kk-qualify/SKILL.md` → **The residue**.** This file adds only where that residue is written:
 
 - **One group, `Decide`** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
-- **What the threshold cuts gets no `- [ ]`**, and no decision-log entry either — a question you still hold is barred from that log.
 - **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry <intent>` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass

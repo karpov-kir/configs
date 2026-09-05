@@ -13,3 +13,5 @@ A hook shrinks every shell command's output through the `rtk` proxy, and a shrun
 # Memory
 
 Keep memory here, never in `~/.claude/projects/*/memory/`. How this section works: `~/.kk-flavor/standards/ecosystem.md` → **Memory**.
+
+- Outward text is cut by `bloat-judge`, never from a git hook. Its design and what it still owes are its package doc, `ai/tools/bloat-judge/judge.go`.
