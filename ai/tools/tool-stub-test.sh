@@ -105,31 +105,26 @@ TABLE
 
 echo "shared:tool-stub"
 
-# score.sh in situ, and the reason every stub declares its own offset instead of the region holding one
+# bloat-judge.sh in situ, and the reason every stub declares its own offset instead of the region holding one
 # depth. Most stubs sit at `skills/<skill>/scripts/`, three below the tools directory; this one and
 # `tree-fingerprint.sh` are at `kk-flavor/scripts/`, two below, and `gate.sh` sits beside `tools/`
 # itself. The copied fixtures further down drive a stub at each depth in a throwaway tree; this drives
 # the real file at the real depth against its real tool. The probe table cannot hold it because that
-# harness passes exactly one argument and `threshold` needs a lane.
-score_stub="$ai/kk-flavor/scripts/score.sh"
-if [ -x "$score_stub" ]; then
-  # stdout alone, and the whole reason the two streams are held apart: `threshold` prints the number
-  # on stdout and announces a machine-local override on stderr. Merged, the reader's own override for
-  # this lane makes `$out` two lines, the numeric test refuses it, and the case reddens about their
-  # config rather than about the stub. stderr is kept for the failure message, where it is the thing
-  # that says what went wrong.
-  score_err="$base/score-probe.err"
-  out=$(CDPATH= cd "$base" && "$score_stub" threshold instruction 2>"$score_err")
+# harness passes exactly one argument, and the judge with none prints its usage and exits 2.
+judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
+if [ -x "$judge_stub" ]; then
+  judge_err="$base/judge-probe.err"
+  (CDPATH= cd "$base" && "$judge_stub" >/dev/null 2>"$judge_err")
   status=$?
-  if [ "$status" -eq 0 ] && [ "$out" -eq "$out" ] 2>/dev/null; then
-    record_pass "score.sh reaches its tool from two levels below tools/, in the tree not a fixture"
+  if [ "$status" -eq 2 ] && grep -q "usage:" "$judge_err"; then
+    record_pass "bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
   else
-    record_fail "score.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
-      "exit $status, stdout: $out, stderr: $(cat "$score_err" 2>/dev/null)"
+    record_fail "bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
+      "exit $status, stderr: $(cat "$judge_err" 2>/dev/null)"
   fi
 else
-  record_fail "score.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
-    "$score_stub is not executable, so the one stub at that depth went unchecked"
+  record_fail "bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
+    "$judge_stub is not executable, so the one stub at that depth went unchecked"
 fi
 
 # The negative control, and the regression the stub exists for.
@@ -330,7 +325,7 @@ if [ "$stubs_outside_skills" -gt 0 ]; then
   record_pass "and the walk reached past the skills tree, where $stubs_outside_skills of them live"
 else
   record_fail "and the walk reached past the skills tree" \
-    "every stub it found is under $skills, so one outside it is unscanned — which is how score.sh went unread"
+    "every stub it found is under $skills, so one outside it is unscanned — which is how the one stub at `kk-flavor/scripts/` went unread"
 fi
 
 echo

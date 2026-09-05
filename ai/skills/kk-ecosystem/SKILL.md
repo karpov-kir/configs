@@ -18,7 +18,7 @@ Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and
 
 ## 2. Audit the always-loaded set
 
-`check.sh` prints this set's size, not its members. The set is `CLAUDE.md`, `~/.kk-flavor/inject.md`, the standards that file marks as read on every task, every `@import` those carry, and every skill `description:` the harness holds for a skill without `disable-model-invocation`. Read them whole and hold each line to the top of the rising bar (`~/.kk-flavor/standards/ecosystem.md` → **Earn the place**); anything narrower moves down a tier. Score them on lane `always-loaded` (`~/.kk-flavor/standards/writing.md` → **Score what survives**). An import an installer owns outside this tree is audited here too. Being unable to change it makes the finding a report, not a skip.
+`check.sh` prints this set's size, not its members. The set is `CLAUDE.md`, `~/.kk-flavor/inject.md`, the standards that file marks as read on every task, every `@import` those carry, and every skill `description:` the harness holds for a skill without `disable-model-invocation`. Read them whole and hold each line to the top of the rising bar (`~/.kk-flavor/standards/ecosystem.md` → **Earn the place**); anything narrower moves down a tier. Run `~/.kk-flavor/scripts/bloat-judge.sh instruction <file>` over each file in it, and delete what it names. An import an installer owns outside this tree is audited here too. Being unable to change it makes the finding a report, not a skip.
 
 ## 3. Cut, or move
 

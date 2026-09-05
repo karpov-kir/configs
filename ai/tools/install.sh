@@ -12,6 +12,10 @@
 # Verifies each download against the release's own SHA256SUMS before it becomes executable. A binary
 # that fails the check is deleted rather than installed: these run over the human's repositories.
 #
+# Each binary lands with the source stamp the release recorded for it, so resolve.sh can see when the
+# checkout has moved on since. A release carrying no stamps is refused rather than installed
+# unstamped: an unstamped binary reports as unknown on every run afterwards.
+#
 # The release comes from this checkout's own `origin`, named to gh explicitly. Left to itself gh
 # resolves a release against the *caller's* current directory, and this script runs from wherever the
 # caller was standing — `../bootstrap.sh` invokes it without changing directory.
@@ -59,11 +63,13 @@ sha256_of() {
   fi
 }
 
-# The hash SHA256SUMS records for a basename. The file is written with `sha256sum ./*`, so the names
-# in it carry a `./` prefix; matched on the basename so it verifies wherever the assets landed.
+# The digest a two-column `<digest>  <name>` release manifest records for a name. The release ships
+# two, and both are read through here: SHA256SUMS over the assets, and STAMPS over the source each
+# tool was built from. Only SHA256SUMS is written with `sha256sum ./*`, so the `./` is stripped rather
+# than expected, and the basename match is what lets an asset verify wherever it landed.
 recorded_sha256() {
-  local sums="$1" name="$2"
-  awk -v want="$name" '{ path = $2; sub(/^\.\//, "", path); if (path == want) print $1 }' "$sums"
+  local manifest="$1" name="$2"
+  awk -v want="$name" '{ path = $2; sub(/^\.\//, "", path); if (path == want) print $1 }' "$manifest"
 }
 
 # The `<owner>/<repo>` a git remote URL names, or nothing. What the unnamed release resolves to is at
@@ -175,7 +181,7 @@ patterns=()
 for tool in $tools; do
   patterns+=(--pattern "$tool-$suffix")
 done
-patterns+=(--pattern SHA256SUMS)
+patterns+=(--pattern SHA256SUMS --pattern STAMPS)
 
 printf 'install.sh: downloading %s assets for %s from %s\n' \
   "$(printf '%s\n' "$tools" | wc -l | tr -d ' ')" "$suffix" "$release_repo" >&2
@@ -189,20 +195,35 @@ fi
 
 [ -f "$staging/SHA256SUMS" ] ||
   die "the release carries no SHA256SUMS, so nothing could be verified — nothing was installed"
+# Checked here rather than in the loop below, so the refusal can carry the way out: what lands here
+# is an install of a release cut before source stamps existed, not a broken download. It may never be
+# reached at all — a `--pattern` matching nothing can fail the download first, which is the refusal
+# just above.
+[ -f "$staging/STAMPS" ] ||
+  die "this release has no STAMPS asset, so no binary from it could ever be checked against the source beside it — nothing was installed. That is what a release cut before source stamps looks like: take a later one, or build from source with $here/resolve.sh <tool>, which needs Go"
 
 mkdir -p "$here/bin" || die "cannot create $here/bin"
 
+# STAMPS goes through the same two checks the binaries do. What it records is what resolve.sh reads
+# every run afterwards to decide whether a binary was built from the source beside it, so an
+# unverified STAMPS is a stale binary nobody is ever warned about.
+assets=()
+for tool in $tools; do
+  assets+=("$tool-$suffix")
+done
+assets+=(STAMPS)
+
 # Verified before anything is made executable, and every asset before any of them is installed: a
 # half-installed set is worse than none, because resolve.sh prefers whatever binary it finds.
-for tool in $tools; do
-  asset="$staging/$tool-$suffix"
-  [ -f "$asset" ] || die "the release carries no $tool-$suffix — nothing was installed"
-  want="$(recorded_sha256 "$staging/SHA256SUMS" "$tool-$suffix")"
-  [ -n "$want" ] || die "SHA256SUMS records no hash for $tool-$suffix — nothing was installed"
+for name in "${assets[@]}"; do
+  asset="$staging/$name"
+  [ -f "$asset" ] || die "the release carries no $name — nothing was installed"
+  want="$(recorded_sha256 "$staging/SHA256SUMS" "$name")"
+  [ -n "$want" ] || die "SHA256SUMS records no hash for $name — nothing was installed"
   got="$(sha256_of "$asset")" ||
-    die "no shasum or sha256sum on this machine, so $tool-$suffix could not be verified — nothing was installed"
+    die "no shasum or sha256sum on this machine, so $name could not be verified — nothing was installed"
   [ "$want" = "$got" ] ||
-    die "$tool-$suffix does not match its recorded hash — nothing was installed"
+    die "$name does not match its recorded hash — nothing was installed"
   # The hash and the attestation answer different questions. The hash proves the asset matches the
   # SHA256SUMS shipped beside it, but whoever publishes a release publishes both, so an attacker's
   # assets verify against the attacker's own list. Only the attestation, signed by GitHub against the
@@ -218,12 +239,21 @@ for tool in $tools; do
   # staging directory the EXIT trap deletes, so re-running the command would only report a missing file.
   attestation_error="$(gh attestation verify "$asset" --repo "$release_repo" \
     --signer-workflow karpov-kir/configs/.github/workflows/release-tools.yml 2>&1 >/dev/null)" ||
-    die "$tool-$suffix carries no provenance attestation from $release_repo, or it could not be checked — nothing was installed. A release built before the release workflow attested, an offline or unauthenticated machine, and a substituted binary all land here; gh said: $attestation_error"
+    die "$name carries no provenance attestation from $release_repo, or it could not be checked — nothing was installed. A release built before the release workflow attested, an offline or unauthenticated machine, and a substituted binary all land here; gh said: $attestation_error"
+done
+
+# Every tool's stamp read before any of them is installed, for the same all-or-nothing reason: a
+# binary whose stamp went missing half way through is one resolve.sh reports as unknown for good.
+for tool in $tools; do
+  [ -n "$(recorded_sha256 "$staging/STAMPS" "$tool")" ] ||
+    die "STAMPS records no source stamp for $tool — nothing was installed"
 done
 
 for tool in $tools; do
   chmod 755 "$staging/$tool-$suffix"
   mv -f "$staging/$tool-$suffix" "$here/bin/$tool" ||
     die "could not move $tool into $here/bin — the install is incomplete"
+  printf '%s\n' "$(recorded_sha256 "$staging/STAMPS" "$tool")" >"$here/bin/$tool.stamp" ||
+    die "$tool is installed but its source stamp could not be written to $here/bin/$tool.stamp — the install is incomplete"
   printf 'install.sh: installed %s\n' "$here/bin/$tool"
 done

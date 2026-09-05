@@ -1,7 +1,7 @@
 ---
 name: kk-tighten
 description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's.
-argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\", \"staged\"); plus an optional score threshold"
+argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\", \"staged\")"
 ---
 
 Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs context-window tokens without earning them.
@@ -10,8 +10,8 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs c
 
 ## Two licenses, by what the artifact carries
 
-- **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar, and holds the deletion tests — read it before the pass. **Score what survives them** (`~/.kk-flavor/standards/writing.md` → **Score what survives**) one score per rule, on lane `instruction` — or `always-loaded` for an artifact in the set `~/.claude/skills/kk-ecosystem/SKILL.md` → **2. Audit the always-loaded set** names, which then governs (`~/.kk-flavor/thresholds.conf`).
-- **Everything else** — a design doc, an investigation, a spec, a report: **lossless**, and never scored. Cut only what the surrounding context recovers — adjacent text, the code it documents, sibling artifacts, the diff. Unsure a cut loses meaning → keep it.
+- **Rules an agent reads** — any doc that instructs an agent (skills, standards, prompts, templates, `CLAUDE.md`): **lossy**, whole rules included. `~/.kk-flavor/standards/ecosystem.md` is the bar, and holds the deletion tests — read it before the pass. **Then run `~/.kk-flavor/scripts/bloat-judge.sh instruction <file>` over what survives them**, and delete what it names.
+- **Everything else** — a design doc, an investigation, a spec, a report: **lossless**, and the judge never runs over it. Cut only what the surrounding context recovers — adjacent text, the code it documents, sibling artifacts, the diff. Unsure a cut loses meaning → keep it.
 
 **What `~/.kk-flavor/standards/human-writing.md` covers is `kk-humanize`'s — code comments and docstrings included — and barred to your lens.** Hand off every queued artifact carrying such text, edited or not, per `~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**.
 

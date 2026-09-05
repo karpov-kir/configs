@@ -267,7 +267,7 @@ func TestAnUnreadableDispatchPathSaysItWasCut(t *testing.T) {
 
 // A shell dispatch is the same dispatch in every spelling of its opening line, and an author reaches
 // for whichever one they like. Matched as the single literal `case "${1:-}" in`, this scan checked the
-// subcommands of the spellings it knew and said nothing whatever about the rest: `score.sh` was
+// subcommands of the spellings it knew and said nothing whatever about the rest: one stub was
 // `case "$1" in`, so neither `threshold` nor `cut` had ever been checked for a call site, and the
 // scan reported nothing about the file because it never looked at it.
 //

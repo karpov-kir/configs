@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -353,14 +354,29 @@ func unmatchedRunFilter(runFilter string, held map[string]map[string]bool) strin
 	if err != nil {
 		return fmt.Sprintf("-run %q does not compile as a regexp: %v", runFilter, err)
 	}
-	for _, names := range held {
-		for name := range names {
-			if pattern.MatchString(name) {
-				return ""
-			}
+	// Every suite in scope, not any one of them. A filter answered by one suite and by none of the
+	// others leaves those others' mutants running against nothing, and each comes back KILLED NOTHING
+	// — a finding per mutant, manufactured by the invocation.
+	var unanswered []string
+	for suite, names := range held {
+		if !matchesAny(pattern, names) {
+			unanswered = append(unanswered, suite)
 		}
 	}
-	return fmt.Sprintf("-run %q matches no test in the suites these mutants name", runFilter)
+	if len(unanswered) == 0 {
+		return ""
+	}
+	sort.Strings(unanswered)
+	return fmt.Sprintf("-run %q matches no test in %s", runFilter, strings.Join(unanswered, ", "))
+}
+
+func matchesAny(pattern *regexp.Regexp, names map[string]bool) bool {
+	for name := range names {
+		if pattern.MatchString(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // Everything that has to resolve before a single mutant runs, each refusal named as it is found. It

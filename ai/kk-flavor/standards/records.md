@@ -20,7 +20,7 @@ A **generated** file is not one of these. Regenerated from a source that is itse
 
 Every record is capped, states its bound in the file itself, and **the writer holds that bound** — an append into a full record refuses. Where the record is hand-written under the exception above, the skill states the bound instead, and its own pruning point holds it.
 
-**Eviction chooses by score** — `~/.kk-flavor/scripts/score.sh cut record-entry "<an entry the next agent would be worse off without>"` over every entry, and what falls at or below the line goes, the oldest date breaking a tie.
+**Eviction is the judge's** — `~/.kk-flavor/scripts/bloat-judge.sh record-entry` over every entry.
 
 **Never evict by count, and never from the top of the file.** The count says how often the record has been needed, never how much the next agent needs the entry. Age is worse: the settled decisions everything rests on are old *because* nothing has needed to revisit them.
 
@@ -31,9 +31,9 @@ The cap is a prompt to judge, never a queue to trim from the bottom. Work the mo
 - **Delete** what is no longer true, whatever its count or date — its subject gone from the code, or a later entry superseding it.
 - **Promote** what a later agent must not lose (below).
 - **Combine** two entries that carry one idea between them: revise the higher-count one into the wording covering both, then evict the other. The survivor keeps its count, so the fold costs the record no reach.
-- **Evict** what the score cuts, once the three above have found nothing. Eviction reaches only an entry that is still true and still unreached.
+- **Evict** what the judge names, once the three above have found nothing — never an entry this run bumped.
 
-**With a new entry in hand, it is scored alongside the incumbents.** The lowest of the N+1 loses. **A tie against the new entry is lost by the new entry** — broken the other way, arrival order is the tiebreak. A new entry that loses is not recorded at all; one that wins takes the loser's place.
+**With a new entry in hand, it is judged alongside the incumbents.** A new entry the judge names is not recorded at all, and saying so is the whole of it; one it spares while naming no incumbent is turned away the same way — the cap holds.
 
 **Say which move you made and on what.**
 

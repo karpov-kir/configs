@@ -67,13 +67,13 @@ const (
 // "decision".
 const entryBound = 2000
 
-// The scale the cap's contest is settled on, and the one an over-cap prune uses — `records.md` → **The
+// The judge the cap's contest is settled by, and the one an over-cap prune uses — `records.md` → **The
 // cap evicts by what the record can afford to lose**. A constant, because two notes hand it over and
-// they must not offer different scales.
-const scoreCutCommand = `~/.kk-flavor/scripts/score.sh cut record-entry "<an entry the next agent would be worse off without>"`
+// they must not offer different judges.
+const judgeCommand = "~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin"
 
 // The moves at the cap that free a slot at no loss, in `records.md`'s order. A constant for the same
-// reason scoreCutCommand is — the same two notes quote both.
+// reason judgeCommand is — the same two notes quote both.
 const capLadderRungs = "delete what is no longer true, promote what must not be lost, fold two entries carrying one idea together"
 
 // The rule line every header carries, built from the bound rather than written out under each: four
@@ -388,7 +388,7 @@ func (r *run) recordAppend(kind *recordKind, path, text string) {
 // removed.
 //
 // The ladder comes first because each of its moves frees a slot at no loss (`records.md` → **Reaching
-// the cap**), and only under it the contest, which costs the record an entry. The contest scores the
+// the cap**), and only under it the contest, which costs the record an entry. The contest judges the
 // incumbents AND the newcomer on one scale: asking only whether the new entry beats the weakest
 // incumbent lets every newcomer in, and a record that always admits the newest is a rolling window of
 // the last N — the age-ordered trim `records.md` forbids outright. The tie goes against the newcomer
@@ -400,8 +400,8 @@ func (r *run) refuseFull(kind *recordKind, path string, held int, text string) {
 		"  " + capLadderRungs + ".",
 	}, pruneCommands(kind)...)
 	note = append(note,
-		"  If none of those apply, score the new entry and every entry in the file on one scale:",
-		"    "+scoreCutCommand,
+		"  If none of those apply, run the judge over the new entry and every entry in the file:",
+		"    "+judgeCommand,
 		"  The lowest of the "+strconv.Itoa(held+1)+" loses, oldest date breaking a tie, and a tie against the new",
 		"  entry is lost by the new entry. Losing, it does not go in. Winning, it takes the loser's place:",
 		"    report.sh record admit "+kind.name+" \"<text identifying the entry it beat>\" \"<the new entry>\"")
@@ -465,7 +465,7 @@ func (r *run) recordRevise(kind *recordKind, path, text, replacement string) {
 }
 
 // The last resort at a full record, and the only way into one — `records.md` → **Reaching the cap**.
-// One entry out for one in, so the file cannot grow by it. The caller has already scored both sides;
+// One entry out for one in, so the file cannot grow by it. The caller has already judged both sides;
 // this holds the arithmetic and the write.
 //
 // The entry lands at 1x where a revise would inherit the loser's count. The two ops look alike and
@@ -609,7 +609,7 @@ func (r *run) oneMatchingEntry(path string, lines []string, text, verb string) r
 // cap was lowered under it.
 //
 // Said out loud and never acted on, and the tool names no candidate. Which entry the record can afford
-// to lose is a score the agent takes over the whole file — `records.md` → **The cap evicts by what the
+// to lose is a judgement the agent takes over the whole file — `records.md` → **The cap evicts by what the
 // record can afford to lose**. One picked here by count would name the quiet, load-bearing entry
 // nearly every time: the count rises with how often the area is worked, not with how much the next
 // agent needs the line.
@@ -621,8 +621,8 @@ func (r *run) noteBound(kind *recordKind, path string, lines []string) {
 	note := append([]string{
 		"note: " + path + " holds " + strconv.Itoa(len(entries)) + " entries, over its cap of " + strconv.Itoa(kind.bound) + " — every append refuses until it is back down.",
 		"  Work records.md -> Reaching the cap, in order:",
-		"  " + capLadderRungs + ", and only then evict what the score cuts.",
-		"    " + scoreCutCommand,
+		"  " + capLadderRungs + ", and only then evict what the judge names.",
+		"    " + judgeCommand,
 	}, pruneCommands(kind)...)
 	note = append(note, humanOwnedNote(kind)...)
 	r.errLines(note...)

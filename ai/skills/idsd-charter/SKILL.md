@@ -28,7 +28,7 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 
 **Write each constraint only through `~/.claude/skills/idsd-qualify/scripts/report.sh record {append|bump|revise|evict|admit} constraints "<text>"`** — the same hazard as the decision log (`~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log**). `~/.kk-flavor/standards/records.md` is the whole delta. **It is pruned here and nowhere else.**
 
-Score the constraints through `~/.kk-flavor/scripts/score.sh cut record-entry "a constraint whose breach fails the build"`. The two tests above have already taken the weak ones, so `--kept-all <why>` is the ordinary ending here rather than a failure.
+Run `~/.kk-flavor/scripts/bloat-judge.sh record-entry` over the constraints; what it names is a proposal to the human (**Rules**).
 
 A constraint promoted from `.idsd/decisions.md` arrives as a proposal, never as the entry itself: the human owns the threshold. Once they accept it, delete the source entry with `~/.claude/skills/idsd-qualify/scripts/report.sh record evict decisions "<text identifying it>"`.
 
