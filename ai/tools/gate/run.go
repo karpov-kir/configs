@@ -58,6 +58,17 @@ func (g *gate) unitLine(state, id, detail string) {
 // concurrency added here is exactly one boundary: the shell block against everything else, with the
 // block itself as serial as it has always been.
 //
+// Widening it to three was tried and backed out, and what settles the question is not yet measured.
+// The suites themselves are safe to overlap: eleven ran concurrently five times over, every one green,
+// with `ai/run-tests.sh`'s checkout-moved guard live on each — `TestEveryShellSuiteOwnsItsScratch` is
+// what keeps that true. Whether overlapping them PAYS inside the gate is the open part. Every spawn
+// here goes through one serialised security inspection, and `gotest` already spends that budget on
+// eighteen packages, so more spawners may queue behind it rather than beside it.
+//
+// Do not settle it with two wall-clock readings. This machine is shared, and the same gate measured
+// 131s and 2877s on identical code at different loads. It takes an interleaved A/B — narrow, wide,
+// narrow, wide — on a quiet machine, or total CPU time rather than wall clock.
+//
 // Everything else shares the default group, which is also what a units-file table gets. That keeps
 // every fixture in this package's suite on the serial path it was written for, and a fixture reaches
 // the concurrent path by naming a unit `shell:<something>` — the same rule discovery uses, from the

@@ -5,6 +5,10 @@
 #   usage: mcp-env-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise, 2 when it
 #                            # could not reach the script at all
 #
+# no scratch: every case compares strings out of `child_env`. Nothing here writes a file, makes a
+# directory or redirects into one, so this suite needs none of its own — which is what lets the
+# gate run it beside its siblings.
+#
 # The control that makes the rest mean something is the sentinel one: "no secret reached the child"
 # passes just as well when the child printed nothing at all, so the same sentinels are measured
 # without the wrapper first, and that run has to find them.
