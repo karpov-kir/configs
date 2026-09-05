@@ -14,7 +14,7 @@ Take the first that fits:
 
 1. **Continue** — the next phase wants this one as a **primary source**, the reasoning verbatim rather than an account of it, or the window still holds it comfortably. Costs nothing and loses nothing.
 2. **Clear** — the exploration, the decisions and the dead ends are all disposable to what follows. The cheapest move, and the one whose mistake is one-way: the *why* goes, and reading the diff back does not return it.
-3. **Hand off** — something travels: another harness, another tree, another person. Portability is all it buys, so where nothing travels this is the wrong move.
+3. **Hand off** — something travels: another harness, another tree, another person.
 4. **Subagent** — the task is scoped tightly enough that nobody steers it, and this session stays untouched (**Caller** above).
 5. **Compact** — relevant context, same harness, same tree, and you stay in the loop. The **default**, last because everything above it is cheaper or more precise. Say what the next phase needs.
 

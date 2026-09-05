@@ -68,6 +68,28 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.chmod(f.todoGatePath(), 0o755)
 }
 
+// The ICE's own `## Follow-ups` are the build's loose ends, and they live outside the report. Nothing
+// else reads them before a merge, so a gate scanning only the report lets every one of them through.
+func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-follow-ups")
+	f.newIntentFile("001-follow-ups")
+	f.stampFullPass("001-follow-ups")
+
+	f.runReport("gate", "001-follow-ups")
+	f.record("gate clears with an intent file holding nothing open",
+		f.status == 0 && strings.Contains(f.out, "gate clean"), f.evidence())
+
+	// Written into the intent, not the report — and the intent is git-ignored scratch here, so the
+	// freshness arm stays clear and this is the only thing that can block.
+	f.appendTo(f.scratch()+"/intents/001-follow-ups.md",
+		"\n## Follow-ups\n\n- [ ] tell the consumers the payload changed\n")
+	f.runReport("gate", "001-follow-ups")
+	f.record("gate blocks on an open item in the intent file",
+		f.status == 1 && strings.Contains(f.out, "clear each in the intent"), f.evidence())
+	f.assertReports("tell the consumers the payload changed", "and prints the item it blocked on")
+}
+
 func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	t.Parallel()
 	// `(turnaround)` is the one word that marks a stage trimmed to answer sooner, which is why the vocabulary is
@@ -75,6 +97,7 @@ func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	// as a full one, and the merge gate reads that record.
 	f := newShip(t, "001-trimmed")
 	f.runReport("invalidate", "001-trimmed")
+	f.runReport("decisions-reviewed", "001-trimmed")
 	// Every stage but the trimmed one is marked. A skipped entry is not required to have returned, and
 	// leaving security-review unmarked is what pins that.
 	for _, stage := range []string{"code-review", "tighten", "refactor"} {

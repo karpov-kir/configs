@@ -13,16 +13,11 @@ The project's what & why — the level-0 intent above the feature intents.
 ## Scope
 
 - **In:** <the high-level capabilities this project covers>
-- **Out (for now):** <what is deliberately excluded>
-
-## Constraints
-
-Thresholds every intent inherits unless its own constraints override. Each sets a limit no other artifact sets, and a command can prove a breach.
-
-- <e.g. p99 under 200ms on the search endpoint>
-- <e.g. WCAG 2.1 AA on every user-facing page>
+- **Out (for now):** <deliberately excluded — back in only if the Vision is redrawn>
+- **Not yet specified:** <in scope, not yet sharp enough to be an intent — revisit as earlier intents land, and clear it from here the moment it becomes one>
 
 ## See also
 
+- Thresholds every intent inherits: [constraints.md](constraints.md)
 - Feature intents & status: [roadmap.md](roadmap.md)
 - Domain vocabulary: [language.md](language.md)

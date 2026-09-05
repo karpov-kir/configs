@@ -118,7 +118,10 @@ func (g *gate) discoverShellSuites() int {
 		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result —
 		// exit 2 is "did not measure", and a suite exiting 0 having run no case at all is VACUOUS and a
 		// failure. Run directly, a suite emptied to zero bytes exits 0 silently and reads as `ran ok`.
-		name := strings.TrimSuffix(filepath.Base(suite), "-test.sh")
+		// Keyed on the suite's path, not its basename: two directories may each hold a `bootstrap-test.sh`,
+		// and one id over both is a cache record that cannot say whose verdict it holds — which is a
+		// discovery arm that refuses before anything runs.
+		name := strings.TrimSuffix(suite, "-test.sh")
 		g.add("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
 	}
 	return 0

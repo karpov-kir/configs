@@ -17,6 +17,7 @@ import (
 const overridableByAHumanOnly = "No flag overrides this; overriding means a human deciding to merge anyway."
 
 func (r *run) cmdGate() {
+	r.noReportNote = []string{"  Here that means nothing qualified this change: run the qualify pass. A report scaffolded now would be unstamped, which this gate blocks on anyway."}
 	r.requireReport(r.arg(1))
 	// Every reason is asked, and none short-circuits the rest: a gate that stopped at the first block
 	// would send the human back for one more round per reason it never printed.
@@ -96,21 +97,45 @@ func (r *run) blocksOnStages() bool {
 }
 
 // The one reason that cannot be overridden at all, so a scan that did not run has to block as loudly as
-// items found.
+// items found. Two files, because a build's own loose ends live in the ICE's `## Follow-ups` and the
+// pass's live in the report — a gate reading only one lets the other's through.
 func (r *run) blocksOnOpenTodos() bool {
+	blocked := r.blocksOnOpenTodosIn(r.report, "the report")
+	if intent := r.intentFilePath(); intent != "" {
+		// Not short-circuited: both files are scanned so one round clears both.
+		blocked = r.blocksOnOpenTodosIn(intent, "the intent") || blocked
+	}
+	return blocked
+}
+
+func (r *run) blocksOnOpenTodosIn(path, which string) bool {
 	// 0 = nothing open, 1 = items printed. Anything else yields empty output, which the test below
 	// would read as "no open TODOs" and pass the merge gate on a scan that never ran.
-	todos, status := r.runTodoGate()
+	todos, status := r.runTodoGateOn(path)
 	switch {
 	case status > 1:
-		r.errLines("BLOCK (open TODOs): the scan did not run — todo-gate.sh exited " + strconv.Itoa(status) + ". Fix the invocation; this one cannot be overridden.")
+		r.errLines("BLOCK (open TODOs): the scan of " + which + " did not run — todo-gate.sh exited " + strconv.Itoa(status) + ". Fix the invocation; this one cannot be overridden.")
 		return true
 	case todos != "":
-		r.errLines("BLOCK (open TODOs): clear each before merge; this one cannot be overridden.")
+		r.errLines("BLOCK (open TODOs): clear each in " + which + " before merge; this one cannot be overridden.")
 		r.errLines(todos)
 		return true
 	}
 	return false
+}
+
+// This ship's intent file, or empty where there is none to scan — a standalone review, or an intent
+// already moved to archive/ by a Phase 5 that has run.
+func (r *run) intentFilePath() string {
+	slug := r.intentSlug()
+	if slug == "" {
+		return ""
+	}
+	path := r.idsdDir + "/intents/" + slug + ".md"
+	if shell.IsSymlink(path) || !shell.IsRegularFile(path) {
+		return ""
+	}
+	return path
 }
 
 func (r *run) cmdCarry() {

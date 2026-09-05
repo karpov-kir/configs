@@ -20,11 +20,13 @@ Invoke `kk-grill` **inline** over the parts of `templates/ice-template.md`, whic
 
 Cover only what's unclear — the heuristic per part:
 
-1. **Goal** — one outcome. An "and" is a smell, not an automatic split: two facets of one outcome → name that outcome; independently shippable → split (horizontal decomposition — more intents, not deeper). When the goal's outcome word is broader than the symptom the request names, settle which outcome is wanted before approving — in outcome terms, never by reaching for a mechanism.
+1. **Goal** — one outcome. An "and" is a smell, not an automatic split: two facets of one outcome → name that outcome; independently shippable → split into more intents beside this one, never a deeper one. When the goal's outcome word is broader than the symptom the request names, settle which outcome is wanted before approving — in outcome terms, never by reaching for a mechanism.
 2. **Constraints** — prefer measurable ones, since `idsd-build` gates those automatically. Each must constrain THIS outcome, not how another component consumes its output (that belongs in their intent).
 3. **Scenarios** — one success and one failure scenario are the floor; add one per distinct behaviour, path, or failure mode worth proving — never pad with near-duplicates.
 
 For a **project map**, also decompose into one ICE per independently-shippable slice and tag each `milestone` (`mvp`, `vnext`, …); parked vNext intents are real files at `status: draft`.
+
+**A slice cuts through every layer its outcome touches** — storage, logic, interface — so one intent is demoable on its own. Slicing by layer instead ("the schema", then "the API", then "the screen") yields intents nobody can accept, because none of them changes what a user can do.
 
 ## Phase 2 — Clarify pass (gate)
 
@@ -44,12 +46,12 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update and confirm it. If there's no charter, don't create one here.
 
-**Keep `.idsd/language.md` current** — the project's ubiquitous language. One line per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. Its bound is `~/.kk-flavor/standards/records.md` → **The promotion targets carry a test, not a cap**, never a line count — so a term no artifact uses any longer is deleted here, not left for the audit to find.
+**Keep `.idsd/language.md` current** — the project's ubiquitous language. One entry per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. **Write it only through `~/.claude/skills/idsd-qualify/scripts/report.sh record {append|bump|revise|evict|admit} language "<text>"`** — the same hazard as the decision log (`~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log**). `~/.kk-flavor/standards/records.md` is the whole delta. **It is pruned here and nowhere else**: a term no artifact uses any longer is deleted here, not left for the audit to find.
 
 ## Rules
 
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
-- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: never point `blocks` or `depends-on` at an intent that is foundational to this one or already built (that's backwards); a later intent that adds a constraint to a shipped one `extends` it.
+- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: `depends-on` points back at what must ship first; `blocks` points forward at what waits on this one, so never point it at an intent already built (that's backwards); a later intent that adds a constraint to a shipped one `extends` it.
 - Never rewrite the charter — it changes only via `idsd-charter`, on a proposal you make and the human confirms.
 - If the user says "just write it", collapse Phases 1–2 to the fastest pass that still emits the Phase 2 outcome line, then Phase 3 — the gate fires even on the fast path.
 - Don't restate the kk-flavor standards or `CLAUDE.md`; they're Context for `idsd-build`.

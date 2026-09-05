@@ -50,6 +50,23 @@ func (r *run) cmdNoItems() {
 	r.line("recorded %s as having surfaced nothing for the report", stage)
 }
 
+// The pass's account of the decision log, which `stamp` requires. Whether an entry was reached and is
+// still true is a judgment no tool can take for the agent — `records.md` → **Every entry is dated and
+// counted**. So what is enforced here is only that the pass said it worked the log. That is the
+// guarantee `no-items` gives a stage that surfaced nothing, and it is here for the same reason:
+// without it, a pass that never opened the record stamps exactly like one that pruned it.
+//
+// It lives in the stage-returns directory, so `invalidate` clears it along with everything else. It
+// holds a word rather than a checksum, which keeps `outstandingStage` from taking it for a stage
+// awaiting its items.
+const decisionsMarker = "decisions-reviewed"
+
+func (r *run) cmdDecisionsReviewed() {
+	r.requireReport(r.arg(1))
+	r.writeStageMarker(decisionsMarker, "accounted")
+	r.line("recorded this pass's account of the decision log")
+}
+
 func (r *run) cmdStamp() {
 	r.requireReport(r.arg(2))
 	entries := r.arg(1)
@@ -86,6 +103,14 @@ func (r *run) cmdStamp() {
 	if len(blockReasons) > 0 {
 		r.refuse("error: these stages are recorded as having run, but:", strings.Join(blockReasons, "\n"))
 	}
+	// Last of the preconditions, so a pass missing both this and a stage's items is told about the
+	// stage first — that one names which stage, and this one would send it to the record instead.
+	if !r.stageWasMarkedReturned(decisionsMarker) {
+		r.refuse("error: this pass has not accounted for the decision log — NOT stamped.",
+			"  Re-evaluate every entry against the tree: bump what this pass reached and found still true,",
+			"  evict what its subject has left, and leave what this pass never went near.",
+			"  Then: report.sh decisions-reviewed")
+	}
 	tree, ok := r.currentTree(r.errOut)
 	if !ok {
 		r.exit(2)
@@ -116,7 +141,9 @@ func (r *run) cmdInvalidate() {
 		r.exit(2)
 	}
 	// Last pass's stage returns would otherwise satisfy this pass's stamp for free.
-	_ = os.RemoveAll(r.stageReturnsDir)
+	if err := os.RemoveAll(r.stageReturnsDir); err != nil {
+		r.refuse("error: could not clear " + r.stageReturnsDir + " (" + err.Error() + ") — the pass is NOT invalidated, and the markers still standing would let the next stamp skip what it has to re-earn.")
+	}
 	r.line("invalidated reviewed-tree — restamp when the pass completes")
 }
 
