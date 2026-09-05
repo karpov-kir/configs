@@ -28,7 +28,7 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **Hold the change set against the ask it was given, before any lens reads it** — every requirement delivered, nothing delivered beyond them, and no contradiction inside the change. This is the **conformance lane**, and it is **a gate, not a stage**: a stage is handed a scope, never the ask, so unasked-for work reads to every lens as correct code and passes.
 
-**The orchestrator owns it, and runs it inside its own loop rather than as a stage of the pass** — like the drive gate below, it asks whether this is the right thing, before any lens asks whether it is good code.
+**The orchestrator owns it, and runs it inside its own loop rather than as a stage of the pass.** **A pass that reaches the stages with no conformance gate run says so in its closing status** — it held this change against no ask, and a green pass otherwise reads as covering scope.
 
 **Its findings split by who can resolve them.** A requirement not delivered is a red result the caller fixes and re-runs. **Delivery beyond the ask, and every contradiction, go to the human** — deleting unasked-for work is a decision, not a fix ([skill-protocol.md](skill-protocol.md) → **Orchestrators — interactive first**). Say plainly when there is neither.
 

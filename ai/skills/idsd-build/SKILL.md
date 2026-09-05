@@ -77,7 +77,7 @@ Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (i
 When `idsd-ship` invokes you:
 
 - Run Phases 1–3 unchanged; the interactive gates still fire.
-- Stop when Phase 3 completes — gates green and the conformance gate clear: skip the Phase 4 checkpoint and do **not** enter Phase 5. Hand control back, naming the lanes the loop found.
+- Stop when Phase 3 completes — gates green and no requirement the conformance gate found undelivered: skip the Phase 4 checkpoint and do **not** enter Phase 5. **Hand back what that checkpoint would have presented and the diff does not carry**: the lanes the loop found, the rest of the conformance gate's return, and every constraint no command can check. Skipping the checkpoint is what drops them.
 - `idsd-ship` re-invokes Phase 5 after its own approval — run it then, unchanged.
 
 ## Parallel execution

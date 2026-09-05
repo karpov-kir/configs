@@ -6,7 +6,7 @@ argument-hint: "the requirement set, plus the change set to judge against it"
 
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. **The unit is a requirement**, not a file: the queue is the checklist you derive below, and each entry gets a verdict. **You change no code**, so nothing here is a fix and a finding is resolved by returning it. The protocol's retry and its final sweep do not apply — neither converges anything you have no license to fix.
 
-**You hold the change set as one object, beside one ask.** Every other lane is handed a file queue and no ask at all, and each boundary below follows from that.
+**You hold the change set as one object, beside one ask.**
 
 The gate you fill, and where each finding goes, is `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**.
 
@@ -42,4 +42,4 @@ The change contradicting itself, or contradicting what it says about itself:
 
 The derived checklist first, then `Requirement N/M <name> | OK` or `| WARN`, then one line per finding naming the requirement it belongs to.
 
-**Each finding says which of the two halves above it came from** — that is what routes it, and your caller cannot recover it from the wording.
+**Each finding carries its kind — `undelivered`, `beyond the ask`, or `contradiction`.** That is what routes it, and your caller cannot recover it from the wording.

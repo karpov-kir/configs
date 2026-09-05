@@ -1,8 +1,7 @@
 # Building a Change
 
 The loop that takes one settled requirement to a green tree. **Binding on whoever writes code against
-a requirement**, in any repo. The pass that reads the result afterwards is
-[quality-pipeline.md](quality-pipeline.md); this is the work that pass reads.
+a requirement**, in any repo.
 
 ## Before the loop
 
