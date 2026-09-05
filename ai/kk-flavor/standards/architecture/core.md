@@ -45,9 +45,7 @@ A module's **interface** is everything a caller must learn to use it — its exp
 - **No required sequences.** An interface the caller must drive in order — construct, then configure, then start — is shallow. Hide the order inside, or model the states so the wrong order can't be expressed.
 - **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open. The types carry what they can; contract prose carries the rest, which [code-style.md](../code-style.md) → **Comments** exempts from the no-comment default.
 
-**Where the shape of a surface is genuinely open, design it more than once before settling on one.** The first shape is rarely the best, and comparing two costs far less than migrating callers off one. Produce deliberately different interfaces — the smallest surface, the one built for the commonest caller, the one built around a port — then choose on depth, on where change concentrates, and on where the seam falls. For a surface other code will hold, never for a shape one caller sees.
-
-**Where the shape of a surface is genuinely open, draft two or three before you settle on one** — comparing them costs far less than migrating callers off the wrong one. Make them deliberately different: the smallest surface, the one built for the commonest caller, the one built around a port. Then choose on where change concentrates and where the seam falls. This is for a surface other code will hold, never for a shape one caller sees.
+**Where the shape of a surface is genuinely open, draft two or three before you settle on one.** Comparing them costs far less than migrating callers off the wrong one. Make them deliberately different: the smallest surface, the one built for the commonest caller, the one built around a port. Then choose on depth, on where change concentrates, and on where the seam falls. This is for a surface other code will hold, never for a shape one caller sees.
 
 ## Per-side specifics
 

@@ -507,13 +507,16 @@ var mutants = []mutant{
 	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if err != nil || tree == "" {`, "if false {"},
 	{"fingerprint: the walk repeated once per ship", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if r.cachedTree != "" {`, "if false {"},
 
-	// intent_ready.go — the build-blocker over the ICE. Every guard here fails open: lose one and the
-	// gate still prints "intent ready", so a build starts against a placeholder nobody filled.
+	// intent_ready.go — the build-blocker over the ICE, plus the yamlValue read the merge gate shares
+	// with it. Lose a guard here and the tool reports something it did not check: an "intent ready" over
+	// a placeholder nobody filled, or — for the two yamlValue mutants, which the merge gate's own case
+	// notices — a block naming the wrong status, or a block over an intent its author approved.
 	{"intent-ready: the placeholder scan disabled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" {`, `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" && false {`},
 	{"intent-ready: a comparison read as a placeholder", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if body != "" && body[0] != ' ' && !strings.HasPrefix(body, "!--") {`, `if body != "" && !strings.HasPrefix(body, "!--") {`},
 	{"intent-ready: a placeholder standing after a comparison is skipped", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", "\t\tif strings.HasPrefix(body, \"!--\") {\n\t\t\tstart += end\n\t\t}\n", "\t\tstart += end\n"},
 	{"intent-ready: an empty required section read as filled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if inSection && strings.TrimSpace(line) != "" {`, "if inSection {"},
-	{"intent-ready: the field's own comment read as a sign-off", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyReadsTheTemplatesCommentAsNoSignOff", `if strings.HasPrefix(value, "#") {`, "if false {"},
+	{"intent-ready: a blanked field's own comment read as its value", "../eco-report/intent_ready.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", `if strings.HasPrefix(value, "#") {`, "if false {"},
+	{"intent-ready: a filled field's trailing comment read as part of its value", "../eco-report/intent_ready.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", `if comment := strings.Index(value, " #"); comment >= 0 {`, `if comment := strings.Index(value, " #"); false && comment >= 0 {`},
 	{"intent-ready: an archived dependency read as unbuilt", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnADependencyThatHasNotShipped", `case where == "archive":`, `case where == "archive" && false:`},
 	{"gate: the intent's own follow-ups never scanned", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", `if intent := r.intentFilePath(); intent != "" {`, `if intent := r.intentFilePath(); intent != "" && false {`},
 

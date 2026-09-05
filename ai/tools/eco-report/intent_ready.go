@@ -47,14 +47,13 @@ func (r *run) cmdIntentReady() {
 
 	blocks := unfilledPlaceholders(lines)
 	blocks = append(blocks, emptyRequiredSections(lines)...)
-	blocks = append(blocks, unsignedCollaboration(path)...)
 	blocks = append(blocks, r.unbuiltDependencies(lines)...)
 	if len(blocks) > 0 {
 		r.errLines(append([]string{"BLOCK (intent not ready): " + path}, blocks...)...)
 		r.errLines("  Fold each answer into the ICE through idsd-intent, then re-run this. Building past it is how a placeholder ships as a requirement.")
 		r.exit(1)
 	}
-	r.line("intent ready: %s — no placeholders, every required section filled, sign-off recorded, dependencies built", name)
+	r.line("intent ready: %s — no placeholders, every required section filled, dependencies built", name)
 }
 
 // Template text the author never replaced. Scanned over the whole file, fenced blocks included: the
@@ -146,28 +145,20 @@ func sectionHasContent(lines []string, section string) (filled, present bool) {
 	return filled, inSection
 }
 
-// A pair-authored intent with nobody's name against it. The frontmatter's own comment is not a value,
-// so both fields are read through yamlValue.
-func unsignedCollaboration(path string) []string {
-	if yamlValue(path, "collaborative") != "true" || yamlValue(path, "approved-by") != "" {
-		return nil
-	}
-	return []string{"  collaborative: true with an empty approved-by — the intent needs its collaborator's sign-off before it is built"}
-}
-
 // `depends-on` edges whose target has not shipped. Direction is the point: building on an intent that
 // is still draft means building on a contract that can still change under it.
 func (r *run) unbuiltDependencies(lines []string) []string {
 	var blocks []string
 	for _, number := range dependsOnNumbers(lines) {
 		file, where := r.intentFileNumbered(number)
+		status := yamlValue(file, "status")
 		switch {
 		case where == "archive":
 			continue
 		case file == "":
 			blocks = append(blocks, "  depends-on "+number+" names no intent under "+r.idsdDir+"/intents/ or /archive/")
-		case yamlValue(file, "status") != "built":
-			blocks = append(blocks, "  depends-on "+number+" is not built yet ("+file+" is "+shell.Oneline(yamlValue(file, "status"))+") — build that one first")
+		case status != "built":
+			blocks = append(blocks, "  depends-on "+number+" is not built yet ("+file+" is "+shell.Oneline(status)+") — build that one first")
 		}
 	}
 	return blocks
@@ -230,9 +221,8 @@ func (r *run) intentFileNumbered(number string) (path, where string) {
 	return "", ""
 }
 
-// fieldValue with YAML's trailing comment removed, because the ICE template documents three of its
-// own fields in one — `approved-by:` carries its explanation, and read raw that explanation is a
-// sign-off.
+// fieldValue with YAML's trailing comment removed, because the ICE template documents its own fields
+// inline — `status:` carries its explanation, and a blanked value read raw is that explanation.
 func yamlValue(path, field string) string {
 	value := fieldValue(path, field)
 	if strings.HasPrefix(value, "#") {

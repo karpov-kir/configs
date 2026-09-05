@@ -44,9 +44,9 @@
 //	gate             done-blocker: stale tree OR turnaround-trimmed stages OR a ship whose intent never
 //	                 reached `status: approved` (all three human-overridable) OR any open `- [ ]` in the
 //	                 report or in the ship's intent file (never overridable) → non-zero + reasons
-//	intent-ready <NNN-slug>  build-blocker over the ICE itself: unfilled template placeholders, an
-//	                 empty required section, an unsigned collaborative intent, or a depends-on edge
-//	                 that has not shipped → non-zero + reasons. Judgement is the grill's, not this
+//	intent-ready <NNN-slug>  build-blocker over the ICE itself: unfilled template placeholders, an empty
+//	                 required section, or a depends-on edge that has not shipped → non-zero + reasons.
+//	                 Judgement is the grill's, not this
 //	carry            print prior open `- [ ]` (with their section) so re-qualify loses none
 //	check-ignore     keep qualify-reports/ out of the fingerprint, by the mechanism that fits the repo mode
 //	promote          throwaway → committed: ignore qualify-reports/ via .gitignore, MOVE the scratch

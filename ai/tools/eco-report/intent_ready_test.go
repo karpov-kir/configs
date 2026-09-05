@@ -17,8 +17,6 @@ func readyIntent(extraFrontmatter ...string) string {
 		"title: Fast search",
 		"milestone: mvp",
 		"status: draft",
-		"collaborative: false # true → idsd-build requires approved-by before running",
-		"approved-by:         # collaborative sign-off",
 	}
 	lines = append(lines, extraFrontmatter...)
 	return strings.Join(append(lines, []string{
@@ -73,6 +71,12 @@ func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
 	f.runReport("intent-ready", "001-search")
 	f.record("a filled ICE is ready", f.status == 0 && strings.Contains(f.out, "intent ready"), f.evidence())
 
+	f.record("and the clean line names each check the gate makes, and claims no sign-off",
+		strings.Contains(f.out, "no placeholders") &&
+			strings.Contains(f.out, "every required section filled") &&
+			strings.Contains(f.out, "dependencies built") &&
+			!strings.Contains(f.out, "sign-off"), f.evidence())
+
 	// The defect the gate exists for: an ICE still carrying the words the template shipped with.
 	f.writeIntent("001-search", strings.Replace(readyIntent(),
 		"- search returns in under 300ms at p95",
@@ -118,25 +122,6 @@ func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
 	f.runReport("intent-ready", "001-search")
 	f.record("an empty required section blocks",
 		f.status == 1 && strings.Contains(f.out, "'## Constraints' is empty"), f.evidence())
-}
-
-func TestIntentReadyReadsTheTemplatesCommentAsNoSignOff(t *testing.T) {
-	t.Parallel()
-	f := newRepo(t)
-
-	// `approved-by:` ships with its explanation on the same line. Read raw, that explanation IS a
-	// sign-off, and every collaborative intent gates clean without anyone having approved it.
-	f.writeIntent("002-paired", strings.Replace(readyIntent(), "collaborative: false", "collaborative: true", 1))
-	f.runReport("intent-ready", "002-paired")
-	f.record("a collaborative intent with only the field's own comment blocks",
-		f.status == 1 && strings.Contains(f.out, "empty approved-by"), f.evidence())
-
-	f.writeIntent("002-paired", strings.NewReplacer(
-		"collaborative: false", "collaborative: true",
-		"approved-by:         # collaborative sign-off", "approved-by: kirill",
-	).Replace(readyIntent()))
-	f.runReport("intent-ready", "002-paired")
-	f.record("and clears once a name stands against it", f.status == 0, f.evidence())
 }
 
 func TestIntentReadyBlocksOnADependencyThatHasNotShipped(t *testing.T) {
