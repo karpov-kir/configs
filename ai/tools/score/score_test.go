@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -28,6 +29,7 @@ report         cut <= 7
 code-comment   cut <= 7
 instruction    cut <= 7
 always-loaded  cut <= 7
+record-entry   cut <= 7
 `
 
 type run struct {
@@ -598,4 +600,86 @@ func TestAListThatStoppedMidReadIsNotAWholeOne(t *testing.T) {
 	r.expectOut("what arrived is not the whole list")
 	// And the two items it did reach must not come back as a finished count.
 	r.expectNotOut("1 kept, 1 cut")
+}
+
+// The tracked threshold config is derived from argv0, so argv0 has to name a location. Invoked as a
+// bare name — this tool found on PATH — `filepath.Dir` answers "." and the config resolves against the
+// working directory. That directory is the tree under review, so it would choose the bar its own
+// change set is cut against, which is exactly what the XDG rule beside it refuses.
+func TestTheTrackedConfigIsNotResolvedAgainstTheWorkingDirectory(t *testing.T) {
+	none := func(string) (string, bool) { return "", false }
+	for _, row := range []struct {
+		name, argv0 string
+		located     bool
+	}{
+		{"a bare name, found on PATH", "score.sh", false},
+		{"a bare name with no extension", "score", false},
+		{"a trailing slash, which names a directory not a file", "scripts/", false},
+		{"an absolute path, which the stub uses", "/opt/skills/kk/scripts/score.sh", true},
+		{"a relative path with a directory in it", "./scripts/score.sh", true},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			got := ConfigPaths(row.argv0, none).ConfigPath
+			if row.located && got == "" {
+				t.Errorf("ConfigPaths(%q) located nothing, so a legitimate invocation can no longer "+
+					"find the tracked config at all", row.argv0)
+			}
+			if !row.located && got != "" {
+				t.Errorf("ConfigPaths(%q) resolved the tracked config to %s. argv0 names no directory, "+
+					"so that path came from the working directory — the tree under review picking its "+
+					"own quality bar", row.argv0, got)
+			}
+		})
+	}
+}
+
+// An unlocatable config refuses by name rather than falling back, and says what to do about it.
+func TestAnUnlocatableConfigRefusesRatherThanGuessing(t *testing.T) {
+	_, err := readTable("", nil)
+	if err == nil {
+		t.Fatal("readTable accepted an empty path, so an unlocatable config reads as a usable one")
+	}
+	if !strings.Contains(err.Error(), "bare name") {
+		t.Errorf("the refusal does not say why the config could not be found, so the operator cannot "+
+			"act on it: %v", err)
+	}
+}
+
+// The fixture above says it holds the tracked config's real shape, and nothing made that true. It
+// drifted once already: `record-entry` reached ai/kk-flavor/thresholds.conf through a merge and the
+// fixture stayed at seven lanes, so every case here ran against a config the repository does not have.
+//
+// Compared by lane name rather than byte-for-byte: the fixture deliberately drops the file's prose and
+// pins one bar for every lane, so the numbers are its own. What it may not do is rule a different SET
+// of lanes from the file it claims to mirror.
+func TestTheFixtureRulesTheSameLanesAsTheTrackedConfig(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "kk-flavor", "thresholds.conf"))
+	if err != nil {
+		t.Fatalf("reading the tracked config: %v — this case cannot check a fixture against a file it "+
+			"could not open, and must not pass over that", err)
+	}
+	real := laneNames(string(body))
+	if len(real) == 0 {
+		t.Fatal("the tracked config rules no lanes at all, so this case would pass over any fixture")
+	}
+	fixture := laneNames(trackedConfig)
+	if !slices.Equal(real, fixture) {
+		t.Errorf("the fixture rules %v; ai/kk-flavor/thresholds.conf rules %v. The comment above the "+
+			"fixture claims they are the same shape, and every case here is written on that claim.",
+			fixture, real)
+	}
+}
+
+// The lane names a threshold table rules, sorted. Reads the same line form readTable does — a name,
+// `cut`, `<=`, a number — so a line this counts is a line the tool would rule on.
+func laneNames(body string) []string {
+	var names []string
+	for _, line := range strings.Split(body, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) == 4 && fields[1] == "cut" && fields[2] == "<=" {
+			names = append(names, fields[0])
+		}
+	}
+	slices.Sort(names)
+	return names
 }

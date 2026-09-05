@@ -174,7 +174,7 @@ func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 			"  because the root it names can be an ordinary private directory. `chmod go-w` the file, then re-run.")
 	}
 	// The same substitution, one level out: a writable directory holding the config lets it be replaced
-	// wholesale rather than edited. Sticky is exempt for the reason the root's walk states.
+	// wholesale rather than edited. Sticky is exempt for the reason isSubstitutableDir states.
 	for _, above := range directoriesAbove(path) {
 		info, err := os.Stat(above)
 		if err != nil {
@@ -203,8 +203,8 @@ func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 // check nobody can live with gets the config file deleted rather than the root moved. A symlinked
 // ancestor is fine — a home directory that is itself a symlink is common, and on macOS `/tmp` is one —
 // because the walk follows it and judges what it points at rather than refusing the link. A
-// world-writable ancestor is fine when it is sticky; assertNothingAboveTheRootCanSubstituteIt holds
-// why. The root itself gets neither allowance: it is the value the human wrote in the config, and the
+// world-writable ancestor is fine when it is sticky; isSubstitutableDir holds why. The root itself
+// gets neither allowance: it is the value the human wrote in the config, and the
 // one this tool can fairly hold them to.
 func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
 	if shell.IsSymlink(root) {
@@ -240,10 +240,6 @@ func (r *run) assertNothingAboveTheRootCanSubstituteIt(configPath, root string) 
 			// says so in the words that name the path the human actually wrote in the config.
 			continue
 		}
-		// Sticky is exactly what stops another account renaming an entry it does not own, which is the
-		// whole of the substitution this walk looks for — so a sticky world-writable ancestor is not one.
-		// Without the exemption `/tmp` would be refused as an ancestor, on macOS and Linux alike, and a
-		// scratch root under it is an ordinary thing to want.
 		if !isSubstitutableDir(info) {
 			continue
 		}
@@ -340,15 +336,15 @@ func pathComponents(path string) []string {
 // than the path as given, so reaching the same clone through a symlinked parent resolves to one key.
 func (r *run) repoKey() string {
 	shared := r.gitCommonPath("")
-	real := shell.CanonicalDir(shared)
-	if real == "" {
+	canonical := shell.CanonicalDir(shared)
+	if canonical == "" {
 		// Not a fallback to the unresolved path: that would key one clone two ways depending on how the
 		// caller reached it, and the two scratch dirs would each hold half the ship.
 		r.refuse("error: could not resolve "+shared+" to a real path — this clone cannot be named under the override root.",
 			"  Nothing was read or written.")
 	}
-	digest := sha256.Sum256([]byte(real))
-	name := shell.BaseName(shell.DirName(real))
+	digest := sha256.Sum256([]byte(canonical))
+	name := shell.BaseName(shell.DirName(canonical))
 	if name == "" || name == "/" || name == "." {
 		name = "repo"
 	}

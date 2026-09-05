@@ -172,7 +172,8 @@ func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
 	// The untracked half runs only with no revisions: with revisions the caller named two commits, and
 	// a file in neither of them is not part of what they asked about. SkipSecretNamed is off here and on
 	// in dup-literals: this reports PATHS and counts, where that one echoes 60 bytes of every finding.
-	if len(args) == 0 {
+	named, _ := diffscan.RevisionsNamed(args)
+	if len(named) == 0 {
 		opts := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes}
 		if err := s.result.WalkUntracked(cwd, opts, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
 			return out.refuse(errors.New("could not list untracked files — exit 2, the scan did NOT run over them."))

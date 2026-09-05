@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The pre-commit gate: every check this repo gates on, run only where the change could have moved it.
 #
-#   usage: gate.sh [--full] [--mutants] [--units] [--why <unit>]
+#   usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
 #          (no flag)  the fast path — run what is stale, skip what is not, defer the mutation harnesses
 #          --full     run everything from cold, ignoring and then refreshing every cached verdict
 #          --mutants  settle the deferred mutation units, and nothing else

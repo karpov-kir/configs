@@ -13,6 +13,19 @@ import (
 // `promote` writes to the human's index — so every refusal here stands between this tool and work
 // nothing else can recover.
 
+// The ignore-surface entries `attempt` reports as failing, rendered as the quoted run all three
+// refusals below echo: ` '.idsd/qualify-reports/'`, and empty when none failed. `attempt` may act
+// rather than merely test — promote's use of it is the appendLine that writes the entry.
+func (r *run) ignoreEntriesFailing(attempt func(entry string) bool) string {
+	failing := ""
+	for _, entry := range r.ignoreSurface() {
+		if attempt(entry) {
+			failing += " '" + entry + "'"
+		}
+	}
+	return failing
+}
+
 func (r *run) cmdCheckIgnore() {
 	// Runs before anything else (init included, so it never requires the report to exist), and before
 	// any fingerprinting `git add -A`, so nothing scratch is ever staged.
@@ -25,12 +38,10 @@ func (r *run) cmdCheckIgnore() {
 		// A path already tracked also answers "not ignored" here — the case most worth the warning.
 		// Asked through the same predicate `init` enforces, or this prints ok where init then refuses
 		// and sends the human back to this command.
-		unignored := ""
-		for _, entry := range r.ignoreSurface() {
-			if _, travels := r.ignoredSourceTravels(r.root + "/" + entry); !travels {
-				unignored += " '" + entry + "'"
-			}
-		}
+		unignored := r.ignoreEntriesFailing(func(entry string) bool {
+			_, travels := r.ignoredSourceTravels(r.root + "/" + entry)
+			return !travels
+		})
 		if unignored == "" {
 			r.line("ok: qualify-reports/ is gitignored (committed idsd repo)")
 			r.exit(0)
@@ -89,12 +100,9 @@ func (r *run) cmdPromote() {
 	// the move first and a failure here leaves the reports sitting in the tree, tracked by the next
 	// `git add -A`. Written this way round, a failure below leaves only a spare entry in .gitignore —
 	// which is wanted in both modes anyway.
-	unwritten := ""
-	for _, entry := range r.ignoreSurface() {
-		if err := appendLine(gitignore, entry); err != nil {
-			unwritten += " '" + entry + "'"
-		}
-	}
+	unwritten := r.ignoreEntriesFailing(func(entry string) bool {
+		return appendLine(gitignore, entry) != nil
+	})
 	if unwritten != "" {
 		r.refuse("error: could not add"+unwritten+" to "+gitignore+" — not promoted.",
 			"  Nothing was moved and nothing was staged.")
@@ -102,12 +110,9 @@ func (r *run) cmdPromote() {
 	// Writing an entry is not the same as it taking effect — ask git, and with -v, because
 	// `core.excludesFile` and `.git/info/exclude` answer the plain question too and are this machine's
 	// alone. Only root `.gitignore` is the shared answer this subcommand claims to have written.
-	unignored := ""
-	for _, entry := range r.ignoreSurface() {
-		if r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore" {
-			unignored += " '" + entry + "'"
-		}
-	}
+	unignored := r.ignoreEntriesFailing(func(entry string) bool {
+		return r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore"
+	})
 	if unignored != "" {
 		r.refuse("error: the entries are in "+gitignore+", but git still does not ignore:"+unignored+" — not promoted.",
 			"  git ignores nothing it cannot read; a symlinked or unreadable .gitignore does exactly this.",
@@ -119,7 +124,7 @@ func (r *run) cmdPromote() {
 
 	// The index moves here, so the memoized `ls-files .idsd` answer goes with it: it is what decides
 	// committed from throwaway, and `discard` reads that before deleting.
-	r.stagedIndex()
+	r.forgetIndexAnswers()
 	if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
 	}

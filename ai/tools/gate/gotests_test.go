@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -180,5 +181,62 @@ func TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem(t *testing.T) {
 		t.Error("eco-check no longer skips _test.go when it reads Go sources, so `wiring` may not be " +
 			"blind to them. Either restore that skip or take the flag off the wiring unit — as it " +
 			"stands the gate would answer a cached pass over files the check does read.")
+	}
+}
+
+// A suite whose name holds a space arrives as one name, not two.
+//
+// Listed without `-z`, `strings.Fields` split it; safeToken then accepted both halves, because neither
+// half held a space any more, and the gate built two units keyed on files that do not exist while the
+// real suite was gated by nothing. Fails closed — the phantom units resolve to no input and the run
+// exits 2 — but it blames a filename nobody has and leaves a real suite unchecked.
+func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
+	root := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	writeFixture(t, filepath.Join(root, "plain-test.sh"), "#!/bin/sh\ntrue\n")
+
+	// The control on the listing itself, and what makes the `-z` flag observable: two ordinary names
+	// must come back as two units. Listed without `-z` they arrive newline-separated, so splitting on
+	// NUL yields one blob holding both — refused for the newline in it, and discovery finds nothing at
+	// all. Without this the case passes on a run that refuses everything.
+	writeFixture(t, filepath.Join(root, "second-test.sh"), "#!/bin/sh\ntrue\n")
+	clean := &gate{root: root, env: Env{Root: root}, errOut: &strings.Builder{}}
+	if code := clean.discoverShellSuites(); code != 0 {
+		t.Fatalf("discovery refused a tree holding only ordinary names (exit %d): %s",
+			code, clean.errOut.(*strings.Builder).String())
+	}
+	var ids []string
+	for _, u := range clean.units {
+		ids = append(ids, u.id)
+	}
+	slices.Sort(ids)
+	if want := []string{"shell:plain", "shell:second"}; !slices.Equal(ids, want) {
+		t.Fatalf("discovery produced %v, wanted %v — the listing is not being read one name at a time",
+			ids, want)
+	}
+
+	writeFixture(t, filepath.Join(root, "two words-test.sh"), "#!/bin/sh\ntrue\n")
+
+	g := &gate{root: root, env: Env{Root: root}, errOut: &strings.Builder{}}
+	code := g.discoverShellSuites()
+
+	// Refused, and refused by the name that actually exists.
+	if code == 0 {
+		t.Fatalf("discovery accepted a suite name it cannot build a command from; it produced %d unit(s)",
+			len(g.units))
+	}
+	said := g.errOut.(*strings.Builder).String()
+	if !strings.Contains(said, "two words-test.sh") {
+		t.Errorf("the refusal does not name the file that caused it, so nobody can act on it: %q", said)
+	}
+	for _, u := range g.units {
+		if strings.HasSuffix(u.id, ":two") || strings.HasSuffix(u.id, ":words") {
+			t.Errorf("discovery built %s — the name was split on whitespace into units keyed on files "+
+				"that do not exist", u.id)
+		}
 	}
 }

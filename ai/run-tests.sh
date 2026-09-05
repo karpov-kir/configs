@@ -24,6 +24,14 @@ die() {
   exit 2
 }
 
+# `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so any path built from a
+# bare `cd ... && pwd` comes back two lines long and the checks below refuse a directory that is
+# really there. `-P` resolves symlinks, and `--` keeps a directory named like an option out of `cd`'s
+# flags.
+real_dir() { # <directory>
+  CDPATH= cd -P -- "$1" && pwd -P
+}
+
 named_suite=""
 while getopts ":s:" opt; do
   case "$opt" in
@@ -36,9 +44,7 @@ while getopts ":s:" opt; do
 done
 shift $((OPTIND - 1))
 
-# `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so the default root comes
-# back two lines long and the check below refuses a directory that is really there.
-root="${1:-$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)}"
+root="${1:-$(real_dir "$(dirname -- "${BASH_SOURCE[0]}")/..")}"
 [ -d "$root" ] || die "not a directory: $root"
 
 # Discovery asks git first, because every file this finds is then executed. `--cached --others
@@ -67,8 +73,8 @@ if [ -n "$named_suite" ]; then
   # discovery arm gives: inside the root, and not something .gitignore already excludes. Behind an
   # `[ -f ]` alone, `-s ../../../x` executes a file outside the repository entirely, and
   # `-s vendor/dropped-test.sh` executes exactly what run-tests-test.sh proves discovery refuses.
-  root_real="$(CDPATH= cd -P "$root" && pwd -P)" || exit 2
-  suite_real="$(CDPATH= cd -P "$(dirname "$named_suite")" 2>/dev/null && pwd -P)/$(basename "$named_suite")"
+  root_real="$(real_dir "$root")" || exit 2
+  suite_real="$(real_dir "$(dirname "$named_suite")" 2>/dev/null)/$(basename "$named_suite")"
   case "$suite_real" in
     "$root_real"/*) ;;
     *)

@@ -449,7 +449,7 @@ var mutants = []mutant{
 	// off rather than the case that describes the property, because only that one reaches them.
 	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
 	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
-	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(real))", "name := shell.BaseName(r.root)"},
+	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(canonical))", "name := shell.BaseName(r.root)"},
 	{"root: a broken override falls back to the default in silence", "../eco-report/root.go", "./eco-report/", "TestABrokenOverrideRefusesRatherThanFallingBack", "if root == \"\" {\n\t\tr.refuse(\"error: \"+path+\" sets no", "if false {\n\t\tr.refuse(\"error: \"+path+\" sets no"},
 	{"root: an override inside the working tree is accepted", "../eco-report/root.go", "./eco-report/", "TestAnOverrideInsideTheWorkingTreeIsRefused", `if scratch != root && !strings.HasPrefix(scratch, root+"/") {`, "if true {"},
 	{"root: an empty directory skeleton read as content", "../eco-report/shell.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if entry.IsDir() {\n\t\t\treturn nil\n\t\t}", "if entry.IsDir() {\n\t\t\tcount++\n\t\t\treturn nil\n\t\t}"},
@@ -557,7 +557,7 @@ var mutants = []mutant{
 	{"promote: an already-committed repo promoted again", "../eco-report/scratch.go", "./eco-report/", "TestPromoteIsIdempotentOverACommittedRepo", "if r.repoMode() == \"committed\" {\n\t\tr.line(\"already committed", "if false {\n\t\tr.line(\"already committed"},
 	{"promote: a symlinked .gitignore written through", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", "if shell.IsSymlink(gitignore) {", "if false {"},
 	{"promote: an unwritten entry promoted anyway", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `if unwritten != "" {`, "if false {"},
-	{"promote: the entry written but never confirmed with git", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `if r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore" {`, "if false {"},
+	{"promote: the entry written but never confirmed with git", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `return r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore"`, "return false"},
 	{"promote: a failed add read as a promotion", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {`, "if false {"},
 	{"promote: success read from the add rather than the mode", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if r.repoMode() != "committed" {`, "if false {"},
 	{"discard: no report and no name discarded anyway", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "case reportNoneOpen:", "case reportLookup(9):"},
@@ -747,7 +747,7 @@ var mutants = []mutant{
 	// citation, the whole-token re-test only through a token that is not itself a lane name, and the
 	// unknown-skill scan only through the bare name.
 	{"gate: a gitignored SKILL.md still builds a lane name", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(c.skillFilePath(name)) {`, `		if !shell.IsRegularFile(c.skillFilePath(name)) {`},
-	{"gate: a gitignored SKILL.md still passes the whole-token re-test", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !c.holdsRegularFile(c.skillFilePath(named)) {`, `		if !shell.IsRegularFile(c.skillFilePath(named)) {`},
+	{"gate: a gitignored SKILL.md still passes the whole-token re-test", "direction.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if !s.holdsRegularFile(s.skillFilePath(named)) {`, `		if !shell.IsRegularFile(s.skillFilePath(named)) {`},
 	{"gate: a gitignored SKILL.md still counts as a known skill", "refs.go", "./eco-check/", "TestAGitignoredSkillFileIsNotALaneUnderTheFlag", `		if name == "kk-flavor" || c.holdsRegularFile(c.skillFilePath(name)) {`, `		if name == "kk-flavor" || shell.IsRegularFile(c.skillFilePath(name)) {`},
 	// A second path overwriting the first rather than being refused: the run then scans a tree the
 	// caller named second while believing it asked about the first, and a mistyped flag reaches that
@@ -968,6 +968,19 @@ var mutants = []mutant{
 		`if (err != nil || !info.Mode().IsRegular() || !readable(env.OverridePath)) && false {`},
 	{"score: an override that names no lane moves it anyway", "../score/score.go", "./score/", "TestTheOverride",
 		`if !named {`, `if !named && false {`},
+	// The tracked config is derived from argv0. Without the shape guard a bare `score.sh` resolves it
+	// against the working directory, which is the tree under review — the same outcome the XDG rule
+	// beside it refuses, reached by the other input.
+	{"score: the tracked config resolved from a bare argv0", "../score/score.go", "./score/", "TestTheTrackedConfigIsNotResolvedAgainstTheWorkingDirectory",
+		`if strings.Contains(argv0, "/") && !strings.HasSuffix(argv0, "/") {`, "if true {"},
+	{"score: an unlocatable config read as a usable one", "../score/score.go", "./score/", "TestAnUnlocatableConfigRefusesRatherThanGuessing",
+		"\tif path == \"\" {", "\tif false {"},
+	// The fixture claiming to mirror ai/kk-flavor/thresholds.conf, held to it. It drifted once already,
+	// when a lane reached the real file through a merge and the fixture stayed behind — so the mutant
+	// re-creates that drift rather than disabling the comparison. Disabling it kills nothing while the
+	// two agree, which is the state the case exists to preserve.
+	{"score: the fixture drifts a lane behind the tracked config", "../score/score_test.go", "./score/", "TestTheFixtureRulesTheSameLanesAsTheTrackedConfig",
+		"record-entry   cut <= 7\n", ""},
 
 	{"density: the ratio bar becomes strictly greater", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},
@@ -978,7 +991,7 @@ var mutants = []mutant{
 	// — which says nothing about the guard. The disjunction leaves the name read and the guard gone,
 	// which is the edit this mutant means.
 	{"density: a file is anchored on the +++ line alone", "../diffscan/diffscan.go", "./comment-density/", "TestAnAddedLineShapedLikeADiffHeader",
-		`case pending && strings.HasPrefix(raw, "+++ "):`, `case (pending || true) && strings.HasPrefix(raw, "+++ "):`},
+		`case isAwaitingPath && strings.HasPrefix(raw, "+++ "):`, `case (isAwaitingPath || true) && strings.HasPrefix(raw, "+++ "):`},
 	{"density: prose and data files are counted", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
 		`if line == "" || isProseOrData(file) {`, `if line == "" {`},
 	{"density: a bare star counts as a comment", "../comment-density/density.go", "./comment-density/", "TestAStarThatIsNotAComment",
@@ -1000,7 +1013,7 @@ var mutants = []mutant{
 	{"density: a C-quoted header path is never unquoted", "../diffscan/diffscan.go", "./comment-density/", "TestATrackedPathWithAControlCharacterIsStillAssigned",
 		"if strings.HasPrefix(field, `\"`) {", "if strings.HasPrefix(field, `\"`) && false {"},
 	{"density: the untracked half runs even when revisions were named", "../comment-density/density.go", "./comment-density/", "TestATwoRevisionRangeIsScanned",
-		`if len(args) == 0 {`, `if len(args) == 0 || true {`},
+		`if len(named) == 0 {`, `if len(named) == 0 || true {`},
 	{"density: the report is emitted in reverse", "../comment-density/density.go", "./comment-density/", "TestTheReportIsOrdered",
 		`sort.Strings(names)`, `sort.Sort(sort.Reverse(sort.StringSlice(names)))`},
 	{"density: the display cap is removed", "../comment-density/density.go", "./comment-density/", "TestPastTheDisplayCap",
@@ -1031,6 +1044,15 @@ var mutants = []mutant{
 		"return scanner.Err()", "return nil"},
 	{"diffscan: a binary untracked file is read", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedBinaryFileIsSkippedAndCounted",
 		"if isBinary(body) {", "if false {"},
+
+	// `--` and the pathspecs after it are not revisions. Passed through whole, HEAD is never appended
+	// and git diffs the INDEX — a clean result over real staged work, at exit 0.
+	{"diffscan: the separator counted as a revision", "../diffscan/diffscan.go", "./diffscan/", "TestAPathspecScanStillDefaultsToHead",
+		"named, paths := RevisionsNamed(revisions)", "named, paths := revisions, []string(nil)"},
+	{"diffscan: the pathspecs dropped from the git call", "../diffscan/diffscan.go", "./diffscan/", "TestAPathspecScanStillDefaultsToHead",
+		"args = append(args, paths...)", "_ = paths"},
+	{"diffscan: the separator eaten instead of passed to git", "../diffscan/diffscan.go", "./diffscan/", "TestRevisionsNamedSeparatesThemFromPathspecs",
+		"return args[:i], args[i:]", "return args[:i], args[i+1:]"},
 	// The other way a secret reaches the report: followed instead of read directly. Stat answers about
 	// the target, so this mutant is the whole of the symlink defence.
 	{"diffscan: an untracked symlink is followed to its target", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSymlinkIsSkippedAndCounted",
@@ -1084,6 +1106,20 @@ var mutants = []mutant{
 	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim
 	// about ANOTHER package. Both halves get a mutant: the flag itself, and the check that eco-check
 	// still behaves the way the flag assumes.
+	// Help is an answer, not a run. Returning 0 from the parser said "these arguments are fine", so
+	// help printed and then the whole gate ran, recording verdicts for a caller who asked what the
+	// flags were.
+	{"gate: help falls through into the run loop", "../gate/gate.go", "./gate/", "TestHelpAnswersWithoutRunningTheGate",
+		"if selected == modeHelp {", "if false {"},
+	{"gate: help parses as an ordinary run", "../gate/gate.go", "./gate/", "TestHelpAnswersWithoutRunningTheGate",
+		"return modeHelp, why, path, 0", "return selected, why, path, 0"},
+	// Suite discovery reading names whole. Split on whitespace, a name holding a space became two units
+	// keyed on files that do not exist, and the real suite was gated by nothing.
+	{"gate: suite names split on whitespace again", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
+		`for _, name := range strings.Split(out, "\x00") {`, "for _, name := range strings.Fields(out) {"},
+	{"gate: the -z flag dropped from discovery", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
+		`"ls-files", "-z",`, `"ls-files",`},
+
 	{"gate: wiring keyed on the module's test files again", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.addBlindToGoTests("wiring"`, `g.add("wiring"`},
 	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",

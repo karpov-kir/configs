@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -98,5 +100,92 @@ func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("could not write the fixture %s: %v", path, err)
+	}
+}
+
+// `--` separates revisions from pathspecs, and passing the two halves to git as one list is how this
+// scanner came to report a clean tree over real staged changes: `--` counted as a revision, so HEAD
+// was never appended and git diffed against the INDEX. Exit 0, nothing found — the failure this
+// package exists to prevent, reached through the form its own error text recommends.
+func TestRevisionsNamedSeparatesThemFromPathspecs(t *testing.T) {
+	for _, row := range []struct {
+		name         string
+		args         []string
+		named, paths []string
+	}{
+		{"nothing at all", nil, nil, nil},
+		{"revisions only", []string{"HEAD", "origin/main"}, []string{"HEAD", "origin/main"}, nil},
+		{"pathspecs only, which names no revision", []string{"--", "src/"}, []string{}, []string{"--", "src/"}},
+		{"both halves", []string{"HEAD", "--", "a.go", "b.go"}, []string{"HEAD"}, []string{"--", "a.go", "b.go"}},
+		{"a bare separator", []string{"--"}, []string{}, []string{"--"}},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			named, paths := RevisionsNamed(row.args)
+			if !slices.Equal(named, row.named) {
+				t.Errorf("revisions = %v, wanted %v", named, row.named)
+			}
+			if !slices.Equal(paths, row.paths) {
+				t.Errorf("pathspecs = %v, wanted %v", paths, row.paths)
+			}
+		})
+	}
+}
+
+// The whole point of the split, driven against real git rather than asserted on the argument list: a
+// staged change must be visible through `-- <path>`, because that is the invocation the tool tells
+// people to use.
+func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	run("init", "-q", ".")
+	run("config", "user.email", "t@t")
+	run("config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644); err != nil {
+		t.Fatalf("seeding: %v", err)
+	}
+	run("add", "a.go")
+	run("commit", "-qm", "base")
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n// staged\n"), 0o644); err != nil {
+		t.Fatalf("staging: %v", err)
+	}
+	run("add", "a.go")
+
+	// The control: the bare form has always seen this, so a run that finds nothing here is the harness
+	// failing rather than the split.
+	bare, err := Diff(dir, nil)
+	if err != nil {
+		t.Fatalf("the bare form failed: %v", err)
+	}
+	if !strings.Contains(string(bare), "+// staged") {
+		t.Fatalf("the bare form did not see the staged change, so this case cannot tell the split from "+
+			"a broken fixture:\n%s", bare)
+	}
+
+	// A second changed file, so the pathspec has something to exclude. Without one, a run that drops
+	// the pathspecs entirely still shows a.go and the case cannot tell the two apart.
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("package a\n// elsewhere\n"), 0o644); err != nil {
+		t.Fatalf("seeding the second file: %v", err)
+	}
+	run("add", "b.go")
+
+	scoped, err := Diff(dir, []string{"--", "a.go"})
+	if err != nil {
+		t.Fatalf("the pathspec form failed: %v", err)
+	}
+	if !strings.Contains(string(scoped), "+// staged") {
+		t.Errorf("`-- a.go` saw no staged change, so it diffed against the index rather than HEAD. "+
+			"That reports a clean tree over real work and exits 0:\n%s", scoped)
+	}
+	if strings.Contains(string(scoped), "+// elsewhere") {
+		t.Errorf("`-- a.go` returned b.go as well, so the pathspec never reached git and the scope the "+
+			"caller asked for was silently ignored:\n%s", scoped)
 	}
 }

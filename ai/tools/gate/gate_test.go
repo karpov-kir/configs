@@ -615,3 +615,40 @@ func TestAnUnreadableInputExitsTwo(t *testing.T) {
 		t.Errorf("the gate ran a unit whose input it could not hash (%d times)", got)
 	}
 }
+
+// `--help` answers and stops. It used to return 0 from the argument parser, which run() reads as
+// "these arguments are fine" — so help printed and then the entire gate ran, writing verdict records
+// for someone who asked what the flags were.
+func TestHelpAnswersWithoutRunningTheGate(t *testing.T) {
+	for _, flag := range []string{"-h", "--help"} {
+		t.Run(flag, func(t *testing.T) {
+			f := newFixture(t)
+			f.write("watched.txt", "one\n")
+			f.table("only\tcheck\twatched.txt\t" + marker("ran.txt", 0))
+			f.run(flag)
+			f.expectCode(0)
+			f.expectOut("usage: gate.sh")
+			if n := f.runCount("ran.txt"); n != 0 {
+				t.Errorf("%s executed %d unit(s). Help is not a run — a caller asking what the flags are "+
+					"must not have verdicts recorded on their behalf", flag, n)
+			}
+			if entries, err := os.ReadDir(f.cache); err == nil && len(entries) != 0 {
+				t.Errorf("%s left %d file(s) in the cache, so it reached the run loop", flag, len(entries))
+			}
+		})
+	}
+}
+
+// The usage text has one home, and the stub's header quotes it. They drifted once: the binary grew
+// --check-path and the header did not, so the flag existed and was documented nowhere a reader looks.
+func TestTheGateStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "gate.sh"))
+	if err != nil {
+		t.Fatalf("reading the stub: %v", err)
+	}
+	if !strings.Contains(string(body), usageLine) {
+		t.Errorf("ai/gate.sh's header does not carry the line its binary prints.\n binary: %q\n"+
+			"The header is what a reader opens first; a flag missing there is a flag nobody finds.",
+			usageLine)
+	}
+}

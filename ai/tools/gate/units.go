@@ -108,11 +108,26 @@ func (g *gate) discoverUnits() int {
 // Every shell suite, discovered rather than listed — the rule ai/run-tests.sh lives by, so a suite
 // added later is gated without anyone remembering to register it here.
 func (g *gate) discoverShellSuites() int {
-	out, err := g.capture("git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*-test.sh")
+	// `-z` and `core.quotePath=false`, which is the rule ai/run-tests.sh lives by and the reason this
+	// comment cites it. Without them a name holding a space arrives as two tokens: `strings.Fields`
+	// splits it, safeToken accepts both halves because neither holds a space any more, and the gate
+	// builds two units keyed on files that do not exist — while the real suite is gated by nothing. A
+	// non-ASCII name arrives C-quoted instead and takes the whole run to exit 2 blaming the filename.
+	//
+	// Arriving whole, such a name reaches safeToken and is refused by its real path, which is a
+	// statement someone can act on.
+	out, err := g.capture("git", "-c", "core.quotePath=false", "ls-files", "-z",
+		"--cached", "--others", "--exclude-standard", "--", "*-test.sh")
 	if err != nil || strings.TrimSpace(out) == "" {
 		return g.fail("discovery found no *-test.sh at all — read this as the gate broken, never as a clean run")
 	}
-	suites := uniqueSorted(strings.Fields(out))
+	var listed []string
+	for _, name := range strings.Split(out, "\x00") {
+		if name != "" {
+			listed = append(listed, name)
+		}
+	}
+	suites := uniqueSorted(listed)
 	for _, suite := range suites {
 		if err := safeToken("suite", suite); err != nil {
 			return g.fail("%s", err)

@@ -25,7 +25,6 @@ import (
 	"strings"
 )
 
-// Binary is a NUL in the first 8KB, the probe the untracked arm uses.
 const binaryProbeBytes = 8192
 
 // The longest diff line a scan will read. A var rather than a const so a suite can drive the refusal
@@ -108,11 +107,18 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
 		"--text", "--src-prefix=a/", "--dst-prefix=b/",
 	}
-	if len(revisions) == 0 {
+	// `--` separates revisions from pathspecs, and the two halves are not interchangeable here. Passed
+	// through whole, a caller writing `-- src/` had `--` counted as a revision, so HEAD was never
+	// appended and git diffed against the INDEX — every staged change dropped, exit 0, indistinguishable
+	// from a clean tree. That is the failure this package's header says it exists to prevent, and
+	// `--` with a pathspec is the form RefuseNonRevisions' own error text recommends.
+	named, paths := RevisionsNamed(revisions)
+	if len(named) == 0 {
 		args = append(args, "HEAD")
 	} else {
-		args = append(args, revisions...)
+		args = append(args, named...)
 	}
+	args = append(args, paths...)
 	cmd := exec.Command("git", args...)
 	cmd.Dir = cwd
 	var out, errBuf bytes.Buffer
@@ -130,6 +136,22 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+// RevisionsNamed answers the revisions a caller named, and the `--` and pathspecs after it, kept
+// apart. Everything up to the first `--` is a revision; the separator and the rest travel to git
+// unchanged, so a path is never read as a commit and a commit is never read as a path.
+//
+// Exported because the callers need the same answer for a different question: whether to scan
+// untracked files. That turns on whether a REVISION was named, never on whether an argument was, and
+// two hand-rolled copies of this loop had already disagreed about it.
+func RevisionsNamed(args []string) (named, paths []string) {
+	for i, arg := range args {
+		if arg == "--" {
+			return args[:i], args[i:]
+		}
+	}
+	return args, nil
+}
+
 // WalkDiff calls visit for every added line, attributing each to its file.
 //
 // `diff --git` is the anchor, never `+++` alone: every line in a diff BODY carries a `+`, `-` or space
@@ -141,17 +163,17 @@ func Diff(cwd string, revisions []string) ([]byte, error) {
 // on over a diff it had not seen all of and report a clean tree.
 func (r *Result) WalkDiff(diff []byte, visit func(AddedLine)) error {
 	file := ""
-	pending := false
+	isAwaitingPath := false
 	scanner := bufio.NewScanner(bytes.NewReader(diff))
 	scanner.Buffer(make([]byte, 0, 64*1024), MaxDiffLineBytes)
 	for scanner.Scan() {
 		raw := scanner.Text()
 		switch {
 		case strings.HasPrefix(raw, "diff --git "):
-			file, pending = "", true
+			file, isAwaitingPath = "", true
 			r.Reached++
-		case pending && strings.HasPrefix(raw, "+++ "):
-			pending = false
+		case isAwaitingPath && strings.HasPrefix(raw, "+++ "):
+			isAwaitingPath = false
 			file = headerPath(strings.TrimPrefix(raw, "+++ "))
 		case strings.HasPrefix(raw, "+"):
 			text := raw[1:]
@@ -204,32 +226,8 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 		if name == "" {
 			continue
 		}
-		if opts.SkipSecretNamed && secretNamed(name) {
-			if opts.Announce != nil {
-				opts.Announce(fmt.Sprintf("skipping untracked '%s' — its name marks it as secret-bearing; it was NOT scanned.", name))
-			}
-			r.SkippedUnread++
-			continue
-		}
-		full := filepath.Join(cwd, name)
-		// Lstat, never Stat: Stat resolves the link and answers about the TARGET, so a symlink reads as
-		// a regular file and gets opened. The name check above sees only the LINK's name, so
-		// `notes.txt -> ~/.aws/credentials` walks straight past it and the credential is read and
-		// echoed — and the target need not be inside the repository at all. A link's content belongs to
-		// whatever it points at, so it is declined and counted rather than followed. Nothing is lost:
-		// a target that is itself untracked and in the repo is already listed under its own name.
-		info, err := os.Lstat(full)
-		if err != nil || !info.Mode().IsRegular() || info.Size() > opts.MaxFileBytes {
-			r.SkippedUnread++
-			continue
-		}
-		body, err := os.ReadFile(full)
-		if err != nil {
-			r.SkippedUnread++
-			continue
-		}
-		if isBinary(body) {
-			r.SkippedUnread++
+		body, ok := r.bodyToScan(filepath.Join(cwd, name), name, opts)
+		if !ok {
 			continue
 		}
 		r.Reached++
@@ -248,6 +246,40 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 		}
 	}
 	return nil
+}
+
+// bodyToScan answers with an untracked file's bytes, or false when the scan must decline it unread.
+// Every decline counts against SkippedUnread, so the summary never claims a denominator it did not
+// cover.
+func (r *Result) bodyToScan(full, name string, opts Options) ([]byte, bool) {
+	if opts.SkipSecretNamed && secretNamed(name) {
+		if opts.Announce != nil {
+			opts.Announce(fmt.Sprintf("skipping untracked '%s' — its name marks it as secret-bearing; it was NOT scanned.", name))
+		}
+		r.SkippedUnread++
+		return nil, false
+	}
+	// Lstat, never Stat: Stat resolves the link and answers about the TARGET, so a symlink reads as a
+	// regular file and gets opened. The name check above sees only the LINK's name, so
+	// `notes.txt -> ~/.aws/credentials` walks straight past it and the credential is read and echoed —
+	// and the target need not be inside the repository at all. A link's content belongs to whatever it
+	// points at, so it is declined and counted rather than followed. Nothing is lost: a target that is
+	// itself untracked and in the repo is already listed under its own name.
+	info, err := os.Lstat(full)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > opts.MaxFileBytes {
+		r.SkippedUnread++
+		return nil, false
+	}
+	body, err := os.ReadFile(full)
+	if err != nil {
+		r.SkippedUnread++
+		return nil, false
+	}
+	if isBinary(body) {
+		r.SkippedUnread++
+		return nil, false
+	}
+	return body, true
 }
 
 // A scanner that echoes file CONTENT is a route from an untracked secret into the transcript, the
@@ -286,6 +318,7 @@ func secretNamed(name string) bool {
 	return strings.Contains(lower, "credential") || strings.Contains(lower, "secret")
 }
 
+// isBinary reads a NUL in the first binaryProbeBytes as binary — the probe the untracked arm uses.
 func isBinary(body []byte) bool {
 	probe := body
 	if len(probe) > binaryProbeBytes {

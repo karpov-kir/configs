@@ -23,6 +23,17 @@ type directionCounters struct {
 	ambiguous int
 }
 
+// One file's pass through this scan: the checker, the counters the whole run shares, the path every
+// finding from it echoes, and the lines it reads. Carried as one value because the four always travel
+// together, and because three adjacent strings in a signature transpose silently — the same hazard
+// laneBasenameSets exists to keep out of its own.
+type directionScan struct {
+	*checker
+	counters *directionCounters
+	safeFile string
+	lines    []string
+}
+
 // Direction: the shared layer never cites into a lane, and never names one (ecosystem.md → **One
 // home**). Three shapes are banned.
 //
@@ -63,11 +74,11 @@ func (c *checker) scanDirection() {
 			if err != nil {
 				continue
 			}
-			safeFile := shell.Oneline(file)
-			c.reportLaneCitations(counters, safeFile, lines, citesPattern)
-			c.reportLaneNames(counters, safeFile, lines, namesPattern)
-			if basenames.any() {
-				c.reportLaneBasenames(counters, safeFile, lines, basenames)
+			scan := directionScan{checker: c, counters: counters, safeFile: shell.Oneline(file), lines: lines}
+			scan.reportLaneCitations(citesPattern)
+			scan.reportLaneNames(namesPattern)
+			if basenames.hasAny() {
+				scan.reportLaneBasenames(basenames)
 			}
 		}
 	}
@@ -131,26 +142,26 @@ func laneNamePattern(lanes string) *regexp.Regexp {
 // so the two cannot drift apart — which they could while four copies of this branch each spelled the
 // class twice. `detail` is a closure because the basename shape walks the skills tree to build its
 // text, and must not do that for a finding the cap has already dropped.
-func (c *checker) addBounded(count *int, class, file string, detail func() string) {
+func (s directionScan) addBounded(count *int, class string, detail func() string) {
 	*count++
 	if *count <= findingCap {
-		c.add(class + ": " + detail())
+		s.add(class + ": " + detail())
 	} else if *count == findingCap+1 {
-		c.reportBoundReached(class, file)
+		s.reportBoundReached(class, s.safeFile)
 	}
 }
 
-func (c *checker) reportLaneCitations(counters *directionCounters, safeFile string, lines []string, pattern *regexp.Regexp) {
-	for _, hit := range grepNumbered(lines, pattern) {
-		c.addBounded(&counters.cites, "shared layer cites into a lane", safeFile, func() string {
-			return safeFile + ":" + shell.Oneline(hit.String()) +
+func (s directionScan) reportLaneCitations(pattern *regexp.Regexp) {
+	for _, hit := range grepNumbered(s.lines, pattern) {
+		s.addBounded(&s.counters.cites, "shared layer cites into a lane", func() string {
+			return s.safeFile + ":" + shell.Oneline(hit.String()) +
 				" — move the rule to a standard (ecosystem.md → **One home**)"
 		})
 	}
 }
 
-func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, lines []string, pattern *regexp.Regexp) {
-	for _, hit := range grepNumbered(lines, pattern) {
+func (s directionScan) reportLaneNames(pattern *regexp.Regexp) {
+	for _, hit := range grepNumbered(s.lines, pattern) {
 		// The trailing run of `.`, `_` and `-` is punctuation the token ends on, not part of the
 		// name. The suffix class carries all three, so the match keeps whatever the token ended on:
 		// the hyphen of a `kk-drive-*` glob, the full stop of a sentence ending on the lane name.
@@ -160,19 +171,18 @@ func (c *checker) reportLaneNames(counters *directionCounters, safeFile string, 
 		// The whole token is tested, not the alternation's own match: `kk-drive-verified` starts
 		// with a real lane name and is not one, so matching the prefix alone would report a skill
 		// that does not exist as a lane the shared layer names.
-		if !c.holdsRegularFile(c.skillFilePath(named)) {
+		if !s.holdsRegularFile(s.skillFilePath(named)) {
 			continue
 		}
-		c.addBounded(&counters.names, "shared layer names a lane", safeFile, func() string {
-			return safeFile + ":" + shell.Oneline(hit.String()) +
+		s.addBounded(&s.counters.names, "shared layer names a lane", func() string {
+			return s.safeFile + ":" + shell.Oneline(hit.String()) +
 				" — name the lane, and let the skill bind itself to it (ecosystem.md → **One home**)"
 		})
 	}
 }
 
-func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile string, lines []string, basenames laneBasenameSets) {
-	for _, hit := range grepNumbered(lines, laneBasenamePattern) {
-		lineNumber := strconv.Itoa(hit.line)
+func (s directionScan) reportLaneBasenames(basenames laneBasenameSets) {
+	for _, hit := range grepNumbered(s.lines, laneBasenamePattern) {
 		// The leading boundary character comes back with the match; a token starts on
 		// `[A-Za-z0-9]`, so a first character outside that set is the boundary, never the name.
 		named := hit.match
@@ -182,18 +192,18 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 		// The order below is the guard, not a tidy-up. Test the violation set first and every
 		// ambiguous name becomes a forged finding.
 		if basenames.ambiguous[named] {
-			c.reportUncheckedBasename(counters, safeFile, lineNumber, named)
+			s.reportUncheckedBasename(lineMatch{line: hit.line, match: named})
 			continue
 		}
 		if !basenames.underOneLane[named] {
 			continue
 		}
-		c.addBounded(&counters.basenames, "shared layer reaches into a lane by basename", safeFile, func() string {
+		s.addBounded(&s.counters.basenames, "shared layer reaches into a lane by basename", func() string {
 			// The line number alone, never the match: echoing it would carry the boundary character
 			// the pattern consumed, so the finding would show an unbalanced tick for a name written
 			// `` `doit.sh` ``.
-			owner := strings.Join(c.walkTree(c.root.Skills()).matchPath(named), "\n")
-			return safeFile + ":" + lineNumber +
+			owner := strings.Join(s.walkTree(s.root.Skills()).matchPath(named), "\n")
+			return s.safeFile + ":" + strconv.Itoa(hit.line) +
 				" — " + shell.Oneline(named) + " is " + shell.Oneline(owner) +
 				"; move the rule to a standard (ecosystem.md → **One home**)"
 		})
@@ -203,9 +213,9 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 // Silence here would be the cheapest mute the reviewed tree has — commit any `.md` under
 // `kk-flavor/` named after a lane file and every mention of that file stops being checked, while no
 // other scan names the file the branch committed. A narrowed scan reports that it narrowed.
-func (c *checker) reportUncheckedBasename(counters *directionCounters, safeFile, lineNumber, named string) {
-	c.addBounded(&counters.ambiguous, "basename not checked", safeFile, func() string {
-		return safeFile + ":" + lineNumber + " — " + shell.Oneline(named) +
+func (s directionScan) reportUncheckedBasename(hit lineMatch) {
+	s.addBounded(&s.counters.ambiguous, "basename not checked", func() string {
+		return s.safeFile + ":" + strconv.Itoa(hit.line) + " — " + shell.Oneline(hit.match) +
 			" names a file under both a lane and the shared layer, so this scan cannot tell which was meant; rename one of them (ecosystem.md → **One home**)"
 	})
 }
@@ -241,7 +251,7 @@ type laneBasenameSets struct {
 	ambiguous    map[string]bool
 }
 
-func (s laneBasenameSets) any() bool { return len(s.underOneLane) > 0 || len(s.ambiguous) > 0 }
+func (s laneBasenameSets) hasAny() bool { return len(s.underOneLane) > 0 || len(s.ambiguous) > 0 }
 
 func (c *checker) laneBasenames(sharedTargets []string) laneBasenameSets {
 	counts := map[string]int{}

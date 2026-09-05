@@ -113,13 +113,7 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 		fmt.Fprintf(stderr, "%s: %s\n", self, err)
 		return exitDidNotRun
 	}
-	revisions := args
-	for i, arg := range args {
-		if arg == "--" {
-			revisions = args[:i]
-			break
-		}
-	}
+	revisions, _ := diffscan.RevisionsNamed(args)
 
 	diff, err := diffscan.Diff(cwd, args)
 	if err != nil {

@@ -79,8 +79,9 @@ func (r *run) memoGit(stderr io.Writer, args ...string) (string, int) {
 	return out, status
 }
 
-// Called by anything that stages, so the next index read asks git again.
-func (r *run) stagedIndex() {
+// Called by anything about to stage, so the next index read asks git again rather than answering from
+// what the index held before.
+func (r *run) forgetIndexAnswers() {
 	r.gitMemo = nil
 }
 

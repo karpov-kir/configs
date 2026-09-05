@@ -70,6 +70,7 @@ const (
 	modeUnits
 	modeWhy
 	modeCheckPath
+	modeHelp
 )
 
 // A unit: one check, its declared inputs, and the command that settles it.
@@ -120,6 +121,11 @@ func Run(args []string, env Env, out, errOut io.Writer) int {
 	return g.run(args)
 }
 
+// The flags this accepts, in one place. ai/gate.sh's own header quotes it, and
+// `TestTheStubDocumentsTheUsageItsBinaryPrints` in ../stub_usage_test.go is what holds the two
+// together.
+const usageLine = "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]"
+
 func (g *gate) fail(format string, a ...any) int {
 	fmt.Fprintf(g.errOut, "gate.sh: %s\n", fmt.Sprintf(format, a...))
 	return 2
@@ -131,6 +137,13 @@ func (g *gate) run(args []string) int {
 	selected, whyUnit, checkPath, code := parseArgs(args, g.errOut)
 	if code != 0 {
 		return code
+	}
+
+	// Answered before anything is discovered or run. Help is the whole of what was asked for, so it
+	// goes to stdout rather than stderr: a caller redirecting it is redirecting the answer.
+	if selected == modeHelp {
+		fmt.Fprintln(g.out, usageLine)
+		return 0
 	}
 
 	// Driven on its own so a suite can exercise the refusal without writing a hostile filename into
@@ -201,8 +214,10 @@ func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string
 			}
 			why, selected = args[i], modeWhy
 		case "-h", "--help":
-			fmt.Fprintln(errOut, "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>]")
-			return selected, why, path, 0
+			// A mode, not an early `return 0`. Returning zero here says "these arguments parsed", which
+			// is what run() reads it as — so help printed and then the whole gate ran, writing verdict
+			// records for a caller who asked what the flags were.
+			return modeHelp, why, path, 0
 		default:
 			fmt.Fprintf(errOut, "gate.sh: unknown argument '%s'\n", args[i])
 			return selected, why, path, 2

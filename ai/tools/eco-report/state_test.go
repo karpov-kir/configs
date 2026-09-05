@@ -175,10 +175,8 @@ func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {
 	f.assertRefused("state refuses rather than answering no-report with two ships open")
 	f.record("and no-report appears nowhere in what it printed", !strings.Contains(f.out, "no-report"), "")
 
-	// The stream-separation half that used to sit here is gone: the note it asserted on was legacyNote,
-	// deleted in this change, so the assertion reduced to `stdout == "no-report"`, which an empty repo
-	// answers regardless. That property is covered by TestAnOverrideMovesTheRootAndSaysSo, which asserts
-	// `state` prints one bare token while the override note goes to stderr.
+	// Stream separation is not asserted here. TestAnOverrideMovesTheRootAndSaysSo owns it: it asserts
+	// `state` prints one bare token on stdout while the override note goes to stderr.
 }
 
 func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {

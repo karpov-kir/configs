@@ -266,6 +266,10 @@ func readable(path string) bool {
 // readTable parses one thresholds file. `allow`, when non-nil, is the table the tracked config rules;
 // a lane outside it is refused.
 func readTable(path string, allow *table) (*table, error) {
+	if path == "" {
+		return nil, fmt.Errorf("the tracked threshold config could not be located: this was invoked as a " +
+			"bare name, which names no directory to find it from. Invoke it by a path — the stub does")
+	}
 	body, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("no readable threshold config at %s", path)
@@ -338,11 +342,25 @@ func parseDigits(text string) (int, error) {
 // tracked one sits beside the scripts directory the stub is in; the override is machine-local and
 // outside the repository, so tuning a bar is never a dirty working tree.
 func ConfigPaths(argv0 string, lookup func(string) (string, bool)) Env {
-	here, err := filepath.Abs(filepath.Dir(argv0))
-	if err != nil {
-		here = filepath.Dir(argv0)
+	var env Env
+	// The tracked config is derived from argv0, so argv0 has to actually name a location. Bare
+	// `score.sh` — this tool found on PATH — has no directory component, and `filepath.Dir` answers "."
+	// for it, which resolves against whatever directory the process stands in. This tool runs from
+	// inside the tree under review, so that tree would supply the bar its own change set is cut
+	// against: the same outcome the XDG rule below refuses, reached by the other input. A trailing
+	// slash misresolves the same way, one directory too deep.
+	//
+	// Left empty rather than guessed at. readTable then refuses by name, which is the honest answer —
+	// a fallback here would be the tool choosing a threshold file nobody named.
+	//
+	// `ai/tools/eco-stats/ledger.go`'s ownDirectory holds this same shape for the same reason.
+	if strings.Contains(argv0, "/") && !strings.HasSuffix(argv0, "/") {
+		here, err := filepath.Abs(filepath.Dir(argv0))
+		if err != nil {
+			here = filepath.Dir(argv0)
+		}
+		env.ConfigPath = filepath.Join(here, "..", "thresholds.conf")
 	}
-	env := Env{ConfigPath: filepath.Join(here, "..", "thresholds.conf")}
 	// A config home that is not absolute is treated as unset, which is what the XDG spec itself says to
 	// do with one; `ai/tools/eco-report/root.go` holds the same rule for the same reason. Taken as
 	// given, it resolves against whatever directory the process stands in — and this tool is run from
