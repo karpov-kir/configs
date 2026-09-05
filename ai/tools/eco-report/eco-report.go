@@ -33,13 +33,20 @@
 //	                 a time — refused while another stage's mark still has nothing recorded against it
 //	no-items <stage> mark a stage already marked returned as having surfaced nothing, the one way to clear
 //	                 its marker without editing the report
+//	decisions-reviewed  record that this pass re-evaluated the decision log — bumping what it reached and
+//	                 found still true, evicting what its subject has left. stamp refuses until it has run,
+//	                 and invalidate clears it, so every pass accounts for the log afresh
 //	stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
 //	                 reviewed-worktree + reviewed-stages, one entry per pipeline stage. Any `(turnaround)`
 //	                 marks the pass not-full. Refuses when this worktree's identity cannot be
 //	                 established, since gate reads it to tell this tree's review from a sibling's. Run
 //	                 `stamp` bare for the grammar; that usage text is the authority on it
 //	gate             done-blocker: stale tree OR turnaround-trimmed stages (both human-overridable)
-//	                 OR any open `- [ ]` (never overridable) → non-zero + reasons
+//	                 OR any open `- [ ]` in the report or in the ship's intent file (never
+//	                 overridable) → non-zero + reasons
+//	intent-ready <NNN-slug>  build-blocker over the ICE itself: unfilled template placeholders, an
+//	                 empty required section, an unsigned collaborative intent, or a depends-on edge
+//	                 that has not shipped → non-zero + reasons. Judgement is the grill's, not this
 //	carry            print prior open `- [ ]` (with their section) so re-qualify loses none
 //	check-ignore     keep qualify-reports/ out of the fingerprint, by the mechanism that fits the repo mode
 //	promote          throwaway → committed: ignore qualify-reports/ via .gitignore, MOVE the scratch
@@ -54,10 +61,12 @@
 //	list             one line per open ship, `<intent><TAB><state>`, for routing with several in flight
 //	close [--force]  retire one landed ship's report and stage markers. Refuses while an open `- [ ]`
 //	                 stands, since nothing else keeps a copy
-//	record <append|bump|evict> <decisions|playbook> "<text>"
-//	                 the one way to write the two shared records, which every worktree of the clone
+//	record <append|bump|revise|evict|admit> <decisions|playbook|language|constraints> "<text>" ["<new text>"]
+//	                 the one way to write the four shared records, which every worktree of the clone
 //	                 shares. Serialised under flock, so two agents writing at once both land; a hand
-//	                 edit is what silently drops one of them. records.go says why it locks as it does
+//	                 edit is what silently drops one of them. records.go says why it locks as it does.
+//	                 Each record is capped: an append into a full one refuses, and `admit` is the only
+//	                 way in, dropping the entry the new one beat
 //
 // Every subcommand that reads a report takes the intent as its LAST argument, optional while only one
 // report is open. Several open and none named is refused, never guessed: resolving to the wrong report
@@ -154,6 +163,9 @@ type run struct {
 	stageReturnsDir string
 
 	ambiguousNames string
+	// Appended to requireReport's no-report refusal. `gate` is the one caller that needs it: its reader
+	// is standing at a merge, where "run init first" reads as the step that clears the gate.
+	noReportNote []string
 	// Files in qualify-reports/ whose name is not a slug, counted by the last reportNames call so a
 	// caller can say it listed fewer reports than the directory holds.
 	unnameableReports int
@@ -252,10 +264,14 @@ func (r *run) dispatch() {
 		r.cmdStageReturned()
 	case "no-items":
 		r.cmdNoItems()
+	case "decisions-reviewed":
+		r.cmdDecisionsReviewed()
 	case "stamp":
 		r.cmdStamp()
 	case "gate":
 		r.cmdGate()
+	case "intent-ready":
+		r.cmdIntentReady()
 	case "carry":
 		r.cmdCarry()
 	case "invalidate":
@@ -275,7 +291,7 @@ func (r *run) dispatch() {
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|stamp \"<stages>\"|gate|carry|check-ignore|promote|discard|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

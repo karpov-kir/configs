@@ -15,6 +15,7 @@ set -u
 here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 tools=$here
 ai=$(CDPATH= cd -P "$here/.." && pwd -P)
+repo=$(CDPATH= cd -P "$ai/.." && pwd -P)
 skills="$ai/skills"
 # Exit 2, not 1, at every fixture site below. `run-tests.sh` reads 1 as FAIL and prints the last
 # fifteen lines of output under it — which, for a fixture that died before the first case, is
@@ -213,8 +214,17 @@ done <<<"$(stubs)"
 # Discovered rather than listed, so a stub added tomorrow is checked without a row here; finding none
 # is a failure, because a scan over nothing is green for the wrong reason.
 offsets_checked=0
-while IFS= read -r stub_file; do
-  [ -n "$stub_file" ] || continue
+# `-z`, because `git ls-files` C-quotes a path holding a non-ASCII byte, a control character, a quote
+# or a backslash — `"caf\303\251.sh"`, quotes and all. That name reaches no file, so the `grep` below
+# `continue`s and the stub goes unscanned in silence, which is the one outcome this scan must not
+# have. NUL-delimited output cannot survive a `$(...)`, hence the redirect rather than a here-string.
+while IFS= read -r -d '' listed; do
+  [ -n "$listed" ] || continue
+  # `git ls-files` prints paths relative to the repository root, and this suite runs from whatever
+  # directory the runner happens to be in. Anchored here rather than used as given: unanchored, every
+  # `grep` below missed its file and `continue`d, so the scan checked nothing and only the
+  # zero-counted guard at the bottom said so.
+  stub_file="$repo/$listed"
   # This file carries the marker as a string it searches FOR, not as a region it holds. Excluded by
   # name rather than by a cleverer pattern: a scan that tried to tell the two apart by shape would be
   # one more thing to get wrong, and there is exactly one file in this position.
@@ -233,7 +243,7 @@ while IFS= read -r stub_file; do
     record_fail "${stub_file##*/} declares the offset that reaches its own tools directory" \
       "tools_offset=$offset resolves to $stub_dir/$offset/tools/resolve.sh, which is not executable"
   fi
-done <<<"$(cd "$ai/.." && git ls-files '*.sh')"
+done < <(cd "$repo" && git ls-files -z '*.sh')
 if [ "$offsets_checked" -eq 0 ]; then
   record_fail "the offset scan found stubs to read" "no file carried a tools_offset, so that scan checked nothing"
 else

@@ -169,7 +169,7 @@ func (r *run) assertReportIsReadable(consequence string) {
 func (r *run) requireReport(name string) {
 	switch r.resolveReport(name) {
 	case reportNoneOpen:
-		r.refuse("error: no qualify report under " + r.reportsDir + " — run report.sh init \"<intent>\" first")
+		r.refuse(append([]string{"error: no qualify report under " + r.reportsDir + " — run report.sh init \"<intent>\" first"}, r.noReportNote...)...)
 	case reportAmbiguous:
 		r.refuseAmbiguous("name which as the last argument")
 	}
@@ -214,7 +214,7 @@ func (r *run) assertShipExists(slug string) {
 // Read after this ship's own files are gone, so every count it takes is of what survives.
 func (r *run) survivingContent() string {
 	kept := ""
-	for _, durable := range []string{"charter.md", "language.md", "playbook.md"} {
+	for _, durable := range []string{"charter.md", "constraints.md", "language.md", "playbook.md"} {
 		if shell.PathExists(r.idsdDir + "/" + durable) {
 			kept += " " + durable
 		}

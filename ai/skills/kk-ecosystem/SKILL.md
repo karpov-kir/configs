@@ -32,7 +32,7 @@ Before calling a rule dead, read `~/.kk-flavor/standards/ecosystem.md` → **Mov
 
 ## 4. Shape
 
-Spawn `kk-skillcraft` over every skill directory in the resolved scope — the shape lens, which nothing above applies. Skip it only when the scope holds no skill directory, and say so when you do.
+Spawn `kk-skillcraft` over every skill directory in the resolved scope, **and over the standards, prompts, templates and `CLAUDE.md` in it** — its steering and pruning lenses reach those too, and nothing above applies any of them. Skip the stage only when the scope holds none of them, and say so when you do.
 
 ## 5. Prose
 

@@ -45,11 +45,14 @@ func (r *run) writeStageMarker(stage, value string) {
 		r.errLines("error: the report could not be checksummed — " + stage + " is NOT marked")
 		r.exit(2)
 	}
-	if err := os.MkdirAll(r.stageReturnsDir, 0o777); err != nil {
+	// 0700/0600, not the umask's answer. These markers are what `stamp` reads instead of re-checking a
+	// stage, so a mode any other local account can write is a merge precondition anyone on the machine
+	// can forge. Matches the scratch record tree, which is 0700 for the same reason.
+	if err := os.MkdirAll(r.stageReturnsDir, 0o700); err != nil {
 		r.errLines("error: could not write " + r.stageReturnsDir + "/" + stage + " — " + stage + " is NOT marked")
 		r.exit(2)
 	}
-	if err := os.WriteFile(r.stageReturnsDir+"/"+stage, []byte(value+"\n"), 0o666); err != nil {
+	if err := os.WriteFile(r.stageReturnsDir+"/"+stage, []byte(value+"\n"), 0o600); err != nil {
 		r.errLines("error: could not write " + r.stageReturnsDir + "/" + stage + " — " + stage + " is NOT marked")
 		r.exit(2)
 	}

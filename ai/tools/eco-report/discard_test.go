@@ -251,12 +251,12 @@ func TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed(t *testing.T) {
 
 func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	t.Parallel()
-	// The durable three are a table in the source, and what a row buys is that .idsd/ survives this
+	// The durable files are a table in the source, and what a row buys is that .idsd/ survives this
 	// ship's discard: those files are the human's own, never the ship's scratch. A row dropped from
 	// that list deletes the file it names and reports zero traces, so every row gets a fixture. The
 	// list is spelled out again rather than read from the source: a test looping the real one would
 	// follow a dropped row instead of catching it.
-	for _, durable := range []string{"charter.md", "language.md", "playbook.md"} {
+	for _, durable := range []string{"charter.md", "constraints.md", "language.md", "playbook.md"} {
 		f := newShip(t, "001-durable")
 		f.write(f.scratch()+"/"+durable, "# the human's own\n")
 		f.runReport("discard", "001-durable")

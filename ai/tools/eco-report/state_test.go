@@ -214,6 +214,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 
 	trimmed := newShip(t, "001-trimmed-token")
 	trimmed.runReport("invalidate", "001-trimmed-token")
+	trimmed.runReport("decisions-reviewed", "001-trimmed-token")
 	for _, stage := range []string{"code-review", "tighten", "refactor"} {
 		trimmed.runReport("stage-returned", stage, "001-trimmed-token")
 		trimmed.runReport("no-items", stage, "001-trimmed-token")

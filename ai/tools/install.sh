@@ -14,7 +14,7 @@
 #
 # The release comes from this checkout's own `origin`, named to gh explicitly. Left to itself gh
 # resolves a release against the *caller's* current directory, and this script runs from wherever the
-# caller was standing — `../../bootstrap.sh` invokes it without changing directory.
+# caller was standing — `../bootstrap.sh` invokes it without changing directory.
 #
 # tested by: install-test.sh
 # untested: the download itself, which is a `gh release download` against a real release — faking gh

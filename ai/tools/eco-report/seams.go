@@ -21,13 +21,19 @@ import (
 // every reader here treats anything above 1 as "did not run" — so this buys the reason, not the
 // refusal.
 func (r *run) runTodoGate() (string, int) {
+	return r.runTodoGateOn(r.report)
+}
+
+// The same scan over any one file. `gate` needs it for the intent's own `## Follow-ups`, which live
+// outside the report and which nothing else reads before a merge.
+func (r *run) runTodoGateOn(path string) (string, int) {
 	if !isExecutable(r.todoGate) {
 		errLinesTo(r.errOut,
 			"error: "+r.todoGate+" is missing or not executable — the open-item scan did not run.",
 			"  It is located from this program's own path, so an invocation that renamed argv[0] resolves it somewhere else entirely.")
 		return "", 2
 	}
-	return r.capture(r.errOut, r.todoGate, r.report)
+	return r.capture(r.errOut, r.todoGate, path)
 }
 
 // The report's open `- [ ]`, for every caller that must refuse rather than read a failed scan as

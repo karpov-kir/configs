@@ -8,7 +8,9 @@ Judge a skill as a skill. Not whether its rules earn their place or reconcile ac
 
 A big skill is a symptom. Read it for the cause.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one directory per message, one verdict for the directory, and the queue, ledger and `N/M` all count directories.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one unit per message, one verdict for the unit, and the queue, ledger and `N/M` all count units.
+
+**A queued artifact that is not a skill** — a standard, a prompt, a template, a `CLAUDE.md` — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
 
 **Apply the fixes your lenses call for.** A split into two skills is a proposal, not an edit — it changes what the human types; so is a skill that should do *more*. A finding you return as a proposal is resolved by returning it: `WARN` once and move on, because the protocol's retry cannot converge what you have no license to change. **A defect outside your lenses is named, never edited and never dropped** — `~/.kk-flavor/standards/skill-protocol.md` → **Do not** bars the edit, and silence loses what only this pass saw.
 
@@ -36,8 +38,10 @@ Fail any one and it stays inline. **A bad extraction is worse than none**, becau
 
 When an agent ignores an instruction, argue less and steer harder.
 
-- **Leading words.** A dense term the model already knows beats a paragraph describing the same thing — hunt those paragraphs and replace them with the name.
-- **Hide the next step.** An agent that can see the goal rushes the step in front of it — a skill told to *ask clarifying questions, then plan* barely asks. Split that skill in two, so the early phase is the whole task. Where you find one skill whose early phase is chronically thin, this is usually why.
+- **Leading words.** A dense term the model already knows beats a paragraph describing the same thing — hunt those paragraphs and replace them with the name. **Prefer a word the model was pretrained on over one we coin**: a coined term recruits no priors, so we pay in definition tokens what an existing word gives free. Grade the word as **Pruning** below grades prose — one too weak to move the agent off its default is a no-op, and a stronger word is the fix.
+- **State the target, not the ban.** A prohibition leaves the behaviour more available, not less — the negation is a weak modifier over a strongly activated concept. Write what the agent should do, so the other behaviour is never spoken. A ban earns its place where it is a guardrail with no positive phrasing, and there it carries the target beside it.
+- **Completion criteria.** Every step ends on the condition that says it is done, and each is judged twice: can the agent tell done from not-done, and **how much does the bound demand**? "Every changed model accounted for" drives legwork that "produce a change list" never asks for. **The demand binds flat reference as well as steps** — "every rule applied" is how a skill that is all reference still carries an exhaustiveness bar.
+- **Hide the next step.** An agent that can see the goal rushes the step in front of it — a skill told to *ask clarifying questions, then plan* barely asks. Split that skill in two, so the early phase is the whole task. Where you find one skill whose early phase is chronically thin, this is usually why. **Splitting hides only what a real context boundary hides**: an invocation that runs inline leaves the later steps in context and clears nothing.
 
 ## 4. Pruning — what is not doing anything
 
@@ -52,5 +56,6 @@ Per the protocol, plus the cause:
 
 - Pass: `Skill N/M <dir> | <SKILL.md lines>L | OK`
 - Fail: the same line with `WARN`, then one line per finding, each naming its lens — one of `trigger` / `structure` / `steering` / `pruning`, or the lens that owns a defect outside them — and what an agent does wrong today.
+- A non-skill artifact takes `Artifact` in place of `Skill`, and its own path and line count.
 
-Close by stating plainly whether the skills are now sound, and name any you left large on purpose.
+Close by stating plainly whether the skills and artifacts you reviewed are now sound, and name any you left large on purpose.
