@@ -374,6 +374,35 @@ func TestPerWorktreeStateGoesToTheWorktreesOwnGitDir(t *testing.T) {
 	f.record("and reads back, so the stamp can see it", f.status == 0, f.evidence())
 }
 
+// The same guard, reached the other way. gitPath resolves the git dir from the on-disk layout first
+// and only asks git when an environment override makes the layout untrustworthy, so the case above
+// never reaches the `--git-path` answer at all: for a linked worktree the layout resolver answers, and
+// the prefixing arm below it is skipped. That left the arm reachable and unreached — a guard with a
+// case named against it that could not fail, which a mutation run reports as a survivor.
+//
+// GIT_CEILING_DIRECTORIES is the cheapest override that forces the fallback: layoutOverridden reads it
+// and declines, while git's own answer for a path under the fixture is unchanged. t.Setenv bars
+// t.Parallel, which is why this is its own case rather than a subtest of the one above.
+func TestPerWorktreeStateGoesToItsOwnGitDirWhenTheLayoutIsOverridden(t *testing.T) {
+	t.Setenv("GIT_CEILING_DIRECTORIES", t.TempDir()+"/elsewhere")
+	f := newShip(t, "002-markers")
+	second := f.base + "/override-worktree"
+	f.mustGit("worktree", "add", "-q", second, "-b", "override-markers")
+	if !f.exists(second) {
+		t.Skip("git worktree add is unavailable here, so this case cannot be built")
+	}
+	before := strings.Join(f.entries(second), "\n")
+	f.runReportIn(second, "invalidate", "002-markers")
+	f.runReportIn(second, "stage-returned", "code-review", "002-markers")
+	f.record("a stage marker written from a linked worktree with the layout overridden is recorded",
+		f.status == 0, f.evidence())
+	after := strings.Join(f.entries(second), "\n")
+	f.record("and nothing new appeared inside the worktree, so the absolute --git-path answer was not prefixed onto the root",
+		after == before, "before:\n"+before+"\nafter:\n"+after)
+	f.runReportIn(second, "no-items", "code-review", "002-markers")
+	f.record("and reads back, so the stamp can see it", f.status == 0, f.evidence())
+}
+
 func TestASiblingWorktreeCannotReadAStampItNeverEarned(t *testing.T) {
 	t.Parallel()
 	// The divergence this whole change made reachable. The scratch directory

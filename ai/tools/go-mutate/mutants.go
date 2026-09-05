@@ -69,6 +69,9 @@ var mutants = []mutant{
 	// line the floor reserves for it.
 	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandUsageDoesNotName + shell.CutBytesMarked(shell.Oneline(name), findingNameCap) +\n\t\t\t\" — \" + c.scriptNamed(base) + \" accepts it\")", "c.scriptNamed(base) + \" accepts \" + shell.CutBytesMarked(shell.Oneline(name), findingNameCap))"},
 	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t{unreadDispatch, 2},\n", ""},
+	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
+	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
+	// crafted links hides them and the report reads clean of the very thing they exist to say.
 	// Ranking on the whole line rather than its head: a crafted link target then carries a ranked
 	// phrase into a `dangling link:` finding and promotes the flood above what it is burying. The case
 	// that observes this passed over the mutation until its forged phrase was one the rank table still
@@ -456,12 +459,12 @@ var mutants = []mutant{
 
 	// families.go — direction inside the skill layer. Each of these turns the scan into one that looks
 	// like it works: it still runs, still reports nothing on a clean tree, and has stopped checking.
-	{"families: the router exception swallows every any-repo skill", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case name == familyRouter:", "case name == familyRouter || true:"},
-	{"families: the scan runs in the permitted direction too", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\t// The permitted direction", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\t// The permitted direction"},
-	{"families: the router keeps a blanket pass, claim or no claim", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "c.assertRouterClaimsItsException(name)", "_ = name"},
-	{"families: a skill in neither family goes unreported", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "case !strings.HasPrefix(name, anyRepoFamily):", "case !strings.HasPrefix(name, anyRepoFamily) && false:"},
-	{"families: only SKILL.md is read, so scripts go unchecked", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", `c.filesNamed(dir, "*.md", "*.sh")`, `c.filesNamed(dir, "*.md")`},
-	{"families: the state directory is no longer looked for", "../eco-check/families.go", "./eco-check/", "TestFamilyDirectionScan", "[]*regexp.Regexp{workflowName, stateDir}", "[]*regexp.Regexp{workflowName}"},
+	{"families: the router exception swallows every any-repo skill", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case name == familyRouter:", "case name == familyRouter || true:"},
+	{"families: the scan runs in the permitted direction too", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\t// The permitted direction", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\t// The permitted direction"},
+	{"families: the router keeps a blanket pass, claim or no claim", "families.go", "./eco-check/", "TestFamilyDirectionScan", "c.assertRouterClaimsItsException(name)", "_ = name"},
+	{"families: a skill in neither family goes unreported", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case !strings.HasPrefix(name, anyRepoFamily):", "case !strings.HasPrefix(name, anyRepoFamily) && false:"},
+	{"families: only SKILL.md is read, so scripts go unchecked", "families.go", "./eco-check/", "TestFamilyDirectionScan", `c.filesNamed(dir, "*.md", "*.sh")`, `c.filesNamed(dir, "*.md")`},
+	{"families: the state directory is no longer looked for", "families.go", "./eco-check/", "TestFamilyDirectionScan", "[]*regexp.Regexp{workflowName, stateDir}", "[]*regexp.Regexp{workflowName}"},
 
 	// root.go — where the throwaway scratch lives. Every mutant here turns the fix back into the defect
 	// it replaced, and each one still reports success on every command, which is why they are worth
@@ -483,6 +486,11 @@ var mutants = []mutant{
 	// linked worktree: prefixed with the root, the absolute git dir names a tree inside the worktree,
 	// and the exclusion lands there while git goes on ignoring nothing.
 	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `if strings.HasPrefix(path, "/") {`, "if false {"},
+	// Only observable where a write goes through the answer AND the layout resolver has declined, since
+	// gitPath answers from the layout first and never reaches this arm for a linked worktree. So the
+	// case sets an environment override and writes from a linked worktree: prefixed with the root, the
+	// absolute git dir names a tree inside the worktree, and the marker lands there while the next
+	// command looks where it should have been.
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
 	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
 	// The arm order is load-bearing, so the two forms of info/exclude are asked separately: the

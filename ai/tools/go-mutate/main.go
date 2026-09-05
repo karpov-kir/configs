@@ -34,7 +34,22 @@ import (
 // How one mutant's run is reported, and whether it counts against the exit code. Four outcomes over
 // two facts — what the suite did, and whether this mutant was declared unreachable — and the two that
 // matter are the mismatches: an undeclared survivor is a finding, and a declared one that got killed
-// is a stale declaration. Apart from main so a case can reach every arm.
+// is a stale declaration. Answered here so a case can reach every arm; reached only from main, it would
+// take a full mutation run to observe one.
+// The two verdicts that say nothing about the guard the mutant names: a suite the watchdog stopped,
+// and a mutant this machine could not set up to run at all. Both are counted apart from findings,
+// because a run that never happened is not evidence that the code is sound or that it is broken.
+const (
+	timedOut = "TIMED OUT"
+	noSetup  = "NO SETUP"
+)
+
+// A mutant that never reached a suite, carrying why. The error is the evidence: without it the reader
+// sees a mutant that measured nothing and no way to tell a full disk from a moved source file.
+func notSetUp(at time.Time, err error) result {
+	return result{verdict: noSetup, elapsed: time.Since(at), evidence: err.Error()}
+}
+
 func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 	switch {
 	case verdict == "killed" && !isDeclared:
@@ -44,8 +59,12 @@ func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 	case verdict == "KILLED NOTHING" && isDeclared:
 		return "unreachable", false
 	}
-	if verdict == "TIMED OUT" {
-		return "TIMED OUT", false
+	// A suite that never finished says nothing about the guard either way, so it is neither a finding
+	// nor an excuse. Neither does a mutant the harness could not set up: a temp dir it could not make
+	// or a source it could not read is this machine failing, and reporting it as a guard that did not
+	// redden names the code for something nothing in the code did.
+	if verdict == timedOut || verdict == noSetup {
+		return verdict, false
 	}
 	// Everything else is a finding whatever was declared: `broken` says the mutant never built, and a
 	// declaration is about a guard being unobservable, never about the edit failing to compile.
@@ -78,18 +97,26 @@ func suitesNamed(list []mutant) []string {
 	return suites
 }
 
-// The baseline run's argv after `go`. `-count=1` because `go test` reports `ok (cached)` over a
-// package that fails; an explicit `-timeout suiteTimeout` because this runs whole suites and
-// eco-report's alone runs past Go's 10m default on a loaded machine — an overrun panics, and main
-// reads that as BASELINE RED for what was machine load. A function, so main_test.go can pin both.
+// The baseline run's argv after `go`.
+//
+// `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout` because
+// dropping it hands the baseline Go's own 10m default instead of `suiteTimeout`.
+//
+// It is a function so main_test.go can pin both flags: each fails silently when absent, and nothing
+// else in the harness would catch one going.
 func baselineArgs(selected []mutant) []string {
 	return append([]string{"test", "-count=1", "-timeout", suiteTimeout}, suitesNamed(selected)...)
 }
 
-// One mutant run's argv after `go`. Every verdict comes from this run, so main_test.go pins these
-// flags: `-count=1` because a cached `ok` makes each mutant read KILLED NOTHING, a finding
-// manufactured rather than missed; `-failfast` because the first red case has already answered the
-// mutant. A mutant naming no test gets no flag — `-run ""` is an empty pattern matching every test.
+// One mutant run's argv after `go`. Every verdict this harness prints comes from this run, so
+// main_test.go pins these flags too. `-count=1` because a cached `ok` makes each mutant read KILLED
+// NOTHING, a finding manufactured rather than missed; `-failfast` because the first red case has
+// already answered what the mutant was asked.
+//
+// The filter is the mutant's own test unless the caller overrode it: `-run` on the command line is for
+// driving one mutant by hand, so it has to widen the filter as well as narrow it. A mutant naming no
+// test gets no flag rather than an empty one: `-run ""` is an empty pattern that matches every test,
+// so the two runs are the same suite, and the argv a failure prints should say which was meant.
 func mutantArgs(m mutant, overlay, runFilter string) []string {
 	filter := m.by
 	if runFilter != "" {
@@ -146,10 +173,17 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 	return stale
 }
 
-// How long a suite gets before the run is read as not having happened. Explicit, because `go test`
-// otherwise applies its own 10m default and eco-report has been measured at 603s — over the line on a
-// loaded machine. Generous on purpose: this bounds a hang, it does not police a slow suite.
-const suiteTimeout = "20m"
+// The bound on every `go test` this harness spawns — the baseline over each suite in scope, and each
+// mutant's own run. Explicit, because `go test` otherwise applies its own 10m default, and eco-report
+// alone has been measured as long as 23 minutes on a loaded machine.
+//
+// Do not tighten it to catch load. A mutant that runs past this reads as "did not measure", which
+// says nothing about the guard it names. A baseline that runs past it prints BASELINE RED, which
+// reports machine load as a suite that fails unmutated.
+//
+// `goSuiteTimeout` in `ai/tools/gate/run.go` holds the same number and not the same fact: that one
+// bounds each test binary in the gate's own suite run.
+const suiteTimeout = "30m"
 
 // What one suite run says about the guard the mutant removed. The four answers print in the same
 // column, so telling them apart is the whole of what this harness reports: a mutant that never built
@@ -159,10 +193,11 @@ func verdictOf(suiteFailed bool, output string) string {
 	if !suiteFailed {
 		return "KILLED NOTHING"
 	}
-	// Before the kill arm, and that ordering is the whole reason this exists. A timed-out suite exits
-	// non-zero with a panic — neither a build failure nor a case going red — so it used to fall through
-	// and be reported as `killed`, crediting the mutant with a guard it never observed. That is the
-	// finding this harness exists to produce, manufactured by the harness itself, and load causes it.
+	// Before the kill arm, and this is the whole reason it exists. A timed-out suite exits non-zero
+	// with a panic, which is neither a build failure nor a case going red, so it used to fall through
+	// and be reported as `killed` — the mutant credited with a guard it never observed. That is the
+	// finding this harness exists to produce, manufactured by the harness itself, and load is what
+	// makes it happen.
 	if strings.Contains(output, "test timed out") {
 		return "TIMED OUT"
 	}
@@ -224,13 +259,13 @@ func run(pkgDir string, m mutant, runFilter string) result {
 	at := time.Now()
 	work, err := os.MkdirTemp("", "gomutate")
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	defer os.RemoveAll(work)
 
 	realPath, source, matches, err := m.anchor(pkgDir)
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	if matches != 1 {
 		return result{verdict: fmt.Sprintf("anchor x%d", matches), elapsed: time.Since(at)}
@@ -239,11 +274,11 @@ func run(pkgDir string, m mutant, runFilter string) result {
 	// outside the temp dir. Each mutant has its own work dir, so two basenames cannot collide.
 	mutated := filepath.Join(work, filepath.Base(m.file))
 	if err := os.WriteFile(mutated, []byte(strings.Replace(source, m.from, m.to, 1)), 0o644); err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	overlay, err := writeOverlay(work, realPath, mutated)
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 
 	cmd := exec.Command("go", mutantArgs(m, overlay, runFilter)...)
@@ -295,9 +330,10 @@ func selectByFile(list []mutant, names string) (selected []mutant, unmatched []s
 }
 
 // One line per mutated file: the file, the suites its mutants name, and how many there are. Built
-// from the list rather than restated anywhere else — a second copy goes stale when a mutant moves.
-// This is the whole of what a caller scopes on (`ai/gate.sh` builds one unit per line), so a file
-// dropped here is a mutation unit that silently stops existing.
+// from the list rather than restated anywhere else — a second copy of this mapping is a second thing
+// to go stale when a mutant moves. This is the whole of what a caller scopes on — `discoverGoMutants`
+// in `ai/tools/gate/units.go` builds one unit per line — so a file dropped here is a mutation unit
+// that silently stops existing, which is the narrowing that harness exists to refuse.
 func unitLines(list []mutant, pkgDir string) []string {
 	var files []string
 	suites := map[string][]string{}
@@ -315,8 +351,8 @@ func unitLines(list []mutant, pkgDir string) []string {
 	for _, file := range files {
 		// The resolved path of the mutated file is the fourth column, because the caller cannot derive
 		// it: `file` is relative to the package this harness is pointed at, and that base lives here.
-		// `ai/gate.sh` used to hardcode its own copy of it, which is the same mapping in two homes and
-		// a rename away from a gate that resolves nothing.
+		// A gate holding its own copy of that base is the same mapping in two homes, and a rename away
+		// from a gate that resolves nothing.
 		lines = append(lines, fmt.Sprintf("%s\t%s\t%d\t%s",
 			file, strings.Join(suites[file], ","), counts[file], filepath.Join(pkgDir, file)))
 	}
@@ -326,7 +362,9 @@ func unitLines(list []mutant, pkgDir string) []string {
 // Why the suites cannot answer this `-run`, or empty when they can. `go test -run` takes one regexp
 // per `/`-separated level and exits 0 when it selects nothing, so a filter naming a test that is not
 // there would turn every mutant into KILLED NOTHING — a wall of findings the harness manufactured.
-// Only the top level is checked: below it are subtests, which `go test -list` does not print.
+//
+// Only the top level is checked: below it are subtests, which `go test -list` does not print and no
+// mutant names.
 func unmatchedRunFilter(runFilter string, held map[string]map[string]bool) string {
 	if runFilter == "" {
 		return ""
@@ -336,6 +374,9 @@ func unmatchedRunFilter(runFilter string, held map[string]map[string]bool) strin
 	if err != nil {
 		return fmt.Sprintf("-run %q does not compile as a regexp: %v", runFilter, err)
 	}
+	// Every suite in scope, not any one of them. A filter answered by one suite and by none of the
+	// others leaves those others' mutants running against nothing, and each comes back KILLED NOTHING
+	// — a finding per mutant, manufactured by the invocation.
 	var unanswered []string
 	for suite, names := range held {
 		if !matchesAny(pattern, names) {
@@ -358,6 +399,10 @@ func matchesAny(pattern *regexp.Regexp, names map[string]bool) bool {
 	return false
 }
 
+// Everything that has to resolve before a single mutant runs, each refusal named as it is found. It
+// returns the mutants that cannot be run as written, how many suites could not be listed — counted
+// apart, because no mutant is at fault for one — and why a `-run` given on the command line cannot be
+// answered by those suites.
 func preflight(pkgDir string, list []mutant, runFilter string) (refused []staleMutant, unlistable int, unrunnableFilter string) {
 	// Asked once per suite rather than once per mutant. A `by` naming a test its suite no longer holds
 	// runs as a filter matching nothing, and `go test` exits 0 on that — so the mutant comes back
@@ -451,7 +496,7 @@ func report(selected []mutant, results []result) (bad, declared, unmeasured int)
 			if shown == "STALE CLAIM" {
 				fmt.Printf("                  a case reddens it, so it is no longer unreachable — drop the declaration, which says: %s\n", why)
 			}
-		case shown == "TIMED OUT":
+		case shown == timedOut, shown == noSetup:
 			unmeasured++
 			// The only place the suite's own words reach the log. Without them a reader auditing the
 			// run for manufactured kills can only infer from durations.
@@ -544,14 +589,16 @@ func main() {
 	fmt.Printf("%s — one guard removed at a time, %d at once\n", strings.Join(suitesNamed(selected), " "), *jobs)
 	bad, declared, unmeasured := report(selected, runAll(pkgDir, selected, *jobs, *runFilter))
 	// The declared count prints whether or not it is zero, the way a suite's skipped field does: its
-	// presence is the information, and a run that silently stopped counting them would look identical to
-	// a run with none. The out-of-scope count sits in that same line rather than a note above it — a
-	// scoped run whose last line reads like a whole one is the narrowing this harness may not hide.
+	// presence is the information, and a run that silently stopped counting them would look identical
+	// to a run with none.
+	//
+	// The out-of-scope count sits in that same line rather than in a note above it: a scoped run whose
+	// last line reads like a whole one is exactly the narrowing this harness is not allowed to hide.
 	fmt.Printf("%d mutation(s) run, %d not run (out of scope), %d that proved nothing, %d that never measured, %d declared unreachable, %.1fs wall clock\n",
 		len(selected), len(mutants)-len(selected), bad, unmeasured, declared, time.Since(started).Seconds())
 	// A finding about the code outranks one about the machine. Exit 2 alone means nothing was found
-	// wrong and something never ran, which a caller may never read as a pass — `ai/gate.sh` maps it to
-	// NO MEASURE for exactly that.
+	// wrong and something never ran. A caller may never read that as a pass: `ai/tools/gate/run.go`
+	// maps it to NO MEASURE for exactly that.
 	if bad > 0 {
 		os.Exit(1)
 	}

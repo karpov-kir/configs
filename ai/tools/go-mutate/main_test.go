@@ -28,6 +28,8 @@ const (
 	noGuardAtAll      = "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n"
 )
 
+const timedOutSuiteOutput = "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
+
 // What preflight is told the suite holds: `./p/` and the one test the mutants below name. A fresh map
 // each call, so no case can leave a name behind for the next.
 func newHeldTests() map[string]map[string]bool {
@@ -213,9 +215,8 @@ func TestAnEmptyScopeSelectsEverything(t *testing.T) {
 	}
 }
 
-// The unit listing is what `ai/gate.sh` builds its mutation units from, one per line, so a file
-// missing from it is a whole unit that stops existing with nothing saying so. Every mutated file has
-// to appear exactly once, carrying its own count and each suite it names.
+// The unit listing is what `ai/tools/gate/units.go` builds its mutation units from, one per line, so a
+// file missing from it is a whole unit that stops existing with nothing saying so.
 func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
 	list := []mutant{
 		{label: "a", file: "one.go", suite: "./one/"},
@@ -260,7 +261,7 @@ func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 // has to survive the run rather than be read and dropped. Every other verdict carries none: an
 // evidence block under a `killed` line would claim the suite said something it did not.
 func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
-	timedOut := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+	timedOut := timedOutSuiteOutput
 	if verdict, evidence := verdictWithEvidence(true, timedOut); verdict != "TIMED OUT" || evidence != timedOut {
 		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d", verdict, len(evidence), len(timedOut))
 	}
@@ -278,8 +279,7 @@ func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
 // Read as a kill — which is what happened before this arm existed — the mutant is credited with a
 // guard it never observed, and the harness manufactures the finding it exists to produce.
 func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
-	out := "panic: test timed out after 10m0s\n\trunning tests:\n\tTestSomething (10m0s)"
-	if got := verdictOf(true, out); got != "TIMED OUT" {
+	if got := verdictOf(true, timedOutSuiteOutput); got != "TIMED OUT" {
 		t.Fatalf("a timed-out suite came back %q, want TIMED OUT — %q credits a guard nothing observed", got, got)
 	}
 	// And it is neither a finding about the code nor an excuse for one.
@@ -300,7 +300,7 @@ func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
 // tell a slow compile from a timeout.
 func TestATimedOutMutantPrintsTheSuitesOwnWords(t *testing.T) {
 	selected := []mutant{{label: "the bound", file: "guard.go", suite: "./p/"}}
-	evidence := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+	evidence := timedOutSuiteOutput
 
 	stdout := os.Stdout
 	reader, writer, err := os.Pipe()
@@ -513,5 +513,36 @@ func writeSource(t *testing.T, dir, name, body string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A mutant the harness could not set up says nothing about the guard it names, and the whole premise
+// of the CI step above this harness is that exit 1 means a guard did not redden. Counted as a finding,
+// a full disk or a moved source file would report the code as broken for something only the machine
+// did — and the error saying otherwise used to be discarded at four sites.
+func TestAMutantTheHarnessCouldNotSetUpIsNotAFinding(t *testing.T) {
+	if shown, isBad := outcomeOf(noSetup, false); isBad || shown != noSetup {
+		t.Errorf("outcomeOf gave (%q, %v), want (%s, false): it says nothing about the guard either way", shown, isBad, noSetup)
+	}
+	// A declared-unreachable mutant that never ran is still not a stale claim: nothing observed it.
+	if shown, isBad := outcomeOf(noSetup, true); isBad || shown != noSetup {
+		t.Errorf("a declared mutant that never set up gave (%q, %v), want (%s, false)", shown, isBad, noSetup)
+	}
+	// The negative control: a mutant that really did survive is still a finding.
+	if _, isBad := outcomeOf("KILLED NOTHING", false); !isBad {
+		t.Error("an undeclared survivor stopped being a finding")
+	}
+}
+
+// The reachable one of the four setup paths, driven rather than asserted about: a mutant naming a file
+// that is not there fails at the anchor, before any suite is spawned. What this pins is that the
+// failure arrives as NO SETUP carrying its cause, not as a verdict counted against the code.
+func TestASetUpFailureCarriesItsCause(t *testing.T) {
+	got := run(t.TempDir()+"/pkg/", mutant{label: "absent", file: "no-such-file.go", from: "a", to: "b"}, "")
+	if got.verdict != noSetup {
+		t.Fatalf("a mutant whose file is not there came back %q, want %s — that counts the machine as a finding", got.verdict, noSetup)
+	}
+	if got.evidence == "" {
+		t.Error("it carried no evidence, so the reader cannot tell a missing file from a full disk")
 	}
 }
