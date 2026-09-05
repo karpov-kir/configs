@@ -59,16 +59,20 @@ func (g *gate) unitLine(state, id, detail string) {
 // concurrency added here is exactly one boundary: the shell block against everything else, with the
 // block itself as serial as it has always been.
 //
-// Widening it to three was tried and backed out, and what settles the question is not yet measured.
-// The suites themselves are safe to overlap: eleven ran concurrently five times over, every one green,
-// with `ai/run-tests.sh`'s checkout-moved guard live on each — `TestEveryShellSuiteOwnsItsScratch` is
-// what keeps that true. Whether overlapping them PAYS inside the gate is the open part. Every spawn
-// here goes through one serialised security inspection, and `gotest` already spends that budget on
-// eighteen packages, so more spawners may queue behind it rather than beside it.
+// Widening it to three was tried, measured and dropped — and the measurement is the reason to leave
+// this alone rather than to try again. Three interleaved cold pairs at comparable load: narrow 134s
+// and 116s, wide 115s and 122s. The gap is inside the spread of each arm, so widening buys nothing
+// this instrument can see, while costing an invariant that has history behind it.
 //
-// Do not settle it with two wall-clock readings. This machine is shared, and the same gate measured
-// 131s and 2877s on identical code at different loads. It takes an interleaved A/B — narrow, wide,
-// narrow, wide — on a quiet machine, or total CPU time rather than wall clock.
+// The suites themselves are safe to overlap — eleven ran concurrently five times over, every one
+// green, with `ai/run-tests.sh`'s checkout-moved guard live on each, and
+// `TestEveryShellSuiteOwnsItsScratch` is what keeps that true. So the reason to stay serial is not
+// that they cannot overlap. It is that `gotest` already spends the machine's spawn budget on eighteen
+// packages, and more spawners queue behind it rather than beside it.
+//
+// If you do reopen this: the cache is `<git-common-dir>/eco-gate`, and a run that does not print
+// `0 fresh from cache` was answered from it. A back-to-back pair settles nothing here — the same gate
+// has measured 116s and 2877s on identical code at different loads.
 //
 // Everything else shares the default group, which is also what a units-file table gets. That keeps
 // every fixture in this package's suite on the serial path it was written for, and a fixture reaches
