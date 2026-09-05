@@ -105,20 +105,19 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
-      # exit 1 is a guard that did not redden, and it fails the job. exit 2 is the gate reporting that
-      # it measured nothing, and it reaches that for unrelated reasons: a loaded runner killing a
-      # mutation suite, a unit whose declared inputs resolve to no file, and the stub never reaching the
-      # gate binary at all. Only the first is weather, and passing on the others would be a green tick
-      # over a run that never happened — the failure this job was fixed for, silent instead of red.
+      # exit 1 is a guard that did not redden, and it fails the job. exit 2 is the gate saying it cannot
+      # report, and only one thing reaching that is weather: a mutation suite the runner killed before
+      # it measured. Passing on any of the rest is a green tick over a run that never happened, the
+      # failure this job was fixed for, silent instead of red. The no-input case even outranks a failure
+      # inside the gate, so a guard that did not redden beside one comes out as 2.
       #
-      # The summary line is what tells them apart without the gate needing a new exit code. It prints
-      # the unit tally before any exit is decided, so it is there on every run that reached the gate and
-      # absent on every failure of the stub in front of it. Present, a 2 is the runner and this warns;
-      # absent, the gate never ran and this fails.
+      # The grep below names the weather case by the line the gate prints for it and for nothing else.
+      # The rest are an open set, so a reason added later fails this job until someone decides it is
+      # weather. TestTheMutantsJobNamesTheGatesDidNotMeasureLine holds the pattern to the gate's wording.
       #
       # The warning also goes to the step summary, because an annotation alone lives inside a log fold.
-      # What still nothing catches is a runner that measures on no run at all: no count crosses runs, so
-      # such a job warns every time and never escalates.
+      # Nothing here catches a runner that never measures at all: no count crosses runs, so such a job
+      # warns every time and never escalates.
       - name: Prove the guards can fail
         run: |
           log="$RUNNER_TEMP/mutants.log"
@@ -132,8 +131,8 @@ jobs:
             exit "$status"
           fi
 
-          if ! grep -q 'unit(s):' "$log"; then
-            echo "::error::ai/gate.sh --mutants exited 2 without printing its unit tally, so it never reached the gate at all and nothing was measured. This is not a loaded runner. The reason is in this step's log."
+          if ! grep -q 'unit(s) exited 2 without measuring' "$log"; then
+            echo "::error::ai/gate.sh --mutants exited 2 for a reason other than a unit that ran without measuring, so this is not machine load and nothing here says the guards were proven. The reason is in this step's log."
             exit 1
           fi
 

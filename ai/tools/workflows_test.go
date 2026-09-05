@@ -18,9 +18,9 @@ import (
 	"testing"
 )
 
-const workflowsDir = "../../.github/workflows"
-
 const repoRoot = "../.."
+
+const workflowsDir = repoRoot + "/.github/workflows"
 
 const gateSource = "gate/run.go"
 
@@ -157,36 +157,20 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading %s: %v", gateSource, err)
 	}
-	want := goSuiteTimeoutIn(string(gateBody))
+	want := constStringIn(string(gateBody), "goSuiteTimeout")
 	if want == "" {
 		t.Fatalf("%s no longer declares goSuiteTimeout at the start of a line, so this case has nothing to "+
 			"hold the workflows to and would pass over any value they carry. Restore the declaration, or "+
 			"retire this case deliberately — do not leave it green over nothing.", gateSource)
 	}
 
-	entries, err := os.ReadDir(workflowsDir)
-	if err != nil {
-		t.Fatalf("reading %s: %v", workflowsDir, err)
-	}
-
 	checked := 0
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join(workflowsDir, entry.Name()))
-		if err != nil {
-			t.Fatalf("reading %s: %v", entry.Name(), err)
-		}
-		step, ok := gateStep(string(body))
-		if !ok {
-			continue
-		}
+	for name, step := range gateSteps(t) {
 		bounds := goTestBounds(step)
 		if len(bounds) == 0 {
 			t.Errorf("the Gate step in %s runs no `go test`, so whatever it gates is not this module's "+
 				"suite. Either the step lost its command or this case is looking at the wrong step.",
-				entry.Name())
+				name)
 			continue
 		}
 		for i, bound := range bounds {
@@ -196,11 +180,11 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 				t.Errorf("`go test` invocation %d in %s's Gate step carries no -timeout, so Go's 10m "+
 					"default applies there while %s uses %s. eco-report alone has been measured past 10m "+
 					"on a loaded runner, and overrunning prints a goroutine dump that reads as a hang "+
-					"rather than a slow pass.", i+1, entry.Name(), gateSource, want)
+					"rather than a slow pass.", i+1, name, gateSource, want)
 			case bound != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
 					"goSuiteTimeout=%s — the two drifted, so the same suite is bounded differently "+
-					"depending on who runs it.", i+1, entry.Name(), bound, gateSource, want)
+					"depending on who runs it.", i+1, name, bound, gateSource, want)
 			}
 		}
 	}
@@ -211,10 +195,10 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	}
 }
 
-// Anchored at column zero, so a mention inside a comment or a nested scope is not mistaken for the
-// declaration itself.
-func goSuiteTimeoutIn(source string) string {
-	const assign = `const goSuiteTimeout = "`
+// The value of a `const <name> = "…"` declaration in Go source. Anchored at column zero, so a mention
+// inside a comment or a nested scope is not mistaken for the declaration itself.
+func constStringIn(source, name string) string {
+	assign := "const " + name + ` = "`
 	for _, line := range strings.Split(source, "\n") {
 		if strings.HasPrefix(line, assign) {
 			return strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(line, assign)), `"`)
@@ -422,4 +406,67 @@ func runBlocks(body string) []string {
 	}
 	flush()
 	return blocks
+}
+
+// The `mutants` job warns and passes on one exit-2 reason — a unit that ran and measured nothing —
+// and fails on every other one the gate has. It tells that one apart by grepping the gate's log for
+// the line the gate prints for it and for nothing else, so the wording is one fact in two files:
+// `didNotMeasureLine` in ai/tools/gate/run.go, and the grep pattern in the workflow.
+//
+// Drift there retires the warn arm rather than breaking the job outright: the grep stops matching,
+// every exit 2 goes red, and what is lost is the distinction between a loaded runner and a gate that
+// never ran. Nobody would trace that back to a reworded printf, so it is held here instead.
+func TestTheMutantsJobNamesTheGatesDidNotMeasureLine(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(workflowsDir, "gates.yml"))
+	if err != nil {
+		t.Fatalf("reading gates.yml: %v", err)
+	}
+	pattern := ""
+	for _, block := range runBlocks(string(body)) {
+		if strings.Contains(block, "ai/gate.sh --mutants") {
+			pattern = quotedAfter(block, "grep -q '")
+		}
+	}
+	// Both ends have to be found or this fails outright. A guard comparing two strings it could not
+	// locate compares nothing and reports green, which is the same defect as a case that cannot fail.
+	if pattern == "" {
+		t.Fatalf("no step in gates.yml runs `ai/gate.sh --mutants` and greps its log with `grep -q '…'`, " +
+			"so this case has nothing to hold to the gate's wording and would pass over whatever pattern " +
+			"the job carries. Restore the grep, or retire this case deliberately — do not leave it green " +
+			"over nothing.")
+	}
+
+	gateBody, err := os.ReadFile(gateSource)
+	if err != nil {
+		t.Fatalf("reading %s: %v", gateSource, err)
+	}
+	want := constStringIn(string(gateBody), "didNotMeasureLine")
+	if want == "" {
+		t.Fatalf("%s no longer declares didNotMeasureLine at the start of a line, so this case has "+
+			"nothing to hold the workflow's pattern to. Restore the declaration, or retire this case "+
+			"deliberately — do not leave it green over nothing.", gateSource)
+	}
+	// Equal, not merely present in the file. A pattern like `unit(s):` is a substring of the tally the
+	// gate prints on every run, so a containment check would accept it and report green over a job that
+	// warns on every exit-2 reason again.
+	if pattern != want {
+		t.Errorf("the mutants job greps its log for %q, and the line the gate prints for a unit that did "+
+			"not measure is %q. Anything but the second spelling matches either nothing, which retires "+
+			"the warn arm, or more than that one case, which is the green tick over an unrun gate this "+
+			"job exists to refuse.", pattern, want)
+	}
+}
+
+// The text between the first pair of single quotes after marker. Empty when the marker is absent or its
+// quote never closes, which the caller reads as having found nothing to check.
+func quotedAfter(body, marker string) string {
+	_, rest, found := strings.Cut(body, marker)
+	if !found {
+		return ""
+	}
+	quoted, _, closed := strings.Cut(rest, "'")
+	if !closed {
+		return ""
+	}
+	return quoted
 }

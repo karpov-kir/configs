@@ -49,6 +49,13 @@ func (g *gate) unitLine(state, id, detail string) {
 	fmt.Fprintf(g.out, "  %-11s %-32s %s\n", state, id, detail)
 }
 
+// What the gate prints for a unit that ran and measured nothing, and for nothing else. Every other
+// exit 2 prints something different, and that set is open. `.github/workflows/gates.yml`'s mutants job
+// greps for this line to find the one exit it may warn and pass over. `workflows_test.go` holds the two
+// spellings together, and it finds this one by prefix, so keep the declaration at column zero and on
+// one line.
+const didNotMeasureLine = "unit(s) exited 2 without measuring"
+
 func (g *gate) runUnits(selected mode, started time.Time) int {
 	name := map[mode]string{modeFast: "fast", modeFull: "full", modeMutants: "mutants"}[selected]
 	fmt.Fprintf(g.out, "%d unit(s): %s path\n\n", len(g.units), name)
@@ -163,7 +170,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		return 1
 	}
 	if unmeasured > 0 {
-		fmt.Fprintf(g.errOut, "%d unit(s) exited 2 without measuring — nothing is known about them, and this is not a pass.\n", unmeasured)
+		fmt.Fprintf(g.errOut, "%d %s — nothing is known about them, and this is not a pass.\n", unmeasured, didNotMeasureLine)
 		return 2
 	}
 	return 0

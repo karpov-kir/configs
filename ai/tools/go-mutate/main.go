@@ -84,8 +84,7 @@ func suitesNamed(list []mutant) []string {
 // The baseline run's argv after `go`.
 //
 // `-count=1` because `go test` reports `ok (cached)` over a package that fails. `-timeout` because
-// dropping it hands the baseline Go's own 10m default instead of this harness's bound — `suiteTimeout`
-// carries that bound, what it costs when it fires, and why it is not tightened.
+// dropping it hands the baseline Go's own 10m default instead of `suiteTimeout`.
 //
 // It is a function so main_test.go can pin both flags: each fails silently when absent, and nothing
 // else in the harness would catch one going.
@@ -164,7 +163,7 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 //
 // Do not tighten it to catch load. A mutant that runs past this reads as "did not measure", which
 // says nothing about the guard it names. A baseline that runs past it prints BASELINE RED, which
-// reports machine load as a suite that fails unmutated. Tightening costs coverage and buys no signal.
+// reports machine load as a suite that fails unmutated.
 //
 // `goSuiteTimeout` in `ai/tools/gate/run.go` holds the same number and not the same fact: that one
 // bounds each test binary in the gate's own suite run.

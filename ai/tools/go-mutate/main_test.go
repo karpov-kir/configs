@@ -28,8 +28,6 @@ const (
 	noGuardAtAll      = "package p\n\nfunc f(n int) bool {\n\treturn n > 0\n}\n"
 )
 
-// A timed-out suite's own words, in the shape `go test` prints them. The bound in it is arbitrary:
-// verdictOf keys on `test timed out` and never on the number, so this does not track suiteTimeout.
 const timedOutSuiteOutput = "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
 
 // What preflight is told the suite holds: `./p/` and the one test the mutants below name. A fresh map
@@ -218,8 +216,7 @@ func TestAnEmptyScopeSelectsEverything(t *testing.T) {
 }
 
 // The unit listing is what `ai/tools/gate/units.go` builds its mutation units from, one per line, so a
-// file missing from it is a whole unit that stops existing with nothing saying so. Every mutated file
-// has to appear exactly once, carrying its own count and each suite it names.
+// file missing from it is a whole unit that stops existing with nothing saying so.
 func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
 	list := []mutant{
 		{label: "a", file: "one.go", suite: "./one/"},
@@ -282,8 +279,7 @@ func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
 // Read as a kill — which is what happened before this arm existed — the mutant is credited with a
 // guard it never observed, and the harness manufactures the finding it exists to produce.
 func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
-	out := "panic: test timed out after 10m0s\n\trunning tests:\n\tTestSomething (10m0s)"
-	if got := verdictOf(true, out); got != "TIMED OUT" {
+	if got := verdictOf(true, timedOutSuiteOutput); got != "TIMED OUT" {
 		t.Fatalf("a timed-out suite came back %q, want TIMED OUT — %q credits a guard nothing observed", got, got)
 	}
 	// And it is neither a finding about the code nor an excuse for one.
