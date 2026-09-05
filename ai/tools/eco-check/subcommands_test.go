@@ -320,7 +320,7 @@ func TestADispatchWhoseArmsCannotBeReadIsReported(t *testing.T) {
 // What the loosened opening pattern must still refuse. It decides only that a dispatch is *there*, so
 // it is deliberately the loosest thing in this file — and a pattern that answers yes to every `case`
 // turns two real shapes in this tree into findings: a top-level `case` over a value that is not the
-// first argument, and an in-function lookup table (`install.sh`, `shell-mutate.sh`).
+// first argument, and an in-function lookup table, of which `install.sh` holds one.
 func TestATopLevelCaseIsNotAlwaysADispatch(t *testing.T) {
 	t.Run("reads no dispatch out of a top-level case over another value", func(t *testing.T) {
 		f := newShellScript(t, "flag=\"$2\"\ncase \"$flag\" in\n  alpha)\n    :\n    ;;\nesac")

@@ -228,6 +228,12 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 		}
 		r.Reached++
 		for _, line := range strings.Split(string(body), "\n") {
+			// A trailing \r is this line's ending, not its content. The diff arm reads through
+			// bufio.Scanner, whose line split strips it; this arm splits on "\n" itself, so without
+			// this the guard below reads the \r as a control byte and drops EVERY line of a CRLF
+			// file — while Reached has already counted the file, so the run reports a denominator it
+			// did not cover.
+			line = strings.TrimSuffix(line, "\r")
 			if hasControl(line) {
 				r.BinaryLines++
 				continue

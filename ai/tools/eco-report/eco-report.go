@@ -10,9 +10,9 @@
 // the Invocation carries and returns the code the command exits on — and nothing here holds state
 // between calls, so two runs in one process cannot see each other's caches.
 //
-// Two seams stay external, and must: `~/.kk-flavor/scripts/tree-fingerprint.sh` owns the
-// tree-fingerprint recipe, and `todo-gate.sh` owns the open-item scan. Both are invoked, never
-// reimplemented — newRun says what recomputing the first one costs.
+// Two seams stay out of this package, and must: `ai/tools/tree-fingerprint/` owns the
+// tree-fingerprint recipe, imported and run in process, and `todo-gate.sh` owns the open-item scan,
+// which is spawned. Neither is reimplemented here — newRun says what recomputing the first one costs.
 //
 // This tool deletes files (discard) and writes to the git index (promote). Every refusal below is
 // load-bearing: read the comment before removing one.

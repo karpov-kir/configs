@@ -104,9 +104,9 @@ TABLE
 
 echo "shared:tool-stub"
 
-# score.sh in situ, and it is the reason the shared region names two candidate depths rather than one.
-# Every other stub sits at `skills/<skill>/scripts/`, three below the tools directory; this one is at
-# `kk-flavor/scripts/`, two below. The copied fixtures further down drive both depths in a throwaway
+# score.sh in situ, and it is the reason every stub declares its own offset instead of the region
+# holding one depth. Every other stub sits at `skills/<skill>/scripts/`, three below the tools
+# directory; this one is at `kk-flavor/scripts/`, two below. The copied fixtures further down drive both depths in a throwaway
 # tree; this drives the real file at the real depth against its real tool. The probe table cannot hold
 # it because that harness passes exactly one argument and `threshold` needs a lane.
 score_stub="$ai/kk-flavor/scripts/score.sh"
@@ -173,18 +173,16 @@ while IFS='|' read -r skill script cwd args marker; do
   expect_out "$script says to chmod it" "chmod"
 done <<<"$(stubs)"
 
-# The region consults exactly two named candidates — `../../tools/` and `../../../tools/` — and nothing
-# else. These two cases are the halves of that: the shallower candidate is really reached, and nothing
-# outside the two is. Every case above sits at the deeper depth, so without these two a regression to
-# any other shape would pass.
+# The region resolves the one path its stub declares — `$here/$tools_offset/tools/resolve.sh` — and
+# consults nothing else. These two cases are the halves of that: a stub at the shallower depth really
+# reaches its own tools directory, and no stub reaches one outside its checkout. Every case above sits
+# at the deeper depth, so without these two a regression to any other shape would pass.
 while IFS='|' read -r skill script cwd args marker; do
   [ -n "$skill" ] || continue
 
   # A checkout that ships no ai/tools/ refuses, rather than reaching one that belongs to somebody else.
-  # The decoy sits ABOVE the repository root, which is where two earlier shapes of this region reached:
-  # first an unbounded walk upward, then a list of three relative offsets applied uniformly to stubs at
-  # three different depths, so two of them pointed outside the checkout for a stub one level above
-  # ai/tools/. Both ran a stranger's binary at exit 0.
+  # The decoy sits ABOVE the repository root, which is where two earlier shapes of this region reached.
+  # Both ran a stranger's binary at exit 0; the shared region's own comment says how.
   #
   # Asserted from both ends: the refusal must name the missing resolver, AND the decoy must never have
   # run. Either alone passes for the wrong reason — a stub that died before resolving anything satisfies
@@ -208,10 +206,9 @@ while IFS='|' read -r skill script cwd args marker; do
   esac
 done <<<"$(stubs)"
 
-# Every stub's declared offset, checked against where that stub actually sits. This replaced a fixture
-# that copied a skill stub into a shallower tree and asserted it still resolved — which was only ever
-# true while the region SEARCHED for the tools directory. It names one path now, so a stub's depth is
-# its own property, and the thing worth holding is that each one declares the depth it really has.
+# Every stub's declared offset, checked against where that stub actually sits. The region names one
+# path, so a stub's depth is its own property, and the thing worth holding is that each one declares
+# the depth it really has.
 #
 # Discovered rather than listed, so a stub added tomorrow is checked without a row here; finding none
 # is a failure, because a scan over nothing is green for the wrong reason.

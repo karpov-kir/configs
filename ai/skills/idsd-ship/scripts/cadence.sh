@@ -37,11 +37,11 @@ here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
 
 # Exactly one path, named by the stub above rather than searched for here. The stubs sit at three
 # depths, and a shared region that guesses between them is a stub reaching a directory it does not
-# name: first a walk upward, which where a checkout ships no `ai/tools/` climbed OUT of it and exec'd
-# the first `tools/resolve.sh` in any ancestor, and then a list of three relative candidates, which is
-# the same hole one step quieter — those offsets are applied to files at DIFFERENT depths, so two of
-# them resolve outside the repository for a stub one level above the tools directory. Demonstrated
-# both times, exit 0 with a stranger's binary run. One named path cannot do either.
+# name. Two shapes proved that. A walk upward, in a checkout shipping no `ai/tools/`, climbed OUT of
+# the checkout and exec'd the first `tools/resolve.sh` in any ancestor. A list of three relative
+# candidates was the same hole one step quieter: those offsets are applied to files at DIFFERENT
+# depths, so two of them resolve outside the repository for a stub one level above the tools
+# directory. Both ran a stranger's binary at exit 0. One named path cannot do either.
 resolver="$here/$tools_offset/tools/resolve.sh"
 [ -e "$resolver" ] ||
   die "no resolver at $resolver — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
@@ -49,10 +49,10 @@ resolver="$here/$tools_offset/tools/resolve.sh"
   die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
 # The resolver names its own failures on stderr, so nothing is re-reported here. Its status is NOT
-# passed through, and the 2 below is deliberate rather than a copy of it: every way a resolver can fail
+# passed through: the 2 below is deliberate rather than a copy of it. Every way a resolver can fail
 # means the tool did not run, which is 2 in this repo's vocabulary, and 3 — ran and refuses a result —
 # must never reach a caller for a binary that never started. `ai/tools/resolve.sh` exits 2 for all of
-# them today, so this collapses nothing now; it is what keeps the guarantee if it ever grows a code.
+# them today, so keep the literal 2 if it ever grows a code.
 binary="$("$resolver" "$tool")" || exit 2
 [ -n "$binary" ] && [ -x "$binary" ] ||
   die "the resolver named no runnable binary for $tool, so it did NOT run"

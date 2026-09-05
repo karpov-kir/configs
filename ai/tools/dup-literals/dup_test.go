@@ -34,7 +34,12 @@ func TestMain(m *testing.M) {
 	if err := buildSeed(seedRepo); err != nil {
 		panic("dup tests: could not build the seed repository, so nothing was tested: " + err.Error())
 	}
-	os.Exit(m.Run())
+	// Removed explicitly rather than left to the defer above: os.Exit runs no deferred call, so the
+	// defer covers only the panic path, and without this line every run leaves a seed repository
+	// behind in the temp directory.
+	code := m.Run()
+	os.RemoveAll(base)
+	os.Exit(code)
 }
 
 func buildSeed(dir string) error {
@@ -386,11 +391,22 @@ func TestAnUntrackedFileOverTheByteCapIsSkippedAndCounted(t *testing.T) {
 // A suppressed duplicate is announced, never dropped, and exactly the cap is printed above the
 // announcement.
 func TestPastTheDisplayCap(t *testing.T) {
+	// The cap written out, and the fixture and the expectation both built from the literal rather than
+	// from maxShown. Taking either from the constant under test makes the case move with it: raise
+	// maxShown and the fixture grows to match, the announcement still fires, and the count still
+	// agrees — so the case passes over a cap of any size, which is a guard nothing observes.
+	const wantCap = 200
+	if maxShown != wantCap {
+		t.Fatalf("the display cap is %d, and this case pins %d. Changing the cap is a change to what "+
+			"the report promises, so update this number deliberately rather than reading it from the "+
+			"constant — a case that reads it can no longer tell you the cap moved.", maxShown, wantCap)
+	}
+
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")
 	r.commit("base")
 	var body strings.Builder
-	for i := 0; i < maxShown+1; i++ {
+	for i := 0; i < wantCap+1; i++ {
 		line := fmt.Sprintf("%03d", i) + repeated('q', 120)
 		body.WriteString(line + "\n" + line + "\n")
 	}
@@ -398,8 +414,8 @@ func TestPastTheDisplayCap(t *testing.T) {
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("… and 1 further duplicate(s), not shown")
-	if shown := strings.Count(r.stdout.String(), " chars): "); shown != maxShown {
-		t.Errorf("printed %d duplicates above the announcement, wanted exactly the cap %d", shown, maxShown)
+	if shown := strings.Count(r.stdout.String(), " chars): "); shown != wantCap {
+		t.Errorf("printed %d duplicates above the announcement, wanted exactly the cap %d", shown, wantCap)
 	}
 }
 

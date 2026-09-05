@@ -167,7 +167,7 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 	}
 	want := gotestTimeout(string(script))
 	if want == "" {
-		t.Fatalf("%s no longer assigns gotest_timeout at the start of a line, so this case has nothing to "+
+		t.Fatalf("%s no longer declares goSuiteTimeout at the start of a line, so this case has nothing to "+
 			"hold the workflows to and would pass over any value they carry. Restore the assignment, or "+
 			"retire this case deliberately — do not leave it green over nothing.", gateSource)
 	}
@@ -207,7 +207,7 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 					"rather than a slow pass.", i+1, entry.Name(), gateSource, want)
 			case bound != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
-					"gotest_timeout=%s — the two drifted, so the same suite is bounded differently "+
+					"goSuiteTimeout to %s — the two drifted, so the same suite is bounded differently "+
 					"depending on who runs it.", i+1, entry.Name(), bound, gateSource, want)
 			}
 		}
@@ -219,7 +219,7 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 	}
 }
 
-// The value the gate assigns to goSuiteTimeout. It used to live in ai/gate.sh as `gotest_timeout=`;
+// The value the gate declares for goSuiteTimeout. It used to live in ai/gate.sh as `gotest_timeout=`;
 // the gate is Go now and the bound moved with it. Line-based and anchored at column zero, so a mention
 // inside a comment or a nested scope is not mistaken for the declaration itself.
 func gotestTimeout(script string) string {

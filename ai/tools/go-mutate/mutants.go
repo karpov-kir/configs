@@ -425,8 +425,11 @@ var mutants = []mutant{
 	// root.go — where the throwaway scratch lives. Every mutant here turns the fix back into the defect
 	// it replaced, and each one still reports success on every command, which is why they are worth
 	// pinning: the failure mode being guarded is silence, not an error.
-	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestEveryWorktreeOfACloneSeesTheOneScratchDirectory", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
-	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheLocationIsResolvedFromTheRootNotTheCallersDirectory", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
+	// These three sit on the `rev-parse` fallback under layout.go, which every other fixture in the
+	// package skips by reading the filesystem instead. They name the case that switches the reader
+	// off rather than the case that describes the property, because only that one reaches them.
+	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
+	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
 	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(real))", "name := shell.BaseName(r.root)"},
 	{"root: a broken override falls back to the default in silence", "../eco-report/root.go", "./eco-report/", "TestABrokenOverrideRefusesRatherThanFallingBack", "if root == \"\" {\n\t\tr.refuse(\"error: \"+path+\" sets no", "if false {\n\t\tr.refuse(\"error: \"+path+\" sets no"},
 	{"root: an override inside the working tree is accepted", "../eco-report/root.go", "./eco-report/", "TestAnOverrideInsideTheWorkingTreeIsRefused", `if scratch != root && !strings.HasPrefix(scratch, root+"/") {`, "if true {"},
@@ -438,7 +441,7 @@ var mutants = []mutant{
 	// Only observable where a write goes through the answer, so the case is `check-ignore` run *in* a
 	// linked worktree: prefixed with the root, the absolute git dir names a tree inside the worktree,
 	// and the exclusion lands there while git goes on ignoring nothing.
-	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestPerWorktreeStateGoesToTheWorktreesOwnGitDir", `if strings.HasPrefix(path, "/") {`, "if false {"},
+	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `if strings.HasPrefix(path, "/") {`, "if false {"},
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
 	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
 	// The arm order is load-bearing, so the two forms of info/exclude are asked separately: the
@@ -918,8 +921,12 @@ var mutants = []mutant{
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},
 	{"density: the minimum comment-line floor is removed", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`entry.comments < s.cfg.MinLines ||`, `entry.comments < 0 ||`},
+	// `pending || true` rather than dropping the name: `pending` is read nowhere else, so removing it
+	// from this condition costs it its last use, Go refuses to compile, and the mutant reports `broken`
+	// — which says nothing about the guard. The disjunction leaves the name read and the guard gone,
+	// which is the edit this mutant means.
 	{"density: a file is anchored on the +++ line alone", "../diffscan/diffscan.go", "./comment-density/", "TestAnAddedLineShapedLikeADiffHeader",
-		`case pending && strings.HasPrefix(raw, "+++ "):`, `case strings.HasPrefix(raw, "+++ "):`},
+		`case pending && strings.HasPrefix(raw, "+++ "):`, `case (pending || true) && strings.HasPrefix(raw, "+++ "):`},
 	{"density: prose and data files are counted", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
 		`if line == "" || isProseOrData(file) {`, `if line == "" {`},
 	{"density: a bare star counts as a comment", "../comment-density/density.go", "./comment-density/", "TestAStarThatIsNotAComment",
@@ -959,9 +966,9 @@ var mutants = []mutant{
 	// dup-literals and the half it shares with comment-density. These sit on the two guards a reader of
 	// the report cannot check for themselves.
 	{"dup: the length floor stops applying to a whole line", "../dup-literals/dup.go", "./dup-literals/", "TestTheLengthFloor",
-		`if len([]rune(trimmed)) >= cfg.MinLength {`, "if true {"},
+		`if len([]rune(trimmed)) >= s.cfg.MinLength {`, "if true {"},
 	{"dup: a literal appearing once counts as repeated", "../dup-literals/dup.go", "./dup-literals/", "TestASingleOccurrenceIsNotADuplicate",
-		"for text, n := range tokens {\n\t\tif n >= 2 {", "for text, n := range tokens {\n\t\tif n >= 1 {"},
+		"for text, n := range s.tokens {\n\t\tif n >= 2 {", "for text, n := range s.tokens {\n\t\tif n >= 1 {"},
 	{"dup: the display cap stops bounding the report", "../dup-literals/dup.go", "./dup-literals/", "TestPastTheDisplayCap",
 		"const maxShown = 200", "const maxShown = 100000"},
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
@@ -972,12 +979,33 @@ var mutants = []mutant{
 		"return scanner.Err()", "return nil"},
 	{"diffscan: a binary untracked file is read", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedBinaryFileIsSkippedAndCounted",
 		"if isBinary(body) {", "if false {"},
+
+	// The did-not-measure counter. Every guard here decides whether CI keeps passing over guards
+	// nothing has proved, which is a thing no reader of a green tick can check for themselves.
+	{"nomeasure: the escalation threshold moves out by one", "../nomeasure/nomeasure.go", "./nomeasure/", "TestThreeDidNotMeasureRunsRunningEscalate",
+		"const escalateAt = 3", "const escalateAt = 4"},
+	{"nomeasure: a status other than the harness's did-not-measure one is counted", "../nomeasure/nomeasure.go", "./nomeasure/", "TestAMeasuredRunClearsTheCount",
+		"harnessDidNotMeasure = 2", "harnessDidNotMeasure = 3"},
+	// Nine digits or fewer parse, so only the length bound refuses a stored 1234567890 — and without it
+	// that entry sits above the threshold and fails the job for good.
+	{"nomeasure: a stored count too long to be one is carried on from", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountThatDoesNotParseIsNoHistory",
+		"len(stored) >= 10", "len(stored) >= 99"},
+	// `|| true` rather than `return true`: the shorter edit costs `s` its last use, Go refuses to
+	// compile it, and the mutant reports `broken` — which proves nothing about the guard.
+	{"nomeasure: a status that is no number is accepted as one", "../nomeasure/nomeasure.go", "./nomeasure/", "TestTheArmsThatDecideNothing",
+		"return strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0",
+		"return strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0 || true"},
+	{"nomeasure: a count file that would not take the write is reported as counted", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountFileThatWillNotTakeTheWriteDecidesNothing",
+		"if !record(countFile, count, stderr) {", "if !record(countFile, count, stderr) && false {"},
+	{"nomeasure: a reset that would not take the write is reported as measured", "../nomeasure/nomeasure.go", "./nomeasure/", "TestACountFileThatWillNotTakeTheWriteDecidesNothing",
+		"if !record(countFile, 0, stderr) {", "if !record(countFile, 0, stderr) && false {"},
+	{"nomeasure: a status with no count file picks a path instead of refusing", "../nomeasure/nomeasure.go", "./nomeasure/", "TestTheArmsThatDecideNothing",
+		"if len(args) < 2 || args[0] == \"\"", "if len(args) < 1 || args[0] == \"\""},
 }
 
-// A mutant no case can redden, and why. `shell-mutate.sh` → **unreachable** carries this for the same
-// situation and this is its Go twin, down to the vocabulary: a guard whose triggering condition an
-// earlier guard already refuses cannot be observed from outside, and a mutation of it that changes
-// nothing observable cannot be killed by any case anyone could write.
+// A mutant no case can redden, and why: a guard whose triggering condition an earlier guard already
+// refuses cannot be observed from outside, and a mutation of it that changes nothing observable
+// cannot be killed by any case anyone could write.
 //
 // Declaring one is what makes every OTHER survivor a failure of this run. Undeclared, they print in
 // the same column, the run ends "N that proved nothing" and exits 1 every single time — and a column

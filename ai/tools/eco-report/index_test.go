@@ -1,8 +1,8 @@
 package ecoreport_test
 
 // The index group comes first because nothing undoes what it catches. The fingerprint recipe belongs
-// to `~/.kk-flavor/scripts/tree-fingerprint.sh`, whose own failure modes are pinned in
-// `~/.kk-flavor/scripts/tree-fingerprint-test.sh`. What these cases pin is this side of the seam:
+// to `ai/tools/tree-fingerprint/`, which this package imports and runs in process, and whose own
+// failure modes are pinned by that package's suite. What these cases pin is this side of the seam:
 // that a subcommand which fingerprints leaves the human's staged-versus-unstaged split exactly as
 // they left it, and that the fingerprint really follows the tree. Git records nothing about what was
 // staged before, so no later refusal puts a wrecked split back

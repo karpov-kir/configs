@@ -23,8 +23,7 @@ type fsEntry struct {
 func (e fsEntry) isRegular() bool { return e.mode.IsRegular() }
 
 // tree is one `find <start>` answered once, plus the index that answers "does this cited token name
-// a file in here". That question is asked once per cited token, and the shell version paid a process
-// and a whole tree walk for each of them.
+// a file in here". That question is asked once per cited token.
 type tree struct {
 	// The start as the caller spelled it, and rootName's name for it. Together they turn a walked
 	// path into the canonical name the index is keyed on.
@@ -240,8 +239,8 @@ func (c *checker) resolveRef(dir, ref string) string {
 		return shell.Join(c.root.Named(), ref)
 	}
 	// A bare name is accepted only when one file in the tree could be meant. Counted in lines
-	// rather than in paths, as the shell version counted them: a committed directory name holding a
-	// newline splits one match across two lines, and reading that as ambiguous is the safe half.
+	// rather than in paths: a committed directory name holding a newline splits one match across two
+	// lines, and reading that as ambiguous is the safe half.
 	joined := strings.Join(c.walkTree(c.root.Named()).matchPath(ref), "\n")
 	if countNonEmptyLines(joined) == 1 {
 		return joined
@@ -264,19 +263,18 @@ func (c *checker) refExists(dir, ref string) bool {
 	return len(c.walkTree(c.root.Named()).matchPath(ref)) > 0
 }
 
-// The entries of skills/ that stat as directories, dotfiles excluded and byte-sorted the way the
-// shell's `"$skills"/*/` glob produced them.
-//
-// Read straight off the directory rather than out of the walk, so the gate term is asked here too.
-// The mount scan lists skills from this, and it runs only in the install: a gitignored skill
-// directory would be `skill not mounted` there and nothing at all in a worktree of the same commit,
-// which is the exact split the flag exists to close.
 // One skill's SKILL.md. Named rather than joined at each of the four call sites: the layout is one
 // fact, and four copies of it are four places a rename has to reach.
 func (c *checker) skillFilePath(name string) string {
 	return shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
 }
 
+// The entries of skills/ that stat as directories, dotfiles excluded and byte-sorted.
+//
+// Read straight off the directory rather than out of the walk, so the gate term is asked here too.
+// The mount scan lists skills from this, and it runs only in the install: a gitignored skill
+// directory would be `skill not mounted` there and nothing at all in a worktree of the same commit,
+// which is the exact split the flag exists to close.
 func (c *checker) skillDirNames() []string {
 	entries, err := os.ReadDir(c.root.Skills())
 	if err != nil {

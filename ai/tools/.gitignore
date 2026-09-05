@@ -15,6 +15,7 @@ dist/
 /cmd/eco-report/eco-report
 /cmd/eco-stats/eco-stats
 /cmd/handoff-check/handoff-check
+/cmd/nomeasure/nomeasure
 /cite-graph/cite-graph
 /go-mutate/go-mutate
 /rule-echo/rule-echo

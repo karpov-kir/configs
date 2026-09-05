@@ -7,7 +7,7 @@
 # `-s` is for a caller that already knows which suite a change could have moved — `ai/gate.sh` is one
 # — and still wants this file's reading of the result: the exit-2 "did not measure", and the vacuity
 # check that makes a suite exiting 0 having run no case a failure rather than a pass. A caller running
-# `bash <suite>` itself gets neither, and a suite emptied to zero bytes reads to it as a clean run.
+# `bash <suite>` itself gets neither.
 #
 # Discovery rather than a list, so a suite written tomorrow runs without anyone remembering to
 # register it. The cost of discovery is a gate that finds nothing and reports success, so finding
@@ -51,8 +51,7 @@ broken=0
 if [ -n "$named_suite" ]; then
   # One named suite is still discovery, and it obeys the same rule: naming a file that is not there
   # is the caller's typo, and answering it with an empty run would report a clean tree for a suite
-  # nothing executed. `named` rather than `git` or `find`, because the summary line must never read
-  # the same for two runs over different file sets.
+  # nothing executed.
   discovery="named"
   case "$named_suite" in
     /*) ;;
@@ -109,8 +108,6 @@ elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # `ls-files` answers what git knows about, and an unstaged deletion is still tracked, but the
     # working tree is what runs. Without this the runner reaches `bash <gone>`, gets 127, and the loop
     # below reads that as a failing suite, so an ordinary unstaged deletion reddens the whole sweep.
-    # Announced rather than skipped in silence: a run that read fewer files than git listed must not
-    # print the same summary as one that read them all.
     printf 'ABSENT %-47s tracked by git, not in the working tree — NOT run\n' "$suite"
     absent=$((absent + 1))
   done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- '*-test.sh' | sort -z -u)
@@ -149,8 +146,7 @@ tree_state() {
 passed=0
 failed=0
 unmeasured=0
-# A flag, not a fourth count: containment is one fact about the run, not a tally of suites, and a
-# counter that only ever holds 0 or 1 is not a measurement
+# A flag, not a fourth count: containment is one fact about the run, not a tally of suites
 # (`~/.kk-flavor/standards/testing.md` → **7. What a suite reports**).
 checkout_moved=0
 
@@ -194,22 +190,16 @@ for suite in "${suites[@]}"; do
 done
 
 # A suite that passes while corrupting the checkout has measured something, and the measurement was
-# not the whole effect. bootstrap-test.sh linked a temp HOME at this repository and wrote through the
-# link, replacing real config files while reporting every case green.
+# not the whole effect.
 #
-# It cannot say which caused a delta: a concurrent editor looks the same from here. Naming a suite
-# would be a false diagnosis, which sends someone hunting through code that is fine. Only a checkout
-# belonging to one run — a fresh GitHub-hosted runner, which is what gates.yml uses — leaves a suite as
-# the sole candidate, and that is a property of the workspace, not of CI: a self-hosted runner reusing
-# its workspace is as ambiguous as a laptop. Nothing here detects which case it is, and the ambient
-# variables that would guess — CI, GITHUB_ACTIONS, exportable by anyone — would give that same false
-# diagnosis the authority of code.
+# Don't name the suite. A concurrent editor looks the same from here, so naming one is a false
+# diagnosis that sends someone hunting through code that is fine. Don't reach for CI or
+# GITHUB_ACTIONS to guess either: anyone can export them, and what would actually narrow it down is a
+# checkout belonging to one run, which is a property of the workspace rather than of CI. A
+# self-hosted runner reusing its workspace is as ambiguous as a laptop.
 #
 # So it goes out as its own result, not a failure. `failed` counts suites that went red, and folding a
 # delta no suite need have caused into it makes the summary claim a red suite that does not exist.
-# Several sessions in one checkout fire this on ordinary editing, and a reader who meets that phantom
-# often enough stops reading the line — including on the run where a suite really did write into its
-# own repository.
 if [ "$tree_readable" -eq 0 ]; then
   after_tree="$(tree_state)"
   if [ "$before_tree" != "$after_tree" ]; then
@@ -222,9 +212,7 @@ if [ "$tree_readable" -eq 0 ]; then
     checkout_moved=1
   fi
 else
-  # Not a defect: the suites can be run outside a checkout, and they did measure. But the summary must
-  # not read the same as a run that did verify containment — two runs that checked different things
-  # printing one line is how the difference stops being visible.
+  # Not a defect: the suites can be run outside a checkout, and they did measure.
   containment=", containment unchecked"
 fi
 
@@ -241,8 +229,7 @@ printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discover
 #
 # Exit 3 for it, on `~/.kk-flavor/scripts/score.sh`'s vocabulary: 2 is did-not-measure, 3 is
 # ran-and-refuses-the-result, and a caller that cannot tell those apart reads a live refusal as a dead
-# tool. Non-zero either way, so a workspace that really is exclusive still reddens gates.yml, which
-# runs this bare and fails the step on any status.
+# tool.
 #
 # A broken suite sits with `unmeasured` rather than with `failed`: nothing about it went red, it was
 # never run at all, and that is what 2 means here. It must not be silent, because a file that is

@@ -37,7 +37,12 @@ func TestMain(m *testing.M) {
 		// over repositories that do not exist.
 		panic("density tests: could not build the seed repository, so nothing was tested: " + err.Error())
 	}
-	os.Exit(m.Run())
+	// Removed explicitly rather than left to the defer above: os.Exit runs no deferred call, so the
+	// defer covers only the panic path, and without this line every run leaves a seed repository
+	// behind in the temp directory.
+	code := m.Run()
+	os.RemoveAll(base)
+	os.Exit(code)
 }
 
 func buildSeed(dir string) error {

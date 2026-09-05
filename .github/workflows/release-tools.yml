@@ -59,8 +59,7 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/gate.sh states at gotest_timeout. The two have
-          # to match.
+          # `-timeout` and this value must match goSuiteTimeout in ai/tools/gate/run.go, which says why.
           go test -count=1 -timeout 30m ./...
 
       # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is

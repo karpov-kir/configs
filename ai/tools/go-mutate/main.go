@@ -40,8 +40,8 @@ func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 		return "unreachable", false
 	}
 	// A suite that never finished says nothing about the guard either way, so it is neither a finding
-	// nor an excuse — the caller counts it apart and exits 2, the reading `shell-mutate.sh` gives its
-	// own watchdog kills.
+	// nor an excuse — the caller counts it apart and exits 2, which is the reading a watchdog kill has
+	// always been given here.
 	if verdict == "TIMED OUT" {
 		return "TIMED OUT", false
 	}
@@ -525,9 +525,9 @@ func main() {
 	// last line reads like a whole one is exactly the narrowing this harness is not allowed to hide.
 	fmt.Printf("%d mutation(s) run, %d not run (out of scope), %d that proved nothing, %d that never measured, %d declared unreachable, %.1fs wall clock\n",
 		len(selected), len(mutants)-len(selected), bad, unmeasured, declared, time.Since(started).Seconds())
-	// A finding about the code outranks one about the machine, the reading `shell-mutate.sh`'s own
-	// last lines take. Exit 2 alone means nothing was found wrong and something never ran, which a
-	// caller may never read as a pass — `ai/gate.sh` maps it to NO MEASURE for exactly that.
+	// A finding about the code outranks one about the machine. Exit 2 alone means nothing was found
+	// wrong and something never ran, which a caller may never read as a pass — `ai/gate.sh` maps it to
+	// NO MEASURE for exactly that.
 	if bad > 0 {
 		os.Exit(1)
 	}

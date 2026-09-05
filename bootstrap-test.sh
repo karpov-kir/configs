@@ -35,12 +35,9 @@ tmp_real=$(cd -P "$tmp" && pwd -P) || exit 1
 # one: the second case's `mkdir -p "$home/.config/nvim"` then finds a live symlink into the checkout
 # and succeeds, and the fixture write that follows goes straight through it into a real config file.
 #
-# That is not hypothetical. An earlier `fresh_home` was called as `home=$(fresh_home)`, which
-# incremented its counter inside a subshell and handed every case the same home. It overwrote
-# `nvim/init.lua` and `starship/starship.toml` in the working tree and left a stray symlink in
-# `nvim/`. The suite reported it, too — a case failed saying something had been written where nothing
-# should be — and the report was read as a harness bug without asking what the broken run had already
-# written to disk.
+# That is not hypothetical. An earlier `fresh_home` handed every case the same home, and the run
+# overwrote `nvim/init.lua` and `starship/starship.toml` in the working tree, leaving a stray symlink
+# in `nvim/`.
 #
 # So the containment is asserted before each write rather than noticed after: the parent is resolved
 # physically, following any symlink in the path, and anything landing outside `$tmp` aborts the whole
@@ -91,12 +88,9 @@ record_fail() {
   echo "  FAIL  $1  — $2"
 }
 
-# No skip counter here, unlike ai/gate-test.sh. That suite reports a third field because it has a case
-# it cannot run where `chmod` does not restrict this user, and hiding that would make two machines
-# checking different sets look identical. Nothing here is declined that way: the one case this file
-# cannot run as root takes the whole suite to exit 2 instead, which says the run is not a result rather
-# than that a case was skipped. A field that can never be non-zero is decoration wearing the shape of a
-# measurement.
+# No skip counter here, because nothing in this file is declined: the one case it cannot run as root
+# takes the whole suite to exit 2 instead, which says the run is not a result rather than that a case
+# was skipped. A field that can never be non-zero is decoration wearing the shape of a measurement.
 
 # A fresh home per case, so no case inherits another's links. Numbered rather than mktemp'd again so a
 # failure message names which case's home to go and look at.
@@ -467,13 +461,12 @@ expect_out "and says where to look" "Re-run once nothing else is writing here"
 expect_not_out "and does not blame the suites for it" "reported a failing suite"
 expect_not_out "and does not call it a machine that could not measure" "could not measure every suite"
 
-# A missing runner, which is what a fresh clone had while `ai/run-tests.sh` was untracked. Without a
-# guard the call exits 127 and the failing-suite arm blames the suites for a file that was never
-# there — a false diagnosis pointing at code that is fine, which costs more than the silence would.
-# The two `expect_not_out` assertions are the load-bearing half: the exit alone cannot tell a missing
-# runner from a failing one, so only the wording separates them, and this suite is the only thing
-# holding them apart. Nothing here may pass because the real repository happens to have the runner —
-# the fixture removes it outright, which is why this case survives a clone and the others did not.
+# A missing runner. Without a guard the call exits 127 and the failing-suite arm blames the suites for
+# a file that was never there — a false diagnosis pointing at code that is fine, which costs more than
+# the silence would. The two `expect_not_out` assertions are the load-bearing half: the exit alone
+# cannot tell a missing runner from a failing one, so only the wording separates them, and this suite
+# is the only thing holding them apart. Nothing here may pass because the real repository happens to
+# have the runner — the fixture removes it outright.
 rm -f "$verify_repo/ai/run-tests.sh"
 
 fresh_home
