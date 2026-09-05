@@ -14,7 +14,7 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
 3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have.
 
-**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included, not just the round's. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
+**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 

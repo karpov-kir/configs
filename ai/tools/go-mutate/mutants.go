@@ -306,8 +306,8 @@ var mutants = []mutant{
 	// stamp it writes is what the merge gate trusts — so the weight below is on the three questions
 	// where being wrong is unrecoverable: which report an invocation resolves to, what `discard`
 	// decides is this ship's scratch and not the human's, and what the stamp will accept as a review
-	// that happened. Its suite runs in seven seconds whole, so naming the test here buys attribution
-	// rather than budget: "some case went red" would not say which guard is observed.
+	// that happened. Naming the test here buys attribution rather than budget: "some case went red" would
+	// not say which guard is observed.
 
 	// paths.go — which report an invocation acts on, and what else on disk belongs to the ship it
 	// names.
@@ -331,7 +331,7 @@ var mutants = []mutant{
 	{"discard: the ship-exists guard never refuses", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "func (r *run) assertShipExists(slug string) {\n\tif shell.IsRegularFile(r.report) {", "func (r *run) assertShipExists(slug string) {\n\tif true {"},
 	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"discard: the review exception removed", "../eco-report/paths.go", "./eco-report/", "TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed", `if slug == "review" {`, "if false {"},
-	// The durable three are a table, and a table gets a row each: each one kept .idsd/ standing
+	// The durable files are a table, and a table gets a row each: each one kept .idsd/ standing
 	// with nothing observing that it did.
 	{"surviving: charter.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"constraints.md", "language.md", "playbook.md"}`},
 	{"surviving: constraints.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "language.md", "playbook.md"}`},
@@ -454,7 +454,7 @@ var mutants = []mutant{
 	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
 
 	// seams.go — the two scripts this tool calls rather than reimplements.
-	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "if status > 1 {", "if false {"},
+	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "func (r *run) readOpenTodos(consequence string) {\n\titems, status := r.runTodoGate()\n\tif status > 1 {", "func (r *run) readOpenTodos(consequence string) {\n\titems, status := r.runTodoGate()\n\tif false {"},
 	{"fingerprint: a missing script recomputed locally", "../eco-report/seams.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "if !isExecutable(r.fingerprintBin) {", "if false {"},
 	{"fingerprint: an empty tree read as a fingerprint", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if err != nil || tree == "" {`, "if false {"},
 	{"fingerprint: the walk repeated once per ship", "../eco-report/seams.go", "./eco-report/", "TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer", `if r.cachedTree != "" {`, "if false {"},
@@ -463,6 +463,7 @@ var mutants = []mutant{
 	// gate still prints "intent ready", so a build starts against a placeholder nobody filled.
 	{"intent-ready: the placeholder scan disabled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" {`, `if placeholder := firstPlaceholder(stripCodeSpans(line)); placeholder != "" && false {`},
 	{"intent-ready: a comparison read as a placeholder", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if body != "" && body[0] != ' ' && !strings.HasPrefix(body, "!--") {`, `if body != "" && !strings.HasPrefix(body, "!--") {`},
+	{"intent-ready: a placeholder standing after a comparison is skipped", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", "\t\tif strings.HasPrefix(body, \"!--\") {\n\t\t\tstart += end\n\t\t}\n", "\t\tstart += end\n"},
 	{"intent-ready: an empty required section read as filled", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect", `if inSection && strings.TrimSpace(line) != "" {`, "if inSection {"},
 	{"intent-ready: the field's own comment read as a sign-off", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyReadsTheTemplatesCommentAsNoSignOff", `if strings.HasPrefix(value, "#") {`, "if false {"},
 	{"intent-ready: an archived dependency read as unbuilt", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnADependencyThatHasNotShipped", `case where == "archive":`, `case where == "archive" && false:`},
@@ -516,7 +517,13 @@ var mutants = []mutant{
 	{"gate: a turnaround trim no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `case trims != "":`, "case false:"},
 	{"gate: a scan that did not run no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "case status > 1:", "case false:"},
 	{"gate: an open item no longer blocks the merge", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case todos != "":`, "case false:"},
-	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tr.line(\"gate clean: tree fresh, untrimmed qualify, no open TODOs\")\n", ""},
+	{"gate: a clean gate reports nothing at all", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tr.line(\"gate clean: tree fresh, untrimmed qualify, %s, no open TODOs\", r.intentClaim())\n", ""},
+	{"gate: an intent that never reached approved no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "\tdefault:\n\t\treturn path, status\n", "\tdefault:\n\t\treturn path, \"\"\n"},
+	{"gate: a missing status reads as an approval", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "\tcase \"\":\n\t\treturn path, \"<none>\"\n", "\tcase \"\":\n\t\treturn path, \"\"\n"},
+	{"gate: a ship with no intent file reads as an unapproved one", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "\tif path == \"\" {\n\t\treturn \"\", \"\"\n\t}\n", ""},
+	{"gate: the clean line claims an approval it never read", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", "\tif r.intentFilePath() == \"\" {\n\t\treturn \"no intent to check\"\n\t}\n", ""},
+	{"state token: the ICE's own follow-ups never reach the token", "../eco-report/seams.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", "\tif intent == \"\" {\n\t\treturn false\n\t}\n", "\tif intent == \"\" || true {\n\t\treturn false\n\t}\n"},
+	{"state token: an unapproved intent answers ready anyway", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "if r.intentIsUnapproved() {", "if false {"},
 	{"carry: the open items go unprinted", "../eco-report/gate.go", "./eco-report/", "TestCarryPrintsTheItemsARequalifyMustNotLose", "if r.openTodos != \"\" {\n\t\tr.line(\"%s\", r.openTodos)", "if false {\n\t\tr.line(\"%s\", r.openTodos)"},
 	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
 	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
@@ -524,7 +531,7 @@ var mutants = []mutant{
 	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
 	{"state token: an unstamped report no longer answers resume", "../eco-report/gate.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if isUnstamped(reviewed) {", "if false {"},
 	{"state token: a moved tree answers ready", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `return "re-qualify" // reviewed once, tree moved since`, `return "ready" // reviewed once, tree moved since`},
-	{"state token: open items no longer answer decide", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if r.openTodos != \"\" {\n\t\treturn \"decide\"", "if false {\n\t\treturn \"decide\""},
+	{"state token: open items no longer answer decide", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if r.anyOpenItemsBeforeMerge(\"the state is unknown.\") {", "if false {"},
 	{"state token: a trimmed pass answers ready", "../eco-report/gate.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `if isUnstamped(r.reviewedStages()) || r.turnaroundTrims() != "" {`, "if false {"},
 	{"list: a partial listing streamed as it goes", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `listing += name + "\t" + r.stateToken() + "\n"`, `r.line("%s\t%s", name, r.stateToken())`},
 	{"list: the readability guard removed", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `r.assertReportIsReadable("nothing was printed, this listing included")`, "_ = r.report"},
@@ -589,7 +596,7 @@ var mutants = []mutant{
 	{"stamp: the per-stage marker check removed", "../eco-report/stamp.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `if reason := r.stageBlockReason(stage); reason != "" {`, "if reason := r.stageBlockReason(stage); len(reason) < 0 {"},
 	// A stage marker IS the precondition stamp reads instead of re-checking the stage, so the three
 	// below are all one defect wearing different clothes: a marker this pass never earned.
-	{"init: a fresh report adopting the dead pass's stage markers", "../eco-report/init.go", "./eco-report/", "TestAFreshReportInheritsNoStageMarkerFromTheOneBeforeIt", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {\n\t\tr.refuse(\"error: could not clear \" + r.stageReturnsDir + \" (\" + err.Error() + \") — the report was NOT initialized", "if err := error(nil); err != nil {\n\t\tr.refuse(\"error: could not clear \" + r.stageReturnsDir + \" (\" + err.Error() + \") — the report was NOT initialized"},
+	{"init: a fresh report adopting the dead pass's stage markers", "../eco-report/init.go", "./eco-report/", "TestAFreshReportInheritsNoStageMarkerFromTheOneBeforeIt", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {", "if err := error(nil); err != nil {"},
 	{"stages: a marker directory any local account can write", "../eco-report/stages.go", "./eco-report/", "TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine", "os.MkdirAll(r.stageReturnsDir, 0o700)", "os.MkdirAll(r.stageReturnsDir, 0o777)"},
 	{"stages: a marker file any local account can forge", "../eco-report/stages.go", "./eco-report/", "TestAStageMarkerIsNotWritableByAnyoneElseOnTheMachine", `[]byte(value+"\n"), 0o600)`, `[]byte(value+"\n"), 0o666)`},
 	{"stamp: a pass that never accounted for the decision log", "../eco-report/stamp.go", "./eco-report/", "TestAStampDemandsThePassAccountForTheDecisionLog", "if !r.stageWasMarkedReturned(decisionsMarker) {", "if false {"},
@@ -625,7 +632,7 @@ var mutants = []mutant{
 	{"slug charset: a path separator let into the set", "../eco-report/shell.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `b == '.' || b == '_' || b == '-'`, `b == '.' || b == '_' || b == '-' || b == '/'`},
 	{"readable: -r asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", "syscall.Access(path, 0x4)", "syscall.Access(path, 0x0)"},
 	{"executable: -x asked as mere existence", "../eco-report/shell.go", "./eco-report/", "TestAMissingFingerprintScriptRefusesInsteadOfRecomputing", "syscall.Access(path, 0x1)", "syscall.Access(path, 0x0)"},
-	// `join`, not `records`: that prefix now names the two shared record files. A label is a mutant's
+	// `join`, not `records`: that prefix now names the four shared record files. A label is a mutant's
 	// whole identity in the verdict column, so a prefix naming two subjects sends the reader of a
 	// survivor to the wrong file.
 	{"join: the trailing newline dropped from every rewrite", "../eco-report/shell.go", "./eco-report/", "TestAStampCannotOutliveThePassThatEarnedIt", `out.WriteString("\n")`, `out.WriteString("")`},

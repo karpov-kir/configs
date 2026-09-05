@@ -98,6 +98,16 @@ func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
 	f.record("a code span and a comparison are not placeholders",
 		f.status == 0, f.evidence())
 
+	// And a comparison does not hide the placeholder after it. The `>` closing `< 300ms` is `<state>`'s
+	// own, so a scan that skipped to it would step over the one thing it is looking for — and report an
+	// ICE still holding template text as ready to build.
+	f.writeIntent("001-search", strings.Replace(readyIntent(),
+		"- search returns in under 300ms at p95",
+		"- latency stays < 300ms for <state>", 1))
+	f.runReport("intent-ready", "001-search")
+	f.record("a placeholder standing after a comparison on the same line still blocks",
+		f.status == 1 && strings.Contains(f.out, "<state>"), f.evidence())
+
 	f.writeIntent("001-search", strings.Replace(readyIntent(), "## Failure scenarios", "## Nothing in particular", 1))
 	f.runReport("intent-ready", "001-search")
 	f.record("a missing required section blocks",
