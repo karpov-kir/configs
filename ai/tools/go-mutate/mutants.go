@@ -453,10 +453,12 @@ var mutants = []mutant{
 	{"promote: a refusal strands the scratch in the working tree", "../eco-report/scratch.go", "./eco-report/", "TestNoRefusalLeavesTheScratchStrandedInTheTree", "if err := os.Rename(to, from); err != nil {", "if err := error(nil); err != nil {"},
 
 	// git.go — every git call the tool makes, and the two exclusion mechanisms it writes through.
-	// Only observable where a write goes through the answer, so the case is `check-ignore` run *in* a
-	// linked worktree: prefixed with the root, the absolute git dir names a tree inside the worktree,
-	// and the exclusion lands there while git goes on ignoring nothing.
-	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestPerWorktreeStateGoesToTheWorktreesOwnGitDir", `if strings.HasPrefix(path, "/") {`, "if false {"},
+	// Only observable where a write goes through the answer AND the layout resolver has declined, since
+	// gitPath answers from the layout first and never reaches this arm for a linked worktree. So the
+	// case sets an environment override and writes from a linked worktree: prefixed with the root, the
+	// absolute git dir names a tree inside the worktree, and the marker lands there while the next
+	// command looks where it should have been.
+	{"git dir: an absolute git path prefixed with the root", "../eco-report/git.go", "./eco-report/", "TestPerWorktreeStateGoesToItsOwnGitDirWhenTheLayoutIsOverridden", `if strings.HasPrefix(path, "/") {`, "if false {"},
 	{"repo mode: a tracked .idsd read as throwaway", "../eco-report/git.go", "./eco-report/", "TestDiscardDestructivePath", `if tracked != "" {`, `if tracked != "" && false {`},
 	{"repo mode: an unreadable index read as a mode", "../eco-report/git.go", "./eco-report/", "TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex", `if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {`, "if false {"},
 	// The arm order is load-bearing, so the two forms of info/exclude are asked separately: the
