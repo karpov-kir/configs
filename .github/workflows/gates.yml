@@ -118,6 +118,13 @@ jobs:
       # The warning also goes to the step summary, because an annotation alone lives inside a log fold.
       # Nothing here catches a runner that never measures at all: no count crosses runs, so such a job
       # warns every time and never escalates.
+      #
+      # No `timeout-minutes`, and that is a gap rather than a decision. This runs every mutation unit
+      # cold on each push with no cache between runs, and twelve units alone took the better part of an
+      # hour on a developer machine, so a smaller runner could plausibly want hours. A bound guessed
+      # under the real figure cancels a legitimate sweep and reddens every push — the failure this job
+      # was just fixed for, arriving from the other side. GitHub's six-hour default is the only bound
+      # until the duration is read off a real run; set one from that number rather than from this note.
       - name: Prove the guards can fail
         run: |
           log="$RUNNER_TEMP/mutants.log"
