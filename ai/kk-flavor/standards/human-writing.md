@@ -8,9 +8,9 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 **Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
 
-Deliberately **lossy** — detail that matters, but not to this reader, goes to a durable home (ticket, commit body, doc) with a link, or is dropped. **The link then stands in for that detail rather than introducing it.**
+**Then score what survived** ([writing.md](writing.md) → **Score what survives**) on its `outward-text` lane, or `code-comment` for a comment.
 
-**Then score what survived** ([writing.md](writing.md) → **Score what survives**) on its `outward-text` lane, or `code-comment` for a comment — what it cuts takes those same two exits.
+**Deleting is the only exit from either cut, and it needs no home and no permission.**
 
 **Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
 

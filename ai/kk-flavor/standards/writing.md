@@ -10,7 +10,7 @@ The reader understands the text on the first read, without backtracking — in *
 * **Name the actor.**
 * **No noun stack over three words.**
 * **Plain words, direct verbs, whole sentences.** Contractions are fine.
-* **The point before the caveat, and a warning before the step it guards.**
+* **The point alone in the first sentence, the caveat after it, and a warning before the step it guards.**
 
 ## Density
 

@@ -18,6 +18,8 @@
 
 Comment form is [human-writing.md](human-writing.md). **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it.
 
+**A change set's comment share stays at or under the host repo's.** Where it is over, rank every comment in the set and delete upward from the weakest until it is not, never by a fixed fraction of what is there.
+
 **Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when a sibling covers it. **True, unique content goes too — anecdotes, provenance, alternatives considered.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
 
 **A published surface is the exception, and it runs the other way** — state the contract the types don't carry: call order, lifecycle, error modes, units, ranges, caller invariants. **That list is the whole of the exception**, and a file declaring itself published buys its members nothing beyond it.
