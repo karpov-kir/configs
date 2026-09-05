@@ -16,6 +16,14 @@
 set -uo pipefail
 export LC_ALL=C
 
+# Named from $0 rather than typed, so the script's own name has one home. The same four lines every
+# stub in this repo carries, deliberately outside any `# --- shared:<name> ---` markers: this is not
+# part of the stub region the wiring check holds byte-identical.
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
+  exit 2
+}
+
 named_suite=""
 while getopts ":s:" opt; do
   case "$opt" in
@@ -31,10 +39,7 @@ shift $((OPTIND - 1))
 # `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so the default root comes
 # back two lines long and the check below refuses a directory that is really there.
 root="${1:-$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)}"
-[ -d "$root" ] || {
-  echo "run-tests.sh: not a directory: $root" >&2
-  exit 2
-}
+[ -d "$root" ] || die "not a directory: $root"
 
 # Discovery asks git first, because every file this finds is then executed. `--cached --others
 # --exclude-standard` is tracked files plus new untracked ones and nothing else: a suite written five
@@ -56,10 +61,8 @@ if [ -n "$named_suite" ]; then
     /*) ;;
     *) named_suite="$root/$named_suite" ;;
   esac
-  [ -f "$named_suite" ] || {
-    echo "run-tests.sh: no suite at $named_suite — read this as discovery broken, never as a clean run" >&2
-    exit 2
-  }
+  [ -f "$named_suite" ] ||
+    die "no suite at $named_suite — read this as discovery broken, never as a clean run"
   # Everything this script finds, it then executes, so -s has to earn the same two guarantees the
   # discovery arm gives: inside the root, and not something .gitignore already excludes. Behind an
   # `[ -f ]` alone, `-s ../../../x` executes a file outside the repository entirely, and
@@ -69,15 +72,13 @@ if [ -n "$named_suite" ]; then
   case "$suite_real" in
     "$root_real"/*) ;;
     *)
-      echo "run-tests.sh: $named_suite resolves to $suite_real, outside $root_real — it is not this root's to run, and nothing was tested" >&2
-      exit 2
+      die "$named_suite resolves to $suite_real, outside $root_real — it is not this root's to run, and nothing was tested"
       ;;
   esac
   if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if ! git -C "$root" ls-files --error-unmatch --cached --others --exclude-standard \
       -- "${suite_real#"$root_real"/}" >/dev/null 2>&1; then
-      echo "run-tests.sh: ${suite_real#"$root_real"/} is ignored or unknown to git, and discovery would not have run it — nothing was tested" >&2
-      exit 2
+      die "${suite_real#"$root_real"/} is ignored or unknown to git, and discovery would not have run it — nothing was tested"
     fi
   fi
   suites+=("$named_suite")
@@ -119,10 +120,8 @@ else
   done < <(find "$root" -name "*-test.sh" -type f -not -path "*/node_modules/*" -print0 | sort -z)
 fi
 
-[ "${#suites[@]}" -gt 0 ] || {
-  echo "run-tests.sh: no *-test.sh under $root — read this as discovery broken, never as a clean run" >&2
-  exit 2
-}
+[ "${#suites[@]}" -gt 0 ] ||
+  die "no *-test.sh under $root — read this as discovery broken, never as a clean run"
 
 # A suite's own count for a named field, read by name rather than position: run-tests-test.sh reports
 # three fields where most report two, so counting words in would take the wrong number.
