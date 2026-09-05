@@ -181,6 +181,19 @@ func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
 	f.record("gate blocks an intent carrying no status line at all",
 		f.status == 1 && strings.Contains(f.out, "status: <none>"), f.evidence())
 
+	// The template documents `status:` on the field's own line. Blank the value and read it raw, and
+	// that explanation IS the status — a string none of the gate's arms match, so it blocks naming that
+	// string rather than naming the intent as unfilled.
+	writeIntent("status:              # draft → approved → built\n")
+	f.runReport("gate", "001-gating")
+	f.record("gate reads a blanked status carrying only the field's own comment as no status",
+		f.status == 1 && strings.Contains(f.out, "status: <none>"), f.evidence())
+
+	writeIntent("status: approved     # draft → approved → built\n")
+	f.runReport("gate", "001-gating")
+	f.record("and clears an approved status that kept that same comment after the value",
+		f.status == 0 && strings.Contains(f.out, "gate clean"), f.evidence())
+
 	// `built` is what Phase 5 sets on its way to archive/, and it is not a licence to merge a second
 	// time: the arm asks for the one state the gap rounds produce.
 	writeIntent("status: built\n")
