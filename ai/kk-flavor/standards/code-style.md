@@ -58,6 +58,8 @@ Where log lines belong and what they say; how you obtain a logger is [architectu
 
 Reach for a class (or a `newX` factory over private state) when operations share state, configuration, or an injection boundary; plain functions for genuinely standalone logic. A class of only static methods is a module with extra syntax.
 
+**Share behaviour by composition, never by inheritance** — a collaborator each type holds and delegates to. Subclassing earns its place only where a framework or an external interface demands it. An abstract base with one subclass is that collaborator written longer.
+
 ## Extraction & Size
 
 - Functions do one thing. Extract when concerns split, abstraction blurs (above), or length exceeds ~100 lines.
