@@ -87,7 +87,7 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 
 Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn — which re-reads what it already read.
 
-**Before your first write, enumerate the agents live in your tree and tell each which files you hold** — a stage you spawn writes as your own. **Never block waiting on a peer**: announce, then work.
+**Before your first write, enumerate the agents live in your tree and tell each which files you hold** — a stage you spawn writes as your own. **Never block waiting on a peer**: announce, then work. **A stage's return wakes you too, so arm no wait for one** — least of all on a marker nothing in the run writes. What earns a wait is a condition no return carries: a file a stage drops mid-run.
 
 **Build every spawn prompt from `~/.kk-flavor/templates/spawn-prompt.md`**, which states its own constraints. **A licence you received goes into every spawn prompt you build, verbatim** — worded to bind you, it binds the stages acting in your place.
 
