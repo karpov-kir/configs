@@ -26,7 +26,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language] [score thr
 
 **This table is the map for any caller running a lane by name.**
 
-**Diagnosis is a destination, never a stage of the round** — you route a symptom there and wait, rather than queuing it with the rest (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**).
+**Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 
 **Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills; and a retrospective, which is no lane at all and belongs to `kk-retro`.
 
