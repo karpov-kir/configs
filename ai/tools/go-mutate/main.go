@@ -36,6 +36,20 @@ import (
 // matter are the mismatches: an undeclared survivor is a finding, and a declared one that got killed
 // is a stale declaration. Answered here so a case can reach every arm; reached only from main, it would
 // take a full mutation run to observe one.
+// The two verdicts that say nothing about the guard the mutant names: a suite the watchdog stopped,
+// and a mutant this machine could not set up to run at all. Both are counted apart from findings,
+// because a run that never happened is not evidence that the code is sound or that it is broken.
+const (
+	timedOut = "TIMED OUT"
+	noSetup  = "NO SETUP"
+)
+
+// A mutant that never reached a suite, carrying why. The error is the evidence: without it the reader
+// sees a mutant that measured nothing and no way to tell a full disk from a moved source file.
+func notSetUp(at time.Time, err error) result {
+	return result{verdict: noSetup, elapsed: time.Since(at), evidence: err.Error()}
+}
+
 func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 	switch {
 	case verdict == "killed" && !isDeclared:
@@ -46,9 +60,11 @@ func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 		return "unreachable", false
 	}
 	// A suite that never finished says nothing about the guard either way, so it is neither a finding
-	// nor an excuse.
-	if verdict == "TIMED OUT" {
-		return "TIMED OUT", false
+	// nor an excuse. Neither does a mutant the harness could not set up: a temp dir it could not make
+	// or a source it could not read is this machine failing, and reporting it as a guard that did not
+	// redden names the code for something nothing in the code did.
+	if verdict == timedOut || verdict == noSetup {
+		return verdict, false
 	}
 	// Everything else is a finding whatever was declared: `broken` says the mutant never built, and a
 	// declaration is about a guard being unobservable, never about the edit failing to compile.
@@ -243,13 +259,13 @@ func run(pkgDir string, m mutant, runFilter string) result {
 	at := time.Now()
 	work, err := os.MkdirTemp("", "gomutate")
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	defer os.RemoveAll(work)
 
 	realPath, source, matches, err := m.anchor(pkgDir)
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	if matches != 1 {
 		return result{verdict: fmt.Sprintf("anchor x%d", matches), elapsed: time.Since(at)}
@@ -258,11 +274,11 @@ func run(pkgDir string, m mutant, runFilter string) result {
 	// outside the temp dir. Each mutant has its own work dir, so two basenames cannot collide.
 	mutated := filepath.Join(work, filepath.Base(m.file))
 	if err := os.WriteFile(mutated, []byte(strings.Replace(source, m.from, m.to, 1)), 0o644); err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 	overlay, err := writeOverlay(work, realPath, mutated)
 	if err != nil {
-		return result{verdict: "invalid", elapsed: time.Since(at)}
+		return notSetUp(at, err)
 	}
 
 	cmd := exec.Command("go", mutantArgs(m, overlay, runFilter)...)
@@ -480,7 +496,7 @@ func report(selected []mutant, results []result) (bad, declared, unmeasured int)
 			if shown == "STALE CLAIM" {
 				fmt.Printf("                  a case reddens it, so it is no longer unreachable — drop the declaration, which says: %s\n", why)
 			}
-		case shown == "TIMED OUT":
+		case shown == timedOut, shown == noSetup:
 			unmeasured++
 			// The only place the suite's own words reach the log. Without them a reader auditing the
 			// run for manufactured kills can only infer from durations.

@@ -515,3 +515,34 @@ func writeSource(t *testing.T, dir, name, body string) {
 		t.Fatal(err)
 	}
 }
+
+// A mutant the harness could not set up says nothing about the guard it names, and the whole premise
+// of the CI step above this harness is that exit 1 means a guard did not redden. Counted as a finding,
+// a full disk or a moved source file would report the code as broken for something only the machine
+// did — and the error saying otherwise used to be discarded at four sites.
+func TestAMutantTheHarnessCouldNotSetUpIsNotAFinding(t *testing.T) {
+	if shown, isBad := outcomeOf(noSetup, false); isBad || shown != noSetup {
+		t.Errorf("outcomeOf gave (%q, %v), want (%s, false): it says nothing about the guard either way", shown, isBad, noSetup)
+	}
+	// A declared-unreachable mutant that never ran is still not a stale claim: nothing observed it.
+	if shown, isBad := outcomeOf(noSetup, true); isBad || shown != noSetup {
+		t.Errorf("a declared mutant that never set up gave (%q, %v), want (%s, false)", shown, isBad, noSetup)
+	}
+	// The negative control: a mutant that really did survive is still a finding.
+	if _, isBad := outcomeOf("KILLED NOTHING", false); !isBad {
+		t.Error("an undeclared survivor stopped being a finding")
+	}
+}
+
+// The reachable one of the four setup paths, driven rather than asserted about: a mutant naming a file
+// that is not there fails at the anchor, before any suite is spawned. What this pins is that the
+// failure arrives as NO SETUP carrying its cause, not as a verdict counted against the code.
+func TestASetUpFailureCarriesItsCause(t *testing.T) {
+	got := run(t.TempDir()+"/pkg/", mutant{label: "absent", file: "no-such-file.go", from: "a", to: "b"}, "")
+	if got.verdict != noSetup {
+		t.Fatalf("a mutant whose file is not there came back %q, want %s — that counts the machine as a finding", got.verdict, noSetup)
+	}
+	if got.evidence == "" {
+		t.Error("it carried no evidence, so the reader cannot tell a missing file from a full disk")
+	}
+}
