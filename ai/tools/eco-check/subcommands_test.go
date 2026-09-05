@@ -173,7 +173,7 @@ func TestSubcommandCountIsBounded(t *testing.T) {
 
 	// Presence alone is not enough here, and it was all this pinned: the notice reached the screen
 	// because it sorted ahead of the basename the findings led with, and the day those findings led
-	// with a path instead, the per-class cap dropped the one line saying the scan had stopped checking.
+	// with a path instead, the per-rank cap dropped the one line saying the scan had stopped checking.
 	t.Run("and ranks that notice above the findings it qualifies", func(t *testing.T) {
 		newFloodedDispatch(t).ranksAbove("were NOT checked", noCallSite)
 	})
@@ -403,7 +403,7 @@ func TestAnUnreadDispatchSurvivesAFlood(t *testing.T) {
 	})
 
 	// Presence alone passes again the day the rank is dropped and the flood lands one line short of
-	// the per-class cap, so the ordering is what this pins.
+	// the per-rank cap, so the ordering is what this pins.
 	t.Run("and ranks it above that flood rather than inside it", func(t *testing.T) {
 		newUnreadDispatchUnderAFlood(t).ranksAbove(unreadable, "dangling link: ")
 	})

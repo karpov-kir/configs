@@ -1,6 +1,10 @@
 // Mutation testing for the Go checker: break one guard at a time and require the suite to notice.
 //
-//	usage: gomutate [-jobs N] [-preflight] [-run <substring>] [-file a.go,b.go] [-units]
+//	usage: gomutate [-jobs N] [-preflight] [-run <go test -run pattern>] [-file a.go,b.go] [-units]
+//
+// `-file` is what selects mutants. `-run` is not: it goes through to `go test -run` and narrows which
+// cases each mutant is asked, so `-run <a mutant label>` names no test at all, and preflight refuses
+// the run rather than starting it.
 //
 // A mutant costs one package compile and one in-process test run, never a checkout: `go build
 // -overlay` swaps a file's content without copying the module or touching the tree, and `-failfast`
@@ -18,8 +22,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -336,10 +342,51 @@ func unitLines(list []mutant, pkgDir string) []string {
 	return lines
 }
 
+// Why the suites cannot answer this `-run`, or empty when they can. `go test -run` takes one regexp
+// per `/`-separated level and exits 0 when it selects nothing, so a filter naming a test that is not
+// there would turn every mutant into KILLED NOTHING — a wall of findings the harness manufactured.
+//
+// Only the top level is checked: below it are subtests, which `go test -list` does not print and no
+// mutant names.
+func unmatchedRunFilter(runFilter string, held map[string]map[string]bool) string {
+	if runFilter == "" {
+		return ""
+	}
+	top, _, _ := strings.Cut(runFilter, "/")
+	pattern, err := regexp.Compile(top)
+	if err != nil {
+		return fmt.Sprintf("-run %q does not compile as a regexp: %v", runFilter, err)
+	}
+	// Every suite in scope, not any one of them. A filter answered by one suite and by none of the
+	// others leaves those others' mutants running against nothing, and each comes back KILLED NOTHING
+	// — a finding per mutant, manufactured by the invocation.
+	var unanswered []string
+	for suite, names := range held {
+		if !matchesAny(pattern, names) {
+			unanswered = append(unanswered, suite)
+		}
+	}
+	if len(unanswered) == 0 {
+		return ""
+	}
+	sort.Strings(unanswered)
+	return fmt.Sprintf("-run %q matches no test in %s", runFilter, strings.Join(unanswered, ", "))
+}
+
+func matchesAny(pattern *regexp.Regexp, names map[string]bool) bool {
+	for name := range names {
+		if pattern.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
 // Everything that has to resolve before a single mutant runs, each refusal named as it is found. It
-// returns the mutants that cannot be run as written and how many suites could not be listed — the
-// second counted apart, because no mutant is at fault for one.
-func preflight(pkgDir string, list []mutant) (refused []staleMutant, unlistable int) {
+// returns the mutants that cannot be run as written, how many suites could not be listed — counted
+// apart, because no mutant is at fault for one — and why a `-run` given on the command line cannot be
+// answered by those suites.
+func preflight(pkgDir string, list []mutant, runFilter string) (refused []staleMutant, unlistable int, unrunnableFilter string) {
 	// Asked once per suite rather than once per mutant. A `by` naming a test its suite no longer holds
 	// runs as a filter matching nothing, and `go test` exits 0 on that — so the mutant comes back
 	// KILLED NOTHING, loud about the wrong thing. A stale test name is the same defect as a stale
@@ -383,7 +430,7 @@ func preflight(pkgDir string, list []mutant) (refused []staleMutant, unlistable 
 			fmt.Printf("  stale           %s: %s\n", s.label, reason)
 		}
 	}
-	return refused, unlistable
+	return refused, unlistable, unmatchedRunFilter(runFilter, held)
 }
 
 // Every selected mutant, `jobs` of them in flight at once. The results come back in the list's own
@@ -448,7 +495,7 @@ func report(selected []mutant, results []result) (bad, declared, unmeasured int)
 
 func main() {
 	jobs := flag.Int("jobs", 0, "mutants in flight at once (default: cores - 2)")
-	preflightOnly := flag.Bool("preflight", false, "check every anchor matches exactly once, then stop")
+	preflightOnly := flag.Bool("preflight", false, "check every anchor matches exactly once, then stop — never that a mutant still dies")
 	runFilter := flag.String("run", "", "pass through to `go test -run`")
 	fileFilter := flag.String("file", "", "run only the mutants whose file is one of these (comma-separated)")
 	listUnits := flag.Bool("units", false, "print one line per mutated file — file, suites, mutant count — and stop")
@@ -497,7 +544,11 @@ func main() {
 	}
 
 	started := time.Now()
-	refused, stale := preflight(pkgDir, selected)
+	refused, stale, unrunnableFilter := preflight(pkgDir, selected, *runFilter)
+	if unrunnableFilter != "" {
+		fmt.Fprintf(os.Stderr, "gomutate: %s — exit 2, nothing ran.\n", unrunnableFilter)
+		os.Exit(2)
+	}
 	if len(refused) > 0 || stale > 0 {
 		fmt.Printf("preflight: %d of %d mutant(s) do not resolve, %d suite(s) could not be listed — nothing was run\n",
 			len(refused), len(selected), stale)

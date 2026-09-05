@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	ecocheck "kk-flavor/tools/eco-check"
+	"kk-flavor/tools/shell"
 )
 
 // The finding substrings the cases match on. `basenames` carries no other finding's text whole —
@@ -48,9 +49,9 @@ const (
 // checkout itself — but no scan reads a `.go` file, so nothing here is exposed that way.
 const laneScriptRef = "~/.claude/skills/kk-humanize/scripts/comment-density.sh"
 
-// The checker's own per-file read bound, restated here because the package under test does not export
-// it. A fixture one byte past it is what every oversize case is built on.
-const maxReadBytes = 8 << 20
+// Aliased, never written out: a restated copy goes on compiling after the bound moves, and every
+// oversize fixture built one byte past it then measures nothing.
+const maxReadBytes = shell.MaxFileBytes
 
 // One case's tree. `home` empty means the case runs under the ambient HOME: a fixture root
 // legitimately raises mount findings of its own, and several cases are written against a run that has
@@ -173,15 +174,21 @@ func (f *fixture) floodWithLine(target string, remaining int, line string) {
 	f.appendTo(target, flood.String())
 }
 
-// A file one byte past the read bound, made of newlines because that is the cheap shape: a branch
-// commits almost nothing and the checker allocates a slice header per line.
+// Sparse, because nothing reads it: every case built on this one asks about the size in its stat, so
+// a fixture full of real bytes buys nothing and a flood of them writes the bound over and over.
 func (f *fixture) writeOversize(path string) {
 	f.t.Helper()
-	body := make([]byte, maxReadBytes+1)
-	for i := range body {
-		body[i] = '\n'
+	f.write(path, "")
+	if err := os.Truncate(path, maxReadBytes+1); err != nil {
+		f.t.Fatalf("truncate %s: %v", path, err)
 	}
-	f.write(path, string(body))
+}
+
+func (f *fixture) floodWithOversize(dir string, count int) {
+	f.t.Helper()
+	for i := 1; i <= count; i++ {
+		f.writeOversize(fmt.Sprintf("%s/huge%02d.md", dir, i))
+	}
 }
 
 func (f *fixture) mkdirAll(dir string) {
@@ -398,7 +405,7 @@ func (f *fixture) reportedViaFindings(needle string) {
 	}
 }
 
-// Ordering, never presence: the per-class cap on its own puts a real finding on screen alongside a
+// Ordering, never presence: the per-rank cap on its own puts a real finding on screen alongside a
 // flood, so asserting the real one is merely *present* passes and observes nothing. What this decides
 // is which of the two lands first.
 func (f *fixture) ranksAbove(above, below string) {

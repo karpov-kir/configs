@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	ecocheck "kk-flavor/tools/eco-check"
 	"kk-flavor/tools/shell"
 )
 
@@ -61,6 +62,47 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		newGravestClassFlood(t).reports("of this class, suppressed")
 	})
 
+	// A note there would speak for every kind classify's table does not name, not the one it sits
+	// under. suppressedMarker in report.go has the numbers.
+	t.Run("closes rank 5 with no note of its own", func(t *testing.T) {
+		newTwoKindFloodOfRankFive(t).doesNotReport(ecocheck.SuppressedMarker, "more, suppressed")
+	})
+
+	// Exact, so the arithmetic is checkable: 302 findings — 300 links, the script with no test
+	// position and the skill directory holding it — of which the rank shows 40.
+	t.Run("and reports the whole remainder on the trailing line", func(t *testing.T) {
+		newTwoKindFloodOfRankFive(t).reports("… 262 finding(s) not shown in total")
+	})
+
+	// The other half of the branch: a tree whose rank-5 remainder really is the kind on screen. The
+	// line still cannot say so — nothing in the report distinguishes this tree from the one above.
+	t.Run("and the same where the whole remainder is the kind on screen", func(t *testing.T) {
+		f := newRoot(t)
+		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 100, "[x](nope%03d.md)")
+		f.doesNotReport(ecocheck.SuppressedMarker, "more, suppressed")
+	})
+
+	// The number, not the presence of the line. The count has to be the class's own: subtracting the
+	// rank's cap instead prints a plausible number for the flooding class and `-37` for this one, which
+	// is why every case above stays green over it.
+	t.Run("and counts a floored class's withheld findings against that class alone", func(t *testing.T) {
+		newDriftUnderAFloodOfItsRank(t).reports("… and 2 more of this class, suppressed")
+	})
+
+	// Tell a note from a finding by its printed text, and a committed path quoting the marker gets
+	// subtracted from the count of what the reader was just shown. The report then claims it withheld
+	// a finding on a tree that withheld none.
+	//
+	// The filename has to hold the marker whole or this case observes nothing, so build it from the
+	// constant rather than copying the wording.
+	t.Run("does not let a committed path pass itself off as a suppression note", func(t *testing.T) {
+		f := newRoot(t)
+		path := f.root + "/skills/" + ecocheck.SuppressedMarker + ".sh"
+		f.write(path, "#!/bin/sh\necho hi\n")
+		f.chmod(path, 0o644)
+		f.doesNotReport("finding(s) not shown in total")
+	})
+
 	// A file past the read bound is the plainest member of the tampered-check class — its own finding
 	// ends on "it was NOT checked" — and it went unranked, so it shared one budget with `dangling
 	// link:` and sorted below every one of them. 300 crafted links then hid an unread 8 MiB file
@@ -74,6 +116,91 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	t.Run("and ranks it above that flood rather than inside it", func(t *testing.T) {
 		newOversizeUnderAFlood(t).ranksAbove("file too large to scan", "dangling link: ")
 	})
+
+	// The same tally, on the tree that does carry notes — two of them, one per class the floor left
+	// short. The rank-5 tree above cannot show this: it prints no note at all, so nothing there says
+	// whether a note is still kept out of the count of findings shown.
+	t.Run("and counts neither of a two-note tree's notes as a finding", func(t *testing.T) {
+		newDriftUnderAFloodOfItsRank(t).reports("… 8 finding(s) not shown in total")
+	})
+
+	// `scriptNamed` answers a basename two scripts share with the basename itself — text the reviewed
+	// tree wrote — and two findings led with it. Committing that pair under a name beginning with a
+	// rank-1 prefix put the branch's own finding in that class, where byte order handed it the class's
+	// one reserved line and left the real drift to a rank the same branch had flooded. Measured on the
+	// build before the head was fixed: this tree printed the crafted line and withheld the drift.
+	t.Run("does not let a committed basename occupy another class's reserved line", func(t *testing.T) {
+		newBasenameForgingAClass(t).reports("shared region greet has drifted")
+	})
+
+	t.Run("shows a drifted shared region under a flood of another class in its rank", func(t *testing.T) {
+		newDriftUnderAFloodOfItsRank(t).reports("shared region greet has drifted")
+	})
+
+	// A floor that reserved the line and then appended it below every rank would satisfy presence. It
+	// would also put the drift under the findings this report exists to rank it above.
+	t.Run("and leaves it in its own rank, above what that rank outranks", func(t *testing.T) {
+		newDriftUnderAFloodOfItsRank(t).ranksAbove("shared region greet has drifted",
+			"script declares no test position")
+	})
+}
+
+// Three regions rather than one, so the class is left at its floor line with something to withhold.
+// `file too large to scan: ` sorts first and spends the rest of the rank. Within the drift class
+// `greet` sorts first and is the one line shown; the two behind it are what its own count is of.
+func newDriftUnderAFloodOfItsRank(t *testing.T) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.floodWithOversize(f.root+"/kk-flavor/standards", ecocheck.FindingCap+5)
+	f.newScript("kk-drive/scripts/one.sh", sharedRegions("one"))
+	f.newScript("kk-humanize/scripts/two.sh", sharedRegions("two"))
+	return f
+}
+
+// The drift fixture, plus two stubs sharing one basename that begins with `shared region `. Their
+// usage names one subcommand and their dispatch takes two, which is what makes the finding fire; the
+// dispatch has to refuse under this basename, since the marker is what ties a dispatch to its stub.
+func newBasenameForgingAClass(t *testing.T) *fixture {
+	t.Helper()
+	f := newDriftUnderAFloodOfItsRank(t)
+	f.mkdirAll(f.root + "/tools/toy")
+	f.write(f.root+"/tools/toy/toy.go", `package toy
+
+func (r *run) dispatch() {
+	switch r.arg(0) {
+	case "alpha":
+		r.alpha()
+	case "beta":
+		r.beta()
+	default:
+		r.refuse("usage: shared region  aaa.sh {alpha}")
+	}
+}
+`)
+	for _, skill := range []string{"kk-drive", "kk-humanize"} {
+		f.newScript(skill+"/scripts/shared region  aaa.sh",
+			"#!/usr/bin/env bash\n# untested: fixture\n#   usage: shared region  aaa.sh {alpha}\ntool=\"toy\"\ntrue")
+	}
+	return f
+}
+
+func sharedRegions(body string) string {
+	var script strings.Builder
+	for _, name := range []string{"greet", "hail", "wave"} {
+		fmt.Fprintf(&script, "# --- shared:%s ---\necho %s\n# --- end shared:%s ---\n", name, body, name)
+	}
+	return script.String()
+}
+
+// Two kinds sharing rank 5, one of them flooding it: 300 crafted links sort ahead of the lone
+// `script declares no test position`, so byte order spends the whole rank on links. A note under
+// them would be counting the script too.
+func newTwoKindFloodOfRankFive(t *testing.T) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
+	f.newScript("kk-drive/scripts/one.sh", "true")
+	return f
 }
 
 // One file the read bound refuses, buried under more crafted links than the per-rank cap will show.
