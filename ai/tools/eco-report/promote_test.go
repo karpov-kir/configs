@@ -16,7 +16,7 @@ func TestCheckIgnoreHoldsBeforeQualifyReportsExists(t *testing.T) {
 	// slash in the ignore surface earns its keep: without it, `git check-ignore -q
 	// .idsd/qualify-reports` exits 1 on a directory that is not there.
 	f := newCommittedRepo(t)
-	if !f.exists(f.scratch()+"/qualify-reports") && f.runReportStdout("repo-mode") == "committed" {
+	if !f.exists(f.scratch()+"/intents") && f.runReportStdout("repo-mode") == "committed" {
 		f.runReport("check-ignore")
 		f.record("check-ignore passes in committed mode before qualify-reports/ is created",
 			f.status == 0, f.evidence())

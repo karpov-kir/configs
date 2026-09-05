@@ -295,10 +295,22 @@ func (f *fixture) runReportStdout(args ...string) string {
 // A standalone `review: …` has no slug and shares the one `review` stem, which is what most fixtures
 // below use.
 func (f *fixture) reportPath(name string) string {
+	return f.shipDir(name) + "/qualify-report.md"
+}
+
+// One ship's folder. Every file a ship owns lives in it — the intent, the three intent-local records,
+// and the report — so a ship is torn down by removing one directory rather than by naming its files.
+// A standalone review has no intent file, and shares the one `review` folder for the rest.
+// An archived ship keeps its folder, so the record a build leaves travels as one directory.
+func (f *fixture) archiveDir(name string) string {
+	return f.scratch() + "/archive/" + name
+}
+
+func (f *fixture) shipDir(name string) string {
 	if name == "" {
 		name = "review"
 	}
-	return f.scratch() + "/qualify-reports/" + name + "-qualify-report.md"
+	return f.scratch() + "/intents/" + name
 }
 
 // Where this fixture's scratch directory is, by the same rule the tool applies: in the tree while
@@ -367,7 +379,7 @@ func (f *fixture) assertRefused(name string) {
 // A refusal wrote no report. Asserted on the directory, so a report under any name counts.
 func (f *fixture) assertNoReportWritten(name string) {
 	f.t.Helper()
-	entries, _ := os.ReadDir(f.scratch() + "/qualify-reports")
+	entries, _ := os.ReadDir(f.scratch() + "/intents")
 	f.record(name, len(entries) == 0, "")
 }
 
@@ -450,8 +462,8 @@ func (f *fixture) stampFullPassIn(dir, ship string) {
 // make every gate case block for a reason it is not about. A case about that arm writes its own file.
 func (f *fixture) newIntentFile(slug string) {
 	f.t.Helper()
-	f.mkdirAll(f.scratch() + "/intents")
-	f.write(f.scratch()+"/intents/"+slug+".md", "---\nstatus: approved\n---\n\n# intent\n")
+	f.mkdirAll(f.shipDir(slug))
+	f.write(f.shipDir(slug)+"/intent.md", "---\nstatus: approved\n---\n\n# intent\n")
 }
 
 // The human's own durable file, in the SCRATCH dir rather than the tree: what keeps the scratch

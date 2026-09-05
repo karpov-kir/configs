@@ -66,7 +66,7 @@ func TestTheScratchDirectoryIsReadableByItsOwnerAlone(t *testing.T) {
 
 	// Both levels, because MkdirAll builds every missing parent with the same mode — a missing override
 	// root included, which is the one a human never sees created.
-	for _, dir := range []string{f.sharedIdsd(), f.sharedIdsd() + "/qualify-reports"} {
+	for _, dir := range []string{f.sharedIdsd(), f.sharedIdsd() + "/intents"} {
 		info, err := os.Stat(dir)
 		mode := "unreadable"
 		if err == nil {
@@ -213,11 +213,11 @@ func TestAReportRewriteIsStagedBesideTheReport(t *testing.T) {
 	// report, the temp file itself cannot be created, and that is a different sentence from a write that
 	// got as far as the move.
 	f := newShip(t, "099-staged")
-	f.chmod(f.scratch()+"/qualify-reports", 0o500)
+	f.chmod(f.scratch()+"/intents", 0o500)
 	f.runReport("invalidate", "099-staged")
 	status := f.status
 	output := f.out
-	f.chmod(f.scratch()+"/qualify-reports", 0o755)
+	f.chmod(f.scratch()+"/intents", 0o755)
 	if status == 0 {
 		t.Skip("this process writes into a mode-0500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so this case cannot be built here")
 	}

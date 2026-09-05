@@ -22,14 +22,14 @@ var requiredIntentSections = []string{"Constraints", "Success scenarios", "Failu
 func (r *run) cmdIntentReady() {
 	name := r.arg(1)
 	// The name is joined into a path, so the slug charset is the whole of what keeps this read inside
-	// intents/ — the same guard reportNameFor states at length.
+	// intents/<slug>/ — the same guard reportNameFor states at length.
 	if name == "" || strings.HasPrefix(name, ".") || !isSlugCharset(name) {
 		r.refuse("usage: report.sh intent-ready <NNN-slug>",
-			"  the slug names <scratch>/intents/<NNN-slug>.md; it must be [0-9A-Za-z._-] and cannot start with a dot")
+			"  the slug names <scratch>/intents/<NNN-slug>/; it must be [0-9A-Za-z._-] and cannot start with a dot")
 	}
-	path := r.idsdDir + "/intents/" + name + ".md"
-	if !shell.PathExists(path) && shell.IsRegularFile(r.idsdDir+"/archive/"+name+".md") {
-		r.refuse("error: '" + name + "' is archived, so it is built rather than waiting to be built (" + r.idsdDir + "/archive/" + name + ".md)")
+	path := r.shipDir(name) + "/" + intentName
+	if !shell.PathExists(path) && shell.IsRegularFile(r.archiveDir(name)+"/"+intentName) {
+		r.refuse("error: '" + name + "' is archived, so it is built rather than waiting to be built (" + r.archiveDir(name) + "/" + intentName + ")")
 	}
 	// A symlink is refused rather than followed for the reason the report template's is: what the check
 	// then read is not the file the build will edit.
@@ -212,9 +212,11 @@ func (r *run) intentFileNumbered(number string) (path, where string) {
 		}
 		for _, entry := range entries {
 			name := entry.Name()
-			if strings.HasPrefix(name, number+"-") && strings.HasSuffix(name, ".md") &&
-				shell.IsRegularFile(r.idsdDir+"/"+dir+"/"+name) {
-				return r.idsdDir + "/" + dir + "/" + name, dir
+			// A ship is a folder now, and the intent inside it is always named the same — so the number is
+			// matched against the folder rather than against a filename carrying the slug.
+			intent := r.idsdDir + "/" + dir + "/" + name + "/" + intentName
+			if strings.HasPrefix(name, number+"-") && shell.IsRegularFile(intent) {
+				return intent, dir
 			}
 		}
 	}

@@ -22,7 +22,7 @@ func TestDiscardRemovesNothingItCouldNotRead(t *testing.T) {
 	f.runReport("discard", "001-discarding")
 	f.assertRefused("discard refuses a report it cannot read")
 	f.record("and removed neither the report nor the intent file",
-		f.isFile(f.reportPath("001-discarding")) && f.isFile(f.scratch()+"/intents/001-discarding.md"), "")
+		f.isFile(f.reportPath("001-discarding")) && f.isFile(f.shipDir("001-discarding")+"/intent.md"), "")
 	f.chmod(f.reportPath("001-discarding"), 0o644)
 }
 
@@ -37,11 +37,11 @@ func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
 	f.newIntentFile("001-mine")
 	// A second ship's report, in flight, with no other copy anywhere. It is what must survive.
 	f.runReport("init", "002-yours")
-	if !f.madeUnreadable(f.scratch()+"/qualify-reports", "the unreadable report-listing case") {
+	if !f.madeUnreadable(f.scratch()+"/intents", "the unreadable report-listing case") {
 		t.Skip("this process lists a mode-0 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable listing cannot be built here")
 	}
 	f.runReport("discard", "001-mine")
-	f.chmod(f.scratch()+"/qualify-reports", 0o755)
+	f.chmod(f.scratch()+"/intents", 0o755)
 
 	f.assertRefused("discard refuses a report listing it could not read")
 	// The one thing throwaway mode keeps no copy of. This ship's own files are already gone by here,
@@ -62,7 +62,7 @@ func TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything(t *testing.T) {
 	f.runReport("discard", "001-mine")
 	f.assertRefused("discard refuses when the filename and the frontmatter name different ships")
 	f.record("and deleted neither intent file",
-		f.isFile(f.scratch()+"/intents/002-yours.md") && f.isFile(f.scratch()+"/intents/001-mine.md"), "")
+		f.isFile(f.shipDir("002-yours")+"/intent.md") && f.isFile(f.shipDir("001-mine")+"/intent.md"), "")
 }
 
 func TestDiscardDestructivePath(t *testing.T) {
@@ -99,16 +99,16 @@ func TestDiscardDestructivePath(t *testing.T) {
 	parallel.runReport("discard", "001-going")
 	parallel.record("discard removes only the named ship, leaving a parallel one whole",
 		parallel.status == 0 && parallel.isFile(parallel.reportPath("002-staying")) &&
-			parallel.isFile(parallel.scratch()+"/intents/002-staying.md") &&
-			!parallel.isFile(parallel.scratch()+"/intents/001-going.md"),
-		"exit "+strconv.Itoa(parallel.status)+"; reports: "+joinLines(parallel.entries(parallel.scratch()+"/qualify-reports"))+
+			parallel.isFile(parallel.shipDir("002-staying")+"/intent.md") &&
+			!parallel.isFile(parallel.shipDir("001-going")+"/intent.md"),
+		"exit "+strconv.Itoa(parallel.status)+"; reports: "+joinLines(parallel.entries(parallel.scratch()+"/intents"))+
 			"; intents: "+joinLines(parallel.entries(parallel.scratch()+"/intents")))
 	parallel.assertReports("other qualify report", "and names the parallel ship as what kept .idsd/ alive")
 
 	// An intent that already built has its file in archive/ rather than intents/, and both are this ship's.
 	built := newShip(t, "001-archived")
 	built.mkdirAll(built.scratch() + "/archive")
-	built.write(built.scratch()+"/archive/001-archived.md", "# built\n")
+	built.write(built.archiveDir("001-archived")+"/intent.md", "# built\n")
 	built.runReport("discard", "001-archived")
 	built.assertIdsdRemoved("discard removes the intent file from archive/ as well as intents/")
 
@@ -152,8 +152,8 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 	// Asserted on the refusal's own effect, not on the sibling surviving: the sibling's report keeps
 	// .idsd/ alive either way, so "it is untouched" holds with the guard gone.
 	f.record("and the reports directory it would have torn down still stands",
-		!f.exists(f.scratch()+"/intents/002-nothing-of-mine.md") &&
-			f.exists(f.scratch()+"/qualify-reports") && f.isFile(f.scratch()+"/intents/001-real.md"), "")
+		!f.exists(f.shipDir("002-nothing-of-mine")+"/intent.md") &&
+			f.exists(f.scratch()+"/intents") && f.isFile(f.shipDir("001-real")+"/intent.md"), "")
 	f.assertReports("Looked for", "and names every path it looked in")
 
 	// A typo must not tear down a directory. `decisions.md` alone does not keep .idsd/ alive by design,
@@ -192,9 +192,9 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	// and the scratch-side helpers write outside it.
 	f.newDurableCharter()
 	f.mkdirAll(f.treeIdsd() + "/intents")
-	f.write(f.treeIdsd()+"/intents/002-tracked.md", "# intent\n")
+	f.write(f.treeIdsd()+"/intents/002-tracked/intent.md", "# intent\n")
 	f.write(f.repo+"/.gitignore", ".idsd/qualify-reports/\n")
-	f.mustGit("add", ".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked.md")
+	f.mustGit("add", ".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked/intent.md")
 	f.commit("committed idsd")
 	// Built by hand rather than through the committed-repo builder, because this one needs the intent
 	// file tracked, so it owes the same assertion that builder carries. Checked before the index is made
@@ -211,7 +211,7 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	f.assertReports("could not read the index", "and names the unreadable index as why")
 	// Named directly rather than through f.scratch(): that asks git which mode this is, and the index it
 	// would ask is the very thing this case made unreadable.
-	f.record("and the tracked intent file survives", f.isFile(f.treeIdsd()+"/intents/002-tracked.md"), "")
+	f.record("and the tracked intent file survives", f.isFile(f.treeIdsd()+"/intents/002-tracked/intent.md"), "")
 	f.chmod(f.repo+"/.git/index", 0o644)
 }
 
@@ -274,8 +274,8 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	sibling.newIntentFile("002-still-in-flight")
 	sibling.runReport("discard", "001-going")
 	sibling.record("another ship's intent file keeps .idsd/ standing",
-		sibling.status == 0 && sibling.isFile(sibling.scratch()+"/intents/002-still-in-flight.md") &&
-			!sibling.isFile(sibling.scratch()+"/intents/001-going.md"),
+		sibling.status == 0 && sibling.isFile(sibling.shipDir("002-still-in-flight")+"/intent.md") &&
+			!sibling.isFile(sibling.shipDir("001-going")+"/intent.md"),
 		"exit "+strconv.Itoa(sibling.status)+"; left: "+joinLines(sibling.find(sibling.scratch()))+"\n"+sibling.out)
 	sibling.assertReports("1 other intent(s)", "and counts it as an intent rather than as stray content")
 
@@ -296,7 +296,7 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	// claims a ship in flight for a link that points at nothing.
 	linked := newShip(t, "001-linked")
 	linked.newIntentFile("001-linked")
-	linked.symlink(linked.base+"/no-such-intent.md", linked.scratch()+"/intents/002-link.md")
+	linked.symlink(linked.base+"/no-such-intent.md", linked.shipDir("002-link")+"/intent.md")
 	linked.runReport("discard", "001-linked")
 	linked.record("a symlink named like an intent keeps .idsd/ standing",
 		linked.status == 0 && linked.exists(linked.scratch()+"/intents"), linked.evidence())

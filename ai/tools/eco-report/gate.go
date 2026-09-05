@@ -185,7 +185,7 @@ func (r *run) intentFilePath() string {
 	if slug == "" {
 		return ""
 	}
-	path := r.idsdDir + "/intents/" + slug + ".md"
+	path := r.shipDir(slug) + "/" + intentName
 	if shell.IsSymlink(path) || !shell.IsRegularFile(path) {
 		return ""
 	}
@@ -210,7 +210,7 @@ func (r *run) cmdState() {
 	// The archive is read BEFORE the report's absence decides, because `close` retires a landed ship's
 	// report and the archived intent file is then the only record that it landed. Absence alone routes
 	// `continue <intent>` to "start ship <intent>" — a rebuild of work already merged.
-	if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {
+	if resolved == reportResolved && shell.IsRegularFile(r.archiveDir(stemOfReportPath(r.report))+"/"+intentName) {
 		r.line("done")
 		r.exit(0)
 	}
@@ -229,7 +229,7 @@ func (r *run) cmdState() {
 func (r *run) stateToken() string {
 	// A built intent's file has moved to archive/ (a standalone `review:` has no slug, so this is
 	// skipped).
-	if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {
+	if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.archiveDir(slug)+"/"+intentName) {
 		return "done"
 	}
 	reviewed := r.reviewedTree()

@@ -14,7 +14,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	t.Parallel()
 	link := newRepo(t)
 	link.runReport("check-ignore")
-	link.mkdirAll(link.scratch() + "/qualify-reports")
+	link.mkdirAll(link.scratch() + "/intents")
 	link.mkdirAll(link.base + "/elsewhere")
 	link.symlink(link.base+"/elsewhere/stolen.md", link.reportPath(""))
 	link.runReport("init", "review: symlinked report")
@@ -36,7 +36,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	reports.runReport("check-ignore")
 	reports.mkdirAll(reports.scratch())
 	reports.mkdirAll(reports.base + "/outside-reports")
-	reports.symlink(reports.base+"/outside-reports", reports.scratch()+"/qualify-reports")
+	reports.symlink(reports.base+"/outside-reports", reports.scratch()+"/intents")
 	reports.runReport("init", "review: symlinked reports dir")
 	reports.assertRefused("init refuses a symlinked qualify-reports directory")
 	reports.record("nothing was written outside the repo through qualify-reports",
@@ -49,7 +49,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	// reports ok, changes nothing about the link, and init refuses again on the next run.
 	reports.runReport("check-ignore")
 	reports.record("the step that other refusal would name reports ok and leaves the link standing",
-		reports.status == 0 && strings.HasPrefix(reports.out, "ok:") && reports.isSymlink(reports.scratch()+"/qualify-reports"),
+		reports.status == 0 && strings.HasPrefix(reports.out, "ok:") && reports.isSymlink(reports.scratch()+"/intents"),
 		reports.evidence())
 }
 
@@ -80,9 +80,9 @@ func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
 		dotted.assertRefused("init refuses the intent '" + dotIntent + "', which no listing could ever see")
 	}
 	dotted.runReport("list")
-	unseen := containsLine(dotted.out, "no reports") && len(dotted.entries(dotted.scratch()+"/qualify-reports")) == 0
+	unseen := containsLine(dotted.out, "no reports") && len(dotted.entries(dotted.scratch()+"/intents")) == 0
 	dotted.record("and no dot-named report was left on disk for list to miss", unseen,
-		strings.Join(dotted.entries(dotted.scratch()+"/qualify-reports"), "\n"))
+		strings.Join(dotted.entries(dotted.scratch()+"/intents"), "\n"))
 }
 
 func TestAnExistingReportIsNotSilentlyReplaced(t *testing.T) {
@@ -125,7 +125,7 @@ func TestTheFilenameAndTheFrontmatterNameTheSameShip(t *testing.T) {
 	filed := f.isFile(f.reportPath("002-spaced")) && !f.isFile(f.reportPath("review")) &&
 		containsLine(f.read(f.reportPath("002-spaced")), "intent: 002-spaced")
 	f.record("a whitespace-led intent is filed and recorded under the same slug", filed,
-		strings.Join(f.entries(f.scratch()+"/qualify-reports"), "\n"))
+		strings.Join(f.entries(f.scratch()+"/intents"), "\n"))
 	f.runReport("state", "002-spaced")
 	f.record("and it is addressable by the slug it recorded", f.out == "resume", "said '"+f.out+"'")
 	// And by the value `init` was given, whitespace and all — the name reaches a subcommand from the
@@ -149,7 +149,7 @@ func TestInitStagedWriteIsNotAWayOutOfTheRepo(t *testing.T) {
 	// would overwrite its target while `init` reported success.
 	f := newRepo(t)
 	f.runReport("check-ignore")
-	f.mkdirAll(f.scratch() + "/qualify-reports")
+	f.mkdirAll(f.scratch() + "/intents")
 	f.mkdirAll(f.base + "/victim")
 	f.write(f.base+"/victim/keep.md", "PRECIOUS\n")
 	f.symlink(f.base+"/victim/keep.md", f.reportPath("review")+".new")
@@ -176,7 +176,7 @@ func TestInitStagedWriteIsNotAWayOutOfTheRepo(t *testing.T) {
 	occupied.assertReports("could not clear", "and names the path it could not clear")
 	occupied.record("and wrote no report over it",
 		!occupied.isFile(occupied.reportPath("")) && occupied.exists(occupied.reportPath("")+".new"),
-		joinLines(occupied.entries(occupied.scratch()+"/qualify-reports")))
+		joinLines(occupied.entries(occupied.scratch()+"/intents")))
 }
 
 func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {

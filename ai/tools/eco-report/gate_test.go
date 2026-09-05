@@ -82,7 +82,7 @@ func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
 
 	// Written into the intent, not the report — and the intent is git-ignored scratch here, so the
 	// freshness arm stays clear and this is the only thing that can block.
-	f.appendTo(f.scratch()+"/intents/001-follow-ups.md",
+	f.appendTo(f.shipDir("001-follow-ups")+"/intent.md",
 		"\n## Follow-ups\n\n- [ ] tell the consumers the payload changed\n")
 	f.runReport("gate", "001-follow-ups")
 	f.record("gate blocks on an open item in the intent file",
@@ -98,7 +98,7 @@ func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
 	// With no intent file the three intent arms have nothing to read, and the clean line must not claim
 	// they did — "approved intent" over a ship whose ICE is still being authored is the one sentence a
 	// reader takes the gate's word for.
-	f.remove(f.scratch() + "/intents/001-follow-ups.md")
+	f.remove(f.shipDir("001-follow-ups") + "/intent.md")
 	f.runReport("gate", "001-follow-ups")
 	f.record("gate clears a ship with no intent file, claiming no approval it did not read",
 		f.status == 0 && strings.Contains(f.out, "no intent to check"), f.evidence())
@@ -159,7 +159,7 @@ func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
 	// the freshness arm stays clear. It carries no `- [ ]`, so the open-item arm stays clear too.
 	writeIntent := func(frontmatter string) {
 		f.mkdirAll(f.scratch() + "/intents")
-		f.write(f.scratch()+"/intents/001-gating.md", "---\ntitle: t\n"+frontmatter+"---\n\n# intent\n")
+		f.write(f.shipDir("001-gating")+"/intent.md", "---\ntitle: t\n"+frontmatter+"---\n\n# intent\n")
 	}
 
 	writeIntent("status: approved\n")

@@ -166,7 +166,7 @@ func (r *run) ignoredSourceTravels(path string) (string, bool) {
 // written where git does not ignore it sits inside the tree it fingerprints, so `state` answers
 // `re-qualify` straight after a complete four-stage stamp and `gate` blocks on freshness with
 // nothing to clear it. One predicate for every caller, or `init`'s own remedy cannot satisfy it.
-func (r *run) assertReportsDirIsIgnored() {
+func (r *run) assertReportIsIgnored() {
 	// Outside the tree, git ignores nothing because git contains nothing: the requirement is met by
 	// the location itself rather than by an ignore rule, and asking check-ignore about a path the repo
 	// does not hold would refuse every throwaway init. The location is asserted instead, which is the
@@ -175,7 +175,7 @@ func (r *run) assertReportsDirIsIgnored() {
 		r.assertScratchIsUnreachableByGit()
 		return
 	}
-	source, travels := r.ignoredSourceTravels(r.reportsDir + "/")
+	source, travels := r.ignoredSourceTravels(r.report)
 	if travels {
 		return
 	}
@@ -183,7 +183,7 @@ func (r *run) assertReportsDirIsIgnored() {
 	if source != "" {
 		readNote = "  A global core.excludesFile does not count — it belongs to this machine alone, so a clone would commit the report. Source read: " + source
 	}
-	r.refuse("error: nothing in this repository ignores "+r.reportsDir+" — the report was NOT initialized.",
+	r.refuse("error: nothing in this repository ignores "+r.report+" — the report was NOT initialized.",
 		"  Run report.sh check-ignore first; it is what excludes the scratch, by the mechanism that fits the repo mode.",
 		"  Written here, the report would sit inside its own fingerprint, so every stamp would be stale on arrival.",
 		readNote)
@@ -193,15 +193,32 @@ func (r *run) assertReportsDirIsIgnored() {
 // writes a .gitignore entry per line and `check-ignore` verifies one per line, so the two cannot
 // disagree. The durable record is deliberately absent — committed mode keeps it tracked.
 //
-// The whole directory, never a path per report: the next intent's report does not exist when `promote`
-// runs, so an entry per file would leave it tracked.
+// A pattern per ignorable file, never the directory: intents/<slug>/ also holds intent.md, which is
+// the durable record and must stay tracked. The `*` is what covers the ship folders that do not exist
+// yet when `promote` runs.
 //
-// Built from the IN-TREE layout, not from r.reportsDir, which in throwaway mode is outside the tree
-// and would make the trim a no-op — putting an absolute path into .gitignore, where it matches
-// nothing while both writer and verifier agree it is fine. These entries describe where the reports
-// land once the directory IS in the tree, which is the only state either caller is about.
+// Built from the IN-TREE layout, never from a resolved path, which in throwaway mode is outside the
+// tree — that would put an absolute path into .gitignore, where it matches nothing while both writer
+// and verifier agree it is fine. These entries describe where the files land once the directory IS in
+// the tree, which is the only state either caller is about.
 func (r *run) ignoreSurface() []string {
-	return []string{".idsd/qualify-reports/"}
+	return []string{
+		".idsd/intents/*/decisions.md",
+		".idsd/intents/*/language.md",
+		".idsd/intents/*/playbook.md",
+		".idsd/intents/*/" + reportName,
+	}
+}
+
+// A path the entry would match, for the callers that ask git whether an entry took effect.
+// `git check-ignore` reads its argument as a literal pathname rather than as a glob, so an entry
+// holding `*` can only be verified through a path it covers — asked about the pattern itself, git
+// answers about a directory named `*`, which nothing creates and every rule fails to match. The
+// segment is deliberately not a slug any ship could take.
+const ignoreProbeSegment = "__probe__"
+
+func ignoreProbe(entry string) string {
+	return strings.ReplaceAll(entry, "*", ignoreProbeSegment)
 }
 
 // The trailing-newline check is the point: appending to a file whose last line has none fuses the

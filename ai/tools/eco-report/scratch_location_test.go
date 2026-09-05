@@ -238,14 +238,14 @@ func TestAnInTreeScratchDirectoryIsNeverMigratedSilently(t *testing.T) {
 	// them silently is the one action with no undo.
 	f := newRepo(t)
 	f.mkdirAll(f.treeIdsd() + "/intents")
-	f.write(f.treeIdsd()+"/intents/001-from-the-old-layout.md", "# mine\n")
+	f.write(f.treeIdsd()+"/intents/001-from-the-old-layout/intent.md", "# mine\n")
 	f.runReport("check-ignore")
 	f.assertRefused("refuses while an in-tree scratch directory still holds content")
 	f.assertReports("still holds 1 file(s)", "and counts what it found")
 	f.assertReports("intents/001-from-the-old-layout.md", "and names it, so the human knows what to move")
 	f.assertReports("Nothing here moves your files for you", "and says it will not move them")
 	f.record("and left every file exactly where it was",
-		f.isFile(f.treeIdsd()+"/intents/001-from-the-old-layout.md"), "")
+		f.isFile(f.treeIdsd()+"/intents/001-from-the-old-layout/intent.md"), "")
 
 	// An empty one is a trace in the mode whose contract is leaving none, and holds nothing to lose.
 	empty := newRepo(t)
@@ -320,7 +320,7 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 		exclude := f.repo + "/.git/info/exclude"
 		f.appendTo(exclude, ".idsd/\n")
 		f.mkdirAll(f.treeIdsd() + "/intents")
-		f.write(f.treeIdsd()+"/intents/001-not-yet-moved.md", "# mine\n")
+		f.write(f.treeIdsd()+"/intents/001-not-yet-moved/intent.md", "# mine\n")
 		f.runReport("check-ignore")
 		f.assertRefused("it refuses for the un-migrated directory")
 		f.record("and the rule is still there, so that directory stays hidden from `git add -A`",
@@ -340,7 +340,7 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 		f.record("and the stale rule is gone", !containsLine(f.read(exclude), ".idsd/"), f.read(exclude))
 		staged, _ := f.git("diff", "--cached", "--name-only")
 		f.record("and the intent it moved is actually staged",
-			strings.Contains(staged, ".idsd/intents/001-promoting-stale.md"), "staged:\n"+staged)
+			strings.Contains(staged, ".idsd/intents/001-promoting-stale/intent.md"), "staged:\n"+staged)
 	})
 }
 

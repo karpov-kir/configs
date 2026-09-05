@@ -140,7 +140,7 @@ func TestIntentReadyBlocksOnADependencyThatHasNotShipped(t *testing.T) {
 	f.record("and clears once that intent is built", f.status == 0, f.evidence())
 
 	// Archived is built — the file moves there at merge, so the status line is no longer what says so.
-	f.remove(f.scratch() + "/intents/001-indexing.md")
+	f.remove(f.shipDir("001-indexing") + "/intent.md")
 	f.writeArchivedIntent("001-indexing", readyIntent())
 	f.runReport("intent-ready", "003-search")
 	f.record("an archived dependency counts as built", f.status == 0, f.evidence())
@@ -173,7 +173,7 @@ func TestIntentReadyRefusesRatherThanJudgingWhatItCannotRead(t *testing.T) {
 	f.assertReports("is archived", "and says it is already built")
 
 	f.writeIntent("006-real", readyIntent())
-	f.symlink(f.scratch()+"/intents/006-real.md", f.scratch()+"/intents/007-link.md")
+	f.symlink(f.shipDir("006-real")+"/intent.md", f.shipDir("007-link")+"/intent.md")
 	f.runReport("intent-ready", "007-link")
 	f.assertRefused("a symlinked intent refuses")
 }
