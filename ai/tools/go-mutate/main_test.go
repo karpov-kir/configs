@@ -123,6 +123,20 @@ func TestARunFilterNoSuiteCanAnswerIsRefused(t *testing.T) {
 			t.Errorf("expected -run %q to be refused, it was accepted", given)
 		}
 	}
+
+	// Answered by one suite and by none of the others: those others' mutants would each run against a
+	// filter selecting nothing and come back KILLED NOTHING, so the refusal has to name them.
+	two := map[string]map[string]bool{
+		"./eco-check/":  {"TestTheGravestFindingSurvivesAFlood": true},
+		"./eco-report/": {"TestAnExistingReportIsNotSilentlyReplaced": true},
+	}
+	why := unmatchedRunFilter("TestTheGravestFindingSurvivesAFlood", two)
+	if !strings.Contains(why, "./eco-report/") {
+		t.Errorf("expected the refusal to name the suite that cannot answer, got %q", why)
+	}
+	if unmatchedRunFilter("Test", two) != "" {
+		t.Error("expected a filter every suite answers to be accepted")
+	}
 }
 
 // The count is of mutants, not of complaints. A renamed guard and a renamed test travel together, so
