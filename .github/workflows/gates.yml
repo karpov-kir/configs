@@ -95,52 +95,55 @@ jobs:
   # that its case can redden and nothing says so.
   #
   # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.
-  #
-  # This job used to run `ai/shell-mutate.sh` and pass its status to `ai/nomeasure-count.sh`, which
-  # held a count of did-not-measure runs across runs and escalated from warn to fail once they stopped
-  # being weather. Both scripts went when the shell harnesses moved to Go, and the invocations stayed:
-  # each exited 127, this step fell through to its own "did not decide" arm, and the job failed on
-  # every push. What replaced the harness is `ai/gate.sh --mutants`. Nothing replaced the count, and it
-  # is not rebuilt here — so a runner slow enough to never measure now warns on every run and never
-  # escalates. That is a real guard lost, named rather than left to be discovered.
   mutants:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ai/tools/go.mod
           cache: false
 
-      # The gate already separates the two answers this job has to tell apart, so nothing here
-      # reinterprets them: exit 1 is a guard that did not redden, and exit 2 is a unit that did not run
-      # at all — a mutation suite the watchdog killed on a loaded runner, which says nothing about the
-      # guard it names. Reporting load as a code defect is how a gate gets `|| true`'d and stops
-      # gating, so 2 warns and passes.
+      # exit 1 is a guard that did not redden, and it fails the job. exit 2 is the gate reporting that
+      # it measured nothing, and it reaches that for unrelated reasons: a loaded runner killing a
+      # mutation suite, a unit whose declared inputs resolve to no file, and the stub never reaching the
+      # gate binary at all. Only the first is weather, and passing on the others would be a green tick
+      # over a run that never happened — the failure this job was fixed for, silent instead of red.
       #
-      # The warning goes to the step summary as well as the annotation. An annotation alone lives
-      # inside a log fold, and a job that warns-and-passes on a permanently slow runner would never
-      # measure and never say so — a green tick over a thing never reached.
+      # The summary line is what tells them apart without the gate needing a new exit code. It prints
+      # the unit tally before any exit is decided, so it is there on every run that reached the gate and
+      # absent on every failure of the stub in front of it. Present, a 2 is the runner and this warns;
+      # absent, the gate never ran and this fails.
+      #
+      # The warning also goes to the step summary, because an annotation alone lives inside a log fold.
+      # What still nothing catches is a runner that measures on no run at all: no count crosses runs, so
+      # such a job warns every time and never escalates.
       - name: Prove the guards can fail
         run: |
+          log="$RUNNER_TEMP/mutants.log"
           set +e
-          ai/gate.sh --mutants
+          ai/gate.sh --mutants >"$log" 2>&1
           status=$?
           set -e
+          cat "$log"
 
           if [ "$status" -ne 2 ]; then
             exit "$status"
           fi
 
-          note="a mutation unit exited 2 without measuring, so this run says nothing about the guards it names. The reason is in this step's log."
+          if ! grep -q 'unit(s):' "$log"; then
+            echo "::error::ai/gate.sh --mutants exited 2 without printing its unit tally, so it never reached the gate at all and nothing was measured. This is not a loaded runner. The reason is in this step's log."
+            exit 1
+          fi
+
+          note="ai/gate.sh --mutants exited 2: the gate ran and measured nothing, so this run says nothing about the guards it names. The reason is in this step's log."
           echo "::warning::$note"
           {
             echo "### :warning: guards unproven on this run"
             echo
             echo "$note"
           } >> "$GITHUB_STEP_SUMMARY"
-
 
   # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
   # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file

@@ -18,20 +18,6 @@ func (c *checker) scanCitations() {
 	}
 }
 
-// What a citation finding against a test harness ends on. A suite covering anything citation-shaped
-// has to put a citation in a fixture, and a fixture written as a literal line is content this scan
-// reads: the suite then reports its own test data against the checkout, from a case that passed. Four
-// suites have paid for that diagnosis.
-//
-// The rule is that such a fixture is assembled at run time, and this is where it is said — in the
-// finding its author is already looking at, rather than in a convention they had to know first.
-//
-// An exemption for these files was the alternative, and the tree refused it: `resolve-test.sh` carries
-// a real citation in its own header, which an exemption would silently stop checking. A per-line marker was the other, and it
-// cannot reach the shape that causes this — a fixture inside a heredoc has no room for a marker, and
-// a citation in a heredoc is exactly what a markdown fixture is. So the cost taken is that a harness
-// may carry no citation literal at all, ever, even where a heredoc would have been the plain way to
-// write one.
 const harnessCitationNote = " — this file is a test harness: if that citation is fixture text, assemble it at run time instead of writing it out"
 
 // The bytes a cited path may not hold. fnmatch's four metacharacters, named here rather than in the

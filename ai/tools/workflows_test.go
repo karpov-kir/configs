@@ -20,17 +20,18 @@ import (
 
 const workflowsDir = "../../.github/workflows"
 
+const repoRoot = "../.."
+
 const gateSource = "gate/run.go"
 
 // What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
 // on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
 // covers a package that fails, and without `./...` the gate runs a subset of the module.
 //
-// The bound is deliberately not in this list. It has one home — `goSuiteTimeout` in ai/tools/gate/run.go — and
-// TestEveryWorkflowGateBoundsGoTestLikeTheGateScript derives it from there. Pinned here as well, the
-// number would have a fourth home, and raising it would take a four-file edit with this case red until
-// the last one landed. That is the drift both cases exist to stop, reintroduced by the guard against
-// it.
+// The bound is deliberately not in this list. It has one home, `goSuiteTimeout` in
+// ai/tools/gate/run.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
+// Pinned here too, raising it would mean one more file to edit, with this case red until that edit
+// lands.
 var goSuiteFlags = []string{"-count=1", "./..."}
 
 func TestEveryWorkflowGateRunsTheGoSuiteWithItsFlagsPinned(t *testing.T) {
@@ -68,18 +69,14 @@ func hasField(fields []string, want string) bool {
 	return false
 }
 
-// The local gate is the third runner of that suite and the one a human actually watches. It cannot
-// carry `goSuiteRun` verbatim — it selects packages rather than running `./...`, and forces some with
-// `-count=1` because the Go cache cannot see the fixtures' external inputs — so what is held here is
-// the part that must not vary: no invocation of `go test` may go out without a timeout, for the
-// reason goSuiteRun above gives.
-//
-// Read from the Go source, which is where those invocations live now.
+// The local gate runs the same suite, so it is held to the same bound. It cannot carry
+// `goSuiteFlags` verbatim: it selects packages rather than running `./...`, and it forces some with
+// `-count=1` because the Go cache cannot see the fixtures' external inputs. So only the timeout is
+// held here, for the reason TestEveryWorkflowGateBoundsGoTestLikeTheGate below gives.
 func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
-	const source = "gate/run.go"
-	body, err := os.ReadFile(source)
+	body, err := os.ReadFile(gateSource)
 	if err != nil {
-		t.Fatalf("reading %s: %v", source, err)
+		t.Fatalf("reading %s: %v", gateSource, err)
 	}
 	var found int
 	for _, line := range strings.Split(string(body), "\n") {
@@ -90,13 +87,13 @@ func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
 		}
 		found++
 		if !strings.Contains(trimmed, "-timeout") {
-			t.Errorf("%s runs the Go suite with no -timeout: %s", source, trimmed)
+			t.Errorf("%s runs the Go suite with no -timeout: %s", gateSource, trimmed)
 		}
 	}
 	// Zero invocations means this case is holding nothing to account — the runner moved, or the suite
 	// did, and either way the assertion above passed over nothing.
 	if found == 0 {
-		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", source)
+		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", gateSource)
 	}
 }
 
@@ -151,24 +148,19 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// The `go test` bound is one fact with two homes: `goSuiteTimeout` in ai/tools/gate/run.go, and the `-timeout`
-// each workflow's Gate step passes. The workflows carry a comment pointing at the script instead of
-// repeating its reasoning, and a pointer is only as good as something checking it still points at the
-// same number. This is that check.
-//
-// Both ends have to be found or the case fails outright. A guard comparing two strings it could not
-// locate compares nothing and reports green, which is the same defect as a test case that cannot fail
-// — and the reason the bound exists at all is that a `go test` timeout reads as a deadlock rather than
-// as a slow pass, so drift here is expensive to diagnose and cheap to prevent.
-func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
-	script, err := os.ReadFile(gateSource)
+// `goSuiteTimeout` in ai/tools/gate/run.go is the bound's one home. Each workflow's Gate step still
+// has to spell that number into its own `-timeout`, and carries a comment pointing at the home
+// rather than repeating its reasoning. A pointer is only as good as something checking it still
+// points at the same number, and this is that check.
+func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
+	gateBody, err := os.ReadFile(gateSource)
 	if err != nil {
 		t.Fatalf("reading %s: %v", gateSource, err)
 	}
-	want := goSuiteTimeoutIn(string(script))
+	want := goSuiteTimeoutIn(string(gateBody))
 	if want == "" {
 		t.Fatalf("%s no longer declares goSuiteTimeout at the start of a line, so this case has nothing to "+
-			"hold the workflows to and would pass over any value they carry. Restore the assignment, or "+
+			"hold the workflows to and would pass over any value they carry. Restore the declaration, or "+
 			"retire this case deliberately — do not leave it green over nothing.", gateSource)
 	}
 
@@ -219,11 +211,11 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGateScript(t *testing.T) {
 	}
 }
 
-// The value the gate declares as goSuiteTimeout. Line-based and anchored at column zero, so a mention
-// inside a comment or a nested scope is not mistaken for the declaration itself.
-func goSuiteTimeoutIn(script string) string {
+// Anchored at column zero, so a mention inside a comment or a nested scope is not mistaken for the
+// declaration itself.
+func goSuiteTimeoutIn(source string) string {
 	const assign = `const goSuiteTimeout = "`
-	for _, line := range strings.Split(script, "\n") {
+	for _, line := range strings.Split(source, "\n") {
 		if strings.HasPrefix(line, assign) {
 			return strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(line, assign)), `"`)
 		}
@@ -311,4 +303,123 @@ func trimTrailingBlanks(lines []string) string {
 		lines = lines[:len(lines)-1]
 	}
 	return strings.Join(lines, "\n")
+}
+
+// A script gets deleted or moved, the workflow invoking it is not touched, and every push after that
+// goes red on a 127. This is the guard for that.
+func TestEveryScriptAWorkflowRunsExists(t *testing.T) {
+	entries, err := os.ReadDir(workflowsDir)
+	if err != nil {
+		t.Fatalf("reading %s: %v", workflowsDir, err)
+	}
+
+	checked := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(workflowsDir, entry.Name()))
+		if err != nil {
+			t.Fatalf("reading %s: %v", entry.Name(), err)
+		}
+		for _, script := range scriptsRun(string(body)) {
+			checked++
+			info, err := os.Stat(filepath.Join(repoRoot, script))
+			if err != nil {
+				t.Errorf("a step in %s runs %s, and no such file is in the checkout. The job exits 127 on "+
+					"every push, and 127 says a file is missing rather than anything about the code the job "+
+					"exists to gate.", entry.Name(), script)
+				continue
+			}
+			if info.Mode()&0o111 == 0 {
+				t.Errorf("a step in %s runs %s, which is in the checkout but not executable. The job exits "+
+					"126, which is the same silence as 127 one cause further on.", entry.Name(), script)
+			}
+		}
+	}
+
+	if checked == 0 {
+		t.Fatalf("no step under %s was seen to run a script, so this case held nothing to account.",
+			workflowsDir)
+	}
+}
+
+// A `#` ends the line here, so both a whole-line comment and the tail of one are skipped. A
+// workflow's prose names scripts that deliberately no longer exist, and saying what a job used to run
+// is how a removal gets explained.
+func scriptsRun(body string) []string {
+	var found []string
+	seen := map[string]bool{}
+	for _, block := range runBlocks(body) {
+		for _, line := range strings.Split(block, "\n") {
+			for _, field := range strings.Fields(line) {
+				if strings.HasPrefix(field, "#") {
+					break
+				}
+				path := strings.TrimPrefix(field, "./")
+				if !strings.HasSuffix(path, ".sh") || !isPlainPath(path) {
+					continue
+				}
+				if seen[path] {
+					continue
+				}
+				seen[path] = true
+				found = append(found, path)
+			}
+		}
+	}
+	return found
+}
+
+// Fields ending in `.sh` that name no file are common in these steps: `*-test.sh` in a glob,
+// `note="ai/gate.sh` inside a message. Reporting one as missing would be a finding against text
+// nobody runs. So the narrow direction is deliberate: an oddly spelled invocation is skipped, and
+// the zero-invocations check above stops that from emptying the case.
+func isPlainPath(path string) bool {
+	for _, b := range []byte(path) {
+		switch {
+		case b >= 'a' && b <= 'z', b >= 'A' && b <= 'Z', b >= '0' && b <= '9':
+		case b == '.', b == '_', b == '-', b == '/':
+		default:
+			return false
+		}
+	}
+	return path != ""
+}
+
+// The body of every `run:` step in a workflow, block form and one-liner alike. Line-based for the
+// reason gateStep gives.
+func runBlocks(body string) []string {
+	var blocks []string
+	var block []string
+	inBlock, indent := false, 0
+	flush := func() {
+		if inBlock {
+			blocks = append(blocks, trimTrailingBlanks(block))
+			block, inBlock = nil, false
+		}
+	}
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if inBlock {
+			if trimmed == "" {
+				block = append(block, "")
+				continue
+			}
+			if len(line)-len(strings.TrimLeft(line, " ")) > indent {
+				block = append(block, trimmed)
+				continue
+			}
+			flush()
+		}
+		switch {
+		case trimmed == "run: |" || trimmed == "run: >":
+			indent = len(line) - len(strings.TrimLeft(line, " "))
+			inBlock = true
+		case strings.HasPrefix(trimmed, "run: "):
+			blocks = append(blocks, strings.TrimPrefix(trimmed, "run: "))
+		}
+	}
+	flush()
+	return blocks
 }
