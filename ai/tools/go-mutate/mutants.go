@@ -51,6 +51,10 @@ var mutants = []mutant{
 	// The rank that keeps this scan's "I checked nothing about that file" lines out of rank 5, where
 	// they share one budget with `dangling link:` and sort below every one of them. Dropped, a flood of
 	// crafted links hides them and the report reads clean of the very thing they exist to say.
+	// The head that keeps a finding's first bytes the checker's own. Removed, the finding leads with a
+	// basename two committed scripts share, joins whatever class that text matches, and takes the one
+	// line the floor reserves for it.
+	{"subcommands: a finding led with a basename the tree chose", "subcommands.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "subcommandMismatch + c.scriptNamed(base) + \" accepts", "c.scriptNamed(base) + \" accepts"},
 	{"report: an unread dispatch left at the default rank", "report.go", "./eco-check/", "TestAnUnreadDispatchSurvivesAFlood", "\t\t{unreadDispatch, 2},\n", ""},
 	// Ranking on the whole line rather than its head: a crafted link target then carries a ranked
 	// phrase into a `dangling link:` finding and promotes the flood above what it is burying. The case

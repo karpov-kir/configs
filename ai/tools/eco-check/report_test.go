@@ -71,7 +71,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// Exact, so the arithmetic is checkable: 302 findings — 300 links, the script with no test
 	// position and the skill directory holding it — of which the rank shows 40.
 	t.Run("and reports the whole remainder on the trailing line", func(t *testing.T) {
-		newTwoKindFloodOfRankFive(t).reports("… and 262 further finding(s) not shown")
+		newTwoKindFloodOfRankFive(t).reports("… 262 finding(s) not shown in total")
 	})
 
 	// The other half of the branch: a tree whose rank-5 remainder really is the kind on screen. The
@@ -100,7 +100,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		path := f.root + "/skills/" + ecocheck.SuppressedMarker + ".sh"
 		f.write(path, "#!/bin/sh\necho hi\n")
 		f.chmod(path, 0o644)
-		f.doesNotReport("further finding(s) not shown")
+		f.doesNotReport("finding(s) not shown in total")
 	})
 
 	// A file past the read bound is the plainest member of the tampered-check class — its own finding
@@ -121,7 +121,16 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// short. The rank-5 tree above cannot show this: it prints no note at all, so nothing there says
 	// whether a note is still kept out of the count of findings shown.
 	t.Run("and counts neither of a two-note tree's notes as a finding", func(t *testing.T) {
-		newDriftUnderAFloodOfItsRank(t).reports("… and 8 further finding(s) not shown")
+		newDriftUnderAFloodOfItsRank(t).reports("… 8 finding(s) not shown in total")
+	})
+
+	// `scriptNamed` answers a basename two scripts share with the basename itself — text the reviewed
+	// tree wrote — and two findings led with it. Committing that pair under a name beginning with a
+	// rank-1 prefix put the branch's own finding in that class, where byte order handed it the class's
+	// one reserved line and left the real drift to a rank the same branch had flooded. Measured on the
+	// build before the head was fixed: this tree printed the crafted line and withheld the drift.
+	t.Run("does not let a committed basename occupy another class's reserved line", func(t *testing.T) {
+		newBasenameForgingAClass(t).reports("shared region greet has drifted")
 	})
 
 	t.Run("shows a drifted shared region under a flood of another class in its rank", func(t *testing.T) {
@@ -145,6 +154,33 @@ func newDriftUnderAFloodOfItsRank(t *testing.T) *fixture {
 	f.floodWithOversize(f.root+"/kk-flavor/standards", ecocheck.FindingCap+5)
 	f.newScript("kk-drive/scripts/one.sh", sharedRegions("one"))
 	f.newScript("kk-humanize/scripts/two.sh", sharedRegions("two"))
+	return f
+}
+
+// The drift fixture, plus two stubs sharing one basename that begins with `shared region `. Their
+// usage names one subcommand and their dispatch takes two, which is what makes the finding fire; the
+// dispatch has to refuse under this basename, since the marker is what ties a dispatch to its stub.
+func newBasenameForgingAClass(t *testing.T) *fixture {
+	t.Helper()
+	f := newDriftUnderAFloodOfItsRank(t)
+	f.mkdirAll(f.root + "/tools/toy")
+	f.write(f.root+"/tools/toy/toy.go", `package toy
+
+func (r *run) dispatch() {
+	switch r.arg(0) {
+	case "alpha":
+		r.alpha()
+	case "beta":
+		r.beta()
+	default:
+		r.refuse("usage: shared region  aaa.sh {alpha}")
+	}
+}
+`)
+	for _, skill := range []string{"kk-drive", "kk-humanize"} {
+		f.newScript(skill+"/scripts/shared region  aaa.sh",
+			"#!/usr/bin/env bash\n# untested: fixture\n#   usage: shared region  aaa.sh {alpha}\ntool=\"toy\"\ntrue")
+	}
 	return f
 }
 

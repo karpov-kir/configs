@@ -107,8 +107,11 @@ func (c *checker) printFindings(out io.Writer) int {
 			printedFindings++
 		}
 	}
+	// A total, and worded as one. "Further" read as an increment on the class lines above it, so a
+	// tree withholding five findings printed "5 more of this class" and then "5 further", and the
+	// reader was told ten. The overstatement grew with every class the floor gave a line to.
 	if len(sorted) > printedFindings {
-		writeLinef(out, "… and %d further finding(s) not shown — fix these and re-run", len(sorted)-printedFindings)
+		writeLinef(out, "… %d finding(s) not shown in total — fix these and re-run", len(sorted)-printedFindings)
 	}
 	return 1
 }
