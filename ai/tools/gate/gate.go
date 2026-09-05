@@ -79,6 +79,12 @@ type unit struct {
 	inputs []string
 	cmd    string
 	stem   string
+	// viaCompiledBinary marks a unit that reaches the Go tree only by running a tool `resolve.sh`
+	// built, never by compiling or running the module's own suites. `go build` does not compile
+	// `_test.go`, so no such file can change what that unit observes, and hashing them into its key
+	// only retires a cached verdict that is still good. Set on the shell suites that exec a stub;
+	// left off — the conservative value — everywhere else.
+	viaCompiledBinary bool
 }
 
 type gate struct {

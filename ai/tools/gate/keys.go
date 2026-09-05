@@ -93,9 +93,31 @@ func linesUnder(manifest []manifestLine, paths []string) []manifestLine {
 	return out
 }
 
+// A Go test file, which `go build` never compiles into a binary.
+//
+// Matched on the path rather than on the package, because that is the whole of what the exclusion
+// claims: the file is one the toolchain leaves out of every binary. `_test.go` is the compiler's own
+// spelling of that, so this cannot drift away from what `go build` does.
+func isGoTestFile(path string) bool {
+	return strings.HasSuffix(path, "_test.go")
+}
+
 // One unit's key material: three header lines, then the sorted `<hash>  <path>` line per input file.
+//
+// A unit that reaches Go only through a compiled binary drops the module's test files here rather
+// than at discovery, so the narrowing is in one place and `--why` prints exactly what the key was
+// built from.
 func (g *gate) keyMaterial(u unit) (key string, lines []manifestLine) {
 	lines = linesUnder(g.manifest, u.inputs)
+	if u.viaCompiledBinary {
+		kept := lines[:0:0]
+		for _, line := range lines {
+			if !isGoTestFile(line.path) {
+				kept = append(kept, line)
+			}
+		}
+		lines = kept
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n%s\n%s\n", u.id, u.cmd, g.stamp)
 	for _, line := range lines {

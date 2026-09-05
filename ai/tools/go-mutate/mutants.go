@@ -1001,6 +1001,17 @@ var mutants = []mutant{
 		"if !record(countFile, 0, stderr) {", "if !record(countFile, 0, stderr) && false {"},
 	{"nomeasure: a status with no count file picks a path instead of refusing", "../nomeasure/nomeasure.go", "./nomeasure/", "TestTheArmsThatDecideNothing",
 		"if len(args) < 2 || args[0] == \"\"", "if len(args) < 1 || args[0] == \"\""},
+
+	// The gate's key narrowing. Both directions are guards: dropping too little only costs time, but
+	// dropping too much stops the gate watching code a tool is built from, which reads as a clean run.
+	{"gate: a compiled-binary unit is keyed on test files after all", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
+		"if u.viaCompiledBinary {", "if u.viaCompiledBinary && false {"},
+	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitReachingGoThroughABinaryDropsTheModulesTestFiles",
+		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
+	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
+	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleGetsTheFlag",
+		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
 }
 
 // A mutant no case can redden, and why: a guard whose triggering condition an earlier guard already
