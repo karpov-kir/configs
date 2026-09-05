@@ -348,19 +348,29 @@ func Split(lines []string, source bool, offer func(Unit) bool) ([]Unit, string) 
 // blocks finds every candidate unit, before any is offered or withheld.
 func blocks(lines []string, source bool) []Unit {
 	var found []Unit
-	inFence, inBlock := false, false
+	inFence, inBlock, inStar := false, false, false
 	for i, raw := range lines {
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
 		switch {
 		case source:
+			// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it starts
+			// with: a continuation without a leading `*` is still the same comment, and ending the block
+			// there would delete its first line alone and leave the tail to break the file.
 			switch {
+			case inStar:
+				found[len(found)-1].Span++
+				if strings.Contains(line, "*/") {
+					inStar, inBlock = false, false
+				}
 			case !isComment(line):
 				inBlock = false
 			case inBlock:
 				found[len(found)-1].Span++
+				inStar = opensStar(line)
 			default:
 				found = append(found, Unit{Line: i + 1, Span: 1})
 				inBlock = true
+				inStar = opensStar(line)
 			}
 		case inFence:
 			found[len(found)-1].Span++
@@ -436,6 +446,11 @@ func repoRelative(cwd, path string) (string, error) {
 		return filepath.ToSlash(rel), nil
 	}
 	return filepath.ToSlash(filepath.Clean(filepath.Join(prefix, path))), nil
+}
+
+// opensStar is a `/*` that the same line does not close.
+func opensStar(line string) bool {
+	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
 }
 
 // isComment mirrors comment-density's: `//`, `/*`, `#`, and a continuation `*` or closing `*/` followed

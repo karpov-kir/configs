@@ -56,7 +56,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
-**A spawned return carries these and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals — never over the lines whose shape this section fixes — and delete what it names.
+**A spawned return carries these and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals only, and delete what it names.
 
 ## Redact before you quote
 

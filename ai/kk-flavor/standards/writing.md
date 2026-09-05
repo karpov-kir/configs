@@ -1,5 +1,3 @@
-# Writing Guidelines
-
 ## Readability floor
 
 The reader understands the text on the first read, without backtracking — in **everything you produce**, down to the reasoning you show. Nothing in the flavor overrides the floor, the Density rules below included.

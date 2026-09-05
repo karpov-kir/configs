@@ -10,7 +10,7 @@ Rewrite the text resolved from `$ARGUMENTS`.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`; deltas below.
 
-**Where the scope holds code, run `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar`** — no arguments for the uncommitted changes, or the git revisions to scan. It says how far the set sits over the host repo's own comment rate and which files carry it: read those first. A thermometer, never the pass's check — `bloat-judge` (**Budget**, below) decides what goes.
+**Where the scope holds code, run `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar`** — no arguments for the uncommitted changes, or the git revisions to scan — and read the files it names first. A thermometer, never the pass's check — `bloat-judge` (**Budget**, below) decides what goes.
 
 ## The lens
 

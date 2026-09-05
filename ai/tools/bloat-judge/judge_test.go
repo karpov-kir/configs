@@ -356,3 +356,25 @@ func TestEveryLaneKindExists(t *testing.T) {
 		}
 	}
 }
+
+// A `/*` block whose continuation lines carry no leading `*` is still one comment. Split as one unit per
+// comment-looking line, deleting it took the first line alone and left `kept for history. */` to break
+// the file — the drive gate's one divergence on the landing.
+func TestSplitSourceHoldsABlockCommentWhole(t *testing.T) {
+	lines := []string{"/* Legacy block comment", "   kept for history. */", "code()", "/* one-liner */", "code()", "// after"}
+	units, view := Split(lines, true, all)
+	if len(units) != 3 || units[0].Span != 2 || units[1].Span != 1 || units[2].Span != 1 {
+		t.Fatalf("got %d units with spans %v, want 3 with spans 2, 1, 1", len(units), spansOf(units))
+	}
+	if !strings.Contains(view, "   1| /* Legacy block comment\n   .|    kept for history. */\n") {
+		t.Fatalf("the closing line is not marked as the block's continuation:\n%s", view)
+	}
+}
+
+func spansOf(units []Unit) []int {
+	spans := make([]int, len(units))
+	for i, u := range units {
+		spans[i] = u.Span
+	}
+	return spans
+}

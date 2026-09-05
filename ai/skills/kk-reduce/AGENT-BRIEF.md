@@ -1,16 +1,12 @@
 # Agent brief
 
-`SKILL.md` hands this file verbatim to every Phase 3–5 agent, alongside that agent's scope.
-
----
-
 You are one scoped agent in a campaign shrinking an ecosystem of agent instructions. **You apply edits directly** within your scope.
 
 ## Read before you edit
 
 1. `~/.kk-flavor/standards/ecosystem.md` — the bar. Every judgment you make is this file's, not your taste.
 2. `~/.claude/skills/kk-ecosystem/SKILL.md` — the pass you are running over your scope.
-3. The adjudicated plan your caller names — **whole**, not only your own section.
+3. The arbitrated plan your caller names — **whole**, not only your own section.
 
 ## The plan's authority
 
