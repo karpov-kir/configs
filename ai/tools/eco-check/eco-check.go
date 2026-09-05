@@ -23,8 +23,8 @@ import (
 	ecoroot "kk-flavor/tools/eco-root"
 )
 
-// The bound each shape of the direction scan emits under, and the per-class bound the printer
-// applies. Both are here so raising either is one edit.
+// The bound each shape of the direction scan emits under, and the bound the printer holds each rank
+// to. Both are here so raising either is one edit.
 const findingCap = 40
 
 // How many budget-file refusals are named before the rest are summarised. Named where the relation to
