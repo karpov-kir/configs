@@ -291,6 +291,11 @@ func trimTrailingBlanks(lines []string) string {
 
 // A script gets deleted or moved, the workflow invoking it is not touched, and every push after that
 // goes red on a 127. This is the guard for that.
+//
+// What it can see is a field that looks like a path once shell wrapping is cut off, resolved against
+// the step's own `working-directory`. An invocation spelled so that nothing path-shaped survives is
+// skipped rather than reported, because a field ending in `.sh` inside a message is not something
+// anyone runs — and the zero-invocations check below is what stops that leniency emptying the case.
 func TestEveryScriptAWorkflowRunsExists(t *testing.T) {
 	entries, err := os.ReadDir(workflowsDir)
 	if err != nil {
@@ -334,16 +339,17 @@ func TestEveryScriptAWorkflowRunsExists(t *testing.T) {
 func scriptsRun(body string) []string {
 	var found []string
 	seen := map[string]bool{}
-	for _, block := range runBlocks(body) {
-		for _, line := range strings.Split(block, "\n") {
+	for _, step := range runBlocks(body) {
+		for _, line := range strings.Split(step.body, "\n") {
 			for _, field := range strings.Fields(line) {
 				if strings.HasPrefix(field, "#") {
 					break
 				}
-				path := strings.TrimPrefix(field, "./")
+				path := strings.TrimPrefix(unwrapShell(field), "./")
 				if !strings.HasSuffix(path, ".sh") || !isPlainPath(path) {
 					continue
 				}
+				path = filepath.Join(step.dir, path)
 				if seen[path] {
 					continue
 				}
@@ -353,6 +359,22 @@ func scriptsRun(body string) []string {
 		}
 	}
 	return found
+}
+
+// The path inside a field a shell would run it from: `stamp="$(./source-stamp.sh` is an invocation,
+// and dropping it because of the assignment and the substitution around it is how this case came to
+// cover three of the four scripts these workflows run while its own comment claimed all of them.
+//
+// Only the opening wrappers are cut. A trailing one would make `"$(cat` end in a path shape it never
+// had, and isPlainPath is what refuses whatever this leaves behind.
+func unwrapShell(field string) string {
+	for {
+		cut := strings.LastIndexAny(field, "$(\"'`=")
+		if cut < 0 {
+			return field
+		}
+		field = field[cut+1:]
+	}
 }
 
 // Fields ending in `.sh` that name no file are common in these steps: `*-test.sh` in a glob,
@@ -371,15 +393,26 @@ func isPlainPath(path string) bool {
 	return path != ""
 }
 
-// The body of every `run:` step in a workflow, block form and one-liner alike. Line-based for the
-// reason gateStep gives.
-func runBlocks(body string) []string {
-	var blocks []string
+// Every `run:` step in a workflow, block form and one-liner alike, each with the directory it runs in.
+// Line-based for the reason gateStep gives.
+//
+// `working-directory` is carried because a path in the step is relative to it, not to the checkout: a
+// step that cds into `ai/tools` and runs `./source-stamp.sh` names a file that does not exist at the
+// repo root. It may be declared before or after the `run:` it applies to, so a block takes whichever
+// the surrounding step carries.
+type runStep struct {
+	body string
+	dir  string
+}
+
+func runBlocks(body string) []runStep {
+	var blocks []runStep
 	var block []string
 	inBlock, indent := false, 0
+	dir, pending := "", ""
 	flush := func() {
 		if inBlock {
-			blocks = append(blocks, trimTrailingBlanks(block))
+			blocks = append(blocks, runStep{trimTrailingBlanks(block), dir})
 			block, inBlock = nil, false
 		}
 	}
@@ -397,11 +430,26 @@ func runBlocks(body string) []string {
 			flush()
 		}
 		switch {
-		case trimmed == "run: |" || trimmed == "run: >":
-			indent = len(line) - len(strings.TrimLeft(line, " "))
-			inBlock = true
-		case strings.HasPrefix(trimmed, "run: "):
-			blocks = append(blocks, strings.TrimPrefix(trimmed, "run: "))
+		// A new step clears what the last one declared; a `working-directory` inside one is held for
+		// whichever `run:` that step has, before it or after.
+		case strings.HasPrefix(trimmed, "- "):
+			dir, pending = "", ""
+			trimmed = strings.TrimPrefix(trimmed, "- ")
+			if !strings.HasPrefix(trimmed, "working-directory:") && !strings.HasPrefix(trimmed, "run:") {
+				continue
+			}
+			fallthrough
+		default:
+			switch {
+			case strings.HasPrefix(trimmed, "working-directory:"):
+				pending = strings.TrimSpace(strings.TrimPrefix(trimmed, "working-directory:"))
+				dir = pending
+			case trimmed == "run: |" || trimmed == "run: >":
+				indent = len(line) - len(strings.TrimLeft(line, " "))
+				dir, inBlock = pending, true
+			case strings.HasPrefix(trimmed, "run: "):
+				blocks = append(blocks, runStep{strings.TrimPrefix(trimmed, "run: "), pending})
+			}
 		}
 	}
 	flush()
@@ -422,9 +470,9 @@ func TestTheMutantsJobNamesTheGatesDidNotMeasureLine(t *testing.T) {
 		t.Fatalf("reading gates.yml: %v", err)
 	}
 	pattern := ""
-	for _, block := range runBlocks(string(body)) {
-		if strings.Contains(block, "ai/gate.sh --mutants") {
-			pattern = quotedAfter(block, "grep -q '")
+	for _, step := range runBlocks(string(body)) {
+		if strings.Contains(step.body, "ai/gate.sh --mutants") {
+			pattern = quotedAfter(step.body, "grep -q '")
 		}
 	}
 	// Both ends have to be found or this fails outright. A guard comparing two strings it could not
