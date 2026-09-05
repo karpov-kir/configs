@@ -155,9 +155,17 @@ func staleMutants(list []mutant, pkgDir string, held map[string]map[string]bool)
 }
 
 // How long a suite gets before the run is read as not having happened. Explicit, because `go test`
-// otherwise applies its own 10m default and eco-report has been measured at 603s — over the line on a
-// loaded machine. Generous on purpose: this bounds a hang, it does not police a slow suite.
-const suiteTimeout = "20m"
+// otherwise applies its own 10m default. eco-report alone has been measured at 684s, 1058s, 1166s and
+// 1390s on a loaded machine: one of those is past 20m and two are within three minutes of it.
+//
+// Generous on purpose, and the cost of firing is why. A bound reached makes the mutant read as "did
+// not measure", and `ai/nomeasure-count.sh` escalates consecutive non-measuring runs to exit 1 — so a
+// bound tight enough to catch load stops mutation coverage being proved and then reddens the gate for
+// it, on a busy machine rather than on a defect. This bounds a hang; it does not police a slow suite.
+//
+// The same number as `gotest_timeout` in ai/gate.sh, and not the same fact: that one bounds each test
+// binary in the gate's own suite run, this one bounds one mutant's suite. They are free to diverge.
+const suiteTimeout = "30m"
 
 // What one suite run says about the guard the mutant removed. The four answers print in the same
 // column, so telling them apart is the whole of what this harness reports: a mutant that never built

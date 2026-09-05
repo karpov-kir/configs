@@ -226,7 +226,7 @@ func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 // has to survive the run rather than be read and dropped. Every other verdict carries none: an
 // evidence block under a `killed` line would claim the suite said something it did not.
 func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
-	timedOut := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+	timedOut := "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
 	if verdict, evidence := verdictWithEvidence(true, timedOut); verdict != "TIMED OUT" || evidence != timedOut {
 		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d", verdict, len(evidence), len(timedOut))
 	}
@@ -266,7 +266,7 @@ func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
 // tell a slow compile from a timeout.
 func TestATimedOutMutantPrintsTheSuitesOwnWords(t *testing.T) {
 	selected := []mutant{{label: "the bound", file: "guard.go", suite: "./p/"}}
-	evidence := "panic: test timed out after 20m0s\n\trunning tests:\n\tTestBound (20m0s)"
+	evidence := "panic: test timed out after 30m0s\n\trunning tests:\n\tTestBound (30m0s)"
 
 	stdout := os.Stdout
 	reader, writer, err := os.Pipe()
