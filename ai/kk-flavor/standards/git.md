@@ -8,6 +8,8 @@ Name branches `<type>/<TICKET>-<slug>` — type is `feature`, `fix`, `refactor`,
 
 **Print the command and get approval before any commit or push.**
 
+**A push to a shared or default branch cannot be taken back.** [live-systems.md](live-systems.md) → **Arrange the undo before the act** holds there even where the approval above was lifted.
+
 Short, imperative, one-line subject (~50 chars); a body only when the *why* isn't obvious from the diff. Frame it for the repo's consumer — the user-visible effect, not the internal mechanism.
 
 **Re-form the change set after any review pass**, and never re-present a commit command formed earlier in the run.
