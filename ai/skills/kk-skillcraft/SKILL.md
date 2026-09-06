@@ -4,7 +4,7 @@ description: Review and refine skills as skills — triggering, how steps and re
 argument-hint: "a skill dir, several, or the whole skills tree"
 ---
 
-Judge a skill as a skill. Not whether its rules earn their place or reconcile across skills — that is `kk-ecosystem`, against `~/.kk-flavor/standards/ecosystem.md` — and not whether its prose is tight or cuttable for tokens alone, which is `kk-tighten`. This is the lens those two cannot apply: **is this thing shaped so an agent reaches it at the right moment and then does what it says?**
+Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-tighten`'s; neither applies this one.
 
 A big skill is a symptom. Read it for the cause.
 
@@ -36,13 +36,15 @@ When an agent ignores an instruction, argue less and steer harder.
 
 - **Leading words.** A dense term the model already knows beats a paragraph describing the same thing — hunt those paragraphs and replace them with the name. **Prefer a word the model was pretrained on over one we coin**: a coined term recruits no priors, so we pay in definition tokens what an existing word gives free. Grade the word as **Pruning** below grades prose — one too weak to move the agent off its default is a no-op, and a stronger word is the fix.
 - **State the target, not the ban.** A prohibition leaves the behaviour more available, not less — the negation is a weak modifier over a strongly activated concept. Write what the agent should do, so the other behaviour is never spoken. A ban earns its place where it is a guardrail with no positive phrasing, and there it carries the target beside it.
-- **Completion criteria.** Every step ends on the condition that says it is done, and each is judged twice: can the agent tell done from not-done, and **how much does the bound demand**? "Every changed model accounted for" drives legwork that "produce a change list" never asks for. **The demand binds flat reference as well as steps** — "every rule applied" is how a skill that is all reference still carries an exhaustiveness bar.
+- **Completion criteria.** Every step ends on the condition that says it is done, and each is judged twice: can the agent tell done from not-done, and **how much does the bound demand**? "Every changed model accounted for" drives legwork that "produce a change list" never asks for. **The demand binds flat reference as well as steps** — "every rule applied" is how a skill that is all reference still carries an exhaustiveness bar. **A bound the file hands to its caller is already stated.** Filling the number in authors a rule, and that is a proposal, never your edit (`~/.claude/skills/kk-ecosystem/SKILL.md` → **Rules**).
 - **Hide the next step.** An agent that can see the goal rushes the step in front of it — a skill told to *ask clarifying questions, then plan* barely asks. Split that skill in two, so the early phase is the whole task. Where you find one skill whose early phase is chronically thin, this is usually why. **Splitting hides only what a real context boundary hides**: an invocation that runs inline leaves the later steps in context and clears nothing.
 
 ## 4. Pruning — what is not doing anything
 
 - **No-ops.** Text that reads like an instruction but changes no output; `~/.kk-flavor/standards/ecosystem.md` → **Earn the place** holds the test.
 - **Sediment.** What accumulates when several people edit one file and nobody dares delete anyone else's rule. It reads as a flat list of equals; it is actually one live procedure plus somebody's old edge case. Move the niche rules into the branch that needs them and kill the stale ones.
+
+**A rule a second file acts on is neither a no-op nor sediment.** You hold one skill at a time, so that file is never in front of you. Name the apparent restatement for `kk-ecosystem`, which scans the whole root, and leave the text standing.
 
 Deleting is not the only fix — try the moves in `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** first.
 
