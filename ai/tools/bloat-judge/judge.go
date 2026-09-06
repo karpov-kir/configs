@@ -12,7 +12,12 @@
 // Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
 // unit starts on, one per line — a block reports the line it starts on, never every line it took.
 // Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
-// unreadable path, a model that did not answer, or an answer that was not numbers.
+// unreadable path, a model that did not answer inside its deadline, or an answer that was not numbers.
+//
+// Two lanes make this judge mandatory (writing.md → Replying to a human, skill-protocol.md → Verdict),
+// so blocking forever is worse here than refusing: an agent that gives up on a hung run leaves nothing
+// behind saying the gate did not happen. Every roll is bounded, so a run is too — deadline.go holds
+// the figure, what it was read from, and how a machine retunes it.
 //
 // Only agent-written units should ever be offered, and that is still owed: for a source file the blocks
 // the change added or edited, on a branch the agent authored; for a PR body or review comment, only until a human's first edit. The verdict
@@ -38,6 +43,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
@@ -144,15 +150,12 @@ func (m *Memo) record(kind, content string, gone []int) {
 	_ = os.WriteFile(m.key(kind, content), []byte(body+"\n"), 0o600)
 }
 
-// ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally.
-func ClaudeCaller(prompt, view string) (string, error) {
-	cmd := exec.Command("claude", claudeArgs(prompt)...)
-	cmd.Stdin = strings.NewReader(view)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("the model did not answer (%v)", err)
+// ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally. Each
+// roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
+func ClaudeCaller(deadline time.Duration) Caller {
+	return func(prompt, view string) (string, error) {
+		return runBounded(deadline, "claude", claudeArgs(prompt), view)
 	}
-	return string(out), nil
 }
 
 // claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from the
@@ -487,10 +490,17 @@ func isComment(line string) bool {
 // ParseVerdict reads the model's answer as unit numbers. Anything that is not a number in range, or the
 // word none, is refused whole: a model that starts explaining has stopped judging, and reading the
 // numbers out of its prose would let the explanation back in.
+//
+// Saying nothing is refused too, and separately: `none` is a verdict, while an empty answer is a model
+// that reached none. Read as one, a judge whose model never answered came back at exit 0 over unjudged
+// text — silence dressed as a clean result, which is the one thing a mandatory gate may not produce.
 func ParseVerdict(reply string, count int) ([]int, error) {
 	trimmed := strings.TrimSpace(reply)
-	if strings.EqualFold(trimmed, "none") || trimmed == "" {
+	if strings.EqualFold(trimmed, "none") {
 		return nil, nil
+	}
+	if trimmed == "" {
+		return nil, fmt.Errorf("the judge answered nothing at all, so no unit was judged")
 	}
 	seen := map[int]bool{}
 	var gone []int

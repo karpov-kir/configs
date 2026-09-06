@@ -53,6 +53,14 @@ func TestParseVerdictAcceptsNumbersAndNone(t *testing.T) {
 	}
 }
 
+// An empty answer is not `none`. Read as one, a model that produced nothing came back as a clean pass
+// over text nobody judged.
+func TestParseVerdictRefusesAnAnswerThatIsEmpty(t *testing.T) {
+	if _, err := ParseVerdict("   \n", 3); err == nil {
+		t.Fatal("an empty answer was accepted as none")
+	}
+}
+
 // Prose is refused whole rather than mined for digits: a model that explains has stopped judging.
 func TestParseVerdictRefusesProseAndOutOfRange(t *testing.T) {
 	if _, err := ParseVerdict("I would delete 2 because it restates the code", 3); err == nil {
