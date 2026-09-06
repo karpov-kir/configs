@@ -35,6 +35,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | The work | The answer |
 |---|---|
 | Something is broken, slow or flaky, and the cause is unknown | `kk-diagnose`, alone, and **before any change exists to review** — a lane reading a diff cannot reach a cause nobody has reproduced. |
+| A settled requirement to build, with nothing written yet | `kk-build`, alone — it owns the loop and the gates inside it. The pass that reads the result afterwards is the row below, and it is that skill's to call, not yours to queue beside this one. |
 | Code or tooling changed | `kk-qualify`, alone — it owns the stage order and what each stage's trigger is. Queuing those stages here instead runs the pipeline without its round. |
 | A PR to review | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. **A PR of the human's own too**, where the code row would leave the fixes uncommitted and the PR stale. |
 | Changes were requested on a PR | `kk-pr-review`, alone, and **pass its `fix` token** — on someone else's PR, without it the skill only drafts a review. |
@@ -71,6 +72,6 @@ Run each stage in the order **Route** resolved — spawned, unless that skill's 
 
 ## Rules
 
-- **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes — which an `unattended` run already carries.
+- **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 - Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires. Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**

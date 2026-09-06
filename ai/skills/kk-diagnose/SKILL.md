@@ -16,7 +16,7 @@ Find what causes the symptom. **Phase 1 is the skill** — with a loop that goes
 
 - **Red-capable** — it drives the code path and asserts the **symptom the reporter named**, so it reddens now and greens once fixed. Running without erroring is a different claim.
 - **Deterministic** — same verdict every run.
-- **Fast** — the bar is `~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, and it binds a diagnosis loop hardest, because you will run this one hundreds of times.
+- **Fast** — the bar is `~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, rule 6, and it binds a diagnosis loop hardest, because you will run this one hundreds of times.
 - **Agent-runnable** — you can run it unattended.
 
 Spend disproportionate effort here. Try these shapes, roughly in this order: a failing test at the nearest seam; a request against a running instance; a command-line invocation diffed against known-good output; a headless browser script asserting on DOM, console or network; a captured payload replayed through the path in isolation; a throwaway harness standing up the smallest subset that reaches the code; a property or fuzz loop where the symptom is *sometimes wrong*; a bisection harness where it appeared between two known states; a differential run of two versions or configs, diffed.

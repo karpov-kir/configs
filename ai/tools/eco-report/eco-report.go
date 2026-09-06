@@ -59,14 +59,28 @@
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
 //	list             one line per open ship, `<intent><TAB><state>`, for routing with several in flight
+//	finalize [--force] <intent>  the deterministic tail of a merge, under a slot no two ships share:
+//	                 delete the ship's own decisions/playbook/language and its report, drop its stage
+//	                 markers, and move its folder to archive/. The deletes precede the move, or the
+//	                 archived folder carries records nothing prunes. Which of those records survived
+//	                 into the project's own is the caller's judgment and happens BEFORE this, so
+//	                 nothing here asks anybody — a question inside the slot stalls every ship behind
+//	                 it. Another ship holding the slot is exit 4, naming the holder's intent and
+//	                 worktree; --force breaks a slot whose holder the caller has established is gone
 //	close [--force]  retire one landed ship's report and stage markers. Refuses while an open `- [ ]`
 //	                 stands, since nothing else keeps a copy
-//	record <append|bump|revise|evict|admit> <decisions|playbook|language|constraints> "<text>" ["<new text>"]
-//	                 the one way to write the four shared records, which every worktree of the clone
-//	                 shares. Serialised under flock, so two agents writing at once both land; a hand
-//	                 edit is what silently drops one of them. records.go says why it locks as it does.
+//	record [--intent <NNN-slug>] <append|bump|revise|evict|admit> <record> "<text>" ["<new text>"]
+//	                 the one way to write the records, which every worktree of the clone shares.
+//	                 Serialised under flock, so two agents writing at once both land; a hand edit is
+//	                 what silently drops one of them. records.go says why it locks as it does.
 //	                 Each record is capped: an append into a full one refuses, and `admit` is the only
-//	                 way in, dropping the entry the new one beat
+//	                 way in, dropping the entry the new one beat.
+//	                 The project-* and local-* records are two files, never one addressed two ways: a
+//	                 ship writes its local one under its own folder, and finalize merges that upward,
+//	                 where an entry restating a project one becomes a bump. --intent names that ship,
+//	                 and is required for a local-* record and refused for the rest — a local write with
+//	                 no ship named would land at the project root and surface only when finalize found
+//	                 nothing to merge. Run `record` bare for the record names
 //
 // Every subcommand that reads a report takes the intent as its LAST argument, optional while only one
 // report is open. Several open and none named is refused, never guessed: resolving to the wrong report
@@ -165,6 +179,8 @@ type run struct {
 	stageReturnsDir string
 
 	ambiguousNames string
+	// The ship a `record --intent` write belongs to. Empty means the project's own record.
+	recordSlug string
 	// Appended to requireReport's no-report refusal. `gate` is the one caller that needs it: its reader
 	// is standing at a merge, where "run init first" reads as the step that clears the gate.
 	noReportNote []string
@@ -293,12 +309,16 @@ func (r *run) dispatch() {
 		r.cmdState()
 	case "list":
 		r.cmdList()
+	case "finalize":
+		r.cmdFinalize(r.args[1:])
+	case "merge-slot":
+		r.cmdMergeSlot(r.args)
 	case "close":
 		r.cmdClose(r.args[1:])
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

@@ -45,7 +45,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta.
 
-**Write it only through `report.sh record {append|bump|revise|evict|admit} decisions "<text>"`.** Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
+**Write it only through `report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-decisions "<text>"`** — this ship's own log, which finalize merges upward. Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
 
 Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale.
 
