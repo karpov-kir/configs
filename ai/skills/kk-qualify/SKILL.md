@@ -1,6 +1,6 @@
 ---
 name: kk-qualify
-description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the pass written down with a merge stamp layers that on top of this one.
+description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the result written down where a later step can check it layers that on top of this one.
 argument-hint: "[scope: a path, a diff selector, or natural language]"
 ---
 

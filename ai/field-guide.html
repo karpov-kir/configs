@@ -189,9 +189,9 @@
       <p class="lede">This is a set of skills for Claude Code. Each one is a <b>lane</b>: a single job, with a description that says what it covers and what it deliberately does not. You rarely pick a lane yourself — you go through a door, and the door picks. This page is what the doors know.</p>
     </div>
     <div class="facts">
-      <div class="fact"><b>24</b><span>skills</span></div>
+      <div class="fact"><b>25</b><span>skills</span></div>
       <div class="fact"><b>2</b><span>families</span></div>
-      <div class="fact"><b>4</b><span>you always type</span></div>
+      <div class="fact"><b>5</b><span>you always type</span></div>
     </div>
   </div>
 </header>
@@ -343,7 +343,7 @@
     <h2>Every skill, in its own words</h2>
     <p class="sec-note">Generated from each skill's own description, so this list cannot drift from the tree.</p>
   </div>
-  <p class="lede" style="margin:0 0 26px">Each line below is the skill's own description, quoted as written — the same text Claude reads when it decides which skill applies. Two words recur in them: a <b>gate</b> is a command that has to pass before the work moves on, and a <b>chip</b> is the button Claude Code offers you to start a follow-up session.</p>
+  <p class="lede" style="margin:0 0 26px">Each line below is the skill's own description, quoted as written — the same text Claude reads when it decides which skill applies. Three terms recur in them: a <b>gate</b> is a command that has to pass before the work moves on, a <b>chip</b> is the button Claude Code offers you to start a follow-up session, and a <b>merge stamp</b> is the record a quality pass leaves behind so a later step can check that it actually ran.</p>
   <div class="lanes">
     <div class="group-label"><span>idsd-*</span><i></i></div>
     <div class="lane">
@@ -367,7 +367,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-intent</code></div>
-      <p>Author or refine an ICE intent — what to build and why, never how; also owns .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.</p>
+      <p>Author or refine an ICE intent — what to build and why, never how; also owns .idsd/roadmap.md and .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.</p>
       <p class="hint">takes: feature/project to plan, or an existing intent to refine</p>
     </div>
     <div class="lane">
@@ -436,13 +436,18 @@
       <p class="hint">takes: file, git scope ("the changes", "staged"), or the text itself</p>
     </div>
     <div class="lane">
+      <div class="lane-top"><code class="k">kk-patrol</code><span class="tag you">you type it</span></div>
+      <p>Run refinement as a standing loop rather than a pass — a scout finds one thing wrong and dies, a fixer lands it on main and dies, round after round, until the human stops it or every angle comes back empty against a tree that has not moved. Use for "keep refining", "patrol the tree", "run until there is nothing left to fix". Built to run cheaply for a long time, not quickly. The loop above kk-foreman, which dispatches one piece of work; a bounded campaign under a single lens is a different shape again.</p>
+      <p class="hint">takes: the tree to patrol, and any angle to start from (default: this repo, every angle)</p>
+    </div>
+    <div class="lane">
       <div class="lane-top"><code class="k">kk-pr-review</code></div>
       <p>Review a GitHub PR — a pending review to draft, or, with the fix token and always on your own PR, fixes to apply and push. Use for "review this PR" and "address the review comments". A PR on GitHub, not local changes (kk-code-review) or the working-tree pipeline (kk-qualify), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
       <p class="hint">takes: &lt;PR number, URL, or head branch&gt; [fix]</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-qualify</code></div>
-      <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the pass written down with a merge stamp layers that on top of this one.</p>
+      <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
       <p class="hint">takes: [scope: a path, a diff selector, or natural language]</p>
     </div>
     <div class="lane">
@@ -462,7 +467,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-tighten</code></div>
-      <p>Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; refining a whole instruction tree is kk-ecosystem's, which runs this last.</p>
+      <p>Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; reconciling a whole instruction tree's rules against one another is a wider pass than this, and contains it.</p>
       <p class="hint">takes: file, directory, or natural-language scope (e.g. "the changes", "staged")</p>
     </div>
   </div>

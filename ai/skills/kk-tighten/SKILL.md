@@ -1,6 +1,6 @@
 ---
 name: kk-tighten
-description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; refining a whole instruction tree is kk-ecosystem's, which runs this last.
+description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; reconciling a whole instruction tree's rules against one another is a wider pass than this, and contains it.
 argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\", \"staged\")"
 ---
 

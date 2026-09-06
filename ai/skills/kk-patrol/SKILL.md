@@ -1,6 +1,6 @@
 ---
 name: kk-patrol
-description: Run refinement as a standing loop rather than a pass — each round spawns a scout that finds one defect and dies, then a fixer that lands it on main and dies. Use for "keep refining", "patrol the tree", "run until there is nothing left to fix". Built to run cheaply for a long time, not quickly. The loop above kk-foreman, which dispatches one piece of work; kk-reduce is a bounded campaign that shrinks a tree of instructions.
+description: Run refinement as a standing loop rather than a pass — each round spawns a scout that finds one defect and dies, then a fixer that lands it on main and dies. Use for "keep refining", "patrol the tree", "run until there is nothing left to fix". Built to run cheaply for a long time, not quickly. The loop above kk-foreman, which dispatches one piece of work; a bounded campaign that shrinks a tree of instructions is a different shape again.
 argument-hint: "the tree to patrol, and any angle to start from (default: this repo, every angle)"
 disable-model-invocation: true
 ---
