@@ -14,7 +14,7 @@ Read the intent set under `.idsd/`: active intents (`intents/*/intent.md`), buil
 Skip a check only when its inputs are absent.
 
 - **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`, nothing else) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow the Links rule in `~/.claude/skills/idsd-intent/SKILL.md` → **Rules**.
-- **Build batches** — order the unbuilt intents into batches, each holding every intent whose dependencies all land in earlier batches or have already shipped.
+- **Build batches** — order the unbuilt intents into batches, each holding every intent whose dependencies all land in earlier batches or have already shipped. **Dependencies are the only input**: two intents that touch the same files still share a batch, since git resolves that at their merges, so never sequence a batch on file overlap.
 - **Milestone coherence** — no `mvp` intent depends on a `vnext`/unscheduled or still-`draft` one.
 - **Inherited constraints** — flag an entry in `constraints.md` no `mvp` intent satisfies, and any intent constraint contradicting one.
 - **Charter scope** — flag intents outside the charter's Scope, in-scope areas no intent covers, and intents orphaned by a past scope cut. Scope's **Not yet specified** bucket is none of those: it is in scope and deliberately unsharp.

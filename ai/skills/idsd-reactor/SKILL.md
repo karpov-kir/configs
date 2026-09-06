@@ -10,14 +10,16 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` (→ **Orchestr
 
 **Ask whether to audit first**, and recommend it. `idsd-audit` catches a cycle or a dangling `depends-on`, and either one otherwise shows up as an intent that silently never launches. Skipping it costs that check alone — `report.sh intent-ready` still refuses each build whose dependency has not shipped.
 
-**One milestone at a time.** `<arg>` names it, or names slugs outright; with neither, list the milestones still holding unbuilt intents and ask which — recommend the one whose unbuilt intents depend on nothing outside it, which is what `idsd-audit`'s coherence check makes current, and which is `mvp` by convention. **Nothing outside the chosen one launches, however unblocked it is** — `vnext` and Unscheduled are parked work, and a session spent there is a session not spent on what ships. Say what you are leaving parked when you present the schedule.
+**One milestone at a time, and any milestone can be the one** — `vnext` after `mvp` lands is the next wave. `<arg>` names it, or names slugs outright; with neither, list the milestones still holding unbuilt intents and ask which — recommend the one whose unbuilt intents depend on nothing outside it. **Nothing outside the chosen one launches, however unblocked it is** — that is the parked work. `milestone: none` is unplanned rather than a milestone, so it is never the chosen one; naming slugs is the only route to one of those.
 
-- **Audited** — the launchable set is that milestone's share of the audit's first build batch, and **a Blocker stops the launch**: route each through the skill the audit names, then re-run it.
+- **Audited** — the launchable set is that milestone's share of the audit's first build batch, and **a Blocker touching that set stops the launch**: route each through the skill the audit names, then re-run the audit. Parked drafts carry Blockers as a matter of course, and none of those reaches this launch.
 - **Unaudited** — the launchable set is every unbuilt intent in that milestone whose `depends-on` targets are all built, read from the intents' own frontmatter.
 
-**`depends-on` decides what launches together; overlapping files do not.** Two intents touching the same code still launch at once — the overlap resolves at their merges, and **3**'s relay keeps them from surprising each other. Hold a pair back only for an overlap big enough that they would be redoing each other's work, and say so — how big that is depends on the two intents, never on a count of shared files.
+**`depends-on` decides what launches together; overlapping files do not.** The overlap resolves at their merges, and **3**'s relay keeps them from surprising each other. Hold a pair back only for an overlap big enough that they would be redoing each other's work, and say so — how big that is depends on the two intents, never on a count of shared files.
 
-Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch. Then present the schedule: the launchable set, and what each later intent waits on. Say that this session is the reactor's address and launches the later intents only while it stays open.
+Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch. Then present the schedule: the launchable set, what each later intent waits on, and what you are leaving parked. **Count the `draft` intents in that set and say so.** Each opens its own grill thread once its session reaches `idsd-build`'s gap rounds, so a wave of drafts grills the human from several threads at once. Say that this session is the reactor's address and launches the later intents only while it stays open.
+
+**Read the launchable set back by name and launch what the human confirms.** Nothing in the repo marks an intent as parked — `status: draft` fits a fresh intent and a shelved one alike, and one milestone holds both — so the ask is the only place that knowledge enters.
 
 **The human alone says whether each session archives itself once its intent lands** — no licence to act unattended supplies that answer, and unanswered no session archives itself.
 
@@ -45,9 +47,7 @@ End each turn rather than wait on a session's message — it wakes you. Close ea
 
 - **A contract change** — an API shape, a shared type, a wire protocol. Forward it to every live sibling whose ICE consumes it, so that sibling rebases instead of colliding.
 - **The merge slot** — a sibling that hit the slot refusal asks whether the holder is still alive, and you hold the live-session list that answers it (`~/.claude/skills/idsd-finalize/SKILL.md` → **2. Take the slot**). Match the worktree the refusal names against your live sessions: gone, and the waiting sibling may `--force`; otherwise it waits.
-- **`done`** — the intent landed and its allocation frees. Recompute the launchable set and return to **2** for whatever its merge unblocked.
-
-**Launch an intent the moment its last dependency lands** — a batch is the starting schedule, never a barrier.
+- **`done`** — the intent landed and its allocation frees. Recompute the launchable set and return to **2** at once for whatever this merge unblocked. **A batch is the starting schedule, never a barrier.**
 
 **Check `list_sessions` at each wake** and name each mismatch to the human. One gone that never sent `done` died with its intent unbuilt: reclaim its allocation. Where the sessions archive themselves, one that sent `done` and is still listed did not archive: hold its allocation until it goes.
 
