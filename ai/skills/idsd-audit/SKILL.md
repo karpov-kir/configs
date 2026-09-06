@@ -11,12 +11,12 @@ Read the intent set under `.idsd/`: active intents (`intents/*/intent.md`), buil
 
 ## Phase 2 — Check the invariants
 
-Skip a check only when its inputs are absent.
+Skip a check only when its inputs are absent, and **name each skip in the report with the input it was missing** — a silent skip reads as a pass.
 
 - **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow the Links rule in `~/.claude/skills/idsd-intent/SKILL.md` → **Rules**.
 - **Build batches** — order the unbuilt intents into batches, each holding every intent whose dependencies all land in earlier batches or are already built. **Dependencies are the only input** — never sequence a batch on file overlap, which git resolves at the merges.
 - **Milestone coherence** — milestones run `mvp`, then `vnext`, then whatever the project names after them. No intent depends on one scheduled later than it, on an unscheduled (`milestone: none`) one, or on a still-`draft` one.
-- **Milestone drift** — a built intent in a milestone later than one still holding unbuilt work. It shipped ahead of its own label, so the roadmap states a plan nobody is following. Name them and put the question to the human: no check can tell a plan that moved from an intent built early, because a milestone is a statement of intent rather than a fact about the set.
+- **Milestone drift** — a built intent in a milestone later than one still holding unbuilt work, so the roadmap states a plan nobody is following. Name them and put the question to the human rather than ruling: a milestone states intent rather than fact, so no check separates a plan that moved from an intent built early.
 - **Inherited constraints** — flag an entry in `constraints.md` no `mvp` intent satisfies, and any intent constraint contradicting one.
 - **Charter scope** — flag intents outside the charter's Scope, in-scope areas no intent covers, and intents orphaned by a past scope cut. Scope's **Not yet specified** bucket is none of those: it is in scope and deliberately unsharp.
 - **Language** — the set's vocabulary against `language.md`: a domain term the intents lean on with no entry; **two terms in use for one thing**; two entries that cannot both hold; an entry no artifact uses any more (`~/.kk-flavor/standards/records.md` → **Promotion is the exit upward**).
@@ -27,7 +27,7 @@ Skip a check only when its inputs are absent.
 
 ## Phase 3 — Report
 
-One report, grouped by severity — **Blocker** (breaks a build or ships a violation), **Fix** (drift to reconcile), **Nit** — plus the informational **Build batches** list when any intent is unbuilt. **Name each check you skipped and the input it was missing** — a silent skip reads as a pass.
+One report, grouped by severity — **Blocker** (breaks a build or ships a violation), **Fix** (drift to reconcile), **Nit** — plus the informational **Build batches** list when any intent is unbuilt.
 
 Each finding names the file(s), the **owning skill** to fix it through — `idsd-intent` (intents, links, scope sync, `language.md`, `roadmap.md`), `idsd-charter` (vision, scope, `constraints.md`), `idsd-finalize` (the `archive/` move, follow-up closure) — and the smallest reconciling move, never a redesign.
 
