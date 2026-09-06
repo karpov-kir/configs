@@ -2,7 +2,7 @@
 // what that reader sees.
 //
 //	usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]
-//	       comment|instruction take a file; every other kind reads stdin
+//	       every kind takes a file, or reads stdin when no path is given
 //
 // --changed offers only the blocks the diff added or touched — `git diff HEAD` plus untracked files, or
 // the revisions given — while the whole file stays the view. The lanes run this form: without it a

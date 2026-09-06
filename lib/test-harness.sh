@@ -27,6 +27,9 @@
 # So the containment is asserted before each write rather than noticed after: the parent is resolved
 # physically, following any symlink in the path, and anything landing outside `$tmp` aborts the whole
 # suite. A guard that reports afterwards has still lost the file.
+#
+# tested by: env/bootstrap-test.sh, ai/bootstrap-test.sh — every case in both runs through these
+# fixtures, and the case at "a shared file that is present but stops halfway" covers the loading.
 
 tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT

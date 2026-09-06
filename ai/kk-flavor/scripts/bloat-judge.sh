@@ -2,7 +2,7 @@
 # The judge: what a named reader would delete from an outward text, decided by a model that sees only
 # what that reader sees.
 #
-#   usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # comment|instruction take a file; every other kind reads stdin
+#   usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
 #
 # Prints the artifact with the judged units deleted, or with --numbers only the 1-based line numbers
 # deleted. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
