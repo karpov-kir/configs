@@ -13,7 +13,7 @@ Read the intent set under `.idsd/`: active intents (`intents/*/intent.md`), buil
 
 Skip a check only when its inputs are absent.
 
-- **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`, nothing else) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow the Links rule in `~/.claude/skills/idsd-intent/SKILL.md` → **Rules**.
+- **Links & build order** — every `links` entry uses a known relation (`extends`/`depends-on`/`blocks`) and resolves to a real intent; the `depends-on` graph is acyclic; directions follow the Links rule in `~/.claude/skills/idsd-intent/SKILL.md` → **Rules**.
 - **Build batches** — order the unbuilt intents into batches, each holding every intent whose dependencies all land in earlier batches or are already built. **Dependencies are the only input** — never sequence a batch on file overlap, which git resolves at the merges.
 - **Milestone coherence** — milestones run `mvp`, then `vnext`, then whatever the project names after them. No intent depends on one scheduled later than it, on an unscheduled (`milestone: none`) one, or on a still-`draft` one.
 - **Inherited constraints** — flag an entry in `constraints.md` no `mvp` intent satisfies, and any intent constraint contradicting one.
