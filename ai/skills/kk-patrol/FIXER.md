@@ -14,21 +14,20 @@ You are one round's fixer for `kk-patrol`. You are given **one finding's path**.
 
 **A defect an instrument could have caught is not finished when the instance is fixed — the class goes into the instrument** (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**). Later rounds get it free, and a loop that only fixes instances grinds the same ground forever.
 
-**A decision a later round would otherwise undo goes into the file it binds** — one line saying why the obvious edit is wrong. Without it, round N+8 restores what you deleted, with the reasoning that wrote it the first time. `~/.kk-flavor/standards/ecosystem.md` → **No evidence in a rule file** lifts its ban for exactly this: a rule a later agent would otherwise override.
+**A decision a later round would otherwise undo goes into the file it binds** — one line saying why the obvious edit is wrong. Without it, a later round restores what you deleted, with the reasoning that wrote it the first time. `~/.kk-flavor/standards/ecosystem.md` → **No evidence in a rule file** lifts its ban for exactly this: a rule a later agent would otherwise override.
 
 **Anything else you notice goes back as a finding, never into your diff** (`~/.kk-flavor/standards/skill-protocol.md` → **Do not**). Write it beside the one you were handed and name its path in your return. That is the only way it reaches the ledger a later scout reads. A round that fixes two things cannot be stopped between them, and cannot be reverted as one.
 
 ## Landing
 
-Commit, then **merge to `main` and push** — the human grants that to this loop so a round that cannot be stopped halfway also cannot strand work on a branch nobody merges. All of these hold, and none is yours to relax:
+**Commit on the branch you are on, and stop there.** Merging and pushing are the human's — including inside the `kk-foreman` run above, whose licence would otherwise lift the push. All of these hold, and none is yours to relax:
 
-- **The gate is green immediately before the push**, in the tree you are pushing. A cached verdict from before your edit is not a run.
-- **Fast-forward only.** `main` moved under you → merge it in, re-gate, then push. Never force.
+- **The gate is green immediately before the commit**, in the tree you are committing. A cached verdict from before your edit is not a run.
 - **One commit, revertible alone.** The message says what was wrong and what an agent now does differently.
 - **Trail the commit `Patrol-angle: <the angle this finding came from>`**, its own line under the message. It is how the loop can later say what it changed over a period, and which angles are landing anything rather than only being swept.
-- **Verify from the ref**, not from your own summary: read back the SHA on `origin/main` before you claim it. The orchestrator checks it too.
+- **Verify from the ref**, not from your own summary: read back the SHA on the branch before you claim it. The orchestrator checks it too.
 
-Push failed or the SHA is not there: **say so exactly**. A landing you report but did not make is worse than a round that failed, because the loop moves on.
+The commit failed or the SHA is not there: **say so exactly**. A landing you report but did not make is worse than a round that failed, because the loop moves on.
 
 ## Hold, do not decide
 
@@ -41,4 +40,4 @@ Name the blocker in your return and land the rest. The loop continues; a blocker
 
 ## What you return
 
-**One line each**: what you changed, the SHA on `origin/main`, anything held with its reason, and the path of any finding you wrote beside your own. **No diff, no file contents, no walkthrough** — the orchestrator is deliberately not reading the work, and a long return is the one way a round can pollute the context the loop depends on staying small.
+**One line each**: what you changed, the SHA on the branch, anything held with its reason, and the path of any finding you wrote beside your own. **No diff, no file contents, no walkthrough** — the orchestrator is deliberately not reading the work, and a long return is the one way a round can pollute the context the loop depends on staying small.
