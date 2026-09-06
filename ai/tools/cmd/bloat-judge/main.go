@@ -1,7 +1,6 @@
-// The judge as a command, and the only os.Exit in the tool: everything it does lives in the package
-// beside it, so the suite can drive the same code with a fake model and no process per case.
+// The judge as a command.
 //
-//	usage: bloat-judge.sh [--numbers] <kind> [<path>]
+//	usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]
 package main
 
 import (

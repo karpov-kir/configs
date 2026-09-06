@@ -238,7 +238,6 @@ if command -v git >/dev/null; then
     "$(matching_output_lines 'tracked but absent from the working tree')"
   check "and the suites that are there still run" "1" \
     "$(matching_output_lines '^ok   fresh-test.sh')"
-  # Restored, because the -s cases below name this file.
   new_suite "$tmp/ignored/tracked-test.sh" "1 passed, 0 failed"
 
   # A suite that is PRESENT but cannot be run. The fixture is untracked, so landing in the absent arm
@@ -281,7 +280,7 @@ if command -v git >/dev/null; then
   # The shape ai/gate.sh sends every run: a suite that exists and is not ignored but has never been
   # committed, which is what every suite is for as long as it is being written. Without this case,
   # tightening the guard to `--cached` alone leaves every case above green while breaking the gate for
-  # every newly written suite. That is the silent narrowing this runner exists to stop.
+  # every newly written suite.
   out="$("$runner" -s fresh-test.sh "$tmp/ignored" 2>&1)"; rc=$?
   check "-s runs an untracked suite git does not ignore" "0" "$rc"
   check "and reports it as the one suite found" "1" "$(matching_output_lines '^1 suite(s) found')"

@@ -107,7 +107,6 @@ func TestRunNumbersPrintsFileLines(t *testing.T) {
 // this is the property that lets it converge rather than shave a share off each pass.
 func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
 	path := write(t, source)
-	// A judge that always deletes the unit whose text is "// on a()", wherever it now sits.
 	call := func(_, view string) (string, error) {
 		for _, line := range strings.Split(view, "\n") {
 			if strings.HasSuffix(line, "| // on a()") {
@@ -185,7 +184,6 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 	}
 }
 
-// A file with nothing to judge is passed through byte for byte and never reaches the model.
 func TestRunPassesThroughWithNoUnits(t *testing.T) {
 	path := write(t, "func a() {}\n")
 	var out, errOut strings.Builder
@@ -266,7 +264,11 @@ func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 	git := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		// The machine's own git config must not reach this fixture: a global core.excludesFile
+		// matching `*.go` refuses the `git add` below, and commit.gpgsign refuses the commit —
+		// both on a machine where this tool is working perfectly.
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
@@ -316,7 +318,6 @@ func write(t *testing.T, content string) string {
 	return path
 }
 
-// Two of three rolls name unit 1 and one names unit 2: only 1 goes. One roll cannot delete alone.
 func TestVotingDeletesOnlyWhatAMajorityNames(t *testing.T) {
 	replies := []string{"1, 2", "1", "3"}
 	i := 0
@@ -359,7 +360,7 @@ func TestEveryLaneKindExists(t *testing.T) {
 
 // A `/*` block whose continuation lines carry no leading `*` is still one comment. Split as one unit per
 // comment-looking line, deleting it took the first line alone and left `kept for history. */` to break
-// the file — the drive gate's one divergence on the landing.
+// the file.
 func TestSplitSourceHoldsABlockCommentWhole(t *testing.T) {
 	lines := []string{"/* Legacy block comment", "   kept for history. */", "code()", "/* one-liner */", "code()", "// after"}
 	units, view := Split(lines, true, all)

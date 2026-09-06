@@ -47,14 +47,12 @@ func isAlnumByte(b byte) bool {
 // is what keeps an unchecked file distinguishable from a checked one.
 const maxFileBytes = shell.MaxFileBytes
 
-// The heads the two findings below lead with, which report.go's rankTable ranks them on.
 const (
 	fileTooLargeToScan = "file too large to scan: "
 	fileCouldNotBeRead = "file could not be read: "
 )
 
-// The one wording every bounded read here reports itself with, ending on what this reader did not do.
-// Three scans hit the bound and each says something different about the consequence; only that half
+// Three scans hit the bound and each says something different about the consequence. Only that half
 // differs, and a second copy of the rest would drift from the bound it quotes.
 func tooLargeToScan(name string, size int64, consequence string) string {
 	return fmt.Sprintf(fileTooLargeToScan+"%s is %d bytes, over the %d-byte bound — %s",
@@ -63,11 +61,10 @@ func tooLargeToScan(name string, size int64, consequence string) string {
 
 // A file the walk handed over and the read then refused. Both bounds above already turn "nothing was
 // read" into a finding rather than an empty result; a file this process cannot open is the other way
-// that happens, and it was the silent one. Every scan skips such a file, which is the right call — the
-// reviewed tree chooses what is unreadable, so stopping would be a switch a branch could throw — but
-// skipping it *quietly* made three files at mode 000 read as 41 dangling-section findings against the
-// files that cited them, a census line 34 words short under an unchanged denominator, and nothing on
-// stderr. Reported, the skip is still a skip and the run can no longer exit 0 over it.
+// that happens. Every scan skips such a file, which is the right call — the reviewed tree chooses what
+// is unreadable, so stopping would be a switch a branch could throw — but a quiet skip leaves the files
+// that cited it reported as dangling and the census line short under an unchanged denominator.
+// Reported, the skip is still a skip and the run can no longer exit 0 over it.
 func couldNotRead(name, consequence string) string {
 	return fmt.Sprintf(fileCouldNotBeRead+"%s — %s", name, consequence)
 }

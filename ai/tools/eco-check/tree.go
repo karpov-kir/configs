@@ -160,7 +160,6 @@ func (t *tree) matchPath(ref string) []string {
 	return t.suffixes[ref]
 }
 
-// The regular files under start whose basename matches one of the given `find -name` globs.
 func (c *checker) filesNamed(start string, globs ...string) []string {
 	var matched []string
 	for _, entry := range c.walkTree(start).entries {

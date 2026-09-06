@@ -185,11 +185,11 @@ expect_out "and names a missing source" "is missing from the repository"
 
 # --- a checkout missing the library the two scripts share -----------------------------------------
 
-# Splitting one script into two halves over a shared lib/ is what created this: `.` fails, and without
-# `set -e` the run carries on with no add_cfg and no mount_run, exits 127, and says only `command not
-# found` six times. That names neither the file that is gone nor what to do, which is the false
-# diagnosis the verify step in ai/bootstrap.sh already refuses to make. Each script carries its own
-# copy of the guard, because the file that would hold one shared copy is the file that is missing.
+# The `.` fails, and without `set -e` the run carries on with no add_cfg and no mount_run, exits 127,
+# and says only `command not found` six times. That names neither the file that is gone nor what to
+# do, which is the false diagnosis the verify step in ai/bootstrap.sh already refuses to make. Each
+# script carries its own copy of the guard, because the file that would hold one shared copy is the
+# file that is missing.
 libless="$tmp/libless"
 fixture_checkout "$libless" env
 rm -f "$libless/lib/mount.sh"
@@ -257,8 +257,9 @@ expect_not_out "and does not report ok" "env bootstrap: ok"
 # mounts are read back rather than the message being taken at its word.
 expect_link_to "and the mount was left where the machine had it" "$home/.zshrc" "$other_repo/env/zsh/.zshrc"
 
-# --dry-run has to refuse as well. It reported "would repoint" for all of them and exited 0, which is
-# the same lie one step earlier: someone checks with --dry-run, reads ok, and runs it for real.
+# --dry-run has to refuse as well. Unguarded it reports "would repoint" for all of them and exits 0,
+# which is the same lie one step earlier: someone checks with --dry-run, reads ok, and runs it for
+# real.
 fresh_home
 mount_from_other "$home"
 run_boot "$home" --dry-run

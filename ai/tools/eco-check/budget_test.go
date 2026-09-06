@@ -1,7 +1,5 @@
 package ecocheck_test
 
-// The always-loaded budget: which @imports resolve at the mount, and which are refused and named.
-
 import (
 	"fmt"
 	"os"

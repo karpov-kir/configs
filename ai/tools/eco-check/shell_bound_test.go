@@ -1,12 +1,8 @@
 package ecocheck_test
 
-// The per-file read bound. The reviewed tree chooses how large a committed file is, and reading one
-// whole put peak memory at 2.48 GB for a 64 MiB file that packs to 408 KB — half a gigabyte of it
-// OOM-kills the review stage.
-//
-// Plus the other way a read comes back with nothing: a file the walk handed over and the open
-// refused. Both are the same claim — a file nothing read must not be indistinguishable from one that
-// held nothing — and only the bound was making it.
+// The per-file read bound, whose reason is shell.MaxFileBytes, and the other way a read comes back
+// with nothing: a file the walk handed over and the open refused. Both are the same claim — a file
+// nothing read must not be indistinguishable from one that held nothing.
 
 import (
 	"testing"
@@ -27,11 +23,6 @@ func newUnreadableStandard(t *testing.T) *fixture {
 	return f
 }
 
-// Three files at mode 000 in this tree produced 41 dangling-section findings against the files that
-// cited them, a census line 34 words short under an unchanged denominator, and zero bytes on stderr.
-// Every scan skips a file it cannot read, which is right — the reviewed tree chooses what is
-// unreadable, so stopping there is a switch a branch could throw — but skipping it in silence is the
-// zero that cannot be told from "never looked".
 func TestUnreadableFileIsReportedNotSilentlySkipped(t *testing.T) {
 	t.Run("names a file the read could not open", func(t *testing.T) {
 		newUnreadableStandard(t).reports(ecocheck.FileCouldNotBeRead)
@@ -110,8 +101,6 @@ func TestOversizeFileIsNotReadByTheCallSiteScan(t *testing.T) {
 		searched(t).reports("no call site in it was seen")
 	})
 
-	// The control. The pass is live on this fixture, so the silence above is a refusal and not a scan
-	// that never ran.
 	t.Run("while the scan itself is live on that tree", func(t *testing.T) {
 		searched(t).reports(noCallSite + "alpha — ")
 	})

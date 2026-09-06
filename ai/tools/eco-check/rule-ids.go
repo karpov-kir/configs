@@ -8,7 +8,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The head this scan's findings lead with, which report.go's rankTable ranks them on.
 const bareRuleIDCitation = "bare rule-ID citation: "
 
 var (
@@ -20,7 +19,6 @@ var (
 	digitsRun           = regexp.MustCompilePOSIX(`[0-9]+`)
 )
 
-// The file whose rules those numbers belong to, named the way a citation names it.
 const principlesRef = "core-principles.md"
 
 // The form a finding falls back to when the tree holds no heading of the cited number. The citation
@@ -56,9 +54,8 @@ func (c *checker) scanBareRuleIDs() {
 	}
 }
 
-// How many numbered headings the lookup holds. The reviewed tree chose this file, and one committed
-// 8 MB of numbered headings is otherwise carried in memory to answer a lookup that has a handful of
-// answers.
+// The reviewed tree chose this file, and one committed 8 MB of numbered headings is otherwise carried
+// in memory to answer a lookup that has a handful of answers.
 const numberedHeadingCap = 64
 
 // The numbered `##` headings of the principles file, by the number each one opens — the resolving

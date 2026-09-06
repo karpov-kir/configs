@@ -9,8 +9,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on. The four
-// bounded ones are passed to addBounded as the class, so each also heads its own bound notice.
+// The four bounded heads are passed to addBounded as the class, so each also heads its own bound
+// notice.
 const (
 	directionScanReadNoFiles         = "direction scan read no files"
 	sharedLayerCitesLane             = "shared layer cites into a lane"
@@ -283,21 +283,16 @@ func isCleanBasename(name string) bool {
 	return name != "" && !strings.ContainsFunc(name, isNotLaneNameRune)
 }
 
-// One match of a pattern, kept as the two things it is. Packed into `<line>:<match>` it was cut back
-// apart at three of the four call sites, and the boundary character a pattern consumed makes the
-// halves mean different things.
+// One match of a pattern, kept as the two things it is: the boundary character a pattern consumed
+// makes the halves mean different things.
 type lineMatch struct {
 	line  int
 	match string
 }
 
-// The `<line>:<match>` form a finding echoes, which is what `grep -no` printed.
+// The `<line>:<match>` form a finding echoes.
 func (m lineMatch) String() string { return strconv.Itoa(m.line) + ":" + m.match }
 
-// `grep -no`: every match on every line. The shell version needed `-a` on every grep, and the hazard
-// behind that is gone with it: one committed NUL byte made grep call the file binary and print
-// nothing at all, so a violating shared layer read as clean while the did-not-run guard still counted
-// the file as scanned.
 func grepNumbered(lines []string, pattern *regexp.Regexp) []lineMatch {
 	var hits []lineMatch
 	for i, line := range lines {

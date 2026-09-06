@@ -35,10 +35,9 @@ type edge struct {
 	precision bool
 }
 
-// Where the router lives under the root every tool here is pointed at. Named as a path, because the
-// router is a node in this graph and a node keys on its path: found by basename, any `inject.md` a
-// lane committed answered for it, and which one answered came out of a map iteration — the same tree
-// gave different numbers on different runs.
+// A path and not a basename, because the router is a node in this graph and a node keys on its path:
+// found by basename, any `inject.md` a lane committed answered for it, and which one answered came out
+// of a map iteration — the same tree gave different numbers on different runs.
 const routerPath = "kk-flavor/inject.md"
 
 // The files the router lists under its read-always heading. Which files those are is read from the

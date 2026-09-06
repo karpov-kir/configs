@@ -8,9 +8,6 @@ import (
 	"testing"
 )
 
-// A path or a heading reaches the report exactly as the tree spelled it: an ESC there erases the rows
-// above it on the terminal reading the report, and a path carrying a newline forges a row of its own —
-// the stderr messages have always been sanitised and the report was not.
 func TestNamesPrintedInTheReportAreSanitised(t *testing.T) {
 	got := printable([]string{"Dead\x1b[2K\rCLEAN", "ev\nil.md", "plain.md"})
 	want := []string{"Dead [2K CLEAN", "ev il.md", "plain.md"}
@@ -40,8 +37,6 @@ func TestTheReportCountsDoorsDeepDoorsPrecisionCitersAndUnenteredSections(t *tes
 	if want := "4 file(s), 3 citation edge(s)"; !strings.Contains(got, want) {
 		t.Errorf("report is missing %q:\n%s", want, got)
 	}
-	// Two doors, one of them entering both sections; the citer that also names the file bare is
-	// precision, so it is neither a door nor a door section.
 	if want := "2 door section(s) /  2 door(s), 1 of them deep,  1 precision citer(s)"; !strings.Contains(got, want) {
 		t.Errorf("report is missing %q:\n%s", want, got)
 	}
@@ -58,11 +53,6 @@ func TestTheReportCountsDoorsDeepDoorsPrecisionCitersAndUnenteredSections(t *tes
 	}
 }
 
-// The whole point of the count. A scan that missed part of the tree measured a different tree, and it
-// prints at full confidence in exactly the shape a measurement of this one takes: over a copy of `ai/`
-// with two directories shut, the report went from 49 files and 100 edges to 33 and 13, said the shared
-// layer held no unentered section — because the shared layer was what it could not open — and exited
-// 0. Both `cite-graph.sh` and CI read the exit code.
 func TestAPartialScanRefusesRatherThanReporting(t *testing.T) {
 	root := t.TempDir()
 	away := t.TempDir()
@@ -84,8 +74,6 @@ func TestAPartialScanRefusesRatherThanReporting(t *testing.T) {
 	}
 }
 
-// The other side of it: a tree read whole reports and exits 0. Without this the refusal above is
-// satisfied by a tool that refuses everything, which measures nothing and passes.
 func TestATreeReadWholeReportsAndExitsZero(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "std/proto.md", "# P\n\n## Caller\n")
@@ -100,8 +88,6 @@ func TestATreeReadWholeReportsAndExitsZero(t *testing.T) {
 	}
 }
 
-// A root holding no markdown is a measurement that did not run, never the 0 a flat tree exits — the
-// distinction three skills read this exit code for.
 func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "notes.txt", "nothing to read here\n")

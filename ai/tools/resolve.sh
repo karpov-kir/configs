@@ -67,7 +67,17 @@ built_from_this_source() {
   # A checkout carrying binaries with no Go source beside them — the shape a skill mounted from a
   # source-less checkout has — leaves nothing to compare against, so there is no doubt to report. Not
   # a release install: that lands its binaries in a full checkout, which does carry the source.
+  #
+  # What says which shape this is, is the module file, not the missing directory. A checkout that
+  # ships Go source and has none for THIS name holds an orphan: a binary from a tool since renamed,
+  # or one nothing here put there. bin/ is gitignored, so an orphan appears in no diff and no
+  # `git status`, and answering "built from this source" for it serves it at exit 0 in silence — the
+  # one way a binary nobody can account for keeps being exec'd over the human's repositories. Report
+  # it as the unknown it is instead, and let the caller below rebuild it or warn.
   if [ ! -d "$tools/$tool" ] && [ ! -d "$tools/cmd/$tool" ]; then
+    if [ -f "$tools/go.mod" ]; then
+      return 2
+    fi
     return 0
   fi
   want="$("$tools/source-stamp.sh" "$tool")" || return 2

@@ -10,13 +10,10 @@ func TestBareRuleIDCitations(t *testing.T) {
 		newNumberedCitationOverItsHeading(t).reports(bareRule)
 	})
 
-	// The half a reader acts on: the finding has to carry the citation they should have written.
 	t.Run("and names the heading that number opens", func(t *testing.T) {
 		newNumberedCitationOverItsHeading(t).reports(principlesName + " → **" + principlesHeading + "**")
 	})
 
-	// The same citation in a tree holding no heading of that number. It is still dangling, so the
-	// finding names the form rather than going quiet.
 	t.Run("names the form when no heading of that number resolves", func(t *testing.T) {
 		newNumberedCitationWithNoHeading(t).reports("<the numbered heading>")
 	})

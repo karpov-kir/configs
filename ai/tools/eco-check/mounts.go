@@ -8,7 +8,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
 const (
 	skillsNotMounted      = "skills not mounted"
 	skillNotMounted       = "skill not mounted"

@@ -1,4 +1,4 @@
-// The repeated-literal detector as a command, and the only os.Exit in the tool.
+// The repeated-literal detector as a command.
 //
 //	usage: dup-literals.sh [<git-diff revisions>]
 package main

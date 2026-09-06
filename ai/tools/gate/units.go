@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"kk-flavor/tools/shell"
 )
 
 // The files the Go suites read from outside their own module. Go's test cache is keyed on the module
@@ -106,7 +108,7 @@ func (g *gate) discoverShellSuites() int {
 			listed = append(listed, name)
 		}
 	}
-	suites := uniqueSorted(listed)
+	suites := shell.SortUnique(listed)
 	for _, suite := range suites {
 		if err := safeToken("suite", suite); err != nil {
 			return g.fail("%s", err)

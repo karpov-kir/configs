@@ -89,8 +89,6 @@ type baseline struct {
 	files   int
 }
 
-// percentile sorts a copy, so the caller's slice keeps its order. An empty input answers 0, and bar
-// refuses the run before that 0 could stand as a ceiling.
 func percentile(values []float64, p float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -165,7 +163,6 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) chang
 	return set
 }
 
-// bar measures the change set against the host repo and reports how far over it sits.
 func bar(out console, args []string, cwd string, cfg Config) int {
 	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
 		return out.refuse(err)

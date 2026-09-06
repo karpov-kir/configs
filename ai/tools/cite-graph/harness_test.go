@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// The fixtures every case here builds its tree with.
-
 func write(t *testing.T, root, rel, body string) {
 	t.Helper()
 	p := filepath.Join(root, rel)

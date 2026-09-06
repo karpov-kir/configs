@@ -247,7 +247,7 @@ func wcLines(paths []string) int {
 // always-loaded figure is withheld rather than left quietly short.
 const maxFileBytes = shell.MaxFileBytes
 
-// One file as awk saw it, for a path this tool chose rather than the tree.
+// One file's lines, for a path this tool chose rather than the tree.
 func readLines(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

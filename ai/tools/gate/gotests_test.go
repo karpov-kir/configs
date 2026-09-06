@@ -1,12 +1,10 @@
-// A unit that cannot observe the module's `_test.go` files is not keyed on them. Two kinds qualify:
-// the shell suites, which reach Go only through a binary `go build` produced, and `wiring`, whose
-// checker skips test files by name. Narrowing is the dangerous direction — a gate that stops watching
-// a file it should watch reports a pass it did not earn — so every case here checks BOTH sides.
+// A unit that cannot observe the module's `_test.go` files is not keyed on them; gate.go's
+// `blindToGoTests` argues which kinds qualify. Narrowing is the dangerous direction — a gate that stops
+// watching a file it should watch reports a pass it did not earn — so every case here checks BOTH sides.
 package gate
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -89,11 +87,7 @@ func TestAUnitBlindToGoTestsIsNotKeyedOnThem(t *testing.T) {
 // The flag is set at discovery, from the suite's own body, and this is where it can be set wrongly.
 func TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
-		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
-			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-		}
-	}
+	newGitRepo(t, root)
 	suites := map[string]string{
 		// Reaches a tool the way the six real ones do: through the stub, which resolve.sh builds.
 		"binary-test.sh": "#!/bin/sh\nai/tools/resolve.sh cite-graph\n",
@@ -182,11 +176,7 @@ func TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem(t *testing.T) {
 
 func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
-		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
-			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-		}
-	}
+	newGitRepo(t, root)
 	writeFixture(t, filepath.Join(root, "plain-test.sh"), "#!/bin/sh\ntrue\n")
 
 	// The control on the listing itself, and what makes the `-z` flag observable: two ordinary names

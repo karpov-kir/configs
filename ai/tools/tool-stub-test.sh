@@ -218,8 +218,8 @@ while IFS= read -r -d '' listed; do
   [ -n "$listed" ] || continue
   # `git ls-files` prints paths relative to the repository root, and this suite runs from whatever
   # directory the runner happens to be in. Anchored here rather than used as given: unanchored, every
-  # `grep` below missed its file and `continue`d, so the scan checked nothing and only the
-  # zero-counted guard at the bottom said so.
+  # `grep` below misses its file and `continue`s, so the scan checks nothing and only the zero-counted
+  # guard at the bottom says so.
   stub_file="$repo/$listed"
   # This file carries the marker as a string it searches FOR, not as a region it holds. Excluded by
   # name rather than by a cleverer pattern: a scan that tried to tell the two apart by shape would be
@@ -325,7 +325,7 @@ if [ "$stubs_outside_skills" -gt 0 ]; then
   record_pass "and the walk reached past the skills tree, where $stubs_outside_skills of them live"
 else
   record_fail "and the walk reached past the skills tree" \
-    "every stub it found is under $skills, so one outside it is unscanned — which is how the one stub at `kk-flavor/scripts/` went unread"
+    "every stub it found is under $skills, so one outside it is unscanned — which is how the one stub at kk-flavor/scripts/ went unread"
 fi
 
 echo

@@ -14,9 +14,8 @@ const (
 	SharedRegionBodyCap = sharedRegionBodyCap
 )
 
-// The finding heads, which are also rankTable's rows. A case matching on one of these is asserting
-// about the kind the row names, so it reads the row rather than restating it — the same binding the
-// table and the emit sites have.
+// The finding heads, which are also rankTable's rows: a case matching on one is asserting about the
+// kind that row names.
 const (
 	SyntaxError = syntaxError
 
@@ -68,13 +67,13 @@ const (
 	UnresolvableCitationPath         = unresolvableCitationPath
 )
 
-// The note a citation finding against a test harness ends on. Not a head, but bound for the same
-// reason: a case spelling a fragment of it out asserts nothing once the note is reworded around that
-// fragment, and the case asserting the note is ABSENT is the one that goes green saying so.
+// The note a citation finding against a test harness ends on. A case spelling a fragment of it out
+// asserts nothing once the note is reworded around that fragment, and the case asserting the note is
+// ABSENT is the one that goes green saying so.
 const HarnessCitationNote = harnessCitationNote
 
 // One row of the rank table, exported so a case can hold the properties a row needs without copying
-// the table into the suite. A copy there goes stale the next time a kind is added.
+// the table into the suite.
 type RankTableRow struct {
 	Prefix string
 	Rank   int

@@ -60,7 +60,6 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 		r := newRepo(t)
 		r.write("edge.go", "package fixture\n")
 		r.commit("base")
-		// 6 comments of 20 lines is 0.30 exactly.
 		r.write("edge.go", heavy(6, 14))
 		r.run("HEAD")
 		r.expectCode(0)
@@ -195,8 +194,6 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 		{"a ratio that is not a number", "COMMENT_MAX_RATIO", "junk"},
 		{"a floor that is not a whole number", "COMMENT_MIN_LINES", "2.5"},
 		{"a byte cap that is not a whole number", "DENSITY_MAX_FILE_BYTES", "big"},
-		// Values that parse and mean nothing. Without these three the ratio bar can be set past 1, where
-		// nothing is ever an outlier, and the byte cap can go negative, skipping every untracked file.
 		{"a ratio above the share it measures", "COMMENT_MAX_RATIO", "1.5"},
 		{"a negative ratio, under which every file is an outlier", "COMMENT_MAX_RATIO", "-0.1"},
 		{"a floor no file can fall under", "COMMENT_MIN_LINES", "0"},
@@ -248,9 +245,6 @@ func TestTheReportIsOrdered(t *testing.T) {
 	}
 }
 
-// Refusing what does not parse is half the contract; the other half is that what DOES parse moves the
-// bar. Each case asserts the value ConfigFromEnv returns AND the scan's answer under it: a Config
-// nothing scans with is a struct, not a threshold.
 func TestAThresholdOverrideTakesEffect(t *testing.T) {
 	only := func(key, value string) func(string) (string, bool) {
 		return func(asked string) (string, bool) {

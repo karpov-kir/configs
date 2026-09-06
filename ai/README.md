@@ -1,13 +1,12 @@
 # ai — Claude Code, the standards, the skills
 
-`ai/bootstrap.sh` does everything below on a fresh machine, and `--dry-run` prints what it would change
-first. One step stays yours to run by hand, because it writes outside what this repository owns:
-`rtk init -g`.
+`ai/bootstrap.sh` does everything below on a fresh machine, apart from the steps that write outside
+what this repository owns — `rtk init -g` and the codebase-memory-mcp download among them.
 
-Any target you didn't link yourself, it reports and skips rather than replacing, so the individual
-commands below still matter when a step fails. The last thing it does is run the repository's own
-suites over what it just linked; `--skip-verify` turns that off, and `--skip-brew`, `--skip-tools` and
-`--skip-mcp` turn off the steps that reach the network.
+The flags and the refusals both bootstrap scripts share are in the repository's root `README.md`; a
+target this one reports and skips is still yours to link with the commands below. The last thing it
+does is run the repository's own suites over what it just linked; `--skip-verify` turns that off, and
+`--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the network.
 
 - [Claude Code](https://code.claude.com)
   - `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
@@ -20,7 +19,7 @@ suites over what it just linked; `--skip-verify` turns that off, and `--skip-bre
   - `brew install rtk`
   - `rtk init -g`, then restart Claude Code
 - [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — a code graph, for the reachability questions `grep` answers a round at a time
-  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release, check it against `checksums.txt`, and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`
+  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`. `checksums.txt` ships in that same release, so a matching hash only says the two files agree with each other — the attestation is the only thing saying where the binary came from, and `--repo` on its own is weaker than it reads: any workflow in that repository holding `id-token: write` can sign for it. Read the signer workflow's path off a release run and pin it with `--signer-workflow`, the way `ai/tools/install.sh` pins this repository's own
   - Unpack it to `~/.local/bin/codebase-memory-mcp` (~283 MB) and `chmod +x` it
   - **Do not run its `install` subcommand.** It wires itself into every agent client it can find. This machine reaches it by CLI only, on purpose: as an MCP server its tool schema costs ~6k tokens in every session
   - Confine it: `CBM_ALLOWED_ROOT=~/Documents/WP` makes it refuse a path outside that tree
@@ -41,8 +40,8 @@ done
 The tool binaries live in `ai/tools/bin/` inside this checkout, so they go with the checkout. What
 outlives it:
 
-- The MCP servers: `claude mcp remove <name> -s user` for each one `ai/mcp.jsonc` registers, or
-  `claude mcp list` to see what's there.
+- The MCP servers: `claude mcp list` to see what the sync registered, then
+  `claude mcp remove <name> -s user` for each one.
 - `rtk` and `jq`, if nothing else on the machine wants them: `brew uninstall rtk jq`, plus
   `rm -f ~/.claude/RTK.md` for whatever `rtk init -g` left behind.
 

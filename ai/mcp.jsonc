@@ -4,13 +4,20 @@
 // URLs inside quotes are fine.
 {
   "mcpServers": {
+    // Only servers that may be named in public belong in this file. It is committed. An internal
+    // host, or anything carrying a credential, goes in ai/mcp.private.jsonc, which is gitignored and
+    // which mcp-sync.sh reads in the same run — ai/README.md states that policy.
+
     // Both stdio servers run unpinned on purpose. Every launch takes the newest release, so code
-    // I haven't read runs at session start. That much is accepted; what it can read is not.
+    // I haven't read runs at session start. That much is accepted; what they inherit is not.
     // Both launch through mcp-env.sh, which re-execs behind `env -i` and passes only the variables a
     // node process needs to start. The allow-list, and the reason for each name, live in that file.
+    // What that buys is the environment, and only the environment. HOME is on the allow-list, so
+    // these servers still read every file this account can — ~/.ssh, ~/.aws, and ~/.claude.json,
+    // where mcp-sync.sh has written each registered server's config. The wrapper is not a sandbox.
     // `"env": {}` would not do it: that adds to the inherited environment rather than replacing it,
     // so a server still sees every credential exported in the shell that started Claude Code.
-    // Measured on Claude Code 2.1.247, not inferred: `claude mcp list` launches each stdio server to
+    // Measured on Claude Code 2.1.247: `claude mcp list` launches each stdio server to
     // health-check it, so one whose command dumps `env` reports what it was handed. `"env": {}` and
     // no `env` key at all handed it the same environment, an exported test variable included, and
     // `{"X": "y"}` handed it that same environment plus X — which is what rules out the field being
@@ -35,10 +42,6 @@
       "type": "stdio",
       "command": "@CONFIGS@/mcp-env.sh",
       "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect"]
-    },
-    "testautomation": {
-      "type": "http",
-      "url": "https://agentic.bitmovin.systems/testautomation/mcp"
     }
   }
 }

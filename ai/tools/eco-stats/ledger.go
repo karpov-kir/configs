@@ -78,8 +78,8 @@ func (s *stats) appendRow(self, note string, out, errOut io.Writer) int {
 }
 
 // `cd "$(dirname "$0")/.." && pwd` — the ledger belongs to kk-reduce and this program runs from the
-// scripts/ directory inside it. Resolved lexically, the way the shell's logical `cd` resolved it, so
-// a path reached through a symlinked directory keeps the name it was invoked by.
+// scripts/ directory inside it. Resolved lexically, so a path reached through a symlinked directory
+// keeps the name it was invoked by.
 //
 // The stub execs `-a "$0"`, so the self name is whatever the caller typed. One that places no
 // program is refused, not resolved. Guessing wrong doesn't fail: `createLedger` creates a ledger
@@ -101,7 +101,7 @@ func ownDirectory(self string) (string, bool) {
 	return dir, true
 }
 
-// O_EXCL rather than the shell's truncating `>`: between the symlink test above and this line the
+// O_EXCL rather than a create that would truncate: between the symlink test above and this line the
 // path can become one, and O_EXCL refuses exactly what that test would have caught. It also fails
 // fast on a FIFO left at the path, which `>` would open and block on forever.
 func createLedger(path string) error {

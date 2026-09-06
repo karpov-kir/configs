@@ -82,7 +82,7 @@ func frontmatterField(lines []string, field string) string {
 // cost no context in a session that never invokes it.
 func IsOptedOutOfModelInvocation(lines []string) bool {
 	return scanFrontmatter(lines, func(line string) bool {
-		return modelInvocationOff.MatchString(asciiLower(line))
+		return modelInvocationOff.MatchString(AsciiLower(line))
 	})
 }
 

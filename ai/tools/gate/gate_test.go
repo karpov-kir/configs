@@ -105,8 +105,6 @@ func TestAUnitExitingTwoIsNeverMeasuredRatherThanFailed(t *testing.T) {
 	}
 }
 
-// run-tests.sh's "ran, and refuses its own result" — the checkout moved underneath it. Read as a
-// failure it would name the code for something a neighbouring agent did.
 func TestAUnitExitingThreeRefusesItsResultRatherThanFailing(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")
@@ -123,7 +121,6 @@ func TestAUnitExitingThreeRefusesItsResultRatherThanFailing(t *testing.T) {
 	}
 }
 
-// A finding about the code outranks one about the machine.
 func TestAFailureBesideAnUnmeasuredUnitExitsOne(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")
@@ -137,8 +134,6 @@ func TestAFailureBesideAnUnmeasuredUnitExitsOne(t *testing.T) {
 	f.expectOut("NO MEASURE")
 }
 
-// A rename or a typo silently narrowing the gate looks exactly like a clean run, which is why this is
-// treated as worse than a failure.
 func TestAUnitResolvingToNoFileExitsTwo(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")

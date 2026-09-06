@@ -7,10 +7,9 @@ import (
 	"testing"
 )
 
-// Both rows are real spans out of this tree, and both cleared the old match. The first has been
-// adjudicated three separate times and accepted every time, because two consumers naming the same
-// dependency at their own point of use is what `One home` asks for, not what it bars. The second is a
-// genuine restatement and has to stay one, or the test below would pass by silencing everything.
+// Both rows are real spans out of this tree. The first is not a restatement: two consumers naming the
+// same dependency at their own point of use is what `One home` asks for, not what it bars. The second
+// is a genuine restatement and has to stay one, or the test below would pass by silencing everything.
 func TestAPairSharingOnlyACitedNameIsNotARestatement(t *testing.T) {
 	cases := []struct {
 		name string

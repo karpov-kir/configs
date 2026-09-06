@@ -427,10 +427,9 @@ func modeDeniesDirList(t *testing.T) bool {
 }
 
 // A directory the walk cannot list takes its whole subtree out of every figure, and it does so in the
-// shape of a smaller tree: `find` printed its own errors and this walked on in silence. Over a copy of
-// `ai/` with `kk-flavor/standards/` shut, prose went from 32714 words to 20633 and the always-loaded
-// tier from 1695 to 962, both printed at full confidence at exit 0 — and `--append` would have written
-// those figures into stats.md, where every later delta is taken off them.
+// shape of a smaller tree — every figure printed at full confidence, with nothing saying which of them
+// went short. eco-stats.go carries the measured cost at the guard that acts on it. `--append` would
+// write those figures into stats.md, where every later delta is taken off them.
 func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
 	build := func(t *testing.T) *fixture {
 		t.Helper()
@@ -708,11 +707,11 @@ func skillWithDescription(name string) string {
 	return "---\nname: " + name + "\ndescription: four words exactly here\n---\n"
 }
 
-// A whole-file read of a file the measured tree wrote. awk streamed; this does not, so every line
-// becomes a slice header: a committed 64 MiB of newlines packs to about 65 KB and took 2.46 GB of
-// resident memory here, and half a gigabyte of it is an OOM kill rather than a measurement. The read
-// was left unbounded on the grounds that a bound would leave the always-loaded figure short with
-// nothing saying so — which is what refuseBudgetFile already exists to prevent.
+// A whole-file read of a file the measured tree wrote: every line becomes a slice header, so a
+// committed file of newlines costs orders of magnitude more resident memory than it does on disk —
+// shell.MaxFileBytes carries the figure. A bound would leave the always-loaded figure short with
+// nothing saying so, which is exactly what refuseBudgetFile exists to prevent, so the file is refused
+// rather than read.
 func TestAnOversizeBudgetFileIsRefusedRatherThanRead(t *testing.T) {
 	build := func(t *testing.T) *fixture {
 		t.Helper()

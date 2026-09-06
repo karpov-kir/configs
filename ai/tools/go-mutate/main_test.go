@@ -261,9 +261,9 @@ func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 // has to survive the run rather than be read and dropped. Every other verdict carries none: an
 // evidence block under a `killed` line would claim the suite said something it did not.
 func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
-	timedOut := timedOutSuiteOutput
-	if verdict, evidence := verdictWithEvidence(true, timedOut); verdict != "TIMED OUT" || evidence != timedOut {
-		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d", verdict, len(evidence), len(timedOut))
+	if verdict, evidence := verdictWithEvidence(true, timedOutSuiteOutput); verdict != "TIMED OUT" || evidence != timedOutSuiteOutput {
+		t.Errorf("a timed-out suite gave (%q, %d bytes of evidence), want TIMED OUT carrying all %d",
+			verdict, len(evidence), len(timedOutSuiteOutput))
 	}
 	for _, out := range []string{"--- FAIL: TestBound\nFAIL", "ok  \t./p/\t0.1s", "[build failed]"} {
 		if _, evidence := verdictWithEvidence(true, out); evidence != "" {
@@ -276,8 +276,8 @@ func TestOnlyATimeoutCarriesItsOutputOut(t *testing.T) {
 }
 
 // A timed-out suite exits non-zero with a panic that is neither a build failure nor a case going red.
-// Read as a kill — which is what happened before this arm existed — the mutant is credited with a
-// guard it never observed, and the harness manufactures the finding it exists to produce.
+// Read as a kill, the mutant is credited with a guard it never observed, and the harness manufactures
+// the finding it exists to produce.
 func TestASuiteThatRanOutOfTimeIsNotAKill(t *testing.T) {
 	if got := verdictOf(true, timedOutSuiteOutput); got != "TIMED OUT" {
 		t.Fatalf("a timed-out suite came back %q, want TIMED OUT — %q credits a guard nothing observed", got, got)
@@ -519,7 +519,7 @@ func writeSource(t *testing.T, dir, name, body string) {
 // A mutant the harness could not set up says nothing about the guard it names, and the whole premise
 // of the CI step above this harness is that exit 1 means a guard did not redden. Counted as a finding,
 // a full disk or a moved source file would report the code as broken for something only the machine
-// did — and the error saying otherwise used to be discarded at four sites.
+// did.
 func TestAMutantTheHarnessCouldNotSetUpIsNotAFinding(t *testing.T) {
 	if shown, isBad := outcomeOf(noSetup, false); isBad || shown != noSetup {
 		t.Errorf("outcomeOf gave (%q, %v), want (%s, false): it says nothing about the guard either way", shown, isBad, noSetup)

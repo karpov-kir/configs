@@ -1,12 +1,5 @@
 package ecocheck_test
 
-// The family-direction scan: an any-repo skill never names the workflow family, or the directory that
-// family keeps its state in. The rule's home is ecosystem.md → **Family direction**.
-//
-// The two directions are asserted separately, because the whole rule IS the direction: a scan that
-// fired both ways would flag a workflow skill citing an any-repo one, which is the composition the
-// suite is built on and the one thing this must stay quiet about.
-
 import "testing"
 
 func TestFamilyDirectionScan(t *testing.T) {
@@ -18,8 +11,6 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f.reports(crossFamily)
 	})
 
-	// The directory is worth its own case: a skill can carry the workflow's on-disk knowledge without
-	// naming any of its skills, and that steers its reader exactly as hard.
 	t.Run("fires on an any-repo skill naming the workflow's state directory", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-build")
@@ -28,8 +19,6 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f.reports(crossFamily)
 	})
 
-	// A script's comment steers the agent reading it the way the skill file does, and it is read on the
-	// same trigger. Scanning SKILL.md alone would leave every scripts/ directory unchecked.
 	t.Run("fires on a script under an any-repo skill, not only its SKILL.md", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-ship")
@@ -53,8 +42,6 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f.doesNotReport(crossFamily, unfamiliedSkill)
 	})
 
-	// An any-repo skill talking about its own family is the ordinary case, and a scan that flagged it
-	// would fire on almost every file in the tree.
 	t.Run("stays quiet on an any-repo skill naming its own family", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-tighten")
@@ -75,9 +62,6 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f.doesNotReport(crossFamily)
 	})
 
-	// The exception is keyed on the skill's NAME, so without this the router has a blanket pass: it could
-	// stop explaining why it alone names the other family and nothing would fail. ecosystem.md asks for
-	// the claim to be in the file, so the file is what gets checked.
 	t.Run("fires on the router naming the workflow family with no claim", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-ship")

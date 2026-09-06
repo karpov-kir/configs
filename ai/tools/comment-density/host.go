@@ -17,9 +17,9 @@ func refusal(what string) error {
 	return errors.New(what + barDidNotRun)
 }
 
-// gitRefusal carries git's own account under the refusal, as Diff prints it. A bad revision, an unborn
-// HEAD and a missing object all fail the same call, and one sentence for the three sends a reader
-// looking in the wrong place. Output() keeps stderr on the ExitError.
+// A bad revision, an unborn HEAD and a missing object all fail the same call, and one sentence for the
+// three sends a reader looking in the wrong place. Output() keeps stderr on the ExitError, which is
+// what lets git's own account ride under the refusal.
 func gitRefusal(what string, err error) error {
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
@@ -72,7 +72,8 @@ func (h hostRepo) hasCommit() bool {
 
 // listSources keeps the source files a git listing prints. `-z` is the caller's to pass: without it git
 // C-quotes a path holding a non-ASCII byte. dir is where git runs, and the paths it prints must still
-// be root-relative: `diff --name-only` always prints them so, `ls-files` only with `--full-name`.
+// be root-relative: `diff` prints them so only with `--no-relative`, and `ls-files` only with
+// `--full-name`.
 func (h hostRepo) listSources(dir string, args ...string) ([]string, error) {
 	out, err := gitOutput(dir, args...)
 	if err != nil {
@@ -110,7 +111,11 @@ func (h hostRepo) changedSources(revisions, pathspec []string) ([]string, error)
 	if len(pathspec) > 0 {
 		dir = h.cwd
 	}
-	diffArgs := []string{"diff", "--name-only", "-z", "--no-ext-diff", "--diff-filter=d"}
+	// `--no-relative` for the same reason `--no-ext-diff` is here: both override something the
+	// reviewer's own git config can set. Under `diff.relative=true` a listing from a subdirectory
+	// names `a.go` for `pkg/a.go` and drops every changed file outside that directory, so readCapped
+	// finds nothing, the baseline keeps files the change touched, and the bar measures another tree.
+	diffArgs := []string{"diff", "--name-only", "-z", "--no-ext-diff", "--no-relative", "--diff-filter=d"}
 	if len(revisions) == 0 {
 		diffArgs = append(diffArgs, "HEAD")
 	} else {

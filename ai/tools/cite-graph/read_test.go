@@ -28,7 +28,6 @@ func TestSameBasenameInTwoDirectoriesStaysTwoNodes(t *testing.T) {
 	}
 }
 
-// An ambiguous bare name is dropped rather than attributed to a guess.
 func TestAmbiguousBasenameIsNotCounted(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "a/SKILL.md", "# A\n")
@@ -74,7 +73,6 @@ func TestSelfCitationAndFencesAreNotEdges(t *testing.T) {
 	}
 }
 
-// A path citation resolves to the file it names, not to whatever shares its basename.
 func TestPathCitationResolvesByPath(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "std/writing.md", "# W\n\n## Density\n")
@@ -248,8 +246,6 @@ func TestTheWholeFileReadAndItsCitationShareOneLine(t *testing.T) {
 	}
 }
 
-// An edge keys on the heading matched, not the string cited. Keyed on the citation, a section reached
-// through truncation or the em-dash alias is reported UNENTERED while files are entering it.
 func TestEdgeKeysOnTheHeadingNotTheCitation(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "std/h.md", "# H\n\n## Budget — the keep test\n")

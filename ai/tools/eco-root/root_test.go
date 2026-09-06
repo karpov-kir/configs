@@ -1,9 +1,7 @@
 package ecoroot_test
 
-// Resolving the checkout. Both ecosystem tools now read their root through this package, so the
-// candidate list and the refusal below are the one place either of them decides which tree it is
-// describing — and neither tool's own suite reaches them: every fixture there names its root
-// outright.
+// Resolving the checkout. Neither tool's own suite reaches the candidate list or the refusal below:
+// every fixture there names its root outright.
 
 import (
 	"os"
@@ -83,8 +81,7 @@ func TestABareInvocationTriesTheTwoCandidatesInOrder(t *testing.T) {
 	})
 }
 
-// A checkout is the two directories and nothing else — what New tests for is exactly this much.
-// under is where beneath base to build it, so a case can put one at ./ai and leave base itself
+// under is where beneath base to build the checkout, so a case can put one at ./ai and leave base itself
 // holding no checkout at all; base is what such a case makes its working directory.
 func newCheckout(t *testing.T, under string) (base, checkout string) {
 	t.Helper()
@@ -109,8 +106,8 @@ func assertEquals(t *testing.T, what, got, want string) {
 }
 
 // The always-loaded tier's membership, which both tools count and neither may count differently. The
-// two heading lines are the whole question: each tool selected the block its own way, and a link on
-// the closing `## Read on trigger` heading counted as always-loaded in one of them.
+// two heading lines are the whole question: a link on the closing `## Read on trigger` heading is in
+// the next tier, not this one.
 func TestOnlyTheLinksBetweenTheHeadingsAreAlwaysLoaded(t *testing.T) {
 	lines := []string{
 		"# Flavor",

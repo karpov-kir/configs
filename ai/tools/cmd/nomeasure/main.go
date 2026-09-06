@@ -1,5 +1,4 @@
-// The did-not-measure counter as a command, and the only os.Exit in the tool: everything it does
-// lives in the package beside it, so the suite can drive the same code without a process per case.
+// The did-not-measure counter as a command.
 //
 //	usage: nomeasure <harness-exit-status> <count-file>
 package main

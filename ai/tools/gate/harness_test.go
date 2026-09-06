@@ -36,14 +36,22 @@ func newFixture(t *testing.T) *fixture {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+	newGitRepo(t, root)
+	f := &fixture{t: t, root: root, cache: filepath.Join(base, "cache"), units: filepath.Join(base, "units")}
+	return f
+}
+
+// A repository the gate can list files out of. Every fixture here needs one, because discovery and the
+// manifest both go through `git ls-files`, and an identity because the ones that commit would otherwise
+// take whatever the machine's own config says.
+func newGitRepo(t *testing.T, root string) {
+	t.Helper()
 	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
 		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 		}
 	}
-	f := &fixture{t: t, root: root, cache: filepath.Join(base, "cache"), units: filepath.Join(base, "units")}
-	return f
 }
 
 func (f *fixture) write(name, body string) {

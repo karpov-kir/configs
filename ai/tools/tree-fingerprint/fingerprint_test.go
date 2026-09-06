@@ -1,15 +1,13 @@
-// Cases for the tree fingerprint. Two must not be weakened.
+// Cases for the tree fingerprint. Two must not be weakened, and each one's own comment says what it
+// rests on.
 //
 // "an untracked file's content never reaches the repository's object store" is the security property
-// the throwaway object store exists for: `add -A` hashes every un-ignored file, no ref points at those
-// blobs, and nothing ever collects them — so without the throwaway store, fingerprinting a tree leaves
-// the caller's working files, a live credential among them, recoverable from `.git/objects` for good.
+// the throwaway object store exists for. Weakened, fingerprinting a tree leaves the caller's working
+// files, a live credential among them, recoverable from `.git/objects` for good.
 //
-// "a tracked file matching an ignore rule still changes the fingerprint" is the seed. Git applies
-// ignore rules only to paths the index does not already hold, so an index built from nothing drops
-// such a file from the walk entirely — and it could then be rewritten between two runs with the
-// fingerprint unmoved. That is a stale ledger passing as a valid resume point, which is the failure
-// this whole recipe exists to prevent.
+// "a tracked file matching an ignore rule still changes the fingerprint" is the seed. Weakened, it
+// lets a stale ledger pass as a valid resume point, which is the failure this whole recipe exists to
+// prevent.
 package treefingerprint
 
 import (
