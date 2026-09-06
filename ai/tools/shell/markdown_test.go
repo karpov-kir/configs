@@ -83,4 +83,53 @@ func TestTheScriptAndThisPackageSpellTheMarkerTheSameWay(t *testing.T) {
 		t.Errorf("ai/bootstrap.sh does not match on /%s/, so the script and this package disagree about "+
 			"which skills the audience marker covers. Whichever one is right, both have to say it.", pattern)
 	}
+	// The second pattern, held the same way. A reader that knows the marker but not what an audience
+	// line looks like cannot tell a misspelling from an absent marker, so the two spellings are one
+	// contract and drift in either half breaks the same thing.
+	declared := audienceDeclared.String()
+	if !strings.Contains(string(script), "/"+declared+"/") {
+		t.Errorf("ai/bootstrap.sh does not match on /%s/, so it cannot refuse an audience value this "+
+			"package refuses — a typo would install for everyone on a machine that never reports it.", declared)
+	}
+}
+
+// The misspelling is the case, not the marker: a reader asking only "is this the marker" answers no
+// to `audience: maintainr` and to a skill that declared nothing, and the two mean opposite things.
+func TestAnAudienceNothingReadsIsRefusedRatherThanIgnored(t *testing.T) {
+	frontmatter := func(line string) []string {
+		if line == "" {
+			return []string{"---", "name: x", "---"}
+		}
+		return []string{"---", "name: x", line, "---"}
+	}
+	for _, c := range []struct {
+		line    string
+		want    string
+		refused bool
+	}{
+		// The two that must stay silent, and they are the controls: without them an always-refusing
+		// reader passes every case below.
+		{"", "", false},
+		{"audience: maintainer", "", false},
+		{"audience:   Maintainer  ", "", false},
+		// The class the marker check cannot reach.
+		{"audience: maintainr", "maintainr", true},
+		{"audience: everyone", "everyone", true},
+		// A key with no value is a declaration too — a bound they think they set.
+		{"audience:", "", true},
+	} {
+		value, found := UnknownAudience(frontmatter(c.line))
+		if found != c.refused {
+			t.Errorf("UnknownAudience(%q) found = %v, want %v", c.line, found, c.refused)
+			continue
+		}
+		if found && value != c.want {
+			t.Errorf("UnknownAudience(%q) echoed %q, want %q — it is read by whoever typed the line",
+				c.line, value, c.want)
+		}
+	}
+	// Outside the block it is prose, which is the rule the whole frontmatter scan rests on.
+	if _, found := UnknownAudience([]string{"---", "name: x", "---", "audience: maintainr"}); found {
+		t.Error("an audience line in the body was refused, so prose can fail an install")
+	}
 }

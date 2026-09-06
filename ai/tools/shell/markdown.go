@@ -28,6 +28,11 @@ var (
 	// on the machine exists, and cannot call in here. So the pattern is written twice, and
 	// markdown_test.go holds the two spellings to each other.
 	maintainerAudience = regexp.MustCompilePOSIX(`^audience:[[:space:]]*maintainer[[:space:]]*$`)
+
+	// Any `audience:` line at all, so a value neither reader knows can be refused by name instead of
+	// passing for an absent marker. Kept beside the pattern above because the two are one rule: the
+	// marker has exactly one spelling, and everything else is a mistake somebody made on purpose.
+	audienceDeclared = regexp.MustCompilePOSIX(`^audience:`)
 )
 
 // LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
@@ -115,6 +120,31 @@ func IsMaintainerAudience(lines []string) bool {
 	return scanFrontmatter(lines, func(line string) bool {
 		return maintainerAudience.MatchString(AsciiLower(line))
 	})
+}
+
+// The value on an `audience:` line that neither reader recognises, and whether there was one.
+//
+// Returned rather than passed over. `audience: maintainr` matches no marker, so a reader that only
+// asks "is this the marker" answers no and the skill installs for everyone — a declaration the human
+// wrote, silently ignored, leaving them with a skill they believe is marked and is not. That is the
+// same failure `ai/tools/bloat-judge/deadline.go` refuses an unrecognised override line for, and it
+// is worse here: the mistake is invisible on a machine where the install looks correct.
+//
+// `maintainer` is the only value there is. Adding a second one means teaching both readers, which is
+// what this refusal makes unavoidable rather than optional.
+func UnknownAudience(lines []string) (string, bool) {
+	value, found := "", false
+	scanFrontmatter(lines, func(line string) bool {
+		lowered := AsciiLower(line)
+		if !audienceDeclared.MatchString(lowered) || maintainerAudience.MatchString(lowered) {
+			return false
+		}
+		// The raw value, not the lowered one: it is echoed back to whoever typed it, and a reader
+		// hunting `Maintainr` in their file should find what they wrote.
+		value, found = strings.TrimSpace(line[len("audience:"):]), true
+		return true
+	})
+	return value, found
 }
 
 // Walks the frontmatter block and stops at the first line the reader accepts, reporting whether one

@@ -105,6 +105,33 @@ is_maintainer_only() { # <SKILL.md>
   ' "$1"
 }
 
+# The value on an `audience:` line neither reader knows, printed for the refusal below. Its block rule
+# is the one above, character for character, for the same reason.
+#
+# Asked at all because "is this the marker" cannot tell `audience: maintainr` from a skill that
+# declared nothing: both answer no, and the typo installs for everyone while the human who wrote it
+# believes they marked it. Nothing on the resulting machine looks wrong. `maintainer` is the only
+# value there is, so anything else is refused by name — the same answer ai/tools/bloat-judge's
+# deadline override gives an option it does not understand, for the same reason.
+unknown_audience() { # <SKILL.md>, prints the value and exits 0 when there is one
+  [ -r "$1" ] || return 1
+  awk '
+    NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next }
+    /^---[[:space:]]*$/ { closed = 1; exit }
+    tolower($0) ~ /^audience:/ && tolower($0) !~ /^audience:[[:space:]]*maintainer[[:space:]]*$/ {
+      # The first one only, and the raw text rather than the lowered line: it is echoed back to
+      # whoever typed it, and a reader hunting `Maintainr` should find what they wrote.
+      if (!found) { found = 1; value = substr($0, index($0, ":") + 1) }
+    }
+    END {
+      if (!closed || !found) exit 1
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      print value
+      exit 0
+    }
+  ' "$1"
+}
+
 # Discovery, not a list: a skill added tomorrow is mounted without anyone editing this file. The cost
 # of discovery is that finding none would silently mount nothing, so that is a refusal below.
 skills_found=0
@@ -115,6 +142,12 @@ for dir in "$repo"/skills/*/; do
   # `%/` first: `##*/` on a path ending in `/` returns nothing, pointing every skill at one target.
   skill_dir="${dir%/}"
   skills_found=$((skills_found + 1))
+  # Asked whatever the flags say: a marker nothing reads is wrong on a maintainer's machine too, and
+  # the run that installs it is the last moment anyone looks at that line. Mounting continues, so the
+  # tree behaves as it does today and the non-zero exit is what carries the news.
+  if bad_audience="$(unknown_audience "$skill_dir/SKILL.md")"; then
+    refuse "${skill_dir##*/} declares 'audience: $bad_audience' in $skill_dir/SKILL.md, which no reader knows — the only value is 'audience: maintainer', and as written the skill installs for everyone"
+  fi
   if $skip_maintainer_skills && is_maintainer_only "$skill_dir/SKILL.md"; then
     skipped_count=$((skipped_count + 1))
     skipped_names="$skipped_names ${skill_dir##*/}"

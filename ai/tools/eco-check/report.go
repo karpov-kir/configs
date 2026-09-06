@@ -112,6 +112,7 @@ var rankTable = []struct {
 	// Each of these three also heads its own scan's "already shown, the rest are not listed" notice.
 	// reportBoundReached leads with the class name for that reason, so the notice shares the row.
 	{sharedLayerCitesLane, 5},
+	{audienceNothingReads, 5},
 	{sharedLayerNamesLane, 5},
 	{sharedLayerReachesLaneByBasename, 5},
 	// The quote is what separates this from the other `skill…` rows above and below: the tree's own

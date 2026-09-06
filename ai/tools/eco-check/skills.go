@@ -10,6 +10,7 @@ const (
 	skillDirWithoutSkillFile = "skill dir without SKILL.md: "
 	skillNameDirMismatch     = "skill name/dir mismatch"
 	skillWithoutDescription  = "skill without a description: "
+	audienceNothingReads     = "audience nothing reads"
 )
 
 // Each defect here makes a skill unreachable rather than merely mis-linked: the loader finds a skill
@@ -38,6 +39,14 @@ func (c *checker) scanSkillDirectories() {
 		}
 		if shell.FrontmatterDescription(lines) == "" {
 			c.add(skillWithoutDescription + shell.Oneline(file))
+		}
+		// Reported rather than read as an absent marker. `audience: maintainer` is the one value both
+		// readers know; anything else installs the skill for everyone while the human who typed it
+		// believes they marked it, and nothing on a correct-looking machine says otherwise. The
+		// install refuses the same line for itself — an external machine has no copy of this check.
+		if value, found := shell.UnknownAudience(lines); found {
+			c.add(audienceNothingReads + ": " + shell.Oneline(file) + " declares '" + shell.Oneline(value) +
+				"' — the only value is `audience: maintainer`, and this one leaves the skill installed for everyone")
 		}
 	}
 }

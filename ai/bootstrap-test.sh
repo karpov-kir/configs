@@ -247,6 +247,39 @@ expect_status "a checkout whose every skill is marked exits 1" 1
 expect_out "and says the flag is what excluded them" "excluded all 1"
 expect_not_out "and does not report the tree as holding no skill at all" "no skill directories under"
 
+# An audience nothing reads. The marker check answers "not marked" to a misspelling and to a skill that
+# declared nothing, and those mean opposite things — so the misspelling installs for everyone while
+# whoever typed it believes they marked it, on a machine where nothing looks wrong.
+typo_audience="$tmp_real/typo-audience"
+fixture_checkout "$typo_audience" ai
+mkdir -p "$typo_audience/ai/skills/kk-typo" "$typo_audience/ai/kk-flavor"
+: >"$typo_audience/ai/CLAUDE.md"
+cat >"$typo_audience/ai/skills/kk-typo/SKILL.md" <<'SKILL'
+---
+name: kk-typo
+description: the one skill this fixture ships
+audience: maintainr
+---
+SKILL
+
+fresh_home
+out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" \
+  --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+status=$?
+expect_status "a misspelled audience exits 1 rather than installing quietly" 1
+expect_out "and echoes back what was written, so it can be found in the file" "maintainr"
+expect_out "and names the one value there is" "audience: maintainer"
+
+# The control. Without it every assertion above is equally satisfied by a script that refuses each
+# skill it reads, and the suite would be measuring nothing.
+fresh_home
+sed -i.bak 's/^audience: maintainr$/audience: maintainer/' "$typo_audience/ai/skills/kk-typo/SKILL.md"
+out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" \
+  --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+status=$?
+expect_status "control: the same tree with the marker spelled right exits 0" 0
+expect_not_out "control: and refuses nothing" "no reader knows"
+
 # The control, and the load-bearing half: the same checkout with no flag mounts its one skill. Without
 # it the refusal above would pass over a fixture that never had a skill to mount.
 fresh_home
