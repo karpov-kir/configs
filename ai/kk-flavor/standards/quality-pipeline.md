@@ -28,9 +28,9 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **Hold the change set against the ask it was given, before any lens reads it** — every requirement delivered, nothing delivered beyond them, and no contradiction inside the change. This is the **conformance lane**, and it is **a gate, not a stage**: a stage is handed a scope, never the ask, so unasked-for work reads to every lens as correct code and passes.
 
-**The orchestrator owns it, and runs it inside its own loop rather than as a stage of the pass.** **A pass that reaches the stages with no conformance gate run says so in its closing status** — it held this change against no ask, and a green pass otherwise reads as covering scope.
+**Whoever holds the ask runs it.** A caller above the pass runs it inside its own loop; **where the pass is itself the top, it runs the gate before the round**. **A pass that reaches the stages with no conformance gate behind it says so in its closing status** — a green pass otherwise reads as covering scope.
 
-**Its findings split by who can resolve them.** A requirement not delivered is a red result the caller fixes and re-runs. **Delivery beyond the ask, and every contradiction, go to the human** — deleting unasked-for work is a decision, not a fix ([skill-protocol.md](skill-protocol.md) → **Orchestrators — interactive first**). Say plainly when there is neither.
+**Its findings split by who can resolve them.** A requirement not delivered is a red result the caller fixes and re-runs. **Delivery beyond the ask, and every contradiction, go to the human** — deleting unasked-for work is a decision, not a fix ([skill-protocol.md](skill-protocol.md) → **Orchestrators — interactive first**). Say plainly when the gate found neither.
 
 **A change set stating no ask and linking none cannot be checked against one** — say so and ask, before the pass is spent.
 

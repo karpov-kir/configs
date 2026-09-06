@@ -16,7 +16,7 @@ If refining, read the named intent file, grill only the gaps, and preserve its b
 
 ## Phase 1 — Grill
 
-Invoke `kk-grill` **inline** over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
+Invoke `kk-grill` over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
 
 Cover only what's unclear — the heuristic per part:
 

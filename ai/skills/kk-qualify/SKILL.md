@@ -22,10 +22,10 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | code-review | `kk-code-review` | — | `code-review` |
 | security-review | `kk-security-review` | — | `security` |
 | prose | `kk-tighten` | — | — |
-| outward-text | `kk-humanize` | — | `comments` |
+| outward-text | `kk-humanize` | `~/.claude/skills/kk-humanize/scripts/comment-density.sh` | `comments` |
 | refactor | `kk-refactor` | `~/.claude/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
 
-**Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**). **Conformance is your caller's gate, run before you are invoked** (`~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**) — its row names the skill filling the lane, never something you run. **Bare, no caller ran it** — that section says what your status line then owes.
+**Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**). **Conformance is a gate, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**). A caller holding the ask runs it before invoking you; **bare, you hold the ask and run the gate yourself, before the round**. Only a change set with no ask at all reaches the stages ungated, and that section says what your status line then owes.
 
 **Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills; and a retrospective, which is no lane at all and belongs to `kk-retro`.
 

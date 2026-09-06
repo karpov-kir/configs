@@ -4,7 +4,7 @@ description: Implement one ICE intent — settle the gaps and stack choices it l
 argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 ---
 
-You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. Phases 2–3 are `~/.kk-flavor/standards/building.md` with the deltas they state, and Phases 3–5 run the pipeline's gates, so read `~/.kk-flavor/standards/quality-pipeline.md` whole rather than entering it a section at a time.
+You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. Phases 2–3 are `~/.kk-flavor/standards/building.md` with the deltas they state. Phases 3–5 run the pipeline's gates, so read `~/.kk-flavor/standards/quality-pipeline.md` whole rather than entering it a section at a time.
 
 **The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**).
 
@@ -14,7 +14,7 @@ Input: an intent file under `.idsd/intents/NNN-<slug>.md` — its parts are defi
 
 **Start with `~/.claude/skills/idsd-qualify/scripts/report.sh intent-ready <NNN-slug>`.** It blocks on the mechanical gaps — an unfilled template placeholder, an empty required section, a `depends-on` edge that has not shipped. Fold each fix into the ICE through `idsd-intent`, or build the dependency first, and re-run until it clears.
 
-Then two **gap rounds** of `kk-grill`, run **inline**, recomputing what is still open between them:
+Then two **gap rounds** of `kk-grill`, recomputing what is still open between them:
 
 1. **What the intent leaves open against the code as it stands.** `idsd-intent`'s clarify pass already read the ICE for its own coherence. This round reads it beside the code, and asks only what would stop an implementer: a goal term, scenario or constraint the code leaves reading two ways; a UI or observable-behaviour intent whose **presentation** neither the ICE nor the code pins (surface form, highlighting, loading and empty states, …); an acceptance bar nothing in the repo can measure.
 2. **What this build must choose and the intent cannot.** Only where such a choice exists — `~/.claude/skills/idsd-build/technical-round.md` is the whole delta for that path.
@@ -31,14 +31,14 @@ Then two **gap rounds** of `kk-grill`, run **inline**, recomputing what is still
 - Read `.idsd/charter.md`, `.idsd/constraints.md`, `.idsd/language.md` and `.idsd/playbook.md` if present, plus the project's own `CLAUDE.md`. The language file fixes the names this build uses. **The playbook is pruned here and nowhere else** — an entry you reach for and find wrong is deleted in the same breath, through Phase 3's `report.sh record evict`. Append it again, corrected, where it is worth keeping.
 - **In committed repo mode, the project's own `CLAUDE.md` should point at `.idsd/`** — the charter, the constraints, the language and the playbook. Nothing else tells an agent working here *outside* an idsd run that any of them exist. Propose that pointer block when it is missing and add it on confirmation; never in throwaway mode, where `CLAUDE.md` is tracked and the mode forbids a traceable edit.
 
-**The reading and the gate resolution are** `~/.kk-flavor/standards/building.md` → **Before the loop**. Two things are this build's delta on it: the constraints that bind are the ICE's own plus `.idsd/constraints.md`'s that the ICE does not override, and a constraint that cannot become a command goes to the Phase 4 checkpoint.
+**The reading and the gate resolution are** `~/.kk-flavor/standards/building.md` → **Before the loop**, with two deltas. The constraints that bind are the ICE's own, plus `.idsd/constraints.md`'s that the ICE does not override. A constraint that cannot become a command goes to the Phase 4 checkpoint.
 
 ## Phase 3 — Implement & validate (bounded loop)
 
-**The loop itself is** `~/.kk-flavor/standards/building.md` → **The loop** — read it; the three bullets below are this build's delta on it.
+**The loop itself is** `~/.kk-flavor/standards/building.md` → **The loop**; the bullets below are this build's delta on it.
 
 - **Its tests are this ICE's scenarios**, each at the cheapest level that can prove it (`~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, rule 4). Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises — each supported value, threshold, edge branch. Extend hand-written tests; don't clobber them.
-- **Once the loop is green, run the conformance gate** — `~/.claude/skills/kk-conform/SKILL.md`, per `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**. Its requirement set is this intent's goal, scenarios and constraints. Run it **inline** — only this thread reaches the human (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). A requirement it finds undelivered is a red result you fix and re-run; the rest of its return goes to the checkpoint.
+- **Once the loop is green, run the conformance gate** — `~/.claude/skills/kk-conform/SKILL.md`, per `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**. Its requirement set is this intent's goal, scenarios and constraints. Run it **inline**: only this thread reaches the human. A requirement it finds undelivered is a red result you fix and re-run; the rest of its return goes to the checkpoint.
 - **`idsd-qualify` is the pass that closes the lanes the loop named**, and Phase 5 refuses to archive until one has stamped this tree.
 
 Capture every decision, loose end and piece of operating knowledge in the artifact that owns it, never only in chat:
@@ -77,7 +77,7 @@ Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (i
 When `idsd-ship` invokes you:
 
 - Run Phases 1–3 unchanged; the interactive gates still fire.
-- Stop when Phase 3 completes — gates green and no requirement the conformance gate found undelivered: skip the Phase 4 checkpoint and do **not** enter Phase 5. **Hand back what that checkpoint would have presented and the diff does not carry**: the lanes the loop found, the rest of the conformance gate's return, and every constraint no command can check. Skipping the checkpoint is what drops them.
+- Stop when Phase 3 completes — gates green, and no requirement the conformance gate found undelivered. Skip the Phase 4 checkpoint and do **not** enter Phase 5. **Hand back what that checkpoint would have presented and the diff does not carry**: the lanes the loop found, the rest of the conformance gate's return, and every constraint no command can check.
 - `idsd-ship` re-invokes Phase 5 after its own approval — run it then, unchanged.
 
 ## Parallel execution
@@ -90,5 +90,5 @@ Several intents may build at once, isolated by Phase 2's one worktree per intent
 
 ## Rules
 
-- A wrong intent goes back to `idsd-intent` — that is where `~/.kk-flavor/standards/building.md` → **The loop**'s "back to whoever owns it" lands here.
+- `~/.kk-flavor/standards/building.md` → **The loop** sends a wrong requirement back to whoever owns it; here that is `idsd-intent`.
 - One intent's scope at a time — a missing intent this work reveals goes to `## Follow-ups`, never into this build.
