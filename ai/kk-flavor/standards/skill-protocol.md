@@ -52,7 +52,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 - Pass: `<Unit> N/M <path> | <lines>L | OK`
 - Fail: the same line with `WARN`, then one line per finding.
 
-`<Unit>` is the skill's counter noun (`File`, `Artifact`). `M` is the current queue length — it grows on append; `N` is the file's stable position. `<lines>L` is the file's real line count. A skill may add a field or fix the shape of the finding line; those are its deltas.
+`<Unit>` is the skill's counter noun (`File`, `Artifact`). `M` is the current queue length — it grows on append; `N` is the file's stable position. `<lines>L` is the file's real line count. A skill may add a field, fix the shape of the finding line, or — where its unit is not a file — put what identifies that unit in place of `<path>` and `<lines>L`; those are its deltas.
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
@@ -88,6 +88,8 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn — which re-reads what it already read.
 
 **Before your first write, enumerate the agents live in your tree and tell each which files you hold** — a stage you spawn writes as your own. **Never block waiting on a peer**: announce, then work. **A stage's return wakes you too, so arm no wait for one** — least of all on a marker nothing in the run writes. What earns a wait is a condition no return carries: a file a stage drops mid-run.
+
+**While a stage is live, the history under it must not move**: no rebase, cherry-pick, reset, amend, branch switch or base change until it returns. A working-tree edit is a different thing, already answered by **Loop**. Finish the stage or abandon it, do the maintenance, then spawn it fresh against the new HEAD; a separate worktree is the only safe overlap.
 
 **Build every spawn prompt from `~/.kk-flavor/templates/spawn-prompt.md`**, which states its own constraints. **A licence you received goes into every spawn prompt you build, verbatim** — worded to bind you, it binds the stages acting in your place.
 

@@ -22,4 +22,4 @@ Read a doc only when its trigger below matches what you're doing. A project's ow
 | running a multi-stage quality pass over one change set | [standards/quality-pipeline.md](standards/quality-pipeline.md) |
 | appending to a record kept across runs | [standards/records.md](standards/records.md) |
 | driving a browser | [standards/browser.md](standards/browser.md) |
-| touching a running system — a deploy, live data, an external write API, infrastructure | [standards/live-systems.md](standards/live-systems.md) |
+| touching a running system, or acting with no undo — a deploy, live data, an external write API, infrastructure, **a message sent, a review submitted** | [standards/live-systems.md](standards/live-systems.md) |

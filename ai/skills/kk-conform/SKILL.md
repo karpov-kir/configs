@@ -6,13 +6,13 @@ argument-hint: "the requirement set, plus the change set to judge against it"
 
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. **The unit is a requirement**, not a file: the queue is the checklist you derive below. **You change no code**, so nothing here is a fix and a finding is resolved by returning it. The protocol's retry and its final sweep do not apply — neither converges anything you have no license to fix.
 
-The gate you fill, and where each finding goes, is `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**.
+The gate you fill, where each finding goes, and what a change set with no ask owes, are all `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**.
 
 ## Derive the checklist, and show it first
 
 A requirement set arrives as prose — a ticket, an issue, a PR body, an intent — and **prose cannot be checked off**. Enumerate it into requirements and **return that list before any verdict**, so your caller sees what you thought you were checking.
 
-**The enumeration is what detects the no-ask case**: a set yielding no requirement is that case, and the section above owns what happens then. **Never derive the ask from the change itself** — a change judged against its own description always conforms, and that reads as a green gate.
+**The enumeration is what detects the no-ask case**: a set yielding no requirement is that case. **Never derive the ask from the change itself** — a change judged against its own description always conforms, and that reads as a green gate.
 
 ## Against the ask
 

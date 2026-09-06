@@ -6,7 +6,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 
 **The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another. **Nothing waits on your pass unless your caller says it does**: bare, you may trim for turnaround, and you say what you trimmed.
 
-**No persisted state.** No report file, no stamp, no directory of your own — a run's scratch ledgers and patch queue are not that. The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so.**
+**No persisted state.** No report file, no stamp, no directory of your own — a run's scratch ledgers and patch queue are not that. **No commit or push either** — fixes stay in the tree (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so.**
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); the per-file queue and loop belong to the subagents you spawn.
 
@@ -46,8 +46,3 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 ## After the pass
 
 `~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — what the pass ran, and item count by decision kind — then the items in the order above, then **one line for every drive step the human dropped when asked**, named and not argued. No per-stage verdicts.
-
-## Rules
-
-- **Never commits or pushes** — fixes stay in the tree (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
-- **While a stage is live, the history under it must not move**: no rebase, cherry-pick, reset, amend, branch switch or base change until it returns. A working-tree edit is a different thing, already answered by `~/.kk-flavor/standards/skill-protocol.md` → **Loop**. Finish the stage or abandon it, do the maintenance, then spawn it fresh against the new HEAD; a separate worktree is the only safe overlap.
