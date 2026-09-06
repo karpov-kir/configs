@@ -16,9 +16,19 @@ import (
 	"time"
 )
 
+// The file a record name writes. The project-*/local-* prefix names which copy, never the filename —
+// the two are the same basename under different roots, which is the whole of what makes them mergeable.
 func recordFile(f *fixture, name string) string {
-	return f.scratch() + "/" + name + ".md"
+	return f.scratch() + "/" + strings.TrimPrefix(name, "project-") + ".md"
 }
+
+// A local record's file, inside the folder of the ship that owns it.
+func localRecordFile(f *fixture, slug, name string) string {
+	return f.shipDir(slug) + "/" + strings.TrimPrefix(name, "local-") + ".md"
+}
+
+// Keeps localRecordFile referenced while only the cases below use it.
+var _ = localRecordFile
 
 func today() string {
 	return time.Now().Format("2006-01-02")
@@ -33,7 +43,7 @@ func TestConcurrentRecordWritesAllSurvive(t *testing.T) {
 	// when nothing serialises them. If this does not lose an entry, the case below proves nothing.
 	lost := newRepo(t)
 	lost.mkdirAll(lost.scratch())
-	path := recordFile(lost, "decisions")
+	path := recordFile(lost, "project-decisions")
 	lost.write(path, "1x | 2026-01-01 | seed\n")
 	var readers, writes sync.WaitGroup
 	readers.Add(2)
@@ -55,18 +65,18 @@ func TestConcurrentRecordWritesAllSurvive(t *testing.T) {
 	// The same shape through the tool. Each goroutine is its own invocation opening its own descriptor,
 	// so they contend for the flock exactly as separate processes do.
 	f := newRepo(t)
-	f.runReport("record", "append", "decisions", "seed")
+	f.runReport("record", "append", "project-decisions", "seed")
 	var running sync.WaitGroup
 	for i := range writers {
 		running.Add(1)
 		go func() {
 			defer running.Done()
-			f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "decisions", "writer " + strconv.Itoa(i)})
+			f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "project-decisions", "writer " + strconv.Itoa(i)})
 		}()
 	}
 	running.Wait()
 
-	content := f.read(recordFile(f, "decisions"))
+	content := f.read(recordFile(f, "project-decisions"))
 	missing := []string{}
 	for i := range writers {
 		if !strings.Contains(content, "| writer "+strconv.Itoa(i)+"\n") {
@@ -89,10 +99,10 @@ func TestFirstWriteCreatesTheRecordWithItsHeader(t *testing.T) {
 	// it checks agrees with any values the code happens to hold, including a header stating one cap
 	// while noteBound enforces another.
 	headers := map[string]struct{ bound, audience string }{
-		"decisions":   {"100", "never presented to a human"},
-		"playbook":    {"100", "never presented to a human"},
-		"language":    {"100", "an agent keeps it current"},
-		"constraints": {"50", "The human owns every line"},
+		"project-decisions": {"100", "never presented to a human"},
+		"project-playbook":  {"100", "never presented to a human"},
+		"project-language":  {"100", "an agent keeps it current"},
+		"constraints":       {"50", "The human owns every line"},
 	}
 	for name, want := range headers {
 		f.runReport("record", "append", name, "the first thing anyone wrote here")
@@ -157,12 +167,12 @@ func TestReviseReplacesTheTextAndKeepsTheCount(t *testing.T) {
 func TestBumpRaisesTheCountAndRedatesWithoutAddingALine(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
-	f.runReport("record", "append", "decisions", "settled once")
-	f.runReport("record", "append", "decisions", "settled twice")
-	path := recordFile(f, "decisions")
+	f.runReport("record", "append", "project-decisions", "settled once")
+	f.runReport("record", "append", "project-decisions", "settled twice")
+	path := recordFile(f, "project-decisions")
 	f.replaceLine(path, "1x | "+today()+" | settled once", "2x | 2020-01-01 | settled once")
 
-	f.runReport("record", "bump", "decisions", "settled once")
+	f.runReport("record", "bump", "project-decisions", "settled once")
 	content := f.read(path)
 	f.record("bump raises the count and dates the entry today",
 		f.status == 0 && strings.Contains(content, "3x | "+today()+" | settled once\n"), content)
@@ -173,7 +183,7 @@ func TestBumpRaisesTheCountAndRedatesWithoutAddingALine(t *testing.T) {
 
 	// An append of text already there is the same event, and `records.md` says it bumps rather than
 	// adding a line. Only the identical text is caught — a restatement in other words is a judgment.
-	f.runReport("record", "append", "decisions", "settled twice")
+	f.runReport("record", "append", "project-decisions", "settled twice")
 	f.assertRefused("appending an entry already there is refused")
 	f.assertReports("record bump", "and the refusal names bump as what to do instead")
 	f.record("and the record is unchanged", f.read(path) == content, f.read(path))
@@ -195,11 +205,11 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 	// evicts by what the record can afford to lose** is that this is precisely the wrong one to steer
 	// at — an entry sits at 1x because nothing has gone near its area, not because it matters least.
 	seed.WriteString("1x | 2026-05-01 | the quiet one a count would sacrifice\n")
-	path := recordFile(f, "decisions")
+	path := recordFile(f, "project-decisions")
 	f.write(path, seed.String())
 	before := f.read(path)
 
-	f.runReport("record", "append", "decisions", "the one that would have crossed the cap")
+	f.runReport("record", "append", "project-decisions", "the one that would have crossed the cap")
 	f.assertRefused("an append into a full record is refused")
 	f.record("and the record is untouched", f.read(path) == before, f.read(path))
 	f.record("the refusal names the record's own cap",
@@ -232,13 +242,13 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 
 	// A restatement wants no slot, so a full record answers it with bump rather than sending the agent
 	// off to hold a contest that would put a live entry out for a copy of itself.
-	f.runReport("record", "append", "decisions", "filler 7")
+	f.runReport("record", "append", "project-decisions", "filler 7")
 	f.assertRefused("a restatement into a full record is refused")
 	f.assertReports("record bump", "as the restatement it is, not as a record with no room")
 	f.record("and it is not sent to the contest", !strings.Contains(f.out, "is full"), f.evidence())
 
 	// The contest's verdict, applied: one out for one in, in a single write.
-	f.runReport("record", "admit", "decisions", "filler 42", "the one that won its place")
+	f.runReport("record", "admit", "project-decisions", "filler 42", "the one that won its place")
 	content := f.read(path)
 	f.record("admit lands the winner, counted once and dated today",
 		f.status == 0 && strings.Contains(content, "1x | "+today()+" | the one that won its place\n"), f.evidence()+"\n"+content)
@@ -254,7 +264,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 			strings.Contains(f.out, "| filler 42"), f.evidence())
 
 	// The wall is still up behind the swap: it freed no room.
-	f.runReport("record", "append", "decisions", "a second one wanting in")
+	f.runReport("record", "append", "project-decisions", "a second one wanting in")
 	f.assertRefused("the record is still full after the swap")
 	f.record("so no run of these subcommands grows it past its cap",
 		strings.Count(f.read(path), "x | ") == 100, f.read(path))
@@ -264,7 +274,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 	// reads as a swap that displaced something, which is what makes it worth a refusal of its own.
 	f.replaceLine(path, "1x | "+today()+" | the one that won its place", "9x | 2026-01-02 | the one that won its place")
 	earned := f.read(path)
-	f.runReport("record", "admit", "decisions", "the one that won its place", "the one that won its place")
+	f.runReport("record", "admit", "project-decisions", "the one that won its place", "the one that won its place")
 	f.assertRefused("admitting an entry over its own text is refused")
 	f.record("and the count it had earned is untouched", f.read(path) == earned, f.read(path))
 }
@@ -277,13 +287,13 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 func TestAnEntryIsNotShadowedByALongerOneQuotingItWhole(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
-	f.runReport("record", "append", "decisions", "the lock goes on the record's own descriptor")
-	f.runReport("record", "append", "decisions", "the lock goes on the record's own descriptor — superseded by TICKET-9")
-	path := recordFile(f, "decisions")
+	f.runReport("record", "append", "project-decisions", "the lock goes on the record's own descriptor")
+	f.runReport("record", "append", "project-decisions", "the lock goes on the record's own descriptor — superseded by TICKET-9")
+	path := recordFile(f, "project-decisions")
 
 	// Every substring of the short entry also sits inside the long one, so nothing but the exact text
 	// can single it out.
-	f.runReport("record", "bump", "decisions", "the lock goes on the record's own descriptor")
+	f.runReport("record", "bump", "project-decisions", "the lock goes on the record's own descriptor")
 	f.record("an exact hit resolves rather than colliding with the entry quoting it whole",
 		f.status == 0 && strings.Contains(f.read(path), "2x | "+today()+" | the lock goes on the record's own descriptor\n"),
 		f.evidence()+"\n"+f.read(path))
@@ -293,7 +303,7 @@ func TestAnEntryIsNotShadowedByALongerOneQuotingItWhole(t *testing.T) {
 
 	// The exact rule reaches only the exact text. A partial string still matching two entries is the
 	// ambiguity this function exists to refuse, and it must not now resolve to one of them.
-	f.runReport("record", "bump", "decisions", "the lock goes on")
+	f.runReport("record", "bump", "project-decisions", "the lock goes on")
 	f.assertRefused("a partial string matching two entries is still refused as ambiguous")
 	f.assertReports("2 entries", "as ambiguous rather than resolved to either")
 
@@ -302,7 +312,7 @@ func TestAnEntryIsNotShadowedByALongerOneQuotingItWhole(t *testing.T) {
 	// reaches this code — and picking either would be the guess the whole function exists to refuse.
 	f.appendTo(path, "1x | 2026-01-01 | a line written twice by hand\n1x | 2026-01-02 | a line written twice by hand\n")
 	before := f.read(path)
-	f.runReport("record", "evict", "decisions", "a line written twice by hand")
+	f.runReport("record", "evict", "project-decisions", "a line written twice by hand")
 	f.assertRefused("an exact text held by two entries is refused rather than resolved to one")
 	f.record("and neither copy was removed", f.read(path) == before, f.read(path))
 }
@@ -352,10 +362,10 @@ func TestTheCapCarriesTheRecordsOwnNumberAndItsOwner(t *testing.T) {
 func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
-	f.runReport("record", "append", "decisions", "one entry")
-	f.runReport("record", "append", "decisions", "another entry about locking")
-	f.runReport("record", "append", "decisions", "a third entry about locking")
-	path := recordFile(f, "decisions")
+	f.runReport("record", "append", "project-decisions", "one entry")
+	f.runReport("record", "append", "project-decisions", "another entry about locking")
+	f.runReport("record", "append", "project-decisions", "a third entry about locking")
+	path := recordFile(f, "project-decisions")
 	before := f.read(path)
 
 	cases := []struct {
@@ -364,29 +374,35 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 		says   string
 		reason string
 	}{
-		{"an entry spanning several lines is refused", []string{"record", "append", "decisions", "first\nsecond"},
+		{"an entry spanning several lines is refused", []string{"record", "append", "project-decisions", "first\nsecond"},
 			"one line", "a second line is invisible to the count, to eviction and to every later bump"},
-		{"an empty entry is refused", []string{"record", "append", "decisions", "   "},
+		{"an empty entry is refused", []string{"record", "append", "project-decisions", "   "},
 			"empty", "an entry with nothing in it is a line the next agent cannot act on"},
 		{"a record this tool does not own is refused", []string{"record", "append", "charter", "x"},
-			"decisions|playbook", "the name reaches a path"},
-		{"an operation that is not one of the five is refused", []string{"record", "amend", "decisions", "x"},
+			"is not a record this tool writes", "the name reaches a path"},
+		// The two halves of naming the copy deliberately. Either way round, the write lands in a file the
+		// caller did not mean, and finalize is the first thing that would notice.
+		{"a local record with no ship named is refused", []string{"record", "append", "local-decisions", "x"},
+			"needs --intent", "a local write with no ship lands at the project root"},
+		{"a project record given a ship is refused", []string{"record", "--intent", "001-a", "append", "project-decisions", "x"},
+			"belongs to no single ship", "a project write under a ship's name is a local one the caller mistyped"},
+		{"an operation that is not one of the five is refused", []string{"record", "amend", "project-decisions", "x"},
 			"append, bump, revise, evict and admit", "a typo must not fall through to a write"},
-		{"a fourth argument to an op that takes three is refused", []string{"record", "bump", "decisions", "one entry", "stray"},
+		{"a fourth argument to an op that takes three is refused", []string{"record", "bump", "project-decisions", "one entry", "stray"},
 			"revise and admit take", "a silently dropped argument is as likely to be half the entry someone meant"},
-		{"revise without its new text is refused", []string{"record", "revise", "decisions", "one entry"},
+		{"revise without its new text is refused", []string{"record", "revise", "project-decisions", "one entry"},
 			"revise and admit take", "three of four arguments name no replacement, and the entry must not be left as it was while reporting success"},
-		{"admit without the entry it beat is refused", []string{"record", "admit", "decisions", "one entry"},
+		{"admit without the entry it beat is refused", []string{"record", "admit", "project-decisions", "one entry"},
 			"revise and admit take", "a swap missing one of its halves would drop an entry for nothing, or land one for free"},
-		{"admit into a record with room is refused", []string{"record", "admit", "decisions", "one entry", "a new one"},
+		{"admit into a record with room is refused", []string{"record", "admit", "project-decisions", "one entry", "a new one"},
 			"is not full", "the swap is the move at a full record, and taken early it throws a live entry away for a slot the file already had"},
-		{"revise with an empty new text is refused", []string{"record", "revise", "decisions", "one entry", "  "},
+		{"revise with an empty new text is refused", []string{"record", "revise", "project-decisions", "one entry", "  "},
 			"empty", "the guards on an entry's text bind the replacement as much as the original"},
-		{"a call missing its text is refused with the usage", []string{"record", "append", "decisions"},
+		{"a call missing its text is refused with the usage", []string{"record", "append", "project-decisions"},
 			"usage:", "two of three arguments cannot name an entry"},
-		{"text matching no entry is refused", []string{"record", "bump", "decisions", "nothing says this"},
+		{"text matching no entry is refused", []string{"record", "bump", "project-decisions", "nothing says this"},
 			"no entry", "bumping nothing would report success having changed nothing"},
-		{"text matching two entries is refused", []string{"record", "bump", "decisions", "about locking"},
+		{"text matching two entries is refused", []string{"record", "bump", "project-decisions", "about locking"},
 			"2 entries", "the wrong one rewrites reasoning the next agent reads as settled"},
 	}
 	for _, one := range cases {
@@ -399,20 +415,20 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	// the refusal has to say which of the two situations it is rather than send them to check their
 	// typing.
 	f.appendTo(path, "   1x | 2026-01-01 | indented, so not an entry at all\n")
-	f.runReport("record", "bump", "decisions", "indented, so not an entry")
+	f.runReport("record", "bump", "project-decisions", "indented, so not an entry")
 	f.assertRefused("text on a line that is not an entry is refused")
 	f.assertReports("IS in", "and the refusal says the text is in the file but not inside an entry")
-	f.runReport("record", "bump", "decisions", "text that appears nowhere in this file")
+	f.runReport("record", "bump", "project-decisions", "text that appears nowhere in this file")
 	f.record("and that hint is absent when the text really is nowhere",
 		f.status == 2 && !strings.Contains(f.out, "IS in"), f.evidence())
 
 	// The date sits in every entry's prefix and in no entry's text, so it matches nothing. The hint
 	// must not then claim it is on a line that is not an entry — those lines are entries.
-	f.runReport("record", "bump", "decisions", today()[:7])
+	f.runReport("record", "bump", "project-decisions", today()[:7])
 	f.record("and a search matching only an entry's prefix is not called a non-entry line",
 		f.status == 2 && !strings.Contains(f.out, "IS in"), f.evidence())
 
-	f.runReport("record", "bump", "decisions", "about locking")
+	f.runReport("record", "bump", "project-decisions", "about locking")
 	f.record("the ambiguous refusal quotes both candidates",
 		strings.Contains(f.out, "another entry about locking") && strings.Contains(f.out, "a third entry about locking"),
 		f.evidence())
@@ -423,8 +439,8 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	linked.mkdirAll(linked.scratch())
 	outside := linked.base + "/elsewhere.md"
 	linked.write(outside, "1x | 2026-01-01 | not this file\n")
-	linked.symlink(outside, recordFile(linked, "decisions"))
-	linked.runReport("record", "append", "decisions", "steered")
+	linked.symlink(outside, recordFile(linked, "project-decisions"))
+	linked.runReport("record", "append", "project-decisions", "steered")
 	linked.assertRefused("a symlinked record is refused")
 	// On the message, not just the exit: O_NOFOLLOW refuses this open too, so a case asserting only the
 	// refusal passes with recordPath's lstat guard gone and nothing observes it.
@@ -438,8 +454,8 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	// refusal is who the erased lines are for.
 	escaped := newRepo(t)
 	escaped.mkdirAll(escaped.scratch())
-	escaped.symlink("/nowhere\x1b[1A\x1b[2K/decisions.md", recordFile(escaped, "decisions"))
-	escaped.runReport("record", "append", "decisions", "steered")
+	escaped.symlink("/nowhere\x1b[1A\x1b[2K/decisions.md", recordFile(escaped, "project-decisions"))
+	escaped.runReport("record", "append", "project-decisions", "steered")
 	escaped.assertRefused("a symlinked record whose target holds an escape is still refused")
 	escaped.record("and the target is collapsed rather than driving the terminal",
 		!strings.Contains(escaped.out, "\x1b"), strconv.Quote(escaped.evidence()))
@@ -460,9 +476,9 @@ func TestAnEntryCannotDriveTheTerminalOrRunAwayInLength(t *testing.T) {
 	// would be the worse fault; what must not happen is it reaching the terminal on the way back out.
 	planted := newRepo(t)
 	planted.mkdirAll(planted.scratch())
-	plantedPath := recordFile(planted, "decisions")
+	plantedPath := recordFile(planted, "project-decisions")
 	planted.write(plantedPath, "# Decisions\n\n1x | 2026-01-01 | hand-written "+esc+"\n")
-	planted.runReport("record", "bump", "decisions", "hand-written")
+	planted.runReport("record", "bump", "project-decisions", "hand-written")
 	// Quoted, every piece of evidence in this case: a failure prints it, and the whole subject here is
 	// text that drives the terminal it would print to.
 	planted.record("an escape no `record` op ever saw still reaches the file",
@@ -471,8 +487,8 @@ func TestAnEntryCannotDriveTheTerminalOrRunAwayInLength(t *testing.T) {
 		planted.status == 0 && !strings.Contains(planted.out, "\x1b"), strconv.Quote(planted.evidence()))
 
 	f := newRepo(t)
-	f.runReport("record", "append", "decisions", "a decision that ends here"+esc)
-	path := recordFile(f, "decisions")
+	f.runReport("record", "append", "project-decisions", "a decision that ends here"+esc)
+	path := recordFile(f, "project-decisions")
 	f.record("an escape in an entry is collapsed rather than stored",
 		f.status == 0 && !strings.Contains(f.read(path), "\x1b"), strconv.Quote(f.read(path)))
 	f.record("and so is never echoed back",
@@ -481,21 +497,21 @@ func TestAnEntryCannotDriveTheTerminalOrRunAwayInLength(t *testing.T) {
 		strings.Contains(f.read(path), "| a decision that ends here"), strconv.Quote(f.read(path)))
 
 	// Control bytes and nothing else collapse to spaces, which is an entry with nothing in it.
-	f.runReport("record", "append", "decisions", "\x01\x02")
+	f.runReport("record", "append", "project-decisions", "\x01\x02")
 	f.assertRefused("an entry of control bytes alone is refused as empty")
 
 	// The record's stated cap counts entries, so one line of any length sits inside it. Without this,
 	// a whole ticket appended as one "decision" is a permanent charge on every later agent's context —
 	// and `discard` keeps playbook.md.
 	before := f.read(path)
-	f.runReport("record", "append", "decisions", strings.Repeat("A", 2001))
+	f.runReport("record", "append", "project-decisions", strings.Repeat("A", 2001))
 	f.assertRefused("an entry past the length one may hold is refused")
 	f.assertReports("2001 bytes", "and the refusal says how long it was")
 	f.record("and the record is unchanged", f.read(path) == before, strconv.Quote(f.read(path)))
 
 	// The bound clears real practice by a wide margin, so it never refuses an entry someone meant: the
 	// longest entry any of these records carries today is around 800 bytes, and one of that size still lands.
-	f.runReport("record", "append", "decisions", strings.Repeat("A", 800))
+	f.runReport("record", "append", "project-decisions", strings.Repeat("A", 800))
 	f.record("an entry the length real ones run to still lands",
 		f.status == 0 && strings.Contains(f.read(path), "| "+strings.Repeat("A", 800)+"\n"), strconv.Quote(f.evidence()))
 }
@@ -507,11 +523,11 @@ func TestAMutationNeverLosesALineItDidNotTarget(t *testing.T) {
 	// The tail one of these records really carries: a block that is not in the entry format at all.
 	// It is not an entry, so it is never counted, matched or evicted — and it must survive verbatim.
 	block := "**A test timeout reads exactly like a hang.** `go test` without `-timeout` gives up at ten\nminutes and prints a goroutine dump.\n"
-	path := recordFile(f, "playbook")
+	path := recordFile(f, "project-playbook")
 	f.write(path, "# Playbook\n\n1x | 2026-01-01 | keep me\n2x | 2026-02-02 | bump me\n1x | 2026-03-03 | evict me\n\n"+block)
 
-	f.runReport("record", "bump", "playbook", "bump me")
-	f.runReport("record", "evict", "playbook", "evict me")
+	f.runReport("record", "bump", "project-playbook", "bump me")
+	f.runReport("record", "evict", "project-playbook", "evict me")
 	content := f.read(path)
 	f.record("the untargeted entry survives both mutations",
 		strings.Contains(content, "1x | 2026-01-01 | keep me\n"), content)
@@ -523,9 +539,9 @@ func TestAMutationNeverLosesALineItDidNotTarget(t *testing.T) {
 	// A record whose last line has no newline of its own: the append must not land as that line's tail.
 	tail := newRepo(t)
 	tail.mkdirAll(tail.scratch())
-	tailPath := recordFile(tail, "decisions")
+	tailPath := recordFile(tail, "project-decisions")
 	tail.write(tailPath, "1x | 2026-01-01 | no newline after me")
-	tail.runReport("record", "append", "decisions", "an entry of my own")
+	tail.runReport("record", "append", "project-decisions", "an entry of my own")
 	tail.record("an append to a record with no trailing newline is still its own entry",
 		strings.Contains(tail.read(tailPath), "no newline after me\n1x | "+today()+" | an entry of my own\n"),
 		tail.read(tailPath))
@@ -534,14 +550,14 @@ func TestAMutationNeverLosesALineItDidNotTarget(t *testing.T) {
 func TestRecordsLandWhereTheRepoModePutsThem(t *testing.T) {
 	t.Parallel()
 	throwaway := newRepo(t)
-	throwaway.runReport("record", "append", "decisions", "throwaway")
+	throwaway.runReport("record", "append", "project-decisions", "throwaway")
 	throwaway.record("in throwaway mode the record is outside the working tree",
 		throwaway.isFile(throwaway.sharedIdsd()+"/decisions.md") && !throwaway.exists(throwaway.treeIdsd()+"/decisions.md"),
 		throwaway.evidence())
 	throwaway.record("and the tree stays clean", throwaway.treeIsFreeOfScratch(), throwaway.indexState())
 
 	committed := newCommittedRepo(t)
-	committed.runReport("record", "append", "decisions", "committed")
+	committed.runReport("record", "append", "project-decisions", "committed")
 	committed.record("in committed mode it is the tracked one in the tree",
 		committed.isFile(committed.treeIdsd()+"/decisions.md"), committed.evidence())
 }
@@ -552,12 +568,12 @@ func TestAnEntryRoundTripsWhateverTextItCarries(t *testing.T) {
 	// An entry is external text: it carries whatever the agent writing it wrote, including the
 	// separator this format is built from — the parser splits on the first two, so the rest is text.
 	awkward := "`gate.sh --full` | 90 % of runs — “quoted”, ünïcode, 🍦, a | pipe"
-	f.runReport("record", "append", "decisions", awkward)
-	path := recordFile(f, "decisions")
+	f.runReport("record", "append", "project-decisions", awkward)
+	path := recordFile(f, "project-decisions")
 	f.record("the entry is stored exactly as written",
 		strings.Contains(f.read(path), "1x | "+today()+" | "+awkward+"\n"), f.read(path))
 
-	f.runReport("record", "bump", "decisions", "🍦")
+	f.runReport("record", "bump", "project-decisions", "🍦")
 	f.record("and is still findable by any part of itself",
 		f.status == 0 && strings.Contains(f.read(path), "2x | "+today()+" | "+awkward+"\n"), f.evidence()+"\n"+f.read(path))
 }
@@ -565,8 +581,8 @@ func TestAnEntryRoundTripsWhateverTextItCarries(t *testing.T) {
 func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
-	f.runReport("record", "append", "decisions", "already here")
-	path := recordFile(f, "decisions")
+	f.runReport("record", "append", "project-decisions", "already here")
+	path := recordFile(f, "project-decisions")
 
 	// Held SHARED, deliberately. A writer taking an exclusive lock must wait for it; one that took a
 	// shared lock of its own would sail straight past. That is the difference this case exists to
@@ -581,7 +597,7 @@ func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 
 	landed := make(chan struct{})
 	go func() {
-		f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "decisions", "waited for the lock"})
+		f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "project-decisions", "waited for the lock"})
 		close(landed)
 	}()
 	// A second, against the milliseconds the same invocation takes with nothing holding the file. A
@@ -613,20 +629,20 @@ func TestOnlyAnAppendCreatesARecord(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
 	for _, op := range []string{"bump", "evict"} {
-		f.runReport("record", op, "playbook", "nothing is here yet")
+		f.runReport("record", op, "project-playbook", "nothing is here yet")
 		f.assertRefused(op + " on a record that is not there is refused")
 		f.assertReports("there is no", op+" says the record is not there")
 		// Not tidiness. `playbook.md` is on survivingContent's durable list, so a nought-byte one left
 		// by a typo keeps a throwaway `.idsd/` standing for good — the mode's zero-traces contract
 		// broken by a command that refused.
 		f.record("and "+op+" leaves no empty record behind",
-			!f.exists(recordFile(f, "playbook")), joinLines(f.find(f.scratch())))
+			!f.exists(recordFile(f, "project-playbook")), joinLines(f.find(f.scratch())))
 	}
 	// Nor the directory: a refusal that had already created one is a command that did nothing and still
 	// left a trace, the same shape as the nought-byte record above.
 	f.record("and neither op created the scratch directory", !f.exists(f.scratch()), joinLines(f.find(f.repo+"/.git")))
 
-	f.runReport("record", "amend", "playbook", "an operation nobody spelled right")
+	f.runReport("record", "amend", "project-playbook", "an operation nobody spelled right")
 	f.assertRefused("an unknown operation is refused")
 	f.record("and it too leaves no scratch directory behind", !f.exists(f.scratch()), joinLines(f.find(f.repo+"/.git")))
 
@@ -635,14 +651,14 @@ func TestOnlyAnAppendCreatesARecord(t *testing.T) {
 	// parent whether or not O_CREATE is set, which is why those assertions pass with the gate removed.
 	existing := newRepo(t)
 	existing.mkdirAll(existing.scratch())
-	existing.runReport("record", "bump", "playbook", "still nothing is here")
+	existing.runReport("record", "bump", "project-playbook", "still nothing is here")
 	existing.assertRefused("a bump into an existing scratch directory is still refused when the record is absent")
 	existing.assertReports("there is no", "and says the record is not there, not that no entry matched")
 	existing.record("and creates no empty record in it",
-		!existing.exists(recordFile(existing, "playbook")), joinLines(existing.find(existing.scratch())))
+		!existing.exists(recordFile(existing, "project-playbook")), joinLines(existing.find(existing.scratch())))
 
-	f.runReport("record", "append", "playbook", "and this is the call that creates it")
-	f.record("while an append creates it", f.status == 0 && f.isFile(recordFile(f, "playbook")), f.evidence())
+	f.runReport("record", "append", "project-playbook", "and this is the call that creates it")
+	f.record("while an append creates it", f.status == 0 && f.isFile(recordFile(f, "project-playbook")), f.evidence())
 	// 0700, as `init` creates this tree: the records carry a project's decisions and are read from a
 	// shared scratch root, so nothing outside this account has business in them.
 	mode, err := os.Stat(f.scratch())
@@ -661,7 +677,7 @@ func TestARecordIsNeverWrittenWhereGitCanReachIt(t *testing.T) {
 	// `record` is the only command outside `init` that creates a file under the scratch directory, so
 	// it has to ask the same question. Without that it writes where check-ignore refuses to, and the
 	// entries land in the human's own `git add -A`.
-	f.runReport("record", "append", "decisions", "this must not reach the working tree")
+	f.runReport("record", "append", "project-decisions", "this must not reach the working tree")
 	f.assertRefused("and record refuses that layout rather than writing into it")
 	status, _ := f.git("status", "--porcelain")
 	f.record("so nothing of the record reaches git",
@@ -672,7 +688,7 @@ func TestAnEvictLeavesNoTailOfWhatItRemoved(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
 	f.mkdirAll(f.scratch())
-	path := recordFile(f, "decisions")
+	path := recordFile(f, "project-decisions")
 	// The evicted entry is far longer than what follows it, so a rewrite that writes the new content
 	// and does not then trim the file leaves the tail of the old content standing — and that tail is
 	// whole, well-formed entries the parser goes on to count, match and bump. Asserted as the file's
@@ -681,7 +697,49 @@ func TestAnEvictLeavesNoTailOfWhatItRemoved(t *testing.T) {
 	keep := "1x | 2026-02-02 | one short entry\n2x | 2026-03-03 | another short entry\n"
 	f.write(path, head+"1x | 2026-01-01 | "+strings.Repeat("a long entry that is about to go, ", 12)+"end\n"+keep)
 
-	f.runReport("record", "evict", "decisions", "a long entry that is about to go")
+	f.runReport("record", "evict", "project-decisions", "a long entry that is about to go")
 	f.record("the record afterwards is exactly what was left, with no tail of the old content",
 		f.status == 0 && f.read(path) == head+keep, f.evidence()+"\n"+strconv.Quote(f.read(path)))
+}
+
+// The split the whole merge design rests on: a ship's record and the project's are two files, not one
+// addressed two ways. Asserted from both ends, because a recordPath that ignored the scope would put
+// both entries in one file and every assertion about content alone would still read as sensible.
+func TestALocalRecordAndTheProjectsAreSeparateFiles(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-splitting")
+	f.newIntentFile("001-splitting")
+
+	f.runReport("record", "--intent", "001-splitting", "append", "local-decisions", "this ship settled it")
+	f.record("a local append lands", f.status == 0, f.evidence())
+	f.runReport("record", "append", "project-decisions", "the project settled it")
+	f.record("a project append lands", f.status == 0, f.evidence())
+
+	local := f.read(localRecordFile(f, "001-splitting", "local-decisions"))
+	project := f.read(recordFile(f, "project-decisions"))
+
+	f.record("the ship's entry is in the ship's folder and not in the project's",
+		strings.Contains(local, "this ship settled it") && !strings.Contains(project, "this ship settled it"),
+		"local:\n"+local+"\nproject:\n"+project)
+	f.record("and the project's entry is in the project's file and not in the ship's",
+		strings.Contains(project, "the project settled it") && !strings.Contains(local, "the project settled it"),
+		"local:\n"+local+"\nproject:\n"+project)
+
+	// The weight mechanism finalize reads. A local entry restating a project one is allowed and stays a
+	// separate line here — absorbed into a bump now, finalize would never see the duplicate that makes
+	// two ships needing one thing visible as a count.
+	f.runReport("record", "--intent", "001-splitting", "append", "local-decisions", "the project settled it")
+	local = f.read(localRecordFile(f, "001-splitting", "local-decisions"))
+	stillProject := f.read(recordFile(f, "project-decisions"))
+	f.record("a local entry restating a project one is kept rather than bumped across the boundary",
+		f.status == 0 && strings.Count(local, "the project settled it") == 1 &&
+			strings.Contains(stillProject, "1x | ") && !strings.Contains(stillProject, "2x | "),
+		"exit "+strconv.Itoa(f.status)+"; local:\n"+local+"\nproject:\n"+stillProject)
+
+	// Each file states its own bound and its own pruning point, which records.md requires of a record
+	// and which six records under two roots cannot get from one skill.
+	f.record("the ship's record states its own bound and pruning point",
+		strings.Contains(local, "Full at 25 entries") && strings.Contains(local, "Pruned by the ship that owns it"), local)
+	f.record("and the project's states its own",
+		strings.Contains(project, "Full at 100 entries") && strings.Contains(project, "Pruned only when a ship is finalized"), project)
 }
