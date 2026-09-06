@@ -17,7 +17,7 @@ Input: an intent file at `.idsd/intents/NNN-<slug>/intent.md` — one folder per
 Then two **gap rounds** of `kk-grill`, recomputing what is still open between them:
 
 1. **What the intent leaves open against the code as it stands.** `idsd-intent`'s clarify pass already read the ICE for its own coherence. This round reads it beside the code, and asks only what would stop an implementer: a goal term, scenario or constraint the code leaves reading two ways; a UI or observable-behaviour intent whose **presentation** neither the ICE nor the code pins (surface form, highlighting, loading and empty states, …); an acceptance bar nothing in the repo can measure.
-2. **The stack choices this build must make and the intent cannot** — `~/.claude/skills/kk-build/technical-round.md`, run here rather than inside the build, because `status: approved` below means both rounds closed. Only where such a choice exists. Tell kk-build it is done, or it opens the round again.
+2. **The stack choices this build must make and the intent cannot** — `~/.claude/skills/kk-build/technical-round.md`, run here rather than inside the build, because `status: approved` below means both rounds closed. Only where such a choice exists. Tell `kk-build` its **Phase 2** is done, or it opens the round again.
 
 **Ask questions rather than playing the ICE back.** They wrote it; a restatement spends the round they should be answering in.
 

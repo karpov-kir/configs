@@ -1,6 +1,6 @@
 # The technical round
 
-The whole delta for `~/.claude/skills/kk-build/SKILL.md` → **Settle what the requirement leaves open**'s stack round.
+The whole delta for `~/.claude/skills/kk-build/SKILL.md` → **Phase 2 — Plan the stack (interactive)**.
 
 ## What belongs in the round
 
