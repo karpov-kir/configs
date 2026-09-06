@@ -557,6 +557,24 @@ func (f *fixture) madeUnreadable(path, what string) bool {
 	return false
 }
 
+// A directory this process cannot LIST but can still traverse: 0300 drops read while keeping execute,
+// so os.ReadDir fails and a path through it still resolves. A ship folder now holds both the report
+// and the intent, so mode 0 would refuse a subcommand at "no such ship" long before it read a listing
+// — and the case would pass for a reason that has nothing to do with the guard under test.
+//
+// False means the mode did not restrict this process (root, or CAP_DAC_OVERRIDE), which is a skip
+// rather than a failure. Probed rather than inferred from the uid, for the reason testing.md → **4.
+// Setup strategy** states.
+func (f *fixture) madeUnlistable(path, what string) bool {
+	f.t.Helper()
+	f.chmod(path, 0o300)
+	if _, err := os.ReadDir(path); err != nil {
+		return true
+	}
+	f.t.Logf("skip  chmod does not restrict this user (root?) — %s cannot run", what)
+	return false
+}
+
 // The same fixture bound to a subtest's own *testing.T, so a case that declines is reported as a skip
 // against its own name instead of a log line inside its parent's pass. The fixture is a flat value, so
 // the copy shares the tree and nothing else.

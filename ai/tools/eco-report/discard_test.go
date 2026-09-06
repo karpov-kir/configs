@@ -37,8 +37,10 @@ func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
 	f.newIntentFile("001-mine")
 	// A second ship's report, in flight, with no other copy anywhere. It is what must survive.
 	f.runReport("init", "002-yours")
-	if !f.madeUnreadable(f.scratch()+"/intents", "the unreadable report-listing case") {
-		t.Skip("this process lists a mode-0 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable listing cannot be built here")
+	// Unlistable rather than unreadable: the ship's intent lives under intents/ too, so a mode-0
+	// directory refuses at assertShipExists and never reaches the listing this case is about.
+	if !f.madeUnlistable(f.scratch()+"/intents", "the unreadable report-listing case") {
+		t.Skip("this process lists a mode-0300 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable listing cannot be built here")
 	}
 	f.runReport("discard", "001-mine")
 	f.chmod(f.scratch()+"/intents", 0o755)
