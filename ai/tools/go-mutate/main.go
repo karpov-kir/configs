@@ -13,6 +13,25 @@
 // The mutants live in mutants.go beside this file rather than beside the code they break: each names
 // a file, a search string and its replacement, and preflight refuses any that no longer matches
 // exactly once.
+//
+// # Repointing a mutant
+//
+// An edit that moves a mutant's anchor text reddens preflight, and the obvious repair is to point the
+// mutant at whatever now sits where the old text did. Resolving is not killing. Preflight asks only
+// whether the anchor matches once; whether the suite notices the mutation is a different question and
+// a more expensive one, and a repoint can pass the first while failing the second silently — a mutant
+// that reads as shipped, resolves on every run, and observes nothing.
+//
+// This is not a hypothetical, and the tooling leans towards it: gate.go's fast path defers the
+// mutation harnesses, so a bare `ai/gate.sh` runs the preflight test and not the mutation run. The
+// cheap check that cannot tell the two apart is the one that runs by default. A repoint that goes
+// green there has been told the anchor exists, and nothing else.
+//
+// So a repointed mutant is re-killed, not re-resolved: apply the mutation to the file by hand, run
+// the test the mutant names, and require it to fail. Where the new anchor sits outside what that test
+// exercises, the fix is usually to move the *code* back out of the mutant's way — rename or re-place
+// what you added so the anchored text is adjacent again — rather than to keep a mutant aimed at
+// something nobody observes.
 package main
 
 import (
