@@ -14,7 +14,7 @@ import (
 // nothing else can recover.
 
 // The ignore-surface entries `attempt` reports as failing, rendered as the quoted run all three
-// refusals below echo: ` '.idsd/qualify-reports/'`, and empty when none failed. `attempt` may act
+// refusals below echo: ` '.idsd/intents/*/qualify-report.md'`, and empty when none failed. `attempt` may act
 // rather than merely test — promote's use of it is the appendLine that writes the entry.
 func (r *run) ignoreEntriesFailing(attempt func(entry string) bool) string {
 	failing := ""
@@ -43,7 +43,7 @@ func (r *run) cmdCheckIgnore() {
 			return !travels
 		})
 		if unignored == "" {
-			r.line("ok: qualify-reports/ is gitignored (committed idsd repo)")
+			r.line("ok: each ship's scratch is gitignored (committed idsd repo)")
 			r.exit(0)
 		}
 		r.errLines("WARN: NOT gitignored:" + unignored + " — add each to .gitignore (shared idsd setup)")
@@ -94,7 +94,7 @@ func (r *run) cmdPromote() {
 	target := r.treeIdsdDir()
 	r.assertPromotionTargetIsClear(target)
 
-	// .gitignore FIRST, and verified, because it is what keeps qualify-reports/ out of the commit. Do
+	// .gitignore FIRST, and verified, because it is what keeps each ship's scratch out of the commit. Do
 	// the move first and a failure here leaves the reports sitting in the tree, tracked by the next
 	// `git add -A`. Written this way round, a failure below leaves only a spare entry in .gitignore —
 	// which is wanted in both modes anyway.
@@ -127,14 +127,14 @@ func (r *run) cmdPromote() {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
 	}
 	// `git add` on a directory whose every file is ignored stages nothing and still exits 0, and
-	// qualify-reports/ is ignored by the entry just written — so with nothing else under .idsd/, the add
+	// every ignorable file is covered by the entries just written — so with nothing else under .idsd/, the add
 	// is a no-op. Success is read from the mode for that reason, never from the add's exit.
 	if r.repoMode() != "committed" {
 		r.refuseUnmoved(moved, target,
 			"error: nothing under "+target+" could be staged, so this is still a throwaway — not promoted.",
 			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a playbook.")
 	}
-	r.line("promoted: moved the scratch to %s and staged it, qualify-reports/ ignored via .gitignore — commit when ready (not committed here)", target)
+	r.line("promoted: moved the scratch to %s and staged it, each ship's scratch ignored via .gitignore — commit when ready (not committed here)", target)
 }
 
 // A refusal after the move puts the scratch back where it came from. Left in the tree it is the worst

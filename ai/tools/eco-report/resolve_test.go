@@ -15,9 +15,10 @@ func TestADotNamedReportIsInvisibleToEveryDiscoveryPath(t *testing.T) {
 	// while the listing really cannot see such a file. Both plants below are made by hand, since `init`
 	// is exactly what will not create them.
 	f := newShip(t, "001-the-only-ship")
-	f.write(f.scratch()+"/qualify-reports/.hidden-qualify-report.md", "---\nintent: 002-hidden\n---\n")
-	// A directory named like a report is the other thing the listing must not take for one.
-	f.mkdirAll(f.scratch() + "/qualify-reports/003-a-directory-qualify-report.md")
+	f.write(f.shipDir(".hidden")+"/qualify-report.md", "---\nintent: 002-hidden\n---\n")
+	// A ship folder whose report is itself a directory is the other thing the listing must not take for
+	// one — the folder is the right shape, so only the regular-file test on the report tells them apart.
+	f.mkdirAll(f.shipDir("003-a-directory") + "/qualify-report.md")
 
 	f.runReport("list")
 	f.record("list names the one real report, and neither the dot-named file nor the directory",

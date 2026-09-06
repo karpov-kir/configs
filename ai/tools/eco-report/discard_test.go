@@ -193,7 +193,7 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	f.newDurableCharter()
 	f.mkdirAll(f.treeIdsd() + "/intents")
 	f.write(f.treeIdsd()+"/intents/002-tracked/intent.md", "# intent\n")
-	f.write(f.repo+"/.gitignore", ".idsd/qualify-reports/\n")
+	f.write(f.repo+"/.gitignore", ignoreBlock())
 	f.mustGit("add", ".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked/intent.md")
 	f.commit("committed idsd")
 	// Built by hand rather than through the committed-repo builder, because this one needs the intent
@@ -221,13 +221,15 @@ func TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt(t *testing.T) {
 	// target outside the repo.
 	linked := newRepo(t)
 	linked.runReport("check-ignore")
-	linked.mkdirAll(linked.base + "/outside-discard/intents")
-	linked.write(linked.base+"/outside-discard/intents/003-elsewhere.md", "# not ours to delete\n")
+	linked.write(linked.base+"/outside-discard/intents/003-elsewhere/intent.md", "# not ours to delete\n")
 	linked.symlink(linked.base+"/outside-discard", linked.scratch())
 	linked.runReport("discard", "003-elsewhere")
 	linked.assertRefused("discard refuses a symlinked .idsd rather than deleting through it")
+	// Pinned on WHICH refusal: a ship the guard never reached refuses too, for not being there, and the
+	// exit alone cannot tell that from the link being caught.
+	linked.assertReports("is a symlink", "and names the link rather than refusing for want of a ship")
 	linked.record("and the file outside the repo is still there",
-		linked.isFile(linked.base+"/outside-discard/intents/003-elsewhere.md"), "")
+		linked.isFile(linked.base+"/outside-discard/intents/003-elsewhere/intent.md"), "")
 	linked.remove(linked.scratch())
 }
 
@@ -297,6 +299,10 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	linked := newShip(t, "001-linked")
 	linked.newIntentFile("001-linked")
 	linked.symlink(linked.base+"/no-such-intent.md", linked.shipDir("002-link")+"/intent.md")
+	// And a symlink to a whole ship folder: followed, it reads as a ship in flight and keeps .idsd/
+	// standing under a count that names one. Only the directory-entry test tells it from a real folder.
+	linked.write(linked.base+"/a-real-ship/intent.md", "# elsewhere\n")
+	linked.symlink(linked.base+"/a-real-ship", linked.scratch()+"/intents/003-linked-ship")
 	linked.runReport("discard", "001-linked")
 	linked.record("a symlink named like an intent keeps .idsd/ standing",
 		linked.status == 0 && linked.exists(linked.scratch()+"/intents"), linked.evidence())

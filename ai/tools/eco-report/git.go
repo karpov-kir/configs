@@ -138,10 +138,25 @@ func (r *run) assertRepoModeReadable() {
 // Which file git read to ignore a path, or empty when nothing ignores it. `-v` because the answer is
 // the whole question here: `core.excludesFile` and `.git/info/exclude` satisfy the plain `-q` form
 // too, and each caller below accepts a different set of sources.
+//
+// A matched pattern is not an ignored path, and `-v` does not distinguish them: it reports the LAST
+// pattern that matched, negations included, and exits 0 for either. So a `!` rule sitting after the
+// entry answers with the entry's own file as its source while git stages the path anyway, and every
+// caller here reads that as "ignored, and by something that travels". The pattern is read for that
+// reason, not merely the source.
+//
+// The shape only became reachable when the entries grew a `*`. A negated directory entry —
+// `.idsd/qualify-reports/` with `!` after it — matched nothing under `-v`, which exited 1 and printed
+// nothing, so the empty answer carried the refusal on its own.
 func (r *run) ignoreSourceOf(path string) string {
 	answer, _ := r.captureGit(nil, "check-ignore", "-v", path)
 	first, _, _ := strings.Cut(answer, "\n")
-	source, _, _ := strings.Cut(first, ":")
+	// `<source>:<line>:<pattern>\t<pathname>`.
+	source, afterSource, _ := strings.Cut(first, ":")
+	_, pattern, _ := strings.Cut(afterSource, ":")
+	if matched, _, _ := strings.Cut(pattern, "\t"); strings.HasPrefix(matched, "!") {
+		return ""
+	}
 	return source
 }
 

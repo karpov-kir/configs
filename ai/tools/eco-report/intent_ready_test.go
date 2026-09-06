@@ -54,13 +54,12 @@ func readyIntent(extraFrontmatter ...string) string {
 func (f *fixture) writeIntent(slug, body string) {
 	f.t.Helper()
 	f.mkdirAll(f.scratch() + "/intents")
-	f.write(f.scratch()+"/intents/"+slug+".md", body)
+	f.write(f.shipDir(slug)+"/intent.md", body)
 }
 
 func (f *fixture) writeArchivedIntent(slug, body string) {
 	f.t.Helper()
-	f.mkdirAll(f.scratch() + "/archive")
-	f.write(f.scratch()+"/archive/"+slug+".md", body)
+	f.write(f.archiveDir(slug)+"/intent.md", body)
 }
 
 func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
@@ -145,7 +144,7 @@ func TestIntentReadyBlocksOnADependencyThatHasNotShipped(t *testing.T) {
 	f.runReport("intent-ready", "003-search")
 	f.record("an archived dependency counts as built", f.status == 0, f.evidence())
 
-	f.remove(f.scratch() + "/archive/001-indexing.md")
+	f.remove(f.archiveDir("001-indexing"))
 	f.runReport("intent-ready", "003-search")
 	f.record("an edge naming no intent blocks",
 		f.status == 1 && strings.Contains(f.out, "names no intent"), f.evidence())

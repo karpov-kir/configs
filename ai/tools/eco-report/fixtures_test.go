@@ -50,8 +50,12 @@ func (f *fixture) mkdirAll(dir string) {
 	}
 }
 
+// Builds the parents too. A ship is a directory now, so most fixture writes land one level inside one
+// that does not exist yet, and a case that had to mkdir before every write would say more about the
+// layout than about what it is testing.
 func (f *fixture) write(path, content string) {
 	f.t.Helper()
+	f.mkdirAll(filepath.Dir(path))
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		f.t.Fatalf("write %s: %v", path, err)
 	}
@@ -80,6 +84,7 @@ func (f *fixture) read(path string) string {
 
 func (f *fixture) symlink(target, link string) {
 	f.t.Helper()
+	f.mkdirAll(filepath.Dir(link))
 	if err := os.Symlink(target, link); err != nil {
 		f.t.Fatalf("symlink %s -> %s: %v", link, target, err)
 	}

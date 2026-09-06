@@ -166,7 +166,7 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	// refuse first if it were seeded in the tree — either way the case would pass for the wrong reason.
 	unread := newShip(t, "001-negated")
 	unread.newIntentFile("001-negated")
-	unread.write(unread.repo+"/.gitignore", ".idsd/qualify-reports/\n!.idsd/qualify-reports/\n")
+	unread.write(unread.repo+"/.gitignore", ignoreBlock()+"!"+reportEntry()+"\n")
 	unread.runReport("promote")
 	unread.assertRefused("promote refuses when the entry is written but git still does not ignore the surface")
 	unread.assertReports("git still does not ignore", "and says the entry landed without taking effect")

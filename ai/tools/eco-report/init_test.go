@@ -28,7 +28,8 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	idsd.symlink(idsd.base+"/outside", idsd.scratch())
 	idsd.runReport("init", "review: symlinked idsd dir")
 	idsd.assertRefused("init refuses a symlinked .idsd directory")
-	idsd.record("nothing was written outside the repo through .idsd", !idsd.exists(idsd.base+"/outside/qualify-reports"), "")
+	idsd.assertReports("is a symlink", "and names the link rather than blaming the ignore rules")
+	idsd.record("nothing was written outside the repo through .idsd", !idsd.exists(idsd.base+"/outside/intents"), "")
 
 	// The second directory every write goes through, so it needs a case of its own: the symlink test
 	// on the report file cannot see a link one level up.
@@ -38,9 +39,9 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	reports.mkdirAll(reports.base + "/outside-reports")
 	reports.symlink(reports.base+"/outside-reports", reports.scratch()+"/intents")
 	reports.runReport("init", "review: symlinked reports dir")
-	reports.assertRefused("init refuses a symlinked qualify-reports directory")
-	reports.record("nothing was written outside the repo through qualify-reports",
-		!reports.exists(reports.base+"/outside-reports/review-qualify-report.md"), "")
+	reports.assertRefused("init refuses a symlinked intents directory")
+	reports.record("nothing was written outside the repo through intents/",
+		!reports.exists(reports.base+"/outside-reports/review/qualify-report.md"), "")
 	// Asserted on which refusal it is, because the exit alone cannot tell them apart: git refuses any
 	// pathspec beyond a symbolic link, so without this directory's own link test the ignore check
 	// refuses instead — for want of an ignore rule, naming `check-ignore` as the remedy.
@@ -63,12 +64,12 @@ func TestAnIntentValueCannotNameAFileOutsideQualifyReports(t *testing.T) {
 		f.runReport("init", escaping)
 		f.assertRefused("init refuses the intent '" + escaping + "', whose path could escape the directory")
 	}
-	// The escape lands at <repo>/escaped-qualify-report.md, two levels up from qualify-reports/, not at
-	// the scratch base. Asserting only on the base, or on the repo's parent, lets a widened charset through.
-	escaped := f.exists(f.repo+"/escaped-qualify-report.md") ||
-		f.exists(f.scratch()+"/escaped-qualify-report.md") ||
-		f.exists(f.base+"/escaped-qualify-report.md")
-	f.record("no report was written outside qualify-reports/", !escaped, strings.Join(f.find(f.base), "\n"))
+	// The escape lands at <repo>/escaped/, two levels up from intents/, not at the scratch base.
+	// Asserting only on the base, or on the repo's parent, lets a widened charset through.
+	escaped := f.exists(f.repo+"/escaped") ||
+		f.exists(f.scratch()+"/escaped") ||
+		f.exists(f.base+"/escaped")
+	f.record("no report was written outside intents/", !escaped, strings.Join(f.find(f.base), "\n"))
 
 	// What the refusals prevent is invisibility rather than the write itself: a listing never matches a
 	// leading dot, so a dot-named report would stand open while `list` says "no reports". So `list` is

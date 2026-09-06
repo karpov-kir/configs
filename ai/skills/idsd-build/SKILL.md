@@ -8,7 +8,7 @@ You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-p
 
 **The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**).
 
-Input: an intent file under `.idsd/intents/NNN-<slug>.md` — its parts are defined in `~/.claude/skills/idsd-intent/templates/ice-template.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
+Input: an intent file at `.idsd/intents/NNN-<slug>/intent.md` — one folder per ship, holding its intent, its report and the records this build appends — its parts are defined in `~/.claude/skills/idsd-intent/templates/ice-template.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
 
 ## Phase 1 — Close the gaps (checkpoint 1)
 
@@ -70,7 +70,7 @@ Approve on outcomes → proceed. Reject with feedback → back to Phase 3.
 
 **Then check this intent's `links:`** by the rules `idsd-audit` applies set-wide. A bad link blocks the archive; fix or route it first. Whole-set consistency stays `idsd-audit`'s job.
 
-Set `status: built` **first**, move the file to `.idsd/archive/NNN-<slug>.md` (its resolved checklist travels with it as the record), and regenerate `.idsd/roadmap.md` if it exists — to `idsd-intent`'s format, which owns it. **Then** land everything in one approval-gated commit (`~/.kk-flavor/standards/git.md` → **Commits**).
+Set `status: built` **first**, move the whole folder to `.idsd/archive/NNN-<slug>/` (its resolved checklist travels with it as the record), and regenerate `.idsd/roadmap.md` if it exists — to `idsd-intent`'s format, which owns it. **Then** land everything in one approval-gated commit (`~/.kk-flavor/standards/git.md` → **Commits**).
 
 ## Pipeline mode
 

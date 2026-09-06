@@ -38,6 +38,27 @@ const skillSource = "../../skills/idsd-qualify"
 // skills and fails on every machine that has not — release-tools.yml's ubuntu-latest among them.
 const flavorSource = "../../kk-flavor"
 
+// The entries `promote` writes and `check-ignore` verifies, mirroring ignoreSurface() so a case and
+// the tool cannot drift about the pattern. The report's entry is the one most cases assert on, and
+// reportEntry names it rather than an index into this.
+func ignoreEntries() []string {
+	return []string{
+		".idsd/intents/*/decisions.md",
+		".idsd/intents/*/language.md",
+		".idsd/intents/*/playbook.md",
+		".idsd/intents/*/qualify-report.md",
+	}
+}
+
+func reportEntry() string { return ".idsd/intents/*/qualify-report.md" }
+
+// Those entries as a gitignore file's worth of lines.
+func ignoreBlock() string { return strings.Join(ignoreEntries(), "\n") + "\n" }
+
+// A path the report entry covers. `git check-ignore` reads its argument as a literal pathname rather
+// than as a glob, so a case asking git whether the entry took effect must ask about a path it matches.
+func ignoreProbePath() string { return ".idsd/intents/__probe__/qualify-report.md" }
+
 // One case's tree.
 type fixture struct {
 	// Set by countFingerprints, and nil everywhere else so the tool uses its own recipe.
@@ -224,7 +245,7 @@ func newCommittedRepo(t *testing.T) *fixture {
 	t.Helper()
 	f := newRepo(t)
 	f.newDurableCharter()
-	f.write(f.repo+"/.gitignore", ".idsd/qualify-reports/\n")
+	f.write(f.repo+"/.gitignore", ignoreBlock())
 	f.mustGit("add", ".gitignore", ".idsd/charter.md")
 	f.commit("committed idsd")
 	f.assertFixtureIsCommitted()

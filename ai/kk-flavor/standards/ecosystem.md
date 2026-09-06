@@ -33,6 +33,8 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 
 **Inside the skill layer the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. A workflow skill invokes an any-repo one and cites it; the reverse makes a skill that works in any repo carry knowledge of a workflow most repos never use. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.
 
+**Every capability is an any-repo skill; a workflow skill composes those and adds only its own machinery.** A capability living in the workflow family alone is one no repo outside that methodology can reach, so it goes into an any-repo skill even while only one workflow invokes it. **A standard is not a substitute** — a standard is read when something routes a reader to it, where a skill is what someone invokes.
+
 ## Conventions a new file joins
 
 - **A skill authored in this tree joins one of two families**, by prefix: one works in any repo, the other belongs to a single workflow and carries that workflow's own on-disk machinery. An installed tool skill is a skill outside this tree, not a third family inside it.

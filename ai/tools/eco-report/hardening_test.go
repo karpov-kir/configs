@@ -38,7 +38,7 @@ func TestANonAbsoluteConfigHomeIsNotAnOverride(t *testing.T) {
 	f.runReport("check-ignore")
 	f.runReport("init", "001-relative-config")
 	f.record("and init wrote the report at the default location",
-		f.status == 0 && f.isFile(f.sharedIdsd()+"/qualify-reports/001-relative-config-qualify-report.md"),
+		f.status == 0 && f.isFile(f.sharedIdsd()+"/intents/001-relative-config/qualify-report.md"),
 		f.evidence())
 	f.record("and nothing was written where the relative file pointed",
 		!f.exists(f.base+"/hijacked"), "")
@@ -86,8 +86,8 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	f := newRepo(t)
 	f.runReport("check-ignore")
 	outside := f.base + "/outside-promote"
-	f.mkdirAll(outside + "/qualify-reports")
-	f.write(outside+"/qualify-reports/001-linked-qualify-report.md", "---\nintent: 001-linked\n---\n")
+	f.mkdirAll(outside + "/intents/001-linked")
+	f.write(outside+"/intents/001-linked/qualify-report.md", "---\nintent: 001-linked\n---\n")
 	// Something durable, so promote has a reason to get as far as the move: without it the refusal below
 	// could be the nothing-to-promote guard instead, and the case would pass observing nothing.
 	f.write(outside+"/intents-placeholder.md", "# intent\n")
@@ -100,7 +100,7 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	staged, _ := f.git("diff", "--cached", "--name-only")
 	f.record("and staged nothing", !strings.Contains(staged, ".idsd"), "staged:\n"+staged)
 	f.record("and left the report where it was, outside the tree",
-		f.isFile(outside+"/qualify-reports/001-linked-qualify-report.md"), "")
+		f.isFile(outside+"/intents/001-linked/qualify-report.md"), "")
 	f.remove(f.sharedIdsd())
 }
 
@@ -109,16 +109,20 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// A stem of `..` reaches `gitPath("idsd-stage-returns/" + stem)` bare, where it IS the git dir, and
 	// three subcommands os.RemoveAll that path. reportNameFor's leading-dot case is what stands there,
 	// and holds why Go's RemoveAll does not stop it.
+	//
+	// The folder layout widened this: `discard` now RemoveAlls shipDir(stem), so `..` there is the
+	// scratch root's own parent rather than one stray file.
 	f := newShip(t, "001-real")
 	head := f.mustGit("rev-parse", "HEAD")
 	// What makes the stem reachable at all, and the fixture without which this case cannot fail: every
 	// subcommand needs the report to be there, so a stem of `..` only gets past requireReport when a
 	// file of that name exists. This tool will not create one — reportNameFor refuses the leading dot —
 	// but a committed one arrives through someone else's branch, and the argument is then all it takes.
-	f.write(f.scratch()+"/qualify-reports/..-qualify-report.md",
+	// `intents/../qualify-report.md` resolves to one level above intents/, which is the scratch root.
+	escaped := f.scratch() + "/" + "qualify-report.md"
+	f.write(escaped,
 		"---\nintent: 001-real\nreviewed-tree: pending\nreviewed-worktree: pending\nreviewed-stages: pending\n---\n")
-	f.record("fixture: a report named for the stem under test is in place",
-		f.isFile(f.scratch()+"/qualify-reports/..-qualify-report.md"), "")
+	f.record("fixture: a report named for the stem under test is in place", f.isFile(escaped), "")
 	for _, subcommand := range []string{"invalidate", "close", "discard", "state", "gate"} {
 		f.runReport(subcommand, "..")
 		f.assertRefused(subcommand + " refuses '..' as an intent name")
