@@ -25,6 +25,12 @@ const mergeSlotFile = "idsd-merge-slot"
 // Its own exit code. A caller that cannot tell "wait your turn" from "your tree is bad" does the wrong
 // thing either way: it re-runs gates that were fine, or it sits on a red that is real. 1 is a gate's
 // block and 2 is "this did not run", so neither could carry it.
+//
+// Not a `state` token, which is the reach every reader has for this and the wrong one twice over.
+// `state` already prints `finalize`, meaning this ship is ready to be finalized — a `finalizing` beside
+// it would sit two letters from an unrelated meaning. And the slot is clone-wide while `state` answers
+// for one ship: a ship waiting behind another's slot is still `ready`, because what is blocked is the
+// act and not the ship.
 const exitMergeSlotHeld = 4
 
 // The holder, as the slot records it. The worktree rather than a pid: the slot spans several
@@ -81,7 +87,8 @@ func (r *run) takeMergeSlot(intent string, isForced bool) {
 			}
 			r.errLines("error: another ship holds the merge slot — '"+held.intent+"' in "+held.worktree+age+". Nothing was finalized.",
 				"  Finalizing is serial: it moves the archive, regenerates the roadmap and writes the project's records, which every ship shares.",
-				"  Wait for it, or re-run with --force once you have established that holder is gone.")
+				"  Wait for it, or re-run with --force once you have established that holder is gone.",
+				"  Establishing that is yours: this tool started no process it could ask about. Look for a session working in that worktree — none, and the slot outlived its holder.")
 			r.exit(exitMergeSlotHeld)
 		}
 		r.line("reclaimed the merge slot from '%s' in %s", held.intent, held.worktree)

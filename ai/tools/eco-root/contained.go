@@ -29,10 +29,8 @@ func containedInRoot(rootCanon, path string) bool {
 	return dir == rootCanon || strings.HasPrefix(dir, rootCanon+"/")
 }
 
-// Readable is answered by opening the file, which is the question containment asks: a file admitted
-// here is one whose words the figure behind it can actually read, and access(2) says yes where the
-// open still fails. ecoreport asks access(2) instead, deliberately and for its own reason — see the note
-// on isReadable in its shell.go. Neither is the shared one, so `shell` holds no readability test.
+// Opened rather than access(2)'d, because opening is the question containment asks: access(2) says yes
+// where the open still fails. ecoreport answers it the other way, for the reason on its own isReadable.
 func isReadable(path string) bool {
 	file, err := os.Open(path)
 	if err != nil {
@@ -51,12 +49,6 @@ func isReadable(path string) bool {
 //
 // isAbsent is true only for a path nobody wrote. Otherwise reason names what stopped the answer and
 // is never empty, so a caller can print it without testing for a blank.
-//
-// One implementation rather than one per tool, and that is the point of it living here. ecostats and
-// ecocheck describe one tree, so they may not disagree about what a permission failure means — two
-// detectors answering one question differently is the hazard, not the wording. A copy in each, under
-// a comment in each asserting that the two agree, is that invariant enforced by absence: nothing
-// reports the moment it stops holding.
 func AbsentOrOutOfReach(path string) (isAbsent bool, reason string) {
 	_, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {

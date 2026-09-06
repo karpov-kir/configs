@@ -25,6 +25,8 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 `report.sh merge-slot take <NNN-slug>`. **Exit 4 means another ship holds it**, and the refusal names the holder's intent and worktree — wait for it. `--force` is for a holder you have established is gone, never for one you are impatient with: it breaks into a merge that may be half-written.
 
+**Establishing that is yours, and the refusal cannot do it for you** — the tool started no process it could ask about. Look for a session working in the worktree it names; none, and the slot outlived its holder. **A slot is held from here until step 4 finishes**, so a session that dies in between leaves one nobody else frees.
+
 ## 3. Merge the three records upward
 
 `decisions`, `playbook` and `language`, each of the ship's own entries against the project's. Write only through `report.sh record`, naming `project-*` for the destination.

@@ -18,8 +18,12 @@ checkout=$(CDPATH= cd -P -- "$here/.." && pwd -P)
 script="$here/bootstrap.sh"
 suite_name="env/bootstrap-test.sh"
 
+# Status checked, because `.` on a file whose tail does not parse still defines every function ahead
+# of the break: unchecked, this suite runs on the half it got and reports counts nobody may read as a
+# pass. The case at "a shared file that is present but stops halfway" proves this line fires.
 # shellcheck source=../lib/test-harness.sh
-. "$checkout/lib/test-harness.sh"
+. "$checkout/lib/test-harness.sh" ||
+  { printf '%s: lib/test-harness.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
 
 # The skip flag is load-bearing: without it a case shells out to brew, which makes the suite slow,
 # network-dependent, and able to install software on the machine running it.
@@ -202,6 +206,28 @@ expect_not_out "and does not cascade through the mount table instead" "command n
 [ ! -e "$home/.zshrc" ] &&
   record_pass "and nothing was linked" ||
   record_fail "and nothing was linked" "it linked anyway"
+
+# --- a shared file that is present but stops halfway ----------------------------------------------
+
+# The sibling of the case above, and the half it cannot reach: there the shared file is missing, here
+# it is present and its tail does not parse. What that costs a suite is in the guard's own comment at
+# the top of this file.
+#
+# Driven against ai/bootstrap-test.sh rather than against this file, so that deleting the guard makes
+# this case go red instead of re-entering itself without bound. Both suites carry the same two-line
+# guard, so this covers both — the way this file covers lib/mount.sh for both bootstraps.
+halfway="$tmp/halfway"
+contained_parent "$halfway" >/dev/null
+mkdir -p "$halfway/lib" "$halfway/ai"
+cp "$checkout/ai/bootstrap-test.sh" "$halfway/ai/bootstrap-test.sh"
+fixture_write "$halfway/lib/test-harness.sh" "$(cat "$checkout/lib/test-harness.sh")
+if [ 1 ]; then"
+fresh_home
+out=$(HOME="$home" bash "$halfway/ai/bootstrap-test.sh" 2>&1)
+status=$?
+expect_status "a suite whose harness stops halfway exits 2" 2
+expect_out "and names the file that did not load" "lib/test-harness.sh did not load to the end"
+expect_not_out "and prints no counts, so nothing reads it as a pass" "passed,"
 
 # --- a second checkout must not silently move the machine -----------------------------------------
 

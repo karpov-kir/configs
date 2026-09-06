@@ -2,25 +2,10 @@
 // skills/, the paths derived from it, the mount those paths are compared against, and the `@import`
 // names that load alongside them.
 //
-// It exists because ecocheck and ecostats resolve that directory the same way on purpose — each
-// tool's report describes a tree, and two tools describing different trees for one invocation is a
-// disagreement neither of them can report.
-//
-// The whole surface is a Root and what you can ask one:
-//
-//   - New(name) — resolve a checkout, or report that the directory is not one.
-//   - Named, Flavor, Skills — the root as it was spelled, and the two directories that made it one.
-//   - FlavorMount, SkillsMount — where an installed checkout is mounted; IsInstalled — whether this
-//     is that checkout.
-//   - Contains, HoldsSkillFile — whether a file may be read as part of this tree, and whether a
-//     skill found at the mount is one of the tree's own.
-//   - ResolveImports(ImportScan) — the `@import` names the budget declares, resolved at the mount.
-//     UncountedNames renders the ones that did not resolve for a message.
-//   - ReadAlwaysTargets — which files the router lists in the always-loaded tier.
-//
-// Nothing here holds state between calls or writes to a stream. A Root is a value: resolving one
-// answers whether the directory is an ecosystem checkout at all, and every path a caller then builds
-// from it is spelled here once rather than at each call site.
+// It exists so ecocheck and ecostats cannot describe different trees for one invocation, which is a
+// disagreement neither tool's report can express. A Root is a value: resolving one answers whether
+// the directory is a checkout at all, and nothing here holds state between calls or writes to a
+// stream.
 package ecoroot
 
 import (
@@ -101,8 +86,7 @@ func New(named string) (Root, bool) {
 }
 
 // ReadAlwaysTargets is every link the router lists under its `## Read always` heading — the files
-// that load with every session, whatever the task. Both tools count that tier and neither may count a
-// different one, so the block is selected here rather than in each of them.
+// that load with every session, whatever the task.
 //
 // Neither heading line is in the block: the opening one names the tier rather than listing it, and
 // the closing one belongs to the section it opens.
@@ -161,8 +145,8 @@ func (r Root) IsInstalled() bool {
 }
 
 // Contains reports whether a file may be read as part of this tree. A refusal covers more than
-// "outside the root" — see containedInRoot for the shapes it turns away and why existence alone is
-// not enough.
+// "outside the root": a symlink, anything that is not a regular file, and a file this process cannot
+// open are all turned away wherever they sit, because existence alone is not enough to promise a read.
 func (r Root) Contains(file string) bool {
 	return containedInRoot(r.canon, file)
 }

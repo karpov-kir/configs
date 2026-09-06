@@ -103,8 +103,8 @@ func TestRunNumbersPrintsFileLines(t *testing.T) {
 	}
 }
 
-// Judged twice, the second run must delete nothing: the hook's resend goes through the same judge, and
-// this is the property that lets it converge rather than shave a share off each pass.
+// Judged twice, the second run must delete nothing: a lane re-running the judge over text it already
+// judged has to converge, not shave another share off each pass.
 func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
 	path := write(t, source)
 	call := func(_, view string) (string, error) {
@@ -184,6 +184,15 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 	}
 }
 
+// A path carrying a newline must not forge a second line in the refusal.
+func TestARefusalCarriesNoControlByteFromItsArgument(t *testing.T) {
+	var out, errOut strings.Builder
+	Run("bloat-judge.sh", []string{"comment", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
+	if strings.ContainsAny(errOut.String()[:len(errOut.String())-1], "\n\x1b") {
+		t.Fatalf("the refusal carried a control byte through: %q", errOut.String())
+	}
+}
+
 func TestRunPassesThroughWithNoUnits(t *testing.T) {
 	path := write(t, "func a() {}\n")
 	var out, errOut strings.Builder
@@ -257,7 +266,7 @@ func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	}
 }
 
-// The commit hook's form. A committed file with two blocks gains a third: only the third is offered,
+// The form the lanes run. A committed file with two blocks gains a third: only the third is offered,
 // the two committed ones are shown as context and cannot be deleted whatever the model answers.
 func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 	repo := t.TempDir()
@@ -318,21 +327,25 @@ func write(t *testing.T, content string) string {
 	return path
 }
 
+// rollsAnswering is a Caller giving each reply in turn, so a vote's rolls read as the list they are.
+func rollsAnswering(replies ...string) Caller {
+	next := 0
+	return func(string, string) (string, error) {
+		reply := replies[next]
+		next++
+		return reply, nil
+	}
+}
+
 func TestVotingDeletesOnlyWhatAMajorityNames(t *testing.T) {
-	replies := []string{"1, 2", "1", "3"}
-	i := 0
-	roll := func(string, string) (string, error) { r := replies[i]; i++; return r, nil }
-	reply, err := Voting(roll, 3)("p", "a\nb\nc")
+	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", "a\nb\nc")
 	if err != nil || reply != "1" {
 		t.Fatalf("got %q %v, want \"1\"", reply, err)
 	}
 }
 
 func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
-	replies := []string{"1", "2", "3"}
-	i := 0
-	roll := func(string, string) (string, error) { r := replies[i]; i++; return r, nil }
-	reply, err := Voting(roll, 3)("p", "a\nb\nc")
+	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", "a\nb\nc")
 	if err != nil || reply != "none" {
 		t.Fatalf("got %q %v, want none", reply, err)
 	}
@@ -340,10 +353,7 @@ func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
 
 // A roll that explains fails the vote outright rather than being outvoted into silence.
 func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
-	replies := []string{"1", "I think 1 goes", "1"}
-	i := 0
-	roll := func(string, string) (string, error) { r := replies[i]; i++; return r, nil }
-	if _, err := Voting(roll, 3)("p", "a\nb\nc"); err == nil {
+	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", "a\nb\nc"); err == nil {
 		t.Fatal("a prose roll was outvoted instead of refused")
 	}
 }
@@ -378,4 +388,21 @@ func spansOf(units []Unit) []int {
 		spans[i] = u.Span
 	}
 	return spans
+}
+
+// A memo naming a unit the text does not have is a miss, not a verdict.
+func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
+	path := write(t, source)
+	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
+	units, _ := Split(strings.Split(strings.TrimSuffix(source, "\n"), "\n"), true, all)
+	memo.record("comment\n"+offeredKey(units), source, []int{len(units) + 1})
+	calls := 0
+	call := func(string, string) (string, error) { calls++; return "1", nil }
+	var out, errOut strings.Builder
+	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	if calls != 1 {
+		t.Fatalf("the planted verdict was taken as a verdict: %d model calls", calls)
+	}
 }

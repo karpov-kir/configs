@@ -11,9 +11,8 @@ import (
 
 // The `@import` half of a checkout: what the budget files declare, and what the installed mount
 // resolves those declarations to. It lives with the root rather than among the shell primitives
-// because every answer here is a fact about *this* checkout — whether it is the installed one, which
-// CLAUDE.md declared the name, which mount the file loads from — and a caller that could supply those
-// separately could resolve a set the other tool cannot reproduce.
+// because every answer here is a fact about *this* checkout: whether it is the installed one, which
+// name CLAUDE.md declared, and which mount the file loads from.
 
 var (
 	backtickSpan = regexp.MustCompilePOSIX("`[^`]*`")
@@ -134,7 +133,7 @@ func (m importMount) resolve(name string) (target, refusal string) {
 // Resolved, each name of a shape nothing legitimate produces to Refused, and returns the rest for the
 // caller to name in its note. Scanning and mounting are one step because their order is not the
 // caller's to get wrong: a mount built against a different root, or built before the file list is
-// complete, resolves a set the other tool cannot reproduce.
+// complete, resolves a different set.
 //
 // Attempts are capped, and past the cap every remaining name goes to the returned list rather than
 // dropping out silently. Nothing is carried over from the last name the resolver examined: past the
@@ -165,11 +164,6 @@ func (r Root) ResolveImports(scan ImportScan) []string {
 	return uncounted
 }
 
-// How many uncounted imports are named before the rest are summarised. Named because two lines below
-// read it — the slice that keeps them and the arithmetic that says how many were withheld — and
-// written as two bare 10s a change to one silently outruns the other: the note then names eight and
-// says nothing about the ninth, which is a list reading as whole. Same reason ecostats names its own
-// refusal cap.
 const uncountedNamedCap = 10
 
 // UncountedNames is the naming half of the uncounted-import note: capped in bytes as well as in

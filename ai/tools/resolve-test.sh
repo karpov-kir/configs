@@ -12,7 +12,7 @@ set -u
 # `ai/run-tests.sh` reads any non-zero status that is not 2 as `FAIL <suite>`, so exiting 1 when
 # `mktemp` fails reports resolve.sh as the thing at fault — the same misreading this suite's own
 # subject exists to stop, one layer up. So: exit 2, and name the fixture.
-# See testing.md → **What a suite reports**.
+# See `~/.kk-flavor/standards/testing.md` → **7. What a suite reports**.
 # No summary line follows it. The passes behind it are real, and the run they belong to is not a result.
 nomeasure() { # <what could not be built>
   printf 'resolve-test.sh: %s — no verdict was reached, so this is not a result\n' "$1" >&2
@@ -248,7 +248,7 @@ new_tools "$eight"
 out=$("$eight/resolve.sh" "$tool" 2>/dev/null)
 status=$?
 lines=$(printf '%s\n' "$out" | wc -l | tr -d ' ')
-if [ "$status" -eq 0 ] && [ "$lines" = 1 ]; then
+if [ "$status" -eq 0 ] && [ -n "$out" ] && [ "$lines" = 1 ]; then
   record_pass "prints one line on stdout and sends the build log to stderr"
 else
   record_fail "prints one line on stdout and sends the build log to stderr" "exit $status, $lines line(s): $out"

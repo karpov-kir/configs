@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Ecosystem wiring check, the mechanical half of kk-ecosystem. It checks that every reference an
 # agent could follow resolves to something that exists, and that every script still parses.
+#
 #   usage: check.sh [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
+#
 # Prints one line per finding, plus two always-loaded budgets: the router's files, and every skill's
 # `description:`. Outside the install it prints `mounts: skipped`; no such line means the mount scan
 # ran. Exits 1 with findings, 0 when clean, and 2 when it could not run: no resolvable root, a scan
 # that could not run, or a check that never started.
-# A check that did not run is not a clean one.
 #
 # --gate drops every gitignored path from the walk, so two checkouts of one commit cannot answer
 # differently. The filter is on ignored and never on untracked, so a skill just written and not yet

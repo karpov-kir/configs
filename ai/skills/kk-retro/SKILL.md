@@ -29,11 +29,11 @@ Apply each; surface only what the run evidences:
 
 ## The findings file
 
-`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is roughly 50 entries, and it is pruned here and nowhere else.** **Written by hand, under that standard's exception**: only a human starts a retro, so two runs cannot reach this file at once.
+`findings.md` in **this skill's own directory**, not the project's — the one path that is identical from every repo. Create it on the first run. It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. **Its bound is 50 entries, and it is pruned here and nowhere else.** **Written by hand, under that standard's exception**: only a human starts a retro, so two runs cannot reach this file at once.
 
 **Absent is not the same as unreadable.** No file means no retro has run yet; a file you cannot read or parse means repeat-detection is unavailable — say so and report every finding with its count *unknown*, never as new.
 
-**A repeat puts the earlier fix in scope: say whether it landed at all.** Append to `findings.md` after the lenses, one line per finding:
+**A repeat puts the earlier fix in scope: say whether it landed at all.** After the lenses, bump the entry each repeat matches, and append one line per finding the file does not already carry:
 
 ```
 1x | <YYYY-MM-DD> | <repo> | <target> | <the finding in a clause> -> <where it routed>

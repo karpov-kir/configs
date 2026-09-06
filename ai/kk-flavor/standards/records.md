@@ -6,6 +6,8 @@ A record agents **append to** across many runs rather than rewrite: a decision l
 
 A **generated** file is not one of these. Regenerated from a source that is itself bounded, it needs no cap and no promotion — pruning its source is the whole of it.
 
+A record of **measurements** carries a different entry: a row of figures, dated when it was taken and carrying no count, read against the rows around it rather than re-confirmed. None of the moves below revises such a row in place. The cap and the pruning point still bind.
+
 ## Every entry is dated and counted
 
 `<count>x | <date> | <the entry>`. The date is the **last time it was confirmed**, never the day it was written.
@@ -46,7 +48,7 @@ The cap is a prompt to judge, never a queue to trim from the bottom. Work the mo
 - how the project is built → the record holding its constraints
 - what the project is for → the file holding its scope
 - a domain term → the record holding its vocabulary
-- how agents or the project work → the standard or `CLAUDE.md` owning that lane
+- how agents or the project work → the standard or `CLAUDE.md` section owning that lane, never `CLAUDE.md`'s Memory, which entries leave rather than enter
 
 **Promoting deletes the entry.**
 

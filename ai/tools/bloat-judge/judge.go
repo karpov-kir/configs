@@ -2,19 +2,20 @@
 // what that reader sees.
 //
 //	usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]
-//	       comment|instruction take a file; every other kind reads stdin
+//	       every kind takes a file, or reads stdin when no path is given
 //
 // --changed offers only the blocks the diff added or touched — `git diff HEAD` plus untracked files, or
 // the revisions given — while the whole file stays the view. The lanes run this form: without it a
 // change touching one line of a human-written file would put every comment in that file up for
 // deletion, and the sample says the judge takes about half of them.
 //
-// Prints the artifact with the judged units deleted, or with --numbers only the 1-based line numbers
-// deleted, one per line. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an
-// unknown kind, an unreadable path, a model that did not answer, or an answer that was not numbers.
+// Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
+// unit starts on, one per line — a block reports the line it starts on, never every line it took.
+// Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
+// unreadable path, a model that did not answer, or an answer that was not numbers.
 //
-// Only agent-written units are ever offered: for a source file the blocks the change added or edited, on a
-// branch the agent authored; for a PR body or review comment, only until a human's first edit. The verdict
+// Only agent-written units should ever be offered, and that is still owed: for a source file the blocks
+// the change added or edited, on a branch the agent authored; for a PR body or review comment, only until a human's first edit. The verdict
 // is memoised per machine under $XDG_CACHE_HOME/kk-flavor/judged. It is owed as the judged content's hash
 // on the artifact itself — a `Judged:` trailer, an HTML comment — so a second machine meeting a matching
 // hash treats the text as judged instead of cutting it again. haiku, three rolls and a majority is
@@ -103,7 +104,10 @@ func (m *Memo) key(kind, content string) string {
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
 
-func (m *Memo) lookup(kind, content string) ([]int, bool) {
+// lookup answers a recorded verdict, bounded by the units this run is offering. A record naming a
+// unit outside them was written by different code over the same bytes, so it is a miss and the model
+// is asked again — unbounded it would index past the units and take the process down.
+func (m *Memo) lookup(kind, content string, count int) ([]int, bool) {
 	if m == nil {
 		return nil, false
 	}
@@ -111,7 +115,7 @@ func (m *Memo) lookup(kind, content string) ([]int, bool) {
 	if err != nil {
 		return nil, false
 	}
-	gone, err := ParseVerdict(string(raw), 1<<30)
+	gone, err := ParseVerdict(string(raw), count)
 	if err != nil {
 		return nil, false
 	}
@@ -124,7 +128,9 @@ func (m *Memo) record(kind, content string, gone []int) {
 	if m == nil {
 		return
 	}
-	if err := os.MkdirAll(m.Dir, 0o755); err != nil {
+	// 0700/0600: a file's name here is the sha256 of the text that was judged, so a readable memo
+	// dir confirms a guess at the exact bytes of a report or PR body this machine judged.
+	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
 		return
 	}
 	fields := make([]string, len(gone))
@@ -135,7 +141,7 @@ func (m *Memo) record(kind, content string, gone []int) {
 	if len(fields) > 0 {
 		body = strings.Join(fields, ",")
 	}
-	_ = os.WriteFile(m.key(kind, content), []byte(body+"\n"), 0o644)
+	_ = os.WriteFile(m.key(kind, content), []byte(body+"\n"), 0o600)
 }
 
 // ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally.
@@ -149,11 +155,11 @@ func ClaudeCaller(prompt, view string) (string, error) {
 	return string(out), nil
 }
 
-// claudeArgs gives the model nothing but the reply. The view is whatever the judged text says, so
-// the run has no tools, no MCP servers, and no settings from the repository it runs in: `-p` skips
-// the workspace trust dialog, so a checked-out branch's `.claude/settings.json` — its allow rules,
-// its hooks — would otherwise apply, and a comment telling the model to run a command would be
-// obeyed before the numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
+// claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from the
+// repository it runs in. The view is whatever the judged text says, and `-p` skips the workspace trust
+// dialog. Without these flags a checked-out branch's `.claude/settings.json` would apply, allow rules
+// and hooks and all, and a comment telling the model to run a command would be obeyed before the
+// numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
 func claudeArgs(prompt string) []string {
 	return []string{
 		"-p", "--model", "haiku", "--output-format", "text",
@@ -180,7 +186,7 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 			changed = true
 			revisions = strings.Fields(strings.TrimPrefix(args[0], "--changed="))
 		default:
-			fmt.Fprintf(stderr, "%s: unknown option %s — the judge did NOT run\n", self, args[0])
+			fmt.Fprintf(stderr, "%s: unknown option %s — the judge did NOT run\n", self, echoable(args[0]))
 			return exitDidNotRun
 		}
 		args = args[1:]
@@ -208,7 +214,7 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		}
 		raw, err := os.ReadFile(readPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "%s: cannot read %s — the judge did NOT run\n", self, args[1])
+			fmt.Fprintf(stderr, "%s: cannot read %s — the judge did NOT run\n", self, echoable(args[1]))
 			return exitDidNotRun
 		}
 		content = string(raw)
@@ -247,12 +253,13 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		return exitClean
 	}
 
-	// Judged output is final whatever scope produced it, so the clean record is looked up by content
+	// Judged output is final whatever scope produced it, so the unscoped record is looked up by content
 	// alone before the scoped verdict is.
-	memoKey := kindName + "\n" + offeredKey(units)
-	gone, recorded := memo.lookup(kindName+"\n", content)
+	unscopedKey := kindName + "\n"
+	scopedKey := unscopedKey + offeredKey(units)
+	gone, recorded := memo.lookup(unscopedKey, content, len(units))
 	if !recorded {
-		gone, recorded = memo.lookup(memoKey, content)
+		gone, recorded = memo.lookup(scopedKey, content, len(units))
 	}
 	if !recorded {
 		reply, err := call(Prompt(kind), view)
@@ -268,10 +275,10 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 	}
 	pruned := Apply(lines, units, gone)
 	if !recorded {
-		memo.record(memoKey, content, gone)
-		// The pruned form is recorded clean under the unscoped key: whatever diff produced it, a
-		// resend of exactly this text has nothing left to judge.
-		memo.record(kindName+"\n", pruned, nil)
+		memo.record(scopedKey, content, gone)
+		// The pruned form is recorded under the unscoped key: whatever diff produced it, a resend of
+		// exactly this text has nothing left to judge.
+		memo.record(unscopedKey, pruned, nil)
 	}
 
 	if numbersOnly {
@@ -285,6 +292,14 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		return exitClean
 	}
 	return exitCut
+}
+
+// echoable is how an argument reaches a message. A refusal names the argument the caller typed, and
+// an argument carrying a newline forges a second line of output that the orchestrator reading this
+// stream cannot tell from one the tool wrote. Sanitised and bounded, the way ecoroot.UncountedNames
+// treats every name it echoes.
+func echoable(arg string) string {
+	return shell.CutBytesMarked(shell.Oneline(arg), 80)
 }
 
 func kindNames() string {
@@ -482,7 +497,7 @@ func ParseVerdict(reply string, count int) ([]int, error) {
 	for _, field := range strings.FieldsFunc(trimmed, func(r rune) bool { return r == ',' || r == ' ' || r == '\n' || r == '\t' }) {
 		n, err := strconv.Atoi(field)
 		if err != nil {
-			return nil, fmt.Errorf("the judge answered %q, which is not a list of unit numbers", shell.CutBytesMarked(shell.Oneline(trimmed), 80))
+			return nil, fmt.Errorf("the judge answered %q, which is not a list of unit numbers", echoable(trimmed))
 		}
 		if n < 1 || n > count {
 			return nil, fmt.Errorf("the judge named unit %d of %d", n, count)

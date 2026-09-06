@@ -53,6 +53,7 @@ func TestWhatCountsAsOwningScratch(t *testing.T) {
 	}{
 		{"mktemp of its own", "#!/bin/sh\nwork=$(mktemp -d)\n", true},
 		{"a sourced harness that mktemps", "#!/bin/sh\n. \"$checkout/lib/test-harness.sh\"\n", true},
+		{"a sourced harness whose status is checked", "#!/bin/sh\n. \"$checkout/lib/test-harness.sh\" ||\n  { echo did not load >&2; exit 2; }\n", true},
 		{"a declared need for none", "#!/bin/sh\n" + noScratchMarker + " it writes nothing\n", true},
 		{"a fixed path under /tmp", "#!/bin/sh\nwork=/tmp/suite-scratch\nmkdir -p \"$work\"\n", false},
 		{"no scratch and no marker", "#!/bin/sh\necho hello\n", false},
@@ -77,15 +78,19 @@ func sourcesAHarnessThatMktemps(t *testing.T, text string) bool {
 			continue
 		}
 		// The path as written holds a shell variable for the checkout root; only its tail is fixed.
-		fields := strings.Fields(line)
-		sourced := strings.Trim(fields[len(fields)-1], `"'`)
-		idx := strings.Index(sourced, "lib/")
-		if idx < 0 {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join("..", "..", sourced[idx:]))
-		if err == nil && strings.Contains(string(body), "mktemp -d") {
-			return true
+		// Every field is tried rather than the last one, because a suite that checks the source's
+		// status puts `||` there — and reading only the tail then finds no path and concludes the
+		// suite sources nothing, which is the opposite of what guarding it means.
+		for _, field := range strings.Fields(line) {
+			sourced := strings.Trim(field, `"'`)
+			idx := strings.Index(sourced, "lib/")
+			if idx < 0 {
+				continue
+			}
+			body, err := os.ReadFile(filepath.Join("..", "..", sourced[idx:]))
+			if err == nil && strings.Contains(string(body), "mktemp -d") {
+				return true
+			}
 		}
 	}
 	return false

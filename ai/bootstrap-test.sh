@@ -24,8 +24,12 @@ checkout=$(CDPATH= cd -P -- "$here/.." && pwd -P)
 script="$here/bootstrap.sh"
 suite_name="ai/bootstrap-test.sh"
 
+# Status checked, because `.` on a file whose tail does not parse still defines every function ahead
+# of the break: unchecked, this suite runs on the half it got and reports counts nobody may read as a
+# pass. env/bootstrap-test.sh holds the case that proves this line fires, for both copies of it.
 # shellcheck source=../lib/test-harness.sh
-. "$checkout/lib/test-harness.sh"
+. "$checkout/lib/test-harness.sh" ||
+  { printf '%s: lib/test-harness.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
 
 # The skip flags are load-bearing: without them a case shells out to brew, gh and the claude CLI, which
 # makes the suite slow, network-dependent, and able to write to the real MCP registry.

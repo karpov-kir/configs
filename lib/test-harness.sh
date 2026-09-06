@@ -8,8 +8,6 @@
 # `checkout` (this repository's root, which the fixture checkouts are copied out of). After sourcing
 # it has $tmp, $tmp_real, a fresh home per case, the fixture writers, and the expectations.
 #
-# Every fixture write goes through `fixture_write` or `fixture_link`, and this is why.
-#
 # The cases run the *real* bootstrap scripts, which derive their repository from their own location,
 # so a run leaves `$home/.config/nvim` pointing at this checkout's `env/nvim`. That is correct
 # behaviour and harmless while each case gets its own home. It stops being harmless the moment two
@@ -17,8 +15,8 @@
 # the checkout and succeeds, and the fixture write that follows goes straight through it into a real
 # config file.
 #
-# That is not hypothetical. An earlier `fresh_home` was called as `home=$(fresh_home)`, which
-# incremented its counter inside a subshell and handed every case the same home. It overwrote
+# That is not hypothetical. A harness bug once handed every case the same home — the mechanism is on
+# `fresh_home` below, where someone would be tempted to reintroduce it. It overwrote
 # `nvim/init.lua` and `starship/starship.toml` in the working tree and left a stray symlink in
 # `nvim/`. The suite reported it, too — a case failed saying something had been written where nothing
 # should be — and the report was read as a harness bug without asking what the broken run had already
@@ -26,7 +24,10 @@
 #
 # So the containment is asserted before each write rather than noticed after: the parent is resolved
 # physically, following any symlink in the path, and anything landing outside `$tmp` aborts the whole
-# suite. A guard that reports afterwards has still lost the file.
+# suite.
+#
+# tested by: env/bootstrap-test.sh, ai/bootstrap-test.sh — every case in both runs through these
+# fixtures, and the case at "a shared file that is present but stops halfway" covers the loading.
 
 tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT
@@ -84,6 +85,11 @@ fixture_link() {
 fixture_checkout() { # <root> <side>  e.g. fixture_checkout "$tmp/other-repo" env
   local root="$1" side="$2"
   contained_parent "$root" >/dev/null
+  # The parent being contained says nothing about `$root` itself, and `mkdir -p` follows a symlink
+  # there the same way `>` does — the door the two writers above each shut on their own last
+  # component. A link left at this path would send both `cp`s below into whatever it names.
+  [ ! -L "$root" ] ||
+    refuse_fixture "$root" "it already exists as a symlink to $(readlink "$root")"
   mkdir -p "$root/lib" "$root/$side"
   cp "$checkout/lib/mount.sh" "$root/lib/mount.sh"
   cp "$checkout/$side/bootstrap.sh" "$root/$side/bootstrap.sh"
@@ -102,12 +108,8 @@ record_fail() {
   echo "  FAIL  $1  — $2"
 }
 
-# No skip counter here, unlike ai/tools/source-stamp-test.sh. That suite reports a third field because
-# it has a case it cannot run on a machine carrying only one of the two hashers, and hiding that would
-# make two machines checking different sets look identical. Nothing here is declined that way: the one
-# case these files cannot run as root takes the whole suite to exit 2 instead, which says the run is
-# not a result rather than that a case was skipped. A field that can never be non-zero is decoration
-# wearing the shape of a measurement.
+# No skip counter, unlike ai/tools/source-stamp-test.sh: nothing here is declined. The one case these
+# files cannot run as root takes the whole suite to exit 2, which says the run is not a result at all.
 
 # A fresh home per case, so no case inherits another's links. Numbered rather than mktemp'd again so a
 # failure message names which case's home to go and look at.
