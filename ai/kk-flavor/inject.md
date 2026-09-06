@@ -1,4 +1,4 @@
-Read a doc only when its trigger below matches what you're doing. A project's own `PROJECT_CODE_STYLE.md` / `CLAUDE.md` layers on top and wins on conflict.
+Read a doc only when its trigger below matches what you're doing. **`project.md`, `architecture/core.md` and `testing.md` bind a new project, or one already following them. Anywhere else, match what the project already does.** A project's own `PROJECT_CODE_STYLE.md` / `CLAUDE.md` layers on top and wins on conflict.
 
 ## Read always (any task)
 
@@ -12,7 +12,7 @@ Read a doc only when its trigger below matches what you're doing. A project's ow
 | writing or refactoring code | [standards/code-style.md](standards/code-style.md) |
 | designing modules, layers or boundaries; wiring dependencies | [standards/architecture/core.md](standards/architecture/core.md) |
 | tracing what calls what, or what a change reaches, past the first grep | [standards/code-navigation.md](standards/code-navigation.md) |
-| writing or reviewing tests, **or changing behaviour that should have one** | [standards/testing.md](standards/testing.md) |
+| writing, running or reviewing tests, **or changing behaviour that should have one** | [standards/testing.md](standards/testing.md) |
 | turning a settled requirement — a ticket, an issue, an intent, an ask — into code | [standards/building.md](standards/building.md) |
 | writing outward text — anything a person reads as communication | [standards/human-writing.md](standards/human-writing.md) |
 | setting up env, scripts, local dev / Docker; **writing a schema migration; adding or upgrading a dependency** | [standards/project.md](standards/project.md) |

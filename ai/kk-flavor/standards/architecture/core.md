@@ -1,7 +1,5 @@
 # How We Structure Code
 
-Follow this on a new project; otherwise match the project's existing architecture.
-
 ## Three axes
 
 ### Vertical slicing
@@ -25,13 +23,13 @@ An adapter implements a port against one concrete technology. The core imports o
 
 #### Composition root
 
-A composition root constructs adapters and injects them into the domain; business and domain code never call `new` on an infrastructure class. Its constructor takes partial overrides that default to the real adapters — the seam a test or another runtime swaps one dependency through — and it exposes the handle callers hold. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
+A composition root constructs adapters and injects them into the domain; business and domain code never call `new` on an infrastructure class. Its constructor takes partial overrides that default to the real adapters — the seam a test or another runtime swaps one dependency through. It exposes the handle callers hold. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
 
 **Hand out domain handles — never a raw framework or vendor type.** The shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job, the use-case API for a library.
 
 #### Entrypoints
 
-Ports and adapters are the **outbound** edge — tech the domain drives; **entrypoints** are the **inbound** edge — what drives the domain, one per way into the app. An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its **composition root**, and app-wide cross-cutting, then hands each inbound interaction inward to a slice's boundary; only the logic behind it stays transport-agnostic.
+Ports and adapters are the **outbound** edge — tech the domain drives; **entrypoints** are the **inbound** edge — what drives the domain, one per way into the app. An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its **composition root**, and app-wide cross-cutting, then hands each inbound interaction inward to a slice's boundary. Only the logic behind it stays transport-agnostic.
 
 One entrypoint sits in a singular `entrypoint/`; several go under `entrypoints/`, one named folder each. **An entrypoint file is named for what it starts** — `start.ts`, not `main.ts`, which names only the program's beginning. No composition root composes composition roots — to run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll.ts`, `web.ts`, `worker.ts`) starts their handles together.
 

@@ -1,7 +1,5 @@
 # How We Set Up a Project
 
-Follow this on a new project or one that already does; otherwise match the project's existing setup.
-
 Starter configs: [`templates/`](../templates/) — match them closely; diverge only on what no template covers.
 
 ## Environments
@@ -59,7 +57,7 @@ A service's `docker/` holds its own container setup — its Traefik route slice,
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
 - **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
 - **Service-specific containers** go in the service's own `docker/docker-compose.yml` (brought up by its `start:dev`); common deps stay in the dev-infra.
-- **Env in the image follows the secret rule above** — the non-secret files `COPY`-ed, staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
+- **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 
 ## Migrations
 
@@ -71,4 +69,4 @@ Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore`.
 
 ## Dependencies
 
-Latest LTS where upstream offers one, pinned as a concrete range — never a floating tag, never a pre-release. An override or an older pin carries a one-line reason and is pruned when it lapses.
+Latest LTS where upstream offers one, pinned as a concrete range — never a floating tag, never a pre-release. **An override or an older pin is a decision you bring to the human**, never one you take; once taken it carries a one-line reason and is pruned when it lapses.
