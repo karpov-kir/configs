@@ -17,7 +17,6 @@ func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {
 		if !ok {
 			t.Fatalf("New(%q) refused a checkout holding both directories", dir)
 		}
-		// Concatenated, never cleaned: every message a tool prints echoes a path built from this.
 		assertEquals(t, "named", root.Named(), dir)
 		assertEquals(t, "flavor", root.Flavor(), dir+"/kk-flavor")
 		assertEquals(t, "skills", root.Skills(), dir+"/skills")
@@ -105,8 +104,7 @@ func assertEquals(t *testing.T, what, got, want string) {
 	}
 }
 
-// The always-loaded tier's membership, which both tools count and neither may count differently. The
-// two heading lines are the whole question: a link on the closing `## Read on trigger` heading is in
+// The always-loaded tier's membership. The two heading lines are the whole question: a link on the closing `## Read on trigger` heading is in
 // the next tier, not this one.
 func TestOnlyTheLinksBetweenTheHeadingsAreAlwaysLoaded(t *testing.T) {
 	lines := []string{
@@ -134,7 +132,6 @@ func TestOnlyTheLinksBetweenTheHeadingsAreAlwaysLoaded(t *testing.T) {
 	}
 }
 
-// A router with no such heading lists nothing, rather than reading the whole file as the tier.
 func TestARouterWithNoReadAlwaysHeadingListsNothing(t *testing.T) {
 	lines := []string{"# Flavor", "", "- [core](standards/core.md)"}
 	if got := ecoroot.ReadAlwaysTargets(lines); len(got) != 0 {

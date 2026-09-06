@@ -4,13 +4,11 @@
 #
 #   usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
 #
-# Prints the artifact with the judged units deleted, or with --numbers only the 1-based line numbers
-# deleted. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
-# unreadable path, a model that did not answer, or an answer that was not numbers.
+# Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
+# unit starts on. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown
+# kind, an unreadable path, a model that did not answer, or an answer that was not numbers.
 #
-# The model returns numbers and nothing else, and the tool applies them. It never rewrites and never
-# explains, so there is nothing to negotiate with; for a source file the units are its comment blocks
-# alone, so code cannot be touched whatever the model says.
+# What the model may do, and why it is safe, is the package doc in `ai/tools/bloat-judge/judge.go`.
 #
 # tested by: the Go suite beside the tool, `ai/tools/bloat-judge/`; the shared stub region below by
 # tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
@@ -18,8 +16,7 @@
 set -euo pipefail
 
 tool="bloat-judge"
-# How far THIS file sits above the tools directory. The shared region below resolves exactly this one
-# path and consults nothing else, so a stub can only ever reach the directory it names.
+# How far THIS file sits above the tools directory.
 tools_offset="../.."
 
 # --- shared:tool-stub ---

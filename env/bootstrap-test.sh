@@ -209,11 +209,9 @@ expect_not_out "and does not cascade through the mount table instead" "command n
 
 # --- a shared file that is present but stops halfway ----------------------------------------------
 
-# The sibling of the case above, and the half it cannot reach. `.` on a file whose tail does not parse
-# defines every function ahead of the break and *then* returns non-zero, so a caller that reads only
-# the functions carries on with the half it got. It then reports counts and exits 1, which says the
-# code under test is broken — when what actually happened is that nothing was measured, and that is
-# exit 2.
+# The sibling of the case above, and the half it cannot reach: there the shared file is missing, here
+# it is present and its tail does not parse. What that costs a suite is in the guard's own comment at
+# the top of this file.
 #
 # Driven against ai/bootstrap-test.sh rather than against this file, so that deleting the guard makes
 # this case go red instead of re-entering itself without bound. Both suites carry the same two-line

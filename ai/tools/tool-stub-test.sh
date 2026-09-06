@@ -108,23 +108,23 @@ echo "shared:tool-stub"
 # bloat-judge.sh in situ, and the reason every stub declares its own offset instead of the region holding one
 # depth. Most stubs sit at `skills/<skill>/scripts/`, three below the tools directory; this one and
 # `tree-fingerprint.sh` are at `kk-flavor/scripts/`, two below, and `gate.sh` sits beside `tools/`
-# itself. The copied fixtures further down drive a stub at each depth in a throwaway tree; this drives
-# the real file at the real depth against its real tool. The probe table cannot hold it because that
-# harness passes exactly one argument, and the judge with none prints its usage and exits 2.
+# itself. The copied fixtures further down are all built at the three-below depth, and the offset scan
+# near the bottom is what reaches the other two; this drives the real file at the real depth against
+# its real tool. The probe table cannot hold it because that harness passes exactly one argument, and
+# the judge with none prints its usage and exits 2.
 judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
+name="bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
 if [ -x "$judge_stub" ]; then
   judge_err="$base/judge-probe.err"
   (CDPATH= cd "$base" && "$judge_stub" >/dev/null 2>"$judge_err")
   status=$?
   if [ "$status" -eq 2 ] && grep -q "usage:" "$judge_err"; then
-    record_pass "bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
+    record_pass "$name"
   else
-    record_fail "bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
-      "exit $status, stderr: $(cat "$judge_err" 2>/dev/null)"
+    record_fail "$name" "exit $status, stderr: $(cat "$judge_err" 2>/dev/null)"
   fi
 else
-  record_fail "bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture" \
-    "$judge_stub is not executable, so the one stub at that depth went unchecked"
+  record_fail "$name" "$judge_stub is not executable, so the one stub at that depth went unchecked"
 fi
 
 # The negative control, and the regression the stub exists for.
