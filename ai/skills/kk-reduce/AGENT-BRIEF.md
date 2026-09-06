@@ -21,10 +21,7 @@ You are one scoped agent in a campaign shrinking an ecosystem of agent instructi
 
 Before deleting anything because "another file covers it", **open that file at the moment you delete — not earlier — confirm the text is there, and confirm the plan does not also schedule it.** A concurrent agent may be deleting its copy while you read yours. If both copies are scheduled, keep one and say which.
 
-## Move it before you cut it
-
-Prefer a move (`~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it**) to a deletion
-you would have to argue for.
+## Extracting into a script
 
 **Extracting a rule into a script owes honesty in `WORDS`** — a comment is prose that changed file,
 not prose you saved. What else that extraction owes is `~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**.

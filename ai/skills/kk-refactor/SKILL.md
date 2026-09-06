@@ -18,7 +18,7 @@ Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
 
 ## Setup (once)
 
-- **Seed the duplication hunt with `~/.claude/skills/kk-refactor/scripts/dup-literals.sh`** — bare for the uncommitted changes, or the git revisions to scan — unless your caller passed you its output already.
+- **Seed the duplication hunt with `~/.claude/skills/kk-refactor/scripts/dup-literals.sh`** — with the git revisions to scan, or bare for the uncommitted changes — unless your caller passed you its output already.
 - Extract every guideline the router's standards state for the reviewed files — plus any project `PROJECT_CODE_STYLE.md` — as a numbered list `G1..Gn`, tagging each **architecture**, **testing**, **project-setup**, or **other**.
 - A directory globs source, configuration, and documentation recursively; **whole project** is all of those under the root.
 
@@ -34,6 +34,6 @@ Apply every fix directly except the **architecture**, **testing**, and **project
 
 Adds a coverage field — `File N/M <path> | <lines>L | G1..Gn | OK` — counting the guidelines you checked. If you couldn't check them all, list only the ones you did and mark the verdict `WARN`.
 
-Finding line: `<the rule, named in words>: <what failed>` — never `G14`, which nobody outside this pass can resolve.
+Finding line: `<the rule, named in words>: <what failed>` — never `G14`.
 
 **Close the run by stating plainly whether the change is now compliant**, and name what is open if it isn't — in the run's closing reply, never left to the per-file verdicts.

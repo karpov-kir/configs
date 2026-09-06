@@ -9,7 +9,7 @@ Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — withou
 
 **You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); read it and `~/.kk-flavor/standards/ecosystem.md`, the bar every agent judges against, before Phase 1.
 
-**Every agent below is spawned**, per the protocol's default — a second opinion from a context that already holds your conclusions is not a second opinion. Hand `~/.claude/skills/kk-reduce/AGENT-BRIEF.md` verbatim to every agent that **edits** — Phases 3–5, and only those; it carries their invariants and return contract, so your prompt carries only that agent's scope and delta.
+**Every agent below is spawned**, per the protocol's default — a second opinion from a context that already holds your conclusions is not a second opinion. Hand `~/.claude/skills/kk-reduce/AGENT-BRIEF.md` verbatim to every scoped agent that **edits** — Phases 3–5, and only those, never a skill you invoke, which carries its own contract. It carries their invariants and return contract, so your prompt carries only that agent's scope and delta.
 
 ## 0. Baseline
 
@@ -33,7 +33,7 @@ Three things it must do:
 - **Apply the rescue test** — *name the specific wrong action an agent takes without this text*. Not "this is true", not "this is useful". A passage that cannot fill that sentence loses.
 - **Catch de-duplication to zero** (`AGENT-BRIEF.md` → **The one failure mode that matters**) — here, the pair of *items* that each delete a rule citing the other as its home.
 
-It returns themed scopes, ordered so an earlier theme never invalidates a later one, and writes the plan to `<scratch>/reduce-plan.md` — **outside the repository**, like every campaign file here (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**).
+It returns themed scopes, ordered so an earlier theme never invalidates a later one, and writes the plan to `<scratch>/reduce-plan.md`.
 
 **The plan marks every entry `Accepted`, `Modified`, or `Rescued`**, because `AGENT-BRIEF.md` binds Phase 3 agents to exactly those three labels — a rescue argued only in prose reaches them as nothing. `Modified` carries the verified numbers; `Rescued` names the file the passage must survive in.
 
@@ -43,13 +43,15 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 **Partition by file, not by topic.** Two agents that share a file clobber each other; two with disjoint files run concurrently however related their themes. Sequence only where a real dependency exists — a fold that must land before the file it folds into is deleted, a hoist that must precede the skills it hoists from.
 
-**The wiring check over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**) — `~/.claude/skills/kk-ecosystem/scripts/check.sh`, by full path because a campaign runs from the human's own repo root, where a bare name resolves against the tree under audit first. Run it between phases and at the end.
+**The wiring check over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**) — `~/.claude/skills/kk-ecosystem/scripts/check.sh`. Run it between phases and at the end.
 
 **You own the cross-scope queue**, at `<scratch>/reduce-cross-scope/` — where an agent files the edit another agent's file needs, as a patch (`AGENT-BRIEF.md` → **Scope discipline**). **Drain it as each patch arrives, not in Phase 4**: apply it or record why you declined, then resume its owner with what landed. A patch outliving its author can only be repaired by hand, which `~/.kk-flavor/standards/streaming.md` → **The caller's half** forbids. Phase 4 takes only what arrived after its owner finished. A *handoff* is not a cross-scope entry: it names a lane rather than an edit, and Phase 6 drains it (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
 **Keep a campaign record beside it** — the plan path, each theme's scope, whether its agent finished, and every return verbatim. Without it an interrupted campaign leaves a half-cut tree with no way to tell which themes landed.
 
 ## 4. Reconcile
+
+The reading and the arbitration are yours; an agent handed `AGENT-BRIEF.md` applies each fix (**You orchestrate and do not edit**, above).
 
 - **One home, and no home.** Reconcile rules living in several files. Then grep-verify **every `DELETED:` line every agent returned** — open the file each names as still covering the rule and confirm the text is there — not only what the plan rescued: **de-duplication to zero** survives the plan when two agents each delete their own copy. A line whose named home no longer holds it is a rule deleted twice; restore one copy.
 - **Stale claims.** A wiring check proves the path and the heading a citation names; nothing proves that section still says the thing. Read every citation into a file that was heavily cut.
@@ -61,7 +63,7 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 Fresh agents over the largest remaining scopes, told nothing of what was already cut — only what is protected (**Rules**, below). **Tell them a short return is the correct answer to a converged tree** — an agent measured on findings will manufacture them and undo work that was already argued.
 
-Stop when a round returns little and says so. Two rounds is usually enough.
+Stop when a round returns little and says so.
 
 ## 6. Repair and verify
 
@@ -69,9 +71,7 @@ Cutting damages prose: it stitches sentences together, strands pronouns, leaves 
 
 **Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. A header stating `# untested:` instead (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**) leaves this step covering that script with nothing; read its reason. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
 
-**Then run `~/.claude/skills/kk-humanize/scripts/comment-density.sh --bar`** with no arguments, which reads the diff against `HEAD` — the campaign's own edits exactly, given Phase 0's clean start.
-
-**The files it names are yours to route, never to fix**: spawn `kk-humanize` over them.
+**Then spawn `kk-humanize` over the campaign's own edits** — the diff against `HEAD`, exactly, given Phase 0's clean start. It runs its own comment scan over them.
 
 **Then drain the handoffs the phases returned** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**) — nothing else here reads a script as code.
 

@@ -10,11 +10,11 @@ Hand the work over as one prompt that stands alone, plus the chip that starts a 
 
 **Runs inline, never spawned** — the context being handed off is context only you hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 
-**Hand off scope, never effort.** Work you could finish in this run is work you finish. **Handing off is one of five moves at a phase boundary**, and `~/.kk-flavor/standards/skill-protocol.md` → **Phase boundaries** ranks them — reaching here past a cheaper one writes a file nobody needed.
+**Hand off scope, never effort.** Work you could finish in this run is work you finish. **Handing off is one of the moves at a phase boundary**, and `~/.kk-flavor/standards/skill-protocol.md` → **Phase boundaries** ranks them — reaching here past a cheaper one writes a file nobody needed.
 
 ## 1. Draft it
 
-Fill every slot of `~/.claude/skills/kk-handoff/handoff-prompt.md`, into a file in the scratch dir — **outside the repository** (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**).
+Fill every slot of `~/.claude/skills/kk-handoff/handoff-prompt.md`, into a file in the scratch dir (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**).
 
 ## 2. Check it
 

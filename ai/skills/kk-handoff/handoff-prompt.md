@@ -1,9 +1,5 @@
-<!-- The handoff prompt. Fill every slot and delete its comment — a leftover comment is an unfilled
-     slot, and handoff-check.sh reads it that way. Keep the seven headings verbatim and add no eighth;
-     the checker refuses anything else. A slot with nothing to say is written `None — <why>`, never
-     left blank, and a slot answered in two or three words is refused as well — that is blank with a
-     token in it. Everything you know that the base commit does not show belongs in a slot, or it is
-     lost. -->
+<!-- Fill every slot and delete its comment. Everything you know that the base commit does not show
+     belongs in a slot, or it is lost; `handoff-check.sh` refuses what falls short of that. -->
 
 # <one imperative line: the work>
 

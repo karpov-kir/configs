@@ -1,6 +1,6 @@
 ---
 name: kk-tighten
-description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's.
+description: Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; refining a whole instruction tree is kk-ecosystem's, which runs this last.
 argument-hint: "file, directory, or natural-language scope (e.g. \"the changes\", \"staged\")"
 ---
 
@@ -25,15 +25,14 @@ Tighten the prose in every artifact resolved from `$ARGUMENTS`: cut what costs c
 
 ## The lens
 
-Check every artifact against all seven:
+Check every artifact against all six:
 
 1. **Redundancy** — the same fact or rule stated twice, within the artifact or across siblings. Keep one home; cross-reference from the rest. A deliberate repeat — a rule restated at its point of use, a safety-critical warning — is signal, not filler.
 2. **Inferable filler** — text recoverable from context. Cut.
 3. **Dead weight** — true, unique, and it changes nothing the reader would otherwise do. Delete under the lossy license; keep under the lossless one.
 4. **Closed taxonomy** — an enumerated list implying completeness where the domain is open. Open it, or keep only if the set is genuinely fixed.
-5. **Contradiction** — two statements that can't both hold. Reconcile to one.
-6. **Density** — every rule in `~/.kk-flavor/standards/writing.md` → **Density**.
-7. **Readability floor** — every rule in `~/.kk-flavor/standards/writing.md` → **Readability floor**; it outranks the other six.
+5. **Density** — every rule in `~/.kk-flavor/standards/writing.md` → **Density**.
+6. **Readability floor** — every rule in `~/.kk-flavor/standards/writing.md` → **Readability floor**.
 
 ## Loop deltas
 
