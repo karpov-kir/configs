@@ -141,6 +141,12 @@ func TestReviseReplacesTheTextAndKeepsTheCount(t *testing.T) {
 		f.status == 0 && strings.Contains(content, "4x | "+today()+" | p99 under 200ms on every read endpoint\n"), content)
 	f.record("and the old wording is gone rather than left beside it",
 		!strings.Contains(content, "| p99 under 200ms on search\n") && strings.Count(content, "x | ") == 2, content)
+	// The replaced text has to reach stdout. `replacement` is the whole entry, so a caller that reads
+	// "revise" as an edit-in-place loses every word it did not retype, out of an append-only record.
+	// A ship found this by copying the log, restoring and diffing the whole file; nothing the tool
+	// printed would have told it. The echo is what makes the loss visible at the moment it happens.
+	f.record("and it echoes the entry it replaced, so the loss is not silent",
+		strings.Contains(f.out, "it replaced: ") && strings.Contains(f.out, "p99 under 200ms on search"), f.evidence())
 
 	// Folding two entries into one is revise-then-evict, so the pair has to end as a single entry.
 	f.runReport("record", "evict", "constraints", "on autocomplete")
@@ -165,6 +171,17 @@ func TestReviseReplacesTheTextAndKeepsTheCount(t *testing.T) {
 	after := f.read(path)
 	f.record("a revision that shortens an entry leaves no tail of the old wording",
 		f.status == 0 && strings.HasSuffix(after, "| WCAG AA\n") && strings.Count(after, "x | ") == 2, after)
+
+	// The shape that cost a ship its entry: the caller passes the fragment it wanted substituted in,
+	// and revise takes it as the whole entry. Containment recognises exactly that and needs no
+	// threshold — a real rewording is not a substring of what it replaces. This is the only write in
+	// an append-only record that can remove text, so it is the one that must not do it in silence.
+	beforeGuard := f.read(path)
+	f.runReport("record", "revise", "constraints", "every read endpoint", "p99 under 200ms")
+	f.record("a replacement contained in the entry is refused, and the record is untouched",
+		f.status != 0 && f.read(path) == beforeGuard, f.evidence())
+	f.record("and the refusal says revise takes the whole entry, and offers evict",
+		strings.Contains(f.out, "WHOLE new entry") && strings.Contains(f.out, "record evict constraints"), f.evidence())
 }
 
 func TestBumpRaisesTheCountAndRedatesWithoutAddingALine(t *testing.T) {

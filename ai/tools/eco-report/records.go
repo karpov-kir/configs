@@ -560,10 +560,30 @@ func (r *run) recordRevise(kind *recordKind, path, text, replacement string) {
 
 	found := r.entryToOverwrite(path, lines, text, replacement, "revised",
 		"  Folding two into one is: revise the one to keep, then evict the other.")
+	// `replacement` is the whole entry, not a fragment substituted into it. A caller that reads
+	// "revise" as an edit-in-place passes the part it wants changed, and every word it did not retype
+	// is gone from a record nothing else can remove text from. Containment is the exact shape of that
+	// mistake and needs no threshold to recognise: a genuine rewording is not a substring of what it
+	// replaces. A deliberate trim to an exact substring is refused too, and gets past this by saying
+	// so — one word different, or evict.
+	if replacement != found.text && strings.Contains(found.text, replacement) {
+		r.refuse("error: that replacement is contained in the entry it would overwrite — nothing was revised.",
+			"  "+found.quoted(),
+			"  revise takes the WHOLE new entry, never the fragment to substitute into it, so this would",
+			"  have dropped every word above that it does not repeat.",
+			"  Meant to shorten it: pass the full text you want, differing from the entry by more than a cut.",
+			"  Meant to remove it: report.sh record evict "+kind.name+" \"<text identifying it>\"")
+	}
 	revised := recordEntry{count: found.count, date: today(), text: replacement}
 	lines[found.line] = revised.String()
 	r.overwriteRecord(path, handle, lines)
 	r.line("revised in %s: %s", kind.file, revised.quoted())
+	// The replaced text, echoed under the new one. `replacement` is the WHOLE entry, not a fragment
+	// substituted into it, and a caller reading "revise" as an edit-in-place loses everything it did
+	// not retype — from an append-only record, with nothing on stdout saying so. Printing what stood
+	// there does not stop the wrong call; it stops the wrong call being silent, which is the whole of
+	// what made it cost a ship a restore-and-diff to find.
+	r.line("  it replaced: %s", found.quoted())
 	r.noteBound(kind, path, lines)
 }
 
