@@ -18,4 +18,4 @@ User-stated emphasis (the human's own words this run, verbatim, or the licence a
 
 Deterministic tool output (passed verbatim as evidence): <…>
 
-You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your skill and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows your skill's own lens, and the emphasis slot above carries the human's authority, not your caller's inference.
+You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your skill and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows your skill's own lens, and the emphasis slot above carries the human's authority, not your caller's inference. **An act your own skill leaves to its caller or the human is one you return as a proposal** — whatever the slot licenses your caller to do.
