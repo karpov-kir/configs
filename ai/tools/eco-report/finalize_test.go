@@ -26,9 +26,17 @@ func TestFinalizeArchivesTheShipWithoutItsScratch(t *testing.T) {
 	f.record("and its ship folder is gone from intents/", !f.exists(f.shipDir("001-shipping")),
 		joinLines(f.find(f.scratch())))
 
-	for _, scratch := range []string{"decisions.md", "playbook.md", "language.md", "qualify-report.md"} {
-		f.record("the archived folder carries no "+scratch, !f.exists(archived+"/"+scratch),
-			joinLines(f.find(archived)))
+	// The report goes: it recorded one pass and any later pass reproduces it.
+	f.record("the archived folder carries no qualify-report.md", !f.exists(archived+"/qualify-report.md"),
+		joinLines(f.find(archived)))
+
+	// The three records stay, and this is the half that has to be asserted rather than assumed. The
+	// judging half may leave an entry unmerged — on a contradiction, or on a full project cap — so a
+	// ship can reach finalize still holding the only copy. `language.md` is the one no later pass can
+	// rebuild, a term's meaning not being recoverable from the code that used it.
+	for _, kept := range []string{"decisions.md", "playbook.md", "language.md"} {
+		f.record("and still carries "+kept+", which may hold the only copy of an unmerged entry",
+			f.isFile(archived+"/"+kept), joinLines(f.find(archived)))
 	}
 }
 
@@ -77,14 +85,53 @@ func TestAMergeSlotIsReclaimableOnceItsHolderIsKnownGone(t *testing.T) {
 
 func (f *fixture) takeMergeSlot(intent string) {
 	f.t.Helper()
+	f.write(f.mergeSlotPath(),
+		intent+"\n"+f.repo+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
+}
+
+func (f *fixture) mergeSlotPath() string {
+	f.t.Helper()
 	// `--git-common-dir` answers relative to the repo when asked from inside it, so joining it onto the
 	// repo is what makes this the path the tool resolves rather than one under the test's own cwd.
 	common := f.mustGit("rev-parse", "--git-common-dir")
 	if !strings.HasPrefix(common, "/") {
 		common = f.canonicalRepo() + "/" + common
 	}
-	f.write(common+"/idsd-merge-slot",
-		intent+"\n"+f.repo+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
+	return common + "/idsd-merge-slot"
+}
+
+// A slot the caller was already holding is the caller's to release. The finalizing skill takes it
+// before finalize and releases it after step 4, because the judging half writes the project's records
+// between them — outside this process, and unable to hold a lock of its own. finalize releasing it on
+// the way out hands the rest of that bracket to whoever is waiting, which is the collision the slot
+// exists to prevent rather than a slot merely leaked.
+func TestFinalizeLeavesASlotItsCallerIsHolding(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-bracketed")
+	f.newIntentFile("001-bracketed")
+
+	f.runReport("merge-slot", "take", "001-bracketed")
+	f.record("the caller can take the slot for its own ship", f.status == 0, f.evidence())
+
+	f.runReport("finalize", "001-bracketed")
+	f.record("finalize succeeds under a slot its caller already holds", f.status == 0, f.evidence())
+	f.record("and the ship is archived, so the case reached the end it is about",
+		f.isFile(f.archiveDir("001-bracketed")+"/intent.md"), joinLines(f.find(f.scratch())))
+	f.record("and the slot is still held, because step 4 has not run",
+		f.isFile(f.mergeSlotPath()), f.mergeSlotPath())
+}
+
+// The control, and the half that makes the case above mean something: a finalize that took the slot
+// itself still drops it. Without this, a tool that never released anything would pass that test.
+func TestFinalizeReleasesASlotItTookItself(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-unbracketed")
+	f.newIntentFile("001-unbracketed")
+
+	f.runReport("finalize", "001-unbracketed")
+	f.record("finalize succeeds having taken its own slot", f.status == 0, f.evidence())
+	f.record("and leaves no slot behind, or the next ship waits on nobody",
+		!f.exists(f.mergeSlotPath()), f.mergeSlotPath())
 }
 
 // The subcommand a caller runs to hold the slot across the judging half of a merge. takeMergeSlot

@@ -44,8 +44,10 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 Set `status: built` in the intent **first**, so what lands in the archive says what it is.
 
-**Then `report.sh finalize <NNN-slug>`.** It deletes the ship's own three records and its report, drops the stage markers, moves the folder to `.idsd/archive/NNN-<slug>/`, and releases the slot. The deletes precede the move: archived with them, the folder would carry records nothing prunes.
+**Then `report.sh finalize <NNN-slug>`.** It deletes the ship's report, drops the stage markers, and moves the folder to `.idsd/archive/NNN-<slug>/`. The report goes because any later pass reproduces it; the ship's own three records ride along, because step 3 is allowed to leave an entry unmerged and the archived folder is then the only place that entry exists — `language.md` being the one no later pass can rebuild.
 
 **Then regenerate `.idsd/roadmap.md`** if it exists, to `idsd-intent`'s format, which owns it. After the move rather than before, or it still lists this ship as unbuilt.
 
 **Then land everything in one approval-gated commit** (`~/.kk-flavor/standards/git.md` → **Commits**).
+
+**Then `report.sh merge-slot release`.** Yours to drop, because you took it: finalize releases only a slot it took for itself. One released on your behalf would open the queue at the line above, with this ship's commit still unwritten and the next ship regenerating records against a tree that does not have it yet.

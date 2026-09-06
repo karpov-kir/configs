@@ -72,13 +72,17 @@ func (r *run) readMergeSlot() *mergeSlot {
 // Take it, or refuse naming who has it. `--force` breaks a slot whose holder is gone — the tool cannot
 // see that for itself, since the session it would be asking about is not a process it started, so the
 // judgment is the caller's and this only carries it out and says so.
-func (r *run) takeMergeSlot(intent string, isForced bool) {
+// Reports whether THIS call took the slot. A caller that brackets the whole merge took it before
+// finalize ran, and finalize releasing it on the way out hands the rest of that bracket to whoever is
+// waiting — the judging half writes the project's records outside this process, which is the window
+// the slot exists to close.
+func (r *run) takeMergeSlot(intent string, isForced bool) bool {
 	if held := r.readMergeSlot(); held != nil {
 		// Already ours, for this ship. The caller brackets the whole merge — the judging half writes the
 		// project's records, and two ships judging one cap at once is what the slot exists to stop, so
 		// it has to be takeable before finalize rather than only by it.
 		if held.intent == intent && held.worktree == r.root {
-			return
+			return false
 		}
 		if !isForced {
 			age := ""
@@ -103,14 +107,26 @@ func (r *run) takeMergeSlot(intent string, isForced bool) {
 	if err := os.WriteFile(r.mergeSlotPath(), []byte(slot), 0o600); err != nil {
 		r.refuse("error: could not take the merge slot at " + r.mergeSlotPath() + " (" + err.Error() + ") — nothing was finalized.")
 	}
+	return true
 }
 
 func (r *run) releaseMergeSlot() { _ = rmFile(r.mergeSlotPath()) }
 
-// The ship's own scratch, deleted before the folder moves. Moved first, the archived folder would
-// carry three local records nothing prunes and a report that outlived the pass it recorded — and the
-// archive is the durable record, so what lands there is what every later reader believes was kept.
-var shipScratchFiles = []string{"decisions.md", "playbook.md", "language.md", reportName}
+// The ship's own scratch, deleted before the folder moves: the report, which outlived the pass it
+// recorded and which any later pass reproduces.
+//
+// The three local records used to be on this list, on the reasoning that the judging half had already
+// merged them upward and the archive should not carry a second copy nothing prunes. That reasoning
+// holds for the path where the merge succeeds, and the merge is exactly what is allowed not to. The
+// finalizing skill leaves an entry unmerged on a contradiction — "stays unmerged until they settle
+// it" — and on a full project cap, so a ship can reach here still holding entries no project record
+// received. Deleting them then destroys the only copy, and `language.md` is the one a later pass
+// cannot reconstruct: a term's meaning is not recoverable from the code that used it.
+//
+// So they ride into the archive. A duplicate under a ship's own archived folder costs a reader one
+// question about which copy is authoritative; the alternative costs them the record. Tidiness is
+// recoverable and the entries are not.
+var shipScratchFiles = []string{reportName}
 
 // The slot as its own act, so a caller can hold it across the judging half of a merge — which writes
 // the project's records and therefore must not run beside another ship's. `finalize` still takes one
@@ -146,8 +162,11 @@ func (r *run) cmdFinalize(args []string) {
 			"  A ship archives once. Move or remove what is there, then re-run.")
 	}
 
-	r.takeMergeSlot(stem, isForced)
-	defer r.releaseMergeSlot()
+	// Released only if this call is what took it. A slot the caller was already holding is the caller's
+	// to release, and step 4 of the finalizing skill has not run when this returns.
+	if tookSlot := r.takeMergeSlot(stem, isForced); tookSlot {
+		defer r.releaseMergeSlot()
+	}
 
 	for _, scratch := range shipScratchFiles {
 		_ = rmFile(r.shipDir(stem) + "/" + scratch)
