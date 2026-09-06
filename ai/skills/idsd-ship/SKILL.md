@@ -1,6 +1,6 @@
 ---
 name: idsd-ship
-description: "Ship one ICE intent end-to-end — author it if missing, build, qualify, gate, merge — or review standalone changes. Use for \"ship it\", \"merge this\", \"continue the ship\". The orchestrator above idsd-build and idsd-qualify."
+description: "Ship one ICE intent end-to-end — author it if missing, build, qualify, gate, merge — or review standalone changes. Use for \"ship it\", \"merge this\", \"continue the ship\". The orchestrator above idsd-build and idsd-qualify; several intents at once is idsd-reactor's."
 argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote"
 ---
 
@@ -16,7 +16,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
 | `idsd-ship promote` | Turn a throwaway `.idsd/` into a durable idsd project. |
 
-With no `<arg>` and no subcommand, list the not-yet-built intents and ask which — and where several share no unbuilt dependency, offer `idsd-reactor`, which builds that whole set at once.
+With no `<arg>` and no subcommand, list the not-yet-built intents and ask which — and where more than one of them has every `depends-on` already shipped, offer `idsd-reactor`, which takes a session per intent and launches the rest as they unblock.
 
 ## Report & .idsd lifecycle
 
