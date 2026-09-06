@@ -2,9 +2,7 @@
 
 Rules for editing what agents read: skills, standards, prompts, templates, `CLAUDE.md`. Every line here is context each future run pays for. The bar is never "is this true" — it is "does this change what an agent does".
 
-These rules bind any edit, however small. Run the instruction lane after a batch of edits here.
-
-**Beside a rule, the two clauses left do more than bloat: they contradict at reading distance, with no reference to follow.** Every scoped hunt looks past the contradiction, because the file was never the thing under review.
+These rules bind any edit, however small. **Run the instruction lane after a batch of edits here.** A rule half-duplicated by the clause beside it leaves a contradiction, and no scoped hunt catches it — the file was never the thing under review.
 
 ## Earn the place
 
@@ -15,7 +13,7 @@ These rules bind any edit, however small. Run the instruction lane after a batch
 
 ## No evidence in a rule file
 
-Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "observed:", and the like. Justify a rule only where an agent would otherwise override it.
+Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "observed:", and the like. **Density's ban on justification lifts only for a rule an agent would otherwise override.**
 
 ## One home
 
@@ -66,7 +64,7 @@ A move away from the common path is only a win when that path genuinely never ne
 
 ## Memory
 
-`CLAUDE.md`'s Memory section is a staging area: an entry stays there until it fits a standard or a skill, then moves into that file. Entries are authoritative — don't reorganize them.
+`CLAUDE.md`'s Memory section is a staging area, not a record kept across runs: an entry stays there until it fits a standard or a skill, then moves into that file. Entries are authoritative — don't reorganize them.
 
 ## Approved means edited now
 

@@ -2,13 +2,13 @@
 
 Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too**: everything here binds them. What a comment must first clear is [code-style.md](code-style.md) → **Comments**.
 
-**A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**).
+**A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**), and takes any lane it is owed before the send, never after.
 
 ## Budget — the keep test
 
 **Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
 
-**Then run `~/.kk-flavor/scripts/bloat-judge.sh <kind>` over what survived, and delete what it names.** The kind is the artifact's class: `--changed comment <file>` for a source file (`--changed=<revisions>` where the scope is git revisions); `pr-body`, `review`, `commit`, `ticket` or `slack` on stdin. A class with no kind — a doc, an email — ends at the keep test above.
+**Then run `~/.kk-flavor/scripts/bloat-judge.sh <kind>` over what survived, and delete what it names.** The kind is the artifact's class: `--changed comment <file>` for a source file (`--changed=<revisions>` where the scope is git revisions); `pr-body`, `review`, `commit`, `ticket`, `slack`, … on stdin. Given a kind it does not have, the script refuses and names its full set. A class with no kind — a doc, an email — ends at the keep test above.
 
 **Deleting is the only exit from either cut, and it needs no home and no permission.**
 
@@ -46,6 +46,6 @@ Cover three things, in this order, and only while each has content. What changes
 
 The reviewer's side, for an author deciding what to change. **Each note goes on the line it concerns; the body carries the verdict, any mismatch with what was asked, and nothing else a line could have held.**
 
-Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting** — the reviewer writing about the review, which **Budget** already bars.
+Drop a note that fails **Budget**'s keep test rather than marking it optional. **No coverage accounting** — the reviewer writing about the review.
 
 **A reply is a review comment**, and opens on what changes rather than on agreeing — the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>` and nothing else.
