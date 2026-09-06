@@ -66,8 +66,7 @@ func TestTheRankTableGivesEachKindAClassItCanAfford(t *testing.T) {
 // class one kind, and a class of one kind is what lets its suppression note say "of this class" and
 // mean it. A row and its emit site share a constant, so a reworded head stops compiling — but a kind
 // added with a constant of its own and no row compiles fine, falls to the class no row names, and
-// prints with no count at all. `pattern in a citation path: ` reached this tree exactly that way,
-// through a rebase with every gate green.
+// prints with no count at all.
 //
 // What this reads is the head each emit site *leads with*, and only where the source decides it: a
 // string literal, a constant this package declares, or the run of a Sprintf format ahead of its first

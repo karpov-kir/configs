@@ -1,9 +1,5 @@
 package ecocheck_test
 
-// Every subcommand a dispatch accepts has a documented call site, and the scan says so when it cannot
-// tell what a dispatch accepts. Silence is the failure these cases exist to keep out: a scan that
-// reports nothing reads to every caller as a pass it did not earn.
-
 import (
 	"fmt"
 	"strings"
@@ -13,9 +9,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// Each head is bound to the constant the emit site and report.go's rank table both lead with, so a
-// reworded kind stops compiling here rather than leaving a case matching text nothing prints. The
-// tails below them are this file's own.
+// The heads are bound to their constants for the reason harness_test.go's block gives. The tails
+// below them are this file's own.
 const (
 	noCallSite = ecocheck.SubcommandWithNoCallSite
 	weldedName = ecocheck.SubcommandCallSitesNotChecked
@@ -294,10 +289,8 @@ func newDispatch(usage string, names ...string) string {
 }
 
 // A shell dispatch is the same dispatch in every spelling of its opening line, and an author reaches
-// for whichever one they like. Matched as the single literal `case "${1:-}" in`, this scan checked the
-// subcommands of the spellings it knew and said nothing whatever about the rest: one stub was
-// `case "$1" in`, so neither `threshold` nor `cut` had ever been checked for a call site, and the
-// scan reported nothing about the file because it never looked at it.
+// for whichever one they like. A scan matching one literal checks the subcommands of the spelling it
+// knows and says nothing whatever about a script written any other way.
 //
 // The whole table, not the spellings a scenario happened to name — this is a mapping from a line to
 // whether a dispatch is there, and a row left out is a row nothing observes.

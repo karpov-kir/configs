@@ -363,8 +363,8 @@ var mutants = []mutant{
 	// and the charset that stops a `/` reaching one.
 	{"report name: a leading dot no longer refused", "../eco-report/paths.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `case strings.HasPrefix(slug, "."), !isSlugCharset(slug):`, `case !isSlugCharset(slug):`},
 	{"report name: the slug charset no longer refused", "../eco-report/paths.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `case strings.HasPrefix(slug, "."), !isSlugCharset(slug):`, `case strings.HasPrefix(slug, "."):`},
-	{"report listing: a dot-named report joins the listing", "../eco-report/paths.go", "./eco-report/", "TestADotNamedReportIsInvisibleToEveryDiscoveryPath", `if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, reportSuffix) {`, `if !strings.HasSuffix(name, reportSuffix) {`},
-	{"report listing: a directory counted as a report", "../eco-report/paths.go", "./eco-report/", "TestADotNamedReportIsInvisibleToEveryDiscoveryPath", `if !shell.IsRegularFile(r.reportsDir + "/" + name) {`, "if false {"},
+	{"report listing: a dot-named report joins the listing", "../eco-report/paths.go", "./eco-report/", "TestADotNamedReportIsInvisibleToEveryDiscoveryPath", `if strings.HasPrefix(name, ".") || !entry.IsDir() {`, "if !entry.IsDir() {"},
+	{"report listing: a directory counted as a report", "../eco-report/paths.go", "./eco-report/", "TestADotNamedReportIsInvisibleToEveryDiscoveryPath", `if !shell.IsRegularFile(r.shipDir(name) + "/" + reportName) {`, "if false {"},
 	{"resolve: several open reports resolved to one", "../eco-report/paths.go", "./eco-report/", "TestStateNeverAnswersATokenItCannotStandBehind", "if len(names) != 1 {", "if false {"},
 	{"resolve: a name that could name no report resolved anyway", "../eco-report/paths.go", "./eco-report/", "TestASubcommandRefusesAnIntentNameThatCouldNameNoReport", `if stem == "" {`, "if false {"},
 	{"require report: a named report that is not there read anyway", "../eco-report/paths.go", "./eco-report/", "TestANamedReportThatIsNotThereIsRefusedRatherThanRead", "if !shell.IsRegularFile(r.report) {", "if false {"},
@@ -372,7 +372,7 @@ var mutants = []mutant{
 	// The ship-exists guard, then each of the three things that satisfy it. Removed whole, `discard
 	// <any-legal-slug>` deletes at exit 0 in a repo that never used idsd.
 	{"discard: the ship-exists guard never refuses", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "func (r *run) assertShipExists(slug string) {\n\tif shell.IsRegularFile(r.report) {", "func (r *run) assertShipExists(slug string) {\n\tif true {"},
-	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
+	{"discard: an intent file no longer identifies a closed ship", "../eco-report/paths.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", `if shell.IsRegularFile(r.shipDir(slug)+"/"+intentName) || shell.IsRegularFile(r.archiveDir(slug)+"/"+intentName) {`, "if false {"},
 	{"discard: the review exception removed", "../eco-report/paths.go", "./eco-report/", "TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed", `if slug == "review" {`, "if false {"},
 	// The durable files are a table, and a table gets a row each: each one kept .idsd/ standing
 	// with nothing observing that it did.
@@ -382,16 +382,16 @@ var mutants = []mutant{
 	{"surviving: playbook.md no longer keeps .idsd/", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `[]string{"charter.md", "constraints.md", "language.md", "playbook.md"}`, `[]string{"charter.md", "constraints.md", "language.md"}`},
 	{"surviving: a parallel ship's report no longer counted", "../eco-report/paths.go", "./eco-report/", "TestDiscardDestructivePath", "if left := len(r.reportNames()); left != 0 {", "if left := len(r.reportNames()); left < 0 {"},
 	{"surviving: another ship's intent file no longer counted", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if shell.PathExists(intents) || shell.PathExists(archive) {", "if false {"},
-	{"surviving: stray content counted as intents", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if left := countMarkdownFiles(intents, archive); left > 0 {", "if left := countMarkdownFiles(intents, archive); left >= 0 {"},
-	{"markdown count: a symlink counted as an intent file", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".md") {`, `if err != nil || info.Mode().IsDir() || !strings.HasSuffix(entry.Name(), ".md") {`},
-	{"markdown count: anything counted as an intent file", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".md") {`, `if err != nil || !info.Mode().IsRegular() {`},
+	{"surviving: stray content counted as intents", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", "if left := countShipFolders(intents, archive); left > 0 {", "if left := countShipFolders(intents, archive); left >= 0 {"},
+	{"ship count: a plain file counted as a ship folder", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `if !entry.IsDir() || !shell.IsRegularFile(dir+"/"+entry.Name()+"/"+intentName) {`, `if !shell.IsRegularFile(dir+"/"+entry.Name()+"/"+intentName) {`},
+	{"ship count: a folder holding no intent counted as one", "../eco-report/paths.go", "./eco-report/", "TestEveryDurableFileKeepsIdsdStanding", `if !entry.IsDir() || !shell.IsRegularFile(dir+"/"+entry.Name()+"/"+intentName) {`, "if !entry.IsDir() {"},
 	// A symlink test reads the final component only, so all three of the write's path components need
 	// one, and each has its own case.
-	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt", `[]string{r.idsdDir, r.reportsDir}`, `[]string{r.reportsDir}`},
+	{"write paths: .idsd no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt", `[]string{r.idsdDir, r.intentsDir}`, `[]string{r.intentsDir}`},
 	// git refuses any pathspec beyond a symbolic link, so with this path untested the ignore check
 	// refuses instead and the exit alone cannot tell the two apart. The case is the one asserting
 	// which refusal it is — the other names a remedy that reports ok and leaves the link standing.
-	{"write paths: qualify-reports/ no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `[]string{r.idsdDir, r.reportsDir}`, `[]string{r.idsdDir}`},
+	{"write paths: intents/ no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `[]string{r.idsdDir, r.intentsDir}`, `[]string{r.idsdDir}`},
 	{"write paths: the report itself no longer tested for a link", "../eco-report/paths.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", "if shell.IsSymlink(r.report) {", "if false {"},
 	{"stage markers: not keyed by the report stem", "../eco-report/paths.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `r.gitPath("idsd-stage-returns/" + name)`, `r.gitPath("idsd-stage-returns")`},
 
@@ -460,7 +460,7 @@ var mutants = []mutant{
 	// families.go — direction inside the skill layer. Each of these turns the scan into one that looks
 	// like it works: it still runs, still reports nothing on a clean tree, and has stopped checking.
 	{"families: the router exception swallows every any-repo skill", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case name == familyRouter:", "case name == familyRouter || true:"},
-	{"families: the scan runs in the permitted direction too", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\t// The permitted direction", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\t// The permitted direction"},
+	{"families: the scan runs in the permitted direction too", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\tcontinue", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\tcontinue"},
 	{"families: the router keeps a blanket pass, claim or no claim", "families.go", "./eco-check/", "TestFamilyDirectionScan", "c.assertRouterClaimsItsException(name)", "_ = name"},
 	{"families: a skill in neither family goes unreported", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case !strings.HasPrefix(name, anyRepoFamily):", "case !strings.HasPrefix(name, anyRepoFamily) && false:"},
 	{"families: only SKILL.md is read, so scripts go unchecked", "families.go", "./eco-check/", "TestFamilyDirectionScan", `c.filesNamed(dir, "*.md", "*.sh")`, `c.filesNamed(dir, "*.md")`},
@@ -497,7 +497,11 @@ var mutants = []mutant{
 	// relative one an ordinary repo has, and the absolute one a linked worktree has.
 	{"ignore source: a machine-local exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAGlobalExcludeDoesNotCountAsIgnoringTheReport", "case strings.HasPrefix(source, \"/\"):\n\t\treturn source, false", "case strings.HasPrefix(source, \"/\"):\n\t\treturn source, true"},
 	{"ignore source: .gitignore no longer travels", "../eco-report/git.go", "./eco-report/", "TestInitWillNotWriteAReportIntoItsOwnFingerprint", `case source == ".gitignore" || strings.HasSuffix(source, "/.gitignore"):`, "case false:"},
-	{"ignore surface: the trailing slash dropped", "../eco-report/git.go", "./eco-report/", "TestCheckIgnoreHoldsBeforeQualifyReportsExists", `return []string{".idsd/qualify-reports/"}`, `return []string{".idsd/qualify-reports"}`},
+	{"ignore surface: the report's own entry dropped", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", `		".idsd/intents/*/" + reportName,
+`, ""},
+	// The guard the glob entries made necessary: `-v` reports a negation as a match, so without this a
+	// `!` rule after the entry reads as "ignored, by a file that travels" and promote stages the report.
+	{"ignore source: a negating pattern read as ignoring", "../eco-report/git.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", "if matched, _, _ := strings.Cut(pattern, \"\\t\"); strings.HasPrefix(matched, \"!\") {\n\t\treturn \"\"\n\t}", "_ = pattern"},
 	{"append: the same entry added twice", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if line == entry {\n\t\t\t\treturn nil", "if line == entry {\n\t\t\t\tbreak"},
 	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
 
@@ -576,10 +580,10 @@ var mutants = []mutant{
 	{"state token: the ICE's own follow-ups never reach the token", "../eco-report/seams.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", "\tif intent == \"\" {\n\t\treturn false\n\t}\n", "\tif intent == \"\" || true {\n\t\treturn false\n\t}\n"},
 	{"state token: an unapproved intent answers ready anyway", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", "if r.intentIsUnapproved() {", "if false {"},
 	{"carry: the open items go unprinted", "../eco-report/gate.go", "./eco-report/", "TestCarryPrintsTheItemsARequalifyMustNotLose", "if r.openTodos != \"\" {\n\t\tr.line(\"%s\", r.openTodos)", "if false {\n\t\tr.line(\"%s\", r.openTodos)"},
-	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.idsdDir+"/archive/"+stemOfReportPath(r.report)+".md") {`, "if false {"},
+	{"state: a closed ship's archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestCloseOnACleanReportThePathDoneRuns", `if resolved == reportResolved && shell.IsRegularFile(r.archiveDir(stemOfReportPath(r.report))+"/"+intentName) {`, "if false {"},
 	{"state: a token answered for a report that is not there", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if resolved != reportResolved || !shell.IsRegularFile(r.report) {", "if false {"},
 	{"state: the readability guard at its own call site removed", "../eco-report/gate.go", "./eco-report/", "TestAnUnreadableReportIsNotAState", `r.assertReportIsReadable("its state is unknown (permissions?), and 'resume' is what an unread report looks like")`, "_ = r.report"},
-	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {`, "if false {"},
+	{"state token: an archived intent no longer answers done", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `if slug := r.intentSlug(); slug != "" && shell.IsRegularFile(r.archiveDir(slug)+"/"+intentName) {`, "if false {"},
 	{"state token: an unstamped report no longer answers resume", "../eco-report/gate.go", "./eco-report/", "TestTwoIntentsShipSideBySide", "if isUnstamped(reviewed) {", "if false {"},
 	{"state token: a moved tree answers ready", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", `return "re-qualify" // reviewed once, tree moved since`, `return "ready" // reviewed once, tree moved since`},
 	{"state token: open items no longer answer decide", "../eco-report/gate.go", "./eco-report/", "TestStateAnswersEveryTokenItRoutesOn", "if r.anyOpenItemsBeforeMerge(\"the state is unknown.\") {", "if false {"},
@@ -597,7 +601,7 @@ var mutants = []mutant{
 	{"promote: an already-committed repo promoted again", "../eco-report/scratch.go", "./eco-report/", "TestPromoteIsIdempotentOverACommittedRepo", "if r.repoMode() == \"committed\" {\n\t\tr.line(\"already committed", "if false {\n\t\tr.line(\"already committed"},
 	{"promote: a symlinked .gitignore written through", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", "if shell.IsSymlink(gitignore) {", "if false {"},
 	{"promote: an unwritten entry promoted anyway", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `if unwritten != "" {`, "if false {"},
-	{"promote: the entry written but never confirmed with git", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `return r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore"`, "return false"},
+	{"promote: the entry written but never confirmed with git", "../eco-report/scratch.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", `return r.ignoreSourceOf(r.root+"/"+ignoreProbe(entry)) != ".gitignore"`, "return false"},
 	{"promote: a failed add read as a promotion", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {`, "if false {"},
 	{"promote: success read from the add rather than the mode", "../eco-report/scratch.go", "./eco-report/", "TestPromoteReportsTheModeNotTheAdd", `if r.repoMode() != "committed" {`, "if false {"},
 	{"discard: no report and no name discarded anyway", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "case reportNoneOpen:", "case reportLookup(9):"},
@@ -607,14 +611,14 @@ var mutants = []mutant{
 	{"discard: the ship-exists guard call removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDeletesNothingForAShipThatIsNotHere", "r.assertShipExists(stem)", "_ = stem"},
 	{"discard: the readability guard removed", "../eco-report/scratch.go", "./eco-report/", "TestDiscardRemovesNothingItCouldNotRead", `r.assertReportIsReadable("nothing was discarded, because its intent cannot be cross-checked (permissions?)")`, "_ = r.report"},
 	{"discard: the two names no longer reconciled", "../eco-report/scratch.go", "./eco-report/", "TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything", `if slug != "" && slug != stem {`, "if false {"},
-	{"discard: the intent file left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `_ = rmFile(r.idsdDir + "/intents/" + slug + ".md")`, "_ = slug"},
-	{"discard: the archived intent file left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `_ = rmFile(r.idsdDir + "/archive/" + slug + ".md")`, "_ = slug"},
-	{"discard: the stage markers survive the teardown", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.reportsDir, r.idsdDir", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.reportsDir, r.idsdDir"},
+	{"discard: the ship folder left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "_ = os.RemoveAll(r.shipDir(stem))", "_ = stem"},
+	{"discard: the archived ship folder left behind", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "_ = os.RemoveAll(r.archiveDir(slug))", "_ = slug"},
+	{"discard: the stage markers survive the teardown", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.intentsDir, r.idsdDir", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.intentsDir, r.idsdDir"},
 	{"discard: what survives no longer keeps .idsd/", "../eco-report/scratch.go", "./eco-report/", "TestDiscardDestructivePath", `if kept := r.survivingContent(); kept != "" {`, "if kept := r.survivingContent(); len(kept) < 0 {"},
 	{"close: an open item no longer refuses", "../eco-report/scratch.go", "./eco-report/", "TestCloseRetiresOneShipScratchAndNothingElse", "if !isForced {", "if !isForced && false {"},
 	// The case re-inits the same intent after the close: that report is byte-identical to the closed
 	// one, so a surviving marker matches it and refuses the next ship's first stage-returned.
-	{"close: the stage markers outlive the report", "../eco-report/scratch.go", "./eco-report/", "TestCloseRetiresOneShipScratchAndNothingElse", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.reportsDir)", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.reportsDir)"},
+	{"close: the stage markers outlive the report", "../eco-report/scratch.go", "./eco-report/", "TestCloseRetiresOneShipScratchAndNothingElse", "_ = os.RemoveAll(r.stageReturnsDir)\n\trmdirIfEmpty(r.intentsDir)", "_ = r.stageReturnsDir\n\trmdirIfEmpty(r.intentsDir)"},
 
 	// init.go — the only subcommand that creates a report, and the one every symlink guard is for.
 	{"init: the intent untrimmed before the emptiness guard", "../eco-report/init.go", "./eco-report/", "TestTheFilenameAndTheFrontmatterNameTheSameShip", "intent = trimLeadingSpace(intent)", "intent = intent"},
@@ -627,7 +631,7 @@ var mutants = []mutant{
 	{"init: an intent that names no report scaffolds one", "../eco-report/init.go", "./eco-report/", "TestAnIntentValueCannotNameAFileOutsideQualifyReports", `if reportName == "" {`, "if false {"},
 	{"init: the template check dropped", "../eco-report/init.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "r.assertTemplateStampable()", "_ = r.template"},
 	{"init: the write-path link guard dropped", "../eco-report/init.go", "./eco-report/", "TestInitRefusesRatherThanWritingThroughALink", `r.assertWritePathsAreReal("the report was NOT initialized")`, "_ = r.root"},
-	{"init: the ignore precondition dropped", "../eco-report/init.go", "./eco-report/", "TestInitWillNotWriteAReportIntoItsOwnFingerprint", "r.assertReportsDirIsIgnored()", "_ = r.root"},
+	{"init: the ignore precondition dropped", "../eco-report/init.go", "./eco-report/", "TestInitWillNotWriteAReportIntoItsOwnFingerprint", "r.assertReportIsIgnored()", "_ = r.root"},
 	{"init: an existing report silently replaced", "../eco-report/init.go", "./eco-report/", "TestAnExistingReportIsNotSilentlyReplaced", "if present && !isForced {", "if present && !isForced && false {"},
 	{"init: --force discards the open items in silence", "../eco-report/init.go", "./eco-report/", "TestAnExistingReportIsNotSilentlyReplaced", "carried, _ = r.runTodoGate()", `carried = ""`},
 	{"init: the staged path cleared through a link", "../eco-report/init.go", "./eco-report/", "TestInitStagedWriteIsNotAWayOutOfTheRepo", "if err := rmFile(staged); err != nil {", "if err := error(nil); err != nil {"},
@@ -1027,6 +1031,10 @@ var mutants = []mutant{
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
 	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSecretNamedFileIsNeverRead",
 		"if opts.SkipSecretNamed && secretNamed(name) {", "if false {"},
+	// The same guard on the other arm: the untracked one covers only what git does not track, and a
+	// tracked `.env` reaches the report through the diff. dup.go's own comment carries the measurement.
+	{"dup: a secret-named file in the DIFF is scanned anyway", "../dup-literals/dup.go", "./dup-literals/", "TestATrackedSecretNamedFileIsNeverScannedEither",
+		"if diffscan.SecretNamed(added.File) {", "if false {"},
 	// The other half of that skip: the announcement naming the file it declined. The name is the
 	// branch author's, `.env*` matches whatever follows the prefix, and this is the one message
 	// diffscan builds itself rather than handing to a scanner that sanitises on the way out. Two

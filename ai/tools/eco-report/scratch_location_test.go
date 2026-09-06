@@ -40,7 +40,7 @@ func TestEveryWorktreeOfACloneSeesTheOneScratchDirectory(t *testing.T) {
 	f.record("and the ship authored in the first worktree is listed from the second",
 		strings.Contains(f.out, "001-shared"), f.evidence())
 	f.record("and its intent file is readable from there",
-		f.isFile(fromSecond+"/intents/001-shared.md"), fromSecond)
+		f.isFile(fromSecond+"/intents/001-shared/intent.md"), fromSecond)
 
 	// Pins WHICH directory, not merely that the two agree: a per-worktree location would answer two
 	// different paths above, but so would a location keyed on something else that happened to match.
@@ -112,7 +112,7 @@ func TestCommittedModeKeepsItsScratchInTheTree(t *testing.T) {
 		f.runReportStdout("root") == f.treeIdsd(), f.runReportStdout("root"))
 	f.runReport("init", "001-committed")
 	f.record("and init writes the report there",
-		f.status == 0 && f.isFile(f.treeIdsd()+"/qualify-reports/001-committed-qualify-report.md"), f.evidence())
+		f.status == 0 && f.isFile(f.treeIdsd()+"/intents/001-committed/qualify-report.md"), f.evidence())
 	f.record("and nothing was created under the shared git dir", !f.exists(f.sharedIdsd()), "")
 }
 
@@ -138,7 +138,7 @@ func TestAnOverrideMovesTheRootAndSaysSo(t *testing.T) {
 	// on it, so a note on stdout would be read as a routing answer.
 	f.runReport("init", "001-overridden")
 	f.record("and init wrote the report under the override",
-		f.status == 0 && f.isFile(root+"/qualify-reports/001-overridden-qualify-report.md"), f.evidence())
+		f.status == 0 && f.isFile(root+"/intents/001-overridden/qualify-report.md"), f.evidence())
 	f.record("and `state` still prints one bare token, with the note on stderr",
 		f.runReportStdout("state", "001-overridden") == "resume", f.runReportStdout("state", "001-overridden"))
 }
@@ -238,14 +238,14 @@ func TestAnInTreeScratchDirectoryIsNeverMigratedSilently(t *testing.T) {
 	// them silently is the one action with no undo.
 	f := newRepo(t)
 	f.mkdirAll(f.treeIdsd() + "/intents")
-	f.write(f.treeIdsd()+"/intents/001-from-the-old-layout.md", "# mine\n")
+	f.write(f.treeIdsd()+"/intents/001-from-the-old-layout/intent.md", "# mine\n")
 	f.runReport("check-ignore")
 	f.assertRefused("refuses while an in-tree scratch directory still holds content")
 	f.assertReports("still holds 1 file(s)", "and counts what it found")
-	f.assertReports("intents/001-from-the-old-layout.md", "and names it, so the human knows what to move")
+	f.assertReports("intents/001-from-the-old-layout/intent.md", "and names it, so the human knows what to move")
 	f.assertReports("Nothing here moves your files for you", "and says it will not move them")
 	f.record("and left every file exactly where it was",
-		f.isFile(f.treeIdsd()+"/intents/001-from-the-old-layout.md"), "")
+		f.isFile(f.treeIdsd()+"/intents/001-from-the-old-layout/intent.md"), "")
 
 	// An empty one is a trace in the mode whose contract is leaving none, and holds nothing to lose.
 	empty := newRepo(t)
@@ -320,7 +320,7 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 		exclude := f.repo + "/.git/info/exclude"
 		f.appendTo(exclude, ".idsd/\n")
 		f.mkdirAll(f.treeIdsd() + "/intents")
-		f.write(f.treeIdsd()+"/intents/001-not-yet-moved.md", "# mine\n")
+		f.write(f.treeIdsd()+"/intents/001-not-yet-moved/intent.md", "# mine\n")
 		f.runReport("check-ignore")
 		f.assertRefused("it refuses for the un-migrated directory")
 		f.record("and the rule is still there, so that directory stays hidden from `git add -A`",
@@ -340,7 +340,7 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 		f.record("and the stale rule is gone", !containsLine(f.read(exclude), ".idsd/"), f.read(exclude))
 		staged, _ := f.git("diff", "--cached", "--name-only")
 		f.record("and the intent it moved is actually staged",
-			strings.Contains(staged, ".idsd/intents/001-promoting-stale.md"), "staged:\n"+staged)
+			strings.Contains(staged, ".idsd/intents/001-promoting-stale/intent.md"), "staged:\n"+staged)
 	})
 }
 

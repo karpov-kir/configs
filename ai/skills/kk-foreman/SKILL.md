@@ -15,16 +15,14 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 **`unattended`, or an argument saying the same, hands you the run** — nobody is at the keyboard to answer, so you decide and you act. The bullets below, with **Two things still stop you** and **Nothing else loosens** after them, are the licence; it binds you and every stage you spawn:
 
-- **Run what you recommend — the instruction is the yes.** Yours alone, not a stage's. It lifts the yes that the cost bullet under **Rules** requires, and `~/.kk-flavor/standards/git.md`'s approval before a commit, a push or opening a PR. **That is what it lifts, and it is no ceiling on what a stage may write** — a stage's own skill authorises its own acts, and this licence neither widens nor narrows them.
+- **Run what you recommend — the instruction is the yes.** It lifts the yes that the cost bullet under **Rules** requires, and `~/.kk-flavor/standards/git.md`'s approval before a commit, a push or opening a PR.
 - **Take the bigger change where it is the better one.** The instruction lifts `~/.kk-flavor/standards/core-principles.md` → **3. Surgical changes** for this run, by the mechanism in `~/.kk-flavor/standards/skill-protocol.md` → **Caller**.
 - **Leave it enforced, not remembered** — a script, a test, a gate outlasts the answer that holds only while someone recalls it.
 - **Finish every part that is not blocked, then name each one that is.** A blocker is a line in the reply, never the reason the rest went unaddressed, and nothing is dropped for being tedious.
 
 **Two things still stop you.** A decision that blocks under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** still blocks. And **an act with no undo still waits for the human** (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**) — **merging is on that side of the line**, however close it sits to the acts above.
 
-**Nothing else loosens** — nothing in the rest of the flavor, and nothing in `kk-foreman`'s own **Route** or **Rules**, beyond the two the first bullet lifts.
-
-**The slot is the emphasis one** in `~/.kk-flavor/templates/spawn-prompt.md`, and what goes in it is the licence above rather than the argument that triggered it. `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** owns the rest.
+**Nothing else loosens** — nothing in the rest of the flavor, and nothing in `kk-foreman`'s own **Route** or **Rules**, beyond the lifts the bullets above name.
 
 ## 1. Route
 
@@ -67,7 +65,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 ## 2. Run
 
-Spawn each stage in the order **Route** resolved.
+Run each stage in the order **Route** resolved — spawned, unless that skill's own file says it runs inline (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
@@ -75,4 +73,4 @@ Spawn each stage in the order **Route** resolved.
 
 - **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes — which an `unattended` run already carries.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
-- **Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires.** Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**
+- Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires. Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**

@@ -107,9 +107,9 @@ jobs:
 
       # exit 1 is a guard that did not redden, and it fails the job. exit 2 is the gate saying it cannot
       # report, and only one thing reaching that is weather: a mutation suite the runner killed before
-      # it measured. Passing on any of the rest is a green tick over a run that never happened, the
-      # failure this job was fixed for, silent instead of red. The no-input case even outranks a failure
-      # inside the gate, so a guard that did not redden beside one comes out as 2.
+      # it measured. Passing on any of the rest is a green tick over a run that never happened. The
+      # no-input case even outranks a failure inside the gate, so a guard that did not redden beside one
+      # comes out as 2.
       #
       # The grep below names the weather case by the line the gate prints for it and for nothing else.
       # The rest are an open set, so a reason added later fails this job until someone decides it is
@@ -119,12 +119,11 @@ jobs:
       # Nothing here catches a runner that never measures at all: no count crosses runs, so such a job
       # warns every time and never escalates.
       #
-      # No `timeout-minutes`, and that is a gap rather than a decision. This runs every mutation unit
-      # cold on each push with no cache between runs, and twelve units alone took the better part of an
-      # hour on a developer machine, so a smaller runner could plausibly want hours. A bound guessed
-      # under the real figure cancels a legitimate sweep and reddens every push — the failure this job
-      # was just fixed for, arriving from the other side. GitHub's six-hour default is the only bound
-      # until the duration is read off a real run; set one from that number rather than from this note.
+      # No `timeout-minutes` yet, and nobody decided against one. This runs every mutation unit cold on
+      # each push with no cache between runs, and twelve units alone took the better part of an hour on
+      # a developer machine, so a smaller runner could want hours. A bound guessed under the real figure
+      # cancels a legitimate sweep and reddens every push. GitHub's six-hour default holds until someone
+      # reads the duration off a real run; set one from that number.
       - name: Prove the guards can fail
         run: |
           log="$RUNNER_TEMP/mutants.log"
@@ -170,8 +169,8 @@ jobs:
           cache: false
 
       # --gate, so this job and ai/gate.sh's wiring unit ask the same question of the same commit.
-      # Not a no-op on a fresh runner: resolve.sh builds from source when no release binary is present,
-      # writes ai/tools/bin/eco-check, and only then execs it — so build output exists in the tree by
-      # the time the walk runs, and without the flag the check reads files it cannot judge.
+      # Not a no-op on a fresh runner: the build the step above provides for writes ai/tools/bin/eco-check
+      # before the binary execs, so build output is in the tree by the time the walk runs, and without
+      # the flag the check reads files it cannot judge.
       - name: Check the instruction tree wires up
         run: ai/skills/kk-ecosystem/scripts/check.sh --gate

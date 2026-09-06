@@ -16,7 +16,7 @@ func TestCheckIgnoreHoldsBeforeQualifyReportsExists(t *testing.T) {
 	// slash in the ignore surface earns its keep: without it, `git check-ignore -q
 	// .idsd/qualify-reports` exits 1 on a directory that is not there.
 	f := newCommittedRepo(t)
-	if !f.exists(f.scratch()+"/qualify-reports") && f.runReportStdout("repo-mode") == "committed" {
+	if !f.exists(f.scratch()+"/intents") && f.runReportStdout("repo-mode") == "committed" {
 		f.runReport("check-ignore")
 		f.record("check-ignore passes in committed mode before qualify-reports/ is created",
 			f.status == 0, f.evidence())
@@ -166,7 +166,7 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	// refuse first if it were seeded in the tree — either way the case would pass for the wrong reason.
 	unread := newShip(t, "001-negated")
 	unread.newIntentFile("001-negated")
-	unread.write(unread.repo+"/.gitignore", ".idsd/qualify-reports/\n!.idsd/qualify-reports/\n")
+	unread.write(unread.repo+"/.gitignore", ignoreBlock()+"!"+reportEntry()+"\n")
 	unread.runReport("promote")
 	unread.assertRefused("promote refuses when the entry is written but git still does not ignore the surface")
 	unread.assertReports("git still does not ignore", "and says the entry landed without taking effect")

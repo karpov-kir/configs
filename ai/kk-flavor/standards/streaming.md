@@ -6,14 +6,14 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 
 ## The stage's half
 
-- **Emit each proposed change as you find it**, to `<queue>/<tier>-<skill>-<seq>.patch`, **your tier being the token your spawn prompt named** and never one you coin, with a sibling `.md` carrying its case. Nothing waits for your return. **Write the `.md` first**: the caller applies on arrival, so a patch that lands before its case is one judged without it. The queue is the directory your spawn prompt named, in the scratch dir and **outside the repository** ([skill-protocol.md](skill-protocol.md) → **Queue**) — a patch file written inside it joins the change set every later stage then reviews.
+- **Emit each proposed change as you find it**, to `<queue>/<tier>-<skill>-<seq>.patch`, **your tier being the token your spawn prompt named** and never one you coin, with a sibling `.md` carrying its case. Nothing waits for your return. **Write the `.md` first**: the caller applies on arrival, so a patch that lands before its case is one judged without it. The queue is the directory your spawn prompt named, in the scratch dir and **outside the repository** — a patch file written inside it joins the change set every later stage then reviews.
 - **`<seq>` never restarts.** A resumed stage carries on its own numbering, or it overwrites the patches it already queued.
 - **A file, never a message.** A message's envelope names only its sender's subagent *type*, so two stages of one type are indistinguishable at the receiver. No tier order can rest on a sender that self-reports.
-- **A proposal your own license gates never enters the queue** — it returns as a proposal. The caller applies on arrival, so queuing it lands it unasked, which is the thing the gate exists to stop ([skill-protocol.md](skill-protocol.md) → **Caller**).
+- **A proposal your own licence gates never enters the queue** — it returns as a proposal. The caller applies on arrival, so queuing it lands it unasked, which is the thing the gate exists to stop.
 - **Computed against the tree you read, not against the base commit.** A `git diff` over the change set emits the change set, which never applies to a tree that already holds it — and the caller bounces it to you forever. Diff your edited copy against the file as you read it.
 - **A patch, not a description.** "Extract these ten sites, with these call-site rewrites" does not survive prose, and a caller re-deriving it is doing the work rather than applying it.
 - **A change you did not queue is as likely your caller mid-apply as another lane.** Applying on arrival means the tree moves continuously, so a fix that appears without you is not evidence someone else owns it. Withdrawing your own patch on that reading retracts work that had already landed. Ask before you withdraw.
-- **A resume is a re-read** ([skill-protocol.md](skill-protocol.md) → **Loop**). Checking the caller's rendering of your own request is the point, and your surviving context is what it gets checked against.
+- **A resume is a re-read.** Checking the caller's rendering of your own request is the point, and your surviving context is what it gets checked against.
 - **Your verdict names the patches you queued for that file.** A verdict whose patches all landed and verified restates no finding — the queue and the diff are its record.
 
 ## The caller's half
@@ -26,7 +26,7 @@ The whole delta for a pass whose stages queue patches as they find them instead 
 - **A patch its author withdraws after you applied it comes back out**, by its inverse, and whatever its landing displaced goes back in. A withdrawal is not a conflict, so the tier order does not settle it — the author's retraction does, whichever tier they are.
 - **A patch that still does not apply goes back to its author** to recompute or withdraw. Repairing one by hand re-derives the work and leaves you owning the result unreviewed.
 - **Name a distinct queue for each pass you run** — the scratch dir is per session, and a second pass inheriting the first's withdrawn patches applies them unasked.
-- **An applied patch leaves the queue for an applied set you keep**, so what is still queued is what is outstanding, nothing lands twice, and every inverse stays available. **Backing a tier out is the inverse of its patches, never a checkout** ([skill-protocol.md](skill-protocol.md) → **Queue**).
+- **An applied patch leaves the queue for an applied set you keep**, so what is still queued is what is outstanding, nothing lands twice, and every inverse stays available. **Backing a tier out is the inverse of its patches, never a checkout.**
 - **A gate's result is never recalled from a resumed stage**; re-run it yourself.
 - **One objection round per tier.** Then the tier order decides, and a disagreement surviving that is a report item rather than another round.
 - **Say in the pass's own output that it streamed**, and treat what breaks in the mechanism as a finding.

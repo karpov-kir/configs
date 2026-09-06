@@ -8,7 +8,6 @@ import (
 )
 
 var (
-	// The cited file at the head of a `<file> → <Section>`, in its three written forms.
 	trailingLinkTarget = regexp.MustCompilePOSIX(`\]\([^()]*\)$`)
 	trailingBarePath   = regexp.MustCompilePOSIX(`[A-Za-z0-9._/-]+$`)
 	markdownFileTail   = regexp.MustCompilePOSIX(`[A-Za-z0-9]\.md$`)
@@ -22,7 +21,6 @@ var (
 	markdownFileTokenAtEnd = regexp.MustCompilePOSIX(`([A-Za-z0-9~][A-Za-z0-9._/~-]*)?[A-Za-z0-9]\.md$`)
 )
 
-// What separates a cited file from the section it names.
 const sectionArrow = "→"
 
 type citation struct {
@@ -104,8 +102,7 @@ func continuationText(line string) string {
 	return strings.TrimLeft(unmarked, shell.SpaceBytes)
 }
 
-// The citations in one block, each reported at the line its arrow sits on — where a reader looks for
-// it, and the line the unwrapped form has always been reported at.
+// Each citation is reported at the line its arrow sits on, which is where a reader looks for it.
 func (b citationBlock) citations(file string) []citation {
 	var found []citation
 	segments := strings.Split(b.text, sectionArrow)
@@ -198,7 +195,6 @@ func isPathByte(b byte) bool {
 	return isAlnumByte(b) || b == '.' || b == '_' || b == '-' || b == '/' || b == '~'
 }
 
-// What stood immediately before an arrow.
 type citedHead struct {
 	// The cited file: a markdown link, a backticked path, or a bare filename. Empty unless the token
 	// is a markdown filename, which is what keeps a prose arrow out.

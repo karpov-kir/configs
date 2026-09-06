@@ -1,5 +1,4 @@
-// The ecosystem wiring check as a command, and the only os.Exit in the tool: everything it does
-// lives in the package beside it, so the suite can drive the same code without a process per case.
+// The ecosystem wiring check as a command.
 //
 //	usage: ecocheck [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
 //

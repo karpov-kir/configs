@@ -55,6 +55,14 @@ contained_parent() {
 fixture_write() {
   local path="$1" body="$2"
   contained_parent "$path" >/dev/null
+  # The parent being contained says nothing about the last component. `>` follows a symlink, and the
+  # links these cases produce point into this checkout — a bootstrap run leaves `$home/.zshrc ->
+  # $checkout/env/zsh/.zshrc`, and a fixture write at that path afterwards lands in the real file.
+  # That is the incident in the header, reached by the one door the parent check does not cover.
+  # Refused rather than followed, the same way fixture_link refuses one: no case here means to write
+  # through a link.
+  [ ! -L "$path" ] ||
+    refuse_fixture "$path" "it already exists as a symlink to $(readlink "$path")"
   printf '%s\n' "$body" >|"$path"
 }
 
@@ -94,12 +102,12 @@ record_fail() {
   echo "  FAIL  $1  — $2"
 }
 
-# No skip counter here, unlike ai/gate-test.sh. That suite reports a third field because it has a case
-# it cannot run where `chmod` does not restrict this user, and hiding that would make two machines
-# checking different sets look identical. Nothing here is declined that way: the one case these files
-# cannot run as root takes the whole suite to exit 2 instead, which says the run is not a result rather
-# than that a case was skipped. A field that can never be non-zero is decoration wearing the shape of a
-# measurement.
+# No skip counter here, unlike ai/tools/source-stamp-test.sh. That suite reports a third field because
+# it has a case it cannot run on a machine carrying only one of the two hashers, and hiding that would
+# make two machines checking different sets look identical. Nothing here is declined that way: the one
+# case these files cannot run as root takes the whole suite to exit 2 instead, which says the run is
+# not a result rather than that a case was skipped. A field that can never be non-zero is decoration
+# wearing the shape of a measurement.
 
 # A fresh home per case, so no case inherits another's links. Numbered rather than mktemp'd again so a
 # failure message names which case's home to go and look at.

@@ -32,6 +32,12 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	// The machine's own git config must not reach the fixture. NOSYSTEM covers /etc/gitconfig and
+	// GIT_CONFIG_GLOBAL supersedes both ~/.gitconfig and $XDG_CONFIG_HOME/git/config at once. A global
+	// commit.gpgsign refuses the empty commit below, and TestMain then exits 2 saying nothing was
+	// tested — on a machine where this gate is working perfectly.
+	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	base, err := os.MkdirTemp("", "handoff-check")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "handoff-check: no temporary directory, so nothing was tested:", err)

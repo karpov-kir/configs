@@ -8,7 +8,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
 const (
 	injectListsMissingDoc    = "inject.md lists '"
 	budgetFileRefused        = "budget file refused"

@@ -201,8 +201,7 @@ func classify(a, b span) (v verdict, shared, beyond int) {
 	}
 	// Before the name test, because a citation outranks it: the pair shares the rule's subject, and
 	// namedWords strips names, not subjects. `beyond` is left at zero — it measures how much survives
-	// the names, and no such measurement decided this verdict. Nothing prints it here, so the zero
-	// reaches no reader.
+	// the names, and no such measurement decided this verdict.
 	if a.cites[b.file] || b.cites[a.file] {
 		return citesOwner, shared, 0
 	}

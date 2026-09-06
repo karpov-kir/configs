@@ -1,7 +1,3 @@
-// The two arms have to agree about a carriage return. The diff arm reads through bufio.Scanner, whose
-// line split strips a trailing \r; the untracked arm splits on "\n" itself and keeps it. Unstripped,
-// the control-byte guard reads that \r as binary and silently drops every line of a CRLF file after
-// Reached counted it — a denominator the run did not cover, and one answer tracked, another untracked.
 package diffscan
 
 import (
@@ -15,6 +11,27 @@ import (
 
 const crlfBody = "// one\r\n// two\r\nx := 1\r\n"
 const lfBody = "// one\n// two\nx := 1\n"
+
+// The machine's own git config must not reach these fixtures. NOSYSTEM covers /etc/gitconfig and the
+// HOME override covers ~/.gitconfig, but git reads $XDG_CONFIG_HOME/git/config as a global source too;
+// GIT_CONFIG_GLOBAL supersedes both files at once. A global core.excludesFile matching `*.go` empties
+// `ls-files --others --exclude-standard`, and the two untracked cases below then report zero lines on
+// a machine where this package is working perfectly. WalkUntracked execs git itself, so the isolation
+// has to be process-wide rather than per-command.
+func TestMain(m *testing.M) {
+	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	base, err := os.MkdirTemp("", "diffscan-home")
+	if err != nil {
+		panic("diffscan tests: no temp dir, so nothing was tested: " + err.Error())
+	}
+	os.Setenv("HOME", filepath.Join(base, "home"))
+	os.MkdirAll(os.Getenv("HOME"), 0o755)
+	// Removed explicitly: os.Exit runs no deferred call.
+	code := m.Run()
+	os.RemoveAll(base)
+	os.Exit(code)
+}
 
 func countedLines(t *testing.T, walk func(*Result, func(AddedLine)) error) (map[string]int, Result) {
 	t.Helper()
@@ -97,10 +114,6 @@ func writeFile(t *testing.T, path, body string) {
 	}
 }
 
-// `--` separates revisions from pathspecs, and passing the two halves to git as one list is how this
-// scanner came to report a clean tree over real staged changes: `--` counted as a revision, so HEAD
-// was never appended and git diffed against the INDEX. Exit 0, nothing found — the failure this
-// package exists to prevent, reached through the form its own error text recommends.
 func TestRevisionsNamedSeparatesThemFromPathspecs(t *testing.T) {
 	for _, row := range []struct {
 		name         string

@@ -90,6 +90,12 @@ run_guarded() { # <arg>, over $out and $status
   status=$?
 }
 
+# --- shared:needle-tests ---
+# Each reports its condition with a distinctive word, so a check that fails prints the whole output
+# rather than a bare `no`. They are functions rather than inline `case`es because bash 3.2 — macOS's
+# own, and one leg of the gates workflow — does not parse `$( )` so much as scan it for the first
+# unbalanced `)`, and a `case` pattern supplies one: the substitution closes mid-pattern, holding an
+# unfinished `case`. A function covers every construct with a bare `)`, not just `case`.
 held() { # <needle> <text> — 'held' when the text holds the needle, the whole text when it does not
   case "$2" in
     *"$1"*) printf 'held' ;;
@@ -97,17 +103,13 @@ held() { # <needle> <text> — 'held' when the text holds the needle, the whole 
   esac
 }
 
-# Each of these reports its condition with a distinctive word, so a check that fails prints the whole
-# output rather than a bare `no`. They are functions rather than inline `case`es because bash 3.2 —
-# macOS's own, and one leg of the gates workflow — does not parse `$( )` so much as scan it for the
-# first unbalanced `)`, and a `case` pattern supplies one: the substitution closes mid-pattern,
-# holding an unfinished `case`. A function covers every construct with a bare `)`, not just `case`.
 lacked() { # <needle> <text> — 'lacked' when the text is free of the needle, the whole text otherwise
   case "$2" in
     *"$1"*) printf '%s' "$2" ;;
     *) printf 'lacked' ;;
   esac
 }
+# --- end shared:needle-tests ---
 
 # Both doors past the guard, so the guard's refusal is told apart from a PATH that killed the script
 # later. On the stripped PATH below the run dies at `dirname`, the first command it reaches for, so
@@ -190,7 +192,6 @@ check "a path holding sed's own metacharacters lands literally" \
   '/tmp/a&b$c*d e/mcp-env.sh' \
   "$(substitute_configs_dir '@CONFIGS@/mcp-env.sh' '/tmp/a&b$c*d e')"
 
-# The accepted forms first, so the refusals below are not a guard that says no to everything.
 for good in "/Users/kk/configs/ai" "/tmp/with space/ai" '/tmp/a&b$c*d/ai' "/tmp/ünïcodé/ai"; do
   check "a directory that substitutes: $good" "yes" \
     "$(configs_dir_is_substitutable "$good" && printf 'yes' || printf 'no')"
@@ -306,7 +307,7 @@ check "control: nothing reached the CLI" "no calls" \
 sync_run wrapperless "$tmp/wrapperless/ai" no-env
 check "a checkout with no mcp-env.sh exits 1 rather than registering" "1" "$status"
 check "and names the wrapper it could not find" "held" "$(held 'mcp-env.sh is missing or not executable' "$out")"
-check "control: that one reached the CLI either" "no calls" \
+check "control: that one did not reach the CLI either" "no calls" \
   "$([ -e "$call_log" ] && cat "$call_log" || printf 'no calls')"
 
 # Present but not executable is the same refusal: `claude mcp add-json` would take it happily and the

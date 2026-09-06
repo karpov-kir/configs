@@ -12,11 +12,12 @@ import (
 
 // Which report an invocation acts on, and what else on disk belongs to the ship it names. Every path
 // built here is built from a slug, so the charset check in reportNameFor is the whole of what keeps a
-// write inside qualify-reports/.
+// write inside intents/.
 
 // The report's filename stem for an intent frontmatter value. Empty means unusable, and the caller
 // refuses: the value reaches a path here, so the slug charset is what stops a `../` escaping
-// qualify-reports/. A standalone review has no slug and shares the one `review` stem.
+// intents/. A standalone review has no slug and shares the one `review` stem, so its folder holds a
+// report and the three intent-local records but no intent.md.
 func reportNameFor(value string) string {
 	// Leading whitespace goes BEFORE the truncation. Without that, a value starting with a space
 	// truncates to nothing and takes the `review` arm, while intentSlug strips the same whitespace and
@@ -48,15 +49,27 @@ func reportNameFor(value string) string {
 // and reportNames' skip are the guards, and a second copy of the same predicate here would shadow
 // them, leaving nothing able to observe whether either still works.
 func (r *run) setReportPaths(name string) {
-	r.report = r.reportsDir + "/" + name + reportSuffix
+	r.report = r.shipDir(name) + "/" + reportName
 	// Per-pass bookkeeping, in the git dir: no commit and no `git add -A` reaches it, and it is
 	// per-worktree so ships cannot collide. Under .idsd/, committed mode would commit them. Keyed by
 	// stem, or `invalidate` on one intent would clear another's stage markers and free its stamp.
 	r.stageReturnsDir = r.gitPath("idsd-stage-returns/" + name)
 }
 
+// The stem is the ship folder's own name now, so this reads the parent rather than trimming a suffix.
 func stemOfReportPath(path string) string {
-	return strings.TrimSuffix(shell.BaseName(path), reportSuffix)
+	return shell.BaseName(shell.DirName(path))
+}
+
+// One ship's folder. Every path this tool builds from a stem goes through here, so the charset guard
+// in reportNameFor is the whole of what keeps a write — and `discard`'s RemoveAll — inside intents/.
+func (r *run) shipDir(name string) string {
+	return r.intentsDir + "/" + name
+}
+
+// An archived ship keeps its folder, so the record a build leaves travels as one directory.
+func (r *run) archiveDir(name string) string {
+	return r.idsdDir + "/archive/" + name
 }
 
 // Every report present, one filename stem per line. A dotfile is invisible here, which is why
@@ -72,7 +85,7 @@ func stemOfReportPath(path string) string {
 // that is not there. It is counted instead, because a listing quietly short of a ship is the one
 // failure this tool must not have.
 func (r *run) reportNames() []string {
-	entries, err := os.ReadDir(r.reportsDir)
+	entries, err := os.ReadDir(r.intentsDir)
 	if err != nil {
 		// Absent is "no reports open", which every caller reads correctly — before `init` there is no
 		// such directory. Present but unreadable is a different fact wearing the same shape, and it
@@ -80,7 +93,7 @@ func (r *run) reportNames() []string {
 		// flight" and `discard` goes on to remove the whole .idsd/, which in throwaway mode is the only
 		// copy of a parallel ship's report. The same rule assertRepoModeReadable states.
 		if !errors.Is(err, fs.ErrNotExist) {
-			r.refuse("error: could not read "+r.reportsDir+" ("+err.Error()+") — which reports are open is unknown.",
+			r.refuse("error: could not read "+r.intentsDir+" ("+err.Error()+") — which reports are open is unknown.",
 				"  That decides what discard deletes and what list shows, so nothing was read as 'no reports'.")
 		}
 		return nil
@@ -89,13 +102,15 @@ func (r *run) reportNames() []string {
 	r.unnameableReports = 0
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, reportSuffix) {
+		// A ship folder with no report in it is a ship whose report was closed, or one authored before any
+		// pass ran. Neither is an open report, and neither is a name to list.
+		if strings.HasPrefix(name, ".") || !entry.IsDir() {
 			continue
 		}
-		if !shell.IsRegularFile(r.reportsDir + "/" + name) {
+		if !shell.IsRegularFile(r.shipDir(name) + "/" + reportName) {
 			continue
 		}
-		stem := strings.TrimSuffix(name, reportSuffix)
+		stem := name
 		if !isSlugCharset(stem) {
 			r.unnameableReports++
 			continue
@@ -111,7 +126,7 @@ func (r *run) noteUnnameableReports() {
 	if r.unnameableReports == 0 {
 		return
 	}
-	r.errLines("note: " + strconv.Itoa(r.unnameableReports) + " file(s) under " + r.reportsDir +
+	r.errLines("note: " + strconv.Itoa(r.unnameableReports) + " folder(s) under " + r.intentsDir +
 		" are named outside the slug charset ([0-9A-Za-z._-]) and were NOT listed — a report is named after its intent. Rename each, or delete it.")
 }
 
@@ -169,7 +184,7 @@ func (r *run) assertReportIsReadable(consequence string) {
 func (r *run) requireReport(name string) {
 	switch r.resolveReport(name) {
 	case reportNoneOpen:
-		r.refuse(append([]string{"error: no qualify report under " + r.reportsDir + " — run report.sh init \"<intent>\" first"}, r.noReportNote...)...)
+		r.refuse(append([]string{"error: no qualify report under " + r.intentsDir + " — run report.sh init \"<intent>\" first"}, r.noReportNote...)...)
 	case reportAmbiguous:
 		r.refuseAmbiguous("name which as the last argument")
 	}
@@ -194,12 +209,12 @@ func (r *run) assertShipExists(slug string) {
 	if slug == "review" {
 		return
 	}
-	if shell.IsRegularFile(r.idsdDir+"/intents/"+slug+".md") || shell.IsRegularFile(r.idsdDir+"/archive/"+slug+".md") {
+	if shell.IsRegularFile(r.shipDir(slug)+"/"+intentName) || shell.IsRegularFile(r.archiveDir(slug)+"/"+intentName) {
 		return
 	}
 	r.refuse("error: nothing here belongs to '"+slug+"' — nothing was discarded.",
 		"  Looked for "+r.report+",",
-		"  .idsd/intents/"+slug+".md and .idsd/archive/"+slug+".md, and found none of them.",
+		"  .idsd/intents/"+slug+"/"+intentName+" and .idsd/archive/"+slug+"/"+intentName+", and found none of them.",
 		"  Check the name against report.sh list; a standalone review is discarded before its report is closed, not after.")
 }
 
@@ -220,16 +235,16 @@ func (r *run) survivingContent() string {
 		}
 	}
 	// A parallel ship's report is another human's work in flight, so it keeps .idsd/ standing.
-	// Counted by re-reading qualify-reports/ once this ship's report is gone — the caller's rmdir only
+	// Counted by re-reading intents/ once this ship's folder is gone — the caller's rmdir only
 	// tidies the directory when it empties, and its status is discarded.
 	if left := len(r.reportNames()); left != 0 {
 		kept += " " + strconv.Itoa(left) + " other qualify report(s)"
 	}
 	// Anything at all under intents/ or archive/ keeps .idsd/ alive, but the label counts what is
 	// actually there — "other intents" for a stray `.DS_Store` tells the human something untrue.
-	intents, archive := r.idsdDir+"/intents", r.idsdDir+"/archive"
+	intents, archive := r.intentsDir, r.idsdDir+"/archive"
 	if shell.PathExists(intents) || shell.PathExists(archive) {
-		if left := countMarkdownFiles(intents, archive); left > 0 {
+		if left := countShipFolders(intents, archive); left > 0 {
 			kept += " " + strconv.Itoa(left) + " other intent(s)"
 		} else {
 			kept += " unrecognised content under intents/ or archive/"
@@ -238,9 +253,10 @@ func (r *run) survivingContent() string {
 	return kept
 }
 
-// `find <dirs> -maxdepth 1 -name '*.md' -type f | wc -l`: lstat'd like find's own -type, so a symlink
-// to an intent file is not one.
-func countMarkdownFiles(dirs ...string) int {
+// Ship folders holding an intent, across the directories named. A folder is counted only when the
+// intent inside it is a regular file, lstat'd like find's own -type, so a symlink to one is not counted
+// and neither is a folder holding only this ship's leftover scratch.
+func countShipFolders(dirs ...string) int {
 	count := 0
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
@@ -248,8 +264,7 @@ func countMarkdownFiles(dirs ...string) int {
 			continue
 		}
 		for _, entry := range entries {
-			info, err := entry.Info()
-			if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".md") {
+			if !entry.IsDir() || !shell.IsRegularFile(dir+"/"+entry.Name()+"/"+intentName) {
 				continue
 			}
 			count++
@@ -282,10 +297,10 @@ func (r *run) assertWritePathsAreReal(outcome string) {
 // is MOVED into the tree and staged as a symlink blob rather than followed, and `git ls-files` then
 // answers "committed" so the promotion reports success.
 func (r *run) assertScratchDirsAreReal(outcome string) {
-	for _, writeDir := range []string{r.idsdDir, r.reportsDir} {
+	for _, writeDir := range []string{r.idsdDir, r.intentsDir} {
 		if shell.IsSymlink(writeDir) {
 			r.refuse("error: "+writeDir+" is a symlink -> "+shell.Oneline(readLink(writeDir))+" — "+outcome+".",
-				"  the scratch directory and its qualify-reports/ are always real directories. Remove the link, then re-run.")
+				"  the scratch directory and its intents/ are always real directories. Remove the link, then re-run.")
 		}
 	}
 }

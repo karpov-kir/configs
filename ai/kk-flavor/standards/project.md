@@ -57,7 +57,7 @@ The service runs on the host; its dependencies and the HTTP edge run once in a s
 A service's `docker/` holds its own container setup — its Traefik route slice, its `dev-certs/`, its `Dockerfile`.
 
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
-- **Give the service its own distinct host port** — not the template default; ask the user which.
+- **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
 - **Service-specific containers** go in the service's own `docker/docker-compose.yml` (brought up by its `start:dev`); common deps stay in the dev-infra.
 - **Env in the image follows the secret rule above** — non-secret files `COPY`-ed (staging/production, not dev), secrets injected at deploy. `ENV` itself is always provided at deploy, never baked.
 

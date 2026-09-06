@@ -40,7 +40,7 @@ Emit one outcome line as the gate's evidence: the residual ambiguities found and
 
 Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one.
 
-Write each ICE to `.idsd/intents/NNN-<slug>.md` from `templates/ice-template.md` at `status: draft`.
+Write each ICE to `.idsd/intents/NNN-<slug>/intent.md` from `templates/ice-template.md` at `status: draft`.
 
 If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every intent's frontmatter (active + archived): a heading per milestone (`milestone: none` → "Unscheduled"), columns number, title, status. Generated, never hand-edited.
 

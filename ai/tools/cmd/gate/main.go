@@ -1,7 +1,6 @@
-// The pre-commit gate as a command, and the only os.Exit in the tool: everything it does lives in the
-// package beside it, so the suite can drive the same code without a process per case.
+// The pre-commit gate as a command.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>]
+//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
 package main
 
 import (

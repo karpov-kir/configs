@@ -1,5 +1,4 @@
-// The offer cadence as a command, and the only os.Exit in the tool: everything it does lives in the
-// package beside it, so the suite can drive the same code without a process per case.
+// The offer cadence as a command.
 //
 //	usage: cadence.sh audit {due|asked}
 package main

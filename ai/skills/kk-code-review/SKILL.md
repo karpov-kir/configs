@@ -19,7 +19,7 @@ Check every changed file against all five:
 2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
 4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding.
-5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits, and a coverage percentage passes with the new branch untested. Name the behaviour that is unguarded; writing the test is `kk-refactor`'s gated testing lane.
+5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits. Name the behaviour that is unguarded; writing the test is `kk-refactor`'s gated testing lane.
 
 ## Loop deltas
 
@@ -35,5 +35,5 @@ Finding line: `<location>: <bug> — fixed | needs human: <decision>`
 
 ## Do not
 
-- Post to GitHub, run `gh`, or fix or block on a pre-existing defect outside the change — both rules are `~/.kk-flavor/standards/quality-pipeline.md`'s, and they bind every stage, this one run standalone included.
+- Post to GitHub, run `gh`, or fix or block on a pre-existing defect outside the change — surface a serious one for the human to route instead. Both rules are `~/.kk-flavor/standards/quality-pipeline.md`'s, and they bind every stage, this one run standalone included.
 - Build, typecheck, run tests, or flag nitpicks and anything a linter / typechecker / test catches — assume CI runs them.

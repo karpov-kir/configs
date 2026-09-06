@@ -1,5 +1,4 @@
-// The qualify report tool as a command, and the only os.Exit in it: everything it does lives in the
-// package beside it, so the suite can drive the same code without a process per case.
+// The qualify report tool as a command.
 //
 //	usage: report.sh {init <intent>|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|
 //	                  stamp "<stages>"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]

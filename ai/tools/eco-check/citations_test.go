@@ -1,8 +1,5 @@
 package ecocheck_test
 
-// A `<file> → **Section**` citation: what it resolves against, the forms it is written in, and what
-// the finding says when it resolves nowhere.
-
 import (
 	"strings"
 	"testing"
@@ -50,7 +47,6 @@ func TestCitationTargetMustBeARegularFile(t *testing.T) {
 		newDeviceTarget(t).reports(notRegular)
 	})
 
-	// The half that matters: a target nothing read must never be indistinguishable from a checked one.
 	t.Run("and says it was not read rather than reading part of it", func(t *testing.T) {
 		newDeviceTarget(t).reports("it was NOT read")
 	})
@@ -115,7 +111,6 @@ func newCitedHeading(t *testing.T, heading, citation string) *fixture {
 	return f
 }
 
-// The same, over the section every case cites unless it says otherwise.
 func newCitation(t *testing.T, citation string) *fixture {
 	t.Helper()
 	return newCitedHeading(t, targetSection, citation)
@@ -230,7 +225,6 @@ func TestWrappedCitationInsideAShellComment(t *testing.T) {
 	})
 }
 
-// A standard carrying one citation exactly as written, line breaks included.
 func newWrittenCitation(t *testing.T, body string) *fixture {
 	t.Helper()
 	f := newCitedTarget(t, targetSectionBody)
@@ -404,8 +398,7 @@ func TestDanglingSectionRefNamesItsVariant(t *testing.T) {
 	})
 }
 
-// A cited file whose body the case chooses, cited by a section the case chooses. The heading above the
-// body is what makes the file a markdown document rather than a fragment.
+// A cited file whose body the case chooses, cited by a section the case chooses.
 func newDanglingVariant(t *testing.T, body, section string) *fixture {
 	t.Helper()
 	f := newCitedTarget(t, body)

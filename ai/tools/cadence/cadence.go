@@ -26,7 +26,6 @@ import (
 
 const intervalDays = 7
 
-// A second topic would be a second record name.
 const auditTopic = "audit"
 
 const recordName = "idsd-audit-offer"
@@ -192,9 +191,9 @@ func readStamp(state string) (string, error) {
 	return strings.TrimRight(first, "\r"), nil
 }
 
-// The shape check is not redundant beside time.Parse. Parse alone would accept a value this script's
-// grammar never meant — the pattern is the only thing between `2026-1-15` and a date read as the
-// first of January, whose month and day both sit inside the ranges Parse checks.
+// The byte pattern runs before the calendar, and refuses nothing time.Parse would let through:
+// measured, `2026-1-15` comes back from Parse as `cannot parse "1-15" as "01"`, and `2026-13-01` as
+// `month out of range`. The length test is what keeps the loop from indexing past the layout.
 func parseDate(text string) (time.Time, bool) {
 	if len(text) != len(dateLayout) {
 		return time.Time{}, false

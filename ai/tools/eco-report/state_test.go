@@ -225,7 +225,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	// two are different ships whenever the frontmatter names a slug the filename does not.
 	archived := newShip(t, "001-landed")
 	archived.mkdirAll(archived.scratch() + "/archive")
-	archived.write(archived.scratch()+"/archive/001-landed.md", "# built, and merged\n")
+	archived.write(archived.archiveDir("001-landed")+"/intent.md", "# built, and merged\n")
 	archived.runReport("list")
 	archived.record("done for a ship whose intent file has reached archive/",
 		stateOf(archived.out, "001-landed") == "done", archived.out)
@@ -233,15 +233,20 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	archived.record("and state answers done for it too", archived.out == "done", "said '"+archived.out+"'")
 }
 
-// A stem comes off the directory listing without passing reportNameFor, and a filename can hold a
-// newline. `ev<LF>fakeship<TAB>ready<LF>il-qualify-report.md` put a whole forged `fakeship  ready` row
-// into the listing `idsd-ship continue` routes on — a ship that does not exist, reported merge-ready.
+// A stem comes off the directory listing without passing reportNameFor, and a directory name can hold
+// a newline. `ev<LF>fakeship<TAB>ready<LF>il` as a ship folder put a whole forged `fakeship  ready`
+// row into the listing `idsd-ship continue` routes on — a ship that does not exist, reported
+// merge-ready.
 func TestAFilenameCannotForgeAListingRow(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "realship")
-	forged := f.scratch() + "/qualify-reports/ev\nfakeship\tready\nil" + "-qualify-report.md"
-	if err := os.WriteFile(forged, []byte("---\nintent: x\n---\n"), 0o644); err != nil {
-		t.Skipf("this filesystem refused a newline in a filename, so this case cannot run here: %v", err)
+	// The name is the ship FOLDER's now, so the forgery moved one level up with the stem.
+	forgedDir := f.scratch() + "/intents/ev\nfakeship\tready\nil"
+	if err := os.MkdirAll(forgedDir, 0o755); err != nil {
+		t.Skipf("this filesystem refused a newline in a directory name, so this case cannot run here: %v", err)
+	}
+	if err := os.WriteFile(forgedDir+"/qualify-report.md", []byte("---\nintent: x\n---\n"), 0o644); err != nil {
+		t.Skipf("this filesystem refused a newline in a directory name, so this case cannot run here: %v", err)
 	}
 
 	listing := f.runReportStdout("list")

@@ -14,7 +14,7 @@ import (
 // nothing else can recover.
 
 // The ignore-surface entries `attempt` reports as failing, rendered as the quoted run all three
-// refusals below echo: ` '.idsd/qualify-reports/'`, and empty when none failed. `attempt` may act
+// refusals below echo: ` '.idsd/intents/*/qualify-report.md'`, and empty when none failed. `attempt` may act
 // rather than merely test — promote's use of it is the appendLine that writes the entry.
 func (r *run) ignoreEntriesFailing(attempt func(entry string) bool) string {
 	failing := ""
@@ -39,11 +39,11 @@ func (r *run) cmdCheckIgnore() {
 		// Asked through the same predicate `init` enforces, or this prints ok where init then refuses
 		// and sends the human back to this command.
 		unignored := r.ignoreEntriesFailing(func(entry string) bool {
-			_, travels := r.ignoredSourceTravels(r.root + "/" + entry)
+			_, travels := r.ignoredSourceTravels(r.root + "/" + ignoreProbe(entry))
 			return !travels
 		})
 		if unignored == "" {
-			r.line("ok: qualify-reports/ is gitignored (committed idsd repo)")
+			r.line("ok: each ship's scratch is gitignored (committed idsd repo)")
 			r.exit(0)
 		}
 		r.errLines("WARN: NOT gitignored:" + unignored + " — add each to .gitignore (shared idsd setup)")
@@ -64,7 +64,7 @@ func (r *run) cmdPromote() {
 	// Promotion is about the whole scratch directory, so it names no single report — it only needs one
 	// to exist, as the evidence that a ship happened here.
 	if len(r.reportNames()) == 0 {
-		r.refuse("error: no qualify report under " + r.reportsDir + " — nothing to promote")
+		r.refuse("error: no qualify report under " + r.intentsDir + " — nothing to promote")
 	}
 	r.assertRepoModeReadable()
 	if r.repoMode() == "committed" {
@@ -94,7 +94,7 @@ func (r *run) cmdPromote() {
 	target := r.treeIdsdDir()
 	r.assertPromotionTargetIsClear(target)
 
-	// .gitignore FIRST, and verified, because it is what keeps qualify-reports/ out of the commit. Do
+	// .gitignore FIRST, and verified, because it is what keeps each ship's scratch out of the commit. Do
 	// the move first and a failure here leaves the reports sitting in the tree, tracked by the next
 	// `git add -A`. Written this way round, a failure below leaves only a spare entry in .gitignore —
 	// which is wanted in both modes anyway.
@@ -109,7 +109,7 @@ func (r *run) cmdPromote() {
 	// `core.excludesFile` and `.git/info/exclude` answer the plain question too and are this machine's
 	// alone. Only root `.gitignore` is the shared answer this subcommand claims to have written.
 	unignored := r.ignoreEntriesFailing(func(entry string) bool {
-		return r.ignoreSourceOf(r.root+"/"+entry) != ".gitignore"
+		return r.ignoreSourceOf(r.root+"/"+ignoreProbe(entry)) != ".gitignore"
 	})
 	if unignored != "" {
 		r.refuse("error: the entries are in "+gitignore+", but git still does not ignore:"+unignored+" — not promoted.",
@@ -127,14 +127,14 @@ func (r *run) cmdPromote() {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
 	}
 	// `git add` on a directory whose every file is ignored stages nothing and still exits 0, and
-	// qualify-reports/ is ignored by the entry just written — so with nothing else under .idsd/, the add
+	// every ignorable file is covered by the entries just written — so with nothing else under .idsd/, the add
 	// is a no-op. Success is read from the mode for that reason, never from the add's exit.
 	if r.repoMode() != "committed" {
 		r.refuseUnmoved(moved, target,
 			"error: nothing under "+target+" could be staged, so this is still a throwaway — not promoted.",
 			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a playbook.")
 	}
-	r.line("promoted: moved the scratch to %s and staged it, qualify-reports/ ignored via .gitignore — commit when ready (not committed here)", target)
+	r.line("promoted: moved the scratch to %s and staged it, each ship's scratch ignored via .gitignore — commit when ready (not committed here)", target)
 }
 
 // A refusal after the move puts the scratch back where it came from. Left in the tree it is the worst
@@ -207,7 +207,7 @@ func (r *run) movePromotedScratch(target string) {
 func (r *run) cmdDiscard() {
 	switch r.resolveReport(r.arg(1)) {
 	case reportNoneOpen:
-		r.refuse("error: nothing to discard — no qualify report under "+r.reportsDir+", and no intent named",
+		r.refuse("error: nothing to discard — no qualify report under "+r.intentsDir+", and no intent named",
 			"  Name the intent to discard a ship whose report is already closed.")
 	case reportAmbiguous:
 		r.refuseAmbiguous("name which as the last argument")
@@ -239,14 +239,18 @@ func (r *run) cmdDiscard() {
 			"  Nothing writes that line after init, so a hand-edit or a bug is what put them out of step.",
 			"  Reconcile the two by hand, then re-run.")
 	}
+	// The whole folder rather than its files one by one: a ship's intent, its three intent-local records
+	// and its report all live in it, so nothing here has to enumerate them. The stem reached this through
+	// reportNameFor, which refuses a leading dot and holds the slug charset — that guard is the whole of
+	// what keeps this RemoveAll inside intents/, and it matters more here than it did when this removed
+	// named files.
+	_ = os.RemoveAll(r.shipDir(stem))
 	if slug != "" {
-		_ = rmFile(r.idsdDir + "/intents/" + slug + ".md")
-		_ = rmFile(r.idsdDir + "/archive/" + slug + ".md")
+		_ = os.RemoveAll(r.archiveDir(slug))
 	}
-	_ = rmFile(r.report)
 	// The stage markers sit in the git dir, which the .idsd/ removal below never reaches.
 	_ = os.RemoveAll(r.stageReturnsDir)
-	rmdirIfEmpty(r.reportsDir, r.idsdDir+"/intents", r.idsdDir+"/archive")
+	rmdirIfEmpty(r.intentsDir, r.idsdDir+"/archive")
 	if kept := r.survivingContent(); kept != "" {
 		// `close` may already have taken the report, and a ship can have no intent file, so
 		// assertShipExists guarantees only that one of the two was there.
@@ -278,6 +282,6 @@ func (r *run) cmdClose(args []string) {
 	// The stage markers are in the git dir, so removing the report leaves them behind, and the next
 	// ship for this intent would inherit a completed stage record and stamp for free.
 	_ = os.RemoveAll(r.stageReturnsDir)
-	rmdirIfEmpty(r.reportsDir)
+	rmdirIfEmpty(r.intentsDir)
 	r.line("closed %s — its stage markers are gone; decisions.md is untouched", shell.BaseName(r.report))
 }

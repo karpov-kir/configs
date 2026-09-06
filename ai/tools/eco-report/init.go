@@ -33,7 +33,7 @@ func (r *run) cmdInit(args []string) {
 	r.setReportPaths(reportName)
 	r.assertTemplateStampable()
 	r.assertWritePathsAreReal("the report was NOT initialized")
-	r.assertReportsDirIsIgnored()
+	r.assertReportIsIgnored()
 	present := shell.PathExists(r.report) || shell.IsSymlink(r.report)
 	if present && !isForced {
 		existing := firstLineWithPrefix(r.report, "intent:")

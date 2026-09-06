@@ -2,7 +2,7 @@
 // by hand. The mechanism lives here; the contract it serves (repo modes, what goes in the report,
 // never commit it) is `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. idsd-ship calls it too
 // (gate/state/promote/discard). One report per intent, at
-// .idsd/qualify-reports/<intent>-qualify-report.md, so two ships never share a file.
+// .idsd/intents/<intent>/qualify-report.md, so two ships never share a file.
 //
 // It is a library with a thin command beside it, for the reason ecocheck is: the suite that proves it
 // drives it once per case, and a process spawn per case is the cost that makes a mutation run take
@@ -152,8 +152,10 @@ type run struct {
 	// The scratch directory this invocation acts on, resolved once by resolveIdsdDir. In committed mode
 	// it is inside the tree; in throwaway mode it never is. Read it rather than rebuilding `.idsd` from
 	// the root — that is what made the location per-worktree.
-	idsdDir    string
-	reportsDir string
+	idsdDir string
+	// Where every ship's folder lives. One folder per ship, holding its intent, its three
+	// intent-local records and its report, so a ship is torn down by removing one directory.
+	intentsDir string
 	// Set when a machine-local override moved the scratch root, and printed by every command it affects.
 	overrideNote string
 
@@ -175,7 +177,12 @@ type run struct {
 	openTodos  string
 }
 
-const reportSuffix = "-qualify-report.md"
+// The report's name inside its ship folder. Fixed rather than built from the stem: the folder
+// carries the ship's identity now, so nothing has to parse a name back out of a filename.
+const reportName = "qualify-report.md"
+
+// The intent file inside a ship folder, and inside an archived one.
+const intentName = "intent.md"
 
 const noItemsMarker = "no-items"
 
@@ -246,7 +253,7 @@ func (r *run) resolveRoot() {
 	}
 	r.root = root
 	r.resolveIdsdDir()
-	r.reportsDir = r.idsdDir + "/qualify-reports"
+	r.intentsDir = r.idsdDir + "/intents"
 }
 
 func (r *run) dispatch() {

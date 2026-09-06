@@ -29,7 +29,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **`.idsd/` in this suite means the resolved scratch root, not a path in the repo.** `report.sh root` prints it, and it is the only way to learn it. In **committed** mode it is `<repo>/.idsd/`. In **throwaway** mode it is outside the working tree — shared by every branch and worktree of the clone — so a skill that joins `.idsd/` onto the repo root writes where no other worktree will look, and where the next `git add -A` can see it. Every `.idsd/<file>` below, and in every skill of this suite, is relative to what that subcommand printed.
 
-**One report per intent**, at `.idsd/qualify-reports/<intent>-qualify-report.md`, **persisting across runs** — the working digest. `~/.claude/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
+**One report per intent**, at `.idsd/intents/<intent>/qualify-report.md`, **persisting across runs** — the working digest. `~/.claude/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
 
 **Two intents ship in parallel only in separate worktrees.** The freshness stamp fingerprints the **whole tree**, not the intent's files, so two ships in one worktree each stamp a tree holding the other's edits and invalidate each other's gate on every save.
 
@@ -37,7 +37,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **Before the first write into `.idsd/` — any file, by any skill — run `report.sh check-ignore`**: it is what keeps the directory out of the human's `git add -A`, and nothing else runs it. Its exit 1 blocks the write however its message is worded.
 
-**Two repo modes, decided by whether `.idsd/` is tracked in git** (`report.sh repo-mode` prints which): **committed** — `.idsd/` is part of the durable record; **throwaway** — the whole `.idsd/`, intents and report alike, leaves zero traces, and survives only if the human promotes it (`idsd-ship promote`). Either way **never commit a report — however that is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): no route commits one, `promote` included, which keeps `qualify-reports/` ignored on its way to committed mode. A stamped report asserts a merge gate over a tree fingerprint, and committed it carries that assertion past the tree it was taken from.
+**Two repo modes, decided by whether `.idsd/` is tracked in git** (`report.sh repo-mode` prints which): **committed** — `.idsd/` is part of the durable record; **throwaway** — the whole `.idsd/`, intents and report alike, leaves zero traces, and survives only if the human promotes it (`idsd-ship promote`). Either way **never commit a report — however that is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): no route commits one, `promote` included, which keeps every ship's scratch ignored on its way to committed mode. A stamped report asserts a merge gate over a tree fingerprint, and committed it carries that assertion past the tree it was taken from.
 
 ### The decision log
 

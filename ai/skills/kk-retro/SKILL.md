@@ -43,4 +43,6 @@ Apply each; surface only what the run evidences:
 
 The cost of a fix is not a reason to drop a finding. Each states the improvement, its **target** (a skill, arch doc, prompt, pipeline, project standard or backlog — whatever it concerns), **where the fix routes**, **what evidences it**, and its `findings.md` count when this is not the first time.
 
+**A run log carries credentials — redact what you quote out of it** (`~/.kk-flavor/standards/skill-protocol.md` → **Redact before you quote**), in the findings you present and in `findings.md` alike.
+
 Present the findings and let the human route them; `findings.md` is the one file this skill writes.

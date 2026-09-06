@@ -23,8 +23,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 
 	// The forged text has to be a prefix the rank table still carries, or the case asks nothing: a
 	// checker ranking on the whole line instead of its head promotes only a finding whose text holds a
-	// *ranked* phrase. `flavor mounted elsewhere` was that phrase until the gate subsumed the
-	// flavor-mount comparison, and this case went on passing over a checker that ranks on Contains.
+	// *ranked* phrase. A phrase the table stops carrying leaves this case green over such a checker.
 	//
 	// `filler` is what makes the needle flood-only: `skill mounted elsewhere` alone also matches the
 	// genuine rank-1 finding this fixture's $HOME may raise, and the assertion would then compare the
@@ -160,14 +159,9 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	})
 
 	// `scriptNamed` answers a basename two scripts share with the basename itself — text the reviewed
-
 	// tree wrote — and two findings led with it. Committing that pair under a name beginning with a
-
 	// rank-1 prefix put the branch's own finding in that class, where byte order handed it the class's
-
-	// one reserved line and left the real drift to a rank the same branch had flooded. Measured on the
-
-	// build before the head was fixed: this tree printed the crafted line and withheld the drift.
+	// one reserved line and left the real drift to a rank the same branch had flooded.
 
 	t.Run("does not let a committed basename occupy another class's reserved line", func(t *testing.T) {
 

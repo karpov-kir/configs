@@ -38,6 +38,27 @@ const skillSource = "../../skills/idsd-qualify"
 // skills and fails on every machine that has not — release-tools.yml's ubuntu-latest among them.
 const flavorSource = "../../kk-flavor"
 
+// The entries `promote` writes and `check-ignore` verifies, mirroring ignoreSurface() so a case and
+// the tool cannot drift about the pattern. The report's entry is the one most cases assert on, and
+// reportEntry names it rather than an index into this.
+func ignoreEntries() []string {
+	return []string{
+		".idsd/intents/*/decisions.md",
+		".idsd/intents/*/language.md",
+		".idsd/intents/*/playbook.md",
+		".idsd/intents/*/qualify-report.md",
+	}
+}
+
+func reportEntry() string { return ".idsd/intents/*/qualify-report.md" }
+
+// Those entries as a gitignore file's worth of lines.
+func ignoreBlock() string { return strings.Join(ignoreEntries(), "\n") + "\n" }
+
+// A path the report entry covers. `git check-ignore` reads its argument as a literal pathname rather
+// than as a glob, so a case asking git whether the entry took effect must ask about a path it matches.
+func ignoreProbePath() string { return ".idsd/intents/__probe__/qualify-report.md" }
+
 // One case's tree.
 type fixture struct {
 	// Set by countFingerprints, and nil everywhere else so the tool uses its own recipe.
@@ -224,7 +245,7 @@ func newCommittedRepo(t *testing.T) *fixture {
 	t.Helper()
 	f := newRepo(t)
 	f.newDurableCharter()
-	f.write(f.repo+"/.gitignore", ".idsd/qualify-reports/\n")
+	f.write(f.repo+"/.gitignore", ignoreBlock())
 	f.mustGit("add", ".gitignore", ".idsd/charter.md")
 	f.commit("committed idsd")
 	f.assertFixtureIsCommitted()
@@ -295,10 +316,22 @@ func (f *fixture) runReportStdout(args ...string) string {
 // A standalone `review: …` has no slug and shares the one `review` stem, which is what most fixtures
 // below use.
 func (f *fixture) reportPath(name string) string {
+	return f.shipDir(name) + "/qualify-report.md"
+}
+
+// One ship's folder. Every file a ship owns lives in it — the intent, the three intent-local records,
+// and the report — so a ship is torn down by removing one directory rather than by naming its files.
+// A standalone review has no intent file, and shares the one `review` folder for the rest.
+// An archived ship keeps its folder, so the record a build leaves travels as one directory.
+func (f *fixture) archiveDir(name string) string {
+	return f.scratch() + "/archive/" + name
+}
+
+func (f *fixture) shipDir(name string) string {
 	if name == "" {
 		name = "review"
 	}
-	return f.scratch() + "/qualify-reports/" + name + "-qualify-report.md"
+	return f.scratch() + "/intents/" + name
 }
 
 // Where this fixture's scratch directory is, by the same rule the tool applies: in the tree while
@@ -367,7 +400,7 @@ func (f *fixture) assertRefused(name string) {
 // A refusal wrote no report. Asserted on the directory, so a report under any name counts.
 func (f *fixture) assertNoReportWritten(name string) {
 	f.t.Helper()
-	entries, _ := os.ReadDir(f.scratch() + "/qualify-reports")
+	entries, _ := os.ReadDir(f.scratch() + "/intents")
 	f.record(name, len(entries) == 0, "")
 }
 
@@ -450,8 +483,8 @@ func (f *fixture) stampFullPassIn(dir, ship string) {
 // make every gate case block for a reason it is not about. A case about that arm writes its own file.
 func (f *fixture) newIntentFile(slug string) {
 	f.t.Helper()
-	f.mkdirAll(f.scratch() + "/intents")
-	f.write(f.scratch()+"/intents/"+slug+".md", "---\nstatus: approved\n---\n\n# intent\n")
+	f.mkdirAll(f.shipDir(slug))
+	f.write(f.shipDir(slug)+"/intent.md", "---\nstatus: approved\n---\n\n# intent\n")
 }
 
 // The human's own durable file, in the SCRATCH dir rather than the tree: what keeps the scratch
@@ -520,6 +553,24 @@ func (f *fixture) madeUnreadable(path, what string) bool {
 		return true
 	}
 	handle.Close()
+	f.t.Logf("skip  chmod does not restrict this user (root?) — %s cannot run", what)
+	return false
+}
+
+// A directory this process cannot LIST but can still traverse: 0300 drops read while keeping execute,
+// so os.ReadDir fails and a path through it still resolves. A ship folder now holds both the report
+// and the intent, so mode 0 would refuse a subcommand at "no such ship" long before it read a listing
+// — and the case would pass for a reason that has nothing to do with the guard under test.
+//
+// False means the mode did not restrict this process (root, or CAP_DAC_OVERRIDE), which is a skip
+// rather than a failure. Probed rather than inferred from the uid, for the reason testing.md → **4.
+// Setup strategy** states.
+func (f *fixture) madeUnlistable(path, what string) bool {
+	f.t.Helper()
+	f.chmod(path, 0o300)
+	if _, err := os.ReadDir(path); err != nil {
+		return true
+	}
 	f.t.Logf("skip  chmod does not restrict this user (root?) — %s cannot run", what)
 	return false
 }

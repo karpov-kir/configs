@@ -56,8 +56,7 @@ func importsIn(read ReadLines, files []string) []string {
 					// The boundary the pattern requires before the `@` is one *rune*, one to four
 					// bytes wide. Cutting a fixed two carries the tail of a multi-byte rune into the
 					// name — `é@alpha.md` yields `@alpha.md` and `—@beta.md` a name starting
-					// mid-rune, both onto the census line that prints on a clean run, and both away
-					// from what the shell's byte-wise awk extracts.
+					// mid-rune, both onto the census line that prints on a clean run.
 					_, boundary := utf8.DecodeRuneInString(token[at[0]:])
 					found = append(found, token[at[0]+boundary+1:at[1]])
 					token = token[at[1]:]
@@ -141,10 +140,6 @@ func (m importMount) resolve(name string) (target, refusal string) {
 // dropping out silently. Nothing is carried over from the last name the resolver examined: past the
 // cap it is not called, so its own reset never runs and the last examined name's reason would
 // otherwise be reported against a name nothing looked at.
-//
-// The shell version accumulated the leftovers in a scratch file, because `s="$s$name"` re-copies
-// everything gathered so far on every name and that is quadratic in a count the attacker picks. An
-// append to a slice is not, so the scratch file and its mktemp failure path are gone with it.
 func (r Root) ResolveImports(scan ImportScan) []string {
 	mount := r.newImportMount(scan.Read)
 	var uncounted []string

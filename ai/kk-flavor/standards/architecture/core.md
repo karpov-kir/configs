@@ -33,17 +33,17 @@ A composition root constructs adapters and injects them into the domain; busines
 
 Ports and adapters are the **outbound** edge — tech the domain drives; **entrypoints** are the **inbound** edge — what drives the domain, one per way into the app. An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its **composition root**, and app-wide cross-cutting, then hands each inbound interaction inward to a slice's boundary; only the logic behind it stays transport-agnostic.
 
-One entrypoint sits in a singular `entrypoint/`; several go under `entrypoints/`, one named folder each. No composition root composes composition roots — to run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll.ts`, `web.ts`, `worker.ts`) starts their handles together.
+One entrypoint sits in a singular `entrypoint/`; several go under `entrypoints/`, one named folder each. **An entrypoint file is named for what it starts** — `start.ts`, not `main.ts`, which names only the program's beginning. No composition root composes composition roots — to run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll.ts`, `web.ts`, `worker.ts`) starts their handles together.
 
 ### Module depth
 
 A module's **interface** is everything a caller must learn to use it — its exports, their types, and the constraints only prose carries. Its **depth** is the functionality it hides divided by that interface. Deep is the goal, and depth is not size — **splitting a file is free, exporting the halves is not.**
 
 - **Publish one surface per module.** A slice or module declares its boundary in one file: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Name that file `exports.ts` (or the language's equivalent), never `index.ts`, whose implicit resolution hides which file the caller is actually reading.
-- **Adding capability inside must not widen the surface.**
+- **Capability added inside lands behind the surface already published.**
 - **No pass-throughs.** A method that mostly forwards to a same-named method one layer down costs interface and hides nothing.
 - **No required sequences.** An interface the caller must drive in order — construct, then configure, then start — is shallow. Hide the order inside, or model the states so the wrong order can't be expressed.
-- **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open. The types carry what they can; contract prose carries the rest, which [code-style.md](../code-style.md) → **Comments** exempts from the no-comment default.
+- **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open; what the types cannot carry, contract prose does.
 
 **Where the shape of a surface is genuinely open, draft two or three before you settle on one.** Comparing them costs far less than migrating callers off the wrong one. Make them deliberately different: the smallest surface, the one built for the commonest caller, the one built around a port. Then choose on depth, on where change concentrates, and on where the seam falls. This is for a surface other code will hold, never for a shape one caller sees.
 
@@ -56,7 +56,7 @@ backend  : entrypoint(host)  → controller → use case → core / domain  (→
 frontend : entrypoint(mount) → page       → feature  → core / domain  (→ ports)
 ```
 
-**Backend.** Default to **CQRS** — reads and writes take separate paths. No `main.ts`. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates); otherwise skip it. Put a read behind a port only where a fake adds value. Schema library: zod / valibot (TS), pydantic (Python).
+**Backend.** Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates); otherwise skip it. Put a read behind a port only where a fake adds value.
 
 **Frontend.** Server cache — data mirrored from the API — goes to a data-fetching library (TanStack Query, a Solid resource) behind a port, never hand-rolled in components; UI state (open/closed, selection, draft) stays in component-local signals. A server semantic rejection (409/422) maps onto the offending field, not a generic toast.
 
@@ -64,7 +64,7 @@ frontend : entrypoint(mount) → page       → feature  → core / domain  (→
 
 The inbound boundary checks **structure** — types, ranges, required fields — and rejects malformed input before deeper logic runs. Inner layers check **semantics** — state-dependent rules no schema expresses (sufficient balance, the record exists).
 
-Validate structure with a **declarative schema** — never an unchecked cast or a hand-rolled `typeof`/`in` chain. One schema is the single authority: parse once into a typed value or a rejection, derive the static type from it, and delegate every format check to it.
+Validate structure with a **declarative schema** — zod / valibot (TS), pydantic (Python) — never an unchecked cast or a hand-rolled `typeof`/`in` chain. One schema is the single authority: parse once into a typed value or a rejection, derive the static type from it, and delegate every format check to it.
 
 ## Logging & events
 

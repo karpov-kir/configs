@@ -1,10 +1,5 @@
 package ecocheck_test
 
-// The direction scan: the shared layer never cites into a lane, never names one, and never reaches
-// into one by basename — plus the guard that fires when a symlinked kk-flavor left it nothing to walk.
-// Two cases here cover scans outside that block, kept beside it because that is where the shell suite
-// this was ported from grouped them.
-
 import (
 	"fmt"
 	"testing"
@@ -31,15 +26,9 @@ func TestDirectionScan(t *testing.T) {
 		f.reportedViaFindings(cites)
 	})
 
-	// The four forms that wear the shape of a path into a lane, one case each. Written as four cases
-	// and not as one file carrying four lines, because merged they hid two defects that a reader cannot
-	// see and a single assertion cannot separate: a form quiet for no reason at all is
-	// indistinguishable from one a guard keeps quiet, and a form quiet because the fixture was too thin
-	// to reach the scan is indistinguishable from both. Each case below goes red when its own guard is
-	// removed, and nothing else here does that work for it.
-	//
-	// The two path-shaped forms turn on one guard: the run before `/SKILL.md` must open on a name
-	// character, or a glob's or a placeholder's bare `/SKILL.md` tail matches on its own.
+	// The four forms that wear the shape of a path into a lane, one case each rather than one file
+	// carrying four lines: a form quiet for no reason at all, a form a guard keeps quiet, and a form
+	// quiet because the fixture never reached the scan all read the same through one assertion.
 	t.Run("stays quiet on a glob over the lanes, which names no one lane", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/standards/legal.md", "a glob names the set: `~/.claude/skills/*/SKILL.md`\n")
@@ -52,16 +41,6 @@ func TestDirectionScan(t *testing.T) {
 		f.doesNotReport(cites)
 	})
 
-	// The third form, a bare `SKILL.md`, carries no path at all, so the cites scan is not what governs
-	// it and asserting against that scan observes nothing. The basename scan is, and its own guard is
-	// uniqueness: "stays quiet on a basename more than one lane carries" below is that form's case,
-	// with the control that says its fixture reaches the scan.
-	//
-	// The fourth form, which the merged case asserted silence for and should not have: ecosystem.md →
-	// **One home** bans a path into a lane whatever the file at the end of it is — "not a section, not
-	// a file it owns, not a script it ships" — and a template is a file the lane owns. It was quiet
-	// only because that fixture mounted no skill, so the assertion held on a tree where the rule had
-	// nothing to be broken against, and went on holding while every real tree broke it.
 	t.Run("fires on a path into a template a lane owns", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-qualify")
@@ -126,8 +105,6 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(names)
 	})
 
-	// The case above already covers a lane named outside the `kk-*`/`idsd-*` families. No script is
-	// mounted at the cited path here: this scan matches the shape of a path, it never resolves one.
 	t.Run("fires on a path into a lane that is not a SKILL.md", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-humanize")
@@ -159,8 +136,6 @@ func TestDirectionScan(t *testing.T) {
 		f.reports("kk-drive/SKILL.md — move the rule")
 	})
 
-	// The third grep needed its own case: the two above cover the cites and names greps, and `-a` was
-	// per-grep, so dropping it from this one alone would have left both of them green.
 	t.Run("and reads a lane basename past one too", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
@@ -168,11 +143,9 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(basenames)
 	})
 
-	// The scans outside the direction block need to read past a NUL just as much, and the shell
-	// version's greps had no `-a`: one committed NUL made BSD grep answer `Binary file X matches`,
-	// which both replaced the real finding and put a tree-chosen path inside the text of one. An agent
-	// drafts PR comments from these, so that is an injection, not only a miss. Two scans stand for the
-	// four, one per grep shape the shell version used.
+	// The scans outside the direction block have to read past a NUL just as much. An agent drafts PR
+	// comments from these findings, so a tree-chosen path landing inside the text of one is an
+	// injection and not only a miss.
 	t.Run("reads a markdown link past a NUL byte", func(t *testing.T) {
 		f := newNulByteFile(t)
 		f.reports(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/nul.md -> nowhere.md")
@@ -217,8 +190,6 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(basenames)
 	})
 
-	// A name the shared layer carries is not in the set. Here nothing under skills/ carries it either,
-	// so it never enters the set; the subtraction cases below cover the half where a lane does.
 	t.Run("stays quiet on a shared-layer sibling's own basename", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-drive")
@@ -267,10 +238,6 @@ func TestDirectionScan(t *testing.T) {
 		f.doesNotReport(basenames)
 	})
 
-	// The shared layer's own basenames are subtracted from the set. The reviewed tree fills skills/,
-	// so one committed file named after a standard would otherwise report every standard citing that
-	// sibling. Control first, again: the same lane file fires while the shared layer carries no file
-	// by that name.
 	t.Run("reports a lane file the shared layer has no counterpart for (control)", func(t *testing.T) {
 		newLaneFileOnlyALaneCarries(t).reports(basenames)
 	})
@@ -302,8 +269,6 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(unchecked + ": " + f.root + "/kk-flavor/standards/x.md — 40 already shown")
 	})
 
-	// This half walks the tree per finding on top of the sanitising every hit costs, so its bound is
-	// the one that matters most of the three.
 	t.Run("bounds what the basename half of the scan emits", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()

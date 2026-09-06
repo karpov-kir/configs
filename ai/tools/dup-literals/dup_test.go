@@ -220,6 +220,42 @@ func TestTheSkipAnnouncementIsSanitised(t *testing.T) {
 	})
 }
 
+// The same route through the other arm. What makes the guard necessary is that this tool echoes 60
+// bytes of every duplicate, which is true of a TRACKED file's added lines as readily as an untracked
+// file's — and the untracked guard is the only one that existed. Two tracked `.env` files each
+// gaining the same `TOKEN=` line is the two-files-one-token case, and it printed the token.
+func TestATrackedSecretNamedFileIsNeverScannedEither(t *testing.T) {
+	secret := repeated('S', 130)
+	r := newRepo(t)
+	r.write(".env", "placeholder\n")
+	r.write(".env.staging", "placeholder\n")
+	r.commit("base")
+	r.write(".env", "placeholder\nTOKEN="+secret+"\n")
+	r.write(".env.staging", "placeholder\nTOKEN="+secret+"\n")
+
+	r.run("HEAD")
+	r.expectCode(0)
+	r.expectStdoutLacks(secret[:60])
+	r.expectStderrHas("its name marks it as secret-bearing")
+	r.expectStderrHas("2 file(s) skipped unread")
+}
+
+// The control the case above needs: the same duplicate in tracked files NOT named as secret-bearing
+// is still reported. Without it the guard passes against a scanner that stopped reading the diff.
+func TestATrackedOrdinaryFileWithTheSameDuplicateIsStillReported(t *testing.T) {
+	secret := repeated('S', 130)
+	r := newRepo(t)
+	r.write("one.go", "placeholder\n")
+	r.write("two.go", "placeholder\n")
+	r.commit("base")
+	r.write("one.go", "placeholder\nTOKEN="+secret+"\n")
+	r.write("two.go", "placeholder\nTOKEN="+secret+"\n")
+
+	r.run("HEAD")
+	r.expectCode(1)
+	r.expectStdoutHas("2x token")
+}
+
 // And the control: an ordinary untracked file with the same content IS read, or the case above would
 // pass against a scanner that skipped everything.
 func TestAnOrdinaryUntrackedFileWithTheSameContentIsRead(t *testing.T) {
@@ -238,7 +274,6 @@ func TestAnOrdinaryUntrackedFileWithTheSameContentIsRead(t *testing.T) {
 func TestAnUntrackedSymlinkIsSkippedAndCounted(t *testing.T) {
 	r := newRepo(t)
 	body := repeated('L', 130)
-	// Outside the repo, and named so the secret check WOULD catch it if it ever saw this name.
 	outside := filepath.Join(t.TempDir(), ".env")
 	if err := os.WriteFile(outside, []byte(body+"\n"+body+"\n"), 0o600); err != nil {
 		t.Fatalf("could not write the link target, so nothing was tested: %v", err)
@@ -296,8 +331,6 @@ func TestPastTheDisplayCap(t *testing.T) {
 	}
 }
 
-// Two runs over one tree print one report, or a diff of two is unreadable and the display cap takes a
-// different 200 each time.
 func TestTheReportIsOrdered(t *testing.T) {
 	r := newRepo(t)
 	r.write("base.go", "package fixture\n")

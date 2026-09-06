@@ -127,7 +127,6 @@ func (f *fixture) newScript(name, body string) {
 	}
 }
 
-// The lane fixture the citation and basename cases share: one mounted skill holding one script.
 func (f *fixture) newLaneWithScript() {
 	f.t.Helper()
 	f.newMountedSkill("kk-humanize")
@@ -379,7 +378,6 @@ func (f *fixture) doesNotReportWithRootNamed(dir, root string, needles ...string
 	f.absent(f.checkWith(root), needles...)
 }
 
-// The message each assertion fails with, held once so no caller can word it differently.
 func (f *fixture) found(output string, needles ...string) {
 	f.t.Helper()
 	for _, needle := range needles {
@@ -462,7 +460,6 @@ func (f *fixture) countLinesStartingWith(prefix string) (int, string) {
 	return count, output
 }
 
-// The index of the first line holding the substring, or -1 — `grep -nF -m1 | cut -d: -f1`.
 func firstLineWith(output, needle string) int {
 	for i, line := range strings.Split(output, "\n") {
 		if strings.Contains(line, needle) {

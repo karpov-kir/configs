@@ -22,8 +22,8 @@ func (c *checker) unfencedLines(path string) []string {
 	return unfenced(lines)
 }
 
-// The same, for a reader that already holds the lines. Whether a fence is skipped at all is each
-// scan's own call — the direction scan reads inside one on purpose.
+// Whether a fence is skipped at all is each scan's own call — the direction scan reads inside one on
+// purpose.
 func unfenced(lines []string) []string {
 	var outside []string
 	inFence := false
@@ -65,8 +65,8 @@ func (c *checker) boldedRuns(path string) map[string]string {
 	return bolded
 }
 
-// Every `#` heading in a markdown file, keyed by comparison form and holding the text a finding
-// quotes back — the only thing a citation resolves against.
+// Keyed by comparison form and holding the text a finding quotes back — the only thing a citation
+// resolves against.
 // Memoised per path, like the tree walks are, because the citation scan asks this once per citation
 // and the reviewed tree writes both sides: 200 citations into a 6.3 MB target took 64 seconds and 3000
 // never finished, off a 114 KB file and a 6 MB one, each far under the read bound on its own. The maps
@@ -93,15 +93,12 @@ func (c *checker) markdownHeadings(path string) map[string]string {
 		// by its text. Registered here rather than matched at the citation, because the matcher trims
 		// *trailing* words off a citation to find a heading, and a leading token is the one thing
 		// trimming from the right walks away from. The shape was not one the checker disliked, it was
-		// one nothing could resolve, so the two files in this tree that number their headings read as
-		// hard dangling refs while every em-dash heading passed.
+		// one nothing could resolve.
 		//
-		// The em-dash comment's warning is about a *run*: a rule cutting at any trailing word, or at
-		// any word boundary, admits every prefix of a heading, and a citation naming three words of a
-		// nine-word heading then resolves. This rule cuts a fixed affix — the digits, the dot and the
-		// space that open the line — and nothing else, so the set it adds per heading is one string,
-		// not a prefix family. Naming part of a numbered heading's text still resolves nowhere, which
-		// TestNumberedHeadingCitations proves against this same heading.
+		// This rule cuts a fixed affix — the digits, the dot and the space that open the line — and
+		// nothing else, so the set it adds per heading is one string, not a prefix family. Naming part
+		// of a numbered heading's text still resolves nowhere, which TestNumberedHeadingCitations
+		// proves against this same heading.
 		for _, form := range forms {
 			headings[form] = written
 			if numberless := shell.WithoutLeadingNumber(form); numberless != "" {

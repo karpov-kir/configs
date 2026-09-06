@@ -90,8 +90,6 @@ func cycles(adj map[string][]string, nodes []string, budget *walkBudget) [][]str
 	return found
 }
 
-// The cycle a back edge closes: the walked path from where `next` first appears on it, with `next`
-// repeated at the end to close the loop.
 func cycleFrom(path []string, next string) []string {
 	at := 0
 	for i, n := range path {

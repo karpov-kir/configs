@@ -1,7 +1,5 @@
 package ecocheck_test
 
-// Script test position: every script states the -test.sh covering it or why it has none.
-
 import (
 	"bytes"
 	"fmt"
@@ -13,11 +11,9 @@ import (
 	ecocheck "kk-flavor/tools/eco-check"
 )
 
-// The root arrives as a literal argument, so the leading byte of every path built from it is the
-// caller's to choose. Handed to `bash -n` with no `--`, a path opening with a dash is read as an
-// option: bash answers `-r: invalid option` and dumps its usage without ever opening the file, and
-// each of those ~25 lines becomes a `syntax:` finding — rank 0, so the script goes unparsed while
-// bash's own help text floods the gravest rank.
+// The fixture for the `--` in scripts.go's parse call, whose own comment says what a root opening
+// with a dash costs when `bash -n` reads it as an option. Built at all because the root arrives as a
+// literal argument, so its leading byte is the caller's to choose.
 //
 // The root has to be relative, because an absolute one always opens on `/`. That is what the chdir is
 // for, and why this case cannot be built on the fixture every other case here uses.
@@ -60,8 +56,6 @@ func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) 
 		}
 	})
 
-	// The other half, and the one that says the file was opened rather than merely named: bash's
-	// refusal must not reach the report at all.
 	t.Run("and does not report bash refusing the path as an option", func(t *testing.T) {
 		_, output := newDashLeadingRoot(t)
 		if strings.Contains(output, "invalid option") {
@@ -283,7 +277,6 @@ func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 		f.reportsOnASecondRun(ecocheck.SyntaxError)
 	})
 
-	// The other direction: the saving must not become a finding of its own.
 	t.Run("stays quiet on two copies of a script that parses", func(t *testing.T) {
 		newRepeatedScript(t, "repeated-clean", "# untested: fixture\ntrue").doesNotReportOnASecondRun(ecocheck.SyntaxError)
 	})

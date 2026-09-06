@@ -122,15 +122,12 @@ fi
 # so the import had something to resolve to. The import is gone and its two surviving sentences are
 # inline in ai/CLAUDE.md, so nothing writes that file any more and nothing reads it.
 #
-# A step here rather than a deletion done by hand, because the file sits in the human's home rather
-# than in this repository: putting it in the script is what makes the removal something they run
-# knowingly, and the only thing that carries it to their other machines. It stays rather than being a
-# one-off, too — `rtk init -g` still writes its own template at that path, so a re-run after the next
-# one clears it again.
+# The step is here rather than in the human's hands because the file sits in their home, not in this
+# repository, and a step is what carries the removal to their other machines. It stays for good:
+# `rtk init -g` writes its own template at that path, so the next one puts the file back.
 #
-# A directory there is refused rather than removed. This script only ever wrote a file at that path,
-# so a directory holds something else, and `rm -rf` over it is the data loss the header promises it is
-# not. A symlink is removed like the file: a link carries no data of its own.
+# `! -L` in the directory arm, so a symlink to a directory goes the way the file does — a link carries
+# no data of its own.
 say "rtk"
 rtk_md="$HOME/.claude/RTK.md"
 if [ ! -e "$rtk_md" ] && [ ! -L "$rtk_md" ]; then
@@ -147,8 +144,6 @@ fi
 
 # --- the repository's own tools ------------------------------------------------------------------
 
-# `tools/install.sh` downloads the prebuilt Go tools and verifies each against the release's own
-# SHA256SUMS.
 if $skip_tools; then
   say "tools (skipped)"
 elif $dry_run; then
@@ -162,8 +157,6 @@ fi
 
 # --- MCP registry --------------------------------------------------------------------------------
 
-# `mcp-sync.sh` owns the registry, including the JSONC comment stripping and the private-file
-# layering. CLAUDE_CONFIG_DIR is what lets a test point the `claude` CLI somewhere harmless.
 if $skip_mcp; then
   say "mcp (skipped)"
 elif $dry_run; then

@@ -97,7 +97,6 @@ func Run(args []string, out, errOut io.Writer) int {
 		}
 		return refuseToRun(errOut, fmt.Sprintf("no root holding both kk-flavor/ and skills/ (tried '%s')", named))
 	}
-	// Before the first scan, for the reason enableGate carries.
 	if isGate {
 		if err := c.enableGate(); err != nil {
 			return refuseToRun(errOut, err.Error())
@@ -172,7 +171,6 @@ func (c *checker) exitCode(out, errOut io.Writer) int {
 	return 2
 }
 
-// A scan reporting that it could not run at all, rather than running and finding nothing.
 func (c *checker) cannotRun(reason string) {
 	c.unrunnable = append(c.unrunnable, reason)
 }

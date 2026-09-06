@@ -11,7 +11,15 @@
 # it to read what this script *asked* the CLI for, which is this script's own decision.
 # A private server's config, secrets included, passes to `claude mcp add-json` as a positional
 # argument, where `ps` can read it for the length of the call. There's no stdin or file path to pass
-# it through: `add-json` takes `<name> <json>` and nothing else. Don't run this on a shared host.
+# it through: `add-json` takes `<name> <json>` and nothing else — read out of `claude mcp add-json
+# --help`, not assumed.
+#
+# It is not only a shared host that reads argv. Every process running as you can, and this repo starts
+# two of those at every session from an unpinned `npx` (ai/mcp.jsonc). One of them alive while this
+# runs sees the config.
+# So keep secrets out of these files: export the variable in the shell that starts Claude Code and
+# name it in mcp-env.sh's allow-list, where it reaches the server without ever crossing argv. Treat
+# anything that has already been in one of these files as exposed.
 
 # The sed is anchored at the line start: blanking from any `//` onwards truncates a URL.
 strip_comments() {

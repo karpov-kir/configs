@@ -20,17 +20,13 @@ Judge each skill on how much it costs to *miss*; `~/.kk-flavor/standards/ecosyst
 
 Then check the description does its one job: **route**. It exists to answer "is this the skill for what is happening now", not to summarise the body. It carries a trigger, a target, and — where a near-neighbour exists — a discriminator that keeps the two apart. **Too short is a failure, not a virtue** — stripped past routing, a description gets the skill invoked at the wrong moment or not at all.
 
-`description` plus `when_to_use` is truncated at 1,536 characters in the listing, so text past that budget is not merely expensive — it is discarded, and a discriminator that lands after the cut does nothing.
+The `description` is truncated at 1,536 characters in the listing, so text past that budget is not merely expensive — it is discarded, and a discriminator that lands after the cut does nothing.
 
 ## 2. Structure — steps and reference
 
 A skill divides into **steps** (the procedure) and **reference** (templates, definitions, glossaries, mode-specific detail the steps consume). Keep `SKILL.md` to the steps and as small as it will go: it is read in full every time.
 
-Find the **branches** — the conditional paths a run may or may not take. A branch's material does not belong inline; it belongs in a file the skill names at the branch. Three tests, all of which must pass:
-
-1. Does an agent on the common path decide just as well without having read it?
-2. Is the pointer unmissable, sited exactly where the branch is taken, and does it say the file is the whole delta for that path?
-3. Does the extracted file stand alone, without re-reading the parent?
+Find the **branches** — the conditional paths a run may or may not take. A branch's material does not belong inline; it belongs in a file the skill names at the branch, on the terms `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** sets for a **Split**, plus one this lens adds: the extracted file stands alone, without re-reading the parent.
 
 Fail any one and it stays inline. **A bad extraction is worse than none**, because it converts a rule the agent reads into a rule the agent is merely told about.
 
@@ -45,7 +41,7 @@ When an agent ignores an instruction, argue less and steer harder.
 
 ## 4. Pruning — what is not doing anything
 
-- **No-ops.** Text that reads like an instruction but changes no output. Apply the deletion test: cut it, and ask whether a competent agent does the same thing anyway.
+- **No-ops.** Text that reads like an instruction but changes no output; `~/.kk-flavor/standards/ecosystem.md` → **Earn the place** holds the test.
 - **Sediment.** What accumulates when several people edit one file and nobody dares delete anyone else's rule. It reads as a flat list of equals; it is actually one live procedure plus somebody's old edge case. Move the niche rules into the branch that needs them and kill the stale ones.
 
 Deleting is not the only fix — try the moves in `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** first.

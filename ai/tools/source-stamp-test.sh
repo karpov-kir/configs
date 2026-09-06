@@ -130,10 +130,9 @@ edit_then "an edit to go.mod changes it" "go.mod" changed "$own_main"
 edit_then "a main under cmd/ is the tool's own source" "cmd/$cmd_main/main.go" changed "$cmd_main"
 edit_then "and so is the library beside it" "$cmd_main/$cmd_main.go" changed "$cmd_main"
 
-# The same edits seen from another tool. These moved the stamp only after the coverage set stopped
-# guessing which directory belongs to whom: a library that cmd/ backs is still one this tool may
-# import — eco-report imports tree-fingerprint, and cmd/tree-fingerprint backs it too — so a stamp
-# that skipped it served the old binary and said nothing. Covering it costs a rebuild instead.
+# The same edits seen from another tool. A library that cmd/ backs is still one this tool may import
+# — eco-report imports tree-fingerprint, and cmd/tree-fingerprint backs it too — so a stamp that
+# skipped it would serve the old binary and say nothing. Covering it costs a rebuild instead.
 edit_then "a library another tool's cmd/ backs still moves it" "$cmd_main/$cmd_main.go" changed "$own_main"
 edit_then "another tool's main under cmd/ moves it" "cmd/$cmd_main/main.go" changed "$own_main"
 edit_then "another tool's own main moves it" "$own_main/main.go" changed "$cmd_main"

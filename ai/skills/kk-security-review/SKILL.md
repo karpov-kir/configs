@@ -8,7 +8,7 @@ Adversarially review every change resolved from `$ARGUMENTS`: assume the code is
 
 **Exploitable weaknesses only** — functional bugs are `kk-code-review`'s lane, style and structure `kk-refactor`'s.
 
-**Secret handling (mandatory).** Never write a secret's value into any output — no finding, report, quoted excerpt, or echoed tool output. Mask it to the first 2–4 identifying characters plus `****` (`AKIA****`) and cite `file:line` as the canonical location. Recommend rotation for anything live — exposure in source means it is already compromised — and state what the credential appears to grant; a scope you can't confirm is stated as apparent, never a reason to downgrade the finding. Before asserting where a secret lives, or that a cleanup removed every copy, grep the run's own scratch dir too.
+**Secret handling (mandatory).** Never write a secret's value into any output — no finding, report, quoted excerpt, or echoed tool output. Mask it to the first 2–4 identifying characters plus `****` (`AKIA****`) — this lane's form, in place of `~/.kk-flavor/standards/skill-protocol.md` → **Redact before you quote**'s — and cite `file:line` as the canonical location. Recommend rotation for anything live — exposure in source means it is already compromised — and state what the credential appears to grant; a scope you can't confirm is stated as apparent, never a reason to downgrade the finding. Before asserting where a secret lives, or that a cleanup removed every copy, grep the run's own scratch dir too.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below — note the tighter license: apply only a trivial, unambiguous fix (e.g. redacting a logged secret); a risky or structural security change always goes to your caller with its remediation.
 
@@ -34,7 +34,7 @@ Adapt it to the stack — skip classes the target can't have (web items for a CL
 
 ## Loop deltas
 
-- Trace the coverage classes over the file and the flows it reaches; surface a finding only with a concrete exploit scenario — if you can't write how an attacker uses it, downgrade the severity or drop it.
+- Trace every coverage class over the file and the flows it reaches; surface a finding only with a concrete exploit scenario — if you can't write how an attacker uses it, downgrade the severity or drop it.
 - Label each finding **introduced**, **worsened**, or **newly reachable** (a pre-existing pattern the change routes into a dangerous path).
 - The final sweep hunts cross-file data flows.
 

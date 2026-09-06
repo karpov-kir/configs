@@ -1,7 +1,5 @@
 # Code Navigation
 
-Nothing covered how an agent finds code before this file.
-
 ## Reach past `grep` only past one hop
 
 A single-symbol question — where is this defined, what mentions this name — is one `grep`.

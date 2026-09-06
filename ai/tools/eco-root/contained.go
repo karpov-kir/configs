@@ -29,9 +29,9 @@ func containedInRoot(rootCanon, path string) bool {
 	return dir == rootCanon || strings.HasPrefix(dir, rootCanon+"/")
 }
 
-// `[ -r ]` answered by opening the file, which is the question containment asks: a file admitted here
-// is one whose words the figure behind it can actually read, and access(2) says yes where the open
-// still fails. ecoreport asks access(2) instead, deliberately and for its own reason — see the note
+// Readable is answered by opening the file, which is the question containment asks: a file admitted
+// here is one whose words the figure behind it can actually read, and access(2) says yes where the
+// open still fails. ecoreport asks access(2) instead, deliberately and for its own reason — see the note
 // on isReadable in its shell.go. Neither is the shared one, so `shell` holds no readability test.
 func isReadable(path string) bool {
 	file, err := os.Open(path)

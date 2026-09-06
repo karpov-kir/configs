@@ -31,7 +31,7 @@ Then **tighten** what you have: cache the setup, narrow the scope, pin the clock
 
 Run it and watch it redden. Confirm it reddens on the **reporter's** symptom rather than a neighbouring failure, and capture the exact symptom — the message, the wrong value, the timing — so the later phases have something to compare against.
 
-Then shrink it: cut inputs, callers, config, data and steps **one at a time**, re-running after each cut. Done when every remaining element is load-bearing — removing any one of them turns the loop green. What survives shrinks the hypothesis space in Phase 3 and becomes the regression test in Phase 5.
+Then shrink it: cut inputs, callers, config, data and steps **one at a time**, re-running after each cut. Done when every remaining element is load-bearing — removing any one of them turns the loop green.
 
 ## 3. Rank falsifiable hypotheses
 

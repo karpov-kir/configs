@@ -456,6 +456,21 @@ status=$?
 expect_status "and the run after it still serves the binary" 0
 expect_out "and says the comparison could NOT be made" "could NOT be compared"
 
+# A checkout that DOES ship Go source, asked for a name it has no source for: an orphan binary, from a
+# tool since renamed or from nowhere at all. Case fifteen's silence must not cover this one — bin/ is
+# gitignored, so an orphan reaches no diff and no `git status`, and a silent exit 0 is the whole way it
+# keeps running. The pair of cases is what separates the two shapes: fifteen has no go.mod, this has.
+eighteen="$base/eighteen"
+new_tools "$eighteen"
+orphan=stowaway
+mkdir -p "$eighteen/bin" || nomeasure "could not build the orphan fixture"
+printf '#!/bin/sh\nexit 0\n' >|"$eighteen/bin/$orphan"
+chmod 755 "$eighteen/bin/$orphan" || nomeasure "could not make the orphan fixture binary executable"
+out=$(PATH="$bare" "$eighteen/resolve.sh" "$orphan" 2>&1 >/dev/null)
+status=$?
+expect_status "serves an orphan binary in a checkout that ships source" 0
+expect_out "and does NOT pass it off as built from that source" "could NOT be compared"
+
 echo
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]

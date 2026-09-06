@@ -1,7 +1,7 @@
 package shell
 
 import (
-	"sort"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -137,12 +137,12 @@ func IsSpaceByte(b byte) bool {
 }
 
 // Nothing has two shapes across the three functions below, and neither shape is promised. SplitLines
-// returns nil for empty input; SplitFields and SortUnique return an allocated empty slice, one
-// inherited from strings.FieldsFunc and one from make. Every caller reads the result with len or
-// range, which cannot tell the two apart, so the difference has never been observable — and picking
-// one would freeze a contract nobody asked for, the same trade CutBytes leaves open above. It is
-// stated here instead. The cases hold these functions to length and contents rather than to
-// reflect.DeepEqual, so no test freezes what this note leaves open.
+// and SortUnique return nil for empty input; SplitFields returns the allocated empty slice it
+// inherits from strings.FieldsFunc. Every caller reads the result with len or range, which cannot
+// tell the two apart, so the difference has never been observable — and picking one would freeze a
+// contract nobody asked for, the same trade CutBytes leaves open above. It is stated here instead.
+// The cases hold these functions to length and contents rather than to reflect.DeepEqual, so no test
+// freezes what this note leaves open.
 
 // SplitLines splits on \n, with no empty record for a trailing newline. Bytes come back untouched:
 // there is no binary-file notion here to make a line vanish.
@@ -168,19 +168,14 @@ func SplitFields(line string) []string {
 
 // SortUnique is `sort -u` under LC_ALL=C: byte order, duplicates dropped, input left alone.
 func SortUnique(values []string) []string {
-	sorted := append([]string(nil), values...)
-	sort.Strings(sorted)
-	unique := make([]string, 0, len(sorted))
-	for i, value := range sorted {
-		if i == 0 || value != sorted[i-1] {
-			unique = append(unique, value)
-		}
-	}
-	return unique
+	sorted := slices.Clone(values)
+	slices.Sort(sorted)
+	return slices.Compact(sorted)
 }
 
-// asciiLower is awk's tolower under LC_ALL=C, which touches ASCII and nothing else.
-func asciiLower(text string) string {
+// AsciiLower is awk's tolower under LC_ALL=C, which touches ASCII and nothing else. strings.ToLower
+// would fold non-ASCII too, so the text under review would decide whether a scan matched.
+func AsciiLower(text string) string {
 	out := []byte(text)
 	for i, b := range out {
 		if b >= 'A' && b <= 'Z' {

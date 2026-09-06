@@ -36,12 +36,19 @@ import (
 // matter are the mismatches: an undeclared survivor is a finding, and a declared one that got killed
 // is a stale declaration. Answered here so a case can reach every arm; reached only from main, it would
 // take a full mutation run to observe one.
-// The two verdicts that say nothing about the guard the mutant names: a suite the watchdog stopped,
-// and a mutant this machine could not set up to run at all. Both are counted apart from findings,
-// because a run that never happened is not evidence that the code is sound or that it is broken.
+// The whole printed vocabulary, named once so the site that writes a word and the site that branches
+// on it cannot come to different spellings of it. timedOut and noSetup say nothing about the guard the
+// mutant names — a suite the watchdog stopped, and a mutant this machine could not set up to run at
+// all — and both are counted apart from findings, because a run that never happened is not evidence
+// that the code is sound or that it is broken.
 const (
-	timedOut = "TIMED OUT"
-	noSetup  = "NO SETUP"
+	killed        = "killed"
+	killedNothing = "KILLED NOTHING"
+	brokenBuild   = "broken"
+	timedOut      = "TIMED OUT"
+	noSetup       = "NO SETUP"
+	staleClaim    = "STALE CLAIM"
+	unreachable   = "unreachable"
 )
 
 // A mutant that never reached a suite, carrying why. The error is the evidence: without it the reader
@@ -52,12 +59,12 @@ func notSetUp(at time.Time, err error) result {
 
 func outcomeOf(verdict string, isDeclared bool) (shown string, isBad bool) {
 	switch {
-	case verdict == "killed" && !isDeclared:
-		return "killed", false
-	case verdict == "killed":
-		return "STALE CLAIM", true
-	case verdict == "KILLED NOTHING" && isDeclared:
-		return "unreachable", false
+	case verdict == killed && !isDeclared:
+		return killed, false
+	case verdict == killed:
+		return staleClaim, true
+	case verdict == killedNothing && isDeclared:
+		return unreachable, false
 	}
 	// A suite that never finished says nothing about the guard either way, so it is neither a finding
 	// nor an excuse. Neither does a mutant the harness could not set up: a temp dir it could not make
@@ -191,7 +198,7 @@ const suiteTimeout = "30m"
 // produce. `KILLED NOTHING` is the guard being unobserved, which is a finding about the suite.
 func verdictOf(suiteFailed bool, output string) string {
 	if !suiteFailed {
-		return "KILLED NOTHING"
+		return killedNothing
 	}
 	// Before the kill arm, and this is the whole reason it exists. A timed-out suite exits non-zero
 	// with a panic, which is neither a build failure nor a case going red, so it used to fall through
@@ -199,12 +206,12 @@ func verdictOf(suiteFailed bool, output string) string {
 	// finding this harness exists to produce, manufactured by the harness itself, and load is what
 	// makes it happen.
 	if strings.Contains(output, "test timed out") {
-		return "TIMED OUT"
+		return timedOut
 	}
 	if strings.Contains(output, "[build failed]") || strings.Contains(output, "cannot use") {
-		return "broken"
+		return brokenBuild
 	}
-	return "killed"
+	return killed
 }
 
 // The top-level test names one suite holds, from `go test -list`. Subtests are not listed and are not
@@ -293,7 +300,7 @@ func run(pkgDir string, m mutant, runFilter string) result {
 // time out, so the capture went unexercised and deleting it still left the package green.
 func verdictWithEvidence(suiteFailed bool, output string) (verdict, evidence string) {
 	verdict = verdictOf(suiteFailed, output)
-	if verdict == "TIMED OUT" {
+	if verdict == timedOut {
 		evidence = output
 	}
 	return verdict, evidence
@@ -493,7 +500,7 @@ func report(selected []mutant, results []result) (bad, declared, unmeasured int)
 			// The guard became observable, so the declaration is now a false statement about this
 			// suite — and left standing it would go on excusing this mutant's next survival. Said here
 			// because nothing else will ever report it.
-			if shown == "STALE CLAIM" {
+			if shown == staleClaim {
 				fmt.Printf("                  a case reddens it, so it is no longer unreachable — drop the declaration, which says: %s\n", why)
 			}
 		case shown == timedOut, shown == noSetup:
@@ -503,7 +510,7 @@ func report(selected []mutant, results []result) (bad, declared, unmeasured int)
 			if results[i].evidence != "" {
 				fmt.Println(indentBlock(results[i].evidence))
 			}
-		case shown == "unreachable":
+		case shown == unreachable:
 			declared++
 		}
 	}

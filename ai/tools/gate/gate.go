@@ -1,11 +1,12 @@
 // The pre-commit gate: every check this repo gates on, run only where the change could have moved it.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>]
-//	       (no flag)  the fast path — run what is stale, skip what is not, defer the mutation harnesses
-//	       --full     run everything from cold, ignoring and then refreshing every cached verdict
-//	       --mutants  settle the deferred mutation units, and nothing else
-//	       --units    print the unit table with each unit's freshness, and stop
-//	       --why      print the input files one unit is keyed on, and stop
+//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
+//	       (no flag)     the fast path — run what is stale, skip what is not, defer the mutation harnesses
+//	       --full        run everything from cold, ignoring and then refreshing every cached verdict
+//	       --mutants     settle the deferred mutation units, and nothing else
+//	       --units       print the unit table with each unit's freshness, and stop
+//	       --why         print the input files one unit is keyed on, and stop
+//	       --check-path  say whether a name is one the gate can safely build a command from, and stop
 //
 // Skipping is sound, not a sample, because every check here is a pure function of a declared set of
 // input files plus the toolchain: the same bytes through the same compiler give the same verdict. A
@@ -40,6 +41,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"kk-flavor/tools/shell"
 )
 
 type Env struct {
@@ -354,7 +357,7 @@ func (g *gate) assignStems() int {
 	sort.Strings(clashes)
 	fmt.Fprintln(g.errOut, "gate.sh: these units share one cache record, so a verdict could not say which of them it belongs to — nothing ran")
 	for _, stem := range clashes {
-		ids := uniqueSorted(byStem[stem])
+		ids := shell.SortUnique(byStem[stem])
 		if len(ids) == 1 {
 			fmt.Fprintf(g.errOut, "    %s — carried by two units under one id\n", ids[0])
 		} else {
@@ -362,17 +365,4 @@ func (g *gate) assignStems() int {
 		}
 	}
 	return 2
-}
-
-func uniqueSorted(values []string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, v := range values {
-		if !seen[v] {
-			seen[v] = true
-			out = append(out, v)
-		}
-	}
-	sort.Strings(out)
-	return out
 }

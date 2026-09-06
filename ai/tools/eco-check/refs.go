@@ -7,7 +7,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
 const (
 	danglingLink           = "dangling link: "
 	danglingHomeRef        = "dangling home ref: "
@@ -64,7 +63,6 @@ func isTraversal(target string) bool {
 		strings.Contains(target, "/../") || target == ".."
 }
 
-// `~/.kk-flavor/...` and `~/.claude/skills/...` — how a skill reaches outside its own directory.
 func (c *checker) scanHomeRefs() {
 	var refs []string
 	for _, lines := range c.filesWithLines(c.root.Named(), "*.md", "*.sh") {
@@ -114,7 +112,6 @@ func (c *checker) scanPathRefs() {
 	}
 }
 
-// The text inside each pair of backticks, outside fenced blocks.
 func backtickedSpans(lines []string) []string {
 	var spans []string
 	for _, line := range unfenced(lines) {
@@ -140,7 +137,6 @@ func delimitedSpans(line, delimiter string) []string {
 	return spans
 }
 
-// Our own skill namespaces: a name in prose must be a skill that exists.
 func (c *checker) scanUnknownSkills() {
 	var names []string
 	for _, lines := range c.filesWithLines(c.root.Named(), "*.md", "*.yaml") {
