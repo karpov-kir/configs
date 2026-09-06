@@ -44,11 +44,13 @@ Done when one chip per launchable intent exists, off one round of spawns rather 
 
 End each turn rather than wait on a session's message — it wakes you. Close each turn with the live sessions, and what each waiting intent waits on.
 
+**Every message is a report about a state that has moved since.** A session writes, then keeps working, and you read minutes later — so check the repo before acting on what one told you.
+
 - **A contract change** — an API shape, a shared type, a wire protocol. Forward it to every live sibling whose ICE consumes it, so that sibling rebases instead of colliding.
 - **The merge slot** — a sibling that hit the slot refusal asks whether the holder is still alive, and you hold the live-session list that answers it (`~/.claude/skills/idsd-finalize/SKILL.md` → **2. Take the slot**). Match the worktree the refusal names against your live sessions: gone, and the waiting sibling may `--force`; otherwise it waits.
 - **`done`** — the intent landed and its allocation frees. Recompute the launchable set and return to **2** at once for whatever this merge unblocked. **A batch is the starting schedule, never a barrier.**
 
-**Check `list_sessions` at each wake** and name each mismatch to the human. One gone that never sent `done` proves nothing on its own — a session that archives itself can stop before its message goes, so **read the repo before calling it dead**: its intent in `.idsd/archive/` and its merge on the target means it landed, and you treat that as its `done`. Neither, and it died with its intent unbuilt: reclaim its allocation. Where the sessions archive themselves, one that sent `done` and is still listed did not archive: hold its allocation until it goes.
+**Check `list_sessions` at each wake** and name each mismatch to the human. One gone that never sent `done` proves nothing on its own — you cannot tell a message that is late from one that will never come, so **read the repo before calling it dead**: its intent in `.idsd/archive/` and its merge on the target means it landed, and you treat that as its `done`. Neither, and it died with its intent unbuilt: reclaim its allocation. Where the sessions archive themselves, one that sent `done` and is still listed did not archive: hold its allocation until it goes.
 
 **A question you cannot see is not yours to hold** — the human answers each session in its own thread.
 
