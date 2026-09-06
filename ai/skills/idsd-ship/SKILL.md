@@ -4,7 +4,7 @@ description: "Ship one ICE intent end-to-end — author it if missing, build, qu
 argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote"
 ---
 
-You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**). You run `~/.claude/skills/idsd-build/SKILL.md` and `~/.claude/skills/idsd-qualify/SKILL.md`, so read both whole rather than entering them a section at a time. Ship's own seam: the sub-skills' gap rounds (e.g. `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1**) still fire — never suppress one by recording instead.
+You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**). You run `~/.claude/skills/idsd-build/SKILL.md`, `~/.claude/skills/idsd-qualify/SKILL.md` and `~/.claude/skills/idsd-finalize/SKILL.md`, so read all three whole rather than entering them a section at a time. Ship's own seam: the sub-skills' gap rounds (e.g. `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1**) still fire — never suppress one by recording instead.
 
 ## Subcommands
 
@@ -54,7 +54,6 @@ Read where the change set stands with `report.sh state <intent>` (never hand-par
 Reads the intent from the report's frontmatter; error with no report, or on one a standalone qualify produced (no merge target).
 
 1. **Gate.** Run `report.sh gate <intent>`; the human clears an open `- [ ]` first, by resolving it or routing it out of the report (to the ICE `## Follow-ups`, a backlog, an `idsd-charter` or `CLAUDE.md` proposal). Beyond the gate: the review is stale if the target branch advanced past this branch's base since `reviewed-tree` was stamped. Integrate the target and re-run `qualify` as the pass the merge waits on (which re-stamps) before landing.
-2. On a clean gate — or an overridable block the human waived, with no open `- [ ]` — hand to `~/.claude/skills/idsd-build/SKILL.md` → **Phase 5**, which runs unchanged through its approval-gated commit. It gates again before archiving, so carry the human's override with you rather than asking for it twice.
-   - **After the commit succeeds, `report.sh close <intent>`.**
+2. On a clean gate — or an overridable block the human waived, with no open `- [ ]` — invoke `~/.claude/skills/idsd-finalize/SKILL.md`, which runs unchanged through its approval-gated commit. It gates again before archiving, so carry the human's override with you rather than asking for it twice. Its own `report.sh finalize` retires the report, so nothing here closes one.
 3. **Throwaway cleanup.** In throwaway repo mode (`report.sh repo-mode`) the local `.idsd/` outlives the ship and breaks the mode's zero-traces contract. **After** the commit succeeds — never before, or the intent is lost while the work is unlanded — **ask** whether to clear it (default yes). On yes, `report.sh discard <intent>`. Keeping a throwaway `.idsd/` instead is what `promote` (before `done`) is for.
 4. **Offer an audit** — committed repo mode only, when `~/.claude/skills/idsd-ship/scripts/cadence.sh audit due` says one is due; its usage line carries the exit codes. On exit 2 offer anyway and say the cadence could not be read. Invoke `idsd-audit` on a yes. Then `cadence.sh audit asked` once the answer is settled — on no immediately, on yes only after `idsd-audit` returns.

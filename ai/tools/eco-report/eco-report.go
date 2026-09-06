@@ -59,6 +59,14 @@
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
 //	list             one line per open ship, `<intent><TAB><state>`, for routing with several in flight
+//	finalize [--force] <intent>  the deterministic tail of a merge, under a slot no two ships share:
+//	                 delete the ship's own decisions/playbook/language and its report, drop its stage
+//	                 markers, and move its folder to archive/. The deletes precede the move, or the
+//	                 archived folder carries records nothing prunes. Which of those records survived
+//	                 into the project's own is the caller's judgment and happens BEFORE this, so
+//	                 nothing here asks anybody — a question inside the slot stalls every ship behind
+//	                 it. Another ship holding the slot is exit 4, naming the holder's intent and
+//	                 worktree; --force breaks a slot whose holder the caller has established is gone
 //	close [--force]  retire one landed ship's report and stage markers. Refuses while an open `- [ ]`
 //	                 stands, since nothing else keeps a copy
 //	record [--intent <NNN-slug>] <append|bump|revise|evict|admit> <record> "<text>" ["<new text>"]
@@ -301,12 +309,16 @@ func (r *run) dispatch() {
 		r.cmdState()
 	case "list":
 		r.cmdList()
+	case "finalize":
+		r.cmdFinalize(r.args[1:])
+	case "merge-slot":
+		r.cmdMergeSlot(r.args)
 	case "close":
 		r.cmdClose(r.args[1:])
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

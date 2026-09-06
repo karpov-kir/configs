@@ -3,7 +3,8 @@
 # it too. What the gates do, and what each subcommand means, is `ai/tools/eco-report/`.
 #   usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|
 #                     decisions-reviewed|stamp "<stages>"|gate|intent-ready <NNN-slug>|carry|
-#                     check-ignore|promote|discard|close|state|list|record <op> <record-name> "<text>"}
+#                     check-ignore|promote|discard|finalize|merge-slot|close|state|list|
+#                     record <op> <record-name> "<text>"}
 #                     [<intent>]
 #
 # Two sibling files are found from argv[0] and one from $HOME, so this must stay in the skill's
