@@ -46,6 +46,8 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 **Below that table, a build graph** — a `mermaid` fence over the unbuilt intents, `depends-on` edges only, minus the parked ones (`vnext` and Unscheduled). Root it at the intents whose `depends-on` targets are all built, three levels deep. **Under it, say how many unbuilt intents it omits and why**: parked, deeper than three levels, or reachable only through a parked one.
 
+**Order nodes and edges by intent number.** Two agents given one frontmatter write correct graphs that differ line by line otherwise, and every regeneration then churns a diff nobody can read.
+
 **The charter changes only through `idsd-charter`, whatever the section** — you propose, the human confirms. If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update. If there's no charter, don't create one here.
 
 **Keep `.idsd/language.md` current** — the project's ubiquitous language. One entry per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. **Write it only through `~/.claude/skills/idsd-qualify/scripts/report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-language "<text>"`** — this ship's own, which finalize merges upward — the same hazard as the decision log (`~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log**). `~/.kk-flavor/standards/records.md` is the whole delta. **It is pruned here and nowhere else**: a term no artifact uses any longer is deleted here, not left for the audit to find.
