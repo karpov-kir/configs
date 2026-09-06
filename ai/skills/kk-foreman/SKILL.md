@@ -15,7 +15,7 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 **`unattended`, or an argument saying the same, hands you the run** — nobody is at the keyboard to answer, so you decide and you act. The bullets below, with **Two things still stop you** and **Nothing else loosens** after them, are the licence; it binds you and every stage you spawn:
 
-- **Run what you recommend — the instruction is the yes.** Yours alone, not a stage's. It lifts the yes that the cost bullet under **Rules** requires, and `~/.kk-flavor/standards/git.md`'s approval before a commit, a push or opening a PR. **That is what it lifts, and it is no ceiling on what a stage may write** — a stage's own skill authorises its own acts, and this licence neither widens nor narrows them.
+- **Run what you recommend — the instruction is the yes.** It lifts the yes that the cost bullet under **Rules** requires, and `~/.kk-flavor/standards/git.md`'s approval before a commit, a push or opening a PR.
 - **Take the bigger change where it is the better one.** The instruction lifts `~/.kk-flavor/standards/core-principles.md` → **3. Surgical changes** for this run, by the mechanism in `~/.kk-flavor/standards/skill-protocol.md` → **Caller**.
 - **Leave it enforced, not remembered** — a script, a test, a gate outlasts the answer that holds only while someone recalls it.
 - **Finish every part that is not blocked, then name each one that is.** A blocker is a line in the reply, never the reason the rest went unaddressed, and nothing is dropped for being tedious.
