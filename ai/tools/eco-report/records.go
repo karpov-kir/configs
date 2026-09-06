@@ -77,19 +77,46 @@ const localBound = 25
 // "decision".
 const entryBound = 2000
 
-// The judge the cap's contest is settled by, and the one an over-cap prune uses — `records.md` → **The
-// cap evicts by what the record can afford to lose**. A constant, because two notes hand it over and
-// they must not offer different judges.
+// The standard behind every rule here, cited by the path it opens at rather than by its filename. An
+// agent told to work a file it cannot find works the message alone, and the message is the shorter of
+// the two. The notes name the judge by a full path for the same reason.
+const recordsStandard = "~/.kk-flavor/standards/records.md"
+
+// The judge the cap's last rung runs, and the one an over-cap prune uses — `records.md` → **The cap
+// evicts by what the record can afford to lose**. A constant, because two notes hand it over and they
+// must not offer different judges.
 const judgeCommand = "~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin"
 
 // The moves at the cap that free a slot at no loss, in `records.md`'s order. A constant for the same
 // reason judgeCommand is — the same two notes quote both.
 const capLadderRungs = "delete what is no longer true, promote what must not be lost, fold two entries carrying one idea together"
 
+// The judge rung both notes hand over: the command, and how to read each answer it can come back
+// with. Beside the two constants above for the reason they are constants — a rung quoted twice is a
+// rung two agents can read two ways.
+//
+// Exit 2 earns a line of its own because from where the agent stands it looks exactly like exit 0:
+// `bloat-judge.sh` prints nothing and exits 2 when it did NOT run — an unknown kind, a missed
+// deadline, an answer that was not numbers. Read as exit 0, that silence says the judge named nothing
+// and the cap holds, which is a verdict nothing reached.
+func judgeRung() []string {
+	return []string{
+		"    " + judgeCommand,
+		"  It deletes what it names, and naming nothing (exit 0, output unchanged) is one of its answers.",
+		"  Exit 2 is not an answer: the judge did NOT run — an unknown kind, a missed deadline, an answer",
+		"  that was not numbers — so this rung is unmet. Nothing may go on it, and the append stays refused",
+		"  until a run of the judge answers.",
+	}
+}
+
 // The rule line every header carries, built from the bound rather than written out under each: four
-// hand-written copies are four records that can disagree about one cap.
+// hand-written copies are four records that can disagree about one cap. What it says past the cap is
+// what the refusal says, because the two are one file talking about one number — `records.md` →
+// **Reaching the cap** leaves an entry that frees no slot unrecorded, so no header may promise the
+// newcomer an incumbent's place.
 func fullAtLine(bound int) string {
-	return "Appended per `~/.kk-flavor/standards/records.md`. Full at " + strconv.Itoa(bound) + " entries — past that a new one displaces one already here.\n"
+	return "Appended per `" + recordsStandard + "`. Full at " + strconv.Itoa(bound) +
+		" entries — past that an append refuses, and a new entry lands only if a move at the cap frees a slot.\n"
 }
 
 // The header a record is created with, so a first append lands a file that already states its own
@@ -423,7 +450,7 @@ func (r *run) recordAppend(kind *recordKind, path, text string) {
 	// other words is a judgment, and stays the agent's.
 	//
 	// Ahead of the cap, because a restatement wants no slot: bumping it costs the file nothing, and
-	// sending the agent off to hold a contest would put a live entry out for a copy of itself.
+	// sending the agent to the judge would put a live entry out for a copy of itself.
 	entries := recordEntriesIn(lines)
 	for _, entry := range entries {
 		if entry.text == text {
@@ -458,22 +485,28 @@ func (r *run) recordAppend(kind *recordKind, path, text string) {
 // removed.
 //
 // The ladder comes first because each of its moves frees a slot at no loss (`records.md` → **Reaching
-// the cap**), and only under it the contest, which costs the record an entry. The contest judges the
-// incumbents AND the newcomer on one scale: asking only whether the new entry beats the weakest
-// incumbent lets every newcomer in, and a record that always admits the newest is a rolling window of
-// the last N — the age-ordered trim `records.md` forbids outright. The tie goes against the newcomer
-// for the same reason: broken the other way, arrival order decides.
+// the cap**), and only under it the judge, which costs the record an entry on the one outcome where it
+// resolves. The judge reads the incumbents AND the newcomer together: asking only whether the new
+// entry beats the weakest incumbent lets every newcomer in, and a record that always admits the newest
+// is a rolling window of the last N — the age-ordered trim `records.md` forbids outright.
+//
+// The judge deletes what it names and may name nothing, so it settles no contest and the message
+// promises none. `records.md` → **Reaching the cap** already fixes the outcome when it names nothing or
+// names the newcomer: the cap holds and the entry is not recorded. Said here because this refusal is
+// what an agent reads while stuck, and one expecting a contest reads an exit 0 as a broken tool.
 func (r *run) refuseFull(kind *recordKind, path string, held int, text string) {
 	note := append([]string{
 		"error: " + path + " is full — " + strconv.Itoa(held) + " entries, its cap. Nothing was appended.",
-		"  Free a slot and re-run the append, working records.md -> Reaching the cap in order:",
+		"  Work " + recordsStandard + " -> Reaching the cap in order. Each frees a slot, so re-run the append after one:",
 		"  " + capLadderRungs + ".",
 	}, pruneCommands(kind)...)
 	note = append(note,
-		"  If none of those apply, run the judge over the new entry and every entry in the file:",
-		"    "+judgeCommand,
-		"  The lowest of the "+strconv.Itoa(held+1)+" loses, oldest date breaking a tie, and a tie against the new",
-		"  entry is lost by the new entry. Losing, it does not go in. Winning, it takes the loser's place:",
+		"  If none apply, run the judge over the new entry and every entry in the file — "+strconv.Itoa(held+1)+" in all:")
+	note = append(note, judgeRung()...)
+	note = append(note,
+		"  Where it names nothing, or names the new entry, the cap holds: the entry is not recorded, and",
+		"  saying so is the whole of it. Where it spares the new entry and names an incumbent, the new",
+		"  entry takes that incumbent's place:",
 		"    report.sh record admit "+kind.name+" \"<text identifying the entry it beat>\" \"<the new entry>\"")
 	note = append(note, humanOwnedNote(kind)...)
 	// Last, under the commands, never above them. The entry is quoted back because the refusal is
@@ -542,7 +575,7 @@ func (r *run) recordRevise(kind *recordKind, path, text, replacement string) {
 // mean opposite things: a revision is the same ground said better, so the runs that reached the old
 // wording reached the new one; an admission is different ground, which no run has reached at all.
 // Inheriting there would hand a brand-new entry the reach of the one it displaced, and every later
-// contest would read that borrowed number as evidence.
+// prune would read that borrowed number as evidence.
 func (r *run) recordAdmit(kind *recordKind, path, text, entry string) {
 	handle, lines, _ := r.openLockedRecord(path, false)
 	defer handle.Close()
@@ -624,7 +657,7 @@ func (r *run) overwriteRecord(path string, handle *os.File, lines []string) {
 // An exact hit wins outright over the substring pass. Matching only by substring, an entry whose text
 // contains another's whole text shadows the shorter one for good: every string identifying the short
 // entry also names the long one, so the ambiguity refusal below fires forever and no op can reach the
-// short entry again. Its date then rots, and the date is what `records.md` breaks an eviction tie on.
+// short entry again. Its date then rots, and the date is what says when the entry was last confirmed.
 // Entry text is seeded from tickets and from the tree under review, so an entry quoting another whole
 // is something a real run can write.
 func (r *run) oneMatchingEntry(path string, lines []string, text, verb string) recordEntry {
@@ -690,10 +723,12 @@ func (r *run) noteBound(kind *recordKind, path string, lines []string) {
 	}
 	note := append([]string{
 		"note: " + path + " holds " + strconv.Itoa(len(entries)) + " entries, over its cap of " + strconv.Itoa(kind.bound) + " — every append refuses until it is back down.",
-		"  Work records.md -> Reaching the cap, in order:",
-		"  " + capLadderRungs + ", and only then evict what the judge names.",
-		"    " + judgeCommand,
-	}, pruneCommands(kind)...)
+		"  Work " + recordsStandard + " -> Reaching the cap, in order:",
+		"  " + capLadderRungs + ", and only then evict what the judge names:",
+	}, judgeRung()...)
+	note = append(note,
+		"  Where it names nothing, the record stays over its cap — no entry may be evicted on that answer.")
+	note = append(note, pruneCommands(kind)...)
 	note = append(note, humanOwnedNote(kind)...)
 	r.errLines(note...)
 }

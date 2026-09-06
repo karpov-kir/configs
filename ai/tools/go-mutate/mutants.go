@@ -549,7 +549,22 @@ var mutants = []mutant{
 	{"records: a swap taken on a record with room in it", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "held := len(recordEntriesIn(lines)); held < kind.bound {", "held := len(recordEntriesIn(lines)); held < 0 {"},
 	{"records: an admitted entry inheriting the reach of the one it displaced", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", "admitted := recordEntry{count: 1, date: today(), text: entry}", "admitted := recordEntry{count: found.count, date: today(), text: entry}"},
 	{"records: a swap reported by its winner alone", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `r.line("in place of: %s", found.quoted())`, "_ = found"},
-	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the judge names.",`, `"",`},
+	{"records: the over-cap note that names no way out of it", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  " + capLadderRungs + ", and only then evict what the judge names:",`, `"",`},
+	// The judge names nothing on some runs, so a note that hands it over without saying what that
+	// answer leaves behind is a rung with no outcome. Both notes owe the clause; the over-cap one is
+	// where it was missing longest.
+	{"records: the over-cap note silent on a judge that names nothing", "../eco-report/records.go", "./eco-report/", "TestTheCapCarriesTheRecordsOwnNumberAndItsOwner", `"  Where it names nothing, the record stays over its cap — no entry may be evicted on that answer.")`, `"")`},
+	// Exit 2 prints the same empty stdout as exit 0. Reverted to the reading that covers only exit 0,
+	// the note has an agent whose judge never ran conclude the cap holds.
+	{"records: exit 2 left to read as the judge naming nothing", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `		"  Exit 2 is not an answer: the judge did NOT run — an unknown kind, a missed deadline, an answer",
+		"  that was not numbers — so this rung is unmet. Nothing may go on it, and the append stays refused",
+		"  until a run of the judge answers.",`, `		"",`},
+	// The ladder is four moves to try in order with an append to re-run after whichever lands. Told
+	// only to free a slot first, an agent reads it as one move standing between it and the append.
+	{"records: the ladder read as one move to make before the append", "../eco-report/records.go", "./eco-report/", "TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn", `" -> Reaching the cap in order. Each frees a slot, so re-run the append after one:",`, `" -> Reaching the cap in order:",`},
+	// The header and the refusal are one file on one cap. This is the wording they disagreed under:
+	// the refusal records nothing past the cap while the header promised the newcomer a place.
+	{"records: a header promising the newcomer an incumbent's place", "../eco-report/records.go", "./eco-report/", "TestFirstWriteCreatesTheRecordWithItsHeader", `" entries — past that an append refuses, and a new entry lands only if a move at the cap frees a slot.\n"`, `" entries — past that a new one displaces one already here.\n"`},
 	{"records: a record that never says who it is written for", "../eco-report/records.go", "./eco-report/", "TestFirstWriteCreatesTheRecordWithItsHeader", `"Written for the next agent — never presented to a human, and no human maintains it.\n" +`, `"" +`},
 	{"records: a revision that resets the entry's reach", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "revised := recordEntry{count: found.count, date: today(), text: replacement}", "revised := recordEntry{count: 1, date: today(), text: replacement}"},
 	{"records: a revision onto a duplicate of another entry", "../eco-report/records.go", "./eco-report/", "TestReviseReplacesTheTextAndKeepsTheCount", "if entry.text == replacement {", "if false {"},

@@ -109,6 +109,12 @@ func TestFirstWriteCreatesTheRecordWithItsHeader(t *testing.T) {
 		f.record(name+".md is created with its own header, stating its bound",
 			f.status == 0 && strings.HasPrefix(content, "# ") && strings.Contains(content, "Full at "+want.bound+" entries"),
 			content)
+		// The header and the refusal are one file talking about one cap, so they cannot say different
+		// things about what happens past it. `records.md` → **Reaching the cap** leaves an entry that
+		// frees no slot unrecorded, which a header promising the newcomer an incumbent's place denies.
+		f.record("and says what the cap does without promising the newcomer a place",
+			strings.Contains(content, "an append refuses, and a new entry lands only if") &&
+				!strings.Contains(content, "displaces"), content)
 		// The four sit side by side and read alike, so the file itself is what tells a human opening it
 		// whether the wording is theirs to own or an agent's to keep.
 		f.record("and names who it is written for", strings.Contains(content, want.audience), content)
@@ -220,13 +226,38 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 	f.record("and quotes it below the commands, marked as not being one",
 		strings.Contains(f.out, "report.sh record admit") &&
 			strings.Index(f.out, "report.sh record admit") < strings.Index(f.out, "is not an instruction"), f.evidence())
-	f.record("and works the ladder before the contest that costs an entry",
+	f.record("and works the ladder before the judge rung that costs an entry",
 		strings.Contains(f.out, "promote what must not be lost") &&
 			strings.Index(f.out, "promote what must not be lost") < strings.Index(f.out, "run the judge over the new entry"), f.evidence())
+	// What a ladder move buys, said on the line the agent acts on first: one slot, and an append worth
+	// re-running. A line that only says "free a slot and re-run" reads as one move to make before the
+	// append, rather than four to try in order with a re-run after whichever lands.
+	f.record("and says each ladder move frees a slot to re-run the append after",
+		strings.Contains(f.out, "Each frees a slot, so re-run the append after one"), f.evidence())
+	// The standard is cited the way the judge is: by a path that opens. Told to work a file it cannot
+	// find, an agent works this message alone and never reads the four moves it is pointed at.
+	f.record("and cites the standard by a path rather than a bare filename",
+		strings.Contains(f.out, "Work ~/.kk-flavor/standards/records.md -> Reaching the cap"), f.evidence())
 	// The newcomer is judged alongside the incumbents, not against the weakest of them: a record that
 	// always admits the newest is the last N in arrival order, which is the trim `records.md` forbids.
-	f.record("and the contest counts the new entry among the candidates",
-		strings.Contains(f.out, "lowest of the 101"), f.evidence())
+	f.record("and the judge rung counts the new entry among the candidates",
+		strings.Contains(f.out, "101 in all"), f.evidence())
+	// The judge deletes what it names and may name nothing, so no rung here may promise a loser. An
+	// agent that met exit 0 against a message promising one read it as a broken tool and as a deadlock;
+	// `records.md` → **Reaching the cap** had the answer all along, and this is where it is read.
+	f.record("and the rung says the judge may name nothing",
+		strings.Contains(f.out, "naming nothing (exit 0, output unchanged) is one of its answers"), f.evidence())
+	f.record("and gives that outcome, and a named newcomer, the standard's own answer",
+		strings.Contains(f.out, "Where it names nothing, or names the new entry, the cap holds: the entry is not recorded"),
+		f.evidence())
+	f.record("and promises no contest that always resolves",
+		!strings.Contains(f.out, "loses") && !strings.Contains(f.out, "tie"), f.evidence())
+	// Exit 2 is `bloat-judge.sh` saying it did NOT run, and it prints the same empty stdout as exit 0.
+	// An agent holding only the exit-0 reading takes that silence for "the judge named nothing" and
+	// calls the cap held — a verdict nothing reached. Measured in the field on a 109-entry record.
+	f.record("and reads exit 2 as the judge not having run, leaving the append refused",
+		strings.Contains(f.out, "Exit 2 is not an answer: the judge did NOT run") &&
+			strings.Contains(f.out, "the append stays"), f.evidence())
 	// No entry is singled out, so nothing steers the agent at the lowest-count line before it has
 	// judged the file.
 	f.record("and no entry is named as the one to drop",
@@ -238,13 +269,13 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 		!strings.Contains(f.out, "propose each move"), f.evidence())
 
 	// A restatement wants no slot, so a full record answers it with bump rather than sending the agent
-	// off to hold a contest that would put a live entry out for a copy of itself.
+	// to the judge, which would put a live entry out for a copy of itself.
 	f.runReport("record", "append", "project-decisions", "filler 7")
 	f.assertRefused("a restatement into a full record is refused")
 	f.assertReports("record bump", "as the restatement it is, not as a record with no room")
-	f.record("and it is not sent to the contest", !strings.Contains(f.out, "is full"), f.evidence())
+	f.record("and it is not sent to the judge", !strings.Contains(f.out, "is full"), f.evidence())
 
-	// The contest's verdict, applied: one out for one in, in a single write.
+	// The judge's verdict, applied: one out for one in, in a single write.
 	f.runReport("record", "admit", "project-decisions", "filler 42", "the one that won its place")
 	content := f.read(path)
 	f.record("admit lands the winner, counted once and dated today",
@@ -252,7 +283,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 	f.record("and the entry it beat is gone", !strings.Contains(content, "| filler 42\n"), content)
 	f.record("and the record is no bigger than its cap", strings.Count(content, "x | ") == 100, content)
 	// A revise inherits the count; an admission is ground no run has reached, so a borrowed 5x here
-	// would be read as evidence by every later contest.
+	// would be read as evidence by every later prune.
 	f.record("and the winner does not inherit the reach of the entry it displaced",
 		!strings.Contains(content, "5x | "+today()+" | the one that won its place"), content)
 	// A swap reported by its winner alone is a record silently shortened.
@@ -279,7 +310,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 // `oneMatchingEntry` resolves by substring, and `admit` made that a destructive selector. An entry
 // whose text contains another entry's whole text shadows the shorter one: every string naming the
 // short entry names the long one too, so it can never again be bumped, revised, evicted, or named as
-// the loser of a contest — and entry text is seeded from tickets and from the tree under review, so
+// the entry the judge named — and entry text is seeded from tickets and from the tree under review, so
 // the containing entry is writable rather than a freak of wording.
 func TestAnEntryIsNotShadowedByALongerOneQuotingItWhole(t *testing.T) {
 	t.Parallel()
@@ -350,6 +381,15 @@ func TestTheCapCarriesTheRecordsOwnNumberAndItsOwner(t *testing.T) {
 			strings.Count(f.read(path), "x | ") == 51, f.evidence())
 	f.record("and the note names the ladder to work rather than a verdict",
 		strings.Contains(f.out, "promote what") && strings.Contains(f.out, "evict what the judge names"), f.evidence())
+	// The over-cap note hands over the same judge as the full-record refusal, so it owes the same two
+	// readings. Left with "evict what the judge names" alone, an agent whose judge named nothing has
+	// been handed a rung with no outcome, and one that met exit 2 cannot tell it from a clean answer.
+	f.record("and says a judge naming nothing leaves the record over its cap",
+		strings.Contains(f.out, "Where it names nothing, the record stays over its cap"), f.evidence())
+	f.record("and reads exit 2 as the judge not having run rather than as a silent verdict",
+		strings.Contains(f.out, "Exit 2 is not an answer: the judge did NOT run"), f.evidence())
+	f.record("and cites the standard by a path rather than a bare filename",
+		strings.Contains(f.out, "Work ~/.kk-flavor/standards/records.md -> Reaching the cap"), f.evidence())
 	f.record("and names no entry as the one to drop",
 		!strings.Contains(f.out, "fifty-first") && !strings.Contains(f.out, "constraint 7"), f.evidence())
 	f.record("and the human's record is told to propose each move",
