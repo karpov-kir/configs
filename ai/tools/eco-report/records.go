@@ -34,6 +34,10 @@ type recordKind struct {
 	name  string
 	file  string
 	bound int
+	// Where the file sits. A local record lives inside one ship's folder and needs that ship named; a
+	// project one sits at the scratch root. Nothing infers this — every caller says which it writes,
+	// because the two are merged later and a write to the wrong one is invisible until then.
+	isLocal bool
 	// Whether the header below says a human owns the wording. `records.md` → **Reaching the cap** lets
 	// an agent take every move at the cap unasked and exempts exactly these, so the note that hands over
 	// the commands has to know which it is writing to.
@@ -60,6 +64,12 @@ const (
 	languageBound    = 100
 	constraintsBound = 50
 )
+
+// A local record covers one ship. Past a couple of dozen entries the thing to fix is the ship's scope,
+// not the record's size, so the cap is set where it surfaces that rather than where it would hold a
+// project's worth. The three are equal because nothing distinguishes what one entry costs at this
+// scale — they are read together, once, by the agent finishing that ship.
+const localBound = 25
 
 // The most one entry may hold, in bytes. The longest entry any of these records carries today runs to
 // about 800, so this clears real practice by more than double and never argues with an entry someone
@@ -92,35 +102,76 @@ func fullAtLine(bound int) string {
 // side under one directory and read alike, and a human who opens `decisions.md` expecting the charter's
 // register finds an agent talking to the next agent. What the line says is the audience, never a
 // prohibition: nothing here is secret, and a human is free to read any of it.
+// The pruning point each header states. `records.md` → the record's own definition wants exactly one
+// per record, and six records under two roots cannot each be found by reading a skill — so each file
+// says its own, by the moment rather than by the skill that arrives at it.
+const (
+	prunedAtFinalize = "Pruned only when a ship is finalized, where this record and the finishing ship's are in hand together.\n"
+	prunedInShip     = "Pruned by the ship that owns it, when that ship reads it. Merged upward and deleted at finalize.\n"
+)
+
 var recordKinds = []recordKind{
 	{
-		name:  "decisions",
+		name:  "project-decisions",
 		file:  "decisions.md",
 		bound: decisionsBound,
 		header: "# Decisions\n\n" +
 			"Written for the next agent — never presented to a human, and no human maintains it.\n" +
-			fullAtLine(decisionsBound) + "\n",
+			fullAtLine(decisionsBound) + prunedAtFinalize + "\n",
 	},
 	{
-		name:  "playbook",
+		name:  "project-playbook",
 		file:  "playbook.md",
 		bound: playbookBound,
 		header: "# Playbook\n\n" +
 			"How this repo is operated, written for the next agent — never presented to a human,\n" +
 			"and no human maintains it.\n" +
-			fullAtLine(playbookBound) + "\n",
+			fullAtLine(playbookBound) + prunedAtFinalize + "\n",
 	},
 	{
-		name:  "language",
+		name:  "project-language",
 		file:  "language.md",
 		bound: languageBound,
 		header: "# Language\n\n" +
 			"The project's ubiquitous language, written for both — an agent keeps it current,\n" +
 			"and a human may correct any entry.\n" +
-			fullAtLine(languageBound) +
+			fullAtLine(languageBound) + prunedAtFinalize +
 			"A term no artifact uses is deleted, whatever its count.\n\n",
 	},
 	{
+		name:    "local-decisions",
+		file:    "decisions.md",
+		bound:   localBound,
+		isLocal: true,
+		header: "# Decisions — this ship's\n\n" +
+			"What this ship settled, written for the next agent. Merged into the project's own at finalize,\n" +
+			"where an entry restating one already there becomes a bump rather than a second line.\n" +
+			fullAtLine(localBound) + prunedInShip + "\n",
+	},
+	{
+		name:    "local-playbook",
+		file:    "playbook.md",
+		bound:   localBound,
+		isLocal: true,
+		header: "# Playbook — this ship's\n\n" +
+			"How this repo is operated, found while building this ship. Merged into the project's own at\n" +
+			"finalize, where an entry restating one already there becomes a bump rather than a second line.\n" +
+			fullAtLine(localBound) + prunedInShip + "\n",
+	},
+	{
+		name:    "local-language",
+		file:    "language.md",
+		bound:   localBound,
+		isLocal: true,
+		header: "# Language — this ship's\n\n" +
+			"Terms this ship coined or narrowed. Merged into the project's own at finalize: the same term in\n" +
+			"the same sense bumps, while the same term in another sense is a contradiction nothing merges.\n" +
+			fullAtLine(localBound) + prunedInShip + "\n",
+	},
+	{
+		// No prefix and no local twin. The prefix on the six above separates two copies of one record;
+		// this one has a single copy because a human owns its wording, so a ship proposes a change to it
+		// and never writes one to merge later.
 		name:         "constraints",
 		file:         "constraints.md",
 		bound:        constraintsBound,
@@ -198,8 +249,13 @@ func recordEntriesIn(lines []string) []recordEntry {
 
 // `record <append|bump|revise|evict|admit> <decisions|playbook|language|constraints> "<text>" ["<new text>"]`.
 func (r *run) cmdRecord(args []string) {
+	// The ship a local record belongs to, taken before the count below so the shapes stay comparable.
+	// A leading flag rather than a trailing argument: the last one is already the replacement text for
+	// revise and admit, and a slug there would be indistinguishable from a one-word entry.
+	args = r.takeRecordIntent(args)
 	if len(args) < 3 || len(args) > 4 {
-		r.refuse("usage: report.sh record {append|bump|revise|evict|admit} {"+recordNames()+"} \"<text>\" [\"<new text>\"]",
+		r.refuse("usage: report.sh record [--intent <NNN-slug>] {append|bump|revise|evict|admit} {"+recordNames()+"} \"<text>\" [\"<new text>\"]",
+			"  --intent names the ship a local-* record belongs to, and is required for those and refused for the rest.",
 			"  append adds `1x | <today> | <text>`; bump raises one entry's count and dates it today.",
 			"  revise replaces one entry's text, keeping its count; evict removes one.",
 			"  admit is the swap at a full record: it drops the entry named and lands the new one at 1x.",
@@ -208,7 +264,17 @@ func (r *run) cmdRecord(args []string) {
 	op, name, text := args[0], args[1], args[2]
 	kind := recordKindFor(name)
 	if kind == nil {
-		r.refuse("error: '" + name + "' is not a shared record — the ones this tool writes are " + recordNames() + ".")
+		r.refuse("error: '"+name+"' is not a record this tool writes — they are "+recordNames()+".",
+			"  The project-* and local-* pairs are two different files: a ship writes its local one, and finalize merges it upward.")
+	}
+	// Named deliberately in both directions. Without the first arm a local write with no ship silently
+	// lands at the project root, which is the one mistake this split exists to make impossible — and it
+	// would not surface until finalize found nothing to merge.
+	if kind.isLocal && r.recordSlug == "" {
+		r.refuse("error: " + kind.name + " belongs to one ship, so it needs --intent <NNN-slug> — nothing was written.")
+	}
+	if !kind.isLocal && r.recordSlug != "" {
+		r.refuse("error: " + kind.name + " is the project's own record and belongs to no single ship, so --intent does not apply to it — nothing was written.")
 	}
 	// Before recordPath, which resolves and guards a path, and before the append that creates the
 	// scratch directory: an operation nobody spelled right should leave nothing behind at all, and a
@@ -284,6 +350,9 @@ func (r *run) recordPath(kind *recordKind) string {
 	// very layout `check-ignore` refuses.
 	r.assertScratchIsUnreachableByGit()
 	path := r.idsdDir + "/" + kind.file
+	if kind.isLocal {
+		path = r.shipDir(r.recordSlug) + "/" + kind.file
+	}
 	if shell.IsSymlink(path) {
 		r.refuse("error: "+path+" is a symlink -> "+shell.Oneline(readLink(path))+" — the record was not written.",
 			"  A shared record is always a regular file. Remove the link, then re-run.")
@@ -631,4 +700,22 @@ func (r *run) noteBound(kind *recordKind, path string, lines []string) {
 // The date an entry carries. Local, because the record is read by whoever is at this machine.
 func today() string {
 	return time.Now().Format("2006-01-02")
+}
+
+// `--intent <NNN-slug>` off the front of `record`'s arguments, leaving the rest for the shape check.
+// The slug is held on the run rather than threaded through, because recordPath is three calls deep and
+// every one of those signatures exists to describe the record rather than the invocation.
+//
+// Held to reportNameFor's charset for the reason every other slug here is: it is joined into a path,
+// and this one reaches a file the tool creates.
+func (r *run) takeRecordIntent(args []string) []string {
+	if len(args) < 2 || args[0] != "--intent" {
+		return args
+	}
+	slug := reportNameFor(args[1])
+	if slug == "" || slug == "review" {
+		r.refuse("error: '" + args[1] + "' names no ship — it must be a slug ([0-9A-Za-z._-]) and cannot start with a dot. Nothing was written.")
+	}
+	r.recordSlug = slug
+	return args[2:]
 }
