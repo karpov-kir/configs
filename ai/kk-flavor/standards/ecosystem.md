@@ -7,9 +7,9 @@ These rules bind any edit, however small. **Run the instruction lane after a bat
 ## Earn the place
 
 - **Delete before you rephrase.** Keep what is essential, plus the supporting detail that makes it unambiguous. Drop the rest.
-- **Nice-to-have is a cut.** A rule that fires rarely, or that a competent agent follows anyway, buys nothing and dilutes the rules that matter.
-- **A rule you add names what it replaces**, or says plainly that nothing covered this — in the instruction lane's account, never in the file, where **No evidence in a rule file** cuts it.
-- **The bar rises with how often the file loads.** An always-read doc takes only what applies to nearly every task; a trigger-loaded standard, its activity; a skill body, its lane. **Text behind a pointer costs that pointer's wording and nothing else** — a skill's `description:`, a line naming a doc, a branch naming its file are one object — so a target reached unreliably is a pointer to sharpen, never material to inline.
+- **Nice-to-have is a cut** where no move saves it (**Move it before you cut it**, below) — a rule that fires rarely, or that a competent agent follows anyway.
+- **A rule you add names what it replaces**, or says plainly that nothing covered this — in the instruction lane's account, never in the file, where **No evidence in a rule file** (below) cuts it.
+- **The bar rises with how often the file loads.** An always-read doc takes only what applies to nearly every task; a trigger-loaded standard, its activity; a skill body, its lane. **Text behind a pointer costs that pointer's wording on every run that does not follow it** — a skill's `description:`, a line naming a doc, a branch naming its file are one object — so a target reached unreliably is a pointer to sharpen, never material to inline.
 
 ## No evidence in a rule file
 
@@ -29,20 +29,19 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 
 ## Family direction
 
-**Inside the skill layer the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. A workflow skill invokes an any-repo one and cites it; the reverse makes a skill that works in any repo carry knowledge of a workflow most repos never use. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.
+**Inside the skill layer the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. A workflow skill invokes an any-repo one and cites it. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.
 
-**Every capability is an any-repo skill; a workflow skill composes those and adds only its own machinery.** A capability living in the workflow family alone is one no repo outside that methodology can reach, so it goes into an any-repo skill even while only one workflow invokes it. **A standard is not a substitute** — a standard is read when something routes a reader to it, where a skill is what someone invokes.
+**Every capability is an any-repo skill, even where only one workflow invokes it; a workflow skill composes those and adds only its own machinery.** A capability living in the workflow family alone is one no repo outside that methodology can reach. **A standard is not a substitute** — a standard is read when something routes a reader to it, where a skill is what someone invokes.
 
 ## Conventions a new file joins
 
-- **A skill authored in this tree joins one of two families**, by prefix: one works in any repo, the other belongs to a single workflow and carries that workflow's own on-disk machinery. An installed tool skill is a skill outside this tree, not a third family inside it.
+- **A skill authored in this tree joins one of two families**, by prefix: `kk-` works in any repo, `idsd-` belongs to a single workflow and carries that workflow's own on-disk machinery. An installed tool skill is a skill outside this tree, not a third family inside it.
 - **A skill the human always initiates carries `disable-model-invocation: true`**, which drops its description out of every session's context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.claude/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
 - **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes.** **An override file that is present but unusable refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
 - **An edit in a worktree is not what a spawned agent reads.** The mounts resolve to the main checkout, so a stage you spawn reads the landed version of every skill and standard, not the tree you are editing. Land it, or exercise it inline, before spawning anything to test it.
-- **A new skill is not live until it is mounted.** A directory added here needs a symlink at `~/.claude/skills/<name>` pointing back at it. **The mount is proven by running the instruction lane's wiring check** — as the last step of adding one, never as a later tidy-up. That lane names the script, and **its mount scan runs only in the install**: a green from a worktree proves nothing about mounts, in either direction.
-- **Unmount a skill only after its deletion lands.** Unmounting is machine-wide and immediate while the deletion is branch-local, so pulling the symlink first costs every session on the machine a skill its own tree still ships.
+- **A new skill is not live until it is mounted** — a symlink at `~/.claude/skills/<name>` pointing back at its directory here. **Mount or unmount only once the tree change it reflects has landed, as the last step of that landing and never a later tidy-up.** The symlink is machine-wide and immediate while the add or the delete is branch-local: mounted early it points at a directory no checkout has, unmounted early it pulls a skill the tree still ships. **Prove the mount by running the instruction lane's wiring check** — its mount scan runs only in the install, so a green from a worktree says nothing about mounts, in either direction.
 
 ## Move it before you cut it
 

@@ -9,12 +9,12 @@ Follow this on a new project or one that already does; otherwise match the proje
 3. **No mocks.** Reach for fakes, drivers, and builders instead (§3).
 4. **Cheapest level first.** Push each behaviour down to the cheapest level that can prove it: edge cases and branches in fast unit tests; only wiring and real-infrastructure risk need the slow levels.
 5. **A test that reimplements the behaviour it asserts agrees with itself, not with the code.** Import the real thing and drive it.
-6. **A suite slow enough to schedule around stops being run.** Under a second is the working bar; tens of seconds is the ceiling, and past it a pass starts deferring the suite to "later" and shipping on the assumption it would have passed. The cost is almost never the assertions: it is process spawns and fixture I/O, and both come out — build fixtures in-process and call the code instead of executing it. **Measure where the time goes before optimising anything**, because the answer is rarely where it feels.
-
-7. **A negative control proves three things, and only the third is ever checked** ([core-principles.md](core-principles.md) → **5. Verify the effect, not the report of it**): that the mutation *applied*, that the code still *builds*, and that the failure names the case you meant. **The ways it fails are quiet in exactly the place your eye goes.** A mutation whose whitespace does not match the file never lands, and the run reports green over unmutated code. One that leaves a variable unused does not compile, and `FAIL … [build failed]` reads near enough to a red test. An exit code read through a pipe your shell does not support that way renders as *nothing*, and nothing beside a wall of `ok` reads as success rather than as a missing measurement. A redirect the shell refuses — `noclobber` on `> file` — leaves whatever sat at that path, so the comparison reads a stale file as this run's output ([skill-protocol.md](skill-protocol.md) → **Queue** carries the remedy). **A case can also go red for the wrong reason**, which only a failure message specific enough to betray it will show. **And a harness reporting that everything survived is likelier broken than the code is bulletproof** — a survivor is meant to be a finding, so a broken harness manufactures findings that look like rigour.
+6. **A suite slow enough to schedule around stops being run.** Under a second is the working bar; tens of seconds is the ceiling. The cost is almost never the assertions: it is process spawns and fixture I/O, and both come out — build fixtures in-process and call the code instead of executing it. **Measure where the time goes before optimising anything.**
+7. **A negative control proves three things, and only the third is ever checked** ([core-principles.md](core-principles.md) → **5. Verify the effect, not the report of it**): that the mutation *applied*, that the code still *builds*, and that the failure names the case you meant. **The ways it fails are quiet in exactly the place your eye goes.** A mutation whose whitespace does not match the file never lands, and the run reports green over unmutated code. One that leaves a variable unused does not compile, and `FAIL … [build failed]` reads near enough to a red test. An exit code read through a pipe your shell does not support that way renders as *nothing*, and nothing beside a wall of `ok` reads as success rather than as a missing measurement. A refused redirect leaves a stale file to be read as this run's output ([skill-protocol.md](skill-protocol.md) → **Queue**). **A case can also go red for the wrong reason**, which only a failure message specific enough to betray it will show. **And a harness reporting that everything survived is likelier broken than the code is bulletproof** — a survivor is meant to be a finding, so a broken harness manufactures findings that look like rigour.
 8. **Two cases a scenario list routinely misses.** The non-ASCII or special-character one, wherever code lists or round-trips a name from outside the system. And where the deliverable is a **mapping**, every row of it — produce the full table, input to resulting state, and validate each row rather than the ones a scenario happened to name.
 9. **A test needs a subject the deliverable already has.** Where nothing in the change can be driven without first building something to drive, the change does not earn a test. Building that subject is the worse mistake: it ships, and then earns tests of its own under §6. Config, workflow and manifest files are the usual case — reach for the project's existing validator before writing one.
 10. **A test the change earns is written before the code that makes it pass, and seen to fail for the reason it names.** One written after the code and passing on its first run has never had a negative control (rule 7). **Record the failing run's message, quoted** — an ordering nobody can be caught breaking is one that quietly stops firing.
+11. **A cached green is not a run.** A runner keys its test cache on what it can see — its own module or package — so a suite reading an input from outside that key answers `(cached)` over a tree it never read, and a merge or a checkout is exactly when that tree has moved. **Defeat the cache — `go test -count=1`, each runner's equivalent — wherever a suite reads an input its runner does not key on.** Speed is rule 6's job, not the cache's.
 
 ## 2. Test taxonomy
 
@@ -73,11 +73,11 @@ Acceptance composes the whole toolkit: the real system via the composition root,
 
 ## 7. What a suite reports
 
-**This binds a suite that prints its own counts — a shell harness, a hand-rolled runner.** A runner that finds suites by filename cannot tell one that asserted nothing from one that passed — both exit 0 and both enter the glob. **The suite's last line settles it, and the counts carry the meaning, never the wording.**
+**This binds a suite that prints its own counts — a shell harness, a hand-rolled runner.** A runner that finds suites by filename cannot tell one that asserted nothing from one that passed — both exit 0 and both enter the glob. **The suite's summary line settles it, and the counts carry the meaning, never the wording.**
 
-**The last line is `<N> passed, <M> failed`, and `, <K> skipped` after them where the suite can skip.** A caller reads a count by the name that follows it, never by matching the line, so a suite that grows a field keeps parsing.
+**The summary line comes last, and reads `<N> passed, <M> failed`, plus `, <K> skipped` where the suite can skip.** A caller reads a count by the name that follows it, never by matching the line, so a suite that grows a field keeps parsing.
 
-Four outcomes, and the suite declares which one it is:
+Five outcomes, and the suite declares which one it is:
 
 | The suite | Reports | Exits |
 |---|---|---|
@@ -85,12 +85,15 @@ Four outcomes, and the suite declares which one it is:
 | ran, something failed | `<M> failed` above 0 | 1 |
 | ran, declined named cases | its counts, `<K> skipped` above 0 | 0 while `M` is 0 |
 | did not measure | why, on stderr; no summary line | 2 |
+| ran, and refuses its own result | its counts, and what makes them untrustworthy | 3 |
 
-**The skipped field is conditional, and its presence is the information.** A suite where every case runs everywhere reports two fields, and that is an assertion rather than an omission: it says there are no conditional cases.
+**The skipped field is conditional, and its presence is the information.** A suite where every case runs everywhere reports two fields — an assertion that it has no conditional cases, not an omission.
 
-**A suite must not carry a counter it never increments.** That is the general rule the skipped field is one instance of, and the one worth grepping for: a `record_skip` defined once and called nowhere, behind a field that can only ever print `0`, is decoration wearing the shape of a measurement — the same defect as a case that cannot fail, one level up.
+**A suite must not carry a counter it never increments** — the general rule behind the skipped field, and the one worth grepping for. A `record_skip` defined once and called nowhere, behind a field that can only ever print `0`, is decoration wearing the shape of a measurement: the same defect as a case that cannot fail.
 
 **Exit 2 means the measurement did not happen, and a caller may never read it as a pass.** A suite that cannot reach its fixtures, the script it covers, or any case at all exits 2 and says which. A suite that gets partway and then loses a fixture exits 2 as well, and prints no summary line: the passes already behind it are real, and the run they belong to is still not a result. Exiting 1 there would say the code under test is broken, which is a different claim and a false one.
+
+**Exit 3 means the suite ran and refuses its own result** — the cases measured, and something about the run makes the counts untrustworthy anyway; the checkout moving under the suite is the case that occurs. **The summary line still prints last, the reason on stderr.** **A caller that folds 3 into 2 reads a live refusal as a dead tool.**
 
 **Zero passed and zero skipped is vacuous, and a gate fails it**: the suite ran, claimed success and asserted nothing. **Zero passed with a skip count is a different fact** — the cases are there and this machine declined them.
 

@@ -11,7 +11,7 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 - **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<env>` itself; otherwise a small loader reads `.env.$ENV`, defaulting to `development`. Config reads that same selector (`ENV`, or the build tool's mode), never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a go-task `dotenv:` bypasses the encrypt-at-rest flow.
 
 - **Commit real env; encrypt only secrets.** Per file, by whether it holds a secret:
-  - **No secrets** → committed plain and baked into the image (Docker, below).
+  - **No secrets** → committed plain and baked into the image (**Local dev & Docker**, below).
   - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; decrypted and injected at deploy.
 
   Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each prompting for that environment's own password (never stored).
@@ -59,7 +59,7 @@ A service's `docker/` holds its own container setup — its Traefik route slice,
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
 - **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
 - **Service-specific containers** go in the service's own `docker/docker-compose.yml` (brought up by its `start:dev`); common deps stay in the dev-infra.
-- **Env in the image follows the secret rule above** — non-secret files `COPY`-ed (staging/production, not dev), secrets injected at deploy. `ENV` itself is always provided at deploy, never baked.
+- **Env in the image follows the secret rule above** — the non-secret files `COPY`-ed, staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 
 ## Migrations
 
