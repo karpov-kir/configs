@@ -1,6 +1,6 @@
 ---
 name: idsd-ship
-description: "Ship one ICE intent end-to-end — author it if missing, build, qualify, gate, merge — or review standalone changes. Use for \"ship it\", \"merge this\", \"continue the ship\". The orchestrator above idsd-build and idsd-qualify."
+description: "Ship one ICE intent end-to-end — author it if missing, build, qualify, gate, merge — or review standalone changes. Use for \"ship it\", \"merge this\", \"continue the ship\". The orchestrator above idsd-build, idsd-qualify and idsd-finalize."
 argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote"
 ---
 
