@@ -24,11 +24,11 @@ Run `~/.claude/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and
 
 Work the three things a lens reading one file at a time will not reach:
 
-- **Contradictions** — two claims that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them two ways.** By inbound reference: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. And **within each file the change set under review touched** — read the sentences either side of every one of its edits, not only your own (`~/.kk-flavor/standards/ecosystem.md` binds those). Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
+- **Contradictions** — two claims that cannot both be followed. Reconcile to one home and delete the loser. **Hunt them two ways.** By inbound reference: for every file or script your scope names, grep the tree for what names it back and read those claims side by side. And **within each file the change set under review touched** — read the sentences either side of every one of its edits, not only your own. Widening to read is not touching (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) and needs no confirmation.
 - **Restatements** — one rule living in several files (`~/.kk-flavor/standards/ecosystem.md` → **One home**): keep the copy whose file owns that lane, cross-reference the rest. **Run `~/.claude/skills/kk-ecosystem/scripts/ruleecho.sh <root>` over the root and read the report it prints**, which labels every pair it found by kind. A grep by inbound reference finds only pairs where one file names the other, and two files that never mention each other are the pair that drifts. The scan reads bolded markdown only, so a rule in a heading, a restatement reworded below its shared-word threshold, and duplication in code are invisible — **a clean run proves no bolded markdown duplication, never no duplication.**
 - **Under-reuse** — a rule with one home that a second file needs and cannot reach (`~/.kk-flavor/standards/ecosystem.md` → **One home**). A restatement leaves two copies to compare; this leaves a gap. **Run `~/.claude/skills/kk-ecosystem/scripts/cite-graph.sh <root>` over the root and read the report it prints**, which maps who reaches each file and describes its own figures. What it cannot see is a consumer that needs a rule and names nothing at all — for each rule your scope owns, name the files that act on it and check each can reach it.
 
-Before calling a rule dead, read `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** and try **each** move it names. Hunt candidates deliberately: the largest file's rarely-reached sections, a procedure written out in two or more skills, prose restating what a script already prints. Report a move you judged and rejected — that it was considered is the finding.
+Before calling a rule dead, read `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** and try **each** move it names. Hunt candidates deliberately: the largest file's rarely-reached sections, a procedure written out in two or more skills, prose restating what a script already prints.
 
 ## 4. Shape
 
@@ -48,6 +48,7 @@ Re-run `~/.claude/skills/kk-ecosystem/scripts/check.sh` — the cuts themselves 
 
 - every rule **deleted**, and what still covers it — or plainly that nothing did;
 - every rule **added**, and which one it replaced;
+- every **move** step 3 judged and rejected;
 - the always-loaded budget, before and after;
 - every `description:` this lane's stages touched, and what the change bought;
 - total lines, before and after;

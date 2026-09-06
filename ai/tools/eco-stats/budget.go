@@ -52,9 +52,9 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 		files = append(files, inject)
 	}
 	// One file counted once, however many times the router lists it. ecocheck dedupes this same tier
-	// with this same call: a target listed twice had this tool counting its words twice and reporting
-	// one more file than ecocheck did. `--append` writes that figure into stats.md, where a later pass reads
-	// it as measurement rather than as a number that drifted.
+	// with this same call, so a target listed twice does not leave the two tools reporting different
+	// file counts. `--append` writes that figure into stats.md, where a later pass reads it as
+	// measurement rather than as a number that drifted.
 	//
 	// Summed here rather than at each append, because the same file reaches this list by two routes —
 	// named in CLAUDE.md and listed under Read always — and neither route can see the other.
@@ -169,8 +169,8 @@ func (s *stats) mountedOutside(errOut io.Writer) {
 	}
 }
 
-// The `<dir>/*/SKILL.md` glob, byte-sorted the way bash sorted it under LC_ALL=C, dotfiles excluded
-// the way a glob excludes them. A glob, not a `find`: it resolves *through* a symlinked skill
+// The `<dir>/*/SKILL.md` glob: byte-sorted, and dotfiles excluded the way a glob excludes them. A
+// glob, not a walk: it resolves *through* a symlinked skill
 // directory, which is what lets a mount outside the tree be read at all.
 func skillFiles(dir string) []string {
 	entries, err := os.ReadDir(dir)

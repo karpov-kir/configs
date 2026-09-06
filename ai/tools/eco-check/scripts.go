@@ -21,7 +21,6 @@ const (
 	namedSuiteCap = 8
 )
 
-// The heads this file's findings lead with, which report.go's rankTable ranks them on.
 const (
 	syntaxError                    = "syntax: "
 	scriptNotExecutable            = "script not executable"
@@ -219,7 +218,6 @@ func (c *checker) scanTestPositions() {
 	}
 }
 
-// What one script's header declares, against the suites the tree really carries.
 func (c *checker) reportTestPosition(script string, lines []string, carriers map[string][]string) {
 	header := leadingCommentBlock(lines)
 	named := shell.SortUnique(allMatches(header, namedTestSuite))

@@ -13,8 +13,7 @@ import (
 // missing, so the silence told the branch's author which files the reviewing machine holds. Both
 // answers have to look the same now.
 func TestATraversalLinkIsNotStatted(t *testing.T) {
-	// One target that exists outside the root, one that does not. Both have to come back reported the
-	// same way, with nothing in the output saying which is which.
+	// One target that exists outside the root, one that does not.
 	newProbe := func(t *testing.T) (*fixture, string, string) {
 		f := newRoot(t)
 		f.write(f.base+"/present.md", "# here\n")

@@ -42,7 +42,7 @@ type Result struct {
 	// Reached is files the scan opened — the denominator. Zero means this run says nothing about the
 	// change set, which is a different statement from "nothing matched".
 	Reached int
-	// SkippedUnread is files the scan declined without reading: over the byte cap, binary, or named as
+	// SkippedUnread is files the scan declined without scanning: over the byte cap, binary, or named as
 	// secret-bearing. They have to reach the tally or the summary claims a denominator it never covered.
 	SkippedUnread int
 	BinaryLines   int
@@ -95,11 +95,12 @@ func resolvesAsRevision(cwd, arg string) bool {
 // `color.diff=always` or an external diff driver would break. `core.quotePath=false`, or a non-ASCII
 // path arrives C-quoted and fails the `b/` test. `--text`, or one NUL byte, or a `* -diff` written by
 // whoever wrote the branch, collapses the body to "Binary files … differ" and the scan exits 0 over a
-// real hit.
+// real hit. `--no-relative`, or `diff.relative` in the caller's own config names `pkg/a.go` as `a.go`
+// from a subdirectory and leaves every changed file outside that directory out of the diff entirely.
 func Diff(cwd string, revisions []string) ([]byte, error) {
 	args := []string{
 		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-		"--text", "--src-prefix=a/", "--dst-prefix=b/",
+		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/",
 	}
 	named, paths := RevisionsNamed(revisions)
 	if len(named) == 0 {
@@ -264,12 +265,7 @@ func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) 
 func (r *Result) bodyToScan(full, name string, opts Options) ([]byte, bool) {
 	if opts.SkipSecretNamed && secretNamed(name) {
 		if opts.Announce != nil {
-			// Through Oneline and the bound, like every other path this package's callers print. The
-			// name is the branch author's, `.env*` matches it whatever follows the prefix, and an
-			// announcement is the one path here that reaches a terminal without a scanner's own
-			// sanitising in front of it.
-			opts.Announce(fmt.Sprintf("skipping untracked '%s' — its name marks it as secret-bearing; it was NOT scanned.",
-				shell.CutBytesMarked(shell.Oneline(name), maxAnnouncedPathBytes)))
+			opts.Announce(SecretSkipNotice(name))
 		}
 		r.SkippedUnread++
 		return nil, false
@@ -318,6 +314,20 @@ func (r *Result) bodyToScan(full, name string, opts Options) ([]byte, bool) {
 // deliberately absent: it would skip `tokenizer.go` and shrink the scan, and protecting the secret
 // must not destroy the tool. Nothing here is binary-only — `.p12`, `.pfx` and `.jks` hold keys too,
 // but they carry a NUL and the binary probe already declines them unread.
+// SecretNamed is that rule, asked about a file the DIFF named rather than one this package listed.
+// Exported rather than restated by the caller, because a second copy of this list is a second answer
+// to which names are secret-bearing.
+func SecretNamed(name string) bool { return secretNamed(name) }
+
+// SecretSkipNotice is the wording for a decline, wherever it is decided. Through Oneline and the
+// bound, like every other path this package's callers print: the name is the branch author's, `.env*`
+// matches whatever follows the prefix, and an announcement is the one path here that reaches a
+// terminal without a scanner's own sanitising in front of it.
+func SecretSkipNotice(name string) string {
+	return fmt.Sprintf("skipping '%s' — its name marks it as secret-bearing; it was NOT scanned.",
+		shell.CutBytesMarked(shell.Oneline(name), maxAnnouncedPathBytes))
+}
+
 func secretNamed(name string) bool {
 	base := strings.ToLower(path.Base(name))
 	for _, glob := range []string{

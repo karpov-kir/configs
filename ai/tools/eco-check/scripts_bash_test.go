@@ -1,13 +1,5 @@
 package ecocheck
 
-// Half of what this package promises is that every script still parses, and it delivers that by
-// forking bash. With no bash to fork, the parse loop ran zero times and added nothing — byte for byte
-// the output a tree of clean scripts produces, under exit 0. Nothing anywhere said the question had
-// not been asked.
-//
-// Driven through the checker rather than through Run, because the seam is the point: every machine
-// this suite runs on has a bash, so the case cannot be built by taking one away.
-
 import (
 	"bytes"
 	"os"
@@ -39,8 +31,6 @@ func (c *checker) reported(needle string) bool {
 }
 
 func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
-	// The control, and it runs first: with the real lookup this script's syntax error is found. That
-	// is what makes the silence below a scan that could not run rather than a fixture holding nothing.
 	t.Run("finds the syntax error while a bash is there to find it", func(t *testing.T) {
 		c := newCheckerOverAScript(t, "if then\n")
 		if len(c.bashBinaries()) == 0 {
@@ -55,7 +45,6 @@ func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
 		}
 	})
 
-	// The defect. Zero binaries produced zero findings, which is what a clean tree produces.
 	t.Run("says NO script was parsed when there is no bash to parse with", func(t *testing.T) {
 		c := newCheckerOverAScript(t, "if then\n")
 		c.bashBinaries = func() []string { return nil }

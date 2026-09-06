@@ -1,4 +1,4 @@
-// The tree fingerprint as a command, and the only os.Exit in the tool.
+// The tree fingerprint as a command.
 //
 //	usage: tree-fingerprint.sh [<repo path>]
 //

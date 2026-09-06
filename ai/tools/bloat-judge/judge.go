@@ -103,7 +103,6 @@ func (m *Memo) key(kind, content string) string {
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
 
-// lookup returns the recorded unit numbers and whether a record exists.
 func (m *Memo) lookup(kind, content string) ([]int, bool) {
 	if m == nil {
 		return nil, false
@@ -345,7 +344,6 @@ func Split(lines []string, source bool, offer func(Unit) bool) ([]Unit, string) 
 	return units, view.String()
 }
 
-// blocks finds every candidate unit, before any is offered or withheld.
 func blocks(lines []string, source bool) []Unit {
 	var found []Unit
 	inFence, inBlock, inStar := false, false, false
@@ -448,7 +446,6 @@ func repoRelative(cwd, path string) (string, error) {
 	return filepath.ToSlash(filepath.Clean(filepath.Join(prefix, path))), nil
 }
 
-// opensStar is a `/*` that the same line does not close.
 func opensStar(line string) bool {
 	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
 }
@@ -499,8 +496,8 @@ func ParseVerdict(reply string, count int) ([]int, error) {
 	return gone, nil
 }
 
-// Apply deletes the chosen units' lines and returns what is left. A trailing newline is kept where the
-// input had one, so a file judged clean is byte-identical to its input.
+// Apply deletes the chosen units' lines and returns what is left, always ending in one newline. Text
+// that ended in one and lost no unit comes back byte-identical; text that did not gains one.
 func Apply(lines []string, units []Unit, gone []int) string {
 	drop := map[int]bool{}
 	for _, index := range gone {

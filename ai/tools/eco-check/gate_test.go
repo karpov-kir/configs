@@ -66,7 +66,6 @@ func (f *fixture) newScratchRecord(path string) {
 	f.write(f.root+"/skills/"+path, "# Scratch\n\nSee one.md → "+missingRegion+".\n")
 }
 
-// One run with the flag on.
 func (f *fixture) runGated() string {
 	f.t.Helper()
 	f.isolate()

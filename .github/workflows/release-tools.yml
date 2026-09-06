@@ -40,7 +40,6 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          # From go.mod, so the release is built by the toolchain the module declares.
           go-version-file: ai/tools/go.mod
           # Off for the reason `.github/workflows/gates.yml` states in its header: setup-go looks for
           # its cache key file in the repo root, and this module is in ai/tools.

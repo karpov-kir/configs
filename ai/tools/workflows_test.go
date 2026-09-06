@@ -214,8 +214,7 @@ func constStringIn(source, name string) string {
 // A slice and not one value, because a step may run `go test` more than once. Collapsed to a single
 // bound, one invocation carrying -timeout vouches for a sibling that carries none, and the case reports
 // green over exactly the drift it exists to catch — a case that cannot fail, which is what this file's
-// header declares war on. Comment lines are skipped, because the step's own comment names the flag it
-// is explaining.
+// header declares war on.
 func goTestBounds(step string) []string {
 	var bounds []string
 	for _, fields := range goTestLines(step) {
@@ -362,8 +361,8 @@ func scriptsRun(body string) []string {
 }
 
 // The path inside a field a shell would run it from: `stamp="$(./source-stamp.sh` is an invocation,
-// and dropping it because of the assignment and the substitution around it is how this case came to
-// cover three of the four scripts these workflows run while its own comment claimed all of them.
+// and dropping it because of the assignment and the substitution around it leaves this case covering
+// three of the four scripts these workflows run while its own comment claims all of them.
 //
 // Only the opening wrappers are cut. A trailing one would make `"$(cat` end in a path shape it never
 // had, and isPlainPath is what refuses whatever this leaves behind.

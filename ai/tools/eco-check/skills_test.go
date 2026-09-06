@@ -1,15 +1,11 @@
 package ecocheck_test
 
-// The skill directory itself.
-
 import (
 	"testing"
 
 	ecocheck "kk-flavor/tools/eco-check"
 )
 
-// Each defect below makes a skill unreachable rather than merely mis-linked: the loader finds a skill
-// by its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
 func TestSkillDirectory(t *testing.T) {
 	t.Run("fires on a skill directory holding no SKILL.md", func(t *testing.T) {
 		newBrokenSkillDirs(t).reports(ecocheck.SkillDirWithoutSkillFile)
@@ -34,10 +30,6 @@ func TestSkillDirectory(t *testing.T) {
 	})
 }
 
-// A SKILL.md the open refuses declares nothing, so both findings above would be stating what it
-// declares. Unread, it was reported as declaring an empty name and as carrying no description — two
-// positive claims about frontmatter that is almost certainly fine, aimed at the one reader who would
-// go and check it.
 func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 	// The mounted skill's SKILL.md carries no frontmatter at all, so readable it raises both findings.
 	// That is what makes the two silences below a refusal rather than a compliant fixture.
@@ -49,8 +41,6 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 		return f
 	}
 
-	// The control: the run does say the file went unread, so the silences below are a refusal and not
-	// a fixture that never reached the scan.
 	t.Run("names the file it could not read (control for the two below)", func(t *testing.T) {
 		newUnreadableSkill(t).reports(ecocheck.FileCouldNotBeRead)
 	})
@@ -64,10 +54,8 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 	})
 }
 
-// The census counted a SKILL.md it could not read as one it had read: the file entered the
-// denominator and contributed zero words, so `19 of 22` stayed put while the figure beside it went 34
-// words short. Unread and "routed, description empty" are the same line, which is the zero this pass
-// exists to separate from the other one.
+// Unread and "routed, description empty" are the same line, which is the zero this pass exists to
+// separate from the other one.
 //
 // The wording does not move — ecostats reports the same tree and leaves its own `of N skills` alone,
 // carrying the unread fact beside the report instead. Here that fact is already a rank-1 finding, so

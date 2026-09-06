@@ -20,7 +20,7 @@ Comment form is [human-writing.md](human-writing.md). **The default is no commen
 
 **A change set's comment share stays at or under the host repo's.** Where it is over, rank every comment in the set and delete upward from the weakest until it is not, never by a fixed fraction of what is there.
 
-**Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when a sibling covers it. **True, unique content goes too — anecdotes, provenance, alternatives considered.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
+**Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when a sibling covers it. **True, unique content goes too — anecdotes, alternatives considered, provenance a reader can get from `git log`.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
 
 **A published surface is the exception, and it runs the other way** — state the contract the types don't carry: call order, lifecycle, error modes, units, ranges, caller invariants. **That list is the whole of the exception**, and a file declaring itself published buys its members nothing beyond it.
 
@@ -29,7 +29,7 @@ Comment form is [human-writing.md](human-writing.md). **The default is no commen
 - Never bypass the type system with escape hatches — `any`/`@ts-ignore` (TS), `unsafe` (Rust), unchecked or non-null assertions anywhere. Narrow the type first, or pass a guaranteed value explicitly.
 - In TS/JS, absence is `undefined`, never `null` — one absence value per codebase.
 - Prefer enums (or named-enumeration constructs) that expose symbolic members at call sites — renames ripple through the type checker. A literal type alias doesn't satisfy this.
-- Inline single-use object/interface shapes; extract a named type only when referenced from 2+ places. The exception is a type crossing a module boundary, which earns its name at one call site ([architecture/core.md](architecture/core.md) → **Module depth**).
+- Inline single-use object/interface shapes; extract a named type only when referenced from 2+ places. The exception is a type crossing a module boundary, which earns its name at one call site.
 
 ## Control Flow
 
@@ -51,7 +51,7 @@ Where log lines belong and what they say; how you obtain a logger is [architectu
 
 ## Abstraction
 
-- **One abstraction level per unit — don't mix.** Push down the low-level mechanics an intent-revealing operation is built from.
+- **One abstraction level per unit.** Push down the low-level mechanics an intent-revealing operation is built from.
 - **Name the operations.** Wrap raw mechanics in an intent-named operation so the unit reads top-down as prose. A comment narrating *what* a block does is a missing name.
 
 ## Classes vs functions
@@ -64,6 +64,6 @@ Reach for a class (or a `newX` factory over private state) when operations share
 
 - Functions do one thing. Extract when concerns split, abstraction blurs (above), or length exceeds ~100 lines.
 - Tolerate duplication at 1–2 sites; extract a shared helper on the 3rd. Earlier abstraction risks the wrong shape.
-- Don't extract tiny wrappers around self-evident code.
+- Self-evident code stays inline; wrapping it hides nothing.
 - Keep files focused on a single responsibility — split when a file grows beyond ~450 lines or contains unrelated concepts. A flat command dispatch over one responsibility counts by its longest arm, not its total.
 - Avoid barrel/index files; import from the source module directly. A module's published surface file ([architecture/core.md](architecture/core.md) → **Module depth**) is not covered by this ban. Never re-export a symbol through a module that isn't its home — a symbol has one home; update importers if that home moves.

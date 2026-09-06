@@ -6,6 +6,7 @@ package shell_test
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -151,23 +152,6 @@ func TestOnelineLeavesATruncatedLeadByteAlone(t *testing.T) {
 	if got := shell.Oneline(in); got != in {
 		t.Errorf("Oneline(%q) = %q, want it unchanged", in, got)
 	}
-}
-
-// sameValues is reflect.DeepEqual minus the one thing these tables must not assert. Empty comes back
-// as nil from SplitLines and as an allocated empty slice from SplitFields and SortUnique (text.go,
-// above SplitLines), a difference no caller can read, so a case pinning it would freeze a contract
-// the package leaves open. Length and contents are what a caller does read, and comparing those is
-// what lets "no words" and "nothing in, nothing out" assert something instead of returning early.
-func sameValues(got []string, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // Each function below documents itself as a shell tool under LC_ALL=C, and that claim is the contract
@@ -347,7 +331,7 @@ func TestSplitLinesCountsLinesTheWayALineOrientedToolDoes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := shell.SplitLines(c.text); !sameValues(got, c.want) {
+			if got := shell.SplitLines(c.text); !slices.Equal(got, c.want) {
 				t.Fatalf("SplitLines(%q) = %q, want %q", c.text, got, c.want)
 			}
 		})
@@ -373,7 +357,7 @@ func TestSplitFieldsCountsWordsTheWayWcDoes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := shell.SplitFields(c.line); !sameValues(got, c.want) {
+			if got := shell.SplitFields(c.line); !slices.Equal(got, c.want) {
 				t.Fatalf("SplitFields(%q) = %q, want %q", c.line, got, c.want)
 			}
 		})
@@ -410,7 +394,7 @@ func TestSortUniqueSortsByByteAndDropsDuplicates(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := shell.SortUnique(c.values); !sameValues(got, c.want) {
+			if got := shell.SortUnique(c.values); !slices.Equal(got, c.want) {
 				t.Fatalf("SortUnique(%q) = %q, want %q", c.values, got, c.want)
 			}
 		})

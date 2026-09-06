@@ -44,12 +44,10 @@ func printable(names []string) []string {
 	return out
 }
 
-// What the report has to say about one cited file.
 type target struct {
 	// Every section entered, by a door or by a citer holding the file whole. This is what the
 	// UNENTERED report is read against: a section a precision citer names is not unentered.
-	enteredAt map[string]bool
-	// The doors only: a citer that does not hold the file whole, and the sections it enters through.
+	enteredAt       map[string]bool
 	doorSections    map[string]bool
 	doorCiters      map[string]bool
 	precisionCiters map[string]bool
@@ -96,7 +94,6 @@ func summarize(edges []edge) (adj map[string][]string, targets map[string]*targe
 	return adj, targets, len(seenEdge)
 }
 
-// The longest chain, printed and returned in hops.
 func reportDepth(out, errOut io.Writer, adj map[string][]string, nodes []string) int {
 	deepest := []string{}
 	budget := &walkBudget{left: walkSteps}
@@ -114,13 +111,11 @@ func reportDepth(out, errOut io.Writer, adj map[string][]string, nodes []string)
 	return len(deepest) - 1
 }
 
-// One target's row in the fan-out table.
 type fanOutRow struct {
 	file                                            string
 	doorSections, doors, deepDoors, precisionCiters int
 }
 
-// The door surface per file, widest first, and the width of the widest.
 func reportFanOut(out io.Writer, targets map[string]*target) int {
 	fmt.Fprintln(out, "FAN-OUT  doors are citers that do NOT hold the file whole. A citer that reads it whole is")
 	fmt.Fprintln(out, "         being precise about which rule, not entering. Of the doors, a DEEP one enters more")
@@ -202,7 +197,6 @@ func reportCycles(out, errOut io.Writer, adj map[string][]string, nodes []string
 	}
 }
 
-// The whole report, in the order it is read.
 func report(out, errOut io.Writer, defined map[string]map[string]bool, edges []edge, routed map[string]bool) {
 	adj, targets, distinct := summarize(edges)
 	var nodes []string

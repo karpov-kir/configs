@@ -94,6 +94,10 @@ type scan struct {
 	tokens map[string]int
 	lines  map[string]int
 	result diffscan.Result
+	// The secret-named files this scan declined, so one is announced and counted once rather than per
+	// added line, and announce is where that notice goes.
+	declined map[string]bool
+	announce func(string)
 }
 
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
@@ -109,7 +113,10 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 		return exitDidNotRun
 	}
 
-	s := &scan{cfg: cfg, tokens: map[string]int{}, lines: map[string]int{}}
+	s := &scan{
+		cfg: cfg, tokens: map[string]int{}, lines: map[string]int{}, declined: map[string]bool{},
+		announce: func(line string) { fmt.Fprintf(stderr, "%s: %s\n", self, line) },
+	}
 	if err := s.result.WalkDiff(diff, s.count); err != nil {
 		fmt.Fprintf(stderr, "%s: the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.\n", self, err)
 		return exitDidNotRun
@@ -119,9 +126,7 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 		opts := diffscan.Options{
 			MaxFileBytes:    cfg.MaxFileBytes,
 			SkipSecretNamed: true,
-			Announce: func(line string) {
-				fmt.Fprintf(stderr, "%s: %s\n", self, line)
-			},
+			Announce:        s.announce,
 		}
 		if err := s.result.WalkUntracked(cwd, opts, s.count); err != nil {
 			fmt.Fprintf(stderr, "%s: could not list untracked files — the scan did NOT run\n", self)
@@ -133,6 +138,21 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 }
 
 func (s *scan) count(added diffscan.AddedLine) {
+	// The untracked arm's guard, asked of the diff arm too. `SkipSecretNamed` was written for
+	// untracked files, but what makes it necessary is that THIS tool echoes 60 bytes of every
+	// duplicate, and that is a property of the scanner rather than of whether git tracks the file.
+	// Measured on the unguarded form: two tracked `.env` files each gaining one `TOKEN=<130 chars>`
+	// line printed `2x token (136 chars): TOKEN=SSSS…` — the two-files-one-token case the untracked
+	// guard names, reached through the arm that had none. The untracked arm never delivers a
+	// secret-named file, so this only ever fires on the diff.
+	if diffscan.SecretNamed(added.File) {
+		if !s.declined[added.File] {
+			s.declined[added.File] = true
+			s.result.SkippedUnread++
+			s.announce(diffscan.SecretSkipNotice(added.File))
+		}
+		return
+	}
 	trimmed := strings.TrimSpace(added.Text)
 	if len([]rune(trimmed)) >= s.cfg.MinLength {
 		s.lines[trimmed]++

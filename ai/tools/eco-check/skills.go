@@ -6,7 +6,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
 const (
 	skillDirWithoutSkillFile = "skill dir without SKILL.md: "
 	skillNameDirMismatch     = "skill name/dir mismatch"
@@ -16,7 +15,6 @@ const (
 // Each defect here makes a skill unreachable rather than merely mis-linked: the loader finds a skill
 // by its directory, invokes it by its frontmatter `name`, and routes to it by its `description`.
 func (c *checker) scanSkillDirectories() {
-	// A skill is its directory plus a SKILL.md; a directory without one is invisible to the loader.
 	for _, entry := range c.walkTree(c.root.Skills()).entries {
 		if !entry.mode.IsDir() || shell.DirName(entry.path) != c.root.Skills() {
 			continue
@@ -25,8 +23,6 @@ func (c *checker) scanSkillDirectories() {
 			c.add(skillDirWithoutSkillFile + shell.Oneline(entry.path))
 		}
 	}
-	// A skill's frontmatter name is how it is invoked; a mismatch with its directory makes it
-	// unreachable.
 	for _, file := range c.filesNamed(c.root.Skills(), "SKILL.md") {
 		lines, err := c.readLines(file)
 		// A file nothing read declares nothing, and both findings below would state what it declares.

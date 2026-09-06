@@ -1,13 +1,11 @@
 package ecostats_test
 
-// The fixture builders and the assertions the cases in stats_test.go are written against. They were
-// ported one for one from a shell suite that no longer exists — it was deleted once the skills
-// switched to this binary, and git history is where the pairing can still be read. This is now the
+// The fixture builders and the assertions the cases in stats_test.go are written against. This is the
 // only suite over these measurements, so a case removed here is coverage gone rather than moved.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out: the forks were
-// the whole cost of the shell suite, and a mutation harness multiplies that cost by the length of its
-// mutation list. `ai/tools/go-mutate` is what shows a case here can fail.
+// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out: a mutation harness
+// multiplies every fork by the length of its mutation list. `ai/tools/go-mutate` is what shows a case
+// here can fail.
 
 import (
 	"bytes"
@@ -30,8 +28,7 @@ var (
 	checkRouterWords = regexp.MustCompile(`(?m)^always-loaded: [0-9]* lines, ([0-9]*) words across`)
 )
 
-// One case's tree. `home` empty means the case runs under the ambient HOME, exactly as the shell
-// version's empty `check_home` did.
+// One case's tree. `home` empty means the case runs under the ambient HOME.
 type fixture struct {
 	t    *testing.T
 	base string
@@ -43,8 +40,8 @@ type fixture struct {
 	prepared bool
 }
 
-// The `$base/r$N` of the shell version: `base` is the scratch directory a case may write outside the
-// root into, `root` the tree under measurement.
+// `base` is the scratch directory a case may write outside the root into; `root` is the tree under
+// measurement.
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
@@ -67,10 +64,9 @@ func (f *fixture) newHome() {
 	f.symlink(f.root+"/kk-flavor", f.home+"/.kk-flavor")
 }
 
-// The path Run is handed as its own name. It is where the shell version's `cp "$stats" …` put the
-// script, because the row goes to ../stats.md relative to the program — so a case that appends calls
-// installStats first, exactly as every --append case there did, and one that only measures never
-// creates the directory at all.
+// The path Run is handed as its own name. The row goes to ../stats.md relative to the program, so a
+// case that appends calls installStats first and one that only measures never creates the directory
+// at all.
 func (f *fixture) self() string {
 	return f.root + "/skills/kk-reduce/scripts/stats.sh"
 }
@@ -102,8 +98,8 @@ func (f *fixture) prepare() {
 	}
 }
 
-// One run over this fixture. The two streams are kept apart — the shell suite merged them with 2>&1
-// only where it greps, and every case here knows which stream it is asking about.
+// One run over this fixture, with the two streams kept apart: every case here knows which of them it
+// is asking about.
 func (f *fixture) run(args ...string) (stdout, stderr string, status int) {
 	f.t.Helper()
 	f.prepare()
@@ -112,8 +108,7 @@ func (f *fixture) run(args ...string) (stdout, stderr string, status int) {
 	return out.String(), errOut.String(), status
 }
 
-// A figure off the report by the name it is printed under — the shell version's
-// `sed -n "s/^$1: *\([0-9]*\) words.*/\1/p"`, and empty when the line is not there at all.
+// A figure off the report by the name it is printed under, and empty when the line is not there at all.
 func (f *fixture) figure(name string) string {
 	f.t.Helper()
 	stdout, _, _ := f.run(f.root)
@@ -144,7 +139,7 @@ func (f *fixture) routerWordsFromCheck() string {
 	return firstSubmatch(checkRouterWords, out.String())
 }
 
-// The other tool's own report over this tree, both streams merged the way the shell case read it.
+// The other tool's own report over this tree, both streams merged.
 func (f *fixture) checkOutput() string {
 	f.t.Helper()
 	f.prepare()
@@ -153,7 +148,7 @@ func (f *fixture) checkOutput() string {
 	return out.String()
 }
 
-// `grep -c '^|'` — the rows a ledger holds, header and rule included.
+// The rows a ledger holds, header and rule included.
 func rowsIn(t *testing.T, path string) int {
 	t.Helper()
 	rows := 0
@@ -192,8 +187,8 @@ func (f *fixture) mkdirAll(dir string) {
 	}
 }
 
-// No parent is created here, deliberately: the shell version's `>` failed on a missing directory, and
-// a builder that quietly creates one hides a fixture written against a tree it does not have.
+// No parent is created here, deliberately: a builder that quietly creates one hides a fixture written
+// against a tree it does not have.
 func (f *fixture) write(path, content string) {
 	f.t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

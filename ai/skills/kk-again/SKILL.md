@@ -22,7 +22,3 @@ Inspect nothing but the reply itself and the two sections **The shape** names, a
 ## Every open item survives
 
 **A shorter reply that drops a decision the human still owes is worse than the one it replaces.** Before you send it, walk the original for every ask, open item and decision, and confirm each survived.
-
-## Output
-
-No apology, no account of what the first reply got wrong, no note that you re-answered.

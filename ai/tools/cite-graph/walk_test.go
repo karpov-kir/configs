@@ -4,9 +4,6 @@ import (
 	"testing"
 )
 
-// The number of simple paths is factorial in how densely the graph is connected, and the tree under
-// measurement writes its own citations — so it picks that density. Twelve files each citing the other
-// eleven never finished. The budget is what makes the walk return at all.
 func TestADenseGraphDoesNotHangTheWalks(t *testing.T) {
 	const n = 14
 	adj := map[string][]string{}

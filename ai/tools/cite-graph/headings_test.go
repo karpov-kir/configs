@@ -13,12 +13,9 @@ func TestCitationIsTruncatedToAHeadingNotExtended(t *testing.T) {
 	if got, ok := entersAHeading(headings, "Phase 2 — Assemble Context"); !ok || got != "Phase 2" {
 		t.Errorf("truncation: got %q %v, want \"Phase 2\" true", got, ok)
 	}
-	// Prose runs on past the heading it names, so check.sh accepts this.
 	if got, ok := entersAHeading(headings, "Caller of a skill"); !ok || got != "Caller" {
 		t.Errorf("truncation: got %q %v, want \"Caller\" true", got, ok)
 	}
-	// The inverse: a citation SHORTER than the heading. Extension resolves it; check.sh cannot,
-	// because truncating "Phase" reaches nothing.
 	if got, ok := entersAHeading(headings, "Phase"); ok {
 		t.Errorf("extension: %q resolved to %q, which check.sh cannot reach", "Phase", got)
 	}
@@ -36,7 +33,6 @@ func TestCitationTruncatingToAnEmDashPrefixResolves(t *testing.T) {
 	if !ok || got != "phase 2 — assemble context (progressive)" {
 		t.Fatalf("entersAHeading = %q, %v — want the full heading", got, ok)
 	}
-	// A section that truly does not exist is still refused: no heading's prefix answers to it.
 	if _, ok := entersAHeading(headings, "phase 9 — invented"); ok {
 		t.Fatal("resolved a section no heading answers to")
 	}
@@ -64,8 +60,6 @@ func TestCitationToANumberedHeadingResolves(t *testing.T) {
 	}
 }
 
-// End to end: the numbered heading is entered, so the edge is counted and the section is not
-// reported UNENTERED. The unit case above cannot see either of those.
 func TestNumberedHeadingIsEnteredNotDangling(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "std/target.md", "# T\n\n## 7. What A Suite Reports\n\n## Plain Heading\n")
@@ -87,7 +81,6 @@ func TestNumberedHeadingIsEnteredNotDangling(t *testing.T) {
 func TestNumberedHeadingWithASubtitleResolvesByItsTextAlone(t *testing.T) {
 	headings := map[string]bool{"1. trigger — how it gets invoked": true}
 
-	// Every form eco-check registers for that heading, plus the truncations it accepts on the way.
 	for _, cited := range []string{
 		"1. trigger — how it gets invoked",
 		"trigger — how it gets invoked",
@@ -101,7 +94,6 @@ func TestNumberedHeadingWithASubtitleResolvesByItsTextAlone(t *testing.T) {
 			t.Errorf("entersAHeading(%q) = %q, %v — want the full heading", cited, got, ok)
 		}
 	}
-	// The number alone names no section, and neither does an invented one.
 	if got, ok := entersAHeading(headings, "1."); ok {
 		t.Errorf("the leading number alone resolved to %q", got)
 	}
@@ -166,8 +158,6 @@ func TestACitationIntoACollidingAliasKeysOnOneHeadingEveryTime(t *testing.T) {
 	}
 }
 
-// End to end: the edge is counted and keys on the heading, so the section is not reported UNENTERED
-// while a file enters it. The unit case above sees neither.
 func TestNumberedHeadingWithASubtitleIsEnteredNotDangling(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "std/skill.md", "# S\n\n## 1. Trigger — how it gets invoked\n\n## Plain Heading\n")

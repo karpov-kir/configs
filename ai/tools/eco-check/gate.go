@@ -128,7 +128,6 @@ func (c *checker) enableGate() error {
 	if err != nil {
 		return err
 	}
-	// Keyed cleaned, because every lookup cleans; see holds.
 	ignored := map[string]bool{}
 	for _, path := range relative {
 		ignored[filepath.Clean(shell.Join(c.root.Named(), path))] = true
@@ -209,7 +208,6 @@ func (c *checker) reportGate(out io.Writer) {
 		len(skipped), skippedNames(skipped))
 }
 
-// Capped in entries and in bytes, and the count above stays exact: only the naming is trimmed.
 func skippedNames(skipped []string) string {
 	if len(skipped) == 0 {
 		return ""

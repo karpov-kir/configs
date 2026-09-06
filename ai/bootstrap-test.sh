@@ -63,8 +63,6 @@ got_skills=$(find "$home/.claude/skills" -mindepth 1 -maxdepth 1 -type l 2>/dev/
 
 # --- re-running -----------------------------------------------------------------------------------
 
-# Idempotence is the property that makes this safe to run on a working machine, and the only evidence
-# for it is a second run over the first run's output.
 run_boot "$home"
 expect_status "a second run over a finished home exits 0" 0
 expect_out "and reports the targets as already ok" "  ok       $home/.kk-flavor"
@@ -148,8 +146,6 @@ expect_file_body "and leaves the leftover alone" "$home/.claude/RTK.md" 'still h
 
 # --- --dry-run ------------------------------------------------------------------------------------
 
-# The flag has to write nothing, or it is worse than not having it: someone checks with --dry-run and
-# it is the run that changed their machine.
 fresh_home
 run_boot "$home" --dry-run
 expect_status "--dry-run exits 0" 0
@@ -295,8 +291,6 @@ expect_out "and says the runner is missing" "is not in this checkout"
 expect_out "and says that is not a pass" "not the same as passing"
 expect_not_out "and does not blame the suites" "reported a failing suite"
 
-# A dry run that says ok over a repository where the real run cannot work is the same lie one step
-# earlier, so the guard sits ahead of the dry-run arm rather than beside the call.
 fresh_home
 out=$(HOME="$home" bash "$verify_repo/ai/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --dry-run 2>&1)
 status=$?

@@ -12,8 +12,6 @@ func (r *repo) runBar(args ...string) {
 	r.runBarIn(r.dir, baseConfig(), args...)
 }
 
-// Goes through Run with `--bar` in front, the way the command arrives, so every case here also covers
-// the dispatch.
 func (r *repo) runBarIn(cwd string, cfg Config, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()
@@ -28,8 +26,6 @@ func TestBarIsAModeOnlyAsTheFirstArgument(t *testing.T) {
 	r.expectNoStdout()
 }
 
-// newRepoWithLeanBaseline commits two files at one comment line in ten, so a comment-heavy file a case
-// writes afterwards is over every bar the mode holds.
 func newRepoWithLeanBaseline(t *testing.T) *repo {
 	t.Helper()
 	r := newRepo(t)
@@ -168,7 +164,6 @@ func TestBaseRevisionOfASymmetricRangeIsTheMergeBase(t *testing.T) {
 	if _, err := host.baseRevision([]string{"HEAD...no-such-branch"}); err == nil {
 		t.Fatalf("a range with no merge base was answered")
 	}
-	// git reads `...b` as `HEAD...b`, and the diff over it succeeds before baseRevision is ever asked.
 	if got, err := host.baseRevision([]string{"...HEAD"}); err != nil || len(got) != 40 {
 		t.Fatalf("an empty left side of a symmetric range answered %q, %v; want the merge base with HEAD", got, err)
 	}

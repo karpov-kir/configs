@@ -1,5 +1,4 @@
-// The handoff-prompt gate as a command, and the only os.Exit in the tool: everything it does lives in
-// the package beside it, so the suite can drive the same code without a process per case.
+// The handoff-prompt gate as a command.
 //
 //	usage: handoff-check <draft.md> [<repo>]   # <repo> resolves the base commit and is the path the
 //	                                           # draft must name; defaults to .

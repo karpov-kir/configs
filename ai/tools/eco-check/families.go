@@ -10,9 +10,6 @@ import (
 // Direction inside the skill layer. The rule's home is ecosystem.md → **Family direction**: the any-repo
 // family never names the workflow family, or anything it owns. This is its enforcement.
 //
-// scanDirection beside this file guards the tier above — the shared layer never naming a skill — and
-// stops there, so until this scan nothing checked the skill tier itself.
-//
 // What a leak costs: a description is what the model reads to choose a skill. One that discriminates
 // itself against a sibling reads as a dangling reference in every tree that does not mount that
 // sibling, which is most of them — worse than not discriminating at all.
@@ -27,8 +24,8 @@ const (
 	workflowFamily = "idsd-"
 )
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on. The quote on
-// the first is what tells it from the other `skill…` heads: the tree's own directory name follows it.
+// The quote on the first head is what tells it from the other `skill…` heads: the tree's own
+// directory name follows it.
 const (
 	skillInNeitherFamily       = "skill '"
 	anyRepoNamesWorkflowFamily = "any-repo skill names the workflow family"
@@ -55,8 +52,7 @@ const routerClaimCitation = "ecosystem.md → **Family direction**"
 // for a claim the router never made.
 var routerClaimPattern = regexp.MustCompile("ecosystem\\.md`? → \\*\\*Family direction\\*\\*")
 
-// What the workflow family keeps its state in: the family prefix as a dotted directory. Derived, so a
-// renamed family does not leave this scan looking for a directory nobody writes any more.
+// Derived, so a renamed family does not leave this scan looking for a directory nobody writes any more.
 func workflowStateDir() string { return "." + strings.TrimSuffix(workflowFamily, "-") }
 
 func (c *checker) scanFamilyDirection() {
@@ -68,7 +64,6 @@ func (c *checker) scanFamilyDirection() {
 	for _, name := range c.laneNames() {
 		switch {
 		case strings.HasPrefix(name, workflowFamily):
-			// The permitted direction: a workflow skill may name and cite an any-repo one.
 			continue
 		case !strings.HasPrefix(name, anyRepoFamily):
 			c.add(skillInNeitherFamily + name + "' is in neither declared family (" + anyRepoFamily + ", " +
@@ -112,7 +107,7 @@ func (c *checker) reportFamilyLeaks(name string, workflowName, stateDir *regexp.
 // pass: every finding in that skill is suppressed and nothing requires it to explain itself, which is
 // the opposite of what ecosystem.md asks for.
 func (c *checker) assertRouterClaimsItsException(name string) {
-	path := shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
+	path := c.skillFilePath(name)
 	lines, err := c.readLines(path)
 	if err != nil {
 		c.add(familyRouterFinding + shell.Oneline(path) + " could not be read, so its family exception is unverified" +

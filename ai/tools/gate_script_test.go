@@ -11,11 +11,8 @@
 // This case holds the two lists to each other. It is deliberately structural: what it proves is that no
 // external input is wired half way, not what the forcing does at runtime.
 //
-// It read ai/gate.sh and its `ext_*` shell variables until the gate became Go. One input went with that
-// move rather than being carried across: `ext_gate` keyed the unit on ai/gate.sh, which had to be
-// declared because the gate was OUTSIDE this module and Go's cache could not see it. The gate is inside
-// the module now, so the cache sees its source like any other package's, and an entry for it here would
-// be a wire to nowhere.
+// ai/gate.sh is deliberately not one of them: the gate is inside this module, so Go's cache sees its
+// source like any other package's, and an `ext` entry for it would be a wire to nowhere.
 package tools_test
 
 import (

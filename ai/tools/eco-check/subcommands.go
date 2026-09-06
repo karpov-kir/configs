@@ -16,10 +16,9 @@ package ecocheck
 // Every finding here leads with its kind and puts the file it is about after that. report.go classes
 // a finding on the head of its line, and no table can name a head the reviewed branch wrote.
 //
-// The subcommand name between the two is the branch's text as well. Nothing bounds how long a case
-// label or a usage alternative may be, so each site cuts the name at findingNameCap, with the mark
-// that says it cut. Uncut, the printer's own 500-byte bound reaches the line first, and the tail it
-// takes is the path and the sentence naming the defect.
+// The subcommand name between the two is the branch's text as well: a case label or a usage
+// alternative, neither of them bounded, so each site cuts it at findingNameCap with the mark that
+// says it cut. What an uncut name costs is that constant's own comment.
 
 import (
 	"bytes"
@@ -51,8 +50,6 @@ var (
 // rest are reported and NOT checked — an unchecked subcommand must never read as one with a call site.
 const subcommandCap = 256
 
-// The heads this scan's findings lead with, which report.go's rankTable ranks them on.
-//
 // Every way of failing to read a dispatch is said under `unreadDispatch`. One class, because it is one
 // fact however it is reached — this scan holds a script that has subcommands and could name none of
 // them. The tail of each says what was checked in the dispatch's place, or that nothing was.
@@ -287,9 +284,8 @@ func (c *checker) toolSubcommands(base string, lines []string, opened bool) []st
 	return shell.SortUnique(append(append([]string{}, dispatched...), documented...))
 }
 
-// The one sentence every way of failing to reach the dispatch behind a usage grammar is said in:
-// which way it could not be read, and that the grammar's own list was checked in its place. One home
-// for it, so the three ways cannot drift into three wordings a reader has to learn separately.
+// One home for this sentence, so the three ways of failing to reach a dispatch cannot drift into three
+// wordings a reader has to learn separately.
 func (c *checker) reportUnreadDispatch(base, why string, documented []string) {
 	c.add(unreadDispatch + fmt.Sprintf("%s (%s) — the %d subcommand(s) its usage names were checked against that usage alone",
 		c.scriptNamed(base), why, len(documented)))

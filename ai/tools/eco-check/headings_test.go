@@ -1,10 +1,5 @@
 package ecocheck
 
-// Each markdown file is parsed once per run. The citation scan asks a target for its headings once per
-// citation and the reviewed tree writes both sides of that: 200 citations into a 6.3 MB target took 64
-// seconds, and 3000 did not finish, off a 114 KB file and a 6 MB one — each well under the read bound
-// on its own.
-//
 // Asserted on map identity rather than on elapsed time: a second parse produces an equal map, so
 // equality cannot tell a memo from a re-parse, and a clock makes the case a coin flip on a loaded
 // machine.
@@ -57,8 +52,6 @@ func TestAMarkdownFileIsParsedOncePerRun(t *testing.T) {
 		}
 	})
 
-	// A memo keyed on nothing would serve one file's headings for another's, which is worse than the
-	// re-parse it replaces: a citation would resolve against a file it never named.
 	t.Run("and a second file gets its own", func(t *testing.T) {
 		other := t.TempDir() + "/other.md"
 		if err := os.WriteFile(other, []byte("# O\n\n## Beta\n"), 0o600); err != nil {

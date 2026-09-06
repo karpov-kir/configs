@@ -1,9 +1,5 @@
 package density
 
-// What reaches the scanner rather than what it does with a line once it has one: the arguments
-// it refuses, the diff text it parses, the untracked arm, and the path shapes that have hidden a
-// file from a scan.
-
 import (
 	"strings"
 	"testing"

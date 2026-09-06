@@ -1,8 +1,5 @@
 package ecostats_test
 
-// What `--append` writes: the note it will take, the row it forges nothing extra into, and the header
-// a ledger that does not exist yet is opened with.
-
 import (
 	"bytes"
 	"fmt"
@@ -109,10 +106,9 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 	})
 
 	// The seed and the live ledger are a .md/source pair, which the shared-region scan cannot cover —
-	// it reads `*.sh` only. They had already drifted: the seed carried none of the three rules the
-	// real file owns, so a fresh install started with no protection for the column. Nothing but this
-	// case notices, because the seed path runs only when there is no ledger — never on the tree that
-	// would show it.
+	// it reads `*.sh` only. Drift between them costs a fresh install the rules the real file owns, and
+	// nothing but this case notices: the seed path runs only when there is no ledger, never on the tree
+	// that would show it.
 	t.Run("the seeded ledger says what the live one says", func(t *testing.T) {
 		f := newRoot(t)
 		f.installStats()
@@ -195,7 +191,6 @@ func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
 // The tree's own ledger, from the package directory `go test` runs in.
 const liveLedger = "../../skills/kk-reduce/stats.md"
 
-// `awk 'BEGIN { for (i = 1; i <= n; i++) printf "word%d ", i }'`.
 func wordsCount(n int) string {
 	var note strings.Builder
 	for i := 1; i <= n; i++ {

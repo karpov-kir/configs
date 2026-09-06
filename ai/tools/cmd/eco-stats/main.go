@@ -1,5 +1,4 @@
-// The ecosystem size ledger as a command, and the only os.Exit in the tool: everything it does lives
-// in the package beside it, so the suite can drive the same code without a process per case.
+// The ecosystem size ledger as a command.
 //
 //	usage: ecostats [<root>]                    print the current measurements
 //	       ecostats --append "<note>" [<root>]  print them and append a dated row to stats.md

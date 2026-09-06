@@ -1,10 +1,12 @@
 <!-- Fill the slots; add nothing else — what you add yourself pre-selects which rules the stage
-     applies. A lead the orchestrator inferred is exactly that, however useful it looks. The
-     handoff, patch-queue, emphasis and tool-output slots are omitted entirely when empty. -->
+     applies. That includes a lead you inferred, however useful it looks. Omit an empty slot
+     entirely. -->
 
 Run the `<skill name>` skill in full, per its SKILL.md.
 
 Change scope: <the change set the orchestrator resolved — files, diff selector, worktree path, …>
+
+Held by a concurrent lane — read freely, write none, and return a fix that lands there as a proposal: <the paths, and which agent holds each>
 
 Ledger: <the exact path — `<scratch>/<skill name>-queue.md`, made distinct for each spawn of one skill>
 

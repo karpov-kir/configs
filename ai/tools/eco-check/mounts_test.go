@@ -35,9 +35,6 @@ func newInstalledRootWithSkillsMount(t *testing.T) *fixture {
 // the install must still be checked exactly as before. Silence alone is what a deleted scan looks
 // like, so neither case means anything without the other.
 func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
-	// A clone, a PR review's worktree, or a CI runner: $HOME mounts nothing of this tree. Every mount
-	// finding here would be restating that, and it made the wiring gate red on every CI run for a
-	// reason having nothing to do with what it gates.
 	t.Run("says nothing about the mounts of a checkout $HOME does not mount", func(t *testing.T) {
 		f := newRoot(t)
 		f.newHomeWithoutFlavorMount()
@@ -103,7 +100,6 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	// Without this the case below passes on a run that raised no mount finding at all.
 	t.Run("reports a skill mounted somewhere else (control for the case below)", func(t *testing.T) {
 		newSkillMountedElsewhere(t).reports(ecocheck.SkillMountedElsewhere)
 	})
@@ -280,7 +276,6 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	// Without this the case below passes on a run that raised no reverse finding at all.
 	t.Run("reports the mount (control for the case below)", func(t *testing.T) {
 		newMountWithAControlByte(t).reports(ecocheck.MountWithoutASkill)
 	})

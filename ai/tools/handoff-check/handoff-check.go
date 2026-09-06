@@ -66,8 +66,8 @@ var dangling = []string{
 
 // Bounded on both sides, or a phrase matches inside a word: "was discussed" contains "as discussed",
 // "was before" contains "as before", and the finding then quotes the author a phrase they cannot find
-// written that way anywhere in the draft. `[^0-9A-Za-z]` is `[[:alnum:]]` under LC_ALL=C, which is
-// the locale the shell stub's predecessor pinned and the only one these patterns were written for.
+// written that way anywhere in the draft. `[^0-9A-Za-z]` is `[[:alnum:]]` under LC_ALL=C, the only
+// locale these patterns were written for.
 var dangleMatchers = compileDangling()
 
 func compileDangling() []*regexp.Regexp {
@@ -190,9 +190,8 @@ func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
 	return 1
 }
 
-// readDraft is the draft's own three refusals, in the order the shell gate put them: a path that is
-// not a readable regular file cannot be told apart from an unreadable one by a stat alone, so the
-// read itself answers both.
+// The draft's own three refusals. A path that is not a readable regular file cannot be told apart from
+// an unreadable one by a stat alone, so the read itself answers both.
 func readDraft(draft string, die func(string, ...any) int) (string, int) {
 	if !shell.IsRegularFile(draft) {
 		return "", die("no such file: %s", draft)
@@ -295,7 +294,7 @@ func (s *scan) readHeading(raw string) string {
 }
 
 func (s *scan) readReachback(text string, lineNo int) {
-	low := asciiLower(text)
+	low := shell.AsciiLower(text)
 	for _, matcher := range dangleMatchers {
 		if hit := matcher.FindString(low); hit != "" {
 			// The finding names the way out, because a caller is told to fix what a finding says and
@@ -453,18 +452,6 @@ func isHex(text string) bool {
 		}
 	}
 	return true
-}
-
-// asciiLower is tolower under LC_ALL=C, which touches ASCII and nothing else. strings.ToLower would
-// fold non-ASCII too, so a draft's own bytes would decide whether a phrase matched.
-func asciiLower(text string) string {
-	out := []byte(text)
-	for i, b := range out {
-		if b >= 'A' && b <= 'Z' {
-			out[i] = b + 'a' - 'A'
-		}
-	}
-	return string(out)
 }
 
 // readFile is the whole read: a draft is a prompt somebody wrote, so nothing here streams or bounds

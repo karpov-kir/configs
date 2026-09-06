@@ -460,7 +460,7 @@ var mutants = []mutant{
 	// families.go — direction inside the skill layer. Each of these turns the scan into one that looks
 	// like it works: it still runs, still reports nothing on a clean tree, and has stopped checking.
 	{"families: the router exception swallows every any-repo skill", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case name == familyRouter:", "case name == familyRouter || true:"},
-	{"families: the scan runs in the permitted direction too", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\t// The permitted direction", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\t// The permitted direction"},
+	{"families: the scan runs in the permitted direction too", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\tcontinue", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\tcontinue"},
 	{"families: the router keeps a blanket pass, claim or no claim", "families.go", "./eco-check/", "TestFamilyDirectionScan", "c.assertRouterClaimsItsException(name)", "_ = name"},
 	{"families: a skill in neither family goes unreported", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case !strings.HasPrefix(name, anyRepoFamily):", "case !strings.HasPrefix(name, anyRepoFamily) && false:"},
 	{"families: only SKILL.md is read, so scripts go unchecked", "families.go", "./eco-check/", "TestFamilyDirectionScan", `c.filesNamed(dir, "*.md", "*.sh")`, `c.filesNamed(dir, "*.md")`},
@@ -1031,6 +1031,10 @@ var mutants = []mutant{
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
 	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSecretNamedFileIsNeverRead",
 		"if opts.SkipSecretNamed && secretNamed(name) {", "if false {"},
+	// The same guard on the other arm: the untracked one covers only what git does not track, and a
+	// tracked `.env` reaches the report through the diff. dup.go's own comment carries the measurement.
+	{"dup: a secret-named file in the DIFF is scanned anyway", "../dup-literals/dup.go", "./dup-literals/", "TestATrackedSecretNamedFileIsNeverScannedEither",
+		"if diffscan.SecretNamed(added.File) {", "if false {"},
 	// The other half of that skip: the announcement naming the file it declined. The name is the
 	// branch author's, `.env*` matches whatever follows the prefix, and this is the one message
 	// diffscan builds itself rather than handing to a scanner that sanitises on the way out. Two

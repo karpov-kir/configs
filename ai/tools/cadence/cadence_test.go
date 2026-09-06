@@ -285,7 +285,6 @@ func TestOutsideAnyRepository(t *testing.T) {
 
 // --- the record's own three answers -------------------------------------------------------------
 
-// Never offered is due: the first run in a fresh checkout.
 func TestNeverOfferedIsDue(t *testing.T) {
 	f := newRepo(t)
 	f.run("audit", "due")
@@ -350,7 +349,6 @@ func TestTheInterval(t *testing.T) {
 	})
 }
 
-// A record that grew a second line must still resolve rather than fall through to undetermined.
 func TestATrailingLineStillResolves(t *testing.T) {
 	t.Run("a second line is ignored", func(t *testing.T) {
 		f := newRepo(t)
@@ -388,7 +386,6 @@ func TestAFutureStampIsUndetermined(t *testing.T) {
 	f.expectCode(t, 2)
 	f.expectOut(t, "later than today")
 	f.expectNotOut(t, "not due:")
-	// The message says outright which of the two it is.
 	f.expectOut(t, "this is not a 'not due'")
 	f.expectNoStdout(t)
 }
@@ -411,18 +408,16 @@ func TestARecordThatIsNoDate(t *testing.T) {
 		// future-stamp guard refuses on its own — so that case cannot show this check firing and this
 		// one can.
 		{"a day out of range", "2025-01-32", "the calendar's day range"},
-		// Right fields, wrong widths. Everything downstream of the shape check reads this as the first
-		// of January: a one-character month field parses as 1 and the truncated day as 5, both inside
-		// the ranges the calendar checks. The shape check is the only thing between it and a day
-		// number computed from a string that is not the date it looks like.
+		// Right fields, wrong widths. The length test refuses it at nine bytes; time.Parse refuses it
+		// too, with `cannot parse "1-15" as "01"`, so neither guard is what stands between this and a
+		// wrong day number. Kept because a record written by hand is where this shape comes from.
 		{"a date with unpadded fields", "2025-1-15", "the shape check's fixed widths"},
 		// Longer than a date, and the only case reaching the length guard from ABOVE — every other stamp
 		// here is ten bytes or fewer. The guard is not redundant beside the per-byte loop under it: that
 		// loop indexes the LAYOUT at the input's own offsets, so without the length test an eleven-byte
 		// record walks off the end of `2006-01-02` and the tool panics where it was meant to refuse.
 		{"a stamp longer than a date", "2026-01-021", "the shape check's length, before any byte is indexed"},
-		// A separator where a date has one and this record does not. Nothing else here puts a wrong byte
-		// at position 4.
+		// Nothing else here puts a wrong byte at position 4, where a date carries its separator.
 		{"a wrong separator between the fields", "2026:01-02", "the shape check's separators"},
 	}
 	for _, tc := range cases {

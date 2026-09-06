@@ -30,7 +30,6 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The directories that make a checkout an ecosystem one.
 const (
 	flavorDir = "kk-flavor"
 	skillsDir = "skills"

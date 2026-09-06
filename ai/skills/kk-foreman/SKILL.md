@@ -22,9 +22,7 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 **Two things still stop you.** A decision that blocks under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** still blocks. And **an act with no undo still waits for the human** (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**) — **merging is on that side of the line**, however close it sits to the acts above.
 
-**Nothing else loosens** — nothing in the rest of the flavor, and nothing in `kk-foreman`'s own **Route** or **Rules**, beyond the two the first bullet lifts.
-
-**The slot is the emphasis one** in `~/.kk-flavor/templates/spawn-prompt.md`, and what goes in it is the licence above rather than the argument that triggered it. `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** owns the rest.
+**Nothing else loosens** — nothing in the rest of the flavor, and nothing in `kk-foreman`'s own **Route** or **Rules**, beyond the lifts the bullets above name.
 
 ## 1. Route
 
@@ -67,7 +65,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 ## 2. Run
 
-Spawn each stage in the order **Route** resolved.
+Run each stage in the order **Route** resolved — spawned, unless that skill's own file says it runs inline (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
@@ -75,4 +73,4 @@ Spawn each stage in the order **Route** resolved.
 
 - **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes — which an `unattended` run already carries.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
-- **Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires.** Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**
+- Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires. Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**

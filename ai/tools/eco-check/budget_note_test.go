@@ -16,7 +16,6 @@ import (
 func TestUncountedNoteCarriesNoControlByte(t *testing.T) {
 	note := uncountedNote([]string{"a\x1b[2Kb\x00.md"})
 
-	// The control: without it the assertion below passes on an empty note.
 	if !strings.Contains(note, "1 uncounted import(s)") {
 		t.Fatalf("the note has to name the count it exists to carry: %q", note)
 	}
@@ -85,7 +84,6 @@ func TestACutUncountedNameSaysThatItWasCut(t *testing.T) {
 	t.Run("marks a name it cut", func(t *testing.T) {
 		note := uncountedNote([]string{strings.Repeat("wide", 80) + ".md"})
 
-		// The control: without it the assertion below passes on an empty note.
 		if !strings.Contains(note, "1 uncounted import(s)") {
 			t.Fatalf("the note has to name the count it exists to carry: %q", note)
 		}

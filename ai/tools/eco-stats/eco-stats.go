@@ -39,7 +39,7 @@ const budgetRefusalCap = 5
 
 // Run measures the tree under root and writes the report to out. args is the command line without
 // its program name; self is the program name itself, which is where the ledger is looked for. An
-// empty root means the two candidates the shell version tried, in order.
+// empty root means the two candidates ecoroot tries, in order.
 func Run(self string, args []string, out, errOut io.Writer) int {
 	note, rest, ok := noteFrom(args, errOut)
 	if !ok {
@@ -94,9 +94,8 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	return s.appendRow(self, note, out, errOut)
 }
 
-// The shell's `case "${1:-}" in --append) …`: the note is one argument, so an unquoted one leaves its
-// first word as the note and its second read as the root. An absent or empty note is the default,
-// never an empty cell.
+// The note is one argument, so an unquoted one leaves its first word as the note and its second read
+// as the root. An absent or empty note is the default, never an empty cell.
 func noteFrom(args []string, errOut io.Writer) (note string, rest []string, ok bool) {
 	if len(args) == 0 || args[0] != "--append" {
 		return "", args, true

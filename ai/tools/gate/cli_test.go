@@ -46,9 +46,6 @@ func TestAnUnknownArgumentRefuses(t *testing.T) {
 	f.expectOut("unknown argument")
 }
 
-// A zero-byte `ai/a;true;#-test.sh` would run as `ai/run-tests.sh -s ai/a` then `true`, so the unit
-// exits 0 and the gate writes a green record for a suite that never ran. The file's contents are
-// empty, so nothing reviewing contents would see it; the executable part is the name.
 func TestTheNameGuardRefusesWhatWouldBecomeSyntax(t *testing.T) {
 	cases := []struct{ name, value string }{
 		{"a semicolon", "ai/a;true;#-test.sh"},
