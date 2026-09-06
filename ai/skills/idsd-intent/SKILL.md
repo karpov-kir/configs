@@ -38,7 +38,7 @@ Emit one outcome line as the gate's evidence: the residual ambiguities found and
 
 **Precondition:** write no file until Phase 2's outcome line is emitted.
 
-Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one.
+Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one. **Sweep every branch, not the tree you can see** — an intent in flight lives only on its own branch until it merges, so a working-tree read hands out a number a sibling wrote an hour ago and neither author ever learns: `git branch --format='%(refname:short)'`, then `git ls-tree -d --name-only <branch> .idsd/intents/`.
 
 Write each ICE to `.idsd/intents/NNN-<slug>/intent.md` from `templates/ice-template.md` at `status: draft`.
 
