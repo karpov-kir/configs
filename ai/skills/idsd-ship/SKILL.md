@@ -16,7 +16,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
 | `idsd-ship promote` | Turn a throwaway `.idsd/` into a durable idsd project. |
 
-With no `<arg>` and no subcommand, list the not-yet-built intents and ask which.
+With no `<arg>` and no subcommand, list the not-yet-built intents and ask which — and where several share no unbuilt dependency, offer `idsd-reactor`, which builds that whole set at once.
 
 ## Report & .idsd lifecycle
 

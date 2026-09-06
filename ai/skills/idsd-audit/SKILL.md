@@ -26,7 +26,7 @@ Skip a check only when its inputs are absent.
 
 ## Phase 3 — Report
 
-One report, grouped by severity — **Blocker** (breaks a build or ships a violation), **Fix** (drift to reconcile), **Nit** — plus the informational **Build batches** list when any intent is unbuilt.
+One report, grouped by severity — **Blocker** (breaks a build or ships a violation), **Fix** (drift to reconcile), **Nit** — plus the informational **Build batches** list when any intent is unbuilt — the schedule `idsd-reactor` launches from.
 
 Each finding names the file(s), the **owning skill** to fix it through — `idsd-intent` (intents, links, scope sync, `language.md`), `idsd-charter` (vision, scope, `constraints.md`), `idsd-build` (the `archive/` move, `roadmap.md` regeneration, follow-up closure) — and the smallest reconciling move, never a redesign.
 
