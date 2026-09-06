@@ -23,7 +23,7 @@ Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree alrea
 
 ## 2. Launch — one agent per intent
 
-Spawn one agent per launchable intent, **all in one message**, so they draft in parallel. Each agent then runs `kk-handoff` **inline**. `~/.claude/skills/kk-handoff/SKILL.md` bars spawning that skill, not spawning an agent that runs it over context you handed it — so you spawn the agent, never `kk-handoff`.
+Spawn one agent per launchable intent, **every spawn in a single message**, so they draft at once. Each agent then runs `kk-handoff` **inline**. `~/.claude/skills/kk-handoff/SKILL.md` bars spawning that skill, not spawning an agent that runs it over context you handed it — so you spawn the agent, never `kk-handoff`.
 
 **Keep each prompt thin.** Its task is one line: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
 
@@ -35,7 +35,9 @@ Hand each agent what no file on disk carries:
 - the three messages to send here (**3**), each sent **before** the session archives itself, since archiving stops it and loses anything unsent;
 - any licence you run under, verbatim — nothing else lets a session commit its own merge.
 
-Done when one chip per launchable intent exists. **With nobody at the keyboard the run ends here** — a chip starts a session only when the human clicks it, so nothing wakes **3**. Name the intents left waiting on a click.
+**An agent whose session has no chip mechanism returns a draft path instead** (`~/.claude/skills/kk-handoff/SKILL.md` → **3. Hand it over**). Create those chips yourself once the agents are back, again in one message — drafting is the slow part, so the run stays parallel either way.
+
+Done when one chip per launchable intent exists, off one round of spawns rather than a sequence of them. **With nobody at the keyboard the run ends here** — a chip starts a session only when the human clicks it, so nothing wakes **3**. Name the intents left waiting on a click.
 
 ## 3. React
 
