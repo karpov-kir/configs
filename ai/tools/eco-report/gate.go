@@ -11,9 +11,8 @@ import (
 // token `idsd-ship continue` acts on.
 
 // What every overridable block says about being overridden. One literal, because five call sites said
-// it identically and a sixth would have said it slightly differently — and the sentence is load-bearing:
-// a comment pass found the earlier wording promised a flag (`--override`, `--force`, `-f`) that has
-// never existed, so a reader was being pointed at a mechanism rather than told the truth.
+// it identically and a sixth would have said it slightly differently. Never reword it to name a flag:
+// none of `--override`, `--force` or `-f` has ever existed, and an earlier wording promised one.
 const overridableByAHumanOnly = "No flag overrides this; overriding means a human deciding to merge anyway."
 
 func (r *run) cmdGate() {
@@ -43,10 +42,13 @@ func (r *run) blocksOnFreshness() bool {
 	reviewed := r.reviewedTree()
 	blocked := false
 	if current != reviewed {
-		if reviewed == "" {
-			reviewed = "<unstamped>"
+		// `reviewed-tree` is a fingerprint only when the stamp wrote it — on a hand-edited report anything
+		// at all sits on that line. So it is collapsed, like every value the note below covers.
+		shown := shell.Oneline(reviewed)
+		if shown == "" {
+			shown = "<unstamped>"
 		}
-		r.errLines("BLOCK (freshness): tree changed since last qualify (current " + current + " != reviewed " + reviewed + "). Re-qualify. " + overridableByAHumanOnly)
+		r.errLines("BLOCK (freshness): tree changed since last qualify (current " + current + " != reviewed " + shown + "). Re-qualify. " + overridableByAHumanOnly)
 		blocked = true
 	}
 	// Whether the sentence below may claim identical trees. It is reachable with a STALE tree — an

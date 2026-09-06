@@ -1,8 +1,7 @@
 package ecoreport_test
 
 // The merge gate itself, and the two things that read the same stamp: the routing token and the
-// carry list. The gate has four block reasons and one clean line, and a gate that never clears is
-// as useless as one that never blocks — so the clean line is asserted before any of the blocks.
+// carry list. The gate has four block reasons and one clean line.
 
 import (
 	"os"

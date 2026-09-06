@@ -141,8 +141,8 @@ func TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) 
 func TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport(t *testing.T) {
 	t.Parallel()
 	// `.git/info/exclude` is one machine's file: it never leaves this clone, so a report ignored only
-	// there is staged by the next `git add -A` on anybody else's. ignoredSourceTravels holds why this
-	// predicate once answered otherwise.
+	// there is staged by the next `git add -A` on anybody else's. ignoredSourceTravels holds why the plain
+	// question answers otherwise.
 	f := newCommittedRepoUnignored(t)
 	f.appendTo(f.repo+"/.git/info/exclude", ignoreBlock())
 	_, ignored := f.git("check-ignore", "-q", ignoreProbePath())

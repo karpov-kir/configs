@@ -49,11 +49,12 @@ func (r *run) writeStageMarker(stage, value string) {
 	// stage, so a mode any other local account can write is a merge precondition anyone on the machine
 	// can forge. Matches the scratch record tree, which is 0700 for the same reason.
 	if err := os.MkdirAll(r.stageReturnsDir, 0o700); err != nil {
-		r.errLines("error: could not write " + r.stageReturnsDir + "/" + stage + " — " + stage + " is NOT marked")
+		r.errLines("error: could not create " + r.stageReturnsDir + " (" + err.Error() + ") — " + stage + " is NOT marked")
 		r.exit(2)
 	}
-	if err := os.WriteFile(r.stageReturnsDir+"/"+stage, []byte(value+"\n"), 0o600); err != nil {
-		r.errLines("error: could not write " + r.stageReturnsDir + "/" + stage + " — " + stage + " is NOT marked")
+	marker := r.stageReturnsDir + "/" + stage
+	if err := os.WriteFile(marker, []byte(value+"\n"), 0o600); err != nil {
+		r.errLines("error: could not write " + marker + " (" + err.Error() + ") — " + stage + " is NOT marked")
 		r.exit(2)
 	}
 }
@@ -121,9 +122,6 @@ func validateStampEntries(entries string) []string {
 		}
 		seen[stage]++
 	}
-	// The required-set check, in pipeline order: the shell version this once matched the refusal
-	// wording of is a stub that execs this binary, so its awk walk order has nothing left to agree
-	// with.
 	for _, stage := range stageList() {
 		switch {
 		case seen[stage] == 0:

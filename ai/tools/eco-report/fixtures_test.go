@@ -20,8 +20,7 @@ import (
 // shim. Going through the shim costs 2.06x the real git behind it: 37.9ms a spawn against 18.4ms.
 //
 // This package makes about 4300 spawns, and the shim had pushed it past `go test`'s 600s default:
-// a FAIL at 603.4s on a loaded machine. Skipping it measured 286.6s down to 174.1s and 118.1s,
-// interleaved so drift could not produce the result.
+// a FAIL at 603.4s on a loaded machine.
 //
 // Resolved once, because `xcrun` is itself a spawn. No-op wherever xcrun is absent, which is every
 // Linux runner.
@@ -196,8 +195,6 @@ func containsLine(text, line string) bool {
 	return false
 }
 
-// The four line counters below are one loop over four questions: what differs between them is which
-// lines count, and each name is what a case reads at its call site.
 func countLines(text string, counts func(string) bool) int {
 	count := 0
 	for _, line := range strings.Split(text, "\n") {

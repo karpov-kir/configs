@@ -103,8 +103,7 @@ func TestDiscardDestructivePath(t *testing.T) {
 		parallel.status == 0 && parallel.isFile(parallel.reportPath("002-staying")) &&
 			parallel.isFile(parallel.shipDir("002-staying")+"/intent.md") &&
 			!parallel.isFile(parallel.shipDir("001-going")+"/intent.md"),
-		"exit "+strconv.Itoa(parallel.status)+"; reports: "+joinLines(parallel.entries(parallel.scratch()+"/intents"))+
-			"; intents: "+joinLines(parallel.entries(parallel.scratch()+"/intents")))
+		"exit "+strconv.Itoa(parallel.status)+"; ship folders: "+joinLines(parallel.entries(parallel.scratch()+"/intents")))
 	parallel.assertReports("other qualify report", "and names the parallel ship as what kept .idsd/ alive")
 
 	// An intent that already built has its file in archive/ rather than intents/, and both are this ship's.

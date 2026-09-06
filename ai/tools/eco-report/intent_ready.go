@@ -158,7 +158,10 @@ func (r *run) unbuiltDependencies(lines []string) []string {
 		case file == "":
 			blocks = append(blocks, "  depends-on "+number+" names no intent under "+r.idsdDir+"/intents/ or /archive/")
 		case status != "built":
-			blocks = append(blocks, "  depends-on "+number+" is not built yet ("+file+" is "+shell.Oneline(status)+") — build that one first")
+			// The path is collapsed as well as the status: it carries a ship FOLDER's name, and a folder
+			// name is not a value this tool wrote — `init` holds the slug charset, but a folder authored by
+			// idsd-intent or arriving on someone else's branch answers to nothing here.
+			blocks = append(blocks, "  depends-on "+number+" is not built yet ("+shell.Oneline(file)+" is "+shell.Oneline(status)+") — build that one first")
 		}
 	}
 	return blocks

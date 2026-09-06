@@ -405,7 +405,12 @@ var mutants = []mutant{
 	{"unstamped: the template's <worktree> reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "", "pending", "<hash>", "<stages>":`},
 	{"unstamped: an absent field reads as a completed review", "../eco-report/frontmatter.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", `case "", "pending", "<hash>", "<stages>", "<worktree>":`, `case "pending", "<hash>", "<stages>", "<worktree>":`},
 	{"turnaround trims: a turnaround trim no longer trims", "../eco-report/frontmatter.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `strings.Contains(entry, "(turnaround)")`, `strings.Contains(entry, "(TURNAROUND)")`},
-	{"intent slug: the charset no longer bounds the slug", "../eco-report/frontmatter.go", "./eco-report/", "TestAHandEditedIntentCannotSteerAPathOutOfIdsd", `if slug == "" || strings.HasPrefix(slug, "review:") || !isSlugCharset(slug) {`, `if slug == "" || strings.HasPrefix(slug, "review:") {`},
+	// intentSlug's own copy of the arm reportNameFor uses, and only its dot half is anchored here. The
+	// charset half is unobserved: `..` and `../../x` both satisfy the charset, so every value any case
+	// plants on the `intent:` line is caught by the dot before the charset is consulted, and a mutant
+	// over the charset alone survives the whole suite. What would observe it is a value holding `/`
+	// without a leading dot, which no case plants.
+	{"intent slug: a leading dot no longer refused", "../eco-report/frontmatter.go", "./eco-report/", "TestAnIntentFrontmatterValueCannotNameTheScratchRoot", `strings.HasPrefix(slug, ".") || !isSlugCharset(slug) {`, `!isSlugCharset(slug) {`},
 	{"template: a symlinked template read", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "if shell.IsSymlink(r.template) {", "if false {"},
 	{"template: a missing template not named as the cause", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", "if !shell.IsRegularFile(r.template) {", "if false {"},
 	{"template: no intent: line to stamp", "../eco-report/frontmatter.go", "./eco-report/", "TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded", `if !hasField(r.template, "intent") {`, "if false {"},
@@ -438,7 +443,7 @@ var mutants = []mutant{
 	{"invalidate: the reviewing worktree survives an invalidate", "../eco-report/frontmatter.go", "./eco-report/", "TestTheStampRecordsWhichWorktreeReviewedTheTree", "case strings.HasPrefix(line, \"reviewed-worktree:\"):\n\t\t\treturn []string{\"reviewed-worktree: pending\"}", "case strings.HasPrefix(line, \"reviewed-worktree:\") \u0026\u0026 false:\n\t\t\treturn []string{\"reviewed-worktree: pending\"}"},
 	{"worktree identity: the path is compared instead of the token", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", "func (r *run) reviewedWorktreeToken() string {\n\treturn firstField(fieldValue(r.report, \"reviewed-worktree\"))", "func (r *run) reviewedWorktreeToken() string {\n\tfields := shell.SplitFields(fieldValue(r.report, \"reviewed-worktree\"))\n\tif len(fields) == 0 {\n\t\treturn \"\"\n\t}\n\treturn fields[len(fields)-1]"},
 	{"worktree identity: the token is minted fresh on every read", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", "if content, err := os.ReadFile(path); err == nil {", "if content, err := os.ReadFile(path); err != nil {"},
-	{"worktree identity: the token is not persisted, so a move loses it", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", `if err := os.WriteFile(path, []byte(token+"\n"), 0o666); err != nil {`, "if err := error(nil); err != nil {"},
+	{"worktree identity: the token is not persisted, so a move loses it", "../eco-report/worktree.go", "./eco-report/", "TestAWorktreeIdentityIsNotItsPath", `if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {`, "if err := error(nil); err != nil {"},
 
 	{"gate: a stamped tree with no reviewing worktree gates clean", "../eco-report/worktree.go", "./eco-report/", "TestAStampedTreeWithNoReviewingWorktreeIsNotAReview", "case !isWorktreeToken(recorded) \u0026\u0026 !isUnstamped(r.reviewedTree()):", "case false:"},
 	{"promote: the target check counts entries, not files", "../eco-report/scratch.go", "./eco-report/", "TestPromoteCountsFilesNotDirectoryEntries", "count, sample, err := filesUnder(target)", "entries, _ := os.ReadDir(target)\n\tcount, sample, err := len(entries), []string(nil), error(nil)"},
@@ -447,12 +452,12 @@ var mutants = []mutant{
 	{"gate: the identical-trees claim is made unconditionally", "../eco-report/gate.go", "./eco-report/", "TestTheGateClaimsIdenticalTreesOnlyWhenTheyAre", "sameTree := \"\"\n\tif current == reviewed {", "sameTree := \"\"\n\tif true {"},
 
 	{"override root: a symlinked root accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", "if shell.IsSymlink(root) {", "if shell.IsSymlink(root) \u0026\u0026 false {"},
-	{"override root: a group-writable root accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `if mode := info.Mode().Perm(); mode&0o022 != 0 {`, `if mode := info.Mode().Perm(); false {`},
+	{"override root: a group-writable root accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `if mode := info.Mode().Perm(); isGroupOrWorldWritable(mode) {`, `if mode := info.Mode().Perm(); false {`},
 	{"override root: an unreadable root passes as checked", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", "if errors.Is(err, fs.ErrNotExist) {", "if errors.Is(err, fs.ErrNotExist) || true {"},
 
 	{"override root: a writable ancestor accepted", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `for _, above := range directoriesAbove(root) {`, `for _, above := range []string(nil) {`},
-	{"override root: the sticky exemption inverted, so a plain writable ancestor passes", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `return mode.Perm()&0o022 != 0 && mode&os.ModeSticky == 0`, `return mode.Perm()&0o022 != 0 && mode&os.ModeSticky != 0`},
-	{"override config: a world-writable config accepted", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", `if info.Mode().Perm()&0o022 != 0 {`, `if false {`},
+	{"override root: the sticky exemption inverted, so a plain writable ancestor passes", "../eco-report/root.go", "./eco-report/", "TestAnUntrustworthyOverrideRootIsRefused", `return isGroupOrWorldWritable(mode) && mode&os.ModeSticky == 0`, `return isGroupOrWorldWritable(mode) && mode&os.ModeSticky != 0`},
+	{"override config: a world-writable config accepted", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", `if isGroupOrWorldWritable(info.Mode()) {`, `if false {`},
 	{"override config: an unreadable config passes as a checked one", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", "\tinfo, err := os.Lstat(path)\n\tif err != nil {", "\tinfo, err := os.Lstat(path)\n\tif err != nil \u0026\u0026 false {"},
 	{"override config: a symlinked config judged by its target", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", "	if shell.IsSymlink(path) {\n\t\tr.refuse(\"error: \"+shell.Oneline(path)+\" is a symlink", "	if false {\n\t\tr.refuse(\"error: \"+shell.Oneline(path)+\" is a symlink"},
 	{"override config: a writable directory holding it accepted", "../eco-report/root.go", "./eco-report/", "TestTheOverrideConfigIsJudgedLikeTheRootItNames", `for _, above := range directoriesAbove(path) {`, `for _, above := range []string(nil) {`},
@@ -503,7 +508,7 @@ var mutants = []mutant{
 	// `!` rule after the entry reads as "ignored, by a file that travels" and promote stages the report.
 	{"ignore source: a negating pattern read as ignoring", "../eco-report/git.go", "./eco-report/", "TestPromoteWritesNoGitignoreThroughALink", "if matched, _, _ := strings.Cut(pattern, \"\\t\"); strings.HasPrefix(matched, \"!\") {\n\t\treturn \"\"\n\t}", "_ = pattern"},
 	{"append: the same entry added twice", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if line == entry {\n\t\t\t\treturn nil", "if line == entry {\n\t\t\t\tbreak"},
-	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if isNonEmptyFile(file) && !endsWithNewline(file) {", "if false {"},
+	{"append: the entry fused onto an unterminated last line", "../eco-report/git.go", "./eco-report/", "TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine", "if !endsWithNewline(file) {", "if false {"},
 
 	// seams.go — the two scripts this tool calls rather than reimplements.
 	{"todo scan: a scan that did not run read as nothing open", "../eco-report/seams.go", "./eco-report/", "TestAScanThatDidNotRunIsNeverReadAsNothingOpen", "func (r *run) readOpenTodos(consequence string) {\n\titems, status := r.runTodoGate()\n\tif status > 1 {", "func (r *run) readOpenTodos(consequence string) {\n\titems, status := r.runTodoGate()\n\tif false {"},
@@ -567,7 +572,7 @@ var mutants = []mutant{
 	{"records: a scratch directory anyone on the machine can read", "../eco-report/records.go", "./eco-report/", "TestOnlyAnAppendCreatesARecord", "os.MkdirAll(r.idsdDir, 0o700)", "os.MkdirAll(r.idsdDir, 0o777)"},
 
 	// gate.go — the merge gate, the items a re-qualify must carry, and the routing token.
-	{"gate: a stale tree no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestTheHumanIndexIsNeverTouched", "if current != reviewed {\n\t\tif reviewed == \"\" {", "if false {\n\t\tif reviewed == \"\" {"},
+	{"gate: a stale tree no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestTheHumanIndexIsNeverTouched", "blocked := false\n\tif current != reviewed {", "blocked := false\n\tif false {"},
 	{"gate: an absent stage record no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "case isUnstamped(stages):", "case isUnstamped(stages) && false:"},
 	{"gate: a turnaround trim no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `case trims != "":`, "case false:"},
 	{"gate: a scan that did not run no longer blocks", "../eco-report/gate.go", "./eco-report/", "TestGateBlocksOnEachOfItsReasonsAndClearsOnNone", "case status > 1:", "case false:"},

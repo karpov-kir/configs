@@ -18,8 +18,7 @@ const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
     not-applicable  = its condition was unmet
 `
 
-// A marker holds the report's checksum as that stage returned, and the stamp demands the report have
-// moved since. Serialising the marks is what makes that per-stage: the round's stages return
+// Serialising the marks is what makes stages.go's checksum rule per-stage: the round's stages return
 // together, so back-to-back marks share one checksum and one edit would clear them all.
 func (r *run) cmdStageReturned() {
 	r.requireReport(r.arg(2))
@@ -84,6 +83,9 @@ func (r *run) cmdStamp() {
 	// `invalidate` is what separates one pass from the next, so it comes before the per-stage check
 	// below, whose markers mean nothing until it is known which pass made them.
 	if stamped := r.reviewedTree(); stamped != "pending" {
+		// Collapsed for the reason gate.go collapses the same field: it is a line out of a hand-editable
+		// report, and it is a fingerprint only when the stamp wrote it.
+		stamped = shell.Oneline(stamped)
 		if stamped == "" {
 			stamped = "<empty>"
 		}

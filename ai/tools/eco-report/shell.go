@@ -54,11 +54,6 @@ func isSlugCharset(value string) bool {
 	return true
 }
 
-func isNonEmptyFile(path string) bool { // -s
-	info, err := os.Stat(path)
-	return err == nil && info.Size() > 0
-}
-
 // -r and -x as access(2) answers them, which is the question the shell's own test builtins asked.
 // `shell` deliberately holds no readability test, because there are two answers and they differ:
 // ecoroot's containment test opens the file, and these must not, since root reads anything and the

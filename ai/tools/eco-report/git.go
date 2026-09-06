@@ -144,10 +144,6 @@ func (r *run) assertRepoModeReadable() {
 // entry answers with the entry's own file as its source while git stages the path anyway, and every
 // caller here reads that as "ignored, and by something that travels". The pattern is read for that
 // reason, not merely the source.
-//
-// The shape only became reachable when the entries grew a `*`. A negated directory entry —
-// `.idsd/qualify-reports/` with `!` after it — matched nothing under `-v`, which exited 1 and printed
-// nothing, so the empty answer carried the refusal on its own.
 func (r *run) ignoreSourceOf(path string) string {
 	answer, _ := r.captureGit(nil, "check-ignore", "-v", path)
 	first, _, _ := strings.Cut(answer, "\n")
@@ -216,7 +212,7 @@ func (r *run) assertReportIsIgnored() {
 // tree — that would put an absolute path into .gitignore, where it matches nothing while both writer
 // and verifier agree it is fine. These entries describe where the files land once the directory IS in
 // the tree, which is the only state either caller is about.
-func (r *run) ignoreSurface() []string {
+func ignoreSurface() []string {
 	return []string{
 		".idsd/intents/*/decisions.md",
 		".idsd/intents/*/language.md",
@@ -251,7 +247,7 @@ func appendLine(file, entry string) error {
 		return err
 	}
 	defer handle.Close()
-	if isNonEmptyFile(file) && !endsWithNewline(file) {
+	if !endsWithNewline(file) {
 		if _, err := handle.WriteString("\n"); err != nil {
 			return err
 		}
@@ -260,6 +256,8 @@ func appendLine(file, entry string) error {
 	return err
 }
 
+// An empty file counts as ending in one: it is the file appendLine has just created, and a separator
+// written into one would put the first entry under a blank line.
 func endsWithNewline(file string) bool {
 	handle, err := os.Open(file)
 	if err != nil {

@@ -18,7 +18,7 @@ import (
 // rather than merely test — promote's use of it is the appendLine that writes the entry.
 func (r *run) ignoreEntriesFailing(attempt func(entry string) bool) string {
 	failing := ""
-	for _, entry := range r.ignoreSurface() {
+	for _, entry := range ignoreSurface() {
 		if attempt(entry) {
 			failing += " '" + entry + "'"
 		}
@@ -173,7 +173,7 @@ func (r *run) assertPromotionTargetIsClear(target string) {
 		return
 	}
 	r.refuse("error: "+target+" already holds "+strconv.Itoa(count)+" file(s) — not promoted, and nothing was written.",
-		"  Still there: "+strings.Join(sample, " ")+sampleTail(count, len(sample)),
+		"  Still there: "+shell.Oneline(strings.Join(sample, " "))+sampleTail(count, len(sample)),
 		"  Promotion moves "+r.idsdDir+" here, and merging the two is not something this decides for you:",
 		"  one side's charter or playbook would silently win. Reconcile them by hand, then re-run.")
 }
@@ -219,7 +219,7 @@ func (r *run) cmdDiscard() {
 	// Without this, a symlinked `.idsd` lets every deletion below reach through to a target outside the
 	// repo. `init` carries the same guard, for the same reason: a link there can steer a write out.
 	r.assertWritePathsAreReal("nothing was discarded")
-	// The filename is the ship's name here — it came from the caller, or from being the only report
+	// The folder name is the ship's name here — it came from the caller, or from being the only report
 	// open. The frontmatter is read only to cross-check it, and only when there is a report left to
 	// read: a closed ship has none, and nothing about the deletion below needed it.
 	stem := stemOfReportPath(r.report)
@@ -242,8 +242,7 @@ func (r *run) cmdDiscard() {
 	// The whole folder rather than its files one by one: a ship's intent, its three intent-local records
 	// and its report all live in it, so nothing here has to enumerate them. The stem reached this through
 	// reportNameFor, which refuses a leading dot and holds the slug charset — that guard is the whole of
-	// what keeps this RemoveAll inside intents/, and it matters more here than it did when this removed
-	// named files.
+	// what keeps this RemoveAll inside intents/.
 	_ = os.RemoveAll(r.shipDir(stem))
 	if slug != "" {
 		_ = os.RemoveAll(r.archiveDir(slug))
@@ -283,5 +282,5 @@ func (r *run) cmdClose(args []string) {
 	// ship for this intent would inherit a completed stage record and stamp for free.
 	_ = os.RemoveAll(r.stageReturnsDir)
 	rmdirIfEmpty(r.intentsDir)
-	r.line("closed %s — its stage markers are gone; decisions.md is untouched", shell.BaseName(r.report))
+	r.line("closed %s — its stage markers are gone; decisions.md is untouched", stemOfReportPath(r.report))
 }

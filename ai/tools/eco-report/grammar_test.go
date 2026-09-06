@@ -11,9 +11,6 @@ import (
 	"testing"
 )
 
-// The record a pass that ran everything writes, and the base every row below varies from.
-const fullRecord = "code-review,security-review,tighten,refactor"
-
 func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "001-grammar")
@@ -35,7 +32,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 		// An extra entry outside the vocabulary, shaped so that nothing downstream catches it: the
 		// four required stages are all present, and `stamp`'s per-stage marker check skips anything
 		// marked skipped. The grammar is the only thing between this and a junk entry in the record.
-		{fullRecord + ",bogus:skipped(not-applicable)", "malformed entry: bogus:skipped(not-applicable)"},
+		{allStagesStampedAs + ",bogus:skipped(not-applicable)", "malformed entry: bogus:skipped(not-applicable)"},
 		// The retired turnaround token. It was the vocabulary before the modes were removed, so it is
 		// the one wrong word a stamp is most likely to carry — and `turnaroundTrims` reads `(turnaround)`,
 		// so a record still saying `fast` would gate a trimmed pass as untrimmed.
@@ -58,7 +55,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	f.record("a record pasted across lines stamps as one record",
 		f.status == 0, f.evidence())
 	f.record("and no whitespace reaches the record the gate reads",
-		containsLine(f.read(report), "reviewed-stages: "+fullRecord), f.read(report))
+		containsLine(f.read(report), "reviewed-stages: "+allStagesStampedAs), f.read(report))
 
 	// Every legal form, each one a record a real pass produces. `refactor:partial(…)` records that the
 	// loop ended non-compliant, which is what ran rather than a trim; `skipped(turnaround)` is a turnaround
@@ -86,7 +83,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 	missing := newShip(t, "001-no-tree-line")
 	missing.armFullPass("001-no-tree-line")
 	missing.dropLines(missing.reportPath("001-no-tree-line"), "reviewed-tree:")
-	missing.runReport("stamp", fullRecord, "001-no-tree-line")
+	missing.runReport("stamp", allStagesStampedAs, "001-no-tree-line")
 	missing.assertRefused("stamp refuses a report with no reviewed-tree line")
 	missing.assertReports("no 'reviewed-tree:' line", "and names the missing line")
 	missing.record("and not the invalidate that cannot put it back",

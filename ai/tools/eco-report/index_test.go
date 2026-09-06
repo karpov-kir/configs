@@ -103,11 +103,11 @@ func TestAMissingFingerprintScriptRefusesInsteadOfRecomputing(t *testing.T) {
 	f.chmod(shim, 0o755)
 }
 
-// The suite once reached the fingerprint script through the developer's own `$HOME` — the copy
-// install.sh puts under `~/.kk-flavor`, which is not in this repository. Every machine that had
-// installed the skills passed, and ubuntu-latest, where release-tools.yml runs `go test ./...`,
-// failed 41 cases across 12 tests. No case on a developer's machine can notice that, because the
-// thing that hides it is the developer's machine. So this one takes it away.
+// A HOME with no `~/.kk-flavor` in it. A suite that reaches the fingerprint script through the
+// developer's own passes wherever the skills are installed and fails everywhere else — harness_test.go's
+// flavorSource holds why, and release-tools.yml runs `go test ./...` on ubuntu-latest. No case on a
+// developer's machine can notice that, because the thing that hides it is the developer's machine. So
+// this one takes it away.
 func TestTheSuiteNeedsNothingInstalledOnTheMachineRunningIt(t *testing.T) {
 	// The one case here that must not be parallel: t.Setenv is process-global, and what makes it safe
 	// to the rest is that `go test` holds every parallel case until the sequential ones have finished.

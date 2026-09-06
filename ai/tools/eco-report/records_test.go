@@ -27,9 +27,6 @@ func localRecordFile(f *fixture, slug, name string) string {
 	return f.shipDir(slug) + "/" + strings.TrimPrefix(name, "local-") + ".md"
 }
 
-// Keeps localRecordFile referenced while only the cases below use it.
-var _ = localRecordFile
-
 func today() string {
 	return time.Now().Format("2006-01-02")
 }

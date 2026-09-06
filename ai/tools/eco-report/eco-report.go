@@ -48,8 +48,8 @@
 //	                 required section, or a depends-on edge that has not shipped → non-zero + reasons.
 //	                 Judgement is the grill's, not this
 //	carry            print prior open `- [ ]` (with their section) so re-qualify loses none
-//	check-ignore     keep qualify-reports/ out of the fingerprint, by the mechanism that fits the repo mode
-//	promote          throwaway → committed: ignore qualify-reports/ via .gitignore, MOVE the scratch
+//	check-ignore     keep each ship's scratch out of the fingerprint, by the mechanism that fits the repo mode
+//	promote          throwaway → committed: ignore each ship's scratch via .gitignore, MOVE the scratch
 //	                 directory into the tree as .idsd/, stage it. Every refusal after the move puts the
 //	                 directory back where it came from
 //	discard          throwaway only: remove this ship's scratch (report, intent file, stage markers),
@@ -67,6 +67,10 @@
 //	                 nothing here asks anybody — a question inside the slot stalls every ship behind
 //	                 it. Another ship holding the slot is exit 4, naming the holder's intent and
 //	                 worktree; --force breaks a slot whose holder the caller has established is gone
+//	merge-slot {take <NNN-slug> [--force]|release}  hold that slot across the judging half of a merge,
+//	                 which writes the project's records and so must not run beside another ship's.
+//	                 finalize takes one for itself when none is held, so a single-ship run needs
+//	                 neither call. Same exit 4 and the same --force as finalize's own
 //	close [--force]  retire one landed ship's report and stage markers. Refuses while an open `- [ ]`
 //	                 stands, since nothing else keeps a copy
 //	record [--intent <NNN-slug>] <append|bump|revise|evict|admit> <record> "<text>" ["<new text>"]
@@ -126,11 +130,12 @@ func Run(args []string, out, errOut io.Writer) int {
 }
 
 // Exec runs one invocation and returns the process exit code. 0 is a result, 1 is a gate's block
-// (`gate`, `intent-ready` and `check-ignore` alone), and 2 is "this did not run" — never a result.
+// (`gate`, `intent-ready` and `check-ignore` alone), 4 is `finalize` finding the merge slot held by
+// another ship, and 2 is "this did not run" — never a result.
 func (inv Invocation) Exec() (code int) {
 	r := newRun(inv)
-	// exit 2 = "this did not run", never a result. Every path that stops halfway leaves by here. A panic
-	// is what gives `refuse` reach from any depth, and nothing in Go recovers it but this function.
+	// Every path that stops halfway leaves by here. A panic is what gives `refuse` reach from any
+	// depth, and nothing in Go recovers it but this function.
 	defer func() {
 		switch signal := recover().(type) {
 		case nil:
@@ -184,11 +189,10 @@ type run struct {
 	// Appended to requireReport's no-report refusal. `gate` is the one caller that needs it: its reader
 	// is standing at a merge, where "run init first" reads as the step that clears the gate.
 	noReportNote []string
-	// Files in qualify-reports/ whose name is not a slug, counted by the last reportNames call so a
+	// Ship folders under intents/ whose name is not a slug, counted by the last reportNames call so a
 	// caller can say it listed fewer reports than the directory holds.
 	unnameableReports int
-	// One fingerprint per invocation. `list` scores every report against the same working tree, so
-	// the walk currentTree does is the same walk each time.
+	// One fingerprint per invocation, held by currentTreeCached.
 	cachedTree string
 	openTodos  string
 }
@@ -312,7 +316,7 @@ func (r *run) dispatch() {
 	case "finalize":
 		r.cmdFinalize(r.args[1:])
 	case "merge-slot":
-		r.cmdMergeSlot(r.args)
+		r.cmdMergeSlot(r.args[1:])
 	case "close":
 		r.cmdClose(r.args[1:])
 	case "record":
@@ -325,8 +329,13 @@ func (r *run) dispatch() {
 
 // The nth argument or the empty string — `${n:-}`, which is how every optional intent name arrives.
 func (r *run) arg(n int) string {
-	if n < len(r.args) {
-		return r.args[n]
+	return argAt(r.args, n)
+}
+
+// The same over a subcommand's own arguments, which is what every cmd* function is handed.
+func argAt(args []string, n int) string {
+	if n < len(args) {
+		return args[n]
 	}
 	return ""
 }
@@ -336,8 +345,8 @@ func (r *run) refuse(lines ...string) {
 	panic(stop{2})
 }
 
-// A code the caller is meant to read as a result: `gate`'s and `intent-ready`'s block, and
-// `check-ignore`'s warning.
+// A code the caller is meant to read as a result: `gate`'s and `intent-ready`'s block,
+// `check-ignore`'s warning, and `finalize`'s held merge slot.
 func (r *run) exit(code int) {
 	panic(stop{code})
 }

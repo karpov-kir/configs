@@ -102,6 +102,7 @@ func fullAtLine(bound int) string {
 // side under one directory and read alike, and a human who opens `decisions.md` expecting the charter's
 // register finds an agent talking to the next agent. What the line says is the audience, never a
 // prohibition: nothing here is secret, and a human is free to read any of it.
+//
 // The pruning point each header states. `records.md` → the record's own definition wants exactly one
 // per record, and six records under two roots cannot each be found by reading a skill — so each file
 // says its own, by the moment rather than by the skill that arrives at it.

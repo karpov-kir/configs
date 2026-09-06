@@ -13,9 +13,9 @@ package ecoreport_test
 // is not an ancestor changes nothing about what git itself answers, so what these cases compare is the
 // two code paths and not two different repositories.
 //
-// That the lever works is not assumed here: TestTheResolverDeclinesWhenTheEnvironmentOverridesTheLayout
-// in layout_test.go drives layoutRoot, layoutGitDir and layoutCommonDir with each of the four names set
-// and requires all three to decline.
+// The lever itself is proven in layout_test.go: TestTheResolverDeclinesWhenTheEnvironmentOverridesTheLayout
+// drives layoutRoot, layoutGitDir and layoutCommonDir with each of the four names set and requires all
+// three to decline.
 //
 // Not parallel, and it cannot be: t.Setenv and t.Parallel are mutually exclusive.
 

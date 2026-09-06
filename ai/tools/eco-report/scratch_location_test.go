@@ -254,13 +254,13 @@ func TestAnInTreeScratchDirectoryIsNeverMigratedSilently(t *testing.T) {
 	empty.record("an empty one is removed rather than refused",
 		empty.status == 0 && !empty.exists(empty.treeIdsd()), empty.evidence())
 
-	// The state a finished migration actually leaves: the files are gone but `intents/` and
-	// `qualify-reports/` still stand as empty directories. Counting directory entries rather than files
-	// reads those as content, so the repo is refused with a message claiming it holds content when it
-	// holds none — and the human has nothing to delete.
+	// The state a finished move actually leaves: the files are gone but `intents/` and `archive/` still
+	// stand as empty directories. Counting directory entries rather than files reads those as content,
+	// so the repo is refused with a message claiming it holds content when it holds none — and the
+	// human has nothing to delete.
 	skeleton := newRepo(t)
 	skeleton.mkdirAll(skeleton.treeIdsd() + "/intents")
-	skeleton.mkdirAll(skeleton.treeIdsd() + "/qualify-reports")
+	skeleton.mkdirAll(skeleton.treeIdsd() + "/archive")
 	skeleton.runReport("check-ignore")
 	skeleton.record("an empty directory skeleton is cleared, not read as content",
 		skeleton.status == 0 && !skeleton.exists(skeleton.treeIdsd()), skeleton.evidence())
@@ -378,7 +378,7 @@ func TestPerWorktreeStateGoesToTheWorktreesOwnGitDir(t *testing.T) {
 // and only asks git when an environment override makes the layout untrustworthy, so the case above
 // never reaches the `--git-path` answer at all: for a linked worktree the layout resolver answers, and
 // the prefixing arm below it is skipped. That left the arm reachable and unreached — a guard with a
-// case named against it that could not fail, which a mutation run reports as a survivor.
+// case named against it that could not fail.
 //
 // GIT_CEILING_DIRECTORIES is the cheapest override that forces the fallback: layoutOverridden reads it
 // and declines, while git's own answer for a path under the fixture is unchanged. t.Setenv bars
@@ -534,7 +534,7 @@ func TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity(t *testing.T) {
 		// Unwritable by construction: a directory where the token file goes, so the write fails for every
 		// user including root.
 		f.mkdirAll(f.repo + "/.git/idsd-worktree-id")
-		f.runReport("stamp", "code-review,security-review,tighten,refactor", "094-unmintable")
+		f.runReport("stamp", allStagesStampedAs, "094-unmintable")
 		f.assertRefused("stamp refuses when this worktree's identity cannot be established")
 		f.assertReports("NOT stamped", "and says the pass was not stamped")
 		// Still the placeholder invalidate left, so nothing was recorded.
@@ -653,12 +653,12 @@ func TestAStampedTreeWithNoReviewingWorktreeIsNotAReview(t *testing.T) {
 func TestPromoteCountsFilesNotDirectoryEntries(t *testing.T) {
 	t.Parallel()
 	// The sibling of the same distinction reconcileTreeIdsdDir needs. Counting directory entries, promote
-	// refused an in-tree .idsd/ holding only the empty `intents/` and `qualify-reports/` skeleton a
-	// finished migration leaves, and told the human to reconcile two empty directories by hand.
+	// refused an in-tree .idsd/ holding only the empty `intents/` and `archive/` skeleton a finished
+	// move leaves, and told the human to reconcile two empty directories by hand.
 	f := newShip(t, "100-skeleton")
 	f.newIntentFile("100-skeleton")
 	f.mkdirAll(f.treeIdsd() + "/intents")
-	f.mkdirAll(f.treeIdsd() + "/qualify-reports")
+	f.mkdirAll(f.treeIdsd() + "/archive")
 	f.runReport("promote")
 	f.record("promote is not refused by an empty directory skeleton",
 		f.status == 0 && f.runReportStdout("repo-mode") == "committed", f.evidence())

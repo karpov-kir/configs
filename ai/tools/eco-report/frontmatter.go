@@ -8,7 +8,7 @@ import (
 )
 
 // The report's frontmatter: the three lines every later reader greps, and the two rewrites that
-// write them. Both rewrites are atomic — on any failure the report is left exactly as it was.
+// write them.
 
 // `grep -m1 '^<prefix>'` — the whole line, not its value: `init` quotes the existing `intent:` line
 // back when it refuses over a report, and what the human recognises is the line as they wrote it.
@@ -57,8 +57,8 @@ func isUnstamped(value string) bool {
 	return false
 }
 
-// Entries the last stamp marked `(turnaround)` — stages trimmed to answer sooner. Any of them means the pass
-// was not an untrimmed one.
+// Entries the last stamp marked `(turnaround)` — stages trimmed to answer sooner. Any of them means
+// the pass was trimmed.
 func (r *run) turnaroundTrims() string {
 	var trimmed []string
 	for _, entry := range strings.Split(r.reviewedStages(), ",") {
@@ -69,14 +69,17 @@ func (r *run) turnaroundTrims() string {
 	return strings.Join(trimmed, " ")
 }
 
-// Guarded to the slug charset: nothing for a standalone `review:`, or for any char outside the set
-// (notably `/`), so a slug can never `../`-escape a path it indexes.
+// Guarded exactly as reportNameFor guards a stem, and the leading dot is why: the slug charset alone
+// admits `.` and `..`, and this value is a DIRECTORY COMPONENT of every path built from it, so `..`
+// climbs out of the directory it was meant to index. paths.go's own leading-dot case holds the full
+// account of what that reaches.
 func (r *run) intentSlug() string {
 	intent := fieldValue(r.report, "intent")
 	intent = strings.TrimPrefix(intent, `"`)
 	intent = strings.TrimSuffix(intent, `"`)
 	slug := firstField(intent)
-	if slug == "" || strings.HasPrefix(slug, "review:") || !isSlugCharset(slug) {
+	if slug == "" || strings.HasPrefix(slug, "review:") ||
+		strings.HasPrefix(slug, ".") || !isSlugCharset(slug) {
 		return ""
 	}
 	return slug
@@ -113,8 +116,8 @@ func (r *run) assertTemplateStampable() {
 // cross-device fallback is not atomic — it follows a symlink at the destination where the rename would
 // have replaced it, and it truncates before writing — and an override root legitimately sits on another
 // volume, so a temp file in $TMPDIR would make that fallback the ordinary path rather than the exotic
-// one. Same directory means the rename can never cross a device. The name is dot-led, so a leftover is
-// invisible to reportNames and joins no listing.
+// one. Same directory means the rename can never cross a device. A leftover joins no listing because it
+// lands INSIDE the ship folder, which reportNames never opens — it lists the folders under intents/.
 func (r *run) rewriteReport(noTemp, noWrite string, rewrite func([]string) []string) error {
 	temp, err := os.CreateTemp(shell.DirName(r.report), ".rewrite.")
 	if err != nil {

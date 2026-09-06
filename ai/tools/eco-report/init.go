@@ -61,14 +61,15 @@ func (r *run) cmdInit(args []string) {
 	// under a lax one, which puts a planted link inside the directory `discard` later removes.
 	//
 	// It protects the ROOT only when init gets there first. A skill that authors an intent before any
-	// report exists creates the tree itself, and this MkdirAll then makes only the missing
-	// qualify-reports/ below it.
+	// report exists creates the tree itself, and this MkdirAll then makes only the missing ship folder
+	// below it.
 	if err := os.MkdirAll(shell.DirName(r.report), 0o700); err != nil {
 		r.refuse("error: could not create " + shell.DirName(r.report) + " — the report was NOT initialized")
 	}
 	// Staged beside the report and renamed over it, never copied onto it: a write that dies partway
 	// leaves a truncated report, and --force has already discarded the only other copy of those items.
-	// The temp name is deliberately not `*-qualify-report.md`, so a leftover joins no listing.
+	// The suffix keeps a leftover out of every listing: reportNames counts a folder only when the file
+	// inside it is exactly `qualify-report.md`, so a crashed init leaves a folder nothing lists.
 	staged := r.report + ".new"
 	// Removed before the copy, never guarded by a symlink refusal: this path is ours and transient, so
 	// a link planted there is hostile (a committed one reaches us through someone else's branch) and a
@@ -119,8 +120,8 @@ func (r *run) refuseUnwritten(replacing string) {
 	r.refuse(message)
 }
 
-// Order-free flag parsing, which both `init` and `close` need: `--force` read positionally resolves
-// as an intent name (its whole charset is legal in a slug) and closes a report that does not exist.
+// Order-free flag parsing: `--force` read positionally resolves as an intent name (its whole charset
+// is legal in a slug) and closes a report that does not exist.
 func nameAndForceFlag(args []string) (name string, isForced bool) {
 	for _, arg := range args {
 		if arg == "--force" {

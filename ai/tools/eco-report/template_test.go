@@ -53,7 +53,7 @@ func TestADriftedTemplateIsRefusedBeforeAnyReportIsScaffolded(t *testing.T) {
 	// refused for its missing `intent:` line instead, and three of the four assertions below could no
 	// longer fail.
 	linked.write(linked.base+"/foreign/outside.md",
-		"---\nintent: 002-attacker\nreviewed-tree: <hash>\nreviewed-stages: <stages>\n---\n\n# Decide\n\nSMUGGLED\n")
+		"---\nintent: 002-attacker\nreviewed-tree: <hash>\nreviewed-worktree: <worktree>\nreviewed-stages: <stages>\n---\n\n# Decide\n\nSMUGGLED\n")
 	linked.remove(linked.templatePath())
 	linked.symlink(linked.base+"/foreign/outside.md", linked.templatePath())
 	linked.runReport("init", "001-linked-template")

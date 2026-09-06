@@ -77,6 +77,32 @@ func TestTheScratchDirectoryIsReadableByItsOwnerAlone(t *testing.T) {
 	}
 }
 
+func TestTheWorktreeIdentityTokenIsReadableByItsOwnerAlone(t *testing.T) {
+	// Not parallel, and the umask pinned, for the reason the case above states: at the ordinary 022 a
+	// 0o666 write lands 0644, which the assertion can tell apart, while under 077 it would land 0600 and
+	// the case would pass observing nothing.
+	defer syscall.Umask(syscall.Umask(0o022))
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	f.runReport("init", "001-token")
+	// `gate` over an unstamped report is the shortest path that mints one: it reaches worktreeToken to
+	// say whether the report will STAY unstamped for want of an establishable identity here.
+	f.runReport("gate")
+	token := f.repo + "/.git/idsd-worktree-id"
+	f.record("fixture: the gate minted this worktree's identity token", f.isFile(token), f.evidence())
+
+	info, err := os.Stat(token)
+	mode := "unreadable"
+	if err == nil {
+		mode = info.Mode().Perm().String()
+	}
+	// This token is the only secret the tool holds, and the merge gate's whole defence against a sibling
+	// worktree's stamp. Any account that can read it can write it into a report's `reviewed-worktree`
+	// line and gate an unqualified tree clean.
+	f.record("the worktree identity token is readable by its owner alone",
+		err == nil && info.Mode().Perm() == 0o600, "mode: "+mode+", wanted -rw-------")
+}
+
 func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T) {
 	t.Parallel()
 	// `promote` is the one subcommand that stages, and a rename does not follow a link at its source, so
@@ -111,7 +137,7 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// and holds why Go's RemoveAll does not stop it.
 	//
 	// The folder layout widened this: `discard` now RemoveAlls shipDir(stem), so `..` there is the
-	// scratch root's own parent rather than one stray file.
+	// scratch root itself rather than one stray file.
 	f := newShip(t, "001-real")
 	head := f.mustGit("rev-parse", "HEAD")
 	// What makes the stem reachable at all, and the fixture without which this case cannot fail: every
@@ -137,6 +163,55 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	f.record("and the real ship is untouched", f.isFile(f.reportPath("001-real")), "")
 }
 
+func TestAnIntentFrontmatterValueCannotNameTheScratchRoot(t *testing.T) {
+	t.Parallel()
+	// The sibling of the case above, on the OTHER slug gate. reportNameFor refuses a leading dot for the
+	// stem; intentSlug reads the `intent:` line, and the slug charset alone admits `.` and `..` — so `..`
+	// there makes `archiveDir(slug)` resolve to the scratch root itself, and `state` answers `done` off
+	// whatever file sits in it, for a ship that never shipped. `idsd-ship continue` routes on that token,
+	// so the answer sends it past the merge rather than into it.
+	f := newShip(t, "001-real")
+	// What `..` points at, and the fixture without which this case cannot fail: `archive/../intent.md`
+	// needs archive/ to exist before the `..` can traverse it, and an intent.md one level above — which
+	// is the scratch root.
+	f.mkdirAll(f.scratch() + "/archive")
+	f.write(f.scratch()+"/intent.md", "---\nstatus: approved\n---\n")
+	f.replaceLine(f.reportPath("001-real"), "intent:", "intent: ..")
+	f.record("fixture: the report records an intent of '..', with a file where '..' points",
+		f.isFile(f.scratch()+"/intent.md") && strings.Contains(f.read(f.reportPath("001-real")), "intent: .."),
+		f.read(f.reportPath("001-real")))
+
+	state := f.runReportStdout("state", "001-real")
+	f.record("state does not read the scratch root's own file as this ship having landed",
+		state != "done", "state: "+state)
+	// The real ship is mid-flight and unstamped, so this is the token it owes — asserted rather than
+	// merely "not done", or a refusal would pass the case having routed nothing.
+	f.record("and it answers the token the ship actually stands at", state == "resume", "state: "+state)
+}
+
+func TestAHeldMergeSlotCarriesNoControlByteToTheTerminal(t *testing.T) {
+	t.Parallel()
+	// The slot's refusal quotes the holder's intent and worktree back, and neither is a value this tool
+	// chose: the intent is the holder's own argv, and the worktree is what git handed back for their
+	// checkout. An ESC in either rewrites the lines printed above it — and the reader of a slot refusal
+	// is another agent waiting its turn, which acts on what the output shows.
+	f := newShip(t, "001-real")
+	// The slot is written straight to disk rather than through `merge-slot take`, so the case observes
+	// the ECHO and nothing else: what reaches the terminal from a file this run did not write.
+	f.write(f.repo+"/.git/idsd-merge-slot",
+		"002-holder\x1b[2Kgate clean\n/tmp/other\rworktree\n1750000000\n")
+
+	f.runReport("finalize", "001-real")
+	// Exit 4, not 2: a held slot is "wait your turn", which finalize.go gives its own code so a caller
+	// cannot read it as a bad tree.
+	f.record("a second ship is refused the held slot", f.status == 4, f.evidence())
+	f.record("and no control byte from the holder's record reached the terminal",
+		!strings.ContainsAny(f.out, "\x1b\r"), strconv.Quote(f.out))
+	f.record("and the refusal still names the holder", strings.Contains(f.out, "002-holder"), f.out)
+	// The harm, asserted where it would land: a refusal must not have archived the ship it refused.
+	f.record("and the ship was not finalized", f.isFile(f.reportPath("001-real")), f.evidence())
+}
+
 func TestAWorktreePathCarriesNoControlByteIntoTheReport(t *testing.T) {
 	t.Parallel()
 	// The stamp records `<token> <worktree path>`, and the path half is not a value this tool chose:
@@ -155,7 +230,7 @@ func TestAWorktreePathCarriesNoControlByteIntoTheReport(t *testing.T) {
 	f.stampFullPass("099-cr-path")
 
 	report := f.read(f.reportPath("099-cr-path"))
-	f.record("the stamp landed", containsLine(report, "reviewed-stages: code-review,security-review,tighten,refactor"), report)
+	f.record("the stamp landed", containsLine(report, "reviewed-stages: "+allStagesStampedAs), report)
 	f.record("and no control byte from the path reached the frontmatter",
 		!strings.ContainsRune(report, '\r'), report)
 	// One of each line, which is the property a newline in that value would have broken by opening a
@@ -165,6 +240,40 @@ func TestAWorktreePathCarriesNoControlByteIntoTheReport(t *testing.T) {
 			countLinesWithPrefix(report, "reviewed-worktree:") == 1, report)
 	f.runReport("gate", "099-cr-path")
 	f.record("and the gate reads it as this worktree's own review", f.status == 0, f.evidence())
+}
+
+func TestAReviewedTreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
+	t.Parallel()
+	// The sibling field, on the same two readers. `reviewed-tree` is a fingerprint only when the stamp
+	// wrote it — on a hand-edited report anything at all sits on that line, and both the gate's freshness
+	// BLOCK and stamp's never-invalidated refusal read it straight back. The block just above the gate's
+	// switch says every value quoted there is collapsed; this field was the one that was not.
+	f := newShip(t, "099-tree")
+
+	// The forgery is the gate's own clean line, taken from a real run rather than retyped, for the reason
+	// the worktree case states: a retyped one stops imitating anything the day the gate is reworded.
+	f.newIntentFile("099-tree")
+	f.stampFullPass("099-tree")
+	f.runReport("gate", "099-tree")
+	f.record("fixture: it gates clean before the value is tampered with", f.status == 0, f.evidence())
+	cleanLine := f.out
+	f.record("fixture: and the clean line the forgery imitates is the gate's own",
+		strings.HasPrefix(cleanLine, "gate clean:"), "the clean run printed: '"+cleanLine+"'")
+	forged := "\x1b[2K" + cleanLine
+
+	f.replaceLine(f.reportPath("099-tree"), "reviewed-tree:", "reviewed-tree: deadbeef"+forged)
+	f.runReport("gate", "099-tree")
+	f.record("the gate blocks on a tree fingerprint that is not this tree's", f.status != 0, f.evidence())
+	f.assertReports("BLOCK (freshness)", "and says why it blocked")
+	f.record("and no control byte from that value reached the output",
+		!strings.ContainsRune(f.out, 0x1b), f.out)
+
+	// The other reader of the same field, and a separate call site: stamp refuses when the pass never
+	// invalidated, quoting whatever stands on the line.
+	f.runReport("stamp", "code-review,security-review,tighten,refactor", "099-tree")
+	f.record("stamp refuses a pass that never invalidated", f.status == 2, f.evidence())
+	f.record("and no control byte reached the output from that call site either",
+		!strings.ContainsRune(f.out, 0x1b), f.out)
 }
 
 func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
@@ -216,12 +325,15 @@ func TestAReportRewriteIsStagedBesideTheReport(t *testing.T) {
 	// Pinned through which failure fires when the reports directory cannot be written: staged beside the
 	// report, the temp file itself cannot be created, and that is a different sentence from a write that
 	// got as far as the move.
+	// The SHIP FOLDER, not intents/ above it: the temp file is created beside the report, which is what
+	// this case exists to pin, so intents/ at 0500 leaves the write it is trying to block untouched —
+	// the run then succeeds, the case takes its skip, and both assertions below never run.
 	f := newShip(t, "099-staged")
-	f.chmod(f.scratch()+"/intents", 0o500)
+	f.chmod(f.shipDir("099-staged"), 0o500)
 	f.runReport("invalidate", "099-staged")
 	status := f.status
 	output := f.out
-	f.chmod(f.scratch()+"/intents", 0o755)
+	f.chmod(f.shipDir("099-staged"), 0o755)
 	if status == 0 {
 		t.Skip("this process writes into a mode-0500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so this case cannot be built here")
 	}
@@ -353,9 +465,9 @@ func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
 			strings.Contains(f.out, sticky+"/root/"), f.evidence())
 	})
 
-	// The branch a mutation found unobserved: absent is fine and ordinary, but a root whose mode could
-	// not be READ is a different fact wearing the same shape, and it must not pass as one this tool
-	// checked. Without this case, treating every stat error as "absent" went unnoticed.
+	// Absent is fine and ordinary, but a root whose mode could not be READ is a different fact wearing
+	// the same shape, and it must not pass as one this tool checked. Treating every stat error as
+	// "absent" is what this case catches.
 	t.Run("a root whose permissions cannot be read is refused, not treated as absent", func(t *testing.T) {
 		f := newRepo(t)
 		enclosing := f.base + "/sealed"
@@ -381,9 +493,9 @@ func TestAnUntrustworthyOverrideRootIsRefused(t *testing.T) {
 }
 
 func TestTheOverrideConfigIsJudgedLikeTheRootItNames(t *testing.T) {
-	// A security review closed the root's own substitution routes and handed back the file that names
-	// it: every guard below judges the value, and a value an attacker chose passes all of them, because
-	// the root they name can be an ordinary private directory. The guard is only as strong as its input.
+	// Every guard on the root judges the value this file names, and a value an attacker chose passes all
+	// of them, because the root they name can be an ordinary private directory. The guard is only as
+	// strong as its input.
 	t.Run("a world-writable config is refused", func(t *testing.T) {
 		f := newRepo(t)
 		// The root it names is impeccable, which is what makes the case one only the config's own mode
@@ -468,8 +580,6 @@ func TestTheOverrideConfigIsJudgedLikeTheRootItNames(t *testing.T) {
 		f.chmod(f.configHome+"/kk-flavor/idsd.conf", 0o600)
 		f.runReport("check-ignore")
 		f.record("an ordinary override is accepted", f.status == 0, f.evidence())
-		// Accepted AND used: exit 0 alone is also what a silent fallback to the default produces, which is
-		// the one failure an override must not have.
 		// The trailing slash is what makes this "uses" rather than "mentions": the clone's own directory
 		// hangs off the configured root, so only a run that resolved to it prints the root with a `/` after.
 		f.record("and the run announces and uses the configured root",

@@ -1,33 +1,31 @@
 package ecoreport_test
 
 // `promote` writes to the human's index, and every refusal past the point it MOVES the scratch into
-// the tree owes a move back — left off, the intents sit untracked in the working tree while the human
-// has been told the promotion did not happen.
+// the tree owes a move back.
 
 import (
 	"strings"
 	"testing"
 )
 
-func TestCheckIgnoreHoldsBeforeQualifyReportsExists(t *testing.T) {
+func TestCheckIgnoreHoldsBeforeAnyShipFolderExists(t *testing.T) {
 	t.Parallel()
 	// `check-ignore` runs before the first write into `.idsd/`, and its exit 1 blocks that write. So it
-	// has to answer correctly while qualify-reports/ does not exist yet, and that is where the trailing
-	// slash in the ignore surface earns its keep: without it, `git check-ignore -q
-	// .idsd/qualify-reports` exits 1 on a directory that is not there.
+	// has to answer correctly while no ship folder exists yet, which is what ignoreProbe earns its keep
+	// for.
 	f := newCommittedRepo(t)
 	if !f.exists(f.scratch()+"/intents") && f.runReportStdout("repo-mode") == "committed" {
 		f.runReport("check-ignore")
-		f.record("check-ignore passes in committed mode before qualify-reports/ is created",
+		f.record("check-ignore passes in committed mode before any ship folder is created",
 			f.status == 0, f.evidence())
 	} else {
-		f.record("fixture is not a committed repo with qualify-reports/ absent", false, "")
+		f.record("fixture is not a committed repo with intents/ absent", false, "")
 	}
 }
 
 func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 	t.Parallel()
-	// qualify-reports/ is ignored by the entry promote itself writes, and `git add` on a directory
+	// Each ship's scratch is ignored by the entries promote itself writes, and `git add` on a directory
 	// whose every file is ignored stages nothing and exits 0. With nothing else under .idsd/, reading
 	// success off that add leaves repo-mode still saying throwaway, and the next check-ignore
 	// re-excludes .idsd/, silently undoing the promotion.
@@ -50,7 +48,7 @@ func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 	// Committed mode takes the other check-ignore branch entirely: the one that asks git rather than
 	// writing an exclusion, and the only one that can confirm the entry instead of creating it.
 	f.runReport("check-ignore")
-	f.record("committed mode confirms qualify-reports/ is gitignored",
+	f.record("committed mode confirms each ship's scratch is gitignored",
 		f.status == 0 && strings.Contains(f.out, "gitignored"), f.evidence())
 
 	// And the warning fires when it is not: the entry is what keeps a report out of `git add -A`.
@@ -127,7 +125,7 @@ func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
 
 func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	t.Parallel()
-	// promote claims two things: .gitignore names qualify-reports/, and git acts on it. Three ways
+	// promote claims two things: .gitignore names each ship's scratch, and git acts on it. Three ways
 	// that claim fails, each of which would otherwise be reported as a promotion that happened — a
 	// link that takes the write out of the repo, a write that cannot land, and an entry git does not
 	// act on. The last is the one that matters most: it leaves the report stageable.

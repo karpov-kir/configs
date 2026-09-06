@@ -85,13 +85,17 @@ func (r *run) takeMergeSlot(intent string, isForced bool) {
 			if !held.taken.IsZero() {
 				age = ", taken " + strconv.Itoa(int(time.Since(held.taken).Round(time.Minute)/time.Minute)) + " minute(s) ago"
 			}
-			r.errLines("error: another ship holds the merge slot — '"+held.intent+"' in "+held.worktree+age+". Nothing was finalized.",
+			// Both halves collapsed, for the reason gate.go collapses the values it quotes: neither is text
+			// this tool chose. The intent is the holder's own argv, and the worktree is what git handed back
+			// for their checkout, control bytes intact. An ESC in either rewrites the lines printed above it
+			// — and what reads a slot refusal is another agent, waiting its turn.
+			r.errLines("error: another ship holds the merge slot — '"+shell.Oneline(held.intent)+"' in "+shell.Oneline(held.worktree)+age+". Nothing was finalized.",
 				"  Finalizing is serial: it moves the archive, regenerates the roadmap and writes the project's records, which every ship shares.",
 				"  Wait for it, or re-run with --force once you have established that holder is gone.",
 				"  Establishing that is yours: this tool started no process it could ask about. Look for a session working in that worktree — none, and the slot outlived its holder.")
 			r.exit(exitMergeSlotHeld)
 		}
-		r.line("reclaimed the merge slot from '%s' in %s", held.intent, held.worktree)
+		r.line("reclaimed the merge slot from '%s' in %s", shell.Oneline(held.intent), shell.Oneline(held.worktree))
 	}
 	// Written before the first destructive step below, so a crash leaves a slot a later --force clears
 	// rather than a half-archived ship nothing was holding.
@@ -112,7 +116,7 @@ var shipScratchFiles = []string{"decisions.md", "playbook.md", "language.md", re
 // the project's records and therefore must not run beside another ship's. `finalize` still takes one
 // for itself when none is held, so the common single-ship path needs neither call.
 func (r *run) cmdMergeSlot(args []string) {
-	switch r.arg(1) {
+	switch argAt(args, 0) {
 	case "take":
 		name, isForced := nameAndForceFlag(args[1:])
 		if name == "" {

@@ -212,14 +212,13 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	// cost.
 	//
 	// The guards the built form carried are not dropped, they are moved: seedRepoOnce runs them ONCE
-	// against the seed, with real git, and what is checked here is that this copy is a faithful one.
-	// That is sound because every property the seed was verified for — it resolves to itself, it has a
-	// HEAD, tracked.txt is committed — is a property of its bytes, and a faithful copy has those bytes.
+	// against the seed, with real git — it resolves to itself, it has a HEAD, tracked.txt is committed —
+	// and what is checked here is that this copy is a faithful one.
 	if err := copyTree(seedRepoOnce(t), f.repo); err != nil {
 		t.Fatalf("could not copy the seed repository into %s: %v — stopping before any destructive case runs", f.repo, err)
 	}
-	// Asserted, not assumed. A copy that silently lost `.git` or the tracked file would send every case
-	// below down the unfingerprintable-tree path instead of the one it meant to test, and pass.
+	// A copy that silently lost `.git` or the tracked file would send every case below down the
+	// unfingerprintable-tree path instead of the one it meant to test, and pass.
 	for _, needed := range []string{"/.git/HEAD", "/tracked.txt"} {
 		if _, err := os.Stat(f.repo + needed); err != nil {
 			t.Fatalf("the copied fixture in %s has no %s — stopping before any destructive case runs", f.repo, needed)
@@ -238,9 +237,9 @@ func newShip(t *testing.T, intent string) *fixture {
 	return f
 }
 
-// The other repo mode: .idsd/ tracked through a durable charter, with qualify-reports/ gitignored the
-// way a shared idsd setup does it. Every plain newRepo fixture is a throwaway. qualify-reports/ is
-// left absent, since `init` is what creates it.
+// The other repo mode: .idsd/ tracked through a durable charter, with each ship's scratch gitignored
+// the way a shared idsd setup does it. Every plain newRepo fixture is a throwaway. No ship folder is
+// made here, since `init` is what creates one.
 func newCommittedRepo(t *testing.T) *fixture {
 	t.Helper()
 	f := newRepo(t)
@@ -319,14 +318,14 @@ func (f *fixture) reportPath(name string) string {
 	return f.shipDir(name) + "/qualify-report.md"
 }
 
-// One ship's folder. Every file a ship owns lives in it — the intent, the three intent-local records,
-// and the report — so a ship is torn down by removing one directory rather than by naming its files.
-// A standalone review has no intent file, and shares the one `review` folder for the rest.
 // An archived ship keeps its folder, so the record a build leaves travels as one directory.
 func (f *fixture) archiveDir(name string) string {
 	return f.scratch() + "/archive/" + name
 }
 
+// One ship's folder. Every file a ship owns lives in it — the intent, the three intent-local records,
+// and the report — so a ship is torn down by removing one directory rather than by naming its files.
+// A standalone review has no intent file, and shares the one `review` folder for the rest.
 func (f *fixture) shipDir(name string) string {
 	if name == "" {
 		name = "review"

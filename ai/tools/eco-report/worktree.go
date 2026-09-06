@@ -114,10 +114,15 @@ func (r *run) worktreeToken() (string, bool) {
 		return "", false
 	}
 	token := hex.EncodeToString(raw)
-	if err := os.MkdirAll(shell.DirName(path), 0o777); err != nil {
+	// 0700/0600, not the umask's answer, for a sharper reason than the stage markers' — this file is the
+	// only SECRET in the tool. The merge gate compares the recorded `reviewed-worktree` token against it
+	// to tell this worktree's review from a sibling's, so any account that can read the token can write
+	// it into a report of its own and gate an unqualified tree clean. Left at the umask's answer it
+	// landed 0644 under the ordinary 022, and world-writable under the 002 a shared CI image sets.
+	if err := os.MkdirAll(shell.DirName(path), 0o700); err != nil {
 		return "", false
 	}
-	if err := os.WriteFile(path, []byte(token+"\n"), 0o666); err != nil {
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
 		return "", false
 	}
 	return token, true

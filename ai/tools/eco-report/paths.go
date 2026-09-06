@@ -27,17 +27,17 @@ func reportNameFor(value string) string {
 	case slug == "" || strings.HasPrefix(slug, "review:"):
 		return "review"
 	// A leading dot is refused outright, not merely made path-safe, and it guards two things of very
-	// different sizes. The small one: the glob in reportNames cannot match one, so
-	// `..-qualify-report.md` would sit in the directory addressable by its own name and invisible to
-	// every discovery path — a ship whose report stands open while `state` answers `no-report` and
-	// `idsd-ship continue` starts a fresh one over it.
+	// different sizes. The small one: reportNames skips a dot-named entry, so such a ship would sit in
+	// the directory addressable by its own name and invisible to every discovery path — a report
+	// standing open while `state` answers `no-report` and `idsd-ship continue` starts a fresh one over it.
 	//
-	// The large one. A stem is joined into two paths and only the report appends a suffix, so `..` there
-	// is the harmless `..-qualify-report.md`. setReportPaths hands the stem to
-	// `gitPath("idsd-stage-returns/" + name)` BARE, and `idsd-stage-returns/..` IS the git dir — which
-	// `invalidate`, `close` and `discard` each os.RemoveAll. Go permits that: RemoveAll refuses a
-	// trailing `.` and not a trailing `..`, so it recurses in and takes the index, the objects and the
-	// refs with it.
+	// The large one. The stem is a DIRECTORY COMPONENT of both paths it builds, so `..` in it climbs out
+	// of each. `shipDir("..")` is `intents/..`, which IS the scratch root — and `discard` os.RemoveAlls
+	// the ship folder, so that one deletion takes every other ship with it. setReportPaths hands the
+	// same stem to `gitPath("idsd-stage-returns/" + name)`, where `idsd-stage-returns/..` IS the git dir
+	// — which `invalidate`, `close` and `discard` each os.RemoveAll, taking the index, the objects and
+	// the refs. Go permits both: RemoveAll refuses a trailing `.` and not a trailing `..`, so it
+	// recurses in.
 	case strings.HasPrefix(slug, "."), !isSlugCharset(slug):
 		return ""
 	}
@@ -61,8 +61,7 @@ func stemOfReportPath(path string) string {
 	return shell.BaseName(shell.DirName(path))
 }
 
-// One ship's folder. Every path this tool builds from a stem goes through here, so the charset guard
-// in reportNameFor is the whole of what keeps a write — and `discard`'s RemoveAll — inside intents/.
+// One ship's folder.
 func (r *run) shipDir(name string) string {
 	return r.intentsDir + "/" + name
 }
@@ -72,16 +71,17 @@ func (r *run) archiveDir(name string) string {
 	return r.idsdDir + "/archive/" + name
 }
 
-// Every report present, one filename stem per line. A dotfile is invisible here, which is why
-// reportNameFor refuses a leading dot rather than sanitising one.
+// Every report present, one ship-folder name per line. A dot-named folder is skipped below, which is
+// why reportNameFor refuses a leading dot rather than sanitising one.
 //
-// Held to the same slug charset a named intent is. A stem from this listing goes on to be printed as a
+// Held to the same slug charset a named intent is. A name from this listing goes on to be printed as a
 // `list` row, to name a report path, and — through resolveReport with no argument — to decide what
-// `discard` deletes; nothing between here and there checks it. A filename holds no `/`, so it could
-// not traverse, but it can hold a newline: `ev<LF>fakeship<TAB>ready<LF>il-qualify-report.md` put a
-// whole forged `fakeship  ready` row into the listing `idsd-ship continue` routes on.
+// `discard` deletes; nothing between here and there checks it. A directory name holds no `/`, so it
+// could not traverse, but it can hold a newline: a folder called
+// `ev<LF>fakeship<TAB>ready<LF>il` puts a whole forged `fakeship  ready` row into the listing
+// `idsd-ship continue` routes on.
 //
-// A bad name is skipped, not repaired: a name rewritten to something addressable would name a file
+// A bad name is skipped, not repaired: a name rewritten to something addressable would name a folder
 // that is not there. It is counted instead, because a listing quietly short of a ship is the one
 // failure this tool must not have.
 func (r *run) reportNames() []string {
@@ -102,11 +102,11 @@ func (r *run) reportNames() []string {
 	r.unnameableReports = 0
 	for _, entry := range entries {
 		name := entry.Name()
-		// A ship folder with no report in it is a ship whose report was closed, or one authored before any
-		// pass ran. Neither is an open report, and neither is a name to list.
 		if strings.HasPrefix(name, ".") || !entry.IsDir() {
 			continue
 		}
+		// A ship folder with no report in it is a ship whose report was closed, or one authored before any
+		// pass ran. Neither is an open report, and neither is a name to list.
 		if !shell.IsRegularFile(r.shipDir(name) + "/" + reportName) {
 			continue
 		}
@@ -146,7 +146,7 @@ func (r *run) resolveReport(name string) reportLookup {
 	if name != "" {
 		stem := reportNameFor(name)
 		if stem == "" {
-			r.refuse("error: '" + name + "' names no report — a report file is named after the intent, so it must be a slug ([0-9A-Za-z._-]) or a \"review: <description>\"")
+			r.refuse("error: '" + name + "' names no report — a report lives in a folder named after the intent, so it must be a slug ([0-9A-Za-z._-]) or a \"review: <description>\"")
 		}
 		r.setReportPaths(stem)
 		return reportResolved
@@ -253,9 +253,9 @@ func (r *run) survivingContent() string {
 	return kept
 }
 
-// Ship folders holding an intent, across the directories named. A folder is counted only when the
-// intent inside it is a regular file, lstat'd like find's own -type, so a symlink to one is not counted
-// and neither is a folder holding only this ship's leftover scratch.
+// Ship folders holding an intent, across the directories named. The folder itself must be a real
+// directory — the entry type is read without following a link — and the intent inside it must stat as
+// a regular file, so a folder holding only this ship's leftover scratch is not counted.
 func countShipFolders(dirs ...string) int {
 	count := 0
 	for _, dir := range dirs {

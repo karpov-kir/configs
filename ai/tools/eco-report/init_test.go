@@ -195,9 +195,7 @@ func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
 	f.assertReports("report.sh check-ignore", "and names the step that was skipped")
 	f.assertNoReportWritten("and wrote no report that could never gate clean")
 
-	// Committed mode is the only mode that reaches this precondition at all — throwaway scratch sits
-	// outside the tree, so nothing there needs ignoring. The assertion has to accept a `.gitignore`
-	// entry, or it blocks every committed idsd repo.
+	// The assertion has to accept a `.gitignore` entry, or it blocks every committed idsd repo.
 	committed := newCommittedRepo(t)
 	committed.runReport("init", "001-committed-ok")
 	committed.record("and accepts a committed repo, where .gitignore is what ignores it",

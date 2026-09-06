@@ -75,8 +75,6 @@ func TestAMergeSlotIsReclaimableOnceItsHolderIsKnownGone(t *testing.T) {
 	f.record("and the ship is archived", f.isFile(f.archiveDir("001-only")+"/intent.md"), f.evidence())
 }
 
-// The slot names a worktree because that is what a session owns for its whole life — the name a
-// caller can check against its own live sessions rather than trust.
 func (f *fixture) takeMergeSlot(intent string) {
 	f.t.Helper()
 	// `--git-common-dir` answers relative to the repo when asked from inside it, so joining it onto the
@@ -87,4 +85,59 @@ func (f *fixture) takeMergeSlot(intent string) {
 	}
 	f.write(common+"/idsd-merge-slot",
 		intent+"\n"+f.repo+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
+}
+
+// The subcommand a caller runs to hold the slot across the judging half of a merge. takeMergeSlot
+// above writes the slot file directly, so this path — the only one a caller actually takes — was
+// driven by nothing, and it recorded the word `take` as the holder.
+func TestTakingTheMergeSlotHoldsItForTheShipNamed(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-holding")
+	f.newIntentFile("001-holding")
+
+	f.runReport("merge-slot", "take", "001-holding")
+	f.record("merge-slot take reports the ship it was given",
+		f.status == 0 && strings.Contains(f.out, "001-holding"), f.evidence())
+
+	// The harm, where it lands. finalize's already-ours arm compares the recorded holder against the
+	// intent it is finalizing, so a slot recorded under any other name turns away the ship that
+	// legitimately holds it — exit 4, and nothing in the clone finalizes again without --force.
+	f.runReport("finalize", "001-holding")
+	f.record("and finalize runs under the slot that ship already holds",
+		f.status == 0 && f.isFile(f.archiveDir("001-holding")+"/intent.md"), f.evidence())
+
+	// Release has to reach the same file the take wrote, or a caller that brackets its own merge leaves
+	// the slot standing and every later ship waits behind a holder that finished.
+	released := newShip(t, "002-releasing")
+	released.newIntentFile("002-releasing")
+	released.runReport("merge-slot", "take", "002-releasing")
+	released.runReport("merge-slot", "release")
+	released.record("release gives the slot up", released.status == 0, released.evidence())
+	released.runReport("merge-slot", "take", "003-someone-else")
+	released.runReport("finalize", "002-releasing")
+	released.record("and the slot is takeable again by whoever comes next",
+		released.status == 4 && strings.Contains(released.out, "003-someone-else"), released.evidence())
+}
+
+// The verb is the subcommand's own first argument now, so the forms that name none have to refuse
+// rather than index past the end of the slice.
+func TestMergeSlotRefusesEveryFormThatNamesNoSlotToAct(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-usage")
+	for _, args := range [][]string{
+		{"merge-slot"},
+		{"merge-slot", "hold"},
+		{"merge-slot", "take"},
+		{"merge-slot", "take", "--force"},
+	} {
+		form := strings.Join(args[1:], " ")
+		f.runReport(args...)
+		f.assertRefused("merge-slot refuses '" + form + "'")
+		f.assertReports("usage: report.sh merge-slot", "and prints the grammar for '"+form+"'")
+	}
+	// And none of them took a slot on the way to refusing: one written by a refused call is one nothing
+	// releases, and every later finalize in the clone waits behind it.
+	f.newIntentFile("001-usage")
+	f.runReport("finalize", "001-usage")
+	f.record("and no refused call left a slot standing", f.status == 0, f.evidence())
 }

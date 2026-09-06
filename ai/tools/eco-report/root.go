@@ -167,7 +167,7 @@ func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 		// one fact — and this is the guard the other one's strength rests on.
 		r.refuse("error: could not read " + shell.Oneline(path) + " (" + err.Error() + ") — whether the file naming the scratch root is safe to trust is unknown, so nothing was read or written.")
 	}
-	if info.Mode().Perm()&0o022 != 0 {
+	if isGroupOrWorldWritable(info.Mode()) {
 		r.refuse("error: "+shell.Oneline(path)+" is group- or world-writable (mode "+fmt.Sprintf("%04o", info.Mode().Perm())+") — nothing was read or written.",
 			"  Another account could name a scratch root of its own here, and every check below this one would pass it,",
 			"  because the root it names can be an ordinary private directory. `chmod go-w` the file, then re-run.")
@@ -194,9 +194,7 @@ func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 //
 // The root AND every directory above it, because a root nobody else can write is still substitutable
 // through a parent they can: `mv root root.stolen && mkdir root` needs write on the parent alone, and
-// repointing a symlinked ancestor needs write on the directory holding the link. Both were demonstrated
-// against the earlier form of this check, which looked at the final component only. Each landed the
-// reports in a directory of the attacker's choosing, and every command reported success throughout.
+// repointing a symlinked ancestor needs write on the directory holding the link.
 //
 // Ancestors are held to a looser rule than the root, which is what keeps ordinary setups working: a
 // check nobody can live with gets the config file deleted rather than the root moved. A symlinked
@@ -223,7 +221,7 @@ func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
 		}
 		r.refuse("error: could not read " + shell.Oneline(root) + " (" + err.Error() + ") — whether it is safe to write reports there is unknown, so nothing was read or written.")
 	}
-	if mode := info.Mode().Perm(); mode&0o022 != 0 {
+	if mode := info.Mode().Perm(); isGroupOrWorldWritable(mode) {
 		r.refuse("error: "+configPath+" sets a root that is group- or world-writable ("+shell.Oneline(root)+", mode "+fmt.Sprintf("%04o", mode)+") — nothing was read or written.",
 			"  Every report written there carries a pass's findings, and `discard` removes the directory,",
 			"  so another account could read the first and steer the second. `chmod go-w` it, then re-run.")
@@ -248,6 +246,12 @@ func (r *run) assertNothingAboveTheRootCanSubstituteIt(configPath, root string) 
 	}
 }
 
+// The one bit pattern all three guards above turn on. Named rather than spelled out at each, because
+// a mask mistyped as 0o002 at one of them narrows a security check to group alone and reads right.
+func isGroupOrWorldWritable(mode fs.FileMode) bool {
+	return mode.Perm()&0o022 != 0
+}
+
 // Whether another account could rename an entry out of this directory and leave one of their own in
 // its place — the whole of what both walks above look for. Sticky is exactly what stops that for an
 // entry you do not own, so a sticky world-writable directory is not substitutable; without the
@@ -255,7 +259,7 @@ func (r *run) assertNothingAboveTheRootCanSubstituteIt(configPath, root string) 
 // ordinary thing to want.
 func isSubstitutableDir(info fs.FileInfo) bool {
 	mode := info.Mode()
-	return mode.Perm()&0o022 != 0 && mode&os.ModeSticky == 0
+	return isGroupOrWorldWritable(mode) && mode&os.ModeSticky == 0
 }
 
 // Every directory a substitution would have to be written into, from `/` down to the root's own parent.
@@ -375,7 +379,7 @@ func (r *run) noteOverride() {
 // The property throwaway mode now rests on: no write lands anywhere `git add -A` can reach, so no
 // ignore entry is needed and no report sits inside the tree it fingerprints.
 //
-// Asserted, never assumed. The default root satisfies it by sitting under the git dir — which is
+// The default root satisfies it by sitting under the git dir — which is
 // lexically INSIDE the checkout, so "outside the root directory" is the wrong test and would refuse
 // the default. An override, though, can point anywhere, including into the working tree, and that
 // puts back every failure this change removed while every command still reports success.
