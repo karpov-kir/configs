@@ -1,7 +1,7 @@
 ---
 name: idsd-reactor
 description: "Build several ICE intents at once — one session per unblocked intent, launching each as its dependencies land. Use for \"build the mvp\", \"ship these intents in parallel\", \"start the next wave\". One intent end-to-end is idsd-ship's, and the order or the consistency report on its own is idsd-audit's."
-argument-hint: "milestone or intent slugs to build (default: every unbuilt intent)"
+argument-hint: "milestone or intent slugs to build (default: ask which milestone)"
 ---
 
 You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` (→ **Orchestrators — interactive first**). **You write nothing under the intent set** — every intent's work, from its grill to its merge, belongs to the session that owns it and runs `idsd-ship`.
@@ -10,12 +10,14 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` (→ **Orchestr
 
 **Ask whether to audit first**, and recommend it. `idsd-audit` catches a cycle or a dangling `depends-on`, and either one otherwise shows up as an intent that silently never launches. Skipping it costs that check alone — `report.sh intent-ready` still refuses each build whose dependency has not shipped.
 
-- **Audited** — the launchable set is the audit's first build batch, and **a Blocker stops the launch**: route each through the skill the audit names, then re-run it.
-- **Unaudited** — the launchable set is every unbuilt intent whose `depends-on` targets are all built, read from the intents' own frontmatter.
+**One milestone at a time.** `<arg>` names it, or names slugs outright; with neither, list the milestones still holding unbuilt intents and ask which — recommend `mvp` where it has any, the milestone `idsd-audit`'s own coherence check reads as current. **Nothing outside the chosen one launches, however unblocked it is** — `vnext` and Unscheduled are parked work, and a session spent there is a session not spent on what ships. Say what you are leaving parked when you present the schedule.
+
+- **Audited** — the launchable set is that milestone's share of the audit's first build batch, and **a Blocker stops the launch**: route each through the skill the audit names, then re-run it.
+- **Unaudited** — the launchable set is every unbuilt intent in that milestone whose `depends-on` targets are all built, read from the intents' own frontmatter.
 
 **`depends-on` decides what launches together; overlapping files do not.** Two intents touching the same code still launch at once — the overlap resolves at their merges, and **3**'s relay keeps them from surprising each other. Hold a pair back only for an overlap big enough that they would be redoing each other's work, and say so — how big that is depends on the two intents, never on a count of shared files.
 
-Narrow that set either way by `<arg>` (a milestone, or named slugs). Drop every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch. Then present the schedule: the launchable set, and what each later intent waits on. Say that this session is the reactor's address and launches the later intents only while it stays open.
+Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch. Then present the schedule: the launchable set, and what each later intent waits on. Say that this session is the reactor's address and launches the later intents only while it stays open.
 
 **The human alone says whether each session archives itself once its intent lands** — no licence to act unattended supplies that answer, and unanswered no session archives itself.
 
