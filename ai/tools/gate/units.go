@@ -17,8 +17,12 @@ import (
 // keys on them itself. Named file by file, from the suites' own `../../` constants: keying on all of
 // kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package that cannot read it.
 const (
-	goTree       = "ai/tools"
-	extFlavor    = "ai/kk-flavor/scripts/tree-fingerprint.sh"
+	goTree    = "ai/tools"
+	extFlavor = "ai/kk-flavor/scripts/tree-fingerprint.sh"
+	// The audience marker is read twice — as a Go regexp in shell/markdown.go, and as awk in this
+	// script, which runs before the machine has a Go binary at all. shell's suite holds the two
+	// spellings to each other, so it is keyed on the script it reads them out of.
+	extBootstrap = "ai/bootstrap.sh"
 	extReduce    = "ai/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
 )
@@ -70,7 +74,7 @@ func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
-	gotestInputs = append(gotestInputs, extReduce, extWorkflows)
+	gotestInputs = append(gotestInputs, extBootstrap, extReduce, extWorkflows)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit
@@ -83,8 +87,24 @@ func (g *gate) addGoChecks() {
 		"ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate")
 }
 
+// The field guide is generated, so the committed page can fall behind the skills without anyone
+// touching it — a skill added, renamed or retired is enough. This unit regenerates into memory and
+// diffs, which is the only thing that notices.
+//
+// Keyed on the skills because their frontmatter IS the inventory, on the tool and the two packages it
+// reads that frontmatter through, and on the page itself so hand-editing the committed file re-runs
+// the check that would catch it. Blind to the module's test files, like every other unit that
+// observes a compiled binary. ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate has to
+// measure the source in this tree, never a binary that came from somewhere else.
+func (g *gate) addGuideCheck() {
+	g.addBlindToGoTests("guide", "check",
+		[]string{"ai/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root", "ai/tools/shell", "ai/guide.sh"},
+		"ECO_TOOLS_BUILD=1 ai/guide.sh --check")
+}
+
 func (g *gate) discoverUnits() int {
 	g.addGoChecks()
+	g.addGuideCheck()
 
 	if code := g.discoverShellSuites(); code != 0 {
 		return code

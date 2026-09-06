@@ -3,6 +3,7 @@ name: kk-reduce
 description: Shrink and refine a whole ecosystem of agent instructions as a multi-agent campaign — over-cut, arbitrate, fan out scoped passes, reconcile, converge, repair, drive. Use for "shrink the ecosystem", "cut this in half", "de-bloat everything". The campaign above kk-ecosystem, which is one scope's pass; expensive, so run it deliberately.
 argument-hint: "the ecosystem root (default: the kk-flavor + skills tree)"
 disable-model-invocation: true
+audience: maintainer
 ---
 
 Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — without losing what steers an agent.

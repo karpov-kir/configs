@@ -23,6 +23,11 @@ var (
 
 	frontmatterRule    = regexp.MustCompilePOSIX(`^---[[:space:]]*$`)
 	modelInvocationOff = regexp.MustCompilePOSIX(`^disable-model-invocation:[[:space:]]*(true|yes|on|1)[[:space:]]*$`)
+
+	// The audience marker, shared with ai/bootstrap.sh — which reads it in awk, before any Go binary
+	// on the machine exists, and cannot call in here. So the pattern is written twice, and
+	// markdown_test.go holds the two spellings to each other.
+	maintainerAudience = regexp.MustCompilePOSIX(`^audience:[[:space:]]*maintainer[[:space:]]*$`)
 )
 
 // LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
@@ -63,6 +68,14 @@ func FrontmatterName(lines []string) string {
 	return frontmatterField(lines, "name")
 }
 
+// FrontmatterValue is any other frontmatter field's value, for the readers that need one the two
+// named accessors above do not cover — `argument-hint`, `audience`. Named ones stay for the two
+// fields whose meaning to the loader is worth stating; a third accessor per field would only repeat
+// this line.
+func FrontmatterValue(lines []string, field string) string {
+	return frontmatterField(lines, field)
+}
+
 // One field's value out of the frontmatter block. Anchored to line 1, so a `---` rule in the body does
 // not open frontmatter.
 func frontmatterField(lines []string, field string) string {
@@ -83,6 +96,24 @@ func frontmatterField(lines []string, field string) string {
 func IsOptedOutOfModelInvocation(lines []string) bool {
 	return scanFrontmatter(lines, func(line string) bool {
 		return modelInvocationOff.MatchString(AsciiLower(line))
+	})
+}
+
+// True when a skill declares it exists to maintain this instruction tree rather than to work in any
+// repository. `ai/bootstrap.sh --skip-maintainer-skills` leaves those unmounted, so an install that
+// only uses the ecosystem does not carry their descriptions in every session.
+//
+// The audience is declared in the skill rather than listed in the script, which is what keeps the
+// mount loop discovery: a maintainer-only skill added tomorrow is excluded without anyone editing
+// either reader. Read through the pattern above, so this and ai/bootstrap.sh's awk agree about what
+// the marker line looks like.
+//
+// Named for the marker it reads rather than for what a caller does with the answer: two builds
+// arrived here at once and wrote this function twice under both names, and the marker is the half
+// that cannot drift.
+func IsMaintainerAudience(lines []string) bool {
+	return scanFrontmatter(lines, func(line string) bool {
+		return maintainerAudience.MatchString(AsciiLower(line))
 	})
 }
 

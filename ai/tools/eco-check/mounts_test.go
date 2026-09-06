@@ -71,6 +71,55 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 	})
 }
 
+// An install does not have to hold every skill this tree ships. `ai/bootstrap.sh
+// --skip-maintainer-skills` mounts none of the skills that exist only to maintain this instruction
+// tree, and nothing on disk records which audience a machine installed for — so for a marked skill the
+// scan cannot tell a deliberate exclusion from a broken mount, and on an external install the finding
+// would name skills that are exactly where they belong. For every other skill the absence is the
+// defect it always was.
+func TestASkillMarkedForMaintainersMayGoUnmounted(t *testing.T) {
+	// One skill, unmounted, with the skills mount itself present — otherwise `skills not mounted`
+	// fires first and returns, and every case here would pass over a scan that stopped at the door.
+	newTreeHolding := func(t *testing.T, name, skillFile string) *fixture {
+		f := newInstalledRoot(t)
+		f.mkdirAll(f.skillsMount())
+		f.newMountedSkill(name)
+		f.write(f.root+"/skills/"+name+"/SKILL.md", skillFile)
+		return f
+	}
+	const marked = "---\nname: kk-ecosystem\ndescription: maintains this tree\naudience: maintainer\n---\n"
+	const unmarked = "---\nname: kk-drive\ndescription: works in any repo\n---\n"
+
+	t.Run("says nothing about a marked skill that is not mounted", func(t *testing.T) {
+		newTreeHolding(t, "kk-ecosystem", marked).doesNotReport(ecocheck.SkillNotMounted)
+	})
+
+	// The control, and what keeps the exemption from being "the scan stopped asking": the same tree,
+	// the same missing mount, one line of frontmatter apart.
+	t.Run("while an unmarked skill in the same state still reports", func(t *testing.T) {
+		newTreeHolding(t, "kk-drive", unmarked).reports(ecocheck.SkillNotMounted)
+	})
+
+	// The marker says whether a skill is mounted, never where. A mount that exists and points at
+	// another checkout is a skill loading from somebody else's tree, which no install chose.
+	t.Run("and a marked skill mounted somewhere else is still a finding", func(t *testing.T) {
+		f := newTreeHolding(t, "kk-ecosystem", marked)
+		f.mkdirAll(f.base + "/elsewhere/kk-ecosystem")
+		f.newMountPointingAt("kk-ecosystem", f.base+"/elsewhere/kk-ecosystem")
+		f.reports(ecocheck.SkillMountedElsewhere)
+	})
+
+	// The hole the exemption would otherwise open. A mount that is there and resolves to nothing is
+	// what an install that mounted the skill and then lost the checkout leaves behind — no install ever
+	// chose it, and the reverse scan passes over it because the tree still holds the skill's directory.
+	// So the exemption is for a mount path that is empty, never for one that is broken.
+	t.Run("and a marked skill whose mount dangles is still a finding", func(t *testing.T) {
+		f := newTreeHolding(t, "kk-ecosystem", marked)
+		f.newMountPointingAt("kk-ecosystem", f.base+"/gone/kk-ecosystem")
+		f.reports(ecocheck.SkillNotMounted)
+	})
+}
+
 // A case that names the root some other way runs through a second entry point in the harness. That
 // entry point owes the fixture its $HOME mount just as `isolate` does. Without the mount the run reads
 // the ambient $HOME, so the checkout stops looking installed and the whole mount scan goes silent. A

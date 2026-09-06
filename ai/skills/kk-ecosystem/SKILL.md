@@ -2,6 +2,7 @@
 name: kk-ecosystem
 description: Refine what agents read — skills, standards, prompts, templates, CLAUDE.md — cutting what no longer earns its place and checking the wiring. Use for "refine the ecosystem", "de-bloat", or anything routed to the instruction lane. Runs the shape (kk-skillcraft) and prose (kk-tighten) stages itself.
 argument-hint: "the ecosystem root, a subset of it, or the change to refine (default: the whole ecosystem)"
+audience: maintainer
 ---
 
 Refine the ecosystem. The product is a **smaller** set of instructions that steers an agent the same way or better; a pass that only rewords has failed.

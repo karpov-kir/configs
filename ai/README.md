@@ -1,5 +1,10 @@
 # ai — Claude Code, the standards, the skills
 
+This file is how you install it. [`field-guide.html`](field-guide.html) is what it does and which
+skill to reach for — open it in a browser. That page is generated from the skills themselves by
+`ai/guide.sh`, so it cannot fall behind them; the prose around the list is hand-written, in
+`ai/tools/eco-guide/field-guide.template.html`.
+
 `ai/bootstrap.sh` does everything below on a fresh machine, apart from the steps that write outside
 what this repository owns — `rtk init -g` and the codebase-memory-mcp download among them.
 
@@ -7,6 +12,12 @@ The flags and the refusals both bootstrap scripts share are in the repository's 
 target this one reports and skips is still yours to link with the commands below. The last thing it
 does is run the repository's own suites over what it just linked; `--skip-verify` turns that off, and
 `--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the network.
+
+A few skills exist only to maintain this instruction tree and do nothing for a repository that merely
+uses it. Each declares `audience: maintainer` in its own frontmatter, and
+`--skip-maintainer-skills` leaves those unmounted — worth passing on a machine that is not maintaining
+the tree, since every skill's `description:` is loaded in every session whether or not it is invoked.
+Without the flag, every skill is mounted, which is what the loop below does too.
 
 - [Claude Code](https://code.claude.com)
   - `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`

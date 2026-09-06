@@ -2,6 +2,7 @@
 name: kk-skillcraft
 description: Review and refine skills as skills — triggering, how steps and reference material are split, steering strength, and what in them is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy (kk-ecosystem) or prose (kk-tighten).
 argument-hint: "a skill dir, several, or the whole skills tree"
+audience: maintainer
 ---
 
 Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-tighten`'s; neither applies this one.

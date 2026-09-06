@@ -1,0 +1,397 @@
+<!--
+  The hand-written half of the field guide. Everything a reader reads as prose is here; nothing here
+  is generated. Edit it like any HTML page, then run `ai/guide.sh` to rebuild ai/field-guide.html.
+
+  Four placeholders are filled by ai/tools/eco-guide, and all four must stay somewhere on the page:
+
+    {{skill-count}}         how many skills the guide lists
+    {{family-count}}        how many prefixes those skills fall under
+    {{human-typed-count}}   how many of them a human always types
+    {{skill-inventory}}     one card per skill, grouped by family
+
+  Two rules the generator enforces, so this file cannot go stale on its own:
+    - Every kk-* or idsd-* name written in this prose must be a skill the page lists. Rename or
+      retire a skill and this file goes red until the sentence naming it is edited.
+    - A placeholder that is missing, or one that is misspelled, refuses the build rather than
+      shipping a half-filled page.
+-->
+<title>kk-flavor Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:ital,wght@0,500;0,600;1,500&display=swap">
+<style>
+  :root{
+    --paper:#f6f7f5; --surface:#fdfdfc; --sunk:#eceeea;
+    --ink:#14181b; --ink-2:#3b4640; --muted:#5d6a66; --faint:#8b9691;
+    --rule:#dfe3de; --rule-2:#c9cfc9;
+    --idsd:#0d6a5f; --idsd-soft:#e2efec; --idsd-edge:#a8ccc5;
+    --kk:#a8552f; --kk-soft:#f6e9e2; --kk-edge:#dfb69c;
+    --warn:#8a6d1f;
+    --shadow:0 1px 2px rgba(20,24,27,.05);
+    --step:1.5rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#101413; --surface:#171d1b; --sunk:#1d2422;
+      --ink:#e7ece9; --ink-2:#b9c4bf; --muted:#8d9a95; --faint:#6d7a75;
+      --rule:#272f2d; --rule-2:#39433f;
+      --idsd:#57c3b1; --idsd-soft:#122824; --idsd-edge:#2b514a;
+      --kk:#e0906a; --kk-soft:#2a1d16; --kk-edge:#573a2a;
+      --warn:#d3b263;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#101413; --surface:#171d1b; --sunk:#1d2422;
+    --ink:#e7ece9; --ink-2:#b9c4bf; --muted:#8d9a95; --faint:#6d7a75;
+    --rule:#272f2d; --rule-2:#39433f;
+    --idsd:#57c3b1; --idsd-soft:#122824; --idsd-edge:#2b514a;
+    --kk:#e0906a; --kk-soft:#2a1d16; --kk-edge:#573a2a;
+    --warn:#d3b263;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    margin:0;
+  }
+  .wrap{max-width:1140px;margin:0 auto;padding:0 28px 96px}
+
+  h1,h2,h3{font-family:Spectral,Georgia,serif;text-wrap:balance;margin:0}
+  h1{font-size:2.55rem;font-weight:600;line-height:1.12;letter-spacing:-.01em}
+  h2{font-size:1.6rem;font-weight:600;line-height:1.2}
+  h3{font-size:1.05rem;font-weight:600;line-height:1.3}
+  p{margin:0}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:.7rem; font-weight:500;
+    letter-spacing:.13em; text-transform:uppercase; color:var(--faint);
+  }
+
+  /* ---- masthead ---- */
+  header.mast{padding:64px 0 40px;border-bottom:1px solid var(--rule)}
+  .mast-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:56px;align-items:end}
+  .lede{font-size:1.14rem;color:var(--ink-2);max-width:62ch;margin-top:18px}
+  .mast h1{margin-top:14px}
+  .facts{display:grid;grid-template-columns:repeat(3,auto);gap:0;border:1px solid var(--rule);
+    border-radius:3px;background:var(--surface);overflow:hidden}
+  .fact{padding:14px 18px;border-right:1px solid var(--rule)}
+  .fact:last-child{border-right:0}
+  .fact b{display:block;font-family:"IBM Plex Mono",monospace;font-size:1.5rem;font-weight:500;
+    line-height:1.1;font-variant-numeric:tabular-nums}
+  .fact span{font-size:.76rem;color:var(--muted);display:block;margin-top:3px}
+
+  /* ---- section frame ---- */
+  section{padding-top:60px}
+  .sec-head{display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--rule);padding-bottom:12px;margin-bottom:26px}
+  .sec-head h2{flex:1}
+  .sec-note{font-size:.85rem;color:var(--muted);max-width:34ch;text-align:right}
+
+  /* ---- families ---- */
+  .fam{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .fam-card{border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:22px 24px;box-shadow:var(--shadow)}
+  .fam-card.idsd{border-top:3px solid var(--idsd)}
+  .fam-card.kk{border-top:3px solid var(--kk)}
+  .fam-card h3{margin-bottom:6px}
+  .fam-card .who{font-size:.9rem;color:var(--muted);margin-bottom:14px}
+  .fam-card p{font-size:.94rem;color:var(--ink-2)}
+  .prefix{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .prefix.idsd{color:var(--idsd)}
+  .prefix.kk{color:var(--kk)}
+
+  .direction{
+    margin-top:22px;border:1px solid var(--rule-2);border-radius:3px;background:var(--sunk);
+    padding:16px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  }
+  .direction .arrow{font-family:"IBM Plex Mono",monospace;font-size:.95rem;white-space:nowrap}
+  .direction p{font-size:.88rem;color:var(--ink-2);flex:1;min-width:260px}
+
+  /* ---- pipeline ---- */
+  .pipe{display:grid;gap:0}
+  .step{display:grid;grid-template-columns:var(--step) minmax(0,1fr);gap:22px;position:relative;padding-bottom:26px}
+  .step:not(:last-child)::before{
+    content:"";position:absolute;left:calc(var(--step)/2 - 1px);top:26px;bottom:0;width:2px;background:var(--rule);
+  }
+  .num{
+    width:var(--step);height:var(--step);border-radius:50%;background:var(--idsd);color:var(--paper);
+    display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:600;
+    position:relative;z-index:1;
+  }
+  .step-body{padding-top:1px}
+  .step-body h3{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .step-body h3 code{font-size:.92rem;color:var(--idsd);font-weight:600}
+  .step-body p{font-size:.94rem;color:var(--ink-2);margin-top:5px;max-width:70ch}
+  .step-body .writes{font-size:.8rem;color:var(--muted);margin-top:7px;font-family:"IBM Plex Mono",monospace}
+
+  .aside{
+    border-left:3px solid var(--kk);background:var(--kk-soft);padding:14px 18px;border-radius:0 3px 3px 0;
+    margin-top:6px;font-size:.9rem;color:var(--ink-2);max-width:72ch;
+  }
+  .aside b{color:var(--ink)}
+
+  /* ---- the inventory ---- */
+  .lanes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+  .lane{border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .lane-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .lane-top code{font-size:.9rem;font-weight:600}
+  .lane-top code.k{color:var(--kk)}
+  .lane-top code.i{color:var(--idsd)}
+  .lane p{font-size:.88rem;color:var(--ink-2)}
+  .lane p.hint{font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--muted);
+    margin-top:auto;padding-top:2px;overflow-wrap:anywhere}
+  .lane p code{font-size:.82rem}
+  .tag{
+    font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;
+    padding:2px 6px;border-radius:2px;border:1px solid var(--rule-2);color:var(--muted);white-space:nowrap;
+  }
+  .tag.you{border-color:var(--kk-edge);color:var(--kk);background:var(--kk-soft)}
+  .group-label{
+    grid-column:1/-1;display:flex;align-items:center;gap:14px;margin-top:10px;
+  }
+  .group-label:first-child{margin-top:0}
+  .group-label span{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--faint)}
+  .group-label i{flex:1;height:1px;background:var(--rule);display:block}
+
+  /* ---- use cases ---- */
+  .cases{border:1px solid var(--rule);border-radius:3px;overflow:hidden;background:var(--surface)}
+  .case{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:0;border-bottom:1px solid var(--rule)}
+  .case:last-child{border-bottom:0}
+  .case .want{padding:15px 20px;font-size:.95rem;border-right:1px solid var(--rule)}
+  .case .do{padding:15px 20px;font-size:.9rem;color:var(--ink-2);background:var(--sunk)}
+  .case .do code{font-weight:600}
+  .case .do code.i{color:var(--idsd)}
+  .case .do code.k{color:var(--kk)}
+
+  /* ---- standards ---- */
+  .std{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+  .std ul{margin:0;padding-left:18px;font-size:.92rem;color:var(--ink-2);display:grid;gap:7px}
+  .std li code{color:var(--ink);font-size:.86rem}
+  .std-note{border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:20px 22px}
+  .std-note h3{margin-bottom:8px}
+  .std-note p{font-size:.92rem;color:var(--ink-2)}
+  .std-note p + p{margin-top:10px}
+
+  footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--rule);
+    display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
+    font-size:.82rem;color:var(--muted)}
+  footer code{font-size:.8rem}
+
+  a{color:var(--idsd)}
+  a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--idsd);outline-offset:2px}
+
+  @media (max-width:860px){
+    .mast-grid,.fam,.std{grid-template-columns:1fr;gap:30px}
+    .sec-head{flex-direction:column;gap:6px;align-items:flex-start}
+    .sec-note{text-align:left}
+    .case{grid-template-columns:1fr}
+    .case .want{border-right:0;border-bottom:1px solid var(--rule)}
+    h1{font-size:2rem}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="mast-grid">
+    <div>
+      <div class="eyebrow">Field guide</div>
+      <h1>Two families, one&nbsp;tree of instructions</h1>
+      <p class="lede">This is a set of skills for Claude Code. Each one is a <b>lane</b>: a single job, with a description that says what it covers and what it deliberately does not. You rarely pick a lane yourself — you go through a door, and the door picks. This page is what the doors know.</p>
+    </div>
+    <div class="facts">
+      <div class="fact"><b>{{skill-count}}</b><span>skills</span></div>
+      <div class="fact"><b>{{family-count}}</b><span>families</span></div>
+      <div class="fact"><b>{{human-typed-count}}</b><span>you always type</span></div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <h2>The two families</h2>
+    <p class="sec-note">The prefix is the contract, not a naming habit.</p>
+  </div>
+  <div class="fam">
+    <div class="fam-card kk">
+      <h3><span class="prefix kk">kk-*</span> — works in any repo</h3>
+      <p class="who">Reviewing, building, diagnosing, refining. Nothing about them assumes a particular way of working.</p>
+      <p>Drop them into any codebase and they hold. They know the shared writing and engineering standards, and nothing about intents, charters or ships.</p>
+    </div>
+    <div class="fam-card idsd">
+      <h3><span class="prefix idsd">idsd-*</span> — one workflow, with state on disk</h3>
+      <p class="who">Intent-driven development: plan a feature, build it, review it, archive it.</p>
+      <p>They keep a <code>.idsd/</code> directory — charter, intents, records, reports — and every one of them assumes it exists. If your project has no <code>.idsd/</code>, none of these apply to you.</p>
+    </div>
+  </div>
+  <div class="direction">
+    <div class="arrow"><span class="prefix idsd">idsd-*</span> &nbsp;→&nbsp; <span class="prefix kk">kk-*</span></div>
+    <p><b>The dependency runs one way.</b> A workflow skill calls an any-repo one. The reverse would make a skill that works everywhere carry knowledge of a workflow most repos never use — so when an any-repo skill says what it is <em>not</em>, it names the capability rather than the workflow skill that has it.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>The intent-driven path</h2>
+    <p class="sec-note">Once per project, then a loop per feature. The numbers are the real order.</p>
+  </div>
+  <div class="pipe">
+
+    <div class="step">
+      <div class="num">0</div>
+      <div class="step-body">
+        <h3>Seed the project <code>idsd-charter</code></h3>
+        <p>The what and why of the whole project, plus the limits every feature inherits — the response time you will not exceed, the dependency you will not add. Done once, edited rarely.</p>
+        <p class="writes">writes .idsd/charter.md · .idsd/constraints.md</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">1</div>
+      <div class="step-body">
+        <h3>Say what to build <code>idsd-intent</code></h3>
+        <p>One feature becomes an <b>ICE</b> — Intent, Context, Expectations. The goal, what it must respect, and the scenarios that show it works; never <em>how</em> to build it. The skill asks you questions until nothing is left open that could change what gets written, then writes the file.</p>
+        <p class="writes">writes .idsd/intents/NNN-slug/intent.md</p>
+        <div class="aside">Every slice is <b>vertical</b> — storage to interface, demonstrable on its own. "The schema", then "the API", then "the screen" gives you three intents nobody can accept, because none of them changes what a user can do.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">2</div>
+      <div class="step-body">
+        <h3>Ship it <code>idsd-ship</code></h3>
+        <p>The door you actually type. It writes the intent first if there isn't one, then runs the three stages below in order and stops to ask you before anything is merged.</p>
+        <p class="writes">idsd-build → idsd-qualify → idsd-finalize</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">3</div>
+      <div class="step-body">
+        <h3>Build <code>idsd-build</code></h3>
+        <p>Settles the questions the intent left open, puts the work on its own branch in its own <b>worktree</b> — a second checkout of the same repository, so two features can be built at once without colliding — then codes and tests until the checks pass. The intent's scenarios are what the tests have to show.</p>
+        <p class="writes">branch idsd/NNN-slug · one worktree per intent</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">4</div>
+      <div class="step-body">
+        <h3>Review <code>idsd-qualify</code></h3>
+        <p>A pipeline of review <b>stages</b> — correctness, security where the change touches any, prose, cleanup — each one a separate pass with its own lens. The result is written down as a report, stamped against the exact version of the code it read.</p>
+        <p class="writes">writes the review report · stamps the version it read</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="num">5</div>
+      <div class="step-body">
+        <h3>Finish <code>idsd-finalize</code></h3>
+        <p>What the feature taught goes up into the project's own records, then the intent moves to the archive. This runs one at a time across the whole repository, because it writes files every feature shares.</p>
+        <p class="writes">merges decisions · archives the intent</p>
+        <div class="aside">This is the only stage that has to wait its turn. Everything that might ask you a question happens before it — a question asked while the turn is held stalls every other feature behind a thread nobody is watching.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Many features at once</h2>
+    <p class="sec-note">Two skills sit above the loop rather than inside it.</p>
+  </div>
+  <p class="lede" style="margin-top:0">Once a project has more than a handful of intents, two questions come up that no single feature can answer: do they still agree with each other, and which of them could be built right now? <code>idsd-audit</code> answers the first and derives the order the second needs; <code>idsd-reactor</code> runs that order, launching a session per feature as its dependencies land. Both are listed with the rest below.</p>
+  <div class="direction">
+    <div class="arrow">depends-on&nbsp;→&nbsp;parallel</div>
+    <p><b>Dependencies decide what runs together; shared files do not.</b> Two features touching the same code still start at once — the overlap is resolved when each one merges. Hold a pair back only when they would be redoing each other's work.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Which door do I use?</h2>
+    <p class="sec-note">Start here. Everything else is reached through one of these.</p>
+  </div>
+  <div class="cases">
+    <div class="case">
+      <div class="want">I don't know which skill applies, or the work crosses several.</div>
+      <div class="do"><code class="k">kk-foreman</code> — say what you want done and it picks the skills, orders them and runs them. Add <code>unattended</code> to hand it the whole run.</div>
+    </div>
+    <div class="case">
+      <div class="want">I want to plan a feature properly before anyone writes code.</div>
+      <div class="do"><code class="i">idsd-intent</code> — it questions you, then writes the intent. No charter yet? It offers <code class="i">idsd-charter</code> once.</div>
+    </div>
+    <div class="case">
+      <div class="want">I want this feature built, reviewed and merged.</div>
+      <div class="do"><code class="i">idsd-ship</code> — the whole path above, stopping to ask you before the merge. Then <code class="i">idsd-ship done</code> to finish it.</div>
+    </div>
+    <div class="case">
+      <div class="want">I have a batch of intents and want them all going at once.</div>
+      <div class="do"><code class="i">idsd-reactor</code> — one session per feature that is ready, and it starts the rest as their dependencies land.</div>
+    </div>
+    <div class="case">
+      <div class="want">Something is broken and nobody knows why.</div>
+      <div class="do"><code class="k">kk-diagnose</code> — on its own, and before any change exists to review. A skill that reads a diff cannot find a cause nobody has reproduced.</div>
+    </div>
+    <div class="case">
+      <div class="want">I changed code and want it properly reviewed.</div>
+      <div class="do"><code class="k">kk-qualify</code> — on its own. It decides which review stages fire and in what order, so you never queue them yourself.</div>
+    </div>
+    <div class="case">
+      <div class="want">I have a plan or a decision and want the holes found before anyone builds.</div>
+      <div class="do"><code class="k">kk-grill</code> — on its own. Questions only, round by round, until nothing still open could change what gets written.</div>
+    </div>
+    <div class="case">
+      <div class="want">The reply I just got was a wall of text.</div>
+      <div class="do"><code class="k">kk-again</code> — same content, cut to what you must know, decide or do.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Every skill, in its own words</h2>
+    <p class="sec-note">Generated from each skill's own description, so this list cannot drift from the tree.</p>
+  </div>
+  <p class="lede" style="margin:0 0 26px">Each line below is the skill's own description, quoted as written — the same text Claude reads when it decides which skill applies. Two words recur in them: a <b>gate</b> is a command that has to pass before the work moves on, and a <b>chip</b> is the button Claude Code offers you to start a follow-up session.</p>
+  <div class="lanes">
+{{skill-inventory}}
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Underneath: the standards</h2>
+    <p class="sec-note">Skills carry procedure. The rules live one layer down.</p>
+  </div>
+  <div class="std">
+    <div>
+      <ul>
+        <li><code>core-principles.md</code> and <code>writing.md</code> — read on every task, by everything.</li>
+        <li><code>code-style.md</code>, <code>testing.md</code>, <code>architecture/</code> — read when you touch code.</li>
+        <li><code>building.md</code> — the loop that takes one settled requirement to a tree where the checks pass.</li>
+        <li><code>quality-pipeline.md</code> — the review stages, and what each check has to prove before it counts as passed.</li>
+        <li><code>git.md</code>, <code>records.md</code>, <code>live-systems.md</code>, <code>browser.md</code> — read on their own triggers.</li>
+      </ul>
+    </div>
+    <div class="std-note">
+      <h3>One home per rule</h3>
+      <p>Every rule lives in exactly one file; everywhere else points at it by path. A standard names the <em>job</em>; the skill doing that job binds itself to the name and cites the standard, never the other way round.</p>
+      <p>That is why the descriptions in the list above read the way they do. A skill's job is to say what it is and what it is not, so anyone choosing between two neighbours has something to choose on.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>Skills under <code>ai/skills/</code>, standards under <code>ai/kk-flavor/standards/</code>, tools under <code>ai/tools/</code>.</span>
+  <span>Install: <code>ai/bootstrap.sh</code> · Rebuild this page: <code>ai/guide.sh</code></span>
+</footer>
+
+</div>

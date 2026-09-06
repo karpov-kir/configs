@@ -45,12 +45,41 @@ func (c *checker) scanMounts() {
 		mountHave := shell.CanonicalDir(shell.Join(skillsMount, name))
 		switch {
 		case mountHave == "":
+			if c.mayGoUnmounted(skillsMount, name) {
+				continue
+			}
 			c.add(skillNotMounted + ": " + shell.Join(skillsMount, shell.Oneline(name)) + " is missing — the skill exists here and cannot be invoked")
 		case mountHave != mountWant:
 			c.add(skillMountedElsewhere + ": " + shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(mountHave) + ", not " + shell.Oneline(mountWant))
 		}
 	}
 	c.scanMountsWithoutSkills(skillsMount, skillNames)
+}
+
+// Whether this skill's absence from the mount is an install's choice rather than a defect. Two things
+// have to hold, and each answers a different way of being wrong.
+//
+// The skill declares itself maintainer-only, so `ai/bootstrap.sh --skip-maintainer-skills` was
+// entitled to leave it out. Nothing on disk records which audience a machine installed for, so past
+// that declaration the scan cannot tell a deliberate exclusion from a lost mount — and read on an
+// external install the finding would name skills that are exactly where they belong.
+//
+// And the mount path holds nothing at all. A mount that is there and resolves to nothing is a link no
+// install chose: the checkout it named is gone. The reverse scan passes over it, because the tree
+// still holds the skill's directory, so this loop is the only one that can say so.
+//
+// The gate term rides on holdsRegularFile, so under --gate a gitignored SKILL.md declares nothing —
+// the audience is a claim a commit carries or does not.
+func (c *checker) mayGoUnmounted(skillsMount, name string) bool {
+	if _, isSymlink := mountTarget(shell.Join(skillsMount, name)); isSymlink {
+		return false
+	}
+	file := c.skillFilePath(name)
+	if !c.holdsRegularFile(file) {
+		return false
+	}
+	lines, err := c.readLines(file)
+	return err == nil && shell.IsMaintainerAudience(lines)
 }
 
 // A run that checked no mount prints byte for byte what a run that checked every one of them prints,

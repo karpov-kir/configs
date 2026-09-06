@@ -158,6 +158,105 @@ expect_out "and says what it would do" "would link"
   record_pass "--dry-run creates nothing at all" ||
   record_fail "--dry-run creates nothing at all" "something was written under $home"
 
+# --- the two audiences ------------------------------------------------------------------------------
+
+# Some skills exist only to maintain this instruction tree and do nothing for a repository that merely
+# uses it. Each costs every session context through its `description:`, which is loaded whether or not
+# the skill is ever invoked, so an install that is not maintaining the tree should not carry them.
+#
+# Both sets are discovered here the way the script discovers its mounts, and by a reader of their own:
+# a list of names written into this suite would drift the day a fourth skill is marked, and would pass
+# over a script that had gone back to mounting by hardcoded name.
+maintainer_skills=""
+public_skills=""
+for skill_path in "$here"/skills/*/; do
+  skill_name=$(basename "${skill_path%/}")
+  if grep -q '^audience: maintainer$' "${skill_path}SKILL.md" 2>/dev/null; then
+    maintainer_skills="$maintainer_skills $skill_name"
+  else
+    public_skills="$public_skills $skill_name"
+  fi
+done
+
+if [ -n "$maintainer_skills" ] && [ -n "$public_skills" ]; then
+  record_pass "control: the tree holds skills of both audiences, so the cases below compare something"
+else
+  record_fail "control: the tree holds skills of both audiences, so the cases below compare something" \
+    "maintainer='$maintainer_skills' public='$public_skills'"
+fi
+
+fresh_home
+run_boot "$home" --skip-maintainer-skills
+expect_status "--skip-maintainer-skills exits 0" 0
+
+unmounted=""
+for skill_name in $public_skills; do
+  [ -L "$home/.claude/skills/$skill_name" ] || unmounted="$unmounted $skill_name"
+done
+[ -z "$unmounted" ] &&
+  record_pass "and every skill the marker does not name is still mounted" ||
+  record_fail "and every skill the marker does not name is still mounted" "not mounted:$unmounted"
+
+mounted=""
+for skill_name in $maintainer_skills; do
+  [ -e "$home/.claude/skills/$skill_name" ] && mounted="$mounted $skill_name"
+done
+[ -z "$mounted" ] &&
+  record_pass "and no marked skill is" ||
+  record_fail "and no marked skill is" "mounted anyway:$mounted"
+
+expect_out "and says how many it left out, rather than excluding them quietly" "maintainer-only"
+
+# The flagless default, which is what every machine already set up re-runs. The fresh-machine case at
+# the top counts every skill directory against every mount, so what is left to say here is that the
+# marked ones are inside that count rather than excluded by a marker the flag was supposed to gate.
+fresh_home
+run_boot "$home"
+missing=""
+for skill_name in $maintainer_skills; do
+  [ -L "$home/.claude/skills/$skill_name" ] || missing="$missing $skill_name"
+done
+[ -z "$missing" ] &&
+  record_pass "with no flag, a marked skill is mounted like any other" ||
+  record_fail "with no flag, a marked skill is mounted like any other" "not mounted:$missing"
+
+# Discovery's second vacuity case. A checkout where the flag excludes every skill mounts nothing, and
+# the empty-tree refusal would report that as a skills directory holding no skill — a false diagnosis
+# sending the reader to look for files that are all there. The exit code is the same either way, so the
+# wording is the only thing telling the two apart.
+# Under $tmp_real, not $tmp: the script resolves its own repository with `pwd -P`, so a fixture reached
+# through the unresolved /var symlink mounts links this suite would then compare against the other
+# spelling of the same path.
+only_maintainer="$tmp_real/only-maintainer"
+fixture_checkout "$only_maintainer" ai
+mkdir -p "$only_maintainer/ai/skills/kk-ecosystem" "$only_maintainer/ai/kk-flavor"
+: >"$only_maintainer/ai/CLAUDE.md"
+cat >"$only_maintainer/ai/skills/kk-ecosystem/SKILL.md" <<'SKILL'
+---
+name: kk-ecosystem
+description: the one skill this fixture ships
+audience: maintainer
+---
+SKILL
+
+fresh_home
+out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" \
+  --skip-brew --skip-tools --skip-mcp --skip-verify --skip-maintainer-skills 2>&1)
+status=$?
+expect_status "a checkout whose every skill is marked exits 1" 1
+expect_out "and says the flag is what excluded them" "excluded all 1"
+expect_not_out "and does not report the tree as holding no skill at all" "no skill directories under"
+
+# The control, and the load-bearing half: the same checkout with no flag mounts its one skill. Without
+# it the refusal above would pass over a fixture that never had a skill to mount.
+fresh_home
+out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" \
+  --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+status=$?
+expect_status "control: the same checkout with no flag exits 0" 0
+expect_link_to "control: and mounts its one skill" \
+  "$home/.claude/skills/kk-ecosystem" "$only_maintainer/ai/skills/kk-ecosystem"
+
 # --- arguments ------------------------------------------------------------------------------------
 
 # The skip flags ride along even though the option check runs before any of them are consulted. If
@@ -197,6 +296,26 @@ expect_not_out "and stops before the notes under it" "Safe to re-run"
 [ ! -e "$home/.kk-flavor" ] && [ ! -e "$home/.claude" ] &&
   record_pass "and --help changes nothing on the machine" ||
   record_fail "and --help changes nothing on the machine" "something was written under $home"
+
+# Every flag the parser accepts is one the printed header names. Two ways that breaks, and neither
+# shows up anywhere else: a flag added to the case statement and never written into the usage line is
+# one no reader can find, and a usage line long enough to wrap can wrap out of the printed range, which
+# is two line numbers nothing else checks. Both sides are read off the shipped script and its own
+# output, so a flag cannot be added to one and missed in the other.
+parsed_flags=$(sed -n 's/^    \(--[a-z][a-z-]*\)).*$/\1/p' "$script" | sort -u)
+help_flags=$(printf '%s\n' "$out" | grep -oE -- '--[a-z][a-z-]*' | sort -u)
+if [ -n "$parsed_flags" ] && [ -n "$help_flags" ]; then
+  record_pass "control: flags were found in both the parser and the help output, so this case compares something"
+else
+  record_fail "control: flags were found in both the parser and the help output, so this case compares something" \
+    "parser='$parsed_flags' help='$help_flags'"
+fi
+if [ "$parsed_flags" = "$help_flags" ]; then
+  record_pass "and --help names every flag the parser accepts, and no other"
+else
+  record_fail "and --help names every flag the parser accepts, and no other" \
+    "only in the parser: $(comm -23 <(printf '%s\n' "$parsed_flags") <(printf '%s\n' "$help_flags") | tr '\n' ' ')| only in --help: $(comm -13 <(printf '%s\n' "$parsed_flags") <(printf '%s\n' "$help_flags") | tr '\n' ' ')"
+fi
 
 # --- the verify step, and its re-entry guard ------------------------------------------------------
 

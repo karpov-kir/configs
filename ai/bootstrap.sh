@@ -4,7 +4,8 @@
 # bucket and every skill into place, install the tools they run, register the MCP servers, then verify
 # the result by running the repository's own suites.
 #
-#   usage: ai/bootstrap.sh [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-verify]
+#   usage: ai/bootstrap.sh [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp]
+#                          [--skip-verify] [--skip-maintainer-skills]
 #
 # Safe to re-run: every step checks the state it wants before changing anything, so a second run over
 # a finished machine reports "ok" throughout and writes nothing.
@@ -45,6 +46,7 @@ skip_brew=false
 skip_tools=false
 skip_mcp=false
 skip_verify=false
+skip_maintainer_skills=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -54,8 +56,9 @@ for arg in "$@"; do
     --skip-tools) skip_tools=true ;;
     --skip-mcp) skip_mcp=true ;;
     --skip-verify) skip_verify=true ;;
+    --skip-maintainer-skills) skip_maintainer_skills=true ;;
     -h | --help)
-      sed -n '3,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '3,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -82,17 +85,67 @@ bulk_label="skills"
 add_cfg "$repo/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
 add_cfg "$repo/kk-flavor" "$HOME/.kk-flavor"
 
+# Whether a skill exists to maintain this instruction tree rather than to work in any repository. The
+# audience is declared in the skill's own frontmatter, so discovery below stays discovery: a
+# maintainer-only skill added tomorrow is excluded without anyone editing this file, and a list of
+# three names here would be wrong the day a fourth is marked.
+#
+# The block opens on line 1 and has to close before any line in it counts, which is the rule the Go
+# reader states in ai/tools/shell/markdown.go — an `audience:` line in the prose is prose, and an
+# unterminated block is not frontmatter. The pattern below is that reader's, character for character,
+# because eco-check's mount scan asks the same question of the same files and the two answers cannot
+# be allowed to differ.
+is_maintainer_only() { # <SKILL.md>
+  [ -r "$1" ] || return 1
+  awk '
+    NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next }
+    /^---[[:space:]]*$/ { closed = 1; exit }
+    tolower($0) ~ /^audience:[[:space:]]*maintainer[[:space:]]*$/ { found = 1 }
+    END { if (closed && found) exit 0; exit 1 }
+  ' "$1"
+}
+
 # Discovery, not a list: a skill added tomorrow is mounted without anyone editing this file. The cost
 # of discovery is that finding none would silently mount nothing, so that is a refusal below.
+skills_found=0
+skipped_count=0
+skipped_names=""
 for dir in "$repo"/skills/*/; do
   [ -d "$dir" ] || continue
   # `%/` first: `##*/` on a path ending in `/` returns nothing, pointing every skill at one target.
   skill_dir="${dir%/}"
+  skills_found=$((skills_found + 1))
+  if $skip_maintainer_skills && is_maintainer_only "$skill_dir/SKILL.md"; then
+    skipped_count=$((skipped_count + 1))
+    skipped_names="$skipped_names ${skill_dir##*/}"
+    continue
+  fi
   add_bulk "$skill_dir" "$HOME/.claude/skills/${skill_dir##*/}"
 done
 
 mount_run
-[ "${#bulk_targets[@]}" -gt 0 ] || refuse "no skill directories under $repo/skills/ — nothing was mounted"
+
+# Said out loud, and after the mounts so it reads beside them. A flag that quietly leaves skills out is
+# indistinguishable from a discovery loop that stopped finding them: the machine ends up short of
+# skills with nothing in the run saying why. The zero case is the same claim about work that did not
+# happen — a flag passed to a tree carrying no marked skill has to say it excluded nothing.
+if $skip_maintainer_skills && [ "$skipped_count" -eq 0 ]; then
+  say "  ok       no maintainer-only skill was there to exclude"
+elif $skip_maintainer_skills; then
+  say "  skipped  $skipped_count maintainer-only skill(s):$skipped_names"
+fi
+
+# Two ways to mount no skill, and they send a reader to different places: a skills directory with
+# nothing in it is a broken checkout, while a flag that excluded every skill it found is a flag doing
+# exactly what it says on a tree that has nothing else. The exit code is the same for both, so the
+# wording is the only thing telling them apart.
+if [ "${#bulk_targets[@]}" -gt 0 ]; then
+  :
+elif [ "$skills_found" -gt 0 ]; then
+  refuse "every skill under $repo/skills/ is maintainer-only, and --skip-maintainer-skills excluded all $skills_found — nothing was mounted"
+else
+  refuse "no skill directories under $repo/skills/ — nothing was mounted"
+fi
 
 # --- packages ------------------------------------------------------------------------------------
 

@@ -1154,6 +1154,17 @@ var mutants = []mutant{
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
 		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
+
+	// The field guide's four load-bearing guards. Each failure here is silent — the page still renders,
+	// still reads as finished, and only says something untrue about the tree.
+	{"guide: the maintainer marker stops excluding", "../eco-guide/inventory.go", "./eco-guide/", "TestTheMaintainerOnlySkillsAreLeftOut",
+		"if err != nil || shell.IsMaintainerAudience(lines) {", "if err != nil || shell.IsMaintainerAudience(lines) && false {"},
+	{"guide: the stale-narrative scan never reports", "../eco-guide/render.go", "./eco-guide/", "TestTheNarrativeCannotNameASkillThatIsGone",
+		"if len(stale) == 0 {", "if len(stale) >= 0 {"},
+	{"guide: the authoring comment is filled instead of cut", "../eco-guide/render.go", "./eco-guide/", "TestTheAuthoringCommentIsNotPartOfThePage",
+		`if !strings.HasPrefix(template, "<!--") {`, `if !strings.HasPrefix(template, "<!--") || true {`},
+	{"guide: the check passes whatever the committed page holds", "../eco-guide/eco-guide.go", "./eco-guide/", "TestCheckPassesOnlyWhenTheCommittedPageMatches",
+		"if string(held) == want {", "if string(held) == want || true {"},
 }
 
 // A mutant no case can redden, and why: a guard whose triggering condition an earlier guard already
