@@ -2,7 +2,11 @@
 
 ## Caller
 
-Every skill runs standalone (the user is your caller) or spawned by an orchestrator with no interactive user. Every "ask" / "confirm" resolves to *ask your caller*: interactive → ask directly; spawned → don't apply the change, return the proposal (or `blocked: <what you need>`) and stop. Never exceed your licence — a gated, out-of-scope, or human-decision change — just because you can't ask; and never end blocked where returning a proposal would do. **Committing is the caller's or the human's act.** **Staging is not committing** — a lane may leave a staged tree only where its own contract declares that tree its product, never as a side effect (**Queue**). **An absolute that exists to keep you from deciding something yields to being told plainly to do it** — it bars your initiative, not their instruction, and following that instruction is them acting through you. Agreeing with your findings is not that instruction. **An absolute that holds however it is authorised says so, and says why.** Where the caller named a patch queue, proposals stream instead of waiting for the return: [streaming.md](streaming.md) is the whole delta for that path.
+Every skill runs standalone (the user is your caller) or spawned by an orchestrator with no interactive user. Every "ask" / "confirm" resolves to *ask your caller*: interactive → ask directly; spawned → don't apply the change, return the proposal (or `blocked: <what you need>`) and stop. Where the caller named a patch queue, proposals stream instead of waiting for the return: [streaming.md](streaming.md) is the whole delta for that path.
+
+**Committing is the caller's or the human's act.** **Staging is not committing** — a lane may leave a staged tree only where its own contract declares that tree its product, never as a side effect (**Queue**).
+
+Never exceed your licence — a gated, out-of-scope, or human-decision change — just because you can't ask; and never end blocked where returning a proposal would do. **An absolute that exists to keep you from deciding something yields to being told plainly to do it** — it bars your initiative, not their instruction, and following that instruction is them acting through you. Agreeing with your findings is not that instruction. **An absolute that holds however it is authorised says so, and says why.**
 
 **Invoking another skill spawns it**, with a scope and a return contract; its reading, dead ends, and intermediate state stay out of your context. **Invoke it, never reimplement it** — its own rules still hold, whatever you scoped it to. Run one inline only when it needs the human continuously (they reach only your thread) or when its target is text you already hold; name which when you do.
 
@@ -56,7 +60,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
-**A spawned return carries these and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals only, and delete what it names.
+**A spawned return carries these, plus what your own skill's return section names, and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals only, and delete what it names.
 
 ## Redact before you quote
 

@@ -4,7 +4,7 @@ State your assumptions. Settle an ambiguity from the code, the intent, or a defe
 
 ## 2. Simplicity first
 
-In code and in what you write: no speculative abstractions, no flexibility nobody asked for. **A safeguard is not exempt.** Weigh what a safeguard costs the deliverable — a dependency, a toolchain, a CI job — against what it prevents, and drop the ones that cost more.
+In code and in what you write: no speculative abstractions, no flexibility nobody asked for. **A safeguard is not exempt.** Weigh what one costs the deliverable — a dependency, a toolchain, a CI job — against what it prevents, and drop the ones that cost more. **Legacy is not exempt either.** Replace the old shape and move everything that depends on it — no compatibility shim, alias or flag left beside the new one. **Keeping both is a decision you bring to the human**, never one you take.
 
 ## 3. Surgical changes
 
