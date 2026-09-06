@@ -14,6 +14,8 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **One subagent per stage.** Every decision, and everything the pass itself writes, stay in this thread. Carry a mid-session deferral into the spawn prompt of every stage that runs afterwards.
 
+**Before accepting that it cannot spawn, a session tests the bar** ([skill-protocol.md](skill-protocol.md) → **Caller**) — the bar an agent would rather not test is the one this rule exists to catch. Where the session still cannot spawn, the stages run inline and the closing status names which of these happened: the author reviewed their own work, each lens read the diff with the build's reasoning already in the window, no file got a fresh read. Every lens still runs and every control is still proved. **A pass a merge waits on runs only from a session that can spawn.**
+
 **A handoff a stage returns joins this round at the receiving skill's own stage number** ([skill-protocol.md](skill-protocol.md) → **Finish in the lanes your edits opened**).
 
 **Reconcile contradictions empirically** — two stages opposing on one location, or a claim against an observation: re-run the check yourself rather than trust either side's word. **A claim you cannot verify has an author**: `git log` the line before you replace it with an inference.

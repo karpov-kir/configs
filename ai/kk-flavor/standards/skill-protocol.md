@@ -8,7 +8,7 @@ Every skill runs standalone (the user is your caller) or spawned by an orchestra
 
 Never exceed your licence — a gated, out-of-scope, or human-decision change — just because you can't ask; and never end blocked where returning a proposal would do. **An absolute that exists to keep you from deciding something yields to being told plainly to do it** — it bars your initiative, not their instruction, and following that instruction is them acting through you. Agreeing with your findings is not that instruction. **An absolute that holds however it is authorised says so, and says why.**
 
-**Invoking another skill spawns it**, with a scope and a return contract; its reading, dead ends, and intermediate state stay out of your context. **Invoke it, never reimplement it** — its own rules still hold, whatever you scoped it to. Run one inline only when it needs the human continuously (they reach only your thread) or when its target is text you already hold; name which when you do.
+**Invoking another skill spawns it**, with a scope and a return contract; its reading, dead ends, and intermediate state stay out of your context. **Invoke it, never reimplement it** — its own rules still hold, whatever you scoped it to. Run one inline only when it needs the human continuously (they reach only your thread), when its target is text you already hold, or when you cannot spawn at all; name which when you do.
 
 ## Phase boundaries
 
