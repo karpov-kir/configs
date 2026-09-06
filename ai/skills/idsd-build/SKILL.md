@@ -76,10 +76,10 @@ When `idsd-ship` invokes you:
 
 ## Parallel execution
 
-`kk-build` holds the rules for several builds at once. Two are this suite's own:
+`~/.claude/skills/kk-build/SKILL.md` → **Parallel builds** holds the rules. Two things it cannot know reach this suite:
 
-- **Integration is serial, against the current target.** Phase 5's merge, `archive/` move and roadmap regeneration run one build at a time.
-- **Phase 1's rounds are interactive moments too**, so they fall under kk-build's ask-once-and-wait rule even though they run before it.
+- **Its serial-integration rule covers Phase 5's merge, `archive/` move and roadmap regeneration** — one build at a time through all three.
+- **Phase 1's rounds are interactive moments too**, so its ask-once-and-wait rule binds them even though they run before the build.
 
 ## Rules
 
