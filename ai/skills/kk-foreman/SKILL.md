@@ -71,6 +71,6 @@ Run each stage in the order **Route** resolved — spawned, unless that skill's 
 
 ## Rules
 
-- **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes — which an `unattended` run already carries.
+- **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
 - Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires. Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**

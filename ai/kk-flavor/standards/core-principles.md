@@ -1,4 +1,4 @@
-## 1. Think before coding
+## 1. Think first
 
 State your assumptions. Settle an ambiguity from the code, the intent, or a defensible default, and say what settled it. Ask only when none of those decide it and reversing the choice is expensive. Push back when a simpler approach exists.
 
