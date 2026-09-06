@@ -1,6 +1,6 @@
 ---
 name: idsd-intent
-description: Author or refine an ICE intent — what to build and why, never how; also owns .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.
+description: Author or refine an ICE intent — what to build and why, never how; also owns .idsd/roadmap.md and .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.
 argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
@@ -43,6 +43,8 @@ Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.cl
 Write each ICE to `.idsd/intents/NNN-<slug>/intent.md` from `templates/ice-template.md` at `status: draft`.
 
 If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every intent's frontmatter (active + archived): a heading per milestone (`milestone: none` → "Unscheduled"), columns number, title, status. Generated, never hand-edited.
+
+**Below that table, a build graph** — a `mermaid` fence over the unbuilt intents, `depends-on` edges only, minus the parked ones (`vnext` and Unscheduled). Root it at the intents whose `depends-on` targets are all built, three levels deep. **Under it, say how many unbuilt intents it omits and why**: parked, deeper than three levels, or reachable only through a parked one.
 
 **The charter changes only through `idsd-charter`, whatever the section** — you propose, the human confirms. If `.idsd/charter.md` exists and this planning adds intents, defers them, or puts one outside the current **Scope**, propose a Scope update. If there's no charter, don't create one here.
 
