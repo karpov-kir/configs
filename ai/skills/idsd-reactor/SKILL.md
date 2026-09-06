@@ -8,19 +8,20 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` (→ **Orchestr
 
 ## 1. Resolve the order
 
-Spawn `idsd-audit` over the intent set.
+**Ask whether to audit first**, and recommend it for a set nobody has audited since it last changed. `idsd-audit` is what catches a cycle or a dangling `depends-on` before sessions are launched onto an intent that never unblocks. Skipping it costs that one check — `report.sh intent-ready` still refuses each build whose dependency has not shipped.
 
-- **A Blocker stops the launch.** Route each through the skill the audit names, then re-run it. A cyclic or dangling `depends-on` schedules a session onto an intent that never unblocks.
-- **The launchable set is the audit's first build batch**, narrowed by `<arg>` (a milestone, or named slugs) when one is given. Drop every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch.
+- **Audited** — the launchable set is the audit's first build batch, and **a Blocker stops the launch**: route each through the skill the audit names, then re-run it.
+- **Unaudited** — the launchable set is every unbuilt intent whose `depends-on` targets are all built, read from the intents' own frontmatter.
+- Narrow that set by `<arg>` (a milestone, or named slugs). Drop every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch.
 - Present the schedule: the launchable set, then what each later intent waits on. Say that this session is the reactor's address and launches the later intents only while it stays open.
 
-**Two answers shape the launch:** the yes to spend a session per intent, and whether each session archives itself once its intent lands. **The human gives the second by name, however the run is authorised** — a licence to act unattended does not supply it. **Unanswered, launch anyway and no session archives itself.**
+**Two answers shape the launch:** the yes to spend a session per intent, and whether each session archives itself once its intent lands. **The second comes from the human by name — no licence to act unattended supplies it.** **Unanswered, launch anyway and no session archives itself.**
 
 ## 2. Launch — one agent per intent
 
-Spawn one agent per launchable intent, **all in one message**, so they draft in parallel. Each agent runs `kk-handoff` **inline** in its own thread. You spawn the agent, never `kk-handoff` itself — the agent holds the handed-off context whole, which is the condition `~/.claude/skills/kk-handoff/SKILL.md` gives for running it inline.
+Spawn one agent per launchable intent, **all in one message**, so they draft in parallel. Each agent runs `kk-handoff` **inline**. You spawn the agent, never `kk-handoff` itself, which `~/.claude/skills/kk-handoff/SKILL.md` keeps inline — the handed-off context lives in that agent's thread.
 
-**Keep each prompt thin.** Its task is one line: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself — a prompt that summarises them drifts from the ICE, and the summary is what gets built.
+**Keep each prompt thin.** Its task is one line: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
 
 Hand each agent what no file on disk carries:
 
@@ -34,7 +35,7 @@ Done when one chip per launchable intent exists. **With nobody at the keyboard t
 
 ## 3. React
 
-A session's message wakes you, so end each turn rather than wait on one. Close each turn with the live sessions, and what each waiting intent waits on.
+End each turn rather than wait on a session's message — it wakes you. Close each turn with the live sessions, and what each waiting intent waits on.
 
 - **A contract change** — an API shape, a shared type, a wire protocol. Forward it to every live sibling whose ICE consumes it, so that sibling rebases instead of colliding.
 - **The merge slot** — a sibling refused the slot asks whether its holder is still alive. **`report.sh merge-slot` cannot answer that.** Its refusal names the holder's worktree (`~/.claude/skills/idsd-finalize/SKILL.md` → **2. Take the slot**); match that worktree against your live sessions. Gone, and the waiting one may `--force`; otherwise it waits.
@@ -46,7 +47,7 @@ A session's message wakes you, so end each turn rather than wait on one. Close e
 
 **A question you cannot see is not yours to hold** — the human answers each session in its own thread.
 
-The run ends when every intent in scope has landed and every session it launched has sent `done`. Name to the human each one that will not: an intent nothing live is building, a session that died.
+The run ends when every intent in scope has landed and every session it launched has sent `done`. Name to the human each one that will not.
 
 ## Rules
 
