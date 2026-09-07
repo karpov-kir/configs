@@ -139,9 +139,7 @@ out=$(HOME="$home" bash "$script" --skip-brew --not-a-flag 2>&1)
 status=$?
 expect_status "an unknown option exits 2" 2
 expect_out "and names the option it rejected" "--not-a-flag"
-[ ! -e "$home/.zshrc" ] &&
-  record_pass "and a rejected option changes nothing" ||
-  record_fail "and a rejected option changes nothing" "it linked anyway"
+expect_absent "and a rejected option changes nothing" "$home/.zshrc"
 
 # `--help` prints a line range out of this script's own header — a claim about a file's content held
 # by two line numbers, which a line added above the range or a paragraph moved inside it turns into
@@ -203,9 +201,7 @@ status=$?
 expect_status "a checkout without lib/mount.sh exits 2" 2
 expect_out "and names the file that is missing" "lib/mount.sh is missing from this checkout"
 expect_not_out "and does not cascade through the mount table instead" "command not found"
-[ ! -e "$home/.zshrc" ] &&
-  record_pass "and nothing was linked" ||
-  record_fail "and nothing was linked" "it linked anyway"
+expect_absent "and nothing was linked" "$home/.zshrc"
 
 # --- a shared file that is present but stops halfway ----------------------------------------------
 

@@ -16,9 +16,10 @@
 # refused before anything is written; `--relocate` is how you say you mean it.
 #
 # It refuses rather than deletes. A target it does not already own is reported and skipped, and the
-# run exits non-zero with the list. The one thing it does remove is `~/.claude/RTK.md`, a file this
-# repository used to write and nothing reads any more — the rtk step below carries why that removal
-# belongs in this script rather than in a human's hands.
+# run exits non-zero with the list. Two things it does remove, both its own leavings. One is a mount
+# under `~/.claude/skills/` whose skill this checkout no longer has — what a rename leaves behind —
+# and lib/mount.sh carries why removing it is the script's job. The other is `~/.claude/RTK.md`,
+# which this repository used to write and nothing reads any more; the rtk step below says why.
 #
 # It reaches other scripts rather than reimplementing them: `tools/install.sh` for the Go tool
 # binaries, `mcp-sync.sh` for the MCP registry, `run-tests.sh` to verify. Each of those owns its own
@@ -156,6 +157,10 @@ for dir in "$repo"/skills/*/; do
   add_bulk "$skill_dir" "$HOME/.claude/skills/${skill_dir##*/}"
 done
 
+# `--skip-maintainer-skills` is not a case for scanning less: a skill that flag leaves out is still
+# in the tree, so its mount still resolves.
+add_unmount_scan "$HOME/.claude/skills" "$repo/skills"
+
 mount_run
 
 # Said out loud, and after the mounts so it reads beside them. A flag that quietly leaves skills out is
@@ -172,12 +177,12 @@ fi
 # nothing in it is a broken checkout, while a flag that excluded every skill it found is a flag doing
 # exactly what it says on a tree that has nothing else. The exit code is the same for both, so the
 # wording is the only thing telling them apart.
-if [ "${#bulk_targets[@]}" -gt 0 ]; then
-  :
-elif [ "$skills_found" -gt 0 ]; then
-  refuse "every skill under $repo/skills/ is maintainer-only, and --skip-maintainer-skills excluded all $skills_found — nothing was mounted"
-else
-  refuse "no skill directories under $repo/skills/ — nothing was mounted"
+if [ "${#bulk_targets[@]}" -eq 0 ]; then
+  if [ "$skills_found" -gt 0 ]; then
+    refuse "every skill under $repo/skills/ is maintainer-only, and --skip-maintainer-skills excluded all $skills_found — nothing was mounted"
+  else
+    refuse "no skill directories under $repo/skills/ — nothing was mounted"
+  fi
 fi
 
 # --- packages ------------------------------------------------------------------------------------

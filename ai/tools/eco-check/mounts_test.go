@@ -315,9 +315,11 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	})
 }
 
-// The reverse finding echoes a mount name read out of $HOME and a link target read off that mount,
-// neither of which the reviewed branch chooses — defence in depth, for the reason the file header
-// gives for the elsewhere arm's case.
+// The reverse finding echoes a mount name read out of $HOME and a link target read off that mount.
+// Both begin as a skill directory name the branch chose. ai/bootstrap.sh writes that name into $HOME,
+// and drops the mount only on a run after the directory has gone — so a branch can put its own bytes
+// in this message, one bootstrap removed. The name arm of TestMountFindingCarriesNoControlByte says
+// the same of the forward half; this is not defence in depth either.
 func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 	newMountWithAControlByte := func(t *testing.T) *fixture {
 		f := newInstalledRoot(t)
@@ -333,10 +335,6 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		newMountWithAControlByte(t).doesNotReport("\x1b")
 	})
 
-	// The name arm. ai/bootstrap.sh mounts every directory under skills/ and unmounts none. So a branch
-	// that adds a skill whose directory name carries an ESC, gets bootstrapped, then deletes it, leaves
-	// a mount at $HOME whose *name* is the branch's own bytes, and this finding is the one that echoes
-	// it. The target here is clean, so only the name's sanitiser can keep the ESC out.
 	newMountNamedWithAControlByte := func(t *testing.T) *fixture {
 		f := newInstalledRoot(t)
 		f.newMountPointingAt("idsd\x1b[2Kgone", f.root+"/skills/idsd-gone")
