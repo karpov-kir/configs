@@ -12,7 +12,7 @@ Pick scope from the request, not repo state: one ticket or one outcome → a **f
 
 At project scope, read `.idsd/charter.md` to ground decomposition; if it is missing, offer once to run `idsd-charter` — never force it.
 
-If refining, read the named intent file, grill only the gaps, and preserve its build-managed `## Follow-ups` checklist.
+If refining, read the named intent file, grill only the gaps, and preserve its `## Follow-ups` checklist.
 
 ## Phase 1 — Grill
 
@@ -38,13 +38,13 @@ Emit one outcome line as the gate's evidence: the residual ambiguities found and
 
 **Precondition:** write no file until Phase 2's outcome line is emitted.
 
-Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3). Compute it at the moment of write; if a concurrent author already took it, bump to the next free one. **Sweep every branch, not the tree you can see** — an intent in flight lives only on its own branch until it merges, so a working-tree read hands out a number a sibling wrote an hour ago and neither author ever learns: `git branch --format='%(refname:short)'`, then `git ls-tree -d --name-only <branch> .idsd/intents/`.
+Run `~/.claude/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**). Confirm slug(s) + path(s) once, then write. Slug = kebab-case, ≤5 words. Number = **the one a reactor handed you**, whenever one did — it hands them out because a number computed from what exists cannot separate two sessions writing at the same moment. **Otherwise** compute it: the highest existing `NNN` across `.idsd/intents/` **and `.idsd/archive/`**, plus one (zero-padded to 3), at the moment of write; if a concurrent author already took it, bump to the next free one. **That computation sweeps every branch, not the tree you can see** — an intent in flight lives only on its own branch until it merges, so a working-tree read hands out a number a sibling wrote an hour ago and neither author ever learns: `git branch --format='%(refname:short)'`, then `git ls-tree -d --name-only <branch> .idsd/intents/`.
 
 Write each ICE to `.idsd/intents/NNN-<slug>/intent.md` from `templates/ice-template.md` at `status: draft`.
 
 If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every intent's frontmatter (active + archived): a heading per milestone (`milestone: none` → "Unscheduled"), columns number, title, status. Generated, never hand-edited.
 
-**Below that table, a build graph** — a `mermaid` fence over the unbuilt intents, `depends-on` edges only, minus the parked ones (`vnext` and Unscheduled). Root it at the intents whose `depends-on` targets are all built, three levels deep. **Under it, say how many unbuilt intents it omits and why**: parked, deeper than three levels, or reachable only through a parked one.
+**Below that table, a build graph** — a `mermaid` fence over the unbuilt intents, minus the parked ones (`vnext` and Unscheduled), over the edges the **Links rule** draws. Root it at the intents that point at no unbuilt intent, three levels deep. **Under it, say how many unbuilt intents it omits and why**: parked, deeper than three levels, or reachable only through a parked one.
 
 **Order nodes and edges by intent number.** Two agents given one frontmatter write correct graphs that differ line by line otherwise, and every regeneration then churns a diff nobody can read.
 
@@ -52,9 +52,11 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 **Keep `.idsd/language.md` current** — the project's ubiquitous language. One entry per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. **Write it only through `~/.claude/skills/idsd-qualify/scripts/report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-language "<text>"`** — this ship's own, which finalize merges upward — the same hazard as the decision log (`~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log**). `~/.kk-flavor/standards/records.md` is the whole delta. **It is pruned here and nowhere else**: a term no artifact uses any longer is deleted here, not left for the audit to find.
 
+**A session that stops at authoring writes each term into this ICE's own `## Follow-ups` as well, verbatim.** The `local-language` file is check-ignored and never commits, and only a ship reaches the `idsd-finalize` that merges it up. The intent file is tracked, so that line rides the commit instead, and the build that closes it carries the term from there.
+
 ## Rules
 
 - Never write code or name implementation (files, classes, libraries) — that's a spec, not an intent.
-- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: `depends-on` points back at what must ship first; `blocks` points forward at what waits on this one, so never point it at an intent already built; a later intent that adds a constraint to a shipped one `extends` it.
+- **Links rule** — keep each ICE self-contained: every dependency declared in the frontmatter `links:`, none hidden. Direction follows build order: `depends-on` points back at what must ship first; `blocks` points forward at what waits on this one, so never point it at an intent already built; a later intent that adds a constraint to a shipped one `extends` it. **A dependency graph over the set therefore takes both directions** — each intent's `depends-on`, plus the reverse of every `blocks`. An intent carries no `depends-on` mirroring a sibling's `blocks` on it, so `depends-on` alone silently loses every edge out of it and reads it as a free root.
 - If the user says "just write it", collapse Phases 1–2 to the fastest pass that still emits the Phase 2 outcome line, then Phase 3 — the gate fires even on the fast path.
 - Don't restate the kk-flavor standards or `CLAUDE.md`; they're Context for `idsd-build`.
