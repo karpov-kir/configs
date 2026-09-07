@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The mounting machinery both bootstrap scripts run on: link a source in this repository at a target
+# The mounting machinery every installer here runs on: link a source in this repository at a target
 # in $HOME, refuse rather than delete, and stop before writing anything when this machine's config is
 # already mounted from a different checkout.
 #
@@ -21,8 +21,8 @@
 # $HOME is read from the environment and never assumed, which is what lets the suites run the real
 # linking logic against a throwaway home instead of faking it.
 #
-# tested by: env/bootstrap-test.sh, ai/bootstrap-test.sh — through the two scripts that source it,
-# because a mount is only real once a bootstrap has written it.
+# tested by: env/bootstrap-test.sh, ai/bootstrap-test.sh, ai/install-project-test.sh — through the
+# scripts that source it, because a mount is only real once an installer has written it.
 
 dry_run=${dry_run:-false}
 relocate=${relocate:-false}
@@ -297,8 +297,8 @@ mount_run() {
 # directory for this one.
 #
 # A target that is already gone is success, not a refusal. Uninstall run twice is ordinary.
-unlink_mount() {
-  local source="$1" target="$2" current resolved
+unlink_mount() { # <target>
+  local target="$1" current resolved
   if [ ! -L "$target" ]; then
     if [ -e "$target" ]; then
       refuse "$target is not a symlink, so this did not write it — remove it yourself if you mean to"
@@ -309,8 +309,8 @@ unlink_mount() {
   fi
   current="$(readlink "$target")"
   # Absolute only, the same test `mount_foreign_root` makes and for the same reason: a relative value
-  # resolves against THIS process's working directory, not the link's own, so `cd ai && ./..." would
-  # judge ownership from somewhere the link never named — and a link reading `notmine` would resolve
+  # resolves against THIS process's working directory, not the link's own, so ownership would be
+  # judged from somewhere the link never named — and a link reading `notmine` would resolve
   # under $repo and be deleted. Every link these scripts write is absolute, so a relative one was not
   # written here and is not ours to remove.
   if [ "${current#/}" = "$current" ]; then
@@ -340,19 +340,20 @@ unlink_mount() {
 # script re-deriving what to remove drifts from what was installed, and drifts silently in the one
 # direction nobody notices: leaving things behind and reporting ok.
 #
-# The guard runs here too. A mount resolving into another checkout is not this run's to delete any
-# more than it is this run's to repoint, and `unlink_mount` refuses it on the same evidence.
+# A mount resolving into another checkout is not this run's to delete any more than it is this run's
+# to repoint. `unlink_mount` is what refuses it, by removing a target only when the target resolves
+# under `$repo`.
 unmount_run() {
   local i
 
   say "unmounts"
   for ((i = 0; i < ${#cfg_targets[@]}; i++)); do
-    unlink_mount "${cfg_sources[i]}" "${cfg_targets[i]}"
+    unlink_mount "${cfg_targets[i]}"
   done
 
   [ "${#bulk_targets[@]}" -eq 0 ] && return 0
   say "$bulk_label"
   for ((i = 0; i < ${#bulk_targets[@]}; i++)); do
-    unlink_mount "${bulk_sources[i]}" "${bulk_targets[i]}"
+    unlink_mount "${bulk_targets[i]}"
   done
 }

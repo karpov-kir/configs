@@ -26,11 +26,11 @@ const (
 	extAudience  = "lib/skill-audience.sh"
 	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
-	// The shared shell libraries both bootstrap scripts source.
+	// The shared shell libraries every installer sources.
 	libTree = "lib"
 	// Where the skills keep the stub scripts that reach the Go tools. ai/tools/tool-stub-test.sh copies
-	// seven of them into fixtures and executes them, so they are that suite's subject — see the keying
-	// below for why naming the tree is not enough.
+	// the stubs in its own table into fixtures and executes them, so they are that suite's subject —
+	// see the keying below for why naming the tree is not enough.
 	skillScripts = "ai/kk-flavor/skills/*/scripts/*.sh"
 )
 
@@ -140,63 +140,7 @@ func (g *gate) discoverShellSuites() int {
 		if err := safeToken("suite", suite); err != nil {
 			return g.fail("%s", err)
 		}
-		// A suite's inputs are itself, the script it covers, and ai/run-tests.sh. That last one because
-		// it decides what the suite's exit status and summary line MEAN, so a change to it can flip this
-		// unit's verdict with neither the suite nor its script moving a byte.
-		inputs := []string{suite, "ai/run-tests.sh"}
-		// Read once and shared by the two checks below, so a suite is not opened twice per unit.
-		suiteBody := ""
-		if body, err := os.ReadFile(filepath.Join(g.root, suite)); err == nil {
-			suiteBody = string(body)
-		}
-		sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
-		siblingBody := ""
-		if _, err := os.Stat(filepath.Join(g.root, sibling)); err == nil {
-			inputs = append(inputs, sibling)
-			if body, err := os.ReadFile(filepath.Join(g.root, sibling)); err == nil {
-				siblingBody = string(body)
-			}
-		}
-		// A suite whose script sources the shared libraries is keyed on them. Without this, nothing
-		// under lib/ was an input to any unit at all: editing lib/mount.sh — the mounting machinery
-		// BOTH bootstrap scripts run on — left both their suites fresh from cache, so the fast path
-		// reported a pass for checks it had not run against the changed code.
-		if strings.Contains(siblingBody, libTree+"/") {
-			inputs = append(inputs, libTree)
-		}
-		// A suite that copies scripts out of the skills tree and runs them is keyed on those scripts.
-		// tool-stub-test.sh is the case: it copies seven stubs into fixtures and executes each, so every
-		// one of them is its subject, and none of them was an input to any unit — editing six of the
-		// seven left this unit answering from cache. Globbed rather than listed, and globbed for `*.sh`
-		// rather than keyed on the tree, so a stub added tomorrow is covered while a skill's prose
-		// churning does not restage a 40-second suite that never reads it.
-		if strings.Contains(suiteBody, "kk-flavor/skills") {
-			matches, err := filepath.Glob(filepath.Join(g.root, skillScripts))
-			if err == nil {
-				for _, match := range matches {
-					if rel, err := filepath.Rel(g.root, match); err == nil {
-						inputs = append(inputs, rel)
-					}
-				}
-			}
-		}
-		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
-		// observe. What they observe is a compiled binary, though, so the key drops the module's own
-		// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
-		// puts in a binary.
-		viaBinary := false
-		if body := []byte(suiteBody); len(body) > 0 {
-			for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
-				if strings.Contains(string(body), marker) {
-					inputs = append(inputs, goTree)
-					viaBinary = true
-					break
-				}
-			}
-			if goSuiteRun.Match(body) {
-				viaBinary = false
-			}
-		}
+		inputs, viaBinary := g.suiteInputs(suite)
 		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit 2
 		// is "did not measure", and a suite exiting 0 having run no case is VACUOUS and a failure. Run
 		// directly, a suite emptied to zero bytes exits 0 silently and reads as `ran ok`. Keyed on the
@@ -209,6 +153,76 @@ func (g *gate) discoverShellSuites() int {
 		addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
 	}
 	return 0
+}
+
+// Everything one shell suite's verdict can turn on, and whether it observes a compiled Go binary
+// rather than the module's sources — which is what decides that its key drops `_test.go`.
+//
+// Every rule here was a stale green: a file the suite reads, that no unit was keyed on, so an edit to
+// it left the unit answering from cache.
+func (g *gate) suiteInputs(suite string) (inputs []string, viaBinary bool) {
+	// A suite's inputs are itself, the script it covers, and ai/run-tests.sh. That last one because
+	// it decides what the suite's exit status and summary line MEAN, so a change to it can flip this
+	// unit's verdict with neither the suite nor its script moving a byte.
+	inputs = []string{suite, "ai/run-tests.sh"}
+	suiteBody := g.readOrEmpty(suite)
+	sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
+	siblingBody := ""
+	if _, err := os.Stat(filepath.Join(g.root, sibling)); err == nil {
+		inputs = append(inputs, sibling)
+		siblingBody = g.readOrEmpty(sibling)
+	}
+	// A suite whose script sources the shared libraries is keyed on them. Without this, nothing
+	// under lib/ was an input to any unit at all: editing lib/mount.sh — the mounting machinery
+	// every installer runs on — left their suites fresh from cache, so the fast path reported a
+	// pass for checks it had not run against the changed code.
+	if strings.Contains(siblingBody, libTree+"/") {
+		inputs = append(inputs, libTree)
+	}
+	// A suite that copies scripts out of the skills tree and runs them is keyed on those scripts.
+	// tool-stub-test.sh is the case: it copies the stubs in its own table into fixtures and executes
+	// each, so every one of them is its subject, and none of them was an input to any unit — an edit
+	// to one left this unit answering from cache. Globbed rather than listed, and globbed for `*.sh`
+	// rather than keyed on the tree, so a stub added tomorrow is covered while a skill's prose
+	// churning does not restage a 40-second suite that never reads it.
+	if strings.Contains(suiteBody, "kk-flavor/skills") {
+		matches, err := filepath.Glob(filepath.Join(g.root, skillScripts))
+		if err == nil {
+			for _, match := range matches {
+				if rel, err := filepath.Rel(g.root, match); err == nil {
+					inputs = append(inputs, rel)
+				}
+			}
+		}
+	}
+	// The suites that drive a Go tool also take the tool tree, since a change there moves what they
+	// observe. What they observe is a compiled binary, though, so the key drops the module's own
+	// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
+	// puts in a binary.
+	if suiteBody != "" {
+		for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
+			if strings.Contains(suiteBody, marker) {
+				inputs = append(inputs, goTree)
+				viaBinary = true
+				break
+			}
+		}
+		if goSuiteRun.MatchString(suiteBody) {
+			viaBinary = false
+		}
+	}
+	return inputs, viaBinary
+}
+
+// A file this tree is expected to hold, as text. Unreadable comes back empty, and every caller above
+// reads that as "this rule does not apply" — a suite that cannot be read keys on nothing extra rather
+// than taking the run down.
+func (g *gate) readOrEmpty(rel string) string {
+	body, err := os.ReadFile(filepath.Join(g.root, rel))
+	if err != nil {
+		return ""
+	}
+	return string(body)
 }
 
 func (g *gate) discoverGoMutants() int {

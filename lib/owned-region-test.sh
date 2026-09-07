@@ -23,8 +23,6 @@ echo "lib/owned-region.sh"
 OPEN="<!-- kk:begin -->"
 CLOSE="<!-- kk:end -->"
 
-# Each case drives the library in a subshell, so a `refuse` in one cannot leave its refusal in the
-# array the next one reads.
 drive() { # <script body>
   out=$(
     repo="$checkout"
@@ -53,7 +51,6 @@ grep -q "^BODY$" "$tmp/a.md" &&
   record_pass "and the body is written between the fences" ||
   record_fail "and the body is written between the fences" "$(cat "$tmp/a.md")"
 
-# Idempotence is the property every re-run of an installer depends on.
 before=$(cat "$tmp/a.md")
 case_dry_run=false drive "region_write '$tmp/a.md' '$OPEN' '$CLOSE' 'BODY'"
 expect_out "a second write with the same body writes nothing" "already carries"
@@ -101,8 +98,6 @@ case_dry_run=false drive "region_remove '$tmp/para.md' '$OPEN' '$CLOSE'"
 
 # --- the states that refuse -----------------------------------------------------------------------------
 
-# Half a fence: something edited inside the region, so its extent is no longer ours to guess. This is
-# the case the whole `conflict` state exists for.
 printf 'Theirs.\n%s\nstray\n' "$OPEN" >"$tmp/half.md"
 case_dry_run=false drive "region_write '$tmp/half.md' '$OPEN' '$CLOSE' 'BODY'"
 expect_out "half a fence refuses rather than guessing" "one half of"
@@ -114,8 +109,6 @@ grep -q "^stray$" "$tmp/half.md" &&
 case_dry_run=false drive "region_remove '$tmp/half.md' '$OPEN' '$CLOSE'"
 expect_out "and removal refuses on it too" "not ours to guess"
 
-# A symlink: writing through one edits a file somewhere the caller never named — for a CLAUDE.md
-# symlinked into a checkout, that means editing the checkout.
 printf 'real\n' >"$tmp/real.md"
 ln -s "$tmp/real.md" "$tmp/link.md"
 case_dry_run=false drive "region_write '$tmp/link.md' '$OPEN' '$CLOSE' 'BODY'"
@@ -124,7 +117,6 @@ expect_out "a symlinked target refuses" "is a symlink"
   record_pass "and the file behind it is untouched" ||
   record_fail "and the file behind it is untouched" "$(cat "$tmp/real.md")"
 
-# Never creates a file: a typo in a path must not scatter plausible-looking files through a repo.
 case_dry_run=false drive "region_write '$tmp/nope.md' '$OPEN' '$CLOSE' 'BODY'"
 expect_out "a missing file refuses rather than being created" "never creates one"
 [ ! -e "$tmp/nope.md" ] &&
@@ -147,9 +139,6 @@ grep -q "^OLD$" "$tmp/locked.md" &&
   record_pass "and the original is untouched" ||
   record_fail "and the original is untouched" "$(cat "$tmp/locked.md")"
 
-# A hardlink is neither a symlink nor a missing file, so no other check catches it — and the append
-# path would copy the linked file's contents into the target, which for a link to somebody's private
-# file is a one-way leak of it into the project.
 printf 'secret\n' >"$tmp/private.md"
 ln "$tmp/private.md" "$tmp/hard.md"
 case_dry_run=false drive "region_write '$tmp/hard.md' '$OPEN' '$CLOSE' 'BODY'"

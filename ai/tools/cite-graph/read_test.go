@@ -504,8 +504,8 @@ func TestAnUnreadableDirectoryIsCounted(t *testing.T) {
 // `filepath.Walk` stats with Lstat, so a `.md` symlink is not a regular file and the read guard drops
 // it. Dropping it in silence is the defect: the file leaves every figure this tool prints, and a live
 // citation into it comes back as a manufactured `no such path`. The installed layout is a symlink
-// farm — `~/.kk-flavor` is one and every `~/.kk-flavor/skills/*` is one — and `cite-graph.sh` promises
-// every `.md` under the root is read, so the skip has to reach the reader.
+// farm — `~/.kk-flavor` is one and every `~/.kk-flavor/skills/*` is one — and `cite-graph.sh`
+// promises every `.md` under the root is read, so the skip has to reach the reader.
 func TestASymlinkedMarkdownFileIsReportedNotDropped(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "real/b.md", "# B\n\n## Beta\n")

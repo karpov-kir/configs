@@ -1,9 +1,9 @@
 // The cases that hold the two halves apart: the inventory comes from frontmatter and nothing else,
 // and the narrative half cannot quietly outlive the skills it names.
 //
-// Every case builds its own root under t.TempDir() rather than reading the tree's own skills. A suite keyed on the
-// real tree would go red every time someone edits a description, and Go's test cache cannot see files
-// outside this module anyway — the gate unit is what reads the real tree.
+// Every case builds its own root under t.TempDir() rather than reading the tree's own skills. A
+// suite keyed on the real tree would go red every time someone edits a description, and Go's test
+// cache cannot see files outside this module anyway — the gate unit is what reads the real tree.
 package ecoguide
 
 import (

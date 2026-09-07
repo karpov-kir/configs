@@ -81,8 +81,9 @@ func citedTargets(line string) []string {
 }
 
 // Which walked file a citation names. Built from the tree the walk actually read, because that file
-// set is the only thing that can answer it: this tree is walked as `ai/kk-flavor/skills/x/SKILL.md` and cited
-// as `~/.kk-flavor/skills/x/SKILL.md`, so neither the whole path nor the base name decides it.
+// set is the only thing that can answer it: this tree is walked as `ai/kk-flavor/skills/x/SKILL.md`
+// and cited as `~/.kk-flavor/skills/x/SKILL.md`, so neither the whole path nor the base name
+// decides it.
 //
 // `cite-graph`'s nameResolver answers the same question over the same tree, and `tails` below holds
 // the rule both copies turn on. A loose answer costs more here than it does there: a path the tree

@@ -42,8 +42,8 @@ func TestFrontmatterMustClose(t *testing.T) {
 }
 
 // The audience marker, read through the same block walk as every other declaration: a skill that
-// declares itself maintainer-only is one ai/bootstrap.sh leaves unmounted under
-// without --maintainer, and one eco-check's mount scan then expects to find no mount for.
+// declares itself maintainer-only is one ai/bootstrap.sh leaves unmounted without --maintainer, and
+// one eco-check's mount scan then expects to find no mount for.
 func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 	marked := []string{"---", "name: kk-reduce", "audience: maintainer", "---", "body"}
 	if !IsMaintainerAudience(marked) {
@@ -68,10 +68,11 @@ func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 }
 
 // lib/skill-audience.sh reads this same marker, in awk, on a machine that has no Go binary yet — so
-// it cannot call in here and the pattern is written twice. That file is where both installers get
-// their answer from, which is why it is the one held against this package rather than either script. Drift between them is silent where it hurts
-// most: on the maintainer's own install every skill is mounted, so the scan stays quiet, and only an
-// external install sees the skills bootstrap left out being reported as missing mounts.
+// it cannot call in here and the pattern is written twice. Both installers get their answer from
+// that file, which is why it is the copy held against this package. Drift between them is silent
+// where it hurts most: on the maintainer's own install every skill is mounted, so the scan stays
+// quiet, and only an external install sees the skills bootstrap left out being reported as missing
+// mounts.
 func TestTheScriptAndThisPackageSpellTheMarkerTheSameWay(t *testing.T) {
 	pattern := maintainerAudience.String()
 	// The control. Without it a renamed or moved script leaves the assertion below comparing the

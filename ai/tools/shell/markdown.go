@@ -105,7 +105,7 @@ func IsOptedOutOfModelInvocation(lines []string) bool {
 }
 
 // True when a skill declares it exists to maintain this instruction tree rather than to work in any
-// repository. A run without `ai/bootstrap.sh --maintainer` leaves those unmounted, so an install that
+// repository. `ai/bootstrap.sh` without `--maintainer` leaves those unmounted, so an install that
 // only uses the ecosystem does not carry their descriptions in every session.
 //
 // The audience is declared in the skill rather than listed in the script, which is what keeps the

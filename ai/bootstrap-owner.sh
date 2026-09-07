@@ -12,7 +12,7 @@
 #
 # Doing the extras HERE and then exec'ing would put the instruction-file mount outside
 # lib/mount.sh's second-checkout guard: a write before the survey, on precisely the mount the guard
-# exists to protect. `exec` also replaces this process, so anything after it would never run.
+# exists to protect.
 #
 # `exec` rather than a call for a second reason: lib/mount.sh recognises a foreign checkout by finding
 # a file of the RUNNING script's name at the same depth under the root a link resolves to. Exec'ing

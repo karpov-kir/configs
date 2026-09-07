@@ -6,7 +6,7 @@
 #          (no flag)  regenerate <root>/field-guide.html from the skills and the narrative template
 #          --check    regenerate into memory and compare, failing when the committed page has drifted
 #
-# <root> holds kk-flavor/ and kk-flavor/skills/, and defaults to . then ./ai.
+# <root> holds kk-flavor/ with skills/ inside it, and defaults to . then ./ai.
 #
 # Two halves, kept apart on purpose. The narrative is hand-written in
 # `ai/tools/eco-guide/field-guide.template.html`; the per-skill inventory is generated from each

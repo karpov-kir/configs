@@ -1122,9 +1122,12 @@ var mutants = []mutant{
 	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
 	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
+		"if goSuiteRun.MatchString(suiteBody) {", "if goSuiteRun.MatchString(suiteBody) && false {"},
+	// Anchored on what suiteInputs returns, because the flag is a named result there and has no
+	// initialising statement to flip. Stronger than one: a suite the goSuiteRun arm reset to false is
+	// flagged by this too, and the case above still holds it.
 	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
+		"return inputs, viaBinary", "return inputs, true"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
 	// those build temp HOMEs and link into them.

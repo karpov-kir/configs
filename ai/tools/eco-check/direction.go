@@ -49,27 +49,6 @@ type directionCounters struct {
 //
 // Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 // reader from inside one too.
-// The shared layer's own files: everything under a target except the lanes. `skills/` sits inside
-// `kk-flavor/` so the two install as one mount, which means a plain walk of the bucket reaches every
-// SKILL.md as well. Read as shared layer, every skill's citation of another skill becomes a `cites
-// into a lane` finding, and — worse, because it is silent — every lane basename also appears in the
-// shared set, so the uniqueness gate drops all of them and the basename scan goes dark.
-//
-// Excluding the lane tree rather than listing the shared directories by name is what keeps a
-// directory added under kk-flavor/ tomorrow scanned by default. A list would let it escape with
-// nothing reporting the gap.
-func (c *checker) sharedFilesNamed(target string, globs ...string) []string {
-	lanes := c.root.Skills() + "/"
-	var kept []string
-	for _, file := range c.filesNamed(target, globs...) {
-		if strings.HasPrefix(file, lanes) {
-			continue
-		}
-		kept = append(kept, file)
-	}
-	return kept
-}
-
 func (c *checker) scanDirection() {
 	targets := []string{c.root.Flavor()}
 	if shell.IsRegularFile(shell.Join(c.root.Named(), "CLAUDE.md")) {
@@ -105,6 +84,27 @@ func (c *checker) scanDirection() {
 	if !wasFlavorScanned {
 		c.add(directionScanReadNoFiles + " under " + c.root.Flavor() + " — a check that did not run is not a clean one")
 	}
+}
+
+// The shared layer's own files: everything under a target except the lanes. `skills/` sits inside
+// `kk-flavor/` so the two install as one mount, which means a plain walk of the bucket reaches every
+// SKILL.md as well. Read as shared layer, every skill's citation of another skill becomes a `cites
+// into a lane` finding, and — worse, because it is silent — every lane basename also appears in the
+// shared set, so the uniqueness gate drops all of them and the basename scan goes dark.
+//
+// Excluding the lane tree rather than listing the shared directories by name is what keeps a
+// directory added under kk-flavor/ tomorrow scanned by default. A list would let it escape with
+// nothing reporting the gap.
+func (c *checker) sharedFilesNamed(target string, globs ...string) []string {
+	lanes := c.root.Skills() + "/"
+	var kept []string
+	for _, file := range c.filesNamed(target, globs...) {
+		if strings.HasPrefix(file, lanes) {
+			continue
+		}
+		kept = append(kept, file)
+	}
+	return kept
 }
 
 // The lane names come from the tree, never from the `kk-`/`idsd-` families. Nothing enforces that

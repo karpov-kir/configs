@@ -189,9 +189,6 @@ status=$?
 expect_status "a project that is not there exits 2" 2
 expect_out "and says nothing was written" "nothing was written"
 
-# Behind a flag, because the project is the only argument above and any variable at all would name it
-# correctly there. The refusal has to echo back what the human typed, or it sends them looking at the
-# flag rather than at the path they got wrong.
 out=$(HOME="$home" bash "$script" --dry-run "$tmp_real/nowhere" 2>&1)
 status=$?
 expect_status "a missing project behind a flag exits 2" 2

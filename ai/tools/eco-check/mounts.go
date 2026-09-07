@@ -59,10 +59,11 @@ func (c *checker) scanMounts() {
 // Whether this skill's absence from the mount is an install's choice rather than a defect. Two things
 // have to hold, and each answers a different way of being wrong.
 //
-// The skill declares itself maintainer-only, so an `ai/bootstrap.sh` run without `--maintainer` was
-// entitled to leave it out — as is any project install, which excludes them by default. Nothing on disk records which audience a machine installed for, so past
-// that declaration the scan cannot tell a deliberate exclusion from a lost mount — and read on an
-// external install the finding would name skills that are exactly where they belong.
+// The skill declares itself maintainer-only, so an `ai/bootstrap.sh` run without `--maintainer` is
+// entitled to leave it out, as is any project install, which excludes them by default. Nothing on
+// disk records which audience a machine installed for, so past that declaration the scan cannot tell
+// a deliberate exclusion from a lost mount — and read on an external install the finding would name
+// skills that are exactly where they belong.
 //
 // And the mount path holds nothing at all. A mount that is there and resolves to nothing is a link no
 // install chose: the checkout it named is gone. The reverse scan passes over it, because the tree

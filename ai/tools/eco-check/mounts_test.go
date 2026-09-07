@@ -71,8 +71,8 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 	})
 }
 
-// An install does not have to hold every skill this tree ships. `ai/bootstrap.sh
-// without `--maintainer` mounts none of the skills that exist only to maintain this instruction
+// An install does not have to hold every skill this tree ships. `ai/bootstrap.sh` without
+// `--maintainer` mounts none of the skills that exist only to maintain this instruction
 // tree, and nothing on disk records which audience a machine installed for — so for a marked skill the
 // scan cannot tell a deliberate exclusion from a broken mount, and on an external install the finding
 // would name skills that are exactly where they belong. For every other skill the absence is the

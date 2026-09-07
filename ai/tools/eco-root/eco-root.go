@@ -1,6 +1,6 @@
-// Package ecoroot is the checkout both ecosystem tools measure: the directory holding kk-flavor/, which
-// holds skills/ in turn, the paths derived from it, the mount those paths are compared against, and the `@import`
-// names that load alongside them.
+// Package ecoroot is the checkout both ecosystem tools measure: the directory holding kk-flavor/
+// (with skills/ nested inside it), the paths derived from it, the mount those paths are compared
+// against, and the `@import` names that load alongside them.
 //
 // It exists so ecocheck and ecostats cannot describe different trees for one invocation, which is a
 // disagreement neither tool's report can express. A Root is a value: resolving one answers whether
@@ -76,10 +76,11 @@ func New(named string) (Root, bool) {
 	if named == "" || !holdsBoth(named) {
 		return Root{}, false
 	}
+	flavor := shell.Join(named, flavorDir)
 	return Root{
 		named:  named,
-		flavor: shell.Join(named, flavorDir),
-		skills: shell.Join(shell.Join(named, flavorDir), skillsDir),
+		flavor: flavor,
+		skills: shell.Join(flavor, skillsDir),
 		canon:  shell.CanonicalDir(named),
 		home:   os.Getenv("HOME"),
 	}, true
@@ -119,7 +120,8 @@ func holdsBoth(dir string) bool {
 }
 
 // Named is the root as the caller spelled it; Flavor and Skills are the two directories that made it
-// one, Skills nested inside Flavor. Every path a tool prints is built from these, so they are concatenated rather than cleaned.
+// one, Skills nested inside Flavor. Every path a tool prints is built from these, so they are
+// concatenated rather than cleaned.
 func (r Root) Named() string { return r.named }
 
 func (r Root) Flavor() string { return r.flavor }

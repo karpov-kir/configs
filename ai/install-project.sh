@@ -96,7 +96,6 @@ done
 . "$repo/../lib/skill-audience.sh"
 
 bulk_label="skills"
-# The guard's refusal is about this project's skills, not about the machine's whole configuration.
 mount_scope_label="$project's skills"
 
 # --- what this install is made of ------------------------------------------------------------------
@@ -104,8 +103,6 @@ mount_scope_label="$project's skills"
 claude_md="$project/CLAUDE.md"
 gitignore="$project/.gitignore"
 
-# HTML comments, so the region is invisible when the markdown renders and unambiguous to find again.
-# The heading inside it is what a human reads.
 region_open="<!-- kk-flavor:begin -->"
 region_close="<!-- kk-flavor:end -->"
 
@@ -125,6 +122,31 @@ ignore_body() {
 .claude/skills/kk-*
 .claude/skills/idsd-*
 BODY
+}
+
+# The branch for a project with no .gitignore at all. region_write handles the file that exists; this
+# is the one path that creates one, and it makes the checks region_writable would otherwise have made.
+create_ignore_file() {
+  if $dry_run; then
+    say "  would create $gitignore with the skill ignore rules"
+    return 0
+  fi
+  # A dangling symlink answers "not there" to the `-e` at the call site, and `>` follows it — so
+  # without this the branch truncates and rewrites whatever the link names, anywhere the installer's
+  # user can write.
+  if [ -L "$gitignore" ]; then
+    refuse "$gitignore is a symlink, and this writes the file itself — repoint or remove it, then re-run"
+    return 1
+  fi
+  {
+    printf '%s\n' "$ignore_open"
+    ignore_body
+    printf '%s\n' "$ignore_close"
+  } >"$gitignore" || {
+    refuse "could not create $gitignore — the skill mounts are not ignored and will show up in this project's history"
+    return 1
+  }
+  say "  created  $gitignore with the skill ignore rules"
 }
 
 # --- the mount table -------------------------------------------------------------------------------
@@ -217,23 +239,7 @@ if [ -n "$broad_claude_rule" ]; then
 elif [ -e "$gitignore" ]; then
   region_write "$gitignore" "$ignore_open" "$ignore_close" "$(ignore_body)"
 else
-  if $dry_run; then
-    say "  would create $gitignore with the skill ignore rules"
-  elif [ -L "$gitignore" ]; then
-    # A dangling symlink answers "not there" to the `-e` above, and `>` follows it — so without this
-    # the branch truncates and rewrites whatever the link names, anywhere the installer's user can
-    # write. This is the refusal region_writable makes on every path that goes through it; the
-    # creation branch does not, so it makes it here.
-    refuse "$gitignore is a symlink, and this writes the file itself — repoint or remove it, then re-run"
-  elif {
-    printf '%s\n' "$ignore_open"
-    ignore_body
-    printf '%s\n' "$ignore_close"
-  } >"$gitignore"; then
-    say "  created  $gitignore with the skill ignore rules"
-  else
-    refuse "could not create $gitignore — the skill mounts are not ignored and will show up in this project's history"
-  fi
+  create_ignore_file
 fi
 
 # CLAUDE.md is the project's own file and may not exist yet. Created empty first when absent, because
@@ -243,12 +249,12 @@ fi
 # one at this path answers "does not exist" and the redirect below would then create the file the link
 # names — anywhere on disk the installer's user can write. region_write refuses a symlinked target,
 # but only after this branch has already created it.
-if [ ! -e "$claude_md" ] && [ ! -L "$claude_md" ] && ! $dry_run; then
-  : >"$claude_md" || refuse "could not create $claude_md"
-fi
 if [ ! -e "$claude_md" ] && $dry_run; then
   say "  would create $claude_md and add the kk-flavor region"
 else
+  if [ ! -e "$claude_md" ] && [ ! -L "$claude_md" ]; then
+    : >"$claude_md" || refuse "could not create $claude_md"
+  fi
   region_write "$claude_md" "$region_open" "$region_close" "$(region_body)"
 fi
 

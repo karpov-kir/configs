@@ -66,9 +66,14 @@ type fixture struct {
 	home string
 }
 
+// The least tree ecoroot.New accepts — `kk-flavor/` with `skills/` inside it, and nothing else.
+// Bare rather than without-flavor: skills/ moved inside kk-flavor/, so every root the checker will
+// even look at now has that directory, and a fixture genuinely lacking it takes Run to exit 2, which
+// checkWith refuses. What `newRoot` adds on top is the standards tree and the router.
+//
 // `base` is the scratch directory a case may write outside the root into; `root` is the tree under
 // review.
-func newRootWithoutFlavor(t *testing.T) *fixture {
+func newBareRoot(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
 	f := &fixture{t: t, base: base, root: base + "/r"}
@@ -78,7 +83,7 @@ func newRootWithoutFlavor(t *testing.T) *fixture {
 
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
-	f := newRootWithoutFlavor(t)
+	f := newBareRoot(t)
 	f.mkdirAll(f.root + "/kk-flavor/standards")
 	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n")
 	return f
@@ -87,7 +92,7 @@ func newRoot(t *testing.T) *fixture {
 // The checker refuses to walk a symlinked `kk-flavor`, so a case writes into `$root/real-flavor` and
 // never `$root/kk-flavor`.
 //
-// It builds its own root rather than starting from newRootWithoutFlavor: skills/ lives inside
+// It builds its own root rather than starting from newBareRoot: skills/ lives inside
 // kk-flavor/ now, so that helper has to create kk-flavor as a real directory, and the symlink this
 // case is about can no longer be made over it. The whole tree therefore goes behind real-flavor,
 // which is what the symlink then points at.

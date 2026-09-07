@@ -2,7 +2,8 @@
 //
 //	usage: guide.sh [--check] [<root>]
 //
-// <root> holds kk-flavor/ and kk-flavor/skills/, and defaults to . then ./ai, matching ecocheck and ecostats.
+// <root> holds kk-flavor/ with skills/ inside it, and defaults to . then ./ai, matching ecocheck
+// and ecostats.
 // The page is written to <root>/field-guide.html; --check regenerates into memory and compares
 // against that file instead of writing it.
 package main

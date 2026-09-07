@@ -11,16 +11,6 @@
 # an audience is only real once an install has acted on it.
 set -uo pipefail
 
-# Whether a skill exists to maintain this instruction tree rather than to work in any repository. The
-# audience is declared in the skill's own frontmatter, so discovery below stays discovery: a
-# maintainer-only skill added tomorrow is excluded without anyone editing this file, and a list of
-# three names here would be wrong the day a fourth is marked.
-#
-# The block opens on line 1 and has to close before any line in it counts, which is the rule the Go
-# reader states in ai/tools/shell/markdown.go — an `audience:` line in the prose is prose, and an
-# unterminated block is not frontmatter. The pattern below is that reader's, character for character,
-# because eco-check's mount scan asks the same question of the same files and the two answers cannot
-# be allowed to differ.
 is_maintainer_only() { # <SKILL.md>
   [ -r "$1" ] || return 1
   awk '
@@ -31,14 +21,6 @@ is_maintainer_only() { # <SKILL.md>
   ' "$1"
 }
 
-# The value on an `audience:` line neither reader knows, printed for the refusal below. Its block rule
-# is the one above, character for character, for the same reason.
-#
-# Asked at all because "is this the marker" cannot tell `audience: maintainr` from a skill that
-# declared nothing: both answer no, and the typo installs for everyone while the human who wrote it
-# believes they marked it. Nothing on the resulting machine looks wrong. `maintainer` is the only
-# value there is, so anything else is refused by name — the same answer ai/tools/bloat-judge's
-# deadline override gives an option it does not understand, for the same reason.
 unknown_audience() { # <SKILL.md>, prints the value and exits 0 when there is one
   [ -r "$1" ] || return 1
   awk '

@@ -19,7 +19,6 @@ suite_name="lib/install-registry-test.sh"
 
 echo "lib/install-registry.sh"
 
-# Each case drives the library in a subshell so a refusal cannot leak into the next.
 drive() { # <script body>
   out=$(
     repo="$checkout"
@@ -72,7 +71,6 @@ grep -qxF "$tmp/p2" "$reg" &&
   record_fail "and prunes it from the file as it reads" "still on disk" ||
   record_pass "and prunes it from the file as it reads"
 
-# A comment a human added is not an entry, and is not eaten.
 mkdir -p "$tmp/p2"
 printf '# a note someone left\n' >>"$reg"
 case_dry_run=false drive "registry_live"

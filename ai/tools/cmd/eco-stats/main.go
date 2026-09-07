@@ -4,8 +4,9 @@
 //	       ecostats --append "<note>" [<root>]  print them and append a dated row to stats.md
 //
 // The note is one argument — quote it, or its first word is read as <root>. <root> holds kk-flavor/
-// and kk-flavor/skills/, and defaults to . then ./ai, matching ecocheck. The row goes to ../stats.md relative
-// to this program, because the ledger belongs to kk-reduce and this runs from its scripts/.
+// with skills/ inside it, and defaults to . then ./ai, matching ecocheck. The row goes to
+// ../stats.md relative to this program, because the ledger belongs to kk-reduce and this runs from
+// its scripts/.
 package main
 
 import (

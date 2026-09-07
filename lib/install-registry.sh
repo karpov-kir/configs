@@ -8,9 +8,9 @@
 # Sourced, never executed, and only after lib/mount.sh: it reports through that file's `say` and
 # `refuse` and honours its `$dry_run`.
 #
-# The path follows the convention `ecosystem.md` → **Conventions a new file joins** already sets for a
-# machine-local file, and that ai/tools/bloat-judge/deadline.go already reads:
-# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/`. `$HOME` and `$XDG_CONFIG_HOME` are read from the
+# The path is the one `ecosystem.md` → **Conventions a new file joins** sets for a machine-local
+# file, `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/`, and ai/tools/bloat-judge/deadline.go already
+# reads it. `$HOME` and `$XDG_CONFIG_HOME` are read from the
 # environment and never `~`-expanded, which is the whole of what lets the suites point this at a
 # throwaway home.
 #
@@ -29,20 +29,19 @@ registry_file() {
 # The recorded projects that still exist, one per line, having rewritten the file to drop the ones
 # that do not.
 #
-# Pruning and reading are one call rather than two on purpose. A caller able to read without pruning
-# is a caller able to get the stale answer this exists to prevent — and the stale answer here is the
-# one that says "another project still needs the bucket" about a directory the human deleted months
-# ago, which makes uninstall refuse to finish for a reason that is not true any more.
+# Pruning and reading are one call rather than two on purpose: a caller able to read without pruning
+# is a caller able to get the stale answer. Here that answer says "another project still needs the
+# bucket" about a directory the human deleted months ago, and uninstall then refuses to finish over
+# something that is not true any more.
 #
-# A missing registry is not an error: it is a machine that has installed into no project, which is
-# every machine before the first project install and every machine that only ever installed
-# machine-wide.
+# A missing registry is not an error: it is a machine that has installed into no project.
 registry_live() {
-  local file kept line
+  local file kept entries line
   file="$(registry_file)"
   [ -f "$file" ] || return 0
 
   kept=""
+  entries=""
   while IFS= read -r line || [ -n "$line" ]; do
     # A blank line or a comment is not an entry, so it is not printed — but it is kept, because a
     # human who opens this file to see what is in it may well annotate it, and eating their note
@@ -57,11 +56,11 @@ registry_live() {
     [ -d "$line" ] || continue
     kept="$kept$line
 "
+    entries="$entries$line
+"
   done <"$file"
 
-  # Only the live project lines are printed; the comments above are kept in the file and dropped
-  # here, so a caller counting entries never counts somebody's annotation as a project.
-  printf '%s' "$kept" | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' || true
+  printf '%s' "$entries"
 
   # Rewritten only when it would change, so a read on a healthy registry writes nothing at all and a
   # dry run never has to be special-cased here.

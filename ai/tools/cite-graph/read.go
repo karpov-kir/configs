@@ -40,11 +40,9 @@ type edge struct {
 // of a map iteration — the same tree gave different numbers on different runs.
 const routerPath = "kk-flavor/inject.md"
 
-// The lane tree, relative to the root. `skills/` sits inside `kk-flavor/` so the standards and the
-// lanes install as one mount, and every path this tool keys on is relative to the root holding that
-// bucket — so the prefix carries `kk-flavor/` too. Spelled once: read as a bare `skills/`, no file
-// matches, every lane's sections are counted as shared layer, and `kindBasenames` finds no lane at
-// all and reports `SKILL.md` as an ambiguous name rather than the kind it is.
+// The lane tree, relative to the root. `skills/` sits inside `kk-flavor/`, so every path this tool
+// keys on carries the bucket prefix too. Read as a bare `skills/`, nothing matches: every lane's
+// sections count as shared layer and `SKILL.md` is reported as an ambiguous name.
 const skillsPrefix = "kk-flavor/skills/"
 
 // The files the router lists under its read-always heading. Which files those are is read from the
@@ -143,9 +141,9 @@ func (s *scan) notReached(format string, args ...any) {
 }
 
 // Walk stats with Lstat, so a symlink is never a directory here and never a regular file. The
-// installed layout is a symlink farm — `~/.kk-flavor` is one and every `~/.kk-flavor/skills/*` is one —
-// and this tool promises every `.md` under the root is read, so a link it does not follow is a hole in
-// that promise rather than a path to pass over.
+// installed layout is a symlink farm — `~/.kk-flavor` is one and every `~/.kk-flavor/skills/*` is
+// one — and this tool promises every `.md` under the root is read, so a link it does not follow is
+// a hole in that promise rather than a path to pass over.
 //
 // A link resolving to a directory hides however many `.md` files that subtree holds, and it hides them
 // where no `.md` suffix marks the path, which is why this runs before the suffix filter. A link named

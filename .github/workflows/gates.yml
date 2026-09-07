@@ -53,9 +53,10 @@ jobs:
         run: ai/run-tests.sh
 
   # `-count=1` because Go's test cache is keyed on the module, and several suites read files outside
-  # it: eco-report's fixtures copy in `ai/kk-flavor/skills/idsd-qualify`'s report template and todo-gate.sh, and
-  # `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a plain run answers out
-  # of cache over a tree one of them has changed, and this job would go green on exactly that.
+  # it: eco-report's fixtures copy in `ai/kk-flavor/skills/idsd-qualify`'s report template and
+  # todo-gate.sh, and `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a
+  # plain run answers out of cache over a tree one of them has changed, and this job would go green
+  # on exactly that.
   # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
   # while `go test ./eco-report/` says `ok (cached)` over the same corrupt tree.
   #

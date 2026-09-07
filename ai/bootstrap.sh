@@ -85,11 +85,7 @@ bulk_label="skills"
 # `add_cfg: command not found` and exits 127, naming neither the file that is gone nor what to do
 # about it — the same false diagnosis the verify step below guards against. ai/ is copied out of this
 # repository on its own, so a checkout without lib/ is a real one.
-[ -r "$repo/../lib/mount.sh" ] || {
-  printf 'ai/bootstrap.sh: lib/mount.sh is missing from this checkout — ai/ and lib/ install together, and nothing was linked\n' >&2
-  exit 2
-}
-for lib in owned-region.sh install-registry.sh skill-audience.sh; do
+for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh; do
   [ -r "$repo/../lib/$lib" ] || {
     printf 'ai/bootstrap.sh: lib/%s is missing from this checkout — ai/ and lib/ install together, and nothing was linked\n' "$lib" >&2
     exit 2
@@ -97,7 +93,7 @@ for lib in owned-region.sh install-registry.sh skill-audience.sh; do
 done
 # shellcheck source=../lib/mount.sh
 . "$repo/../lib/mount.sh"
-# The three below report through mount.sh's say/refuse and honour its $dry_run, so they follow it.
+# The two below report through mount.sh's say/refuse and honour its $dry_run, so they follow it.
 # shellcheck source=../lib/owned-region.sh
 . "$repo/../lib/owned-region.sh"
 # shellcheck source=../lib/install-registry.sh
@@ -208,12 +204,12 @@ fi
 # nothing in it is a broken checkout, while a flag that excluded every skill it found is a flag doing
 # exactly what it says on a tree that has nothing else. The exit code is the same for both, so the
 # wording is the only thing telling them apart.
-if [ "${#bulk_targets[@]}" -gt 0 ]; then
-  :
-elif [ "$skills_found" -gt 0 ]; then
-  refuse "every skill under $repo/kk-flavor/skills/ is maintainer-only, and a run without --maintainer excluded all $skills_found — nothing was mounted"
-else
-  refuse "no skill directories under $repo/kk-flavor/skills/ — nothing was mounted"
+if [ "${#bulk_targets[@]}" -eq 0 ]; then
+  if [ "$skills_found" -gt 0 ]; then
+    refuse "every skill under $repo/kk-flavor/skills/ is maintainer-only, and a run without --maintainer excluded all $skills_found — nothing was mounted"
+  else
+    refuse "no skill directories under $repo/kk-flavor/skills/ — nothing was mounted"
+  fi
 fi
 
 # --- the instruction file ----------------------------------------------------------------------------

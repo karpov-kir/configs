@@ -63,10 +63,8 @@ grep -q "kk-flavor:begin" "$home/.claude/CLAUDE.md" 2>/dev/null &&
   record_fail "missing parent directories are created" "~/.claude/skills is absent"
 
 # Discovery, so a skill added later is mounted without editing ai/bootstrap.sh. Compared against the
-# repository rather than a hard-coded number, which would drift the day a skill lands — and against
-# the skills a DEFAULT run installs, which is every one that does not declare `audience: maintainer`.
-# Counting all of them here would make this case fail the day a skill is marked, blaming discovery
-# for a marker doing its job.
+# repository rather than a hard-coded number, and against the skills a DEFAULT run installs — every
+# one that does not declare `audience: maintainer`, so marking a skill does not fail this case.
 want_skills=0
 for skill_path in "$here"/kk-flavor/skills/*/; do
   [ -d "$skill_path" ] || continue
@@ -102,12 +100,11 @@ expect_not_out "and is not rewritten" "repointed $home/.claude/skills/$(basename
 # `~/.claude/RTK.md` is text nothing writes and nothing reads. The removal is a step in the script
 # rather than something done by hand because that file sits in the human's home, outside this
 # repository — a step is what makes it a removal they run knowingly, and what carries it to their other
-# machines. Every case below reads the path back afterwards: a step reporting "removed" over a file
-# still on disk is exactly what these are here to catch.
+# machines.
 #
 # `--owner` throughout: the leftover is one this repository wrote on the owner's own machines and
 # never anywhere else, so it followed rtk into that tier. A default run skips the step entirely,
-# which the case at the end of this block is what proves.
+# which the last case in this block proves.
 fresh_home
 run_boot "$home" --owner
 expect_status "a fresh home with no leftover exits 0" 0
@@ -288,9 +285,6 @@ done
   record_pass "a plain --uninstall removes what --maintainer installed" ||
   record_fail "a plain --uninstall removes what --maintainer installed" "still mounted:$left"
 
-# The retired flag. Deleted rather than accepted as a no-op: an alias that quietly does nothing
-# outlives everyone's memory of why it was there, and this script already refuses what it does not
-# know.
 fresh_home
 run_boot "$home" --skip-maintainer-skills
 expect_status "the retired --skip-maintainer-skills is refused, not ignored" 2

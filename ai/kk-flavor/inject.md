@@ -1,4 +1,4 @@
-The first time you load this file in a session, open that message with this banner:
+The first time you load this file in a session, open your reply with this banner:
 
 ```
 🍦 kk-flavor loaded 🍦

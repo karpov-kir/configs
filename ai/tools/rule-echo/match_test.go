@@ -139,9 +139,9 @@ func TestAPointerToTheRulesOwnerIsNotARestatement(t *testing.T) {
 }
 
 // The forms a citation is written in here, each resolved against the tree that was walked. A tree is
-// walked as `<root>/skills/x/SKILL.md` and cited as `~/.kk-flavor/skills/x/SKILL.md`, so a citation that
-// resolves by string shape alone resolves to nothing — and a citation that stops counting takes the
-// exemption with it, silently.
+// walked as `<root>/skills/x/SKILL.md` and cited as `~/.kk-flavor/skills/x/SKILL.md`, so a citation
+// that resolves by string shape alone resolves to nothing — and a citation that stops counting
+// takes the exemption with it, silently.
 func TestEveryWrittenFormOfACitationResolves(t *testing.T) {
 	forms := []string{
 		"~/.kk-flavor/skills/idsd-qualify/SKILL.md",
