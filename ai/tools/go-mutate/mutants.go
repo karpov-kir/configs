@@ -1133,6 +1133,8 @@ var mutants = []mutant{
 		"g.copiedRepoFiles(repo, path.Dir(suite), body, siblingBody)", "g.copiedRepoFiles(repo, path.Dir(suite))"},
 	{"gate: a copy naming an unresolvable file is accepted rather than refused", "../gate/units.go", "./gate/", "TestACopyNamingAFileTheGateCannotResolveIsRefused",
 		"\t\tif unresolved != \"\" {", "\t\tif false {"},
+	{"gate: a copied path reaches git as a pathspec unvalidated", "../gate/units.go", "./gate/", "TestACopiedPathHoldingPathspecMagicIsRefused",
+		"safeToken(\"copied path\", file)", "error(nil)"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
 	// those build temp HOMEs and link into them.

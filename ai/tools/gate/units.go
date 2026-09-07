@@ -48,21 +48,15 @@ var sourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*\.[ \t]+"[^"]*/lib/([^"/]+\.
 // Neither reads a source line buried mid-line, nor a library some third file sources.
 var anySourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?\blib/([A-Za-z0-9._-]+\.sh)`)
 
-// Copying is the other way a suite reaches a repository file: env/bootstrap-test.sh copies
-// ai/bootstrap-test.sh into a fixture and runs it there, so deleting that file's harness guard is
-// meant to redden this suite. Keyed on, or the edit lands and the unit answers from its cache record.
-// Anchored to the operand right after `cp`, so a destination inside the fixture keys nothing. What
-// names a file is the literal tail after the variable; a copy whose basename is itself a variable —
-// and a whole fixture tree held in one — names none, and stays outside this scan the way a sourced
-// library held in a variable stays outside the two above.
-var copiedFileLine = regexp.MustCompile(`\bcp[ \t]+(?:-[-A-Za-z]+[ \t]+)*"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/([^"$*?\n]+)"`)
+// Copying is the other way a suite reaches a repository file, and it has to be keyed on too: edit the
+// copied file and the unit still answers out of its cache. Only the operand right after `cp` counts,
+// which leaves a destination inside the fixture unkeyed. A file is named by the literal tail after the
+// variable, so a copy whose basename is itself a variable names nothing.
+var copiedFileLine = regexp.MustCompile(`\bcp[ \t]+(?:-[-A-Za-z]+(?:=[^ \t\n]*)?[ \t]+)*"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/([^"$*?\n]+)"`)
 
-// The repository's own files, held both ways discovery reads them: as a set, for a rooted lookup, and
-// in listing order, for the suffix scan.
-type repoListing struct {
-	all []string
-	set map[string]bool
-}
+// Anchoring the pattern above to the start of a line would be the tighter guard, but
+// ai/mcp-sync-test.sh puts a real cp after a `case` arm.
+var commentedLine = regexp.MustCompile(`^[ \t]*#`)
 
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
 	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
@@ -144,13 +138,9 @@ func (g *gate) discoverShellSuites() int {
 	if err != nil || len(listed) == 0 {
 		return g.fail("discovery found no *-test.sh at all — read this as the gate broken, never as a clean run")
 	}
-	tree, err := g.listFiles(".")
-	if err != nil || len(tree) == 0 {
-		return g.fail("discovery could not list the repository's files, so it cannot say which of them a suite copies into its fixture — nothing ran")
-	}
-	repo := repoListing{all: tree, set: map[string]bool{}}
-	for _, file := range tree {
-		repo.set[file] = true
+	repo, code := g.readRepoListing()
+	if code != 0 {
+		return code
 	}
 	suites := shell.SortUnique(listed)
 	for _, suite := range suites {
@@ -181,6 +171,11 @@ func (g *gate) discoverShellSuites() int {
 				"gate cannot key on — nothing ran", suite, unresolved)
 		}
 		for _, file := range copied {
+			// The only input derived from the text of a file rather than from git's own listing, so the
+			// only one that has not already been through here.
+			if err := safeToken("copied path", file); err != nil {
+				return g.fail("%s: %s", suite, err)
+			}
 			if !slices.Contains(inputs, file) {
 				inputs = append(inputs, file)
 			}
@@ -276,41 +271,44 @@ func unreadLib(keyed []string, bodies ...string) string {
 	return ""
 }
 
-// The repository files a suite copies into its fixture, and the first copy naming one the gate cannot
-// resolve to a single path. Keyed whether the copy is then run or only read: a regexp cannot tell the
-// two apart, and both move what the suite measures — ai/mcp-sync-test.sh copies ai/mcp.jsonc in and
-// asserts that every command it names is executable.
+// The repository files a suite copies into its fixture, plus the first copy naming a file the gate
+// cannot resolve. Keyed whether the copy is run or only read: a regexp cannot tell those apart, and
+// either way the file moves what the suite measures. ai/mcp-sync-test.sh copies ai/mcp.jsonc in and
+// asserts every command it names is executable.
 func (g *gate) copiedRepoFiles(repo repoListing, suiteDir string, bodies ...string) ([]string, string) {
 	var copied []string
 	for _, body := range bodies {
-		for _, match := range copiedFileLine.FindAllStringSubmatch(body, -1) {
-			tail := match[1]
-			file, unresolved := resolveCopiedPath(repo, suiteDir, tail)
-			if unresolved == "" {
-				copied = append(copied, file)
+		for _, line := range strings.Split(body, "\n") {
+			if commentedLine.MatchString(line) {
 				continue
 			}
-			// A path git is told to ignore is build output, not a repository file: the source tree that
-			// builds it already keys the unit, and hashing the artifact would key the unit on whatever
-			// the last build left behind. Asked of git rather than of the disk, so an unbuilt checkout
-			// answers the same as a built one.
-			if g.isIgnored(suiteDir, tail) {
-				continue
+			for _, match := range copiedFileLine.FindAllStringSubmatch(line, -1) {
+				tail := match[1]
+				files, unresolved := resolveCopiedPath(repo, suiteDir, tail)
+				if unresolved == "" {
+					copied = append(copied, files...)
+					continue
+				}
+				return nil, tail + ", which " + unresolved
 			}
-			return nil, tail + ", which " + unresolved
 		}
 	}
 	return shell.SortUnique(copied), ""
 }
 
-// Rooted before loose: the tail as a repository path, then under the directory the suite lives in,
-// and only then the one listed file it is a suffix of. Loose last, because a second file sharing the
-// tail leaves nothing to break the tie — which is a refusal rather than a guess.
-func resolveCopiedPath(repo repoListing, suiteDir, tail string) (string, string) {
-	for _, candidate := range copyCandidates(suiteDir, tail) {
-		if repo.set[candidate] {
-			return candidate, ""
-		}
+// Three tries, tightest first: the tail as a repository path, then under the directory the suite lives
+// in, and only then the tracked files it is a suffix of. Each try returns every path it hit, not the
+// first. Two paths matching means the gate cannot say which one the suite copies. Keying on both
+// costs one file too many, and picking one could key the unit on the wrong file altogether.
+func resolveCopiedPath(repo repoListing, suiteDir, tail string) ([]string, string) {
+	candidates := copyCandidates(suiteDir, tail)
+	if resolved := allMatching(candidates, func(c string) bool { return repo.byPath[c] }); len(resolved) > 0 {
+		return resolved, ""
+	}
+	// A directory only where the tail spells one out, never through the suffix scan below: a tail
+	// landing on some deep directory by accident would key the unit on everything under it.
+	if resolved := allMatching(candidates, repo.holdsDirectory); len(resolved) > 0 {
+		return resolved, ""
 	}
 	var matches []string
 	for _, file := range repo.all {
@@ -318,14 +316,17 @@ func resolveCopiedPath(repo repoListing, suiteDir, tail string) (string, string)
 			matches = append(matches, file)
 		}
 	}
-	switch len(matches) {
-	case 1:
-		return matches[0], ""
-	case 0:
-		return "", "names no file in this repository"
-	default:
-		return "", fmt.Sprintf("names %d files in this repository", len(matches))
+	if len(matches) > 0 {
+		return matches, ""
 	}
+	// Nothing resolved, and the tail does not start at a top-level entry this repository has. So it points
+	// inside the fixture, which the suite built itself and no edit here can move. Keyed on nothing rather
+	// than refused, because refusing would let an ordinary line like
+	// `cp "$fixture/config.json" "$other/config.json"` stop the whole gate for everyone.
+	if !repo.topLevel[firstSegment(tail)] {
+		return nil, ""
+	}
+	return nil, "names no file in this repository"
 }
 
 // Both spellings the suites use: `$checkout/ai/bootstrap-test.sh` is rooted at the repository, while
@@ -337,19 +338,56 @@ func copyCandidates(suiteDir, tail string) []string {
 	return []string{tail, path.Join(suiteDir, tail)}
 }
 
-func (g *gate) isIgnored(suiteDir, tail string) bool {
-	for _, candidate := range copyCandidates(suiteDir, tail) {
-		if _, err := g.capture("git", "check-ignore", "-q", "--", candidate); err == nil {
+func allMatching(candidates []string, holds func(string) bool) []string {
+	var resolved []string
+	for _, candidate := range candidates {
+		if holds(candidate) {
+			resolved = append(resolved, candidate)
+		}
+	}
+	return resolved
+}
+
+func firstSegment(tail string) string {
+	first, _, _ := strings.Cut(tail, "/")
+	return first
+}
+
+// The repository's own files. `all` keeps the listing order the suffix scan walks, and `topLevel`
+// separates a path this repository could hold from one that exists only inside a fixture.
+type repoListing struct {
+	all      []string
+	byPath   map[string]bool
+	topLevel map[string]bool
+}
+
+func (g *gate) readRepoListing() (repoListing, int) {
+	all, err := g.listFiles(".")
+	if err != nil || len(all) == 0 {
+		return repoListing{}, g.fail("discovery could not list the repository's files, so it cannot " +
+			"say which of them a suite copies into its fixture — nothing ran")
+	}
+	repo := repoListing{all: all, byPath: map[string]bool{}, topLevel: map[string]bool{}}
+	for _, file := range all {
+		repo.byPath[file] = true
+		repo.topLevel[firstSegment(file)] = true
+	}
+	return repo, 0
+}
+
+func (r repoListing) holdsDirectory(candidate string) bool {
+	prefix := candidate + "/"
+	for _, file := range r.all {
+		if strings.HasPrefix(file, prefix) {
 			return true
 		}
 	}
 	return false
 }
 
-// `-z` and `core.quotePath=false`, the rule ai/run-tests.sh lives by. Without `-z` a name holding a
-// space arrives as two tokens: `strings.Fields` splits it, safeToken accepts both halves, and the
-// gate builds two units keyed on files that do not exist while the real suite is gated by nothing.
-// Without quotePath a non-ASCII name arrives C-quoted and takes the run to exit 2 blaming the name.
+// `-z` and `core.quotePath=false`, the rule ai/run-tests.sh lives by. Drop either and a name reaches
+// the split below newline-separated or C-quoted, leaving a token safeToken refuses — the run exits 2
+// blaming a name nothing is wrong with.
 func (g *gate) listFiles(pathspec string) ([]string, error) {
 	out, err := g.capture("git", "-c", "core.quotePath=false", "ls-files", "-z",
 		"--cached", "--others", "--exclude-standard", "--", pathspec)

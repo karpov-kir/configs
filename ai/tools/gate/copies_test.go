@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// A repository whose suites build their fixtures the way this one's do: by copying repository files in
-// and running them. The three spellings the scan has to resolve are all here — a repository-rooted
-// tail, a tail naming a sibling of the suite, and one that resolves nowhere but as a suffix.
+// A repository whose suites build fixtures the way this repo's do: copy repository files in, then run
+// them. Every spelling the scan has to resolve is here — a tail rooted at the repository, a tail
+// naming a sibling of the suite, and one that resolves nowhere but as a suffix.
 func newCopyFixture(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "r")
@@ -49,9 +49,9 @@ func writeRepoFile(t *testing.T, root, name, body string) {
 func TestEditingACopiedRepositoryFileMovesTheCopyingUnitsKey(t *testing.T) {
 	root := newCopyFixture(t)
 
-	// Each file, the unit whose suite copies it in, and whether that unit's key must move when it is
-	// edited. ai/uncopied.sh is the control: no suite copies it, and a unit keyed on the tree wholesale
-	// would move for it too, which retires verdicts nobody had to.
+	// Each file, the unit whose suite copies it in, and whether that unit's key must move when the file is
+	// edited. ai/uncopied.sh is the control: no suite copies it, so a unit keyed on the tree wholesale
+	// would move for it too and re-run work nobody's edit could have touched.
 	copies := []struct {
 		file     string
 		unit     string
@@ -66,8 +66,8 @@ func TestEditingACopiedRepositoryFileMovesTheCopyingUnitsKey(t *testing.T) {
 	keys := keysOverTree(t, root)
 	for _, c := range copies {
 		if keys[c.unit] == "" {
-			t.Fatalf("discovery produced no unit called %s, so every assertion below is about a unit "+
-				"that does not exist", c.unit)
+			t.Fatalf("discovery built no unit called %s, so the rows below are checking a unit that "+
+				"does not exist", c.unit)
 		}
 	}
 
@@ -76,12 +76,12 @@ func TestEditingACopiedRepositoryFileMovesTheCopyingUnitsKey(t *testing.T) {
 		moved := keysOverTree(t, root)
 		switch {
 		case c.mustMove && moved[c.unit] == keys[c.unit]:
-			t.Errorf("editing %s left %s's key where it was. That suite copies the file into its "+
-				"fixture and runs the copy, so the gate answers a cached pass over code that just "+
-				"changed", c.file, c.unit)
+			t.Errorf("editing %s left %s's key where it was. That suite copies the file in and runs "+
+				"the copy, so the gate now reports a cached pass over code that just changed",
+				c.file, c.unit)
 		case !c.mustMove && moved[c.unit] != keys[c.unit]:
 			t.Errorf("editing %s moved %s's key, and no suite copies that file. The unit is keyed on "+
-				"more of the tree than it reads, which retires good verdicts", c.file, c.unit)
+				"more of the tree than it reads, so the gate throws away good verdicts", c.file, c.unit)
 		}
 		keys = moved
 	}
@@ -89,9 +89,8 @@ func TestEditingACopiedRepositoryFileMovesTheCopyingUnitsKey(t *testing.T) {
 
 func TestACopyNamingAFileTheGateCannotResolveIsRefused(t *testing.T) {
 	// One row per spelling a suite can write a copy in. `keyedOn` is what the unit must hash beyond its
-	// own base inputs — empty where the copy names no file, which is a claim about the pattern's reach
-	// rather than an absent expectation: a row that only asserted "not refused" would pass on a
-	// pattern that had stopped matching anything at all.
+	// own base inputs, and an empty one still asserts something: a row that only checked "not refused"
+	// would go green on a pattern that had quietly stopped matching anything at all.
 	forms := []struct {
 		name        string
 		line        string
@@ -103,24 +102,33 @@ func TestACopyNamingAFileTheGateCannotResolveIsRefused(t *testing.T) {
 			keyedOn: "ai/bootstrap-test.sh"},
 		{name: "a long flag before the tail", line: `cp --preserve "$checkout/ai/bootstrap-test.sh" "$d/x"`,
 			keyedOn: "ai/bootstrap-test.sh"},
+		{name: "a long flag carrying a value", line: `cp --preserve=all "$checkout/ai/bootstrap-test.sh" "$d/x"`,
+			keyedOn: "ai/bootstrap-test.sh"},
 		{name: "a braced variable", line: `cp "${checkout}/ai/bootstrap-test.sh" "$d/x"`,
 			keyedOn: "ai/bootstrap-test.sh"},
+		{name: "two copies on one line", line: `cp "$checkout/ai/bootstrap-test.sh" "$d/x" && cp "$script_dir/mcp-sync.sh" "$d/y"`,
+			keyedOn: "ai/bootstrap-test.sh,ai/mcp-sync.sh"},
 		{name: "a tail beside the suite", line: `cp "$script_dir/mcp-sync.sh" "$d/x"`,
 			keyedOn: "ai/mcp-sync.sh"},
 		{name: "a tail resolved by suffix", line: `cp "$skills/kk-reduce/scripts/stats.sh" "$d/x"`,
 			keyedOn: "ai/skills/kk-reduce/scripts/stats.sh"},
 		{name: "a copy whose basename is a variable", line: `cp "$skills/$skill/scripts/$script" "$d/x"`},
 		{name: "a copy of a whole fixture tree", line: `cp -R "$root" "$d/x"`},
+		{name: "a directory copy written as a path", line: `cp -R "$checkout/ai/skills" "$d/x"`,
+			keyedOn: "ai/skills"},
 		{name: "a destination under the fixture, never a source", line: `cp "$script" "$d/ai/mcp-sync.sh"`},
-		{name: "a tail naming no repository file", line: `cp "$dir/absent.sh" "$d/x"`,
-			wantRefusal: true, names: "absent.sh"},
+		{name: "a commented-out copy", line: `# cp "$checkout/ai/bootstrap-test.sh" "$d/x"`},
+		{name: "a path inside the fixture", line: `cp "$fixture/config.json" "$other/config.json"`},
+		{name: "a tail naming no repository file", line: `cp "$dir/ai/absent.sh" "$d/x"`,
+			wantRefusal: true, names: "ai/absent.sh"},
+		{name: "a tail resolving two ways at once", line: `cp "$either/ai/mcp.jsonc" "$d/x"`,
+			keyedOn: "ai/mcp.jsonc"},
 		{name: "a tail naming two repository files", line: `cp "$dir/scripts/stats.sh" "$d/x"`,
-			wantRefusal: true, names: "scripts/stats.sh"},
+			keyedOn: "ai/other/scripts/stats.sh,ai/skills/kk-reduce/scripts/stats.sh"},
 	}
 	for _, form := range forms {
 		t.Run(form.name, func(t *testing.T) {
 			root := newCopyFixture(t)
-			// The second stats.sh, which is what makes the suffix rule ambiguous for the case above.
 			writeRepoFile(t, root, "ai/other/scripts/stats.sh", "#!/bin/sh\ntrue\n")
 			writeRepoFile(t, root, "ai/extra-test.sh", "#!/bin/sh\n"+form.line+"\n")
 
@@ -130,13 +138,13 @@ func TestACopyNamingAFileTheGateCannotResolveIsRefused(t *testing.T) {
 
 			if form.wantRefusal {
 				if code == 0 {
-					t.Fatalf("discovery accepted a copy it cannot resolve; it built %d unit(s), and the "+
-						"one covering ai/extra-test.sh runs that file while hashing nothing of it",
+					t.Fatalf("discovery accepted a copy it cannot resolve (%d units built); the unit "+
+						"covering ai/extra-test.sh runs that file while hashing nothing of it",
 						len(g.units))
 				}
 				if !strings.Contains(said.String(), form.names) {
-					t.Errorf("the refusal does not name the path that caused it, so nobody can act on "+
-						"it: %q", said.String())
+					t.Errorf("the refusal does not name the path that caused it, so the reader cannot "+
+						"tell which line to fix: %q", said.String())
 				}
 				return
 			}
@@ -146,7 +154,7 @@ func TestACopyNamingAFileTheGateCannotResolveIsRefused(t *testing.T) {
 			extra := extraInputs(t, g, "shell:ai/extra")
 			want := []string(nil)
 			if form.keyedOn != "" {
-				want = []string{form.keyedOn}
+				want = strings.Split(form.keyedOn, ",")
 			}
 			if !slices.Equal(extra, want) {
 				t.Errorf("the unit covering ai/extra-test.sh is keyed on %v beyond its own base inputs, "+
@@ -156,8 +164,8 @@ func TestACopyNamingAFileTheGateCannotResolveIsRefused(t *testing.T) {
 	}
 }
 
-// What a unit hashes beyond what every shell unit hashes — its own suite and the runner that reads its
-// result. Whatever is left came from the scans, which is what these cases are about.
+// Every shell unit hashes its own suite and the runner that reads its result. Dropping those two
+// leaves what the scans added, which is all these cases are about.
 func extraInputs(t *testing.T, g *gate, id string) []string {
 	t.Helper()
 	base := map[string]bool{strings.TrimPrefix(id, "shell:") + "-test.sh": true, "ai/run-tests.sh": true}
@@ -177,23 +185,33 @@ func extraInputs(t *testing.T, g *gate, id string) []string {
 	return nil
 }
 
-func TestACopyOfAnIgnoredBuildArtifactIsNeitherKeyedNorRefused(t *testing.T) {
+// A copied path is the one unit input built from a file's text rather than from git's own listing, so
+// it is the one that can carry pathspec magic into `buildManifest`'s `git ls-files` call. There,
+// `:!ai/tools/gate` reads as an exclude: those files drop out of the manifest, and whatever the
+// excluder chose passes from cache from then on. The fixture names a directory git reads as magic and
+// copies a file out of it, the shortest route to that value becoming an input.
+func TestACopiedPathHoldingPathspecMagicIsRefused(t *testing.T) {
 	root := newCopyFixture(t)
-	writeRepoFile(t, root, "ai/tools/.gitignore", "bin/\n")
-	// ai/tools/tool-stub-test.sh copies ai/tools/bin/eco-stats in; the fixture names something else,
-	// because every real tool name is a marker that keys a suite on the whole tool tree and would hide
-	// the one input this case is about.
-	writeRepoFile(t, root, "ai/tools/artifact-test.sh", "#!/bin/sh\ncp \"$here/bin/stub-tool\" \"$d/x\"\n")
+	writeRepoFile(t, root, ":!ai/target.sh", "#!/bin/sh\ntrue\n")
+	writeRepoFile(t, root, "ai/hostile-test.sh", "#!/bin/sh\ncp \"$x/:!ai/target.sh\" \"$d/y\"\n")
 
 	said := &strings.Builder{}
 	g := &gate{root: root, env: Env{Root: root}, stamp: "test-digest", errOut: said}
-	if code := g.discoverShellSuites(); code != 0 {
-		t.Fatalf("discovery refused a copy of a build artifact (exit %d). Nothing in the repository "+
-			"holds that path, and its source tree is what a unit reading it is keyed on: %s",
-			code, said.String())
+
+	if code := g.discoverShellSuites(); code == 0 {
+		for _, u := range g.units {
+			if u.id != "shell:ai/hostile" {
+				continue
+			}
+			t.Fatalf("discovery accepted a copied path holding pathspec magic and keyed %s on %v; "+
+				"those values reach git ls-files as pathspecs, where an exclude silently shrinks the "+
+				"manifest", u.id, u.inputs)
+		}
+		t.Fatalf("discovery accepted the fixture but built no unit for ai/hostile-test.sh, so this " +
+			"case checked nothing")
 	}
-	if extra := extraInputs(t, g, "shell:ai/tools/artifact"); len(extra) != 0 {
-		t.Errorf("the unit is keyed on %v, and git tracks none of it, so its hash comes from whatever "+
-			"the last build left behind", extra)
+	if !strings.Contains(said.String(), "copied path") {
+		t.Errorf("the refusal never says it was a copied path, so it reads like any other gate "+
+			"refusal: %q", said.String())
 	}
 }
