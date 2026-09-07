@@ -94,8 +94,10 @@ func (c *checker) reportSkippedMountScan(out io.Writer) {
 
 // The mounts that outlived their skills. The forward loop iterates the directories this tree has, so a
 // mount whose directory was deleted has nothing left to iterate from and the forward loop never
-// reaches it. ai/bootstrap.sh mounts every directory under skills/ and unmounts none, so a deletion that
-// lands leaves its symlink behind at $HOME for good.
+// reaches it. ai/bootstrap.sh clears the mounts it wrote itself — absolute links whose target is
+// gone — so a deletion that lands leaves the symlink at $HOME until somebody bootstraps again. This
+// scan is deliberately wider: it also reports a relative link, and one whose target exists but is not
+// a directory, neither of which that sweep touches.
 //
 // Only a mount pointing straight into this tree's own skills/ is spoken about. $HOME legitimately
 // carries skills from other checkouts, and one of those — resolving or dangling — is not this tree's
@@ -144,7 +146,7 @@ func (c *checker) scanMountsWithoutSkills(skillsMount string, skillNames []strin
 			continue
 		}
 		c.add(mountWithoutASkill + ": " + shell.Join(skillsMount, shell.Oneline(name)) + " -> " + shell.Oneline(target) +
-			", which this checkout does not have — remove it once the deletion has landed; ai/bootstrap.sh drops no mount of its own")
+			", which this checkout does not have — re-run ai/bootstrap.sh once the deletion has landed; a mount still here after that is one to remove by hand")
 	}
 }
 

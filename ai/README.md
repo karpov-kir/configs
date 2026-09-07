@@ -13,6 +13,13 @@ target this one reports and skips is still yours to link with the commands below
 does is run the repository's own suites over what it just linked; `--skip-verify` turns that off, and
 `--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the network.
 
+Because the skills below are mounted by discovery, renaming or deleting one leaves its old link behind.
+This script removes those links on its next run, and names each one it removed. It removes only a link
+it would have written itself: an absolute symlink under `~/.claude/skills/`, pointing straight into
+this checkout's `ai/skills/`, whose directory is gone. It leaves everything else. So if the wiring
+check (`ai/skills/kk-ecosystem/scripts/check.sh`) keeps reporting a mount that a run never drops,
+remove that one by hand.
+
 A few skills exist only to maintain this instruction tree and do nothing for a repository that merely
 uses it. Each declares `audience: maintainer` in its own frontmatter, and
 `--skip-maintainer-skills` leaves those unmounted — worth passing on a machine that is not maintaining
