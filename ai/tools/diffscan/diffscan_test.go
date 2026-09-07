@@ -194,3 +194,54 @@ func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
 			"caller asked for was silently ignored:\n%s", scoped)
 	}
 }
+
+func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
+	const secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"
+	dir := t.TempDir()
+	initRepo(t, dir)
+	writeFile(t, filepath.Join(dir, ".env"), secret+"\n")
+	writeFile(t, filepath.Join(dir, "plain.go"), lfBody)
+
+	walk := func(skipSecretNamed bool) (map[string][]string, []string, Result) {
+		t.Helper()
+		var result Result
+		var announced []string
+		delivered := map[string][]string{}
+		opts := Options{
+			MaxFileBytes:    1 << 20,
+			SkipSecretNamed: skipSecretNamed,
+			Announce:        func(line string) { announced = append(announced, line) },
+		}
+		if err := result.WalkUntracked(dir, opts, func(added AddedLine) {
+			delivered[added.File] = append(delivered[added.File], added.Text)
+		}); err != nil {
+			t.Fatalf("the walk failed, so this case measured nothing: %v", err)
+		}
+		return delivered, announced, result
+	}
+
+	if control, _, _ := walk(false); !slices.Contains(control[".env"], secret) {
+		t.Fatalf("the option-off control delivered %d line(s) of .env and none of them the secret, so the "+
+			"fixture is wrong rather than the guard right", len(control[".env"]))
+	}
+
+	delivered, announced, result := walk(true)
+	if len(delivered[".env"]) != 0 {
+		t.Errorf("%d line(s) of .env reached the visitor, so the secret is on its way into whatever the "+
+			"caller prints: %q", len(delivered[".env"]), delivered[".env"])
+	}
+	if len(delivered["plain.go"]) == 0 {
+		t.Errorf("plain.go was declined too, so the guard refuses more than the names it is for")
+	}
+	if result.Reached != 1 {
+		t.Errorf("Reached = %d, wanted 1 — the declined file was counted as covered, or plain.go was missed",
+			result.Reached)
+	}
+	if result.SkippedUnread != 1 {
+		t.Errorf("SkippedUnread = %d, wanted 1 — a decline outside the tally lets the summary claim a "+
+			"denominator it never covered", result.SkippedUnread)
+	}
+	if len(announced) != 1 || !strings.Contains(announced[0], "its name marks it as secret-bearing") {
+		t.Errorf("the skip was announced as %q, wanted one notice naming the reason", announced)
+	}
+}
