@@ -527,6 +527,16 @@ var mutants = []mutant{
 	{"intent-ready: a blanked field's own comment read as its value", "../eco-report/intent_ready.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", `if strings.HasPrefix(value, "#") {`, "if false {"},
 	{"intent-ready: a filled field's trailing comment read as part of its value", "../eco-report/intent_ready.go", "./eco-report/", "TestGateBlocksAnIntentTheGapRoundsNeverApproved", `if comment := strings.Index(value, " #"); comment >= 0 {`, `if comment := strings.Index(value, " #"); false && comment >= 0 {`},
 	{"intent-ready: an archived dependency read as unbuilt", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnADependencyThatHasNotShipped", `case where == "archive":`, `case where == "archive" && false:`},
+
+	// The reverse half of the same gate: a link is declared from either side, so these guards are what
+	// stop an intent eleven siblings said they precede from reading as ready. Lose one and the tool
+	// clears a build over an edge somebody did declare.
+	{"intent-ready: a draft sibling's blocks edge ignored", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnASiblingThatDeclaredItGoesFirst", `if status := yamlValue(path, "status"); status != "built" {`, `if status := yamlValue(path, "status"); false && status != "built" {`},
+	{"intent-ready: an intent blocked by its own blocks entry", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyBlocksOnASiblingThatDeclaredItGoesFirst", "\t\tif strings.HasPrefix(sibling, number+\"-\") {\n\t\t\tcontinue\n\t\t}\n", ""},
+	{"intent-ready: a relation read from an entry's why", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyReadsALinkFromTheEntryHeadAndNotFromItsWhy", "if !strings.HasPrefix(entry, relation) {", "if !strings.Contains(entry, relation) {"},
+	{"intent-ready: a sibling judged through a symlink", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyRefusesWhenItCannotReadTheSiblingsThatMightBlockIt", "\t\tif shell.IsSymlink(path) {\n\t\t\tr.refuse(\"error: \" + shell.Oneline(path) + \" is a symlink — refusing to judge whether it blocks \" + number + \" through one\")\n\t\t}\n", ""},
+	{"intent-ready: siblings that cannot be listed read as none", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyRefusesWhenItCannotReadTheSiblingsThatMightBlockIt", "\t\tif os.IsNotExist(err) {\n\t\t\treturn nil\n\t\t}\n", "\t\treturn nil\n"},
+	{"intent-ready: a numberless slug judged on three checks of four", "../eco-report/intent_ready.go", "./eco-report/", "TestIntentReadyRefusesRatherThanJudgingWhatItCannotRead", `!isSlugCharset(name) || number == "" {`, "!isSlugCharset(name) {"},
 	{"gate: the intent's own follow-ups never scanned", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", `if intent := r.intentFilePath(); intent != "" {`, `if intent := r.intentFilePath(); intent != "" && false {`},
 
 	// records.go — the four records every worktree of the clone shares. Every guard here stands between

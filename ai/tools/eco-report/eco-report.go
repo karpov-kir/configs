@@ -45,8 +45,10 @@
 //	                 reached `status: approved` (all three human-overridable) OR any open `- [ ]` in the
 //	                 report or in the ship's intent file (never overridable) → non-zero + reasons
 //	intent-ready <NNN-slug>  build-blocker over the ICE itself: unfilled template placeholders, an empty
-//	                 required section, or a depends-on edge that has not shipped → non-zero + reasons.
-//	                 Judgement is the grill's, not this
+//	                 required section, a depends-on edge that has not shipped, or a sibling declaring
+//	                 `blocks` on this one that has not shipped → non-zero + reasons. Both directions are
+//	                 read because either declaration alone is the whole edge. Judgement is the grill's,
+//	                 not this
 //	carry            print prior open `- [ ]` (with their section) so re-qualify loses none
 //	check-ignore     keep each ship's scratch out of the fingerprint, by the mechanism that fits the repo mode
 //	promote          throwaway → committed: ignore each ship's scratch via .gitignore, MOVE the scratch

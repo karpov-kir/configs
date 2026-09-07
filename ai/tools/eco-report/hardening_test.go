@@ -212,6 +212,40 @@ func TestAHeldMergeSlotCarriesNoControlByteToTheTerminal(t *testing.T) {
 	f.record("and the ship was not finalized", f.isFile(f.reportPath("001-real")), f.evidence())
 }
 
+func TestAShipFolderNameCarriesNoControlByteToTheTerminal(t *testing.T) {
+	t.Parallel()
+	// The reverse-edge scan opens every sibling ship's intent, so a folder name this tool never chose
+	// now reaches a refusal on every intent-ready run. A ship folder arrives with someone else's
+	// branch, and an ESC in its name rewrites the lines printed above it — for a reader that is another
+	// agent deciding whether to build.
+	f := newRepo(t)
+	f.writeIntent("003-search", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("fixture: it reads ready before any sibling is placed", f.status == 0, f.evidence())
+
+	// The forgery is this gate's own clean line, taken from the run above rather than retyped: a
+	// retyped one stops imitating anything the day the line is reworded.
+	cleanLine := f.out
+	f.record("fixture: and the clean line the forgery imitates is the gate's own",
+		strings.HasPrefix(cleanLine, "intent ready:"), "the clean run printed: '"+cleanLine+"'")
+	sibling := "002-holder\x1b[2K" + cleanLine
+
+	f.writeIntent(sibling, readyIntent("links:", "  - blocks 003 — the sibling's own declaration"))
+	intent := f.shipDir(sibling) + "/" + "intent.md"
+	if !f.madeUnreadable(intent, "the control-byte ship-folder case") {
+		t.Skip("this process reads a mode-0 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so the refusal cannot be built here")
+	}
+	f.runReport("intent-ready", "003-search")
+	f.chmod(intent, 0o644)
+
+	f.record("a sibling intent that cannot be read refuses rather than judging without it",
+		f.status == 2, f.evidence())
+	f.record("and no control byte from the folder's name reached the terminal",
+		!strings.ContainsRune(f.out, 0x1b), strconv.Quote(f.out))
+	f.record("and the refusal still names the folder it could not read",
+		strings.Contains(f.out, "002-holder"), strconv.Quote(f.out))
+}
+
 func TestAWorktreePathCarriesNoControlByteIntoTheReport(t *testing.T) {
 	t.Parallel()
 	// The stamp records `<token> <worktree path>`, and the path half is not a value this tool chose:

@@ -74,6 +74,7 @@ func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
 		strings.Contains(f.out, "no placeholders") &&
 			strings.Contains(f.out, "every required section filled") &&
 			strings.Contains(f.out, "dependencies built") &&
+			strings.Contains(f.out, "sibling declaring it goes first") &&
 			!strings.Contains(f.out, "sign-off"), f.evidence())
 
 	// The defect the gate exists for: an ICE still carrying the words the template shipped with.
@@ -150,12 +151,108 @@ func TestIntentReadyBlocksOnADependencyThatHasNotShipped(t *testing.T) {
 		f.status == 1 && strings.Contains(f.out, "names no intent"), f.evidence())
 }
 
+// Never mirror 001's `blocks 003` with a `depends-on 001` in 003. A two-sided edge survives the
+// removal of either side, so the case below that drops the declaration would clear and prove nothing.
+func TestIntentReadyBlocksOnASiblingThatDeclaredItGoesFirst(t *testing.T) {
+	t.Parallel()
+	f := newRepo(t)
+	blocker := readyIntent("links:", "  - blocks 003 — moves the paths 003 would rewrite")
+
+	f.writeIntent("001-indexing", blocker)
+	f.writeIntent("003-search", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("a sibling declaring blocks on this intent blocks it",
+		f.status == 1 && strings.Contains(f.out, "001-indexing declares blocks 003"), f.evidence())
+
+	f.writeIntent("001-indexing", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("and clears when that sole declaration is removed", f.status == 0, f.evidence())
+
+	f.writeIntent("001-indexing", strings.Replace(blocker, "status: draft", "status: built", 1))
+	f.runReport("intent-ready", "003-search")
+	f.record("a built blocker does not block", f.status == 0, f.evidence())
+
+	f.remove(f.shipDir("001-indexing") + "/intent.md")
+	f.writeArchivedIntent("001-indexing", blocker)
+	f.runReport("intent-ready", "003-search")
+	f.record("an archived blocker does not block, since archived is built", f.status == 0, f.evidence())
+
+	f.remove(f.archiveDir("001-indexing"))
+	f.writeIntent("003-search", readyIntent("links:", "  - blocks 003 — a self-edge nobody should act on"))
+	f.runReport("intent-ready", "003-search")
+	f.record("an intent's own blocks entry does not block itself", f.status == 0, f.evidence())
+}
+
+// A relation is read at the head of a `links:` entry and never inside another entry's why. Both
+// directions go through one parser, so both would invent an edge: the forward one a dependency of the
+// author's own making, the reverse one a blocker sitting in a SIBLING's file, which the blocked
+// intent's author cannot clear from their own.
+func TestIntentReadyReadsALinkFromTheEntryHeadAndNotFromItsWhy(t *testing.T) {
+	t.Parallel()
+	f := newRepo(t)
+
+	// 002 is deliberately absent: a phantom edge onto it would be reported as naming no intent, so the
+	// case fails loudly rather than quietly reading the right number for the wrong reason.
+	f.writeIntent("001-indexing", strings.Replace(readyIntent(), "status: draft", "status: built", 1))
+	f.writeIntent("003-search", readyIntent("links:", "  - blocks 001 — indexing waits on this; nothing here depends-on 002 any more"))
+	f.runReport("intent-ready", "003-search")
+	f.record("a relation named in an entry's why is not a depends-on edge", f.status == 0, f.evidence())
+
+	f.writeIntent("002-ranking", readyIntent("links:", "  - depends-on 001 — 001 blocks 003 too, so ranking follows it"))
+	f.runReport("intent-ready", "003-search")
+	f.record("and a sibling's why naming this intent is not a blocks edge", f.status == 0, f.evidence())
+
+	// The control. Same words, same draft sibling, moved to the head of its own entry: it blocks. Without
+	// this the two cases above would pass against a scan that had stopped running.
+	f.writeIntent("002-ranking", readyIntent("links:", "  - blocks 003 — ranking rewrites what search reads"))
+	f.runReport("intent-ready", "003-search")
+	f.record("while the same words at an entry's head do block",
+		f.status == 1 && strings.Contains(f.out, "002-ranking declares blocks 003"), f.evidence())
+}
+
+// The reverse scan opens files this tool never named, so the two ways that read can fail get the
+// answer the forward scan gives: refuse. Clearing an intent because the siblings could not be read is
+// the false green the scan was added to close.
+func TestIntentReadyRefusesWhenItCannotReadTheSiblingsThatMightBlockIt(t *testing.T) {
+	t.Parallel()
+	f := newRepo(t)
+
+	f.writeIntent("003-search", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("fixture: it reads ready with the siblings readable", f.status == 0, f.evidence())
+
+	f.writeIntent("001-indexing", readyIntent())
+	f.remove(f.shipDir("001-indexing") + "/intent.md")
+	f.symlink(f.shipDir("003-search")+"/intent.md", f.shipDir("001-indexing")+"/intent.md")
+	f.runReport("intent-ready", "003-search")
+	f.record("a sibling intent reached through a symlink refuses",
+		f.status == 2 && strings.Contains(f.out, "is a symlink"), f.evidence())
+
+	f.remove(f.shipDir("001-indexing"))
+	dir := f.scratch() + "/intents"
+	if !f.madeUnlistable(dir, "the unlistable-siblings case") {
+		return
+	}
+	f.runReport("intent-ready", "003-search")
+	f.chmod(dir, 0o755)
+	f.record("an intents directory that cannot be listed refuses rather than clearing",
+		f.status == 2 && strings.Contains(f.out, "whether a sibling blocks 003 is unknown"), f.evidence())
+}
+
 func TestIntentReadyRefusesRatherThanJudgingWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
 
 	f.runReport("intent-ready")
 	f.assertRefused("a bare intent-ready refuses")
+
+	// Every link between intents is drawn on the number, so a name without one cannot be judged against
+	// its siblings — and running three of the four checks under a line that claims all four is worse
+	// than refusing.
+	f.writeIntent("no-number", readyIntent())
+	f.runReport("intent-ready", "no-number")
+	f.assertRefused("a slug with no leading number refuses")
+	f.assertReports("must open with the intent's number", "and says the number is what it lacked")
 
 	// The slug is joined into a path, so the charset is the whole of what keeps this read inside
 	// intents/.
