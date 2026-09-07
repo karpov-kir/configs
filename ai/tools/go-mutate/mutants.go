@@ -343,7 +343,7 @@ var mutants = []mutant{
 	// The root both tools resolve through. Neither tool's suite reaches it: every fixture there names
 	// its root outright, so a candidate dropped from the list goes unnoticed in both.
 	{"ecoroot: the ./ai candidate dropped", "../eco-root/eco-root.go", "./eco-root/", "", `var candidates = []string{".", "./ai"}`, `var candidates = []string{"."}`},
-	{"ecoroot: a root needs only one of the two directories", "../eco-root/eco-root.go", "./eco-root/", "", "&& shell.IsDir(shell.Join(dir, skillsDir))", ""},
+	{"ecoroot: a root needs only one of the two directories", "../eco-root/eco-root.go", "./eco-root/", "", "&& shell.IsDir(shell.Join(flavor, skillsDir))", ""},
 
 	// ecoreport. This tool deletes files (`discard`) and writes the human's index (`promote`), and the
 	// stamp it writes is what the merge gate trusts — so the weight below is on the three questions

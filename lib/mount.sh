@@ -27,6 +27,11 @@
 dry_run=${dry_run:-false}
 relocate=${relocate:-false}
 bulk_label=${bulk_label:-}
+# What the guard's refusal calls the thing at stake. Machine-wide, repointing these moves a human's
+# whole configuration; for a project install it moves that project's skills and nothing else, and a
+# refusal saying "this machine's configuration" about one project is false in a way that teaches
+# people to ignore it. Prose from the caller, like `label` and `bulk_label` above.
+mount_scope_label=${mount_scope_label:-"this machine's configuration"}
 
 # Refusals are collected rather than fatal: a machine missing one cask should still get every link,
 # and a human fixing three named problems in one pass beats discovering them one run at a time.
@@ -261,7 +266,7 @@ mount_run() {
     done
   else
     say ""
-    say "  This checkout is not where this machine's configuration is mounted."
+    say "  This checkout is not where $mount_scope_label is mounted."
     for ((r = 0; r < ${#foreign_roots[@]}; r++)); do
       refuse_foreign_root "${foreign_roots[r]}"
     done
@@ -277,5 +282,68 @@ mount_run() {
   say "$bulk_label"
   for ((i = 0; i < ${#bulk_targets[@]}; i++)); do
     link "${bulk_sources[i]}" "${bulk_targets[i]}"
+  done
+}
+
+# --- taking it back out ---------------------------------------------------------------------------
+
+# Remove one mount, and only when this checkout can prove it wrote it.
+#
+# The proof is the whole of why this belongs here rather than in a caller's `rm`: a target is removed
+# only if it is a symlink AND its value resolves under `$repo`. Anything else — a real file, a
+# symlink into somebody else's checkout, a link that resolves nowhere — is reported and left, which is
+# the same promise `link()` makes at the other end. ai/README.md performed this proof by hand with a
+# `readlink` case matching a path fragment; against `$repo` it cannot mistake a similarly-named
+# directory for this one.
+#
+# A target that is already gone is success, not a refusal. Uninstall run twice is ordinary.
+unlink_mount() {
+  local source="$1" target="$2" current resolved
+  if [ ! -L "$target" ]; then
+    if [ -e "$target" ]; then
+      refuse "$target is not a symlink, so this did not write it — remove it yourself if you mean to"
+      return 1
+    fi
+    say "  ok       $target is already gone"
+    return 0
+  fi
+  current="$(readlink "$target")"
+  # Resolved rather than string-compared, so a link written through a differently-spelled but
+  # equivalent path is still recognised as ours. A link resolving nowhere resolves to empty and falls
+  # through to the refusal, which is right: its target is unknown, so its ownership is too.
+  resolved="$(CDPATH= cd -P -- "$(dirname -- "$current")" 2>/dev/null && pwd -P)" || resolved=""
+  if [ -z "$resolved" ] || { [ "$resolved" != "$repo" ] && [ "${resolved#"$repo"/}" = "$resolved" ]; }; then
+    refuse "$target points at $current, which is not in this checkout — left alone"
+    return 1
+  fi
+  if $dry_run; then
+    say "  would remove $target -> $current"
+    return 0
+  fi
+  rm -f -- "$target" || {
+    refuse "could not remove $target"
+    return 1
+  }
+  say "  removed  $target"
+}
+
+# The inverse of mount_run, over the same table the caller declared. Same table because a second
+# script re-deriving what to remove drifts from what was installed, and drifts silently in the one
+# direction nobody notices: leaving things behind and reporting ok.
+#
+# The guard runs here too. A mount resolving into another checkout is not this run's to delete any
+# more than it is this run's to repoint, and `unlink_mount` refuses it on the same evidence.
+unmount_run() {
+  local i
+
+  say "unmounts"
+  for ((i = 0; i < ${#cfg_targets[@]}; i++)); do
+    unlink_mount "${cfg_sources[i]}" "${cfg_targets[i]}"
+  done
+
+  [ "${#bulk_targets[@]}" -eq 0 ] && return 0
+  say "$bulk_label"
+  for ((i = 0; i < ${#bulk_targets[@]}; i++)); do
+    unlink_mount "${bulk_sources[i]}" "${bulk_targets[i]}"
   done
 }

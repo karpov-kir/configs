@@ -1,5 +1,5 @@
-// Package ecoroot is the checkout both ecosystem tools measure: the directory holding kk-flavor/ and
-// skills/, the paths derived from it, the mount those paths are compared against, and the `@import`
+// Package ecoroot is the checkout both ecosystem tools measure: the directory holding kk-flavor/, which
+// holds skills/ in turn, the paths derived from it, the mount those paths are compared against, and the `@import`
 // names that load alongside them.
 //
 // It exists so ecocheck and ecostats cannot describe different trees for one invocation, which is a
@@ -79,7 +79,7 @@ func New(named string) (Root, bool) {
 	return Root{
 		named:  named,
 		flavor: shell.Join(named, flavorDir),
-		skills: shell.Join(named, skillsDir),
+		skills: shell.Join(shell.Join(named, flavorDir), skillsDir),
 		canon:  shell.CanonicalDir(named),
 		home:   os.Getenv("HOME"),
 	}, true
@@ -109,12 +109,17 @@ func ReadAlwaysTargets(lines []string) []string {
 	return targets
 }
 
+// The skills live under the flavor bucket, so one mount — `~/.kk-flavor` — carries the standards and
+// the lanes together and every `~/.kk-flavor/skills/...` citation resolves through it under a
+// machine-wide install and a project-scoped one alike. Both directories are still required: a
+// checkout holding the bucket but no lanes is not a tree either tool can measure.
 func holdsBoth(dir string) bool {
-	return shell.IsDir(shell.Join(dir, flavorDir)) && shell.IsDir(shell.Join(dir, skillsDir))
+	flavor := shell.Join(dir, flavorDir)
+	return shell.IsDir(flavor) && shell.IsDir(shell.Join(flavor, skillsDir))
 }
 
 // Named is the root as the caller spelled it; Flavor and Skills are the two directories that made it
-// one. Every path a tool prints is built from these, so they are concatenated rather than cleaned.
+// one, Skills nested inside Flavor. Every path a tool prints is built from these, so they are concatenated rather than cleaned.
 func (r Root) Named() string { return r.named }
 
 func (r Root) Flavor() string { return r.flavor }

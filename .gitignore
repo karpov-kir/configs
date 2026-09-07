@@ -2,4 +2,4 @@
 ai/mcp.private*
 # Cross-repo state — a retro run in any other repo writes here, because the skill directory is the
 # one path that is the same everywhere. Local scratch, never this repo's record.
-ai/skills/kk-retro/findings.md
+ai/kk-flavor/skills/kk-retro/findings.md

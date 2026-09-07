@@ -221,8 +221,8 @@ func (r *run) assertShipExists(slug string) {
 // What is left under .idsd/ that is not this ship's scratch, as a printable list — empty means
 // `discard` may take the whole directory. What counts as remaining is named, never "the .idsd/ root
 // is non-empty", so a stray dotfile cannot keep the dir alive. `decisions.md` is deliberately NOT on
-// the list — `~/.claude/skills/idsd-qualify/SKILL.md` → **The decision log** makes it throwaway
-// scratch by design. `roadmap.md` is off it for its own reason: `~/.claude/skills/idsd-intent/SKILL.md`
+// the list — `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **The decision log** makes it throwaway
+// scratch by design. `roadmap.md` is off it for its own reason: `~/.kk-flavor/skills/idsd-intent/SKILL.md`
 // → **Phase 3 — Emit** generates it from the intents' own frontmatter, so whenever it holds anything,
 // the intents arm below is already keeping .idsd/ standing for the intents it came from.
 //

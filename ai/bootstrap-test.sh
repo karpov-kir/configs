@@ -49,7 +49,12 @@ run_boot "$home"
 expect_status "a fresh home exits 0" 0
 expect_out "and reports ok" "ai bootstrap: ok"
 expect_link_to "the flavor bucket is mounted" "$home/.kk-flavor" "$here/kk-flavor"
-expect_link_to "CLAUDE.md is linked" "$home/.claude/CLAUDE.md" "$here/CLAUDE.md"
+grep -q "kk-flavor:begin" "$home/.claude/CLAUDE.md" 2>/dev/null &&
+  record_pass "the instruction region is written into ~/.claude/CLAUDE.md" ||
+  record_fail "the instruction region is written into ~/.claude/CLAUDE.md" "no region there"
+[ -L "$home/.claude/CLAUDE.md" ] &&
+  record_fail "and the default tier does not mount this checkout's own CLAUDE.md" "it is a symlink" ||
+  record_pass "and the default tier does not mount this checkout's own CLAUDE.md"
 
 # Parents the README creates by hand: ~/.claude and ~/.claude/skills do not exist on a fresh machine,
 # and a link into a missing directory fails rather than creating it.
@@ -58,12 +63,20 @@ expect_link_to "CLAUDE.md is linked" "$home/.claude/CLAUDE.md" "$here/CLAUDE.md"
   record_fail "missing parent directories are created" "~/.claude/skills is absent"
 
 # Discovery, so a skill added later is mounted without editing ai/bootstrap.sh. Compared against the
-# repository rather than a hard-coded number, which would drift the day a skill lands.
-want_skills=$(find "$here/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+# repository rather than a hard-coded number, which would drift the day a skill lands — and against
+# the skills a DEFAULT run installs, which is every one that does not declare `audience: maintainer`.
+# Counting all of them here would make this case fail the day a skill is marked, blaming discovery
+# for a marker doing its job.
+want_skills=0
+for skill_path in "$here"/kk-flavor/skills/*/; do
+  [ -d "$skill_path" ] || continue
+  grep -q '^audience: maintainer$' "${skill_path}SKILL.md" 2>/dev/null && continue
+  want_skills=$((want_skills + 1))
+done
 got_skills=$(find "$home/.claude/skills" -mindepth 1 -maxdepth 1 -type l 2>/dev/null | wc -l | tr -d ' ')
 [ "$want_skills" -gt 0 ] && [ "$got_skills" -eq "$want_skills" ] &&
-  record_pass "every skill directory is mounted" ||
-  record_fail "every skill directory is mounted" "mounted $got_skills of $want_skills"
+  record_pass "every skill the default tier installs is mounted" ||
+  record_fail "every skill the default tier installs is mounted" "mounted $got_skills of $want_skills"
 
 # --- re-running -----------------------------------------------------------------------------------
 
@@ -77,7 +90,7 @@ expect_not_out "and relinks nothing" "linked   $home/.kk-flavor"
 # every run — idempotence lost to a cosmetic difference, and the noise hides a genuinely stale link.
 fresh_home
 mkdir -p "$home/.claude/skills"
-first_skill=$(find "$here/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)
+first_skill=$(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)
 fixture_link "$first_skill/" "$home/.claude/skills/$(basename "$first_skill")"
 run_boot "$home"
 expect_out "a skill link differing only by a trailing slash is left alone" "  ok       $home/.claude/skills/$(basename "$first_skill")"
@@ -91,8 +104,12 @@ expect_not_out "and is not rewritten" "repointed $home/.claude/skills/$(basename
 # repository — a step is what makes it a removal they run knowingly, and what carries it to their other
 # machines. Every case below reads the path back afterwards: a step reporting "removed" over a file
 # still on disk is exactly what these are here to catch.
+#
+# `--owner` throughout: the leftover is one this repository wrote on the owner's own machines and
+# never anywhere else, so it followed rtk into that tier. A default run skips the step entirely,
+# which the case at the end of this block is what proves.
 fresh_home
-run_boot "$home"
+run_boot "$home" --owner
 expect_status "a fresh home with no leftover exits 0" 0
 expect_out "and says there was nothing to remove" "no leftover $home/.claude/RTK.md"
 [ ! -e "$home/.claude/RTK.md" ] &&
@@ -104,7 +121,7 @@ expect_out "and says there was nothing to remove" "no leftover $home/.claude/RTK
 fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/RTK.md" 'the copy an earlier bootstrap left here'
-run_boot "$home"
+run_boot "$home" --owner
 expect_status "a leftover file is removed and the run exits 0" 0
 expect_out "and says it removed it" "removed  $home/.claude/RTK.md"
 [ ! -e "$home/.claude/RTK.md" ] &&
@@ -118,7 +135,7 @@ fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/pointed-at.md" 'the file the link named'
 fixture_link "$home/.claude/pointed-at.md" "$home/.claude/RTK.md"
-run_boot "$home"
+run_boot "$home" --owner
 expect_status "a symlink left at that path is removed too" 0
 [ ! -e "$home/.claude/RTK.md" ] && [ ! -L "$home/.claude/RTK.md" ] &&
   record_pass "and the link is gone" ||
@@ -132,7 +149,7 @@ expect_file_body "and what it pointed at was not followed and deleted" \
 fresh_home
 mkdir -p "$home/.claude/RTK.md"
 fixture_write "$home/.claude/RTK.md/notes.md" 'somebody else put this here'
-run_boot "$home"
+run_boot "$home" --owner
 expect_status "a directory at that path exits 1" 1
 expect_out "and says it will not remove a directory" "is a directory, and this script only ever wrote a file"
 expect_not_out "and does not report having removed it" "removed  $home/.claude/RTK.md"
@@ -143,10 +160,20 @@ expect_file_body "and what was inside it survives" "$home/.claude/RTK.md/notes.m
 fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/RTK.md" 'still here afterwards'
-run_boot "$home" --dry-run
+run_boot "$home" --owner --dry-run
 expect_status "--dry-run over a leftover exits 0" 0
 expect_out "and says it would remove it" "would remove the leftover $home/.claude/RTK.md"
 expect_file_body "and leaves the leftover alone" "$home/.claude/RTK.md" 'still here afterwards'
+
+# The other half of moving this step to the owner tier: a default run must not touch the file at all,
+# so a colleague's machine is never told about a leftover this repository never wrote there.
+fresh_home
+mkdir -p "$home/.claude"
+fixture_write "$home/.claude/RTK.md" 'not ours to remove'
+run_boot "$home"
+expect_status "a default run exits 0 with a leftover present" 0
+expect_out "and says the step is the owner tier's" "rtk is the owner tier's"
+expect_file_body "and leaves the file alone" "$home/.claude/RTK.md" 'not ours to remove'
 
 # --- --dry-run ------------------------------------------------------------------------------------
 
@@ -169,7 +196,7 @@ expect_out "and says what it would do" "would link"
 # over a script that had gone back to mounting by hardcoded name.
 maintainer_skills=""
 public_skills=""
-for skill_path in "$here"/skills/*/; do
+for skill_path in "$here"/kk-flavor/skills/*/; do
   skill_name=$(basename "${skill_path%/}")
   if grep -q '^audience: maintainer$' "${skill_path}SKILL.md" 2>/dev/null; then
     maintainer_skills="$maintainer_skills $skill_name"
@@ -186,8 +213,8 @@ else
 fi
 
 fresh_home
-run_boot "$home" --skip-maintainer-skills
-expect_status "--skip-maintainer-skills exits 0" 0
+run_boot "$home"
+expect_status "a default run exits 0" 0
 
 unmounted=""
 for skill_name in $public_skills; do
@@ -207,18 +234,35 @@ done
 
 expect_out "and says how many it left out, rather than excluding them quietly" "maintainer-only"
 
-# The flagless default, which is what every machine already set up re-runs. The fresh-machine case at
-# the top counts every skill directory against every mount, so what is left to say here is that the
-# marked ones are inside that count rather than excluded by a marker the flag was supposed to gate.
+# The opt-in, which is the only way a marked skill reaches a machine now. Its absence is covered
+# above; this is the half that proves the flag still reaches them, so a default that excluded
+# everything could not pass both.
 fresh_home
-run_boot "$home"
+run_boot "$home" --maintainer
 missing=""
 for skill_name in $maintainer_skills; do
   [ -L "$home/.claude/skills/$skill_name" ] || missing="$missing $skill_name"
 done
 [ -z "$missing" ] &&
-  record_pass "with no flag, a marked skill is mounted like any other" ||
-  record_fail "with no flag, a marked skill is mounted like any other" "not mounted:$missing"
+  record_pass "--maintainer mounts a marked skill like any other" ||
+  record_fail "--maintainer mounts a marked skill like any other" "not mounted:$missing"
+
+# The retired flag. Deleted rather than accepted as a no-op: an alias that quietly does nothing
+# outlives everyone's memory of why it was there, and this script already refuses what it does not
+# know.
+fresh_home
+run_boot "$home" --skip-maintainer-skills
+expect_status "the retired --skip-maintainer-skills is refused, not ignored" 2
+expect_out "and names the option it did not know" "unknown option --skip-maintainer-skills"
+
+# The owner tier, reached through its wrapper. What it adds over --maintainer is the instruction
+# mount; rtk and the leftover removal need brew and are behind the skip flags here.
+fresh_home
+out=$(HOME="$home" bash "$here/bootstrap-owner.sh" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+status=$?
+expect_status "the owner wrapper exits 0" 0
+expect_link_to "and mounts this checkout's CLAUDE.md as the machine's own" \
+  "$home/.claude/CLAUDE.md" "$here/CLAUDE.md"
 
 # Discovery's second vacuity case. A checkout where the flag excludes every skill mounts nothing, and
 # the empty-tree refusal would report that as a skills directory holding no skill — a false diagnosis
@@ -229,9 +273,9 @@ done
 # spelling of the same path.
 only_maintainer="$tmp_real/only-maintainer"
 fixture_checkout "$only_maintainer" ai
-mkdir -p "$only_maintainer/ai/skills/kk-ecosystem" "$only_maintainer/ai/kk-flavor"
+mkdir -p "$only_maintainer/ai/kk-flavor/skills/kk-ecosystem" "$only_maintainer/ai/kk-flavor"
 : >"$only_maintainer/ai/CLAUDE.md"
-cat >"$only_maintainer/ai/skills/kk-ecosystem/SKILL.md" <<'SKILL'
+cat >"$only_maintainer/ai/kk-flavor/skills/kk-ecosystem/SKILL.md" <<'SKILL'
 ---
 name: kk-ecosystem
 description: the one skill this fixture ships
@@ -241,10 +285,10 @@ SKILL
 
 fresh_home
 out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" \
-  --skip-brew --skip-tools --skip-mcp --skip-verify --skip-maintainer-skills 2>&1)
+  --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
 status=$?
 expect_status "a checkout whose every skill is marked exits 1" 1
-expect_out "and says the flag is what excluded them" "excluded all 1"
+expect_out "and says the default is what excluded them" "excluded all 1"
 expect_not_out "and does not report the tree as holding no skill at all" "no skill directories under"
 
 # An audience nothing reads. The marker check answers "not marked" to a misspelling and to a skill that
@@ -252,9 +296,9 @@ expect_not_out "and does not report the tree as holding no skill at all" "no ski
 # whoever typed it believes they marked it, on a machine where nothing looks wrong.
 typo_audience="$tmp_real/typo-audience"
 fixture_checkout "$typo_audience" ai
-mkdir -p "$typo_audience/ai/skills/kk-typo" "$typo_audience/ai/kk-flavor"
+mkdir -p "$typo_audience/ai/kk-flavor/skills/kk-typo" "$typo_audience/ai/kk-flavor"
 : >"$typo_audience/ai/CLAUDE.md"
-cat >"$typo_audience/ai/skills/kk-typo/SKILL.md" <<'SKILL'
+cat >"$typo_audience/ai/kk-flavor/skills/kk-typo/SKILL.md" <<'SKILL'
 ---
 name: kk-typo
 description: the one skill this fixture ships
@@ -273,22 +317,24 @@ expect_out "and names the one value there is" "audience: maintainer"
 # The control. Without it every assertion above is equally satisfied by a script that refuses each
 # skill it reads, and the suite would be measuring nothing.
 fresh_home
-sed -i.bak 's/^audience: maintainr$/audience: maintainer/' "$typo_audience/ai/skills/kk-typo/SKILL.md"
+sed -i.bak 's/^audience: maintainr$/audience: maintainer/' "$typo_audience/ai/kk-flavor/skills/kk-typo/SKILL.md"
+# --maintainer, because the tree's only skill is marked: without it the default tier correctly
+# excludes the lot and this control would be asserting the exclusion rather than the marker.
 out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" \
-  --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+  --skip-brew --skip-tools --skip-mcp --skip-verify --maintainer 2>&1)
 status=$?
 expect_status "control: the same tree with the marker spelled right exits 0" 0
 expect_not_out "control: and refuses nothing" "no reader knows"
 
-# The control, and the load-bearing half: the same checkout with no flag mounts its one skill. Without
-# it the refusal above would pass over a fixture that never had a skill to mount.
+# The control, and the load-bearing half: the same checkout with --maintainer mounts its one skill.
+# Without it the refusal above would pass over a fixture that never had a skill to mount.
 fresh_home
 out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" \
-  --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+  --skip-brew --skip-tools --skip-mcp --skip-verify --maintainer 2>&1)
 status=$?
-expect_status "control: the same checkout with no flag exits 0" 0
+expect_status "control: the same checkout with --maintainer exits 0" 0
 expect_link_to "control: and mounts its one skill" \
-  "$home/.claude/skills/kk-ecosystem" "$only_maintainer/ai/skills/kk-ecosystem"
+  "$home/.claude/skills/kk-ecosystem" "$only_maintainer/ai/kk-flavor/skills/kk-ecosystem"
 
 # --- arguments ------------------------------------------------------------------------------------
 
@@ -359,7 +405,7 @@ fi
 # this script, which is the loop the guard exists to close.
 verify_repo="$tmp/verify-repo"
 fixture_checkout "$verify_repo" ai
-mkdir -p "$verify_repo/ai/skills/a-skill" "$verify_repo/ai/kk-flavor"
+mkdir -p "$verify_repo/ai/kk-flavor/skills/a-skill" "$verify_repo/ai/kk-flavor"
 # The one file under ai/ this script reads by name.
 : >"$verify_repo/ai/CLAUDE.md"
 write_stub_runner() { # <exit code>
@@ -459,9 +505,12 @@ expect_not_out "and does not report ok" "ai bootstrap: ok"
 # success, which is a bootstrap claiming to have set up the agents on a machine that has none.
 skeleton="$tmp/skeleton"
 fixture_checkout "$skeleton" ai
-mkdir -p "$skeleton/ai/skills"
+mkdir -p "$skeleton/ai/kk-flavor/skills"
 fresh_home
-out=$(HOME="$home" bash "$skeleton/ai/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+# --owner, so the instruction file is in the mount table and its absence from this skeleton is what
+# the missing-source refusal is about. A default run has no such mount and would only refuse the
+# empty skills directory, which is the assertion below rather than this one.
+out=$(HOME="$home" bash "$skeleton/ai/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify --owner 2>&1)
 status=$?
 expect_status "a checkout with no skills exits 1" 1
 expect_out "and names a missing source" "is missing from the repository"
@@ -503,8 +552,8 @@ mkdir -p "$other_repo/ai/kk-flavor"
 # after ones the real repository ships, which is what makes the skill mounts collide — without that the
 # skill half of the count would be zero and never exercised.
 want_skill=0
-for skill_path in $(find "$here/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -2); do
-  mkdir -p "$other_repo/ai/skills/$(basename "$skill_path")"
+for skill_path in $(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -2); do
+  mkdir -p "$other_repo/ai/kk-flavor/skills/$(basename "$skill_path")"
   want_skill=$((want_skill + 1))
 done
 # Read from the shipped script for the same reason the brew lists are: a config mount added to
@@ -521,9 +570,9 @@ fi
 
 fresh_home
 HOME="$home" bash "$other_repo/ai/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify >/dev/null 2>&1
-first_shared=$(basename "$(find "$here/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)")
+first_shared=$(basename "$(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)")
 expect_link_to "control: the fixture checkout is really what this home is mounted from" \
-  "$home/.claude/skills/$first_shared" "$other_repo/ai/skills/$first_shared"
+  "$home/.claude/skills/$first_shared" "$other_repo/ai/kk-flavor/skills/$first_shared"
 run_boot "$home"
 expect_status "a run from a second checkout exits 1" 1
 expect_out "and leads with the count, so the skills are not lost behind the named configs" \
@@ -533,7 +582,7 @@ expect_out "and names the checkout it would have moved them off" "$other_repo"
 # The load-bearing half. A guard that refuses after repointing has still moved the machine, so the
 # mounts are read back rather than the message being taken at its word.
 expect_link_to "and the skill mount was left where the machine had it" \
-  "$home/.claude/skills/$first_shared" "$other_repo/ai/skills/$first_shared"
+  "$home/.claude/skills/$first_shared" "$other_repo/ai/kk-flavor/skills/$first_shared"
 
 fresh_home
 HOME="$home" bash "$other_repo/ai/bootstrap.sh" --skip-brew --skip-tools --skip-mcp --skip-verify >/dev/null 2>&1
@@ -541,7 +590,7 @@ run_boot "$home" --relocate
 expect_status "--relocate exits 0" 0
 expect_out "and says how many mounts it moved, and off what" "moving $want_total mount(s)"
 expect_link_to "and the skill mount now points at this checkout" \
-  "$home/.claude/skills/$first_shared" "$here/skills/$first_shared"
+  "$home/.claude/skills/$first_shared" "$here/kk-flavor/skills/$first_shared"
 
 # --- the brew list and the README cannot drift apart --------------------------------------------
 

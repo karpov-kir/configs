@@ -95,7 +95,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		if named == "" {
 			named = ". and ./ai"
 		}
-		return refuseToRun(errOut, fmt.Sprintf("no root holding both kk-flavor/ and skills/ (tried '%s')", named))
+		return refuseToRun(errOut, fmt.Sprintf("no root holding both kk-flavor/ and kk-flavor/skills/ (tried '%s')", named))
 	}
 	if isGate {
 		if err := c.enableGate(); err != nil {

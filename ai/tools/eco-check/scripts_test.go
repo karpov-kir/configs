@@ -24,7 +24,7 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 	}
 	base := t.TempDir()
 	root = "-r"
-	for _, dir := range []string{base + "/" + root + "/kk-flavor/standards", base + "/" + root + "/skills"} {
+	for _, dir := range []string{base + "/" + root + "/kk-flavor/standards", base + "/" + root + "/kk-flavor/skills"} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}
@@ -34,7 +34,7 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 	}
 	// Broken on purpose: a parse that really opened the file has something to report, and one that
 	// never got past bash's option handling has only bash's usage.
-	script := base + "/" + root + "/skills/broken.sh"
+	script := base + "/" + root + "/kk-flavor/skills/broken.sh"
 	if err := os.WriteFile(script, []byte("if then\n"), 0o755); err != nil {
 		t.Fatalf("write broken.sh: %v", err)
 	}
@@ -50,7 +50,7 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) {
 	t.Run("reports the script's own syntax error", func(t *testing.T) {
 		root, output := newDashLeadingRoot(t)
-		needle := ecocheck.SyntaxError + root + "/skills/broken.sh: line 1: syntax error"
+		needle := ecocheck.SyntaxError + root + "/kk-flavor/skills/broken.sh: line 1: syntax error"
 		if !strings.Contains(output, needle) {
 			t.Errorf("expected a finding containing %q\n%s", needle, output)
 		}
@@ -133,8 +133,8 @@ func TestScriptTestPosition(t *testing.T) {
 		}
 		buried.WriteString("# untested: this reason sits past the 200-line bound and cannot clear the check\n")
 		buried.WriteString("true\n")
-		f.write(f.root+"/skills/buried.sh", buried.String())
-		f.chmod(f.root+"/skills/buried.sh", 0o755)
+		f.write(f.root+"/kk-flavor/skills/buried.sh", buried.String())
+		f.chmod(f.root+"/kk-flavor/skills/buried.sh", 0o755)
 		f.reports(noPosition)
 	})
 
@@ -230,7 +230,7 @@ func TestATestPositionFindingNamesTheScriptByPath(t *testing.T) {
 
 	t.Run("and names a path a reader can open", func(t *testing.T) {
 		f := newTwoScriptsUnderOneName(t)
-		f.reports(missingTest + ": " + f.root + "/skills/one/scripts/claims.sh names claims-test.sh")
+		f.reports(missingTest + ": " + f.root + "/kk-flavor/skills/one/scripts/claims.sh names claims-test.sh")
 	})
 }
 
@@ -260,12 +260,12 @@ func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 	// the bytes have been seen before, or a tree hides a broken script behind a clean one.
 	t.Run("reports a broken script on a run that has already parsed its bytes", func(t *testing.T) {
 		f := newRepeatedScript(t, "repeated-broken", "if then")
-		f.reportsOnASecondRun(f.root + "/skills/second.sh: line 2")
+		f.reportsOnASecondRun(f.root + "/kk-flavor/skills/second.sh: line 2")
 	})
 
 	t.Run("and reports the first copy of it too", func(t *testing.T) {
 		f := newRepeatedScript(t, "repeated-broken-b", "if then")
-		f.reportsOnASecondRun(f.root + "/skills/first.sh: line 2")
+		f.reportsOnASecondRun(f.root + "/kk-flavor/skills/first.sh: line 2")
 	})
 
 	// Keyed on the whole content, not on a stand-in for it. The two scripts below are the same length
@@ -332,7 +332,7 @@ func newScriptNamingAnAbsentSuite(t *testing.T) *fixture {
 func newScriptWhoseSuiteAFilenameForges(t *testing.T) *fixture {
 	t.Helper()
 	f := newScriptNamingAnAbsentSuite(t)
-	f.newFileWithNewlineName(f.root+"/skills/x\nghost-test.sh", "not a suite", "the forged-suite-name case")
+	f.newFileWithNewlineName(f.root+"/kk-flavor/skills/x\nghost-test.sh", "not a suite", "the forged-suite-name case")
 	return f
 }
 

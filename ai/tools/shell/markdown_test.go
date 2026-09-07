@@ -43,7 +43,7 @@ func TestFrontmatterMustClose(t *testing.T) {
 
 // The audience marker, read through the same block walk as every other declaration: a skill that
 // declares itself maintainer-only is one ai/bootstrap.sh leaves unmounted under
-// --skip-maintainer-skills, and one eco-check's mount scan then expects to find no mount for.
+// without --maintainer, and one eco-check's mount scan then expects to find no mount for.
 func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 	marked := []string{"---", "name: kk-reduce", "audience: maintainer", "---", "body"}
 	if !IsMaintainerAudience(marked) {
@@ -67,20 +67,21 @@ func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 	}
 }
 
-// ai/bootstrap.sh reads this same marker, in awk, on a machine that has no Go binary yet — so it
-// cannot call in here and the pattern is written twice. Drift between them is silent where it hurts
+// lib/skill-audience.sh reads this same marker, in awk, on a machine that has no Go binary yet — so
+// it cannot call in here and the pattern is written twice. That file is where both installers get
+// their answer from, which is why it is the one held against this package rather than either script. Drift between them is silent where it hurts
 // most: on the maintainer's own install every skill is mounted, so the scan stays quiet, and only an
 // external install sees the skills bootstrap left out being reported as missing mounts.
 func TestTheScriptAndThisPackageSpellTheMarkerTheSameWay(t *testing.T) {
 	pattern := maintainerAudience.String()
 	// The control. Without it a renamed or moved script leaves the assertion below comparing the
 	// pattern against nothing, which every empty file "contains".
-	script, err := os.ReadFile(filepath.Join("..", "..", "bootstrap.sh"))
+	script, err := os.ReadFile(filepath.Join("..", "..", "..", "lib", "skill-audience.sh"))
 	if err != nil || len(script) == 0 {
-		t.Fatalf("reading ai/bootstrap.sh, which is the other reader of this marker: %v", err)
+		t.Fatalf("reading lib/skill-audience.sh, which is the other reader of this marker: %v", err)
 	}
 	if !strings.Contains(string(script), "/"+pattern+"/") {
-		t.Errorf("ai/bootstrap.sh does not match on /%s/, so the script and this package disagree about "+
+		t.Errorf("lib/skill-audience.sh does not match on /%s/, so the script and this package disagree about "+
 			"which skills the audience marker covers. Whichever one is right, both have to say it.", pattern)
 	}
 	// The second pattern, held the same way. A reader that knows the marker but not what an audience
@@ -88,7 +89,7 @@ func TestTheScriptAndThisPackageSpellTheMarkerTheSameWay(t *testing.T) {
 	// contract and drift in either half breaks the same thing.
 	declared := audienceDeclared.String()
 	if !strings.Contains(string(script), "/"+declared+"/") {
-		t.Errorf("ai/bootstrap.sh does not match on /%s/, so it cannot refuse an audience value this "+
+		t.Errorf("lib/skill-audience.sh does not match on /%s/, so it cannot refuse an audience value this "+
 			"package refuses — a typo would install for everyone on a machine that never reports it.", declared)
 	}
 }

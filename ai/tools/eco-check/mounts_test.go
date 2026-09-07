@@ -72,7 +72,7 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 }
 
 // An install does not have to hold every skill this tree ships. `ai/bootstrap.sh
-// --skip-maintainer-skills` mounts none of the skills that exist only to maintain this instruction
+// without `--maintainer` mounts none of the skills that exist only to maintain this instruction
 // tree, and nothing on disk records which audience a machine installed for — so for a marked skill the
 // scan cannot tell a deliberate exclusion from a broken mount, and on an external install the finding
 // would name skills that are exactly where they belong. For every other skill the absence is the
@@ -84,7 +84,7 @@ func TestASkillMarkedForMaintainersMayGoUnmounted(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.mkdirAll(f.skillsMount())
 		f.newMountedSkill(name)
-		f.write(f.root+"/skills/"+name+"/SKILL.md", skillFile)
+		f.write(f.root+"/kk-flavor/skills/"+name+"/SKILL.md", skillFile)
 		return f
 	}
 	const marked = "---\nname: kk-ecosystem\ndescription: maintains this tree\naudience: maintainer\n---\n"
@@ -217,7 +217,7 @@ func (f *fixture) newMountPointingAt(name, target string) {
 func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("reports a mount into this checkout with no skill behind it", func(t *testing.T) {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
+		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd-gone")
 		f.reports(ecocheck.MountWithoutASkill)
 	})
 
@@ -226,7 +226,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	// which answers dirname(1) and so trims for it. This case is what would catch that going away.
 	t.Run("and reports one whose target carries the README-era trailing slash", func(t *testing.T) {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone/")
+		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd-gone/")
 		f.reports(ecocheck.MountWithoutASkill)
 	})
 
@@ -234,7 +234,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("says nothing about a mount whose skill is here", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
-		f.newMountPointingAt("kk-drive", f.root+"/skills/kk-drive")
+		f.newMountPointingAt("kk-drive", f.root+"/kk-flavor/skills/kk-drive")
 		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
@@ -261,7 +261,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("leaves a skill this tree still has to the forward half", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
-		f.newMountPointingAt("kk-drive", f.root+"/skills/nowhere")
+		f.newMountPointingAt("kk-drive", f.root+"/kk-flavor/skills/nowhere")
 		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
@@ -271,7 +271,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("says nothing about a mount under an old name that still resolves", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
-		f.newMountPointingAt("kk-drive-old", f.root+"/skills/kk-drive")
+		f.newMountPointingAt("kk-drive-old", f.root+"/kk-flavor/skills/kk-drive")
 		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 
@@ -280,7 +280,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	// would depend on where the tool was invoked rather than on what is mounted.
 	t.Run("reads a relative target against the mount rather than the working directory", func(t *testing.T) {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd-gone", "../../../skills/idsd-gone")
+		f.newMountPointingAt("idsd-gone", "../../../kk-flavor/skills/idsd-gone")
 		f.reports(ecocheck.MountWithoutASkill)
 	})
 
@@ -300,7 +300,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	// name would be the one line the flood pushes off the screen.
 	t.Run("and ranks it above a flood of link findings rather than inside one", func(t *testing.T) {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
+		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd-gone")
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
 		f.ranksAbove(ecocheck.MountWithoutASkill, ecocheck.DanglingLink)
 	})
@@ -310,7 +310,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 	t.Run("and says nothing at all from a checkout $HOME does not mount", func(t *testing.T) {
 		f := newRoot(t)
 		f.newHomeWithoutFlavorMount()
-		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
+		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd-gone")
 		f.doesNotReport(ecocheck.MountWithoutASkill)
 	})
 }
@@ -321,7 +321,7 @@ func TestAMountThatOutlivedItsSkillIsReported(t *testing.T) {
 func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 	newMountWithAControlByte := func(t *testing.T) *fixture {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd\x1b[2Kgone")
+		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd\x1b[2Kgone")
 		return f
 	}
 
@@ -339,7 +339,7 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 	// it. The target here is clean, so only the name's sanitiser can keep the ESC out.
 	newMountNamedWithAControlByte := func(t *testing.T) *fixture {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd\x1b[2Kgone", f.root+"/skills/idsd-gone")
+		f.newMountPointingAt("idsd\x1b[2Kgone", f.root+"/kk-flavor/skills/idsd-gone")
 		return f
 	}
 

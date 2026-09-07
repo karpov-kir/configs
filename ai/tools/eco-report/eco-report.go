@@ -1,6 +1,6 @@
 // Package ecoreport is the qualify report tool — the deterministic gates the skills must not execute
 // by hand. The mechanism lives here; the contract it serves (repo modes, what goes in the report,
-// never commit it) is `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**. idsd-ship calls it too
+// never commit it) is `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. idsd-ship calls it too
 // (gate/state/promote/discard). One report per intent, at
 // .idsd/intents/<intent>/qualify-report.md, so two ships never share a file.
 //

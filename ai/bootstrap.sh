@@ -4,8 +4,8 @@
 # bucket and every skill into place, install the tools they run, register the MCP servers, then verify
 # the result by running the repository's own suites.
 #
-#   usage: ai/bootstrap.sh [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp]
-#                          [--skip-verify] [--skip-maintainer-skills]
+#   usage: ai/bootstrap.sh [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew]
+#                          [--skip-tools] [--skip-mcp] [--skip-verify] [--uninstall]
 #
 # Safe to re-run: every step checks the state it wants before changing anything, so a second run over
 # a finished machine reports "ok" throughout and writes nothing.
@@ -46,7 +46,9 @@ skip_brew=false
 skip_tools=false
 skip_mcp=false
 skip_verify=false
-skip_maintainer_skills=false
+maintainer=false
+owner=false
+uninstall=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -56,7 +58,17 @@ for arg in "$@"; do
     --skip-tools) skip_tools=true ;;
     --skip-mcp) skip_mcp=true ;;
     --skip-verify) skip_verify=true ;;
-    --skip-maintainer-skills) skip_maintainer_skills=true ;;
+    # Opt IN. A tree's own maintenance skills are useless to a machine that only uses the tree, and
+    # every skill's description costs context in every session whether or not it is invoked — so the
+    # default installs the smaller set and the bigger one is asked for by name.
+    --maintainer) maintainer=true ;;
+    # The owner tier: --maintainer, plus rtk and the personal instruction file. ai/bootstrap-owner.sh
+    # is the way in; the flag is what that wrapper passes and what this script's suite drives.
+    --owner)
+      owner=true
+      maintainer=true
+      ;;
+    --uninstall) uninstall=true ;;
     -h | --help)
       sed -n '3,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
@@ -77,67 +89,53 @@ bulk_label="skills"
   printf 'ai/bootstrap.sh: lib/mount.sh is missing from this checkout — ai/ and lib/ install together, and nothing was linked\n' >&2
   exit 2
 }
+for lib in owned-region.sh install-registry.sh skill-audience.sh; do
+  [ -r "$repo/../lib/$lib" ] || {
+    printf 'ai/bootstrap.sh: lib/%s is missing from this checkout — ai/ and lib/ install together, and nothing was linked\n' "$lib" >&2
+    exit 2
+  }
+done
 # shellcheck source=../lib/mount.sh
 . "$repo/../lib/mount.sh"
+# The three below report through mount.sh's say/refuse and honour its $dry_run, so they follow it.
+# shellcheck source=../lib/owned-region.sh
+. "$repo/../lib/owned-region.sh"
+# shellcheck source=../lib/install-registry.sh
+. "$repo/../lib/install-registry.sh"
 
 # --- the mount table ------------------------------------------------------------------------------
 
-add_cfg "$repo/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
 add_cfg "$repo/kk-flavor" "$HOME/.kk-flavor"
 
-# Whether a skill exists to maintain this instruction tree rather than to work in any repository. The
-# audience is declared in the skill's own frontmatter, so discovery below stays discovery: a
-# maintainer-only skill added tomorrow is excluded without anyone editing this file, and a list of
-# three names here would be wrong the day a fourth is marked.
-#
-# The block opens on line 1 and has to close before any line in it counts, which is the rule the Go
-# reader states in ai/tools/shell/markdown.go — an `audience:` line in the prose is prose, and an
-# unterminated block is not frontmatter. The pattern below is that reader's, character for character,
-# because eco-check's mount scan asks the same question of the same files and the two answers cannot
-# be allowed to differ.
-is_maintainer_only() { # <SKILL.md>
-  [ -r "$1" ] || return 1
-  awk '
-    NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next }
-    /^---[[:space:]]*$/ { closed = 1; exit }
-    tolower($0) ~ /^audience:[[:space:]]*maintainer[[:space:]]*$/ { found = 1 }
-    END { if (closed && found) exit 0; exit 1 }
-  ' "$1"
+claude_md="$HOME/.claude/CLAUDE.md"
+region_open="<!-- kk-flavor:begin -->"
+region_close="<!-- kk-flavor:end -->"
+region_body() {
+  cat <<'BODY'
+### KK Flavor
+
+Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.
+BODY
 }
 
-# The value on an `audience:` line neither reader knows, printed for the refusal below. Its block rule
-# is the one above, character for character, for the same reason.
-#
-# Asked at all because "is this the marker" cannot tell `audience: maintainr` from a skill that
-# declared nothing: both answer no, and the typo installs for everyone while the human who wrote it
-# believes they marked it. Nothing on the resulting machine looks wrong. `maintainer` is the only
-# value there is, so anything else is refused by name — the same answer ai/tools/bloat-judge's
-# deadline override gives an option it does not understand, for the same reason.
-unknown_audience() { # <SKILL.md>, prints the value and exits 0 when there is one
-  [ -r "$1" ] || return 1
-  awk '
-    NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next }
-    /^---[[:space:]]*$/ { closed = 1; exit }
-    tolower($0) ~ /^audience:/ && tolower($0) !~ /^audience:[[:space:]]*maintainer[[:space:]]*$/ {
-      # The first one only, and the raw text rather than the lowered line: it is echoed back to
-      # whoever typed it, and a reader hunting `Maintainr` should find what they wrote.
-      if (!found) { found = 1; value = substr($0, index($0, ":") + 1) }
-    }
-    END {
-      if (!closed || !found) exit 1
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-      print value
-      exit 0
-    }
-  ' "$1"
-}
+# Only the owner's machine mounts this checkout's CLAUDE.md as its own. That file carries their rtk
+# hook and their memory rules on top of the region below, which is why it is not everyone's: a
+# colleague has their own instructions there and this install adds to them rather than replacing
+# them. The two shapes are exclusive on purpose — a machine cannot both link the file and edit it.
+if $owner; then
+  add_cfg "$repo/CLAUDE.md" "$claude_md"
+fi
+
+# The audience readers both installers share.
+# shellcheck source=../lib/skill-audience.sh
+. "$repo/../lib/skill-audience.sh"
 
 # Discovery, not a list: a skill added tomorrow is mounted without anyone editing this file. The cost
 # of discovery is that finding none would silently mount nothing, so that is a refusal below.
 skills_found=0
 skipped_count=0
 skipped_names=""
-for dir in "$repo"/skills/*/; do
+for dir in "$repo"/kk-flavor/skills/*/; do
   [ -d "$dir" ] || continue
   # `%/` first: `##*/` on a path ending in `/` returns nothing, pointing every skill at one target.
   skill_dir="${dir%/}"
@@ -148,7 +146,7 @@ for dir in "$repo"/skills/*/; do
   if bad_audience="$(unknown_audience "$skill_dir/SKILL.md")"; then
     refuse "${skill_dir##*/} declares 'audience: $bad_audience' in $skill_dir/SKILL.md, which no reader knows — the only value is 'audience: maintainer', and as written the skill installs for everyone"
   fi
-  if $skip_maintainer_skills && is_maintainer_only "$skill_dir/SKILL.md"; then
+  if ! $maintainer && is_maintainer_only "$skill_dir/SKILL.md"; then
     skipped_count=$((skipped_count + 1))
     skipped_names="$skipped_names ${skill_dir##*/}"
     continue
@@ -162,9 +160,9 @@ mount_run
 # indistinguishable from a discovery loop that stopped finding them: the machine ends up short of
 # skills with nothing in the run saying why. The zero case is the same claim about work that did not
 # happen — a flag passed to a tree carrying no marked skill has to say it excluded nothing.
-if $skip_maintainer_skills && [ "$skipped_count" -eq 0 ]; then
+if ! $maintainer && [ "$skipped_count" -eq 0 ]; then
   say "  ok       no maintainer-only skill was there to exclude"
-elif $skip_maintainer_skills; then
+elif ! $maintainer; then
   say "  skipped  $skipped_count maintainer-only skill(s):$skipped_names"
 fi
 
@@ -175,10 +173,68 @@ fi
 if [ "${#bulk_targets[@]}" -gt 0 ]; then
   :
 elif [ "$skills_found" -gt 0 ]; then
-  refuse "every skill under $repo/skills/ is maintainer-only, and --skip-maintainer-skills excluded all $skills_found — nothing was mounted"
+  refuse "every skill under $repo/kk-flavor/skills/ is maintainer-only, and a run without --maintainer excluded all $skills_found — nothing was mounted"
 else
-  refuse "no skill directories under $repo/skills/ — nothing was mounted"
+  refuse "no skill directories under $repo/kk-flavor/skills/ — nothing was mounted"
 fi
+
+# --- the instruction file ----------------------------------------------------------------------------
+
+# Everyone but the owner keeps their own ~/.claude/CLAUDE.md and gets a region added to it. The owner
+# mounted this checkout's file instead, above, so there is nothing to write there.
+write_instruction_region() {
+  say "instructions"
+  if $owner; then
+    say "  ok       the instruction file is mounted from this checkout"
+    return 0
+  fi
+  if [ ! -e "$claude_md" ] && [ ! -L "$claude_md" ]; then
+    if $dry_run; then
+      say "  would create $claude_md and add the kk-flavor region"
+      return 0
+    fi
+    [ -d "${claude_md%/*}" ] || mkdir -p -- "${claude_md%/*}" || {
+      refuse "could not create ${claude_md%/*}, so the instruction region was not written"
+      return 1
+    }
+    : >"$claude_md" || {
+      refuse "could not create $claude_md, so the instruction region was not written"
+      return 1
+    }
+  fi
+  region_write "$claude_md" "$region_open" "$region_close" "$(region_body)"
+}
+
+# --- uninstall -------------------------------------------------------------------------------------
+
+# A mode rather than a script of its own, over the same table declared above: a second script
+# re-deriving what to remove drifts from what was installed, and drifts in the one direction nobody
+# notices — leaving things behind and reporting ok.
+if $uninstall; then
+  unmount_run
+  say "instructions"
+  if $owner; then
+    say "  ok       the instruction file was a mount, removed above"
+  elif [ -e "$claude_md" ]; then
+    region_remove "$claude_md" "$region_open" "$region_close"
+  else
+    say "  ok       $claude_md is not there"
+  fi
+
+  projects="$(registry_live | grep -c . || true)"
+  if [ "$projects" -gt 0 ]; then
+    say ""
+    say "  $projects project(s) still hold skills mounted from this checkout. Their mounts now dangle:"
+    registry_live | while IFS= read -r p; do [ -n "$p" ] && say "    $p"; done
+    say "  Run ai/install-project.sh --uninstall <project> for each before removing this checkout."
+  fi
+  say ""
+  say "  jq is left installed: nothing records whether this machine had it already or what else"
+  say "  needs it, and a brew formula is shared and unrefcounted. The same goes for rtk."
+  report_and_exit
+fi
+
+write_instruction_region
 
 # --- packages ------------------------------------------------------------------------------------
 
@@ -190,7 +246,16 @@ else
   say "brew"
   # Installed-first rather than `brew install` unconditionally: the latter is slow, noisy, and exits
   # non-zero on an already-installed formula, which would make a finished machine look broken.
+  # The list stays literal on this line: ai/bootstrap-test.sh reads it straight out of the script and
+  # holds it against the README's own `brew install` lines, so a variable here would silently stop
+  # that comparison working. Which of them this tier installs is decided inside the loop instead.
   for formula in rtk jq; do
+    # rtk compresses this machine's shell output for the agent — personal tooling, not something the
+    # instruction tree needs. jq is everyone's: mcp-sync.sh cannot run without it.
+    if [ "$formula" = rtk ] && ! $owner; then
+      say "  skipped  rtk is the owner tier's"
+      continue
+    fi
     if brew list --formula "$formula" >/dev/null 2>&1; then
       say "  ok       $formula"
     elif $dry_run; then
@@ -216,7 +281,9 @@ fi
 # no data of its own.
 say "rtk"
 rtk_md="$HOME/.claude/RTK.md"
-if [ ! -e "$rtk_md" ] && [ ! -L "$rtk_md" ]; then
+if ! $owner; then
+  say "  skipped  rtk is the owner tier's"
+elif [ ! -e "$rtk_md" ] && [ ! -L "$rtk_md" ]; then
   say "  ok       no leftover $rtk_md"
 elif [ ! -L "$rtk_md" ] && [ -d "$rtk_md" ]; then
   refuse "$rtk_md is a directory, and this script only ever wrote a file there — move it aside yourself"

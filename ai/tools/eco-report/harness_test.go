@@ -30,7 +30,7 @@ import (
 )
 
 // The installed skill this suite copies its template and todo-gate.sh from, relative to this package.
-const skillSource = "../../skills/idsd-qualify"
+const skillSource = "../../kk-flavor/skills/idsd-qualify"
 
 // This checkout's kk-flavor, reached the same way, and the source of the one script the tool execs
 // out of HOME. Never the developer's own `~/.kk-flavor`: that copy is what install.sh puts there, it

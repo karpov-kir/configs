@@ -49,6 +49,27 @@ type directionCounters struct {
 //
 // Fences are not skipped, unlike in the scans that resolve a citation — a banned form steers its
 // reader from inside one too.
+// The shared layer's own files: everything under a target except the lanes. `skills/` sits inside
+// `kk-flavor/` so the two install as one mount, which means a plain walk of the bucket reaches every
+// SKILL.md as well. Read as shared layer, every skill's citation of another skill becomes a `cites
+// into a lane` finding, and — worse, because it is silent — every lane basename also appears in the
+// shared set, so the uniqueness gate drops all of them and the basename scan goes dark.
+//
+// Excluding the lane tree rather than listing the shared directories by name is what keeps a
+// directory added under kk-flavor/ tomorrow scanned by default. A list would let it escape with
+// nothing reporting the gap.
+func (c *checker) sharedFilesNamed(target string, globs ...string) []string {
+	lanes := c.root.Skills() + "/"
+	var kept []string
+	for _, file := range c.filesNamed(target, globs...) {
+		if strings.HasPrefix(file, lanes) {
+			continue
+		}
+		kept = append(kept, file)
+	}
+	return kept
+}
+
 func (c *checker) scanDirection() {
 	targets := []string{c.root.Flavor()}
 	if shell.IsRegularFile(shell.Join(c.root.Named(), "CLAUDE.md")) {
@@ -63,7 +84,7 @@ func (c *checker) scanDirection() {
 	counters := &directionCounters{}
 	wasFlavorScanned := false
 	for _, target := range targets {
-		for _, file := range c.filesNamed(target, "*.md") {
+		for _, file := range c.sharedFilesNamed(target, "*.md") {
 			// Set from flavor files alone: one flag over both tiers would let a readable CLAUDE.md
 			// stand in for the tree and mute the guard below.
 			if strings.HasPrefix(file, c.root.Flavor()+"/") {
@@ -260,7 +281,7 @@ func (c *checker) laneBasenames(sharedTargets []string) laneBasenameSets {
 	}
 	shared := map[string]bool{}
 	for _, target := range sharedTargets {
-		for _, path := range c.filesNamed(target, "*.sh", "*.md") {
+		for _, path := range c.sharedFilesNamed(target, "*.sh", "*.md") {
 			if name := shell.BaseName(path); isCleanBasename(name) {
 				shared[name] = true
 			}

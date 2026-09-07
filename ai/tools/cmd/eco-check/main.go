@@ -1,6 +1,6 @@
 // The ecosystem wiring check as a command.
 //
-//	usage: ecocheck [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
+//	usage: ecocheck [--gate] [<root>]   # <root> holds kk-flavor/ and kk-flavor/skills/; defaults to . then ./ai
 //
 // --gate narrows the walk to what a commit can carry, so two checkouts of one commit cannot disagree.
 package main

@@ -36,7 +36,7 @@ func (c *checker) scanMounts() {
 	}
 	skillsMount := c.root.SkillsMount()
 	if !shell.IsDir(skillsMount) {
-		c.add(skillsNotMounted + ": " + skillsMount + " is not a directory — no skill here is loadable and every ~/.claude/skills/ citation dangles")
+		c.add(skillsNotMounted + ": " + skillsMount + " is not a directory — no skill in this tree is loadable, whatever its citations resolve to")
 		return
 	}
 	skillNames := c.skillDirNames()
@@ -59,8 +59,8 @@ func (c *checker) scanMounts() {
 // Whether this skill's absence from the mount is an install's choice rather than a defect. Two things
 // have to hold, and each answers a different way of being wrong.
 //
-// The skill declares itself maintainer-only, so `ai/bootstrap.sh --skip-maintainer-skills` was
-// entitled to leave it out. Nothing on disk records which audience a machine installed for, so past
+// The skill declares itself maintainer-only, so an `ai/bootstrap.sh` run without `--maintainer` was
+// entitled to leave it out — as is any project install, which excludes them by default. Nothing on disk records which audience a machine installed for, so past
 // that declaration the scan cannot tell a deliberate exclusion from a lost mount — and read on an
 // external install the finding would name skills that are exactly where they belong.
 //
@@ -89,7 +89,7 @@ func (c *checker) reportSkippedMountScan(out io.Writer) {
 	if c.root.IsInstalled() {
 		return
 	}
-	writeLinef(out, "mounts: skipped — this checkout is not the install, so nothing here was checked about ~/.claude/skills/ in either direction")
+	writeLinef(out, "mounts: skipped — this checkout is not the install, so nothing here was checked about "+c.root.SkillsMount()+" in either direction")
 }
 
 // The mounts that outlived their skills. The forward loop iterates the directories this tree has, so a

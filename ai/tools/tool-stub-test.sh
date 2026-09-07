@@ -16,7 +16,7 @@ here=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
 tools=$here
 ai=$(CDPATH= cd -P "$here/.." && pwd -P)
 repo=$(CDPATH= cd -P "$ai/.." && pwd -P)
-skills="$ai/skills"
+skills="$ai/kk-flavor/skills"
 # Exit 2, not 1, at every fixture site below. `run-tests.sh` reads 1 as FAIL and prints the last
 # fifteen lines of output under it — which, for a fixture that died before the first case, is
 # nothing. A red suite with an empty block sends a reader hunting a defect in the stubs when the
@@ -147,7 +147,7 @@ while IFS='|' read -r skill script cwd args marker; do
   [ -n "$skill" ] || continue
 
   # A checkout that mounts the skill without shipping ai/tools/.
-  orphan="$base/orphan-$script/skills/$skill/scripts"
+  orphan="$base/orphan-$script/kk-flavor/skills/$skill/scripts"
   mkdir -p "$orphan"
   cp "$skills/$skill/scripts/$script" "$orphan/$script"
   chmod 755 "$orphan/$script"
@@ -159,12 +159,12 @@ while IFS='|' read -r skill script cwd args marker; do
 
   # A resolver that is there but lost its exec bit: a different fix, so a different message.
   noexec="$base/noexec-$script"
-  mkdir -p "$noexec/skills/$skill/scripts" "$noexec/tools"
-  cp "$skills/$skill/scripts/$script" "$noexec/skills/$skill/scripts/$script"
-  chmod 755 "$noexec/skills/$skill/scripts/$script"
+  mkdir -p "$noexec/kk-flavor/skills/$skill/scripts" "$noexec/tools"
+  cp "$skills/$skill/scripts/$script" "$noexec/kk-flavor/skills/$skill/scripts/$script"
+  chmod 755 "$noexec/kk-flavor/skills/$skill/scripts/$script"
   cp "$tools/resolve.sh" "$noexec/tools/resolve.sh"
   chmod 644 "$noexec/tools/resolve.sh"
-  out=$("$noexec/skills/$skill/scripts/$script" "$args" 2>&1)
+  out=$("$noexec/kk-flavor/skills/$skill/scripts/$script" "$args" 2>&1)
   status=$?
   expect_status "$script exits 2 when the resolver is not executable" 2
   expect_out "$script says to chmod it" "chmod"
@@ -184,13 +184,17 @@ while IFS='|' read -r skill script cwd args marker; do
   # Asserted from both ends: the refusal must name the missing resolver, AND the decoy must never have
   # run. Either alone passes for the wrong reason — a stub that died before resolving anything satisfies
   # the second, and one that ran the decoy and then failed could satisfy the first.
+  # The fake checkout mirrors the real one's depth — `kk-flavor/skills/<skill>/scripts/` — because the
+  # stub's declared offset is counted from there. Build it a level shallower and the offset climbs one
+  # directory too far, lands on the decoy, and the case fails for the fixture's shape rather than for
+  # anything the stub did.
   escape="$base/escape-$script"
-  mkdir -p "$escape/tools" "$escape/root/skills/$skill/scripts"
+  mkdir -p "$escape/tools" "$escape/root/kk-flavor/skills/$skill/scripts"
   printf '#!/usr/bin/env bash\necho "decoy resolver reached" >&2\nexit 2\n' > "$escape/tools/resolve.sh"
   chmod 755 "$escape/tools/resolve.sh"
-  cp "$skills/$skill/scripts/$script" "$escape/root/skills/$skill/scripts/$script"
-  chmod 755 "$escape/root/skills/$skill/scripts/$script"
-  out=$(CDPATH= cd "$cwd" && "$escape/root/skills/$skill/scripts/$script" "$args" 2>&1)
+  cp "$skills/$skill/scripts/$script" "$escape/root/kk-flavor/skills/$skill/scripts/$script"
+  chmod 755 "$escape/root/kk-flavor/skills/$skill/scripts/$script"
+  out=$(CDPATH= cd "$cwd" && "$escape/root/kk-flavor/skills/$skill/scripts/$script" "$args" 2>&1)
   status=$?
   expect_status "$script exits 2 rather than reaching a tools/ outside the checkout" 2
   expect_out "$script names the resolver it could not find" "no resolver at"
@@ -260,23 +264,26 @@ cp "$real_ledger" "$before" || {
   exit 2
 }
 
+# Mirrors the real layout — skills live under kk-flavor/ — because stats.sh's declared offset is
+# counted from `kk-flavor/skills/<skill>/scripts/`. A shallower fixture puts the resolver out of its
+# reach and the case fails having tested the fixture rather than the ledger path.
 fake="$base/fake"
-mkdir -p "$fake/tools/bin" "$fake/skills/kk-reduce/scripts"
+mkdir -p "$fake/tools/bin" "$fake/kk-flavor/skills/kk-reduce/scripts"
 cp "$tools/resolve.sh" "$fake/tools/resolve.sh"
 chmod 755 "$fake/tools/resolve.sh"
 cp "$tools/bin/eco-stats" "$fake/tools/bin/eco-stats"
-cp "$skills/kk-reduce/scripts/stats.sh" "$fake/skills/kk-reduce/scripts/stats.sh"
-chmod 755 "$fake/skills/kk-reduce/scripts/stats.sh"
+cp "$skills/kk-reduce/scripts/stats.sh" "$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh"
+chmod 755 "$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh"
 
-out=$("$fake/skills/kk-reduce/scripts/stats.sh" --append "tool-stub-test fixture row" "$ai" 2>&1)
+out=$("$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh" --append "tool-stub-test fixture row" "$ai" 2>&1)
 status=$?
 expect_status "the ledger write lands under the invoking skill directory" 0
-expect_out "and says where it appended" "$fake/skills/kk-reduce/$ledger_name"
+expect_out "and says where it appended" "$fake/kk-flavor/skills/kk-reduce/$ledger_name"
 
-if [ -s "$fake/skills/kk-reduce/$ledger_name" ]; then
+if [ -s "$fake/kk-flavor/skills/kk-reduce/$ledger_name" ]; then
   record_pass "and the fixture ledger now holds a row"
 else
-  record_fail "and the fixture ledger now holds a row" "nothing at $fake/skills/kk-reduce/$ledger_name"
+  record_fail "and the fixture ledger now holds a row" "nothing at $fake/kk-flavor/skills/kk-reduce/$ledger_name"
 fi
 
 if cmp -s "$before" "$real_ledger"; then
@@ -316,7 +323,7 @@ else
   record_fail "the usage-form scan found stub(s) to read" "nothing under $ai carries the shared region, so the form went unchecked"
 fi
 
-# Rooted at ai/, not at ai/skills/, and this case is what holds it there. A stub outside the skills
+# Rooted at ai/, not at ai/kk-flavor/skills/, and this case is what holds it there. A stub outside the skills
 # tree goes unread if the walk starts inside it, and the count above cannot see that — one stub short
 # of all of them is still above zero. So the observable is whether the walk got past the skills tree at
 # all. Not a row naming the stub that lives out there: a row is what the comment above says should

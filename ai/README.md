@@ -5,24 +5,82 @@ skill to reach for — open it in a browser. That page is generated from the ski
 `ai/guide.sh`, so it cannot fall behind them; the prose around the list is hand-written, in
 `ai/tools/eco-guide/field-guide.template.html`.
 
-`ai/bootstrap.sh` does everything below on a fresh machine, apart from the steps that write outside
-what this repository owns — `rtk init -g` and the codebase-memory-mcp download among them.
+## Which install you want
+
+There are three tiers and two scopes, and they are separate questions.
+
+**The tiers.** By default you get the skills that work in any repository. `--maintainer` adds the few
+that exist to maintain this instruction tree itself — they declare `audience: maintainer` in their own
+frontmatter, and they do nothing for a repository that merely uses the tree. Leaving them out is the
+default because every skill's `description:` is loaded in every session whether or not it is invoked,
+so an unusable skill is a standing cost. `ai/bootstrap-owner.sh` is the third tier: `--maintainer`
+plus `rtk` and this checkout's own `CLAUDE.md` as the machine's instruction file. That one is for the
+person who owns this repository, not for anyone installing from it.
+
+**The scopes.** `ai/bootstrap.sh` installs machine-wide: the skills land in `~/.claude/skills/` and
+every session on the machine loads them. `ai/install-project.sh <project>` installs into one project
+instead — the skills land in `<project>/.claude/skills/` and cost nothing in your other repositories.
+The machine-wide half that a project install still needs (`~/.kk-flavor`, the Go tools, the MCP
+servers, `jq`) comes from `ai/bootstrap.sh`, so run that once and the project script once per project.
+
+Both are safe to re-run: a second run over a finished machine or project reports "ok" throughout and
+writes nothing.
+
+```sh
+ai/bootstrap.sh                       # machine-wide, the any-repo skills
+ai/bootstrap.sh --maintainer          # and the ones that maintain this tree
+ai/bootstrap-owner.sh                 # the owner's machine: maintainer + rtk + this CLAUDE.md
+ai/install-project.sh ~/code/thing    # one project, after ai/bootstrap.sh has run once
+```
+
+## Installing from an agent
+
+If you are Claude, and someone asks you to install this into their projects, this is the whole of it.
+Clone the repository somewhere permanent — **not** a scratch directory, because every mount points
+back into it and deleting it breaks them all — then:
+
+1. `ai/bootstrap.sh` once, from the clone. This is the machine-wide half and needs `brew`, `gh` and
+   the `claude` CLI. Its `--skip-brew`, `--skip-tools` and `--skip-mcp` flags turn off the steps that
+   reach the network if any of those is missing.
+2. `ai/install-project.sh <project>` once per project named.
+
+Do not pass `--maintainer` or run `ai/bootstrap-owner.sh` unless the person asked for them by name.
+Report any line the run prints as `REFUSED` rather than working around it: each one names a target the
+scripts will not take over, and each is a decision for the human whose machine it is.
+
+## What a project install puts in the project
+
+- A symlink per skill under `<project>/.claude/skills/`, pointing back at the clone. Mounted rather
+  than copied, so one tree serves every project and an update reaches all of them at once.
+- Ignore rules for those symlinks in `<project>/.gitignore`, fenced with `# kk-flavor:begin`. If the
+  project already ignores `.claude/` wholesale, the run reports that and adds nothing — that rule
+  covers the project's own settings too, so what to do about it is a human's call.
+- A short region in `<project>/CLAUDE.md`, fenced with `<!-- kk-flavor:begin -->`, pointing at
+  `~/.kk-flavor/inject.md`. The fences are how a re-run recognises its own work and how an uninstall
+  finds it again; edit inside them and the next run refuses rather than overwriting you.
+
+The `.gitignore` lines and the `CLAUDE.md` region are meant to be committed. A colleague who clones
+the project without installing anything is unaffected: the region names a path they do not have, and
+Claude Code skips an instruction file it cannot find.
+
+**One known rough edge.** A symlinked skill loads and is invocable, but Claude Code has had issues
+listing symlinked skills in `/` autocomplete. If a skill does not appear when you type `/`, invoke it
+by name — it is there.
+
+## The flags
 
 The flags and the refusals both bootstrap scripts share are in the repository's root `README.md`; a
-target this one reports and skips is still yours to link with the commands below. The last thing it
-does is run the repository's own suites over what it just linked; `--skip-verify` turns that off, and
-`--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the network.
+target this one reports and skips is still yours to link with the commands below. The last thing
+`ai/bootstrap.sh` does is run the repository's own suites over what it just linked; `--skip-verify`
+turns that off, and `--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the
+network.
 
-A few skills exist only to maintain this instruction tree and do nothing for a repository that merely
-uses it. Each declares `audience: maintainer` in its own frontmatter, and
-`--skip-maintainer-skills` leaves those unmounted — worth passing on a machine that is not maintaining
-the tree, since every skill's `description:` is loaded in every session whether or not it is invoked.
-Without the flag, every skill is mounted, which is what the loop below does too.
+## By hand
 
 - [Claude Code](https://code.claude.com)
-  - `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
-  - Mount the kk-flavor bucket (standards, config, and templates the skills read): `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
-  - Install the skills (each is a dir under `ai/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
+  - Mount the kk-flavor bucket — standards, templates, scripts, and the skills themselves: `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
+  - Point your `~/.claude/CLAUDE.md` at it, by adding a line reading ``Read `~/.kk-flavor/inject.md` now and follow it``. The owner's machine symlinks this checkout's own file there instead: `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
+  - Install the skills (each is a dir under `ai/kk-flavor/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/kk-flavor/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
   - Install the Go tools the skills run (needs `gh`, not Go): `~/Documents/WP/configs/ai/tools/install.sh`. Re-run after a new release. Skip it and the skills build from source on first use, which does need Go.
   - MCP servers: `ai/mcp.jsonc` is the public source of truth. Machine-private servers for internal hosts sit beside it in `ai/mcp.private.jsonc`, gitignored and the same shape. Claude Code has no global MCP file to symlink, so `~/Documents/WP/configs/ai/mcp-sync.sh` syncs both into the user scope. That covers every project, in the CLI and the IDE. Re-run it after editing either file. Needs `jq` (`brew install jq`). An `http` server registers without ever being contacted, so it lands as `! Needs authentication`: run `/mcp` in an interactive session and complete its login once.
   - The `chrome-devtools` server drives the Chrome you already have open. Turn remote debugging on once at `chrome://inspect/#remote-debugging` (Chrome 144+). While it's on, any session can reach that profile, so untick it when you're done.
@@ -39,22 +97,33 @@ Without the flag, every skill is mounted, which is what the loop below does too.
 
 ## Removing it
 
-The mounts are symlinks into this repository, so deleting the links is the whole of that half:
+Each install has a mode that takes itself back out, over the same table it went in by — so nothing is
+left behind because an uninstall re-derived the list and got it wrong.
 
 ```sh
-rm -f ~/.claude/CLAUDE.md ~/.kk-flavor
-for link in ~/.claude/skills/*; do
-  case "$(readlink "$link")" in */configs/ai/skills/*) rm -f "$link" ;; esac
-done
+ai/install-project.sh --uninstall ~/code/thing   # one project
+ai/bootstrap.sh --uninstall                      # the machine-wide half
 ```
+
+A project uninstall removes the skill symlinks, the `.gitignore` rules and the `CLAUDE.md` region —
+its own fenced lines only, never anything you wrote beside them. A machine-wide uninstall removes the
+mounts and, unless you are the owner, the region it wrote in `~/.claude/CLAUDE.md`. Both remove a
+symlink only when it resolves back into this checkout: anything else is reported and left, on the same
+rule the install follows.
+
+`ai/bootstrap.sh --uninstall` also names every project still holding mounts from this checkout, read
+from `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/installs`. Those mounts would dangle the moment the
+checkout goes, so uninstall each project before deleting it.
 
 The tool binaries live in `ai/tools/bin/` inside this checkout, so they go with the checkout. What
 outlives it:
 
 - The MCP servers: `claude mcp list` to see what the sync registered, then
   `claude mcp remove <name> -s user` for each one.
-- `rtk` and `jq`, if nothing else on the machine wants them: `brew uninstall rtk jq`, plus
-  `rm -f ~/.claude/RTK.md` for whatever `rtk init -g` left behind.
+- `jq` and `rtk` stay installed, and there is no suggestion here to remove them. A brew formula is
+  shared and unrefcounted: nothing records whether this machine already had one or what else depends
+  on it now, so uninstalling on a guess breaks unrelated tooling while leaving a small CLI in place
+  costs nothing. Treat them as dependencies this repository may have installed, and decide yourself.
 
 Nothing here touches `~/.claude/projects`, `~/.claude/settings.json` or anything else Claude Code
 writes for itself.

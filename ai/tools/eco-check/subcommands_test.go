@@ -18,7 +18,7 @@ const (
 	// class prefix, and report.go ranks on that prefix. `toyIsUnread` carries the fixture script's own
 	// path after it, so a case pins the file it is about and not merely that something went unread.
 	unreadable       = ecocheck.UnreadDispatch
-	toyIsUnread      = "/skills/toy.sh ("
+	toyIsUnread      = "/kk-flavor/skills/toy.sh ("
 	acceptsUnnamed   = ecocheck.SubcommandUsageDoesNotName
 	namesUnaccepted  = ecocheck.SubcommandDispatchDoesNotAccept
 	unreadArms       = "(it opens a case dispatch on $1 and no arm of it could be read)"
@@ -176,7 +176,7 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 	// one can be cut; the first is in a fixed position and is asserted whole.
 	t.Run("and names how many and which", func(t *testing.T) {
 		f := newSharedScriptName(t)
-		f.reports("2 scripts are named toy.sh (" + f.root + "/skills/other/scripts/toy.sh, ")
+		f.reports("2 scripts are named toy.sh (" + f.root + "/kk-flavor/skills/other/scripts/toy.sh, ")
 	})
 
 	// The report replaces the check rather than sitting beside it. A finding that cannot be attributed
@@ -192,7 +192,7 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 
 	t.Run("and names that one by path, not by basename", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
-		f.reports(noCallSite + "beta — " + f.root + "/skills/toy.sh")
+		f.reports(noCallSite + "beta — " + f.root + "/kk-flavor/skills/toy.sh")
 	})
 
 	// The findings that go on being printed for a welded name. Each is about one stub's own grammar,
@@ -208,7 +208,7 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 	// Without this the case above passes on a tree where the two stubs never disagreed at all.
 	t.Run("while one script of that name is named by its path (control)", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta|gamma}", toyDispatch)
-		f.reports(namesUnaccepted + "gamma — " + f.root + "/skills/toy.sh")
+		f.reports(namesUnaccepted + "gamma — " + f.root + "/kk-flavor/skills/toy.sh")
 	})
 }
 
@@ -249,19 +249,19 @@ func TestALongSubcommandNameIsCutBeforeItsAttribution(t *testing.T) {
 
 	t.Run("marks a cut call-site name and keeps the path after it", func(t *testing.T) {
 		f := newShellScript(t, "case \"$1\" in\n  "+long+")\n    :\n    ;;\nesac")
-		f.reports(shell.CutMarker + " — " + f.root + "/skills/toy.sh takes it")
+		f.reports(shell.CutMarker + " — " + f.root + "/kk-flavor/skills/toy.sh takes it")
 	})
 
 	t.Run("and marks one the dispatch accepts and the usage does not name", func(t *testing.T) {
 		usage := "toy.sh {alpha}"
 		f := newToolStub(t, usage, newDispatch(usage, "alpha", long))
-		f.reports(shell.CutMarker + " — " + f.root + "/skills/toy.sh accepts it")
+		f.reports(shell.CutMarker + " — " + f.root + "/kk-flavor/skills/toy.sh accepts it")
 	})
 
 	t.Run("and marks one the usage names and the dispatch does not accept", func(t *testing.T) {
 		usage := "toy.sh {alpha|" + long + "}"
 		f := newToolStub(t, usage, newDispatch(usage, "alpha"))
-		f.reports(shell.CutMarker + " — " + f.root + "/skills/toy.sh names it in its usage")
+		f.reports(shell.CutMarker + " — " + f.root + "/kk-flavor/skills/toy.sh names it in its usage")
 	})
 
 	// Without this the three above would pass on a checker that marked every name, cut or not.
@@ -307,7 +307,7 @@ func TestAShellDispatchIsReadInEverySpellingOfItsOpening(t *testing.T) {
 			f := newShellDispatch(t, opening)
 			// The whole finding, path and subcommand together: `beta` is a name other fixtures in this
 			// file produce too, and a bare substring would pass on any of their findings.
-			f.reports(noCallSite + "beta — " + f.root + "/skills/toy.sh")
+			f.reports(noCallSite + "beta — " + f.root + "/kk-flavor/skills/toy.sh")
 		})
 	}
 }
@@ -325,7 +325,7 @@ func TestADispatchWhoseArmsCannotBeReadIsReported(t *testing.T) {
 
 	t.Run("fires on a dispatch it could read no arm of", func(t *testing.T) {
 		f := newUnreadableArms(t)
-		f.reports(unreadable + f.root + "/skills/toy.sh " + unreadArms)
+		f.reports(unreadable + f.root + "/kk-flavor/skills/toy.sh " + unreadArms)
 	})
 
 	// Without this the case above passes on a scan that reports it over every dispatch in the tree.
@@ -345,7 +345,7 @@ func TestADispatchWhoseArmsCannotBeReadIsReported(t *testing.T) {
 func TestATopLevelCaseIsNotAlwaysADispatch(t *testing.T) {
 	t.Run("reads no dispatch out of a top-level case over another value", func(t *testing.T) {
 		f := newShellScript(t, "flag=\"$2\"\ncase \"$flag\" in\n  alpha)\n    :\n    ;;\nesac")
-		f.doesNotReport(noCallSite + "alpha — " + f.root + "/skills/toy.sh")
+		f.doesNotReport(noCallSite + "alpha — " + f.root + "/kk-flavor/skills/toy.sh")
 	})
 
 	t.Run("nor out of a lookup table inside a function", func(t *testing.T) {
@@ -357,7 +357,7 @@ func TestATopLevelCaseIsNotAlwaysADispatch(t *testing.T) {
 	// one they would pass on a pattern matching none.
 	t.Run("while a dispatch on the first argument still is one (control)", func(t *testing.T) {
 		f := newShellDispatch(t, `case "$1" in`)
-		f.reports(noCallSite + "alpha — " + f.root + "/skills/toy.sh")
+		f.reports(noCallSite + "alpha — " + f.root + "/kk-flavor/skills/toy.sh")
 	})
 }
 

@@ -47,7 +47,7 @@ func newRoot(t *testing.T) *fixture {
 	base := t.TempDir()
 	f := &fixture{t: t, base: base, root: base + "/r"}
 	f.mkdirAll(f.root + "/kk-flavor/standards")
-	f.mkdirAll(f.root + "/skills")
+	f.mkdirAll(f.root + "/kk-flavor/skills")
 	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n")
 	return f
 }
@@ -68,19 +68,19 @@ func (f *fixture) newHome() {
 // case that appends calls installStats first and one that only measures never creates the directory
 // at all.
 func (f *fixture) self() string {
-	return f.root + "/skills/kk-reduce/scripts/stats.sh"
+	return f.root + "/kk-flavor/skills/kk-reduce/scripts/stats.sh"
 }
 
 func (f *fixture) installStats() {
 	f.t.Helper()
-	f.mkdirAll(f.root + "/skills/kk-reduce/scripts")
+	f.mkdirAll(f.root + "/kk-flavor/skills/kk-reduce/scripts")
 }
 
 // The ledger a case starts from, holding whatever that case needs the file to already say.
 func (f *fixture) newLedger(content string) string {
 	f.t.Helper()
 	f.installStats()
-	path := f.root + "/skills/kk-reduce/stats.md"
+	path := f.root + "/kk-flavor/skills/kk-reduce/stats.md"
 	f.write(path, content)
 	return path
 }

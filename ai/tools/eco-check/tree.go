@@ -228,9 +228,6 @@ func (c *checker) resolveRef(dir, ref string) string {
 	if rest, ok := strings.CutPrefix(ref, "~/.kk-flavor/"); ok {
 		return c.existingOrEmpty(shell.Join(c.root.Flavor(), rest))
 	}
-	if rest, ok := strings.CutPrefix(ref, "~/.claude/skills/"); ok {
-		return c.existingOrEmpty(shell.Join(c.root.Skills(), rest))
-	}
 	if dir != "" && c.existsUnderRoot(shell.Join(dir, ref)) {
 		return shell.Join(dir, ref)
 	}

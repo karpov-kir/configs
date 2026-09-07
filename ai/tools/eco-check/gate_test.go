@@ -63,7 +63,7 @@ func (f *fixture) ignores(patterns ...string) {
 // and a finding a commit cannot carry.
 func (f *fixture) newScratchRecord(path string) {
 	f.t.Helper()
-	f.write(f.root+"/skills/"+path, "# Scratch\n\nSee one.md → "+missingRegion+".\n")
+	f.write(f.root+"/kk-flavor/skills/"+path, "# Scratch\n\nSee one.md → "+missingRegion+".\n")
 }
 
 func (f *fixture) runGated() string {
@@ -100,7 +100,7 @@ func TestAGitignoredFileIsJudgedWithoutTheFlagAndNotWithIt(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-scratchy")
 	f.newScratchRecord("kk-scratchy/findings.md")
-	f.ignores("r/skills/kk-scratchy/findings.md")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/findings.md")
 
 	gated, bare := f.bothWays()
 	f.assertHolds("a bare run judges the checkout it is in", bare, dangling)
@@ -125,8 +125,8 @@ func TestATrackedFileMatchingAnIgnoreRuleIsStillJudged(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-scratchy")
 	f.newScratchRecord("kk-scratchy/findings.md")
-	f.ignores("r/skills/kk-scratchy/")
-	f.git("add", "-f", "r/skills/kk-scratchy/findings.md")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/")
+	f.git("add", "-f", "r/kk-flavor/skills/kk-scratchy/findings.md")
 
 	f.assertHolds("a committed file is judged whatever .gitignore says", f.runGated(), dangling)
 }
@@ -137,12 +137,12 @@ func TestATrackedFileMatchingAnIgnoreRuleIsStillJudged(t *testing.T) {
 func TestAGitignoredFileWhoseNameHoldsANewlineIsStillFilteredOut(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-scratchy")
-	f.newFileWithNewlineName(f.root+"/skills/kk-scratchy/two\nlines.md",
+	f.newFileWithNewlineName(f.root+"/kk-flavor/skills/kk-scratchy/two\nlines.md",
 		"# Scratch\n\nSee one.md → "+missingRegion+".", "the newline-name gate case")
 	// A newline cannot be written into .gitignore, where it is the line separator, so the rule that
 	// reaches this file is a glob — and git matching one across the newline is the same fact the NUL
 	// delimiter carries: the path is one path.
-	f.ignores("r/skills/kk-scratchy/two*")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/two*")
 
 	gated, bare := f.bothWays()
 	f.assertHolds("a bare run reads it", bare, dangling)
@@ -155,10 +155,10 @@ func TestAGitignoredFileWhoseNameHoldsANewlineIsStillFilteredOut(t *testing.T) {
 func TestACitationResolvingOnlyThroughAGitignoredFileDangles(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-scratchy")
-	f.write(f.root+"/skills/kk-scratchy/SKILL.md",
+	f.write(f.root+"/kk-flavor/skills/kk-scratchy/SKILL.md",
 		"---\nname: kk-scratchy\ndescription: cites a file only this checkout holds\n---\n\nSee notes.md → "+citedSection+".\n")
-	f.write(f.root+"/skills/kk-scratchy/notes.md", "# Notes\n\n## A Real Section\n")
-	f.ignores("r/skills/kk-scratchy/notes.md")
+	f.write(f.root+"/kk-flavor/skills/kk-scratchy/notes.md", "# Notes\n\n## A Real Section\n")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/notes.md")
 
 	gated, bare := f.bothWays()
 	f.assertLacks("the citation resolves against the checkout's own file", bare, unresolved)
@@ -176,9 +176,9 @@ func TestAGitignoredSkillDirectoryIsNotCounted(t *testing.T) {
 	f.newHome()
 	f.mkdirAll(f.home + "/.claude/skills")
 	f.newMountedSkill("kk-real")
-	f.symlink(f.root+"/skills/kk-real", f.home+"/.claude/skills/kk-real")
+	f.symlink(f.root+"/kk-flavor/skills/kk-real", f.home+"/.claude/skills/kk-real")
 	f.newMountedSkill("kk-local")
-	f.ignores("r/skills/kk-local/")
+	f.ignores("r/kk-flavor/skills/kk-local/")
 
 	gated, bare := f.bothWays()
 	f.assertHolds("a bare run wants the local directory mounted too", bare, ecocheck.SkillNotMounted)
@@ -197,8 +197,8 @@ func TestTheSkippedNamesAreBoundedAndTheCountIsNot(t *testing.T) {
 	f.newMountedSkill("kk-scratchy")
 	var patterns []string
 	for _, name := range []string{"one", "two", "three", "four", "five", "six", "seven"} {
-		f.write(f.root+"/skills/kk-scratchy/local-"+name+".md", "# "+name+"\n")
-		patterns = append(patterns, "r/skills/kk-scratchy/local-"+name+".md")
+		f.write(f.root+"/kk-flavor/skills/kk-scratchy/local-"+name+".md", "# "+name+"\n")
+		patterns = append(patterns, "r/kk-flavor/skills/kk-scratchy/local-"+name+".md")
 	}
 	f.ignores(patterns...)
 
@@ -212,7 +212,7 @@ func TestTheFlagSaysWhatItSkipped(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-scratchy")
 	f.newScratchRecord("kk-scratchy/findings.md")
-	f.ignores("r/skills/kk-scratchy/findings.md")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/findings.md")
 
 	gated, bare := f.bothWays()
 	f.assertHolds("the flag names the path it dropped", gated, "skills/kk-scratchy/findings.md")
@@ -269,7 +269,7 @@ func TestAnUnknownArgumentIsRefused(t *testing.T) {
 func TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-scratchy")
-	f.ignores("r/skills/kk-scratchy/SKILL.md")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/SKILL.md")
 
 	gated, bare := f.bothWays()
 	f.assertLacks("the checkout has the file sitting right there", bare, ecocheck.SkillDirWithoutSkillFile)
@@ -315,10 +315,10 @@ func TestAGitignoredReadAlwaysTargetIsReportedAbsent(t *testing.T) {
 func TestACitationSpelledNonCanonicallyStillHitsTheGate(t *testing.T) {
 	f := newGitRoot(t)
 	f.newMountedSkill("kk-demo")
-	f.write(f.root+"/skills/kk-demo/SKILL.md",
+	f.write(f.root+"/kk-flavor/skills/kk-demo/SKILL.md",
 		"---\nname: kk-demo\ndescription: cites a file only this checkout holds\n---\n\nSee ./notes.md → "+citedSection+".\n")
-	f.write(f.root+"/skills/kk-demo/notes.md", "# Notes\n\n## A Real Section\n")
-	f.ignores("r/skills/kk-demo/notes.md")
+	f.write(f.root+"/kk-flavor/skills/kk-demo/notes.md", "# Notes\n\n## A Real Section\n")
+	f.ignores("r/kk-flavor/skills/kk-demo/notes.md")
 
 	gated, bare := f.bothWays()
 	f.assertLacks("the citation resolves against the checkout's own file", bare, unresolved)
@@ -360,7 +360,7 @@ func TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed(t *testing.T) {
 func newSpellingTree(t *testing.T, base string) {
 	t.Helper()
 	root := base + "/r"
-	for _, dir := range []string{root + "/kk-flavor/standards", root + "/skills/kk-one"} {
+	for _, dir := range []string{root + "/kk-flavor/standards", root + "/kk-flavor/skills/kk-one"} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}
@@ -375,7 +375,7 @@ func newSpellingTree(t *testing.T, base string) {
 	// Cited by a bare name sitting in neither the citing file's directory nor the root, so the only
 	// thing that can resolve it is the suffix index.
 	write(root+"/kk-flavor/standards/deep.md", "# Deep\n\n## A Real Section\n")
-	write(root+"/skills/kk-one/SKILL.md",
+	write(root+"/kk-flavor/skills/kk-one/SKILL.md",
 		"---\nname: kk-one\ndescription: cites a file only the index can reach\n---\n\nSee deep.md → "+citedSection+".\n")
 	// A path ref naming the tree from its ROOT, which only the whole-path index can resolve. Spelled
 	// `r/...`, it is the entire walked path when the root is named `r` with nothing before it, so `*/`
@@ -463,8 +463,8 @@ func TestAGitignoredSkillFileIsNotALaneUnderTheFlag(t *testing.T) {
 	f.newScript("kk-scratchy/scripts/thing.sh", "true")
 	f.newMountedSkill("kk-real-extra")
 	f.write(f.root+"/kk-flavor/standards/shared.md",
-		"# Shared\n\nSee ~/.claude/skills/kk-scratchy/scripts/thing.sh for it.\n\nRun kk-real-extra for it.\n")
-	f.ignores("r/skills/kk-scratchy/SKILL.md", "r/skills/kk-real-extra/SKILL.md")
+		"# Shared\n\nSee ~/.kk-flavor/skills/kk-scratchy/scripts/thing.sh for it.\n\nRun kk-real-extra for it.\n")
+	f.ignores("r/kk-flavor/skills/kk-scratchy/SKILL.md", "r/kk-flavor/skills/kk-real-extra/SKILL.md")
 
 	gated, bare := f.bothWays()
 	// The alternation. Its names reach the citation scan, which has no SKILL.md test of its own, so a

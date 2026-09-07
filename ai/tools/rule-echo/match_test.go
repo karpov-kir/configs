@@ -18,8 +18,8 @@ func TestAPairSharingOnlyACitedNameIsNotARestatement(t *testing.T) {
 	}{
 		{
 			"the same dependency declared by two consumers",
-			"The pass is `~/.claude/skills/kk-qualify/SKILL.md`",
-			"The pass is `~/.claude/skills/kk-qualify/SKILL.md`",
+			"The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`",
+			"The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`",
 			sharedName,
 		},
 		{
@@ -33,7 +33,7 @@ func TestAPairSharingOnlyACitedNameIsNotARestatement(t *testing.T) {
 			// It stays a restatement because what the two share survives the name being removed — five
 			// words of agreement that owe the path nothing.
 			"a rule that names a file but agrees beyond it",
-			"Never edit a generated file by hand, regenerate it from `~/.claude/skills/kk-qualify/SKILL.md`",
+			"Never edit a generated file by hand, regenerate it from `~/.kk-flavor/skills/kk-qualify/SKILL.md`",
 			"Never edit a generated file by hand, regenerate it instead",
 			restatement,
 		},
@@ -53,8 +53,8 @@ func TestAPairSharingOnlyACitedNameIsNotARestatement(t *testing.T) {
 // that a reader has already answered it, and an exit 1 asks them again every time.
 func TestOnlyARestatementFailsTheRun(t *testing.T) {
 	naming, _, _ := classify(
-		spanOf("The pass is `~/.claude/skills/kk-qualify/SKILL.md`"),
-		spanOf("The pass is `~/.claude/skills/kk-qualify/SKILL.md`"))
+		spanOf("The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`"),
+		spanOf("The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`"))
 	if naming == restatement {
 		t.Fatal("a shared name is being counted as a restatement, so a clean tree would exit 1")
 	}
@@ -133,18 +133,18 @@ func TestAPointerToTheRulesOwnerIsNotARestatement(t *testing.T) {
 	if v := classifyTree(t, pairCiting("")); v != restatement {
 		t.Fatalf("uncited, the pair classifies as %v — the fixture is not a restatement, so this case proves nothing", v)
 	}
-	if v := classifyTree(t, pairCiting("~/.claude/skills/idsd-qualify/SKILL.md")); v != citesOwner {
+	if v := classifyTree(t, pairCiting("~/.kk-flavor/skills/idsd-qualify/SKILL.md")); v != citesOwner {
 		t.Fatalf("a rule citing the file that owns it classified as %v, want citesOwner — a compliant pointer fails the run", v)
 	}
 }
 
 // The forms a citation is written in here, each resolved against the tree that was walked. A tree is
-// walked as `<root>/skills/x/SKILL.md` and cited as `~/.claude/skills/x/SKILL.md`, so a citation that
+// walked as `<root>/skills/x/SKILL.md` and cited as `~/.kk-flavor/skills/x/SKILL.md`, so a citation that
 // resolves by string shape alone resolves to nothing — and a citation that stops counting takes the
 // exemption with it, silently.
 func TestEveryWrittenFormOfACitationResolves(t *testing.T) {
 	forms := []string{
-		"~/.claude/skills/idsd-qualify/SKILL.md",
+		"~/.kk-flavor/skills/idsd-qualify/SKILL.md",
 		"skills/idsd-qualify/SKILL.md",
 		"idsd-qualify/SKILL.md",
 		"../idsd-qualify/SKILL.md",
@@ -272,7 +272,7 @@ func TestCitedTargetsReadsBothFormsAndNothingElse(t *testing.T) {
 		name, line string
 		want       []string
 	}{
-		{"backticked path", "see `~/.claude/skills/idsd-qualify/SKILL.md` → **Report**", []string{"~/.claude/skills/idsd-qualify/SKILL.md"}},
+		{"backticked path", "see `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**", []string{"~/.kk-flavor/skills/idsd-qualify/SKILL.md"}},
 		{"markdown link", "([ecosystem.md](ecosystem.md) → **One home**)", []string{"ecosystem.md"}},
 		{"relative link", "[testing.md](../testing.md)", []string{"../testing.md"}},
 		{"a backticked command", "run `report.sh root` first", nil},

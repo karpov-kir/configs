@@ -13,7 +13,7 @@ import (
 func newCheckerOverTree(t *testing.T, body string) (*checker, string) {
 	t.Helper()
 	root := t.TempDir()
-	for _, dir := range []string{root + "/kk-flavor/standards", root + "/skills"} {
+	for _, dir := range []string{root + "/kk-flavor/standards", root + "/kk-flavor/skills"} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}

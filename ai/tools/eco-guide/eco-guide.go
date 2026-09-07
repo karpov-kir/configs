@@ -76,7 +76,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 
 	root, ok := ecoroot.New(rootName)
 	if !ok {
-		return fail("no checkout holding kk-flavor/ and skills/ at '%s' — the guide was NOT generated",
+		return fail("no checkout holding kk-flavor/ and kk-flavor/skills/ at '%s' — the guide was NOT generated",
 			or(rootName, ". or ./ai"))
 	}
 

@@ -569,7 +569,7 @@ func TestRepositoryNameHoldingEscapes(t *testing.T) {
 // Running the gate over the shipped template is that comparison: the leftover comments prove the scan
 // reached the slots, and neither drift finding may appear.
 func TestShippedTemplateMatchesTheHeadingsTheGateRequires(t *testing.T) {
-	template := filepath.Join("..", "..", "skills", "kk-handoff", "handoff-prompt.md")
+	template := filepath.Join("..", "..", "kk-flavor", "skills", "kk-handoff", "handoff-prompt.md")
 	if _, err := os.Stat(template); err != nil {
 		t.Fatalf("cannot reach %s, so the drift case did not run: %v", template, err)
 	}

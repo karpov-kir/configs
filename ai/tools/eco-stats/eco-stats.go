@@ -51,7 +51,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	}
 	resolved, ok := ecoroot.New(root)
 	if !ok {
-		fmt.Fprintln(errOut, "stats.sh: no root holding both kk-flavor/ and skills/")
+		fmt.Fprintln(errOut, "stats.sh: no root holding both kk-flavor/ and kk-flavor/skills/")
 		fmt.Fprintln(errOut, "stats.sh: exit 2 — nothing was measured. Fix the invocation; do not read this as no change.")
 		return 2
 	}

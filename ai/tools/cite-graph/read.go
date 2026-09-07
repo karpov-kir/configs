@@ -136,7 +136,7 @@ func (s *scan) notReached(format string, args ...any) {
 }
 
 // Walk stats with Lstat, so a symlink is never a directory here and never a regular file. The
-// installed layout is a symlink farm — `~/.kk-flavor` is one and every `~/.claude/skills/*` is one —
+// installed layout is a symlink farm — `~/.kk-flavor` is one and every `~/.kk-flavor/skills/*` is one —
 // and this tool promises every `.md` under the root is read, so a link it does not follow is a hole in
 // that promise rather than a path to pass over.
 //

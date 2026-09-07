@@ -71,7 +71,7 @@ func TestUnresolvableCitationPaths(t *testing.T) {
 		// Neither twin sits beside the citer, or the citer's own directory would answer first and the
 		// bare name would never reach the ambiguity test.
 		f.write(f.root+"/kk-flavor/templates/twin.md", "# One\n\n## Density\n")
-		f.write(f.root+"/skills/kk-drive/twin.md", "# Two\n\n## Density\n")
+		f.write(f.root+"/kk-flavor/skills/kk-drive/twin.md", "# Two\n\n## Density\n")
 		f.write(f.root+"/kk-flavor/standards/citer.md", "see `twin.md` → **Density** for the rule\n")
 		f.reports(unresolved)
 	})

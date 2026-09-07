@@ -53,7 +53,7 @@ jobs:
         run: ai/run-tests.sh
 
   # `-count=1` because Go's test cache is keyed on the module, and several suites read files outside
-  # it: eco-report's fixtures copy in `ai/skills/idsd-qualify`'s report template and todo-gate.sh, and
+  # it: eco-report's fixtures copy in `ai/kk-flavor/skills/idsd-qualify`'s report template and todo-gate.sh, and
   # `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a plain run answers out
   # of cache over a tree one of them has changed, and this job would go green on exactly that.
   # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
@@ -173,4 +173,4 @@ jobs:
       # before the binary execs, so build output is in the tree by the time the walk runs, and without
       # the flag the check reads files it cannot judge.
       - name: Check the instruction tree wires up
-        run: ai/skills/kk-ecosystem/scripts/check.sh --gate
+        run: ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --gate

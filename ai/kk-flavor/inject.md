@@ -1,3 +1,9 @@
+The first time you load this file in a session, open that message with this banner:
+
+```
+🍦 kk-flavor loaded 🍦
+```
+
 Read a doc only when its trigger below matches what you're doing. **`project.md`, `architecture/core.md` and `testing.md` bind a new project, or one already following them. Anywhere else, match what the project already does.** A project's own `PROJECT_CODE_STYLE.md` / `CLAUDE.md` layers on top and wins on conflict.
 
 ## Read always (any task)

@@ -1,8 +1,6 @@
-Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc. The first time you load it in a session, open that message with this banner:
+### KK Flavor
 
-```
-🍦 kk-flavor loaded 🍦
-```
+Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.
 
 A hook shrinks every shell command's output through the `rtk` proxy, and a shrunk diff can carry hunk text the real one does not. Rerun through `rtk proxy <cmd>` before reviewing a diff.
 
@@ -10,4 +8,4 @@ A hook shrinks every shell command's output through the `rtk` proxy, and a shrun
 
 Keep memory here, never in `~/.claude/projects/*/memory/`.
 
-- Outward text is cut by `bloat-judge`, never from a git hook. Its design and what it still owes are its package doc, `ai/tools/bloat-judge/judge.go`.
+- `bloat-judge`'s design and what it still owes are its package doc, `ai/tools/bloat-judge/judge.go`.

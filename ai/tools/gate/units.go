@@ -20,17 +20,20 @@ const (
 	goTree    = "ai/tools"
 	extFlavor = "ai/kk-flavor/scripts/tree-fingerprint.sh"
 	// The audience marker is read twice — as a Go regexp in shell/markdown.go, and as awk in this
-	// script, which runs before the machine has a Go binary at all. shell's suite holds the two
-	// spellings to each other, so it is keyed on the script it reads them out of.
-	extBootstrap = "ai/bootstrap.sh"
-	extReduce    = "ai/skills/kk-reduce/stats.md"
+	// library, which both installers source and which runs before the machine has a Go binary at all.
+	// shell's suite holds the two spellings to each other, so it is keyed on the file it reads them
+	// out of: key it on anything else and an edit to the awk leaves that suite fresh from cache.
+	extAudience  = "lib/skill-audience.sh"
+	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
+	// The shared shell libraries both bootstrap scripts source.
+	libTree = "lib"
 )
 
 // The two directories eco-report's harness copies from: scripts/ for todo-gate.sh, templates/ for the
 // report template. Directories rather than the two files, so a third thing copied in later is still
 // keyed on — and not the whole skill, whose SKILL.md is prose no fixture reads.
-var extQualify = []string{"ai/skills/idsd-qualify/scripts", "ai/skills/idsd-qualify/templates"}
+var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-flavor/skills/idsd-qualify/templates"}
 
 // A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and
 // `go vet` both compile `_test.go`, so a suite reaching for either sees those files and must stay
@@ -74,7 +77,7 @@ func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
-	gotestInputs = append(gotestInputs, extBootstrap, extReduce, extWorkflows)
+	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit
@@ -83,8 +86,8 @@ func (g *gate) addGoChecks() {
 	// the stale green this whole thing exists not to serve. Blind to the module's test files for a
 	// reason of its own: eco-check reads Go sources only to find subcommand dispatches, and skips
 	// `_test.go` by name, because a test file's fixtures hold dispatch switches of their own.
-	g.addBlindToGoTests("wiring", "check", []string{"ai/skills", "ai/kk-flavor", "ai/tools", ".gitignore"},
-		"ECO_TOOLS_BUILD=1 ai/skills/kk-ecosystem/scripts/check.sh --gate")
+	g.addBlindToGoTests("wiring", "check", []string{"ai/kk-flavor", "ai/tools", "lib", ".gitignore"},
+		"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --gate")
 }
 
 // The field guide is generated, so the committed page can fall behind the skills without anyone
@@ -98,7 +101,7 @@ func (g *gate) addGoChecks() {
 // measure the source in this tree, never a binary that came from somewhere else.
 func (g *gate) addGuideCheck() {
 	g.addBlindToGoTests("guide", "check",
-		[]string{"ai/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root", "ai/tools/shell", "ai/guide.sh"},
+		[]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root", "ai/tools/shell", "ai/guide.sh"},
 		"ECO_TOOLS_BUILD=1 ai/guide.sh --check")
 }
 
@@ -138,8 +141,19 @@ func (g *gate) discoverShellSuites() int {
 		// unit's verdict with neither the suite nor its script moving a byte.
 		inputs := []string{suite, "ai/run-tests.sh"}
 		sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
+		siblingBody := ""
 		if _, err := os.Stat(filepath.Join(g.root, sibling)); err == nil {
 			inputs = append(inputs, sibling)
+			if body, err := os.ReadFile(filepath.Join(g.root, sibling)); err == nil {
+				siblingBody = string(body)
+			}
+		}
+		// A suite whose script sources the shared libraries is keyed on them. Without this, nothing
+		// under lib/ was an input to any unit at all: editing lib/mount.sh — the mounting machinery
+		// BOTH bootstrap scripts run on — left both their suites fresh from cache, so the fast path
+		// reported a pass for checks it had not run against the changed code.
+		if strings.Contains(siblingBody, libTree+"/") {
+			inputs = append(inputs, libTree)
 		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own

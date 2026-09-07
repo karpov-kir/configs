@@ -11,12 +11,12 @@ import (
 func newCheckerOverAScript(t *testing.T, body string) *checker {
 	t.Helper()
 	root := t.TempDir()
-	for _, dir := range []string{root + "/kk-flavor", root + "/skills"} {
+	for _, dir := range []string{root + "/kk-flavor", root + "/kk-flavor/skills"} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(root+"/skills/broken.sh", []byte(body), 0o755); err != nil {
+	if err := os.WriteFile(root+"/kk-flavor/skills/broken.sh", []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	c, ok := newChecker(root)

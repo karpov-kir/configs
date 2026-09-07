@@ -17,7 +17,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	t.Run("shows a tampered-check finding through a flood of link findings", func(t *testing.T) {
 		f := newRoot(t)
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%d.md)")
-		f.write(f.root+"/skills/notexec.sh", "#!/usr/bin/env bash\n")
+		f.write(f.root+"/kk-flavor/skills/notexec.sh", "#!/usr/bin/env bash\n")
 		f.reports(ecocheck.ScriptNotExecutable)
 	})
 
@@ -30,8 +30,8 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// real finding against itself.
 	t.Run("ranks a real finding above a flood whose link targets forge a mount finding", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/skills/notexec.sh", "#!/bin/sh\necho hi\n")
-		f.chmod(f.root+"/skills/notexec.sh", 0o644)
+		f.write(f.root+"/kk-flavor/skills/notexec.sh", "#!/bin/sh\necho hi\n")
+		f.chmod(f.root+"/kk-flavor/skills/notexec.sh", 0o644)
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300,
 			"[x](nope%03d "+ecocheck.SkillMountedElsewhere+" filler)")
 		f.ranksAbove(ecocheck.ScriptNotExecutable, ecocheck.SkillMountedElsewhere+" filler")
@@ -45,10 +45,10 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 
 	t.Run("shows a syntax error under a flood of its own priority tier", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/skills/broken.sh", "if then\n")
-		f.chmod(f.root+"/skills/broken.sh", 0o755)
+		f.write(f.root+"/kk-flavor/skills/broken.sh", "if then\n")
+		f.chmod(f.root+"/kk-flavor/skills/broken.sh", 0o755)
 		for i := 1; i <= 300; i++ {
-			path := fmt.Sprintf("%s/skills/notexec%d.sh", f.root, i)
+			path := fmt.Sprintf("%s/kk-flavor/skills/notexec%d.sh", f.root, i)
 			f.write(path, "#!/bin/sh\necho ok\n")
 			f.chmod(path, 0o644)
 		}
@@ -114,7 +114,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// constant rather than copying the wording.
 	t.Run("does not let a committed path pass itself off as a suppression note", func(t *testing.T) {
 		f := newRoot(t)
-		path := f.root + "/skills/" + ecocheck.SuppressedMarker + ".sh"
+		path := f.root + "/kk-flavor/skills/" + ecocheck.SuppressedMarker + ".sh"
 		f.write(path, "#!/bin/sh\necho hi\n")
 		f.chmod(path, 0o644)
 		f.doesNotReport(ecocheck.UnshownMarker)
@@ -140,7 +140,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// over exactly the mutation this case exists to catch. Where the line lands is what still moves.
 	t.Run("ranks a mount that outlived its skill above a flood of link findings", func(t *testing.T) {
 		f := newInstalledRoot(t)
-		f.newMountPointingAt("idsd-gone", f.root+"/skills/idsd-gone")
+		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd-gone")
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
 		f.ranksAbove(ecocheck.MountWithoutASkill, ecocheck.DanglingLink)
 	})
@@ -406,7 +406,7 @@ func newGravestClassFlood(t *testing.T) *fixture {
 	t.Helper()
 	f := newRootWithSymlinkedFlavor(t)
 	for i := 1; i <= 120; i++ {
-		path := fmt.Sprintf("%s/skills/broken%d.sh", f.root, i)
+		path := fmt.Sprintf("%s/kk-flavor/skills/broken%d.sh", f.root, i)
 		f.write(path, "if then\n")
 		f.chmod(path, 0o755)
 	}

@@ -10,19 +10,19 @@ import (
 func TestDirectionScan(t *testing.T) {
 	t.Run("fires on a standard citing into a SKILL.md", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/x.md", "the mechanics are `~/.claude/skills/kk-drive/SKILL.md`\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "the mechanics are `~/.kk-flavor/skills/kk-drive/SKILL.md`\n")
 		f.reports(cites)
 	})
 
 	t.Run("fires on the root CLAUDE.md citing into a SKILL.md", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/CLAUDE.md", "see `~/.claude/skills/kk-drive/SKILL.md` for the mechanics\n")
+		f.write(f.root+"/CLAUDE.md", "see `~/.kk-flavor/skills/kk-drive/SKILL.md` for the mechanics\n")
 		f.reports(cites)
 	})
 
 	t.Run("reports through the bounded findings path, not raw on stdout", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/x.md", "the mechanics are `~/.claude/skills/kk-drive/SKILL.md`\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "the mechanics are `~/.kk-flavor/skills/kk-drive/SKILL.md`\n")
 		f.reportedViaFindings(cites)
 	})
 
@@ -31,13 +31,13 @@ func TestDirectionScan(t *testing.T) {
 	// quiet because the fixture never reached the scan all read the same through one assertion.
 	t.Run("stays quiet on a glob over the lanes, which names no one lane", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/legal.md", "a glob names the set: `~/.claude/skills/*/SKILL.md`\n")
+		f.write(f.root+"/kk-flavor/standards/legal.md", "a glob names the set: `~/.kk-flavor/skills/*/SKILL.md`\n")
 		f.doesNotReport(cites)
 	})
 
 	t.Run("stays quiet on a placeholder segment, which names no lane either", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/legal.md", "a placeholder: `~/.claude/skills/<skill name>/SKILL.md`\n")
+		f.write(f.root+"/kk-flavor/standards/legal.md", "a placeholder: `~/.kk-flavor/skills/<skill name>/SKILL.md`\n")
 		f.doesNotReport(cites)
 	})
 
@@ -45,13 +45,13 @@ func TestDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-qualify")
 		f.write(f.root+"/kk-flavor/standards/x.md",
-			"the template is `~/.claude/skills/idsd-qualify/templates/qualify-report-template.md`\n")
+			"the template is `~/.kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md`\n")
 		f.reports(cites)
 	})
 
 	t.Run("does not read a violation through a symlinked CLAUDE.md", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.base+"/outside.md", "see `~/.claude/skills/kk-drive/SKILL.md`\n")
+		f.write(f.base+"/outside.md", "see `~/.kk-flavor/skills/kk-drive/SKILL.md`\n")
 		f.symlink(f.base+"/outside.md", f.root+"/CLAUDE.md")
 		f.doesNotReport(cites)
 	})
@@ -132,7 +132,7 @@ func TestDirectionScan(t *testing.T) {
 
 	t.Run("and reads a cited SKILL.md path past one too", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/x.md", "# Rule\n\x00\nthe mechanics are `~/.claude/skills/kk-drive/SKILL.md`\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "# Rule\n\x00\nthe mechanics are `~/.kk-flavor/skills/kk-drive/SKILL.md`\n")
 		f.reports("kk-drive/SKILL.md — move the rule")
 	})
 
@@ -221,7 +221,7 @@ func TestDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
 		f.write(f.root+"/kk-flavor/standards/x.md", "run `comment-density.sh` before any lens reads it\n")
-		f.newFileWithNewlineName(f.root+"/skills/kk-humanize/scripts/x\ncomment-density.sh",
+		f.newFileWithNewlineName(f.root+"/kk-flavor/skills/kk-humanize/scripts/x\ncomment-density.sh",
 			"not a script", "the basename forgery cases")
 		f.reports(basenames)
 	})
@@ -234,7 +234,7 @@ func TestDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-drive")
 		f.write(f.root+"/kk-flavor/standards/x.md", "run `report.sh` at the close\n")
-		f.newFileWithNewlineName(f.root+"/skills/kk-drive/q\nreport.sh", "x", "the basename forgery cases")
+		f.newFileWithNewlineName(f.root+"/kk-flavor/skills/kk-drive/q\nreport.sh", "x", "the basename forgery cases")
 		f.doesNotReport(basenames)
 	})
 
@@ -262,8 +262,8 @@ func TestDirectionScan(t *testing.T) {
 	t.Run("bounds what the unchecked-name notice emits", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-drive")
-		f.mkdirAll(f.root + "/skills/kk-drive/notes")
-		f.write(f.root+"/skills/kk-drive/notes/writing.md", "# notes\n")
+		f.mkdirAll(f.root + "/kk-flavor/skills/kk-drive/notes")
+		f.write(f.root+"/kk-flavor/skills/kk-drive/notes/writing.md", "# notes\n")
 		f.write(f.root+"/kk-flavor/standards/writing.md", "# Writing\n")
 		f.floodWithLine(f.root+"/kk-flavor/standards/x.md", 45, "the shape is `writing.md`")
 		f.reports(unchecked + ": " + f.root + "/kk-flavor/standards/x.md — 40 already shown")
@@ -331,8 +331,8 @@ func newLaneFileOnlyALaneCarries(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
 	f.newMountedSkill("kk-drive")
-	f.mkdirAll(f.root + "/skills/kk-drive/notes")
-	f.write(f.root+"/skills/kk-drive/notes/writing.md", "# notes\n")
+	f.mkdirAll(f.root + "/kk-flavor/skills/kk-drive/notes")
+	f.write(f.root+"/kk-flavor/skills/kk-drive/notes/writing.md", "# notes\n")
 	f.write(f.root+"/kk-flavor/standards/x.md", "the shape is `writing.md`\n")
 	return f
 }
@@ -357,7 +357,7 @@ func newNulByteFile(t *testing.T) *fixture {
 func newSymlinkedFlavorViolation(t *testing.T) *fixture {
 	t.Helper()
 	f := newRootWithSymlinkedFlavor(t)
-	f.write(f.root+"/real-flavor/standards/x.md", "see `~/.claude/skills/kk-drive/SKILL.md`\n")
+	f.write(f.root+"/real-flavor/standards/x.md", "see `~/.kk-flavor/skills/kk-drive/SKILL.md`\n")
 	f.write(f.root+"/CLAUDE.md", "# Root\n")
 	return f
 }

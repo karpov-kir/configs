@@ -423,7 +423,7 @@ func TestAPathTheWalkCannotReadIsAlsoCounted(t *testing.T) {
 // A symlinked directory is where the silence was total. Walk stats with Lstat, so the link is not a
 // directory, and the `.md` suffix filter used to drop it before the regular-file guard could speak:
 // the whole subtree left every figure with nothing on stderr at all. `~/.kk-flavor` is such a link and
-// so is every `~/.claude/skills/*`, so this is the shape the installed layout is made of.
+// so is every `~/.kk-flavor/skills/*`, so this is the shape the installed layout is made of.
 func TestASymlinkedDirectoryIsReportedAndCounted(t *testing.T) {
 	root := t.TempDir()
 	away := t.TempDir()
@@ -504,7 +504,7 @@ func TestAnUnreadableDirectoryIsCounted(t *testing.T) {
 // `filepath.Walk` stats with Lstat, so a `.md` symlink is not a regular file and the read guard drops
 // it. Dropping it in silence is the defect: the file leaves every figure this tool prints, and a live
 // citation into it comes back as a manufactured `no such path`. The installed layout is a symlink
-// farm — `~/.kk-flavor` is one and every `~/.claude/skills/*` is one — and `cite-graph.sh` promises
+// farm — `~/.kk-flavor` is one and every `~/.kk-flavor/skills/*` is one — and `cite-graph.sh` promises
 // every `.md` under the root is read, so the skip has to reach the reader.
 func TestASymlinkedMarkdownFileIsReportedNotDropped(t *testing.T) {
 	root := t.TempDir()

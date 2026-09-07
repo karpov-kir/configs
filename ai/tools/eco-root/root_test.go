@@ -19,7 +19,7 @@ func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {
 		}
 		assertEquals(t, "named", root.Named(), dir)
 		assertEquals(t, "flavor", root.Flavor(), dir+"/kk-flavor")
-		assertEquals(t, "skills", root.Skills(), dir+"/skills")
+		assertEquals(t, "skills", root.Skills(), dir+"/kk-flavor/skills")
 	})
 
 	t.Run("keeps a redundant path as the caller wrote it, never cleaned", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {
 }
 
 func TestARootMissingEitherDirectoryIsRefused(t *testing.T) {
-	for _, missing := range []string{"kk-flavor", "skills"} {
+	for _, missing := range []string{"kk-flavor", "kk-flavor/skills"} {
 		t.Run("refuses a directory with no "+missing, func(t *testing.T) {
 			_, dir := newCheckout(t, "")
 			if err := os.RemoveAll(dir + "/" + missing); err != nil {
@@ -89,7 +89,7 @@ func newCheckout(t *testing.T, under string) (base, checkout string) {
 	if under != "" {
 		checkout = base + "/" + under
 	}
-	for _, name := range []string{"kk-flavor", "skills"} {
+	for _, name := range []string{"kk-flavor", "kk-flavor/skills"} {
 		if err := os.MkdirAll(checkout+"/"+name, 0o755); err != nil {
 			t.Fatal(err)
 		}

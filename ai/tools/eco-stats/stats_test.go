@@ -174,7 +174,7 @@ func TestTheLedgerIsMeasuredApartFromTheInstructions(t *testing.T) {
 		without := f.figure("prose")
 		f.installStats()
 		f.write(f.base+"/outside.md", "outside words\n")
-		f.symlink(f.base+"/outside.md", f.root+"/skills/kk-reduce/stats.md")
+		f.symlink(f.base+"/outside.md", f.root+"/kk-flavor/skills/kk-reduce/stats.md")
 		with := f.figure("prose")
 		reported := f.figure("ledger")
 		if without == "" || with != without || reported != "0" {
@@ -237,9 +237,9 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 		// A second mount, this one resolving *inside* the root: the tree's own skill must not count.
 		// The suite stays green if you delete it, which is exactly why it looks removable — take it
 		// out and nothing here tests the exclusion.
-		f.mkdirAll(f.root + "/skills/inside-skill")
-		f.write(f.root+"/skills/inside-skill/SKILL.md", skillWithDescription("inside-skill"))
-		f.symlink(f.root+"/skills/inside-skill", f.home+"/.claude/skills/inside-skill")
+		f.mkdirAll(f.root + "/kk-flavor/skills/inside-skill")
+		f.write(f.root+"/kk-flavor/skills/inside-skill/SKILL.md", skillWithDescription("inside-skill"))
+		f.symlink(f.root+"/kk-flavor/skills/inside-skill", f.home+"/.claude/skills/inside-skill")
 		if reported := f.figure("mounted outside"); reported != "4" {
 			t.Errorf("reported: %q (want 4)", reported)
 		}
@@ -762,8 +762,8 @@ func TestAnOversizeBudgetFileIsRefusedRatherThanRead(t *testing.T) {
 	t.Run("and refuses an oversize SKILL.md the census would otherwise read", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two three\n")
-		skill := f.root + "/skills/big/SKILL.md"
-		f.mkdirAll(f.root + "/skills/big")
+		skill := f.root + "/kk-flavor/skills/big/SKILL.md"
+		f.mkdirAll(f.root + "/kk-flavor/skills/big")
 		f.write(skill, skillWithDescription("big"))
 		if err := os.Truncate(skill, overTheReadBound); err != nil {
 			t.Fatalf("truncate the oversize skill: %v", err)

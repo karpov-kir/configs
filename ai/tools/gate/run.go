@@ -331,7 +331,7 @@ func (g *gate) runGotest() (string, string, int) {
 	if g.changedSinceGreen(extQualify) {
 		groups = append(groups, "eco-report")
 	}
-	if g.changedSinceGreen([]string{extBootstrap}) {
+	if g.changedSinceGreen([]string{extAudience}) {
 		groups = append(groups, "shell")
 	}
 	if g.changedSinceGreen([]string{extReduce}) {

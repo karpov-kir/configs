@@ -81,8 +81,8 @@ func citedTargets(line string) []string {
 }
 
 // Which walked file a citation names. Built from the tree the walk actually read, because that file
-// set is the only thing that can answer it: this tree is walked as `ai/skills/x/SKILL.md` and cited
-// as `~/.claude/skills/x/SKILL.md`, so neither the whole path nor the base name decides it.
+// set is the only thing that can answer it: this tree is walked as `ai/kk-flavor/skills/x/SKILL.md` and cited
+// as `~/.kk-flavor/skills/x/SKILL.md`, so neither the whole path nor the base name decides it.
 //
 // `cite-graph`'s nameResolver answers the same question over the same tree, and `tails` below holds
 // the rule both copies turn on. A loose answer costs more here than it does there: a path the tree
@@ -111,7 +111,7 @@ func (r *citationResolver) fileNamed(target, from string) string {
 		return only(r.byBase[target])
 	}
 	// The forms one cited path is written in: relative to the citing file, and with each mount
-	// prefix off, because a citation names `~/.claude/skills/x/SKILL.md` for a file this walk reached
+	// prefix off, because a citation names `~/.kk-flavor/skills/x/SKILL.md` for a file this walk reached
 	// as `<root>/skills/x/SKILL.md`.
 	cleaned := strings.TrimPrefix(strings.TrimPrefix(target, "~/"), "./")
 	forms := []string{

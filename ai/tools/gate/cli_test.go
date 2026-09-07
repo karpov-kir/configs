@@ -61,7 +61,7 @@ func TestTheNameGuardRefusesWhatWouldBecomeSyntax(t *testing.T) {
 			}
 		})
 	}
-	if err := safeToken("suite", "ai/skills/kk-one/scripts/a-test.sh"); err != nil {
+	if err := safeToken("suite", "ai/kk-flavor/skills/kk-one/scripts/a-test.sh"); err != nil {
 		t.Errorf("an ordinary suite path was refused: %v", err)
 	}
 }

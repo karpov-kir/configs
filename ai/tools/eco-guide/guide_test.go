@@ -1,7 +1,7 @@
 // The cases that hold the two halves apart: the inventory comes from frontmatter and nothing else,
 // and the narrative half cannot quietly outlive the skills it names.
 //
-// Every case builds its own root under t.TempDir() rather than reading ai/skills. A suite keyed on the
+// Every case builds its own root under t.TempDir() rather than reading the tree's own skills. A suite keyed on the
 // real tree would go red every time someone edits a description, and Go's test cache cannot see files
 // outside this module anyway — the gate unit is what reads the real tree.
 package ecoguide
@@ -32,13 +32,13 @@ type fixtureSkill struct {
 func newRoot(t *testing.T, template string, skills ...fixtureSkill) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, dir := range []string{"kk-flavor", "skills", "tools/eco-guide"} {
+	for _, dir := range []string{"kk-flavor", "kk-flavor/skills", "tools/eco-guide"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatalf("fixture root: %v", err)
 		}
 	}
 	for _, skill := range skills {
-		dir := filepath.Join(root, "skills", skill.name)
+		dir := filepath.Join(root, "kk-flavor", "skills", skill.name)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("fixture skill %s: %v", skill.name, err)
 		}
@@ -202,7 +202,7 @@ func TestCheckPassesOnlyWhenTheCommittedPageMatches(t *testing.T) {
 
 	// The negative control: add a skill, and the committed page is now short of one.
 	newRoot(t, fixtureTemplate) // no-op guard against the helper being the thing under test
-	dir := filepath.Join(root, "skills", "kk-diagnose")
+	dir := filepath.Join(root, "kk-flavor", "skills", "kk-diagnose")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("adding a skill: %v", err)
 	}

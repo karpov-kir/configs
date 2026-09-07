@@ -11,7 +11,7 @@ import (
 // The intent-ready gate: the mechanical half of "is this ICE fit to build". The judgement half — a
 // goal that reads two ways, an unpinned presentation, a technical choice nobody has made — is the
 // grill's, and no script reaches it. What is here is what an agent otherwise scans by hand and
-// eventually stops scanning: `~/.claude/skills/idsd-build/SKILL.md` → **Phase 1** is the contract.
+// eventually stops scanning: `~/.kk-flavor/skills/idsd-build/SKILL.md` → **Phase 1** is the contract.
 //
 // Exit 0 = ready, 1 = blocked with every reason printed, 2 = the check did not run.
 

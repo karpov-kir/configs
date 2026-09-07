@@ -24,8 +24,8 @@ func TestSkillDirectory(t *testing.T) {
 	// invoke it at all.
 	t.Run("does not read a name: line in the body as the declaration", func(t *testing.T) {
 		f := newRoot(t)
-		f.mkdirAll(f.root + "/skills/ghost")
-		f.write(f.root+"/skills/ghost/SKILL.md", "# Ghost\n\nname: ghost\n\ndescription: does a thing\n")
+		f.mkdirAll(f.root + "/kk-flavor/skills/ghost")
+		f.write(f.root+"/kk-flavor/skills/ghost/SKILL.md", "# Ghost\n\nname: ghost\n\ndescription: does a thing\n")
 		f.reports(ecocheck.SkillNameDirMismatch)
 	})
 }
@@ -37,7 +37,7 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 		skipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
 		f := newRoot(t)
 		f.newMountedSkill("kk-drive")
-		f.chmod(f.root+"/skills/kk-drive/SKILL.md", 0o000)
+		f.chmod(f.root+"/kk-flavor/skills/kk-drive/SKILL.md", 0o000)
 		return f
 	}
 
@@ -64,8 +64,8 @@ func TestAnUnreadableSkillFileIsNotCountedAsADescriptionThatWasRead(t *testing.T
 	newTwoSkills := func(t *testing.T) *fixture {
 		f := newRoot(t)
 		for _, name := range []string{"kk-alpha", "kk-beta"} {
-			f.mkdirAll(f.root + "/skills/" + name)
-			f.write(f.root+"/skills/"+name+"/SKILL.md",
+			f.mkdirAll(f.root + "/kk-flavor/skills/" + name)
+			f.write(f.root+"/kk-flavor/skills/"+name+"/SKILL.md",
 				"---\nname: "+name+"\ndescription: does a thing for the tree\n---\n")
 		}
 		return f
@@ -80,7 +80,7 @@ func TestAnUnreadableSkillFileIsNotCountedAsADescriptionThatWasRead(t *testing.T
 	t.Run("drops the one it could not read out of what it claims to have measured", func(t *testing.T) {
 		skipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
 		f := newTwoSkills(t)
-		f.chmod(f.root+"/skills/kk-beta/SKILL.md", 0o000)
+		f.chmod(f.root+"/kk-flavor/skills/kk-beta/SKILL.md", 0o000)
 		// The total still counts it: the skill is in the tree, which is what that number says.
 		f.reports("across 1 of 2 skills")
 	})
@@ -89,10 +89,10 @@ func TestAnUnreadableSkillFileIsNotCountedAsADescriptionThatWasRead(t *testing.T
 func newBrokenSkillDirs(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
-	f.mkdirAll(f.root + "/skills/orphan")
-	f.mkdirAll(f.root + "/skills/wrong-name")
-	f.mkdirAll(f.root + "/skills/no-desc")
-	f.write(f.root+"/skills/wrong-name/SKILL.md", "---\nname: misnamed\ndescription: does a thing\n---\n")
-	f.write(f.root+"/skills/no-desc/SKILL.md", "---\nname: no-desc\n---\n")
+	f.mkdirAll(f.root + "/kk-flavor/skills/orphan")
+	f.mkdirAll(f.root + "/kk-flavor/skills/wrong-name")
+	f.mkdirAll(f.root + "/kk-flavor/skills/no-desc")
+	f.write(f.root+"/kk-flavor/skills/wrong-name/SKILL.md", "---\nname: misnamed\ndescription: does a thing\n---\n")
+	f.write(f.root+"/kk-flavor/skills/no-desc/SKILL.md", "---\nname: no-desc\n---\n")
 	return f
 }

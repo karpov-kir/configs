@@ -22,7 +22,7 @@ func TestTheStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 	if printed == "" {
 		t.Fatal("eco-check printed no usage line when refused, so this case would pass against any stub at all")
 	}
-	documented := documentedUsage(t, "../skills/kk-ecosystem/scripts/check.sh")
+	documented := documentedUsage(t, "../kk-flavor/skills/kk-ecosystem/scripts/check.sh")
 	if documented != printed {
 		t.Errorf("check.sh documents a usage line its binary does not print\n stub: %q\nbinary: %q\n"+
 			"one of the two grew a flag the other did not", documented, printed)

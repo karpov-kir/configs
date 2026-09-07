@@ -50,7 +50,7 @@ const (
 // constant because those two case files have to state the same path. Written inline in a file the
 // checker scans, a cited path that does not resolve in the real checkout becomes a finding against the
 // checkout itself — but no scan reads a `.go` file, so nothing here is exposed that way.
-const laneScriptRef = "~/.claude/skills/kk-humanize/scripts/comment-density.sh"
+const laneScriptRef = "~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh"
 
 // Aliased, never written out: a restated copy goes on compiling after the bound moves, and every
 // oversize fixture built one byte past it then measures nothing.
@@ -72,7 +72,7 @@ func newRootWithoutFlavor(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
 	f := &fixture{t: t, base: base, root: base + "/r"}
-	f.mkdirAll(f.root + "/skills")
+	f.mkdirAll(f.root + "/kk-flavor/skills")
 	return f
 }
 
@@ -86,10 +86,17 @@ func newRoot(t *testing.T) *fixture {
 
 // The checker refuses to walk a symlinked `kk-flavor`, so a case writes into `$root/real-flavor` and
 // never `$root/kk-flavor`.
+//
+// It builds its own root rather than starting from newRootWithoutFlavor: skills/ lives inside
+// kk-flavor/ now, so that helper has to create kk-flavor as a real directory, and the symlink this
+// case is about can no longer be made over it. The whole tree therefore goes behind real-flavor,
+// which is what the symlink then points at.
 func newRootWithSymlinkedFlavor(t *testing.T) *fixture {
 	t.Helper()
-	f := newRootWithoutFlavor(t)
+	base := t.TempDir()
+	f := &fixture{t: t, base: base, root: base + "/r"}
 	f.mkdirAll(f.root + "/real-flavor/standards")
+	f.mkdirAll(f.root + "/real-flavor/skills")
 	f.write(f.root+"/real-flavor/inject.md", "# Flavor\n")
 	f.symlink(f.root+"/real-flavor", f.root+"/kk-flavor")
 	return f
@@ -111,15 +118,15 @@ func (f *fixture) newHome() {
 // answers to it.
 func (f *fixture) newMountedSkill(name string) {
 	f.t.Helper()
-	f.mkdirAll(f.root + "/skills/" + name)
-	f.write(f.root+"/skills/"+name+"/SKILL.md", "# "+name+"\n")
+	f.mkdirAll(f.root + "/kk-flavor/skills/" + name)
+	f.write(f.root+"/kk-flavor/skills/"+name+"/SKILL.md", "# "+name+"\n")
 }
 
 // The parent is created, so a case can place a script under `<skill>/scripts/` — the real layout —
 // without the write failing and leaving the case asserting against a tree that has no script in it.
 func (f *fixture) newScript(name, body string) {
 	f.t.Helper()
-	path := f.root + "/skills/" + name
+	path := f.root + "/kk-flavor/skills/" + name
 	f.mkdirAll(filepath.Dir(path))
 	f.write(path, body+"\n")
 	if err := os.Chmod(path, 0o755); err != nil {

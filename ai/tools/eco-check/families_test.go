@@ -7,7 +7,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-intent")
 		f.newMountedSkill("kk-grill")
-		f.write(f.root+"/skills/kk-grill/SKILL.md", "planning a feature into a spec is idsd-intent's\n")
+		f.write(f.root+"/kk-flavor/skills/kk-grill/SKILL.md", "planning a feature into a spec is idsd-intent's\n")
 		f.reports(crossFamily)
 	})
 
@@ -15,7 +15,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-build")
 		f.newMountedSkill("kk-drive")
-		f.write(f.root+"/skills/kk-drive/SKILL.md", "how to run it may be recorded in .idsd/playbook.md\n")
+		f.write(f.root+"/kk-flavor/skills/kk-drive/SKILL.md", "how to run it may be recorded in .idsd/playbook.md\n")
 		f.reports(crossFamily)
 	})
 
@@ -38,7 +38,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-qualify")
 		f.newMountedSkill("idsd-qualify")
-		f.write(f.root+"/skills/idsd-qualify/SKILL.md", "the pass is `~/.claude/skills/kk-qualify/SKILL.md`, run inline\n")
+		f.write(f.root+"/kk-flavor/skills/idsd-qualify/SKILL.md", "the pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`, run inline\n")
 		f.doesNotReport(crossFamily, unfamiliedSkill)
 	})
 
@@ -46,7 +46,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-tighten")
 		f.newMountedSkill("kk-humanize")
-		f.write(f.root+"/skills/kk-tighten/SKILL.md", "outward text is kk-humanize's\n")
+		f.write(f.root+"/kk-flavor/skills/kk-tighten/SKILL.md", "outward text is kk-humanize's\n")
 		f.doesNotReport(crossFamily)
 	})
 
@@ -57,7 +57,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-ship")
 		f.newMountedSkill("kk-foreman")
-		f.write(f.root+"/skills/kk-foreman/SKILL.md",
+		f.write(f.root+"/kk-flavor/skills/kk-foreman/SKILL.md",
 			"routing between the families is this file's job, per ecosystem.md → **Family direction**.\nintent-shaped work goes to idsd-ship, under .idsd/\n")
 		f.doesNotReport(crossFamily)
 	})
@@ -66,7 +66,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-ship")
 		f.newMountedSkill("kk-foreman")
-		f.write(f.root+"/skills/kk-foreman/SKILL.md", "intent-shaped work goes to idsd-ship, under .idsd/\n")
+		f.write(f.root+"/kk-flavor/skills/kk-foreman/SKILL.md", "intent-shaped work goes to idsd-ship, under .idsd/\n")
 		f.reports(unclaimedRouter)
 	})
 

@@ -80,7 +80,7 @@ func TestAMissingLedgerIsOpenedWithAHeaderAReaderCanUse(t *testing.T) {
 		f := newRoot(t)
 		f.installStats()
 		f.write(f.root+"/CLAUDE.md", "one two\n")
-		fresh := f.root + "/skills/kk-reduce/stats.md"
+		fresh := f.root + "/kk-flavor/skills/kk-reduce/stats.md"
 		f.run("--append", "opening row", f.root)
 		content := readFile(t, fresh)
 		rows := rowsIn(t, fresh)
@@ -98,7 +98,7 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 		f.write(f.root+"/CLAUDE.md", "one two\n")
 		f.installStats()
 		f.write(f.base+"/decoy-target.md", "untouched\n")
-		f.symlink(f.base+"/decoy-target.md", f.root+"/skills/kk-reduce/stats.md")
+		f.symlink(f.base+"/decoy-target.md", f.root+"/kk-flavor/skills/kk-reduce/stats.md")
 		f.run("--append", "should not land", f.root)
 		if decoy := readFile(t, f.base+"/decoy-target.md"); decoy != "untouched\n" {
 			t.Errorf("the decoy was written: %s", decoy)
@@ -113,7 +113,7 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 		f := newRoot(t)
 		f.installStats()
 		f.run("--append", "seed, start", f.root)
-		seeded := ledgerProse(readFile(t, f.root+"/skills/kk-reduce/stats.md"))
+		seeded := ledgerProse(readFile(t, f.root+"/kk-flavor/skills/kk-reduce/stats.md"))
 		live, err := os.ReadFile(liveLedger)
 		if err != nil {
 			t.Fatalf("the live ledger is what this case compares against: %v", err)
@@ -161,7 +161,7 @@ func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
 		f.write(f.root+"/CLAUDE.md", "one two\n")
 		ledger := f.newLedger(ledgerColumns)
 		before := rowsIn(t, ledger)
-		t.Chdir(f.root + "/skills/kk-reduce/scripts")
+		t.Chdir(f.root + "/kk-flavor/skills/kk-reduce/scripts")
 
 		var out, errOut bytes.Buffer
 		if status := ecostats.Run("./stats.sh", []string{"--append", "lands", f.root}, &out, &errOut); status != 0 {
@@ -189,7 +189,7 @@ func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
 }
 
 // The tree's own ledger, from the package directory `go test` runs in.
-const liveLedger = "../../skills/kk-reduce/stats.md"
+const liveLedger = "../../kk-flavor/skills/kk-reduce/stats.md"
 
 func wordsCount(n int) string {
 	var note strings.Builder
