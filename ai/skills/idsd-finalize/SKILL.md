@@ -9,21 +9,23 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Every `.idsd/` path here hangs off the resolved scratch root** (`~/.claude/skills/idsd-qualify/SKILL.md` → **Report**).
 
-**Finalizing is serial across the whole clone**, because it writes records every ship shares. `report.sh merge-slot` holds that, and **everything that can ask a human happens in step 1, before the slot is taken** — a question asked inside it stalls every other ship behind a thread nobody is watching.
+**Finalizing is serial across the whole clone**, because it writes records every ship shares. `report.sh merge-slot` holds that, and **everything that can ask a human happens in step 1, before the slot is taken** — a question asked inside it stalls every other ship behind a thread nobody is watching. **Step 2's re-qualify is the one exception**, and says there why it has to be.
 
 ## 1. Clear what can still refuse or ask
 
-**Address follow-ups first.** Every unchecked `- [ ]` in the ICE's `## Follow-ups` must be landed in code, routed to the home `idsd-build` names for its kind, or declined with a reason — then checked `- [x]` with that resolution; routing to a `draft` intent counts.
+**The ICE's `## Follow-ups` are closed in `idsd-build`, before `idsd-qualify` stamps — not here.** **Resolving one here invalidates the stamp the gate below reads**, which then blocks on freshness and leaves the ship asking for an override on its own edit. One that surfaces only here is resolved and then sent back through `idsd-qualify`.
 
 **Then `~/.claude/skills/idsd-qualify/scripts/report.sh gate <NNN-slug>`, and let a non-zero exit stop you.** It is the whole of what stands between this ship and a merge nothing qualified: it asks whether an untrimmed `idsd-qualify` stamped this tree, in this worktree, with the ICE at `status: approved` and no `- [ ]` open in either it or the report. **No report means no pass ran, so the answer is to run `idsd-qualify`.** A freshness, stages or unapproved-intent block is the human's to override and you ask them here; an open `- [ ]` is nobody's.
 
-**Re-run the build's gates.** The qualify pass and the follow-up work both edited this tree since the build ran them, and a fix that broke one is invisible until they run again.
+**Re-run the build's gates**, resolved the way the build resolved them (`~/.kk-flavor/standards/building.md` → **Before the loop**) — no record carries the commands. The qualify pass and the follow-up work both edited this tree since the build ran them, and a fix that broke one is invisible until they run again.
 
 **Then check this intent's `links:`** by the rules `idsd-audit` applies set-wide. A bad link stops you; fix or route it first. Whole-set consistency stays that skill's job.
 
 ## 2. Take the slot
 
 `report.sh merge-slot take <NNN-slug>`. **Exit 4 means another ship holds it**, and the refusal names the holder's intent and worktree — wait for it. `--force` is for a holder you have established is gone, never for one you are impatient with: it breaks into a merge that may be half-written.
+
+**A re-qualify forced by a moved `main` happens with the slot held.** The rebase invalidates the stamp step 1 checks, and a pass takes long enough that `main` moves again — so releasing the slot to re-run the stages is what loses the race, and the ship laps without ever landing. The slot serialises landing, not the tree; holding it across the pass is the only thing that keeps the tree still long enough to finish. Every other finalize waits on that whole pass, so say what you are holding it for.
 
 **Establishing that is yours, and the refusal cannot do it for you** — the tool started no process it could ask about. Look for a session working in the worktree it names; none, and the slot outlived its holder. **A slot is held from here until step 4 finishes**, so a session that dies in between leaves one nobody else frees.
 

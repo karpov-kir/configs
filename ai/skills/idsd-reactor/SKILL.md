@@ -8,20 +8,22 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestra
 
 ## 1. Resolve the order
 
-**Ask whether to audit first**, and recommend it. Without it, a cycle or a dangling `depends-on` surfaces only as an intent that silently never launches: `report.sh intent-ready` refuses a build whose dependency is unbuilt, and catches no other Blocker.
+**Ask whether to audit first**, and recommend it. Without it, a cycle or a dangling `depends-on` surfaces only as an intent that silently never launches: `report.sh intent-ready` refuses a build whose prerequisite is unbuilt in either direction, and catches no other Blocker.
 
 **One milestone at a time, and any milestone can be the one.** `<arg>` names it, or names slugs outright; with neither, list the milestones still holding unbuilt intents and ask which — recommend the one whose unbuilt intents depend on nothing outside it. **Nothing outside the chosen one launches, however unblocked it is** — that is the parked work. `milestone: none` is unplanned rather than a milestone, so it is never the chosen one; naming slugs is the only route to one of those.
 
 The launchable set:
 
 - **Audited** — that milestone's share of the audit's first build batch.
-- **Unaudited** — every unbuilt intent in that milestone whose `depends-on` targets are all built, read from the intents' own frontmatter.
+- **Unaudited** — every unbuilt intent in that milestone that points at no unbuilt intent, over the dependency edges the Links rule draws (`~/.claude/skills/idsd-intent/SKILL.md` → **Rules**), `depends-on` being only half of them.
 
-**`depends-on` decides what launches together; overlapping files do not.** The overlap resolves at their merges, and **3**'s relay keeps them from surprising each other. Hold a pair back only where the overlap is big enough that they would redo each other's work, and say so — that size depends on the two intents, never on a count of shared files.
+**Those edges decide what launches together; overlapping files do not.** The overlap resolves at their merges, and **3**'s relay keeps them from surprising each other. Hold a pair back only where the overlap is big enough that they would redo each other's work, and say so — that size depends on the two intents, never on a count of shared files.
 
 Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second chip on one intent puts two sessions on one branch.
 
-**Present the schedule and launch only what the human confirms.** Read the launchable set back by name, say what each later intent waits on and what you are leaving parked, and count the `draft` intents in the set — each grills the human in its own thread at `idsd-build`'s gap rounds. Nothing on disk marks an intent as parked, since `status: draft` fits a fresh intent and a shelved one alike, so the ask is the only place that knowledge enters. Say that this session is the reactor's address: it launches the later intents only while it stays open. **After an audit, a Blocker touching what they confirmed stops the launch**: route each through the skill the audit names, then re-run the audit.
+**At most 10 intents in flight**, counted as authored-but-unlanded plus building. Never a count of sessions: one intent is an authoring session and later a build session, and the agents you spawn at **2** write nothing. What the cap protects is not machine load: every authoring session regenerates `.idsd/roadmap.md`, so authors collide there and serialise through rebase-and-retry. A regeneration off a stale tree also drops edges without reddening any gate. **Finalize contention is the sharper limit**: a ship forced to re-qualify holds the merge slot across that whole pass (`~/.claude/skills/idsd-finalize/SKILL.md` → **2. Take the slot**), and every other finalize waits it out. Over the cap, keep the intents others wait on and drop the rest from the set, parked — **2** chips one session per intent still in it.
+
+**Present the schedule and launch only what the human confirms.** Say the cap and what it currently counts; it is theirs to change for the run. Read the launchable set back by name, say what each later intent waits on and what you are leaving parked, and count the `draft` intents in the set — each grills the human in its own thread at `idsd-build`'s gap rounds. Nothing on disk marks an intent as parked, since `status: draft` fits a fresh intent and a shelved one alike, so the ask is the only place that knowledge enters. Say that this session is the reactor's address: it launches the later intents only while it stays open. **After an audit, a Blocker touching what they confirmed stops the launch**: route each through the skill the audit names, then re-run the audit.
 
 **The human alone says whether each session archives itself once its intent lands** — no licence to act unattended supplies that answer, and until they do, none archives. **They are answering about the sessions you launch, never about you.** Archive yourself and every later `done` lands nowhere: nothing schedules what the last merge unblocked, and the sessions still working are reporting to a session that is gone. You run until the human stops you, and stopping you is theirs.
 
@@ -32,6 +34,8 @@ Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree alrea
 Spawn one agent per launchable intent, **every spawn in a single message**, so the drafting — the slow part — happens at once. Each agent then runs `kk-handoff` **inline**. That skill bars spawning *it*, not spawning an agent that runs it over context you handed it — so you spawn the agent, never `kk-handoff`.
 
 **Keep the chip prompt thin** — the one the agent drafts. It states one task: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
+
+**Say in the prompt that the pass spawns one subagent per stage**, so the human's click is what authorises those spawns. You cannot authorise them yourself — you are that session's peer, not its user — and a session whose own instructions bar it from spawning otherwise reads the chip as withholding it and reviews its own work instead.
 
 Hand each agent what no file on disk carries, for that prompt:
 
