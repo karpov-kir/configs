@@ -198,8 +198,8 @@ func TestRouterReadAlwaysFilesAreHeldWholeByEveryone(t *testing.T) {
 // such a basename before it reports anything.
 func TestABasenameEveryLaneCarriesNamesAKindNotAFile(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "skills/one/SKILL.md", "# One\n")
-	write(t, root, "skills/two/SKILL.md", "# Two\n")
+	write(t, root, "kk-flavor/skills/one/SKILL.md", "# One\n")
+	write(t, root, "kk-flavor/skills/two/SKILL.md", "# Two\n")
 	write(t, root, "kk-flavor/templates/spawn.md", "Run the skill in full, per its `SKILL.md` → **Steps**\n")
 
 	_, edges, stderr := graph(t, root)
@@ -216,7 +216,7 @@ func TestABasenameEveryLaneCarriesNamesAKindNotAFile(t *testing.T) {
 // between it and the shared layer is exactly the ambiguity worth reporting.
 func TestOneLaneIsNotEveryLane(t *testing.T) {
 	root := t.TempDir()
-	write(t, root, "skills/only/notes.md", "# Only\n")
+	write(t, root, "kk-flavor/skills/only/notes.md", "# Only\n")
 	write(t, root, "kk-flavor/notes.md", "# Shared\n\n## Density\n")
 	write(t, root, "caller.md", "see `notes.md` → **Density**\n")
 
@@ -332,8 +332,8 @@ func TestTheRouterIsFoundByItsPathNotItsBasename(t *testing.T) {
 	write(t, root, "kk-flavor/inject.md", "# inject\n\n## Read always\n\n- [standards/real.md](standards/real.md)\n")
 	write(t, root, "kk-flavor/standards/real.md", "# R\n\n## Alpha\n")
 	write(t, root, "kk-flavor/standards/other.md", "# O\n\n## Beta\n")
-	write(t, root, "skills/decoy/inject.md",
-		"# decoy\n\n## Read always\n\n- [../../kk-flavor/standards/other.md](../../kk-flavor/standards/other.md)\n")
+	write(t, root, "kk-flavor/skills/decoy/inject.md",
+		"# decoy\n\n## Read always\n\n- [../../../kk-flavor/standards/other.md](../../../kk-flavor/standards/other.md)\n")
 
 	defined, _, _ := graph(t, root)
 	for range 50 {

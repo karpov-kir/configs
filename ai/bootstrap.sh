@@ -146,7 +146,12 @@ for dir in "$repo"/kk-flavor/skills/*/; do
   if bad_audience="$(unknown_audience "$skill_dir/SKILL.md")"; then
     refuse "${skill_dir##*/} declares 'audience: $bad_audience' in $skill_dir/SKILL.md, which no reader knows — the only value is 'audience: maintainer', and as written the skill installs for everyone"
   fi
-  if ! $maintainer && is_maintainer_only "$skill_dir/SKILL.md"; then
+  # Not on an uninstall. The tier a machine was installed with is nowhere on disk, so filtering here
+  # builds a removal table for the tier being asked for now rather than the one that wrote the mounts —
+  # `--maintainer` in, plain out, and the marked skills stay mounted while the run reports ok.
+  # `unlink_mount` removes only a symlink resolving under $repo, so widening the table cannot reach
+  # anything this checkout did not write.
+  if ! $maintainer && ! $uninstall && is_maintainer_only "$skill_dir/SKILL.md"; then
     skipped_count=$((skipped_count + 1))
     skipped_names="$skipped_names ${skill_dir##*/}"
     continue
@@ -154,6 +159,39 @@ for dir in "$repo"/kk-flavor/skills/*/; do
   add_bulk "$skill_dir" "$HOME/.claude/skills/${skill_dir##*/}"
 done
 
+# --- uninstall -------------------------------------------------------------------------------------
+
+# A mode rather than a script of its own, over the same table declared above: a second script
+# re-deriving what to remove drifts from what was installed, and drifts in the one direction nobody
+# notices — leaving things behind and reporting ok.
+if $uninstall; then
+  unmount_run
+  say "instructions"
+  if $owner; then
+    say "  ok       the instruction file was a mount, removed above"
+  elif [ -e "$claude_md" ]; then
+    region_remove "$claude_md" "$region_open" "$region_close"
+  else
+    say "  ok       $claude_md is not there"
+  fi
+
+  projects="$(registry_live | grep -c . || true)"
+  if [ "$projects" -gt 0 ]; then
+    say ""
+    say "  $projects project(s) still hold skills mounted from this checkout. Their mounts now dangle:"
+    registry_live | while IFS= read -r p; do [ -n "$p" ] && say "    $p"; done
+    say "  Run ai/install-project.sh --uninstall <project> for each before removing this checkout."
+  fi
+  say ""
+  say "  jq is left installed: nothing records whether this machine had it already or what else"
+  say "  needs it, and a brew formula is shared and unrefcounted. The same goes for rtk."
+  report_and_exit
+fi
+
+# Ahead of mount_run, not after it. Reached from below, an uninstall LINKS every mount first and then
+# removes it: on a machine holding none, `--uninstall` builds the whole tree and tears it down again,
+# and an interrupt between the two leaves the machine installed by the command that exists to
+# uninstall it. ai/install-project.sh has always had this order; this file did not.
 mount_run
 
 # Said out loud, and after the mounts so it reads beside them. A flag that quietly leaves skills out is
@@ -204,35 +242,6 @@ write_instruction_region() {
   fi
   region_write "$claude_md" "$region_open" "$region_close" "$(region_body)"
 }
-
-# --- uninstall -------------------------------------------------------------------------------------
-
-# A mode rather than a script of its own, over the same table declared above: a second script
-# re-deriving what to remove drifts from what was installed, and drifts in the one direction nobody
-# notices — leaving things behind and reporting ok.
-if $uninstall; then
-  unmount_run
-  say "instructions"
-  if $owner; then
-    say "  ok       the instruction file was a mount, removed above"
-  elif [ -e "$claude_md" ]; then
-    region_remove "$claude_md" "$region_open" "$region_close"
-  else
-    say "  ok       $claude_md is not there"
-  fi
-
-  projects="$(registry_live | grep -c . || true)"
-  if [ "$projects" -gt 0 ]; then
-    say ""
-    say "  $projects project(s) still hold skills mounted from this checkout. Their mounts now dangle:"
-    registry_live | while IFS= read -r p; do [ -n "$p" ] && say "    $p"; done
-    say "  Run ai/install-project.sh --uninstall <project> for each before removing this checkout."
-  fi
-  say ""
-  say "  jq is left installed: nothing records whether this machine had it already or what else"
-  say "  needs it, and a brew formula is shared and unrefcounted. The same goes for rtk."
-  report_and_exit
-fi
 
 write_instruction_region
 

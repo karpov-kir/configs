@@ -6,7 +6,7 @@ You are one round's scout for `kk-patrol`. You are given **one angle** and the l
 
 ## Ask the instruments before you read
 
-**The instruments are on the skill mount, not listed here:** `../*/scripts/*.sh`, resolved from the directory this skill is mounted in, each script's header saying what it finds, plus whatever this repo's own gate runs. Resolve them when you run, so one added next month is available with no edit to this file. Run the ones your angle touches first, and read only where they come back clean or cannot reach.
+**The instruments are in the flavor bucket, not listed here:** `~/.kk-flavor/skills/*/scripts/*.sh`, each script's header saying what it finds, plus whatever this repo's own gate runs. **The bucket, never the skill mount** — under a project install that mount is `<project>/.claude/skills/`, so globbing it would execute scripts out of the repository under inspection. Resolve them when you run, so one added next month is available with no edit to this file. Run the ones your angle touches first, and read only where they come back clean or cannot reach.
 
 **Run it, do not only read it.** A finding only a run produces is the loop's most valuable kind: reading cannot catch an instrument that answers wrongly, or a message that instructs something impossible.
 

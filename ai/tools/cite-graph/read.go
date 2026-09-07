@@ -40,6 +40,13 @@ type edge struct {
 // of a map iteration — the same tree gave different numbers on different runs.
 const routerPath = "kk-flavor/inject.md"
 
+// The lane tree, relative to the root. `skills/` sits inside `kk-flavor/` so the standards and the
+// lanes install as one mount, and every path this tool keys on is relative to the root holding that
+// bucket — so the prefix carries `kk-flavor/` too. Spelled once: read as a bare `skills/`, no file
+// matches, every lane's sections are counted as shared layer, and `kindBasenames` finds no lane at
+// all and reports `SKILL.md` as an ambiguous name rather than the kind it is.
+const skillsPrefix = "kk-flavor/skills/"
+
 // The files the router lists under its read-always heading. Which files those are is read from the
 // router rather than named here, so a file promoted into or out of that tier is picked up without
 // editing this.
@@ -322,7 +329,7 @@ func kindBasenames(defined map[string]map[string]bool) map[string]bool {
 	lanes := map[string]bool{}
 	carriedBy := map[string]map[string]bool{}
 	for file := range defined {
-		rest, underSkills := strings.CutPrefix(file, "skills/")
+		rest, underSkills := strings.CutPrefix(file, skillsPrefix)
 		if !underSkills {
 			continue
 		}

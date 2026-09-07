@@ -69,8 +69,13 @@ done
 # Resolved before anything is written, so every path below and the registry entry all name the same
 # directory however the caller spelled it. A project that is not there is refused rather than created:
 # this installs into a repository someone already has.
+#
+# The spelling is kept, because the assignment below lands whether or not the substitution succeeded:
+# reading `$project` in the refusal reads the empty string it just became. `$1` is not it either — the
+# project can follow a flag, and then `$1` is the flag and the message names the wrong thing.
+project_as_typed="$project"
 project="$(CDPATH= cd -P -- "$project" 2>/dev/null && pwd -P)" || {
-  printf 'ai/install-project.sh: %s is not a directory — nothing was written\n' "$1" >&2
+  printf 'ai/install-project.sh: %s is not a directory — nothing was written\n' "$project_as_typed" >&2
   exit 2
 }
 
@@ -140,7 +145,13 @@ for dir in "$repo"/kk-flavor/skills/*/; do
   fi
   # Maintainer-only skills are for maintaining this instruction tree and do nothing for a project
   # that merely uses it, so a project install leaves them out unless asked.
-  if ! $maintainer && is_maintainer_only "$skill_dir/SKILL.md"; then
+  #
+  # Not on an uninstall. The tier a project was installed with is nowhere on disk, so filtering here
+  # builds a removal table for the tier being asked for now rather than the one that wrote the mounts —
+  # `--maintainer` in, plain out, and the marked skills stay mounted while the run reports ok and
+  # forgets the project, so nothing ever names them again. `unlink_mount` removes only a symlink
+  # resolving under $repo, so widening the table cannot reach anything this checkout did not write.
+  if ! $maintainer && ! $uninstall && is_maintainer_only "$skill_dir/SKILL.md"; then
     skipped_count=$((skipped_count + 1))
     skipped_names="$skipped_names ${skill_dir##*/}"
     continue
@@ -208,16 +219,19 @@ elif [ -e "$gitignore" ]; then
 else
   if $dry_run; then
     say "  would create $gitignore with the skill ignore rules"
-  elif ignore_body >"$gitignore.tmp" 2>/dev/null &&
-    {
-      printf '%s\n' "$ignore_open"
-      ignore_body
-      printf '%s\n' "$ignore_close"
-    } >"$gitignore" &&
-    rm -f -- "$gitignore.tmp"; then
+  elif [ -L "$gitignore" ]; then
+    # A dangling symlink answers "not there" to the `-e` above, and `>` follows it — so without this
+    # the branch truncates and rewrites whatever the link names, anywhere the installer's user can
+    # write. This is the refusal region_writable makes on every path that goes through it; the
+    # creation branch does not, so it makes it here.
+    refuse "$gitignore is a symlink, and this writes the file itself — repoint or remove it, then re-run"
+  elif {
+    printf '%s\n' "$ignore_open"
+    ignore_body
+    printf '%s\n' "$ignore_close"
+  } >"$gitignore"; then
     say "  created  $gitignore with the skill ignore rules"
   else
-    rm -f -- "$gitignore.tmp"
     refuse "could not create $gitignore — the skill mounts are not ignored and will show up in this project's history"
   fi
 fi
@@ -225,7 +239,11 @@ fi
 # CLAUDE.md is the project's own file and may not exist yet. Created empty first when absent, because
 # owned-region refuses to create a file and is right to: a typo in a path should not scatter new files
 # through someone's repository, but the path here was resolved above and is the project root.
-if [ ! -e "$claude_md" ] && ! $dry_run; then
+# `! -L` beside `! -e`, the form ai/bootstrap.sh already uses: `-e` follows a symlink, so a DANGLING
+# one at this path answers "does not exist" and the redirect below would then create the file the link
+# names — anywhere on disk the installer's user can write. region_write refuses a symlinked target,
+# but only after this branch has already created it.
+if [ ! -e "$claude_md" ] && [ ! -L "$claude_md" ] && ! $dry_run; then
   : >"$claude_md" || refuse "could not create $claude_md"
 fi
 if [ ! -e "$claude_md" ] && $dry_run; then

@@ -47,7 +47,7 @@ registry_live() {
     # A blank line or a comment is not an entry, so it is not printed — but it is kept, because a
     # human who opens this file to see what is in it may well annotate it, and eating their note
     # while pruning dead projects is a poor answer to a question they did not ask.
-    case "$line" in
+    case "$(printf '%s' "$line" | sed 's/^[[:space:]]*//')" in
       '' | '#'*)
         kept="$kept$line
 "

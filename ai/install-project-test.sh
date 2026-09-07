@@ -111,6 +111,20 @@ grep -q "kk-flavor:begin" "$project/.gitignore" &&
 run_install "$project" --uninstall
 expect_status "uninstalling twice is not an error" 0
 
+# The tier a project was installed with is written down nowhere, so an uninstall that re-applies the
+# audience filter builds its removal table for the tier being asked for NOW. `--maintainer` in and
+# plain out leaves exactly the marked skills mounted — and the registry entry goes, so nothing on the
+# machine ever names them again.
+fresh_home
+new_project tiered
+run_install "$project" --maintainer
+run_install "$project" --uninstall
+expect_status "uninstall after a --maintainer install exits 0" 0
+[ -z "$(find "$project/.claude/skills" -mindepth 1 -maxdepth 1 -type l 2>/dev/null)" ] &&
+  record_pass "a plain --uninstall removes what --maintainer installed" ||
+  record_fail "a plain --uninstall removes what --maintainer installed" \
+    "still mounted: $(find "$project/.claude/skills" -mindepth 1 -maxdepth 1 -type l -exec basename {} \; | tr '\n' ' ')"
+
 # --- a project that already ignores .claude/ wholesale --------------------------------------------------------
 
 # Reported rather than appended to: that rule covers the project's own settings as well as our mounts,
@@ -139,6 +153,29 @@ grep -q "^\.claude/skills/idsd-\*$" "$project/.gitignore" 2>/dev/null &&
   record_pass "and .gitignore is created with the rules" ||
   record_fail "and .gitignore is created with the rules" "$(cat "$project/.gitignore" 2>/dev/null)"
 
+# --- planted symlinks in the project ----------------------------------------------------------------
+
+# Both creation branches take a path that does not exist yet, and `-e` follows a symlink — so a
+# DANGLING link checked into a repository answers "not there" and the redirect then writes whatever it
+# names, anywhere the installer's user can write. A repository is not trusted input.
+fresh_home
+project="$tmp_real/planted"
+mkdir -p "$project"
+printf 'do not touch\n' >"$tmp_real/outside.txt"
+ln -s "$tmp_real/outside.txt" "$project/.gitignore"
+run_install "$project"
+expect_out "a symlinked .gitignore is refused, not written through" "is a symlink"
+expect_file_body "and the file it named is untouched" "$tmp_real/outside.txt" 'do not touch'
+
+fresh_home
+project="$tmp_real/planted2"
+mkdir -p "$project"
+ln -s "$tmp_real/never-created.txt" "$project/CLAUDE.md"
+run_install "$project"
+[ ! -e "$tmp_real/never-created.txt" ] &&
+  record_pass "a dangling CLAUDE.md symlink does not create the file it names" ||
+  record_fail "a dangling CLAUDE.md symlink does not create the file it names" "it was created"
+
 # --- arguments --------------------------------------------------------------------------------------------------
 
 fresh_home
@@ -151,6 +188,14 @@ out=$(HOME="$home" bash "$script" "$tmp_real/nowhere" 2>&1)
 status=$?
 expect_status "a project that is not there exits 2" 2
 expect_out "and says nothing was written" "nothing was written"
+
+# Behind a flag, because the project is the only argument above and any variable at all would name it
+# correctly there. The refusal has to echo back what the human typed, or it sends them looking at the
+# flag rather than at the path they got wrong.
+out=$(HOME="$home" bash "$script" --dry-run "$tmp_real/nowhere" 2>&1)
+status=$?
+expect_status "a missing project behind a flag exits 2" 2
+expect_out "and names the project, not the flag" "$tmp_real/nowhere is not a directory"
 
 out=$(HOME="$home" bash "$script" "$tmp_real/bare" --not-a-flag 2>&1)
 status=$?
@@ -171,7 +216,7 @@ grep -q "kk-flavor:begin" "$project/CLAUDE.md" &&
   record_pass "and writes no region"
 [ ! -e "$home/.config/kk-flavor/installs" ] &&
   record_pass "and records nothing" ||
-  record_pass "and records nothing"
+  record_fail "and records nothing" "$(cat "$home/.config/kk-flavor/installs")"
 
 # --- the second-checkout guard, through THIS script's name --------------------------------------------------------
 

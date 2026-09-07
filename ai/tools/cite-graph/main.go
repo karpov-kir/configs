@@ -172,7 +172,7 @@ func reportUnentered(out io.Writer, defined map[string]map[string]bool, targets 
 			continue
 		}
 		unentered += len(dead)
-		if !strings.HasPrefix(f, "skills/") && !routed[f] {
+		if !strings.HasPrefix(f, skillsPrefix) && !routed[f] {
 			shared += len(dead)
 			fmt.Fprintf(out, "  shared  %-34s %s\n", shell.Oneline(f), strings.Join(printable(dead), ", "))
 		}

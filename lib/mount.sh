@@ -308,6 +308,15 @@ unlink_mount() {
     return 0
   fi
   current="$(readlink "$target")"
+  # Absolute only, the same test `mount_foreign_root` makes and for the same reason: a relative value
+  # resolves against THIS process's working directory, not the link's own, so `cd ai && ./..." would
+  # judge ownership from somewhere the link never named — and a link reading `notmine` would resolve
+  # under $repo and be deleted. Every link these scripts write is absolute, so a relative one was not
+  # written here and is not ours to remove.
+  if [ "${current#/}" = "$current" ]; then
+    refuse "$target points at the relative path $current, which this never writes — left alone"
+    return 1
+  fi
   # Resolved rather than string-compared, so a link written through a differently-spelled but
   # equivalent path is still recognised as ours. A link resolving nowhere resolves to empty and falls
   # through to the refusal, which is right: its target is unknown, so its ownership is too.

@@ -247,6 +247,47 @@ done
   record_pass "--maintainer mounts a marked skill like any other" ||
   record_fail "--maintainer mounts a marked skill like any other" "not mounted:$missing"
 
+# --- --uninstall ------------------------------------------------------------------------------------
+
+# A documented, published mode with nothing measuring it. What it removes, and what it must not write
+# on the way there.
+fresh_home
+run_boot "$home" --uninstall
+expect_status "--uninstall over a machine holding nothing exits 0" 0
+# The load-bearing one. Declared above mount_run, the uninstall path links every mount and then
+# removes it — so an interrupt between the two leaves the machine installed by the command that exists
+# to uninstall it, and a run over a clean machine reads like an install.
+expect_not_out "and links nothing on the way" "  linked   "
+[ ! -e "$home/.kk-flavor" ] && [ ! -L "$home/.kk-flavor" ] &&
+  record_pass "and leaves no bucket behind" ||
+  record_fail "and leaves no bucket behind" "$home/.kk-flavor is there"
+
+fresh_home
+run_boot "$home"
+run_boot "$home" --uninstall
+expect_status "--uninstall over an installed machine exits 0" 0
+[ ! -e "$home/.kk-flavor" ] && [ ! -L "$home/.kk-flavor" ] &&
+  record_pass "and the bucket mount is gone" ||
+  record_fail "and the bucket mount is gone" "still there"
+[ -z "$(find "$home/.claude/skills" -mindepth 1 -maxdepth 1 -type l 2>/dev/null)" ] &&
+  record_pass "and every skill mount is gone" ||
+  record_fail "and every skill mount is gone" "$(find "$home/.claude/skills" -mindepth 1 -maxdepth 1 -type l | tr '\n' ' ')"
+
+# The tier a machine was installed with is written down nowhere, so an uninstall that re-applies the
+# audience filter builds its removal table for the tier being asked for NOW. `--maintainer` in and
+# plain out leaves exactly the marked skills mounted, reporting ok.
+fresh_home
+run_boot "$home" --maintainer
+run_boot "$home" --uninstall
+left=""
+for skill_name in $maintainer_skills; do
+  [ -e "$home/.claude/skills/$skill_name" ] || [ -L "$home/.claude/skills/$skill_name" ] &&
+    left="$left $skill_name"
+done
+[ -z "$left" ] &&
+  record_pass "a plain --uninstall removes what --maintainer installed" ||
+  record_fail "a plain --uninstall removes what --maintainer installed" "still mounted:$left"
+
 # The retired flag. Deleted rather than accepted as a no-op: an alias that quietly does nothing
 # outlives everyone's memory of why it was there, and this script already refuses what it does not
 # know.

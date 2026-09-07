@@ -87,6 +87,18 @@ case_dry_run=false drive "region_remove '$tmp/a.md' '$OPEN' '$CLOSE'"
 expect_out "removing an absent region is not an error" "carries no"
 expect_out "and it refuses nothing" "---refusals:0"
 
+# The one-line file above cannot see this: removal holds back the blank line it added ahead of the
+# fence, and holding it as the line itself is indistinguishable from holding nothing — so every blank
+# line in a real, paragraphed CLAUDE.md goes with the region. The whole file is compared, not grepped
+# for its words: a grep for the paragraphs passes over a file whose paragraph breaks are gone.
+paragraphs=$(printf '# Project\n\nHow this works.\n\nAnd a second paragraph.\n')
+printf '%s\n' "$paragraphs" >"$tmp/para.md"
+case_dry_run=false drive "region_write '$tmp/para.md' '$OPEN' '$CLOSE' 'BODY'"
+case_dry_run=false drive "region_remove '$tmp/para.md' '$OPEN' '$CLOSE'"
+[ "$(cat "$tmp/para.md")" = "$paragraphs" ] &&
+  record_pass "a paragraphed file comes back byte-identical after write then remove" ||
+  record_fail "a paragraphed file comes back byte-identical after write then remove" "got: $(cat "$tmp/para.md")"
+
 # --- the states that refuse -----------------------------------------------------------------------------
 
 # Half a fence: something edited inside the region, so its extent is no longer ours to guess. This is
@@ -118,6 +130,36 @@ expect_out "a missing file refuses rather than being created" "never creates one
 [ ! -e "$tmp/nope.md" ] &&
   record_pass "and no file appeared" ||
   record_fail "and no file appeared" "it was created"
+
+# A write that cannot land. The replace runs on the right-hand side of a pipe, so a refusal made in
+# there dies with the subshell and the run exits 0 saying ok — having failed to write. The refusal
+# count is what this reads, because the REFUSED line prints either way and is not the contract.
+#
+# The directory is stripped of write permission while the file inside it stays writable, so
+# region_writable passes and the temp file beside it is what fails. Run as root this case goes red
+# rather than green: root writes into a 555 directory, and no refusal is the wrong answer to assert.
+printf 'Theirs.\n\n%s\nOLD\n%s\n' "$OPEN" "$CLOSE" >"$tmp/locked.md"
+chmod 555 "$tmp"
+case_dry_run=false drive "region_write '$tmp/locked.md' '$OPEN' '$CLOSE' 'NEW'"
+chmod 755 "$tmp"
+expect_out "a replace that cannot write is counted as a refusal" "---refusals:1"
+grep -q "^OLD$" "$tmp/locked.md" &&
+  record_pass "and the original is untouched" ||
+  record_fail "and the original is untouched" "$(cat "$tmp/locked.md")"
+
+# A hardlink is neither a symlink nor a missing file, so no other check catches it — and the append
+# path would copy the linked file's contents into the target, which for a link to somebody's private
+# file is a one-way leak of it into the project.
+printf 'secret\n' >"$tmp/private.md"
+ln "$tmp/private.md" "$tmp/hard.md"
+case_dry_run=false drive "region_write '$tmp/hard.md' '$OPEN' '$CLOSE' 'BODY'"
+expect_out "a hardlinked target refuses" "hard links"
+grep -q "^BODY$" "$tmp/hard.md" &&
+  record_fail "and nothing was written through it" "it wrote" ||
+  record_pass "and nothing was written through it"
+[ "$(cat "$tmp/private.md")" = "secret" ] &&
+  record_pass "and the file sharing its contents is untouched" ||
+  record_fail "and the file sharing its contents is untouched" "$(cat "$tmp/private.md")"
 
 # --- dry run ---------------------------------------------------------------------------------------------
 

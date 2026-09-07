@@ -90,6 +90,17 @@ region_writable() { # <file>
     refuse "$file is not writable — nothing was written"
     return 1
   fi
+  # A hardlink is neither a symlink nor a missing file, so nothing above catches it — and the append
+  # path copies the file's existing contents into the replacement, which for a link to somebody's
+  # private file copies that file into the project. The `mv` breaks the link so the original is never
+  # modified, but the read has already happened, and this library has no business reading a file its
+  # caller only named one name for.
+  local links
+  links="$(stat -f '%l' "$file" 2>/dev/null || stat -c '%h' "$file" 2>/dev/null || printf '1')"
+  if [ "$links" -gt 1 ] 2>/dev/null; then
+    refuse "$file has $links hard links, so its contents are shared with a file this never named — nothing was written"
+    return 1
+  fi
   return 0
 }
 
@@ -97,16 +108,18 @@ region_writable() { # <file>
 # is on one filesystem and therefore atomic: a killed run leaves the original untouched rather than a
 # half-written CLAUDE.md. `cat` into the temp preserves the original's permissions poorly, so they are
 # copied over explicitly before the swap.
+#
+# It refuses nothing itself, and returns a code naming the step that failed instead. Both callers reach
+# it as `awk ... | _region_replace`, and the right-hand side of a pipe is a subshell — so a `refuse`
+# made in here would land in a copy of the refusals array that dies with the pipe, and the run would
+# exit 0 reporting ok having failed to write. That is the hazard region_write's header states for the
+# body, from the other end. `_region_refuse` below turns the code into the sentence, in the caller.
 _region_replace() { # <file> <content on stdin>
   local file="$1" tmp
-  tmp="$(mktemp "${file%/*}/.kk-region.XXXXXX")" || {
-    refuse "could not create a temporary file beside $file — nothing was written"
-    return 1
-  }
+  tmp="$(mktemp "${file%/*}/.kk-region.XXXXXX")" || return 2
   cat >"$tmp" || {
     rm -f -- "$tmp"
-    refuse "could not write the new $file — the original is untouched"
-    return 1
+    return 3
   }
   # Carry the original's mode over, so a file the human made executable or group-writable does not
   # silently come back as whatever the umask says.
@@ -116,10 +129,21 @@ _region_replace() { # <file> <content on stdin>
   }
   mv -f -- "$tmp" "$file" || {
     rm -f -- "$tmp"
-    refuse "could not replace $file — the original is untouched"
-    return 1
+    return 4
   }
   return 0
+}
+
+# The refusal _region_replace could not make. Called in the current shell, so the refusal it records is
+# the one report_and_exit reads.
+_region_refuse() { # <exit code from the pipeline> <file>
+  case "$1" in
+    0) return 0 ;;
+    2) refuse "could not create a temporary file beside $2 — nothing was written" ;;
+    3) refuse "could not write the new $2 — the original is untouched" ;;
+    *) refuse "could not replace $2 — the original is untouched" ;;
+  esac
+  return 1
 }
 
 # Write the region: append it when absent, rewrite between the fences when present, and say nothing
@@ -159,7 +183,8 @@ region_write() { # <file> <open fence> <close fence> <body>
       $0 == openf { print; print body; skipping = 1; next }
       $0 == closef { skipping = 0 }
       !skipping { print }
-    ' "$file" | _region_replace "$file" || return 1
+    ' "$file" | _region_replace "$file"
+    _region_refuse "$?" "$file" || return 1
     say "  rewrote  the $open region in $file"
     return 0
   fi
@@ -176,7 +201,8 @@ region_write() { # <file> <open fence> <close fence> <body>
     [ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ] && printf '\n'
     [ -s "$file" ] && printf '\n'
     printf '%s\n%s\n%s\n' "$open" "$body" "$close"
-  } | _region_replace "$file" || return 1
+  } | _region_replace "$file"
+  _region_refuse "$?" "$file" || return 1
   say "  added    the $open region to $file"
 }
 
@@ -208,7 +234,12 @@ region_remove() { # <file> <open fence> <close fence>
     inside { next }
     # One blank line immediately before the open fence is ours — the writer put it there. Held back
     # rather than printed, and flushed only if something follows, so the file does not end on it.
-    { if (held != "") { print held; held = "" } if ($0 == "") { held = $0; next } print }
-  ' "$file" | _region_replace "$file" || return 1
+    #
+    # A flag rather than the blank line itself: a held blank stored in a variable is the empty string,
+    # which is what "holding nothing" also looks like, so the flush never fires and EVERY blank line
+    # in the file gets swallowed along with the one we own.
+    { if (holding) { print ""; holding = 0 } if ($0 == "") { holding = 1; next } print }
+  ' "$file" | _region_replace "$file"
+  _region_refuse "$?" "$file" || return 1
   say "  removed  the $open region from $file"
 }
