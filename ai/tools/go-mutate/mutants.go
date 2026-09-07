@@ -1112,9 +1112,13 @@ var mutants = []mutant{
 	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
 	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"if goSuiteRun.Match(body) {", "if goSuiteRun.Match(body) && false {"},
+		"if goSuiteRun.MatchString(body) {", "if goSuiteRun.MatchString(body) && false {"},
 	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
+	{"gate: a suite is keyed on nothing it sources from lib/", "../gate/units.go", "./gate/", "TestEditingASourcedLibraryMovesTheBootstrapUnitsKeys",
+		"sourcedLibs(body, siblingBody)", "sourcedLibs()"},
+	{"gate: an unreadable lib source line is accepted rather than refused", "../gate/units.go", "./gate/", "TestASuiteSourcingALibraryInAnUnreadableFormIsRefused",
+		"if missed := unreadLib(libs, body, siblingBody); missed != \"\" {", "if missed := unreadLib(libs, body, siblingBody); false {"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
 	// those build temp HOMEs and link into them.

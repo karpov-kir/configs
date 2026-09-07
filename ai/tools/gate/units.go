@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"kk-flavor/tools/shell"
@@ -36,6 +37,15 @@ var extQualify = []string{"ai/skills/idsd-qualify/scripts", "ai/skills/idsd-qual
 // `go vet` both compile `_test.go`, so a suite reaching for either sees those files and must stay
 // keyed on them.
 var goSuiteRun = regexp.MustCompile(`\bgo (test|vet)\b`)
+
+// Keyed on, or an edit under lib/ moves what the suite measures while the suite and its script sit
+// still. The two prefixes written here, `$repo/../lib/` and `$checkout/lib/`, both land on the
+// repository's own lib/.
+var sourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*\.[ \t]+"[^"]*/lib/([^"/]+\.sh)"`)
+
+// One shell-word wider, to refuse what the pattern above cannot key on rather than key on nothing.
+// Neither reads a source line buried mid-line, nor a library some third file sources.
+var anySourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?\blib/([A-Za-z0-9._-]+\.sh)`)
 
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
 	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
@@ -138,25 +148,30 @@ func (g *gate) discoverShellSuites() int {
 		// unit's verdict with neither the suite nor its script moving a byte.
 		inputs := []string{suite, "ai/run-tests.sh"}
 		sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
-		if _, err := os.Stat(filepath.Join(g.root, sibling)); err == nil {
+		siblingPath := filepath.Join(g.root, sibling)
+		if _, err := os.Stat(siblingPath); err == nil {
 			inputs = append(inputs, sibling)
 		}
+		body := fileText(filepath.Join(g.root, suite))
+		siblingBody := fileText(siblingPath)
+		libs := sourcedLibs(body, siblingBody)
+		if missed := unreadLib(libs, body, siblingBody); missed != "" {
+			return g.fail("%s or the script it covers sources %s in a form the input scan does not "+
+				"read, so the unit would run that library without being keyed on it — nothing ran",
+				suite, missed)
+		}
+		inputs = append(inputs, libs...)
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
 		// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
 		// puts in a binary.
 		viaBinary := false
-		if body, err := os.ReadFile(filepath.Join(g.root, suite)); err == nil {
-			for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
-				if strings.Contains(string(body), marker) {
-					inputs = append(inputs, goTree)
-					viaBinary = true
-					break
-				}
-			}
-			if goSuiteRun.Match(body) {
-				viaBinary = false
-			}
+		if drivesGoTool(body) {
+			inputs = append(inputs, goTree)
+			viaBinary = true
+		}
+		if goSuiteRun.MatchString(body) {
+			viaBinary = false
 		}
 		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit 2
 		// is "did not measure", and a suite exiting 0 having run no case is VACUOUS and a failure. Run
@@ -215,6 +230,46 @@ func (g *gate) discoverGoMutants() int {
 		g.add(id, "mutation", inputs, g.goMutateBinary+" -file "+shellQuote(file))
 	}
 	return 0
+}
+
+func drivesGoTool(body string) bool {
+	for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
+		if strings.Contains(body, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func unreadLib(keyed []string, bodies ...string) string {
+	for _, body := range bodies {
+		for _, match := range anySourcedLibLine.FindAllStringSubmatch(body, -1) {
+			if lib := "lib/" + match[1]; !slices.Contains(keyed, lib) {
+				return lib
+			}
+		}
+	}
+	return ""
+}
+
+func sourcedLibs(bodies ...string) []string {
+	var libs []string
+	for _, body := range bodies {
+		for _, match := range sourcedLibLine.FindAllStringSubmatch(body, -1) {
+			libs = append(libs, "lib/"+match[1])
+		}
+	}
+	return shell.SortUnique(libs)
+}
+
+// Empty rather than a refusal where the file cannot be read: the unit stays keyed on the suite either
+// way, and run-tests.sh is what reports a suite it cannot run.
+func fileText(path string) string {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(body)
 }
 
 // Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
