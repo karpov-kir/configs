@@ -377,15 +377,15 @@ func newNameResolver(root string, defined map[string]map[string]bool, errOut io.
 // into one node and reports chains nobody walks through it.
 func (r *nameResolver) fileNamed(c rawCite) string {
 	if strings.ContainsRune(c.target, '/') {
-		// The forms one cited path is written in: relative to the citer, and with each mount prefix
-		// off, because a citation names `~/.kk-flavor/standards/writing.md` for a file this graph
-		// keys as `kk-flavor/standards/writing.md`.
+		// The forms one cited path is written in: relative to the citer, and with the flavor bucket's
+		// mount prefix off, because a citation names `~/.kk-flavor/standards/writing.md` for a file
+		// this graph keys as `kk-flavor/standards/writing.md`. The skill mount under `.claude/skills/`
+		// is not a second one — `eco-check` and `rule-echo` both refuse a path written that way.
 		cleaned := strings.TrimPrefix(strings.TrimPrefix(c.target, "~/"), "./")
 		forms := []string{
 			relOf(r.root, filepath.Join(c.fromDir, c.target)),
 			cleaned,
 			strings.TrimPrefix(cleaned, ".kk-flavor/"),
-			strings.TrimPrefix(cleaned, ".claude/"),
 		}
 		for _, candidate := range forms {
 			if _, ok := r.defined[candidate]; ok {

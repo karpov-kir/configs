@@ -745,6 +745,27 @@ expect_out "and says how many mounts it moved, and off what" "moving $want_total
 expect_link_to "and the skill mount now points at this checkout" \
   "$home/.claude/skills/$first_shared" "$here/kk-flavor/skills/$first_shared"
 
+
+# --- ai/CLAUDE.md carries the same region body every other tier is given ---------------------------
+
+# The owner tier mounts ai/CLAUDE.md, so its reader gets that file's own text; everyone else gets the
+# fenced region flavor_region_body() writes. The two say the same thing and cannot be derived from one
+# another — generating three lines would cost a generator and a gate unit to keep it honest — so this
+# is what catches the wording drifting apart. Compared as the body's lines, not as a whole file: the
+# owner's copy sits under a heading and beside prose the fenced copy has no business carrying.
+region_body_missing=""
+while IFS= read -r region_line; do
+  [ -n "$region_line" ] || continue
+  grep -qF -- "$region_line" "$here/CLAUDE.md" || region_body_missing="$region_line"
+done < <(
+  # shellcheck source=../lib/flavor-region.sh
+  . "$checkout/lib/flavor-region.sh" && flavor_region_body
+)
+[ -z "$region_body_missing" ] &&
+  record_pass "ai/CLAUDE.md carries every line of the region body the other tiers are given" ||
+  record_fail "ai/CLAUDE.md carries every line of the region body the other tiers are given" \
+    "missing: $region_body_missing"
+
 # --- the brew list and the README cannot drift apart --------------------------------------------
 
 expect_brew_matches_readme "$script" "$here/README.md"

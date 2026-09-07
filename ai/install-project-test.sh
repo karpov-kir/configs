@@ -227,8 +227,7 @@ other="$tmp_real/other-checkout"
 fixture_checkout "$other" ai
 mkdir -p "$other/ai/kk-flavor"
 cp "$script" "$other/ai/install-project.sh"
-cp "$checkout/lib/owned-region.sh" "$checkout/lib/install-registry.sh" \
-  "$checkout/lib/skill-audience.sh" "$other/lib/" 2>/dev/null
+fixture_libs "$script" "$other/lib"
 first_skill=$(basename "$(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)")
 mkdir -p "$other/ai/kk-flavor/skills/$first_skill" "$project/.claude/skills"
 ln -s "$other/ai/kk-flavor/skills/$first_skill" "$project/.claude/skills/$first_skill"

@@ -111,15 +111,15 @@ func (r *citationResolver) fileNamed(target, from string) string {
 		// A bare name carries no path to match on, so it names a file only when one file has it.
 		return only(r.byBase[target])
 	}
-	// The forms one cited path is written in: relative to the citing file, and with each mount
-	// prefix off, because a citation names `~/.kk-flavor/skills/x/SKILL.md` for a file this walk reached
-	// as `<root>/skills/x/SKILL.md`.
+	// The forms one cited path is written in: relative to the citing file, and with the flavor
+	// bucket's mount prefix off, because a citation names `~/.kk-flavor/skills/x/SKILL.md` for a file
+	// this walk reached as `<root>/skills/x/SKILL.md`. The skill mount under `.claude/skills/` is not
+	// a second one — see the resolver above on what a loose answer costs here.
 	cleaned := strings.TrimPrefix(strings.TrimPrefix(target, "~/"), "./")
 	forms := []string{
 		filepath.Join(filepath.Dir(from), target),
 		cleaned,
 		strings.TrimPrefix(cleaned, ".kk-flavor/"),
-		strings.TrimPrefix(cleaned, ".claude/"),
 	}
 	return only(r.tails(forms))
 }

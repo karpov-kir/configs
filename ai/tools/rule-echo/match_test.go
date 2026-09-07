@@ -156,6 +156,16 @@ func TestEveryWrittenFormOfACitationResolves(t *testing.T) {
 	}
 }
 
+// `~/.claude/skills/<name>` is where a skill is MOUNTED, not a form any citation is written in, so it
+// resolves to nothing and buys no exemption. The case above is this one's negative control: the same
+// path under `~/.kk-flavor/` does resolve, so a pass here is the mount prefix being refused rather
+// than the whole branch having stopped working.
+func TestTheSkillMountIsNotACitationForm(t *testing.T) {
+	if v := classifyTree(t, pairCiting("~/.claude/skills/idsd-qualify/SKILL.md")); v != restatement {
+		t.Fatalf("a citation through the skill mount classified as %v, want restatement", v)
+	}
+}
+
 // A citation resolves against the files the walk actually read, never against the shape of the path.
 // Every skill's file is named `SKILL.md`, so a match on a trailing segment or two rests entirely on
 // the parent: `~/vendor/delta/SKILL.md` then answers to the tree's own `skills/delta/SKILL.md`, and a

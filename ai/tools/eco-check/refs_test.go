@@ -58,6 +58,33 @@ func TestATraversalHomeRefIsNotStatted(t *testing.T) {
 	f.reports(ecocheck.DanglingHomeRef + "~/.kk-flavor/" + up)
 }
 
+// The mount prefix is matched so that a citation written through it is REPORTED, not passed over.
+// The tree cites itself through `~/.kk-flavor/skills/`; `~/.claude/skills/` is where a skill is
+// loaded from, never where it is cited from. cite-graph and rule-echo were changed to answer the
+// same way, and without this case eco-check could drop its half of that agreement in silence — the
+// three detectors would then disagree about one path and nothing would redden.
+func TestACitationThroughTheSkillMountIsReported(t *testing.T) {
+	t.Run("the mount prefix is a dangling ref", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/kk-flavor/skills/one")
+		f.write(f.root+"/kk-flavor/skills/one/SKILL.md", "# one\n")
+		f.write(f.root+"/kk-flavor/standards/probe.md",
+			"the mechanics are `~/.claude/skills/one/SKILL.md`\n")
+		f.reports(ecocheck.DanglingHomeRef + "~/.claude/skills/one/SKILL.md")
+	})
+
+	// The control. Without it the case above passes on a checker that reports every home ref, which
+	// is not what is being asserted.
+	t.Run("the flavor prefix resolves and is silent", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/kk-flavor/skills/one")
+		f.write(f.root+"/kk-flavor/skills/one/SKILL.md", "# one\n")
+		f.write(f.root+"/kk-flavor/standards/probe.md",
+			"the mechanics are `~/.kk-flavor/skills/one/SKILL.md`\n")
+		f.doesNotReport(ecocheck.DanglingHomeRef)
+	})
+}
+
 // One tree, every way `check.sh` lets a caller spell its root, and the same answer required from each.
 // The shape they disagreed on is a citation whose first component is the root's own directory name;
 // tree.go's suffix index says why, and carries the example. Each spelling is one a caller produces:

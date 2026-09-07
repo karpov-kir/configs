@@ -19,6 +19,10 @@ var (
 	// with a fragment names no file to count, while a citation with one names a file *and* a section,
 	// both checked here. So this admits the fragment and cuts it off itself below.
 	markdownLinkPattern = regexp.MustCompilePOSIX(`\]\([^)]+\)`)
+	// `claude/skills` is here so a citation written through the MOUNT is matched and then found
+	// dangling: resolveRef has no arm for that prefix, deliberately, because the tree cites itself
+	// through `~/.kk-flavor/skills/` and the mount is where a skill is loaded from, not where it is
+	// cited from. Matching it is the enforcement; dropping it from here would pass such a ref silently.
 	homeRefPattern      = regexp.MustCompilePOSIX(`~/\.(kk-flavor|claude/skills)/[A-Za-z0-9._/-]+`)
 	backtickedPathToken = regexp.MustCompilePOSIX(`^([A-Za-z0-9][A-Za-z0-9._/-]*/[A-Za-z0-9._-]+\.(sh|md)|[A-Za-z0-9][A-Za-z0-9._-]*\.sh|[A-Z][A-Z0-9]*(-[A-Z0-9]+)+\.md)$`)
 	skillFamilyToken    = regexp.MustCompile(`\b(kk|idsd)-[a-z0-9-]+`)

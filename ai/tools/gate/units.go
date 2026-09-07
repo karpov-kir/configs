@@ -29,7 +29,6 @@ const (
 	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
 	// The shared shell libraries every installer sources.
-	libTree = "lib"
 	// The stub scripts ai/tools/tool-stub-test.sh copies into fixtures and runs. copiedRepoFiles finds
 	// only the one path that suite spells out literally; the other six live in its `stubs()` table,
 	// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —

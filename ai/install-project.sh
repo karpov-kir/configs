@@ -79,7 +79,7 @@ project="$(CDPATH= cd -P -- "$project" 2>/dev/null && pwd -P)" || {
   exit 2
 }
 
-for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh; do
+for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh flavor-region.sh; do
   [ -r "$repo/../lib/$lib" ] || {
     printf 'ai/install-project.sh: lib/%s is missing from this checkout — ai/ and lib/ install together, and nothing was written\n' "$lib" >&2
     exit 2
@@ -87,13 +87,15 @@ for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh; do
 done
 # shellcheck source=../lib/mount.sh
 . "$repo/../lib/mount.sh"
-# owned-region and install-registry report through mount.sh's say/refuse, so they are sourced after it.
+# After mount.sh: all but flavor-region.sh reach its say, refuse and add_bulk.
 # shellcheck source=../lib/owned-region.sh
 . "$repo/../lib/owned-region.sh"
 # shellcheck source=../lib/install-registry.sh
 . "$repo/../lib/install-registry.sh"
 # shellcheck source=../lib/skill-audience.sh
 . "$repo/../lib/skill-audience.sh"
+# shellcheck source=../lib/flavor-region.sh
+. "$repo/../lib/flavor-region.sh"
 
 bulk_label="skills"
 mount_scope_label="$project's skills"
@@ -102,17 +104,6 @@ mount_scope_label="$project's skills"
 
 claude_md="$project/CLAUDE.md"
 gitignore="$project/.gitignore"
-
-region_open="<!-- kk-flavor:begin -->"
-region_close="<!-- kk-flavor:end -->"
-
-region_body() {
-  cat <<'BODY'
-### KK Flavor
-
-Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.
-BODY
-}
 
 ignore_open="# kk-flavor:begin"
 ignore_close="# kk-flavor:end"
@@ -155,31 +146,11 @@ create_ignore_file() {
 # than a script of its own: a second script re-deriving this table drifts from what was installed,
 # and drifts in the direction nobody notices — leaving things behind and reporting ok.
 
-skills_found=0
-skipped_count=0
-skipped_names=""
-for dir in "$repo"/kk-flavor/skills/*/; do
-  [ -d "$dir" ] || continue
-  skill_dir="${dir%/}"
-  skills_found=$((skills_found + 1))
-  if bad_audience="$(unknown_audience "$skill_dir/SKILL.md")"; then
-    refuse "${skill_dir##*/} declares 'audience: $bad_audience' in $skill_dir/SKILL.md, which no reader knows — the only value is 'audience: maintainer', and as written the skill installs for everyone"
-  fi
-  # Maintainer-only skills are for maintaining this instruction tree and do nothing for a project
-  # that merely uses it, so a project install leaves them out unless asked.
-  #
-  # Not on an uninstall. The tier a project was installed with is nowhere on disk, so filtering here
-  # builds a removal table for the tier being asked for now rather than the one that wrote the mounts —
-  # `--maintainer` in, plain out, and the marked skills stay mounted while the run reports ok and
-  # forgets the project, so nothing ever names them again. `unlink_mount` removes only a symlink
-  # resolving under $repo, so widening the table cannot reach anything this checkout did not write.
-  if ! $maintainer && ! $uninstall && is_maintainer_only "$skill_dir/SKILL.md"; then
-    skipped_count=$((skipped_count + 1))
-    skipped_names="$skipped_names ${skill_dir##*/}"
-    continue
-  fi
-  add_bulk "$skill_dir" "$project/.claude/skills/${skill_dir##*/}"
-done
+# Maintainer-only skills are for maintaining this instruction tree and do nothing for a project that
+# merely uses it, so a project install leaves them out unless asked. An uninstall takes them anyway,
+# and lib/skill-audience.sh carries why: here the cost of leaving them behind is that the run also
+# forgets the project, so nothing ever names them again.
+add_skill_mounts "$repo/kk-flavor/skills" "$project/.claude/skills" "$maintainer" "$uninstall"
 
 if [ "${#bulk_targets[@]}" -eq 0 ]; then
   if [ "$skills_found" -gt 0 ]; then
@@ -197,7 +168,7 @@ say "$label: $project"
 if $uninstall; then
   unmount_run
   say "project files"
-  region_remove "$claude_md" "$region_open" "$region_close"
+  region_remove "$claude_md" "$flavor_region_open" "$flavor_region_close"
   # The ignore rules go with the mounts they were hiding. Only our own fenced region, so a rule the
   # human wrote is not swept up with it.
   [ -e "$gitignore" ] && region_remove "$gitignore" "$ignore_open" "$ignore_close"
@@ -255,7 +226,7 @@ else
   if [ ! -e "$claude_md" ] && [ ! -L "$claude_md" ]; then
     : >"$claude_md" || refuse "could not create $claude_md"
   fi
-  region_write "$claude_md" "$region_open" "$region_close" "$(region_body)"
+  region_write "$claude_md" "$flavor_region_open" "$flavor_region_close" "$(flavor_region_body)"
 fi
 
 say "registry"

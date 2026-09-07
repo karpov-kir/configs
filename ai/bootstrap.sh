@@ -86,7 +86,7 @@ bulk_label="skills"
 # `add_cfg: command not found` and exits 127, naming neither the file that is gone nor what to do
 # about it — the same false diagnosis the verify step below guards against. ai/ is copied out of this
 # repository on its own, so a checkout without lib/ is a real one.
-for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh; do
+for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh flavor-region.sh; do
   [ -r "$repo/../lib/$lib" ] || {
     printf 'ai/bootstrap.sh: lib/%s is missing from this checkout — ai/ and lib/ install together, and nothing was linked\n' "$lib" >&2
     exit 2
@@ -94,26 +94,21 @@ for lib in mount.sh owned-region.sh install-registry.sh skill-audience.sh; do
 done
 # shellcheck source=../lib/mount.sh
 . "$repo/../lib/mount.sh"
-# The two below report through mount.sh's say/refuse and honour its $dry_run, so they follow it.
+# After mount.sh: all but flavor-region.sh reach its say, refuse, add_bulk and $dry_run.
 # shellcheck source=../lib/owned-region.sh
 . "$repo/../lib/owned-region.sh"
 # shellcheck source=../lib/install-registry.sh
 . "$repo/../lib/install-registry.sh"
+# shellcheck source=../lib/skill-audience.sh
+. "$repo/../lib/skill-audience.sh"
+# shellcheck source=../lib/flavor-region.sh
+. "$repo/../lib/flavor-region.sh"
 
 # --- the mount table ------------------------------------------------------------------------------
 
 add_cfg "$repo/kk-flavor" "$HOME/.kk-flavor"
 
 claude_md="$HOME/.claude/CLAUDE.md"
-region_open="<!-- kk-flavor:begin -->"
-region_close="<!-- kk-flavor:end -->"
-region_body() {
-  cat <<'BODY'
-### KK Flavor
-
-Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.
-BODY
-}
 
 # Only the owner's machine mounts this checkout's CLAUDE.md as its own. That file carries their rtk
 # hook and their memory rules on top of the region below, which is why it is not everyone's: a
@@ -123,38 +118,7 @@ if $owner; then
   add_cfg "$repo/CLAUDE.md" "$claude_md"
 fi
 
-# The audience readers both installers share.
-# shellcheck source=../lib/skill-audience.sh
-. "$repo/../lib/skill-audience.sh"
-
-# Discovery, not a list: a skill added tomorrow is mounted without anyone editing this file. The cost
-# of discovery is that finding none would silently mount nothing, so that is a refusal below.
-skills_found=0
-skipped_count=0
-skipped_names=""
-for dir in "$repo"/kk-flavor/skills/*/; do
-  [ -d "$dir" ] || continue
-  # `%/` first: `##*/` on a path ending in `/` returns nothing, pointing every skill at one target.
-  skill_dir="${dir%/}"
-  skills_found=$((skills_found + 1))
-  # Asked whatever the flags say: a marker nothing reads is wrong on a maintainer's machine too, and
-  # the run that installs it is the last moment anyone looks at that line. Mounting continues, so the
-  # tree behaves as it does today and the non-zero exit is what carries the news.
-  if bad_audience="$(unknown_audience "$skill_dir/SKILL.md")"; then
-    refuse "${skill_dir##*/} declares 'audience: $bad_audience' in $skill_dir/SKILL.md, which no reader knows — the only value is 'audience: maintainer', and as written the skill installs for everyone"
-  fi
-  # Not on an uninstall. The tier a machine was installed with is nowhere on disk, so filtering here
-  # builds a removal table for the tier being asked for now rather than the one that wrote the mounts —
-  # `--maintainer` in, plain out, and the marked skills stay mounted while the run reports ok.
-  # `unlink_mount` removes only a symlink resolving under $repo, so widening the table cannot reach
-  # anything this checkout did not write.
-  if ! $maintainer && ! $uninstall && is_maintainer_only "$skill_dir/SKILL.md"; then
-    skipped_count=$((skipped_count + 1))
-    skipped_names="$skipped_names ${skill_dir##*/}"
-    continue
-  fi
-  add_bulk "$skill_dir" "$HOME/.claude/skills/${skill_dir##*/}"
-done
+add_skill_mounts "$repo/kk-flavor/skills" "$HOME/.claude/skills" "$maintainer" "$uninstall"
 
 # --- uninstall -------------------------------------------------------------------------------------
 
@@ -167,7 +131,7 @@ if $uninstall; then
   if $owner; then
     say "  ok       the instruction file was a mount, removed above"
   elif [ -e "$claude_md" ]; then
-    region_remove "$claude_md" "$region_open" "$region_close"
+    region_remove "$claude_md" "$flavor_region_open" "$flavor_region_close"
   else
     say "  ok       $claude_md is not there"
   fi
@@ -244,7 +208,7 @@ write_instruction_region() {
       return 1
     }
   fi
-  region_write "$claude_md" "$region_open" "$region_close" "$(region_body)"
+  region_write "$claude_md" "$flavor_region_open" "$flavor_region_close" "$(flavor_region_body)"
 }
 
 write_instruction_region

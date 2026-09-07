@@ -344,6 +344,36 @@ func TestTheRouterIsFoundByItsPathNotItsBasename(t *testing.T) {
 	}
 }
 
+// The one mount prefix a citation is written with, and the one that is not a citation prefix at all.
+// `~/.kk-flavor/` is how this tree names a file it keys as `kk-flavor/...`. `~/.claude/skills/<name>`
+// is where a skill is MOUNTED, and no file cites through it — resolving it anyway makes this tool
+// answer a path `eco-check` and `rule-echo` both refuse, and three detectors disagreeing about one
+// path is invisible until someone reads all three.
+func TestOnlyTheFlavorBucketIsAMountPrefixACitationCarries(t *testing.T) {
+	cases := []struct {
+		name, cited string
+		wantEdges   int
+	}{
+		{"the flavor bucket", "~/.kk-flavor/skills/one/SKILL.md", 1},
+		{"the skill mount", "~/.claude/skills/one/SKILL.md", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root := t.TempDir()
+			write(t, root, "kk-flavor/skills/one/SKILL.md", "# One\n\n## Report\n")
+			write(t, root, "caller.md", "see `"+c.cited+"` → **Report**\n")
+
+			_, edges, stderr := graph(t, root)
+			if len(edges) != c.wantEdges {
+				t.Fatalf("edges = %+v, want %d for %s", edges, c.wantEdges, c.cited)
+			}
+			if c.wantEdges == 0 && !strings.Contains(stderr, "no such path") {
+				t.Errorf("a citation this drops has to say so: %s", stderr)
+			}
+		})
+	}
+}
+
 // A cited path that names no file must not be answered by its last segment. Answered that way, the
 // graph reports an edge to a file the citation never named — which is the whole of what keying on a
 // basename costs.

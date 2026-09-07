@@ -91,19 +91,24 @@ fixture_checkout() { # <root> <side>  e.g. fixture_checkout "$tmp/other-repo" en
   [ ! -L "$root" ] ||
     refuse_fixture "$root" "it already exists as a symlink to $(readlink "$root")"
   mkdir -p "$root/lib" "$root/$side"
-  # Every library the side's bootstrap sources, discovered from the script itself rather than listed
-  # here: a library added to it tomorrow would otherwise leave every fixture checkout dying on
-  # `No such file or directory` at the source line, which reads like the case failing rather than the
-  # fixture being short a file.
   cp "$checkout/$side/bootstrap.sh" "$root/$side/bootstrap.sh"
+  fixture_libs "$checkout/$side/bootstrap.sh" "$root/lib"
+}
+
+# Every library a script sources, copied beside a fixture copy of it. Discovered from the script
+# itself rather than listed by the caller: a library added to it tomorrow would otherwise leave the
+# fixture dying on `No such file or directory` at the source line, which reads like the case failing
+# rather than the fixture being short a file.
+fixture_libs() { # <script> <destination lib directory>
+  local script="$1" dest="$2" libname
   while IFS= read -r libname; do
     [ -n "$libname" ] || continue
     [ -f "$checkout/lib/$libname" ] || continue
-    cp "$checkout/lib/$libname" "$root/lib/$libname"
-  done < <(sed -n 's|^\. "\$repo/\.\./lib/\([a-z-]*\.sh\)"$|\1|p' "$checkout/$side/bootstrap.sh")
-  # mount.sh unconditionally: it is the one every side sources and the one whose absence has its own
-  # case, so a discovery miss must not be able to drop it silently.
-  cp "$checkout/lib/mount.sh" "$root/lib/mount.sh"
+    cp "$checkout/lib/$libname" "$dest/$libname"
+  done < <(sed -n 's|^\. "\$repo/\.\./lib/\([a-z-]*\.sh\)"$|\1|p' "$script")
+  # mount.sh unconditionally: it is the one every installer sources and the one whose absence has its
+  # own case, so a discovery miss must not be able to drop it silently.
+  cp "$checkout/lib/mount.sh" "$dest/mount.sh"
 }
 
 passed=0
