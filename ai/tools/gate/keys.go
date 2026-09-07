@@ -25,8 +25,13 @@ func (g *gate) buildManifest() int {
 
 	// --cached and --others: a new file that is not yet added still changes what the suites see, and a
 	// gate that keys only on tracked files reports a cached pass over a test someone just wrote.
+	//
+	// Literal pathspecs, because one of these patterns comes out of the text of a shell script while the
+	// rest are plain paths. Leave the magic on and `:!ai/tools/gate` arrives as an EXCLUDE: those files
+	// drop out of the manifest, the no-input refusal stays quiet because the other patterns still match,
+	// and every unit keyed under that directory answers from cache forever.
 	args := append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, patterns...)
-	out, err := g.capture("git", args...)
+	out, err := g.captureLiteralPathspecs(args...)
 	if err != nil && out == "" {
 		return g.fail("%s", noInputsRefusal)
 	}

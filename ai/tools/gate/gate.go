@@ -296,6 +296,14 @@ func (g *gate) resolveMachine() int {
 	return 0
 }
 
+func (g *gate) captureLiteralPathspecs(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = g.root
+	cmd.Env = append(os.Environ(), "GIT_LITERAL_PATHSPECS=1")
+	out, err := cmd.Output()
+	return strings.TrimRight(string(out), "\n"), err
+}
+
 func (g *gate) capture(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = g.root

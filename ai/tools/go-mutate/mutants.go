@@ -1059,7 +1059,10 @@ var mutants = []mutant{
 	{"dup: the display cap stops bounding the report", "../dup-literals/dup.go", "./dup-literals/", "TestPastTheDisplayCap",
 		"const maxShown = 200", "const maxShown = 100000"},
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
-	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSecretNamedFileIsNeverRead",
+	// dup-literals declines a secret-named file a second time in `count`, so its end-to-end case stays
+	// green over a diffscan that read every line — pointed at `./dup-literals/` this mutant came back
+	// KILLED NOTHING while every other one in the file was killed.
+	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./diffscan/", "TestAnUntrackedSecretNamedFileIsNeverRead",
 		"if opts.SkipSecretNamed && secretNamed(name) {", "if false {"},
 	// The same guard on the other arm: the untracked one covers only what git does not track, and a
 	// tracked `.env` reaches the report through the diff. dup.go's own comment carries the measurement.
@@ -1122,12 +1125,19 @@ var mutants = []mutant{
 	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
 	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"if goSuiteRun.MatchString(suiteBody) {", "if goSuiteRun.MatchString(suiteBody) && false {"},
-	// Anchored on what suiteInputs returns, because the flag is a named result there and has no
-	// initialising statement to flip. Stronger than one: a suite the goSuiteRun arm reset to false is
-	// flagged by this too, and the case above still holds it.
+		"if goSuiteRun.MatchString(body) {", "if goSuiteRun.MatchString(body) && false {"},
 	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"return inputs, viaBinary", "return inputs, true"},
+		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
+	{"gate: a suite is keyed on nothing it sources from lib/", "../gate/units.go", "./gate/", "TestEditingASourcedLibraryMovesTheBootstrapUnitsKeys",
+		"sourcedLibs(body, siblingBody)", "sourcedLibs()"},
+	{"gate: an unreadable lib source line is accepted rather than refused", "../gate/units.go", "./gate/", "TestASuiteSourcingALibraryInAnUnreadableFormIsRefused",
+		"if missed := unreadLib(libs, body, siblingBody); missed != \"\" {", "if missed := unreadLib(libs, body, siblingBody); false {"},
+	{"gate: a suite is keyed on nothing it copies into its fixture", "../gate/units.go", "./gate/", "TestEditingACopiedRepositoryFileMovesTheCopyingUnitsKey",
+		"g.copiedRepoFiles(repo, path.Dir(suite), body, siblingBody)", "g.copiedRepoFiles(repo, path.Dir(suite))"},
+	{"gate: a copy naming an unresolvable file is accepted rather than refused", "../gate/units.go", "./gate/", "TestACopyNamingAFileTheGateCannotResolveIsRefused",
+		"\t\tif unresolved != \"\" {", "\t\tif false {"},
+	{"gate: a copied path reaches git as a pathspec unvalidated", "../gate/units.go", "./gate/", "TestACopiedPathHoldingPathspecMagicIsRefused",
+		"safeToken(\"copied path\", file)", "error(nil)"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
 	// those build temp HOMEs and link into them.
