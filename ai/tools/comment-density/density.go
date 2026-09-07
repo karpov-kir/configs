@@ -27,7 +27,7 @@ const (
 	defaultMaxFileBytes = 262144
 )
 
-// Both the path and the outlier count are bounded, because under kk-pr-review they come from a branch
+// Both the path and the outlier count are bounded, because under kk-pr they come from a branch
 // somebody else wrote. A suppressed outlier is announced, never dropped, and that holds only while this
 // cap and the one in the announcement stay the same number.
 const (
