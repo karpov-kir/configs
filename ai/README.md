@@ -75,6 +75,13 @@ target this one reports and skips is still yours to link with the commands below
 turns that off, and `--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the
 network.
 
+Because the skills below are mounted by discovery, renaming or deleting one leaves its old link
+behind. Each run removes those, and names what it removed — only a link it would have written itself:
+an absolute symlink under `~/.claude/skills/`, pointing into this checkout's `ai/kk-flavor/skills/`,
+whose directory is gone. Everything else it leaves. So if the wiring check
+(`ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh`) keeps naming a mount no run drops, remove that
+one by hand.
+
 ## By hand
 
 - [Claude Code](https://code.claude.com)

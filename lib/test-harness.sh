@@ -169,6 +169,29 @@ expect_link_to() {
     record_fail "$name" "$target -> $(readlink "$target"), wanted $want"
 }
 
+# A symlink at the target, wherever it points. `expect_link_to` asks the stronger question; this is for
+# a case whose whole subject is that a link survived a run that removes some of them.
+expect_symlink() {
+  local name="$1" target="$2"
+  [ -L "$target" ] &&
+    record_pass "$name" ||
+    record_fail "$name" "$target is not a symlink"
+}
+
+# Nothing at the path at all. `-L` is asked as well as `-e`, because `-e` follows the link and answers
+# false for one that dangles — which is the shape a removal these suites assert about leaves behind
+# when it half happens.
+expect_absent() {
+  local name="$1" path="$2"
+  if [ -L "$path" ]; then
+    record_fail "$name" "$path is still there, a symlink to $(readlink "$path")"
+    return
+  fi
+  [ ! -e "$path" ] &&
+    record_pass "$name" ||
+    record_fail "$name" "$path is still there"
+}
+
 expect_file_body() {
   local name="$1" path="$2" want="$3" got
   got=$(cat "$path" 2>/dev/null)

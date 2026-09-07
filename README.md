@@ -16,7 +16,9 @@ Both scripts share `lib/mount.sh`, which is what makes them behave alike. A targ
 yourself is reported and skipped rather than replaced. A machine already mounted from another checkout
 is refused before anything is written. Otherwise a run from a scratch clone would swing every link
 over to it, and deleting the clone would leave you with no config at all. `--relocate` is how you say
-you mean it, and `--dry-run` prints what a run would change without changing it.
+you mean it, and `--dry-run` prints what a run would change without changing it. The library will
+also drop a mount whose source this checkout no longer has. Only `ai/bootstrap.sh` asks for that,
+over the skills it discovers.
 
 ## Tests
 

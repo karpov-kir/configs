@@ -397,7 +397,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-code-review</code></div>
-      <p>Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (kk-qualify); a GitHub PR is kk-pr-review's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.</p>
+      <p>Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (kk-qualify); a GitHub PR is kk-pr's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.</p>
       <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), or natural-language scope</p>
     </div>
     <div class="lane">
@@ -441,13 +441,13 @@
       <p class="hint">takes: the tree to patrol, and any angle to start from (default: this repo, every angle)</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-pr-review</code></div>
-      <p>Review a GitHub PR — a pending review to draft, or, with the fix token and always on your own PR, fixes to apply and push. Use for "review this PR" and "address the review comments". A PR on GitHub, not local changes (kk-code-review) or the working-tree pipeline (kk-qualify), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
-      <p class="hint">takes: &lt;PR number, URL, or head branch&gt; [fix]</p>
+      <div class="lane-top"><code class="k">kk-pr</code></div>
+      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-humanize), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
+      <p class="hint">takes: &lt;review|address-review|refine-description|review-and-address&gt; [PR number, URL, or head branch]</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-qualify</code></div>
-      <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr-review's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
+      <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
       <p class="hint">takes: [scope: a path, a diff selector, or natural language]</p>
     </div>
     <div class="lane">
@@ -462,7 +462,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-security-review</code></div>
-      <p>Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr-review's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.</p>
+      <p>Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.</p>
       <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), or natural-language scope</p>
     </div>
     <div class="lane">

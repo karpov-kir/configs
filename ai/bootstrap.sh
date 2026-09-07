@@ -16,9 +16,10 @@
 # refused before anything is written; `--relocate` is how you say you mean it.
 #
 # It refuses rather than deletes. A target it does not already own is reported and skipped, and the
-# run exits non-zero with the list. The one thing it does remove is `~/.claude/RTK.md`, a file this
-# repository used to write and nothing reads any more — the rtk step below carries why that removal
-# belongs in this script rather than in a human's hands.
+# run exits non-zero with the list. Two things it does remove, both its own leavings. One is a mount
+# under `~/.claude/skills/` whose skill this checkout no longer has — what a rename leaves behind —
+# and lib/mount.sh carries why removing it is the script's job. The other is `~/.claude/RTK.md`,
+# which this repository used to write and nothing reads any more; the rtk step below says why.
 #
 # It reaches other scripts rather than reimplementing them: `tools/install.sh` for the Go tool
 # binaries, `mcp-sync.sh` for the MCP registry, `run-tests.sh` to verify. Each of those owns its own
@@ -188,6 +189,13 @@ fi
 # removes it: on a machine holding none, `--uninstall` builds the whole tree and tears it down again,
 # and an interrupt between the two leaves the machine installed by the command that exists to
 # uninstall it. ai/install-project.sh has always had this order; this file did not.
+# A mount whose source this checkout no longer has is dropped, which `link()` cannot do: it iterates
+# the sources this tree ships, so a skill deleted upstream leaves its symlink at the mount for good.
+# Scanned rather than listed, and scoped to what this checkout wrote — a skill mounted from somebody
+# else's tree is not ours to drop. Not narrowed by tier: a skill left out for want of `--maintainer`
+# is still in the tree, so its mount still resolves and is not stale.
+add_unmount_scan "$HOME/.claude/skills" "$repo/kk-flavor/skills"
+
 mount_run
 
 # Said out loud, and after the mounts so it reads beside them. A flag that quietly leaves skills out is

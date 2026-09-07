@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
 # The mounting machinery every installer here runs on: link a source in this repository at a target
-# in $HOME, refuse rather than delete, and stop before writing anything when this machine's config is
+# in $HOME or in a project, refuse rather than delete anything it did not write itself, drop its own
+# mounts once this checkout has no source for them, and stop before writing anything when this
+# machine's config is
 # already mounted from a different checkout.
 #
 # Sourced, never executed. Before sourcing, a caller sets:
@@ -16,7 +18,7 @@
 #
 # After sourcing it declares its mounts with add_cfg (named one by one when the guard reports) and
 # add_bulk (counted, for a homogeneous set like ai/'s skills), sets bulk_label if it uses add_bulk,
-# then calls mount_run.
+# calls add_unmount_scan for any directory it mounts a discovered set into, then calls mount_run.
 #
 # $HOME is read from the environment and never assumed, which is what lets the suites run the real
 # linking logic against a throwaway home instead of faking it.
@@ -37,10 +39,40 @@ mount_scope_label=${mount_scope_label:-"this machine's configuration"}
 # and a human fixing three named problems in one pass beats discovering them one run at a time.
 refusals=()
 
-say() { printf '%s\n' "$1"; }
+# Every message loses its control bytes on the way out. Half of what these lines quote is text the
+# tree chose rather than text this file wrote — a skill directory name off a branch, a symlink value
+# read off the machine — and a control byte in one drives the terminal instead of printing. `ESC[2K`
+# erases the line it lands in and `ESC[1A` moves to the line above, so a name carrying either can wipe
+# the run's own account of what it removed or refused. ai/tools/shell/text.go states that rule for the
+# two Go tools; these two scripts print the same kind of text and need it as much.
+#
+# `[[:cntrl:]]` takes C0 and DEL in every shell and locale measured here. Past DEL the locale decides,
+# not this file: a UTF-8 locale decodes first and spaces the C1 range too, while `LC_ALL=C` touches
+# nothing above DEL. Multibyte text survives either way — `日本語 café 🍦` came back byte for byte under
+# bash 3.2 and 5.3 in both locales — so nothing here shreds a legitimate path.
+#
+# One byte stays out of reach: a raw 0x9b, the CSI an 8-bit terminal acts on. bash 5.3 leaves it and
+# bash 3.2 spaces it only in a UTF-8 locale. Catching it needs the decoding ai/tools/shell/text.go
+# does and a substitution cannot, so that byte is the Go side's alone.
+say() { printf '%s\n' "${1//[[:cntrl:]]/ }"; }
 refuse() {
-  refusals+=("$1")
-  printf '  REFUSED  %s\n' "$1"
+  local message="${1//[[:cntrl:]]/ }"
+  refusals+=("$message")
+  printf '  REFUSED  %s\n' "$message"
+}
+
+# Where a directory really is, or nothing and a non-zero status. Physical rather than textual: `/var`
+# is a symlink to `/private/var` on macOS, so the same directory is spelled two ways and only one of
+# them is what this script wrote. `CDPATH=` because a CDPATH set in the environment makes `cd` echo
+# the directory it landed on, and the answer comes back two lines long.
+real_dir() { # <directory>
+  CDPATH= cd -P -- "$1" 2>/dev/null && pwd -P
+}
+
+link_value() { # <symlink>
+  local value
+  value="$(readlink "$1")"
+  printf '%s' "${value%/}"
 }
 
 # The end of every path through a bootstrap script, including the guard below that stops before the
@@ -96,8 +128,8 @@ link() {
     #
     # ai/README.md now documents `${d%/}`, so new machines will not have them. This stays for the ones
     # already set up: the readback is a property of links made years ago, not of the current README.
-    current="$(readlink "$target")"
-    if [ "${current%/}" = "${source%/}" ]; then
+    current="$(link_value "$target")"
+    if [ "$current" = "${source%/}" ]; then
       say "  ok       $target"
       return 0
     fi
@@ -137,6 +169,84 @@ link() {
   say "  linked   $target"
 }
 
+# --- mounts this script wrote and no longer has a source for --------------------------------------
+
+# A skill renamed or deleted takes its source directory with it, and nothing in the mount table names
+# the old target any more — so `link()` never sees it, and the link left under `~/.claude/skills/`
+# resolves into a directory no checkout has. Only the run that would have written it can notice.
+#
+# It is a deletion, in a library whose header promises it refuses rather than deletes, so the
+# signature is narrow enough that only a mount of this checkout's own matches: a symlink, whose value
+# is absolute, whose parent directory is the source root the caller named. Everything else is left
+# where it is, dangling or not, which is why the summary below claims only what it checked. The
+# signature cannot ask who wrote the link: ai/README.md documents a by-hand install loop whose links
+# are identical to this script's.
+unmount_dirs=()
+unmount_roots=()
+add_unmount_scan() { # <directory the mounts sit in> <source root a mount of ours comes from>
+  unmount_dirs+=("$1")
+  unmount_roots+=("$2")
+}
+
+# A root this checkout cannot read stops the scan before the loop. The loop would remove nothing there
+# in any case; what it would print is a clean bill of health over a directory the run never opened.
+unmount_stale() { # <directory> <source root>
+  local dir="$1" root="$2" root_real entry value value_dir src has_source=0 stale=0
+  root_real="$(real_dir "$root")" || root_real=""
+  if [ -z "$root_real" ]; then
+    say "  $root cannot be read, so no mount under $dir was checked"
+    return 0
+  fi
+  # A root that resolves and holds nothing is the same hazard one step further in, and the one the loop
+  # can act on: every mount of this checkout's dangles at once, so the loop reads the machine's whole
+  # set as deleted and takes it. A source root emptied by a half-finished checkout is not a set of
+  # deletions anybody made. The caller's own emptiness check cannot stand in for this one — the scan
+  # runs inside mount_run, so whatever a caller does about an empty root, it does afterwards.
+  for src in "$root_real"/*/; do
+    [ -d "$src" ] || continue
+    has_source=1
+    break
+  done
+  if [ "$has_source" -eq 0 ]; then
+    say "  $root holds no source, so no mount under $dir was checked"
+    return 0
+  fi
+  if [ ! -d "$dir" ]; then
+    say "  ok       nothing is mounted at $dir"
+    return 0
+  fi
+  for entry in "$dir"/*; do
+    [ -L "$entry" ] || continue
+    value="$(link_value "$entry")"
+    # Absolute only, for the reason mount_foreign_root gives: a relative value resolves against the
+    # link's own directory, so resolving it here would resolve it against the wrong one.
+    [ "${value#/}" != "$value" ] || continue
+    value_dir="$(real_dir "$(dirname -- "$value")")" || continue
+    [ "$value_dir" = "$root_real" ] || continue
+    [ ! -e "$value" ] || continue
+    stale=$((stale + 1))
+    if $dry_run; then
+      say "  would remove $entry, which points at $value and nothing is there"
+    elif rm -- "$entry"; then
+      say "  removed  $entry, which pointed at $value and nothing is there"
+    else
+      refuse "could not remove $entry, which points at $value and nothing is there"
+    fi
+  done
+  [ "$stale" -eq 0 ] && say "  ok       every mount under $dir this checkout wrote still resolves"
+  return 0
+}
+
+prune_stale_mounts() {
+  local i
+  [ "${#unmount_dirs[@]}" -eq 0 ] && return 0
+  say "stale mounts"
+  for ((i = 0; i < ${#unmount_dirs[@]}; i++)); do
+    unmount_stale "${unmount_dirs[i]}" "${unmount_roots[i]}"
+  done
+  return 0
+}
+
 # --- is this machine already mounted somewhere else? ----------------------------------------------
 
 # `link()` above treats an existing symlink as safe to write over, on the grounds that a symlink
@@ -159,8 +269,7 @@ link() {
 mount_foreign_root() {
   local source="$1" target="$2" rel cur root
   [ -L "$target" ] || return 1
-  cur="$(readlink "$target")"
-  cur="${cur%/}"
+  cur="$(link_value "$target")"
   # Absolute only. A relative link value resolves against the link's own directory, not this script's
   # working directory, so naming a root from it would name the wrong one. Every link written here is
   # absolute, so a relative one was not written by this script and is not one of its mounts.
@@ -168,7 +277,7 @@ mount_foreign_root() {
   rel="${source#"$repo"/}"
   [ "${cur%"/$rel"}" != "$cur" ] || return 1
   root="${cur%"/$rel"}"
-  root="$(CDPATH= cd -P -- "$root" 2>/dev/null && pwd -P)" || return 1
+  root="$(real_dir "$root")" || return 1
   [ "$root" != "$repo" ] || return 1
   # And the root has to hold a copy of the calling script, not merely end in a matching path
   # component. Several sources are one component long — `nvim`, `ghostty`, `kk-flavor` — so the tail
@@ -278,11 +387,21 @@ mount_run() {
     link "${cfg_sources[i]}" "${cfg_targets[i]}"
   done
 
-  [ "${#bulk_targets[@]}" -eq 0 ] && return 0
-  say "$bulk_label"
-  for ((i = 0; i < ${#bulk_targets[@]}; i++)); do
-    link "${bulk_sources[i]}" "${bulk_targets[i]}"
-  done
+  if [ "${#bulk_targets[@]}" -gt 0 ]; then
+    say "$bulk_label"
+    for ((i = 0; i < ${#bulk_targets[@]}; i++)); do
+      link "${bulk_sources[i]}" "${bulk_targets[i]}"
+    done
+  fi
+
+  # Inside this function rather than beside it, so a caller cannot skip the scan and keep a mount
+  # nothing can reach; after the links, because a machine mounted from another checkout writes
+  # nothing at all, removals included.
+  #
+  # `prune_stale_mounts`, NOT `unmount_run`: this drops mounts whose SOURCE is gone, while
+  # `unmount_run` removes every mount the run declared. They arrived from two branches under one
+  # name, and a normal install calling the second links the whole tree and then tears it down.
+  prune_stale_mounts
 }
 
 # --- taking it back out ---------------------------------------------------------------------------
