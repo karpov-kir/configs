@@ -74,6 +74,7 @@ func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
 		strings.Contains(f.out, "no placeholders") &&
 			strings.Contains(f.out, "every required section filled") &&
 			strings.Contains(f.out, "dependencies built") &&
+			strings.Contains(f.out, "every link naming a real intent") &&
 			strings.Contains(f.out, "sibling declaring it goes first") &&
 			!strings.Contains(f.out, "sign-off"), f.evidence())
 
@@ -181,6 +182,57 @@ func TestIntentReadyBlocksOnASiblingThatDeclaredItGoesFirst(t *testing.T) {
 	f.writeIntent("003-search", readyIntent("links:", "  - blocks 003 — a self-edge nobody should act on"))
 	f.runReport("intent-ready", "003-search")
 	f.record("an intent's own blocks entry does not block itself", f.status == 0, f.evidence())
+}
+
+// The forward edges nobody resolved. `depends-on` is checked above; `blocks` and `extends` were read
+// only in the reverse direction, out of the SIBLINGS' files, so an intent's own `blocks 055` onto a
+// number nobody ever wrote cleared this gate and died at idsd-finalize — inside the merge slot, after
+// a build that may have run for hours.
+func TestIntentReadyResolvesTheBlocksAndExtendsEdgesItDeclaresItself(t *testing.T) {
+	t.Parallel()
+	f := newRepo(t)
+
+	f.writeIntent("003-search", readyIntent("links:", "  - blocks 055 — 055 rewrites what search reads"))
+	f.runReport("intent-ready", "003-search")
+	f.record("a blocks edge naming no intent blocks",
+		f.status == 1 && strings.Contains(f.out, "blocks 055 names no intent"), f.evidence())
+
+	// Status is not what is asked, and this is the case that proves it. `blocks` says 055 waits on this
+	// intent, so 055 being draft is the normal state — the gate must clear on a target that exists.
+	f.writeIntent("055-ranking", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("and clears on a target that exists, draft though it is", f.status == 0, f.evidence())
+
+	// Archived is still a real intent: the folder moves there at merge, and the edge still resolves.
+	f.remove(f.shipDir("055-ranking") + "/intent.md")
+	f.writeArchivedIntent("055-ranking", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("an archived target resolves", f.status == 0, f.evidence())
+
+	// `extends` has the same hole and no reverse scan at all, so nothing resolved it in either direction.
+	f.remove(f.archiveDir("055-ranking"))
+	f.writeIntent("003-search", readyIntent("links:", "  - extends 055 — adds a constraint to what it shipped"))
+	f.runReport("intent-ready", "003-search")
+	f.record("an extends edge naming no intent blocks too",
+		f.status == 1 && strings.Contains(f.out, "extends 055 names no intent"), f.evidence())
+
+	f.writeIntent("055-ranking", readyIntent())
+	f.runReport("intent-ready", "003-search")
+	f.record("and clears once that intent is there", f.status == 0, f.evidence())
+
+	// The reverse scan's refusal has a forward twin: this resolution reads the same two directories,
+	// and clearing an intent because they could not be read is the false green the check was added to
+	// close. The refusal names the relation it was resolving, so it cannot report a `blocks` edge as a
+	// `depends-on` one — the wording is the only thing telling a reader which edge went unanswered.
+	f.writeIntent("003-search", readyIntent("links:", "  - blocks 055 — 055 rewrites what search reads"))
+	dir := f.scratch() + "/intents"
+	if !f.madeUnlistable(dir, "the unreadable-directory case for a blocks edge") {
+		return
+	}
+	f.runReport("intent-ready", "003-search")
+	f.chmod(dir, 0o755)
+	f.record("a directory that cannot be listed refuses rather than clearing the edge",
+		f.status == 2 && strings.Contains(f.out, "whether blocks 055 names a real intent is unknown"), f.evidence())
 }
 
 // A relation is read at the head of a `links:` entry and never inside another entry's why. Both

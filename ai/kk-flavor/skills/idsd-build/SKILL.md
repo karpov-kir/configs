@@ -12,7 +12,7 @@ Input: an intent file at `.idsd/intents/NNN-<slug>/intent.md` — one folder per
 
 ## Phase 1 — Close the gaps (checkpoint 1)
 
-**Start with `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh intent-ready <NNN-slug>`.** It blocks on the mechanical gaps — an unfilled template placeholder, an empty required section, and either direction of an unshipped link — this intent's own `depends-on`, or a sibling declaring `blocks` on it. Fold each fix into the ICE through `idsd-intent`, or build the dependency first, and re-run until it clears.
+**Start with `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh intent-ready <NNN-slug>`.** It blocks on the mechanical gaps — an unfilled template placeholder, an empty required section, either direction of an unshipped link, and a `blocks` or `extends` edge naming an intent that exists nowhere — this intent's own `depends-on`, or a sibling declaring `blocks` on it. Fold each fix into the ICE through `idsd-intent`, or build the dependency first, and re-run until it clears.
 
 Then two **gap rounds** of `kk-grill`, recomputing what is still open between them:
 

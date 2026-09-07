@@ -20,6 +20,12 @@ import (
 // missing either is still buildable.
 var requiredIntentSections = []string{"Constraints", "Success scenarios", "Failure scenarios"}
 
+// The relations this intent's own frontmatter can draw whose target is asked to exist and nothing
+// more. `depends-on` is not one of them: unbuiltDependencies asks it for a BUILT target, which is a
+// strictly stronger question. `blocks` says the other intent waits on this one, so its target being
+// unbuilt is the normal case, and `extends` draws no build-order edge at all.
+var existenceOnlyRelations = []string{"blocks", "extends"}
+
 func (r *run) cmdIntentReady() {
 	name := r.arg(1)
 	// The name is joined into a path, so the slug charset is the whole of what keeps this read inside
@@ -53,13 +59,14 @@ func (r *run) cmdIntentReady() {
 	reasons := unfilledPlaceholders(lines)
 	reasons = append(reasons, emptyRequiredSections(lines)...)
 	reasons = append(reasons, r.unbuiltDependencies(lines)...)
+	reasons = append(reasons, r.unresolvedLinks(lines)...)
 	reasons = append(reasons, r.unbuiltBlockers(number)...)
 	if len(reasons) > 0 {
 		r.errLines(append([]string{"BLOCK (intent not ready): " + path}, reasons...)...)
 		r.errLines("  Fold each answer into the ICE through idsd-intent, then re-run this. Building past it is how a placeholder ships as a requirement.")
 		r.exit(1)
 	}
-	r.line("intent ready: %s — no placeholders, every required section filled, dependencies built, every sibling declaring it goes first is built too", name)
+	r.line("intent ready: %s — no placeholders, every required section filled, dependencies built, every link naming a real intent, every sibling declaring it goes first is built too", name)
 }
 
 // Template text the author never replaced. Scanned over the whole file, fenced blocks included: the
@@ -156,7 +163,7 @@ func sectionHasContent(lines []string, section string) (filled, present bool) {
 func (r *run) unbuiltDependencies(lines []string) []string {
 	var reasons []string
 	for _, number := range linkNumbers(lines, "depends-on") {
-		file, where := r.intentFileNumbered(number)
+		file, where := r.intentFileNumbered("depends-on", number)
 		status := yamlValue(file, "status")
 		switch {
 		case where == "archive":
@@ -168,6 +175,23 @@ func (r *run) unbuiltDependencies(lines []string) []string {
 			// name is not a value this tool wrote — `init` holds the slug charset, but a folder authored by
 			// idsd-intent or arriving on someone else's branch answers to nothing here.
 			reasons = append(reasons, "  depends-on "+number+" is not built yet ("+shell.Oneline(file)+" is "+shell.Oneline(status)+") — build that one first")
+		}
+	}
+	return reasons
+}
+
+// The intent's own forward edges whose target is nowhere. Only existence is asked, for the reason
+// existenceOnlyRelations states. Nothing resolved these before: `blocks` was read out of the SIBLINGS'
+// files by unbuiltBlockers, which is the reverse direction, and `extends` was read nowhere at all — so
+// an edge onto a number nobody wrote cleared this gate and died at idsd-finalize, inside the merge
+// slot, after the build.
+func (r *run) unresolvedLinks(lines []string) []string {
+	var reasons []string
+	for _, relation := range existenceOnlyRelations {
+		for _, number := range linkNumbers(lines, relation) {
+			if file, _ := r.intentFileNumbered(relation, number); file == "" {
+				reasons = append(reasons, "  "+relation+" "+number+" names no intent under "+r.idsdDir+"/intents/ or /archive/")
+			}
 		}
 	}
 	return reasons
@@ -227,7 +251,7 @@ func firstNumber(text string) string {
 
 // The intent file an edge's number names, and which directory it came from. Numbers are the stable
 // half of a slug, so a renamed intent is still found.
-func (r *run) intentFileNumbered(number string) (path, where string) {
+func (r *run) intentFileNumbered(relation, number string) (path, where string) {
 	for _, dir := range []string{"intents", "archive"} {
 		entries, err := os.ReadDir(r.idsdDir + "/" + dir)
 		if err != nil {
@@ -236,7 +260,15 @@ func (r *run) intentFileNumbered(number string) (path, where string) {
 			if os.IsNotExist(err) {
 				continue
 			}
-			r.refuse("error: could not read " + r.idsdDir + "/" + dir + " (" + err.Error() + ") — whether depends-on " + number + " is built is unknown")
+			// The question this leaves unanswered is the one the CALL SITE was asking, and the two
+			// differ: depends-on wants the target built, the existence-only relations want it to be
+			// there at all. Stating the weaker question at the depends-on site would understate what
+			// an unreadable directory costs.
+			unknown := "names a real intent"
+			if relation == "depends-on" {
+				unknown = "is built"
+			}
+			r.refuse("error: could not read " + r.idsdDir + "/" + dir + " (" + err.Error() + ") — whether " + relation + " " + number + " " + unknown + " is unknown")
 		}
 		for _, entry := range entries {
 			name := entry.Name()

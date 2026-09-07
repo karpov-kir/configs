@@ -282,7 +282,25 @@ elif ! command -v gh >/dev/null 2>&1; then
   refuse "gh is not installed, so ai/tools/install.sh could not fetch the tool binaries"
 else
   say "tools"
-  "$repo/tools/install.sh" || refuse "ai/tools/install.sh failed"
+  "$repo/tools/install.sh"
+  install_status=$?
+  # 3 is not a failure, and reporting it as one would fail every fresh clone until the first release
+  # is cut. A refusal names something the human at this machine must do, and there is nothing: only
+  # this repository's owner can cut a release, and until one exists resolve.sh builds each tool from
+  # source on first use. A machine that cannot even do that — no Go — fails at the verify step below,
+  # which runs those tools and reports the reason they did not run.
+  if [ "$install_status" -eq 3 ]; then
+    # Go is checked here rather than left to the verify step. Verify does run the tools and would
+    # report their failure — but `--skip-verify` turns it off, and without this a run then ends green
+    # having installed no tools onto a machine that cannot build them either.
+    if command -v go >/dev/null 2>&1; then
+      say "  ok       no release to install from; the tools build from source on first use, which needs Go"
+    else
+      refuse "no release to install from and no go on this machine, so the tools can be neither downloaded nor built — nothing was installed"
+    fi
+  elif [ "$install_status" -ne 0 ]; then
+    refuse "ai/tools/install.sh failed"
+  fi
 fi
 
 # --- MCP registry --------------------------------------------------------------------------------

@@ -8,7 +8,7 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestra
 
 ## 1. Resolve the order
 
-**Ask whether to audit first**, and recommend it. Without it, a cycle or a dangling `depends-on` surfaces only as an intent that silently never launches: `report.sh intent-ready` refuses a build whose prerequisite is unbuilt in either direction, and catches no other Blocker.
+**Ask whether to audit first**, and recommend it. Without it, a cycle or a dangling `depends-on` surfaces only as an intent that silently never launches: `report.sh intent-ready` refuses a build whose prerequisite is unbuilt in either direction, and one whose own `blocks` or `extends` names an intent that is nowhere — but it catches no other Blocker.
 
 **One milestone at a time, and any milestone can be the one.** `<arg>` names it, or names slugs outright; with neither, list the milestones still holding unbuilt intents and ask which — recommend the one whose unbuilt intents depend on nothing outside it. **Nothing outside the chosen one launches, however unblocked it is** — that is the parked work. `milestone: none` is unplanned rather than a milestone, so it is never the chosen one; naming slugs is the only route to one of those.
 

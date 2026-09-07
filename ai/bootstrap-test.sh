@@ -557,6 +557,72 @@ else
     "only in the parser: $(comm -23 <(printf '%s\n' "$parsed_flags") <(printf '%s\n' "$help_flags") | tr '\n' ' ')| only in --help: $(comm -13 <(printf '%s\n' "$parsed_flags") <(printf '%s\n' "$help_flags") | tr '\n' ' ')"
 fi
 
+# --- the tools step -------------------------------------------------------------------------------
+
+# install.sh's non-zero codes send a reader to different places: 2 to this machine's network, its auth
+# or the release's own assets, 3 to the fact that this repository has cut no release at all. Only the
+# second is survivable, and collapsing it into the refusal fails every fresh clone until the first
+# release exists. A stub rather than the real installer, for the reason the verify stubs give: what is
+# asserted is bootstrap's reading of an exit code, and the real one reaches the network to produce one.
+tools_repo="$tmp/tools-repo"
+fixture_ai_checkout "$tools_repo"
+mkdir -p "$tools_repo/ai/kk-flavor/skills/a-skill" "$tools_repo/ai/tools"
+
+# The tools step refuses before install.sh runs at all on a machine without gh, and whether this
+# machine has one is not what any case below is about.
+tools_path="$tmp/tools-path"
+mkdir -p "$tools_path"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$tools_path/gh"
+chmod +x "$tools_path/gh"
+
+write_stub_installer() { # <exit code>
+  cat >"$tools_repo/ai/tools/install.sh" <<STUB
+#!/usr/bin/env bash
+printf 'ran\n' >>"\$MARKER"
+exit $1
+STUB
+  chmod +x "$tools_repo/ai/tools/install.sh"
+}
+
+# Every step but this one skipped, so what the exit status reports is the tools step alone.
+tools_only=(--skip-brew --skip-mcp --skip-verify)
+
+write_stub_installer 0
+fresh_home
+marker="$tmp/tools-marker-$case_no"
+out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
+  bash "$tools_repo/ai/bootstrap.sh" "${tools_only[@]}" 2>&1)
+status=$?
+expect_status "an installer that installed exits 0" 0
+[ -f "$marker" ] &&
+  record_pass "control: and the installer really ran, so the arms below read a real exit code" ||
+  record_fail "control: and the installer really ran, so the arms below read a real exit code" "it was never invoked"
+
+# 3: the repository has cut no release. Nothing here is broken and nobody at this machine can cut one,
+# so it must not become a refusal — and the wording is the whole of what tells it from the arm below.
+write_stub_installer 3
+fresh_home
+marker="$tmp/tools-marker-$case_no"
+out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
+  bash "$tools_repo/ai/bootstrap.sh" "${tools_only[@]}" 2>&1)
+status=$?
+expect_status "an installer reporting no release to install from exits 0" 0
+expect_out "and says the tools build from source instead" "build from source on first use"
+expect_out "and names what that needs" "needs Go"
+expect_not_out "and does not report it as a failure" "ai/tools/install.sh failed"
+
+# 2: every other outcome install.sh has, which still fails the run. Without this the arm above could
+# be a blanket "the installer's exit code is ignored" and read exactly the same.
+write_stub_installer 2
+fresh_home
+marker="$tmp/tools-marker-$case_no"
+out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
+  bash "$tools_repo/ai/bootstrap.sh" "${tools_only[@]}" 2>&1)
+status=$?
+expect_status "an installer that refused exits 1" 1
+expect_out "and says the installer failed" "ai/tools/install.sh failed"
+expect_not_out "and does not call it an absent release" "build from source on first use"
+
 # --- the verify step, and its re-entry guard ------------------------------------------------------
 
 # Verify is the one step every other case skips, so it needs a repository of its own to run against.

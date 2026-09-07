@@ -20,12 +20,16 @@
 # resolves a release against the *caller's* current directory, and this script runs from wherever the
 # caller was standing — `../bootstrap.sh` invokes it without changing directory.
 #
+# Exit 0 = every tool installed, 2 = a refusal, 3 = the repository has cut no release, so there was
+# nothing to download and nothing went wrong. The third is separate because a caller cannot otherwise
+# tell it from a download that failed, and the two send a reader to different places.
+#
 # tested by: install-test.sh
 # untested: the download itself, which is a `gh release download` against a real release — faking gh
 # would only assert the fake, so run it and read what lands in bin/. Its argv is faked, because which
-# repository and tag this asks for is this script's decision rather than an answer from GitHub. What
-# happens to an asset once it lands is this script's decision too, so the hash and attestation checks
-# run against a faked download.
+# repository and tag this asks for is this script's decision rather than an answer from GitHub. How
+# gh's answers are READ is this script's decision too, so the release-list reading and the hash and
+# attestation checks all run against a faked download.
 set -uo pipefail
 
 # The tools a release carries. Read out of the workflow that builds them rather than restated here,
@@ -133,6 +137,23 @@ is_safe_tag() {
   esac
 }
 
+# Whether the repository has cut a release at all: `some`, `none`, or `unknown`. Three answers rather
+# than two because a listing that could not be read says nothing about the repository — an offline or
+# unauthenticated machine would otherwise be told there is nothing to download. Both failures leave
+# gh's stdout empty, so the exit code is the whole of what separates them.
+releases_state() { # <owner/name>
+  local listing
+  if ! listing="$(gh release list --repo "$1" --limit 1 2>/dev/null)"; then
+    printf 'unknown\n'
+    return 0
+  fi
+  if [ -z "$listing" ]; then
+    printf 'none\n'
+  else
+    printf 'some\n'
+  fi
+}
+
 # install-test.sh sources this file to reach the functions above, so sourcing stops here. Only a
 # direct run downloads anything.
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
@@ -144,6 +165,15 @@ set -euo pipefail
 die() {
   printf 'install.sh: %s\n' "$1" >&2
   exit 2
+}
+
+# The one outcome that is neither an install nor a refusal: there was nothing to download and nothing
+# went wrong. Its own code, because a caller reading exit 2 cannot tell it from a download that
+# failed, and the two send a reader to different places — one to this repository's releases, the other
+# to this machine's network, auth or the release's own assets.
+nothing_to_install() {
+  printf 'install.sh: %s\n' "$1" >&2
+  exit 3
 }
 
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
@@ -189,8 +219,16 @@ if [ -n "$tag" ]; then
   gh release download --repo "$release_repo" "$tag" --dir "$staging" "${patterns[@]}" ||
     die "gh could not download the assets for release $tag of $release_repo — nothing was installed"
 else
-  gh release download --repo "$release_repo" --dir "$staging" "${patterns[@]}" ||
+  if ! gh release download --repo "$release_repo" --dir "$staging" "${patterns[@]}"; then
+    # gh fails this call whether the download broke or the repository has never cut a release, and the
+    # two have different consequences: one says the binaries this machine was promised did not arrive,
+    # the other that there are none to arrive yet. Asked only after a failure, so a clean install makes
+    # no second call, and only in this arm — a run given a tag was given a release to look for.
+    if [ "$(releases_state "$release_repo")" = none ]; then
+      nothing_to_install "$release_repo has cut no release, so there was nothing to download and nothing was installed. resolve.sh builds each tool from source on first use instead, which needs a Go toolchain on this machine"
+    fi
     die "gh could not download the assets for the latest release of $release_repo — nothing was installed"
+  fi
 fi
 
 [ -f "$staging/SHA256SUMS" ] ||

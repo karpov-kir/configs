@@ -257,6 +257,60 @@ else
 fi
 expect_eq "the download is pinned to the origin of the checkout install.sh lives in" \
   "$(awk '$0 == "--repo" { getline; print; exit }' "$argv_log")" "pinned/target"
+# This gh fails the release listing too, so the repository's release state is unreadable — which is
+# not the same fact as having no releases, and must not be reported as one.
+expect_eq "control: a gh that cannot answer the listing keeps the download refusal" \
+  "$(lacked 'has cut no release' "$out")" "lacked"
+
+# A repository that has never cut a release and a download that failed are different facts with
+# different consequences, and gh reports both by failing the download. The release listing is what
+# separates them, so this gh answers that one call and fails every other — the same shape the failing
+# gh above has, differing in the one answer the reading rests on.
+listing_gh="$base/listing-gh"
+mkdir -p "$listing_gh"
+cat >"$listing_gh/gh" <<'FAKE'
+#!/usr/bin/env bash
+if [ "${1:-}" = release ] && [ "${2:-}" = list ]; then
+  printf '%s' "${GH_STUB_RELEASES:-}"
+  exit 0
+fi
+exit 1
+FAKE
+chmod 755 "$listing_gh/gh"
+
+# The three answers, over the sourced function. Two of them leave nothing on stdout — an empty listing
+# and a listing that could not be read — so only the exit code tells them apart, and reading the
+# second as the first would tell an offline machine there is nothing to download.
+expect_eq "a listing with a release in it reads as some" \
+  "$(PATH="$listing_gh:$PATH" GH_STUB_RELEASES='v1.0.0' releases_state pinned/target)" some
+expect_eq "an empty listing reads as none" \
+  "$(PATH="$listing_gh:$PATH" GH_STUB_RELEASES= releases_state pinned/target)" none
+expect_eq "a listing gh could not answer reads as unknown, never as none" \
+  "$(PATH="$fake_gh:$PATH" GH_ARGV_LOG="$base/gh-argv-state" releases_state pinned/target)" unknown
+
+# End to end, because what the reading is for is the exit code and the wording a caller sees.
+bin="$pinned/ai/tools/bin"
+out=$(PATH="$listing_gh:$PATH" GH_STUB_RELEASES= "$pinned/ai/tools/install.sh" 2>&1)
+status=$?
+if [ "$status" -eq 3 ]; then
+  record_pass "a repository that has cut no release exits 3, not 2"
+else
+  record_fail "a repository that has cut no release exits 3, not 2" "exit $status — output: $out"
+fi
+expect_eq "and says the repository has no release" "$(held 'has cut no release' "$out")" "held"
+expect_eq "and names what happens instead" "$(held 'from source on first use' "$out")" "held"
+expect_eq "and names what that needs" "$(held 'Go toolchain' "$out")" "held"
+expect_eq "control: and never calls it a failed download" \
+  "$(lacked 'could not download' "$out")" "lacked"
+expect_nothing_installed "control: and nothing was installed"
+
+# The control that stops the new arm swallowing the old refusal: same stub, a release in the listing,
+# and the download still fails. Without it, every download failure could report an absent release.
+out=$(PATH="$listing_gh:$PATH" GH_STUB_RELEASES='v1.0.0' "$pinned/ai/tools/install.sh" 2>&1)
+status=$?
+expect_refusal "a download that fails where a release does exist still exits 2" "could not download"
+expect_eq "control: and is not reported as an absent release" \
+  "$(lacked 'has cut no release' "$out")" "lacked"
 
 # And a tag that is really an option never reaches that call at all.
 absent_log="$base/gh-argv-never"
