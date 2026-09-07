@@ -28,6 +28,10 @@ const (
 	extWorkflows = ".github/workflows"
 	// The shared shell libraries both bootstrap scripts source.
 	libTree = "lib"
+	// Where the skills keep the stub scripts that reach the Go tools. ai/tools/tool-stub-test.sh copies
+	// seven of them into fixtures and executes them, so they are that suite's subject — see the keying
+	// below for why naming the tree is not enough.
+	skillScripts = "ai/kk-flavor/skills/*/scripts/*.sh"
 )
 
 // The two directories eco-report's harness copies from: scripts/ for todo-gate.sh, templates/ for the
@@ -140,6 +144,11 @@ func (g *gate) discoverShellSuites() int {
 		// it decides what the suite's exit status and summary line MEAN, so a change to it can flip this
 		// unit's verdict with neither the suite nor its script moving a byte.
 		inputs := []string{suite, "ai/run-tests.sh"}
+		// Read once and shared by the two checks below, so a suite is not opened twice per unit.
+		suiteBody := ""
+		if body, err := os.ReadFile(filepath.Join(g.root, suite)); err == nil {
+			suiteBody = string(body)
+		}
 		sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
 		siblingBody := ""
 		if _, err := os.Stat(filepath.Join(g.root, sibling)); err == nil {
@@ -155,12 +164,28 @@ func (g *gate) discoverShellSuites() int {
 		if strings.Contains(siblingBody, libTree+"/") {
 			inputs = append(inputs, libTree)
 		}
+		// A suite that copies scripts out of the skills tree and runs them is keyed on those scripts.
+		// tool-stub-test.sh is the case: it copies seven stubs into fixtures and executes each, so every
+		// one of them is its subject, and none of them was an input to any unit — editing six of the
+		// seven left this unit answering from cache. Globbed rather than listed, and globbed for `*.sh`
+		// rather than keyed on the tree, so a stub added tomorrow is covered while a skill's prose
+		// churning does not restage a 40-second suite that never reads it.
+		if strings.Contains(suiteBody, "kk-flavor/skills") {
+			matches, err := filepath.Glob(filepath.Join(g.root, skillScripts))
+			if err == nil {
+				for _, match := range matches {
+					if rel, err := filepath.Rel(g.root, match); err == nil {
+						inputs = append(inputs, rel)
+					}
+				}
+			}
+		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
 		// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
 		// puts in a binary.
 		viaBinary := false
-		if body, err := os.ReadFile(filepath.Join(g.root, suite)); err == nil {
+		if body := []byte(suiteBody); len(body) > 0 {
 			for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
 				if strings.Contains(string(body), marker) {
 					inputs = append(inputs, goTree)
