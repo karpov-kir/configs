@@ -1059,7 +1059,10 @@ var mutants = []mutant{
 	{"dup: the display cap stops bounding the report", "../dup-literals/dup.go", "./dup-literals/", "TestPastTheDisplayCap",
 		"const maxShown = 200", "const maxShown = 100000"},
 	// The one that puts a secret in the report. A name-marked file read is a token printed.
-	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./dup-literals/", "TestAnUntrackedSecretNamedFileIsNeverRead",
+	// dup-literals declines a secret-named file a second time in `count`, so its end-to-end case stays
+	// green over a diffscan that read every line — pointed at `./dup-literals/` this mutant came back
+	// KILLED NOTHING while every other one in the file was killed.
+	{"diffscan: a secret-named file is read anyway", "../diffscan/diffscan.go", "./diffscan/", "TestAnUntrackedSecretNamedFileIsNeverRead",
 		"if opts.SkipSecretNamed && secretNamed(name) {", "if false {"},
 	// The same guard on the other arm: the untracked one covers only what git does not track, and a
 	// tracked `.env` reaches the report through the diff. dup.go's own comment carries the measurement.
