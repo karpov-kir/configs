@@ -1129,6 +1129,12 @@ var mutants = []mutant{
 		"sourcedLibs(body, siblingBody)", "sourcedLibs()"},
 	{"gate: an unreadable lib source line is accepted rather than refused", "../gate/units.go", "./gate/", "TestASuiteSourcingALibraryInAnUnreadableFormIsRefused",
 		"if missed := unreadLib(libs, body, siblingBody); missed != \"\" {", "if missed := unreadLib(libs, body, siblingBody); false {"},
+	{"gate: a suite is keyed on nothing it copies into its fixture", "../gate/units.go", "./gate/", "TestEditingACopiedRepositoryFileMovesTheCopyingUnitsKey",
+		"g.copiedRepoFiles(repo, path.Dir(suite), body, siblingBody)", "g.copiedRepoFiles(repo, path.Dir(suite))"},
+	{"gate: a copy naming an unresolvable file is accepted rather than refused", "../gate/units.go", "./gate/", "TestACopyNamingAFileTheGateCannotResolveIsRefused",
+		"\t\tif unresolved != \"\" {", "\t\tif false {"},
+	{"gate: a copied path reaches git as a pathspec unvalidated", "../gate/units.go", "./gate/", "TestACopiedPathHoldingPathspecMagicIsRefused",
+		"safeToken(\"copied path\", file)", "error(nil)"},
 
 	// The lane split. One direction costs only time; the other runs two shell suites at once, and
 	// those build temp HOMEs and link into them.
