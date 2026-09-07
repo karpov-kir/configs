@@ -39,7 +39,7 @@ Optional — include only when the outcome must encode an explicit list or table
 
 ## Follow-ups
 
-Optional, build-managed — open questions and cross-intent consequences surfaced during `idsd-build`, tracked as a checklist.
+Optional — open questions and cross-intent consequences `idsd-build` surfaces, plus any domain term the authoring session coined, tracked as a checklist. `idsd-build` closes every item.
 
 - [ ] <follow-up>
 - [x] <follow-up> — <resolution: fixed … / moved to NNN / declined: …>
