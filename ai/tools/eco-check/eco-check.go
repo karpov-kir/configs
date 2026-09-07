@@ -8,7 +8,7 @@
 // one process cannot see each other's. The one thing held across them is scripts.go's `bash -n` memo,
 // keyed on file content so a second run is answered with what the first parsed.
 //
-// Most of the density below is hardening against a hostile tree, because this runs as kk-pr-review's
+// Most of the density below is hardening against a hostile tree, because this runs as kk-pr's
 // stage over a branch that chose its own contents: NUL bytes in files, newlines in committed
 // filenames, symlinks at every path it touches, control bytes in anything echoed into a finding,
 // unbounded emit counts, and paths that resolve outside the root. A change here needs a case in the

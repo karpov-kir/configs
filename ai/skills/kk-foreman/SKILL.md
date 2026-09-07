@@ -37,8 +37,9 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | Something is broken, slow or flaky, and the cause is unknown | `kk-diagnose`, alone, and **before any change exists to review** — a lane reading a diff cannot reach a cause nobody has reproduced. |
 | A settled requirement to build, with nothing written yet | `kk-build`, alone — it owns the loop and the gates inside it. The pass that reads the result afterwards is the row below, and it is that skill's to call, not yours to queue beside this one. |
 | Code or tooling changed | `kk-qualify`, alone — it owns the stage order and what each stage's trigger is. Queuing those stages here instead runs the pipeline without its round. |
-| A PR to review | `kk-pr-review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. **A PR of the human's own too**, where the code row would leave the fixes uncommitted and the PR stale. |
-| Changes were requested on a PR | `kk-pr-review`, alone, and **pass its `fix` token** — on someone else's PR, without it the skill only drafts a review. |
+| A PR to review | `kk-pr review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. **A PR the human wants left ready rather than commented on takes `kk-pr review-and-address`** — the code row would leave those fixes uncommitted. |
+| Changes were requested on a PR | `kk-pr address-review`, alone — it fixes, gates and pushes inside its own loop, so queuing the build or code rows beside it repeats work it already does. |
+| A PR description that no longer names the change | `kk-pr refine-description` — the prose row's skills reach no PR. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
 | Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
 | Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-tighten` beside it runs them twice and out of order. |
