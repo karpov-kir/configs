@@ -28,6 +28,8 @@ Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/
 
 Present the exact proposed charter edit and obtain explicit approval before writing it; existing authorization for that edit suffices. For a promotion, write the accepted constraint before removing its source decision through `report.sh record evict` with the appropriate scope. A declined or unanswered proposal leaves the source intact.
 
+Before proposing a promotion, extract the enduring project-wide obligation from the decision and rewrite it against **Rules** below. Do not copy the decision entry into the charter. Preserve its meaning without expanding its scope; keep implementation details and rationale in the agent records. If the decision contains no project-wide obligation, leave it there. If only part is promoted, retain the remaining useful detail instead of evicting the whole entry.
+
 Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh layout check` after the edit and correct its structural findings within the approved wording.
 
 ## Rules
@@ -35,6 +37,8 @@ Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh layout check` after the 
 Curated, not generated: humans own the wording. **Open no prose-lane handoff for the charter.**
 
 Exactly one `## Constraints` section holds at most 30 concise, single-line, top-level `- ` bullets: project-wide invariants only, with no dates or usage counts. Each must rule out something no existing constraint already rules out. An intent may add stricter requirements but cannot silently override these invariants; resolve a conflict through an explicitly approved charter edit before building against it.
+
+**A nontechnical reader must understand each constraint without opening code or a glossary.** State one enduring outcome, promise or boundary for the whole project in plain language. Name who or what it protects and what must remain true. Exclude implementation choices, internal identifiers, code paths, protocols, unexplained abbreviations and feature-level instructions; keep those in intents or agent records. A business limit may use a number and familiar unit when the limit itself matters to users. High-level does not mean vague: the reader must be able to recognize a violation. Check this meaning and readability on every constraint edit; `layout check` validates structure, not these judgments.
 
 Scope and principle lines also must rule out something no existing line rules out.
 

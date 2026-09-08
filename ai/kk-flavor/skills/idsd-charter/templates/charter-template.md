@@ -20,7 +20,7 @@ The project's what & why — the level-0 intent above the feature intents.
 
 <!-- Human-owned: approve wording changes explicitly before editing. -->
 
-- <project-wide invariant; use concise top-level bullets, at most 30>
+- <one project-wide promise or boundary, understandable without technical knowledge; at most 30 bullets>
 
 ## See also
 
