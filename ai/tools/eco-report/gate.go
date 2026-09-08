@@ -98,6 +98,9 @@ func (r *run) blocksOnStages() bool {
 	case len(r.skipBlockReasons(stages)) > 0:
 		r.errLines("BLOCK (stages): skipped stages lack current scope evidence — re-qualify. " + overridableByAHumanOnly)
 		return true
+	case len(r.resultStagesProblems(stages)) > 0:
+		r.errLines("BLOCK (stages): typed results are missing, stale or findings changed — re-qualify. " + overridableByAHumanOnly)
+		return true
 	case trims != "":
 		r.errLines("BLOCK (stages): trimmed for turnaround (" + trims + ") — re-run qualify untrimmed before merge. " + overridableByAHumanOnly)
 		return true
@@ -267,12 +270,18 @@ func (r *run) stateToken() string {
 	if !isUnstamped(r.reviewedStages()) && (len(validateStampEntries(r.reviewedStages())) > 0 || len(r.skipBlockReasons(r.reviewedStages())) > 0) {
 		return "re-qualify"
 	}
+	if r.hasResultProjectionProblem() {
+		return "resume"
+	}
 	if r.anyOpenItemsBeforeMerge("the state is unknown.") {
 		return "decide" // quality done, tree fresh, open `- [ ]` remain in the report or the ICE
 	}
 	if isUnstamped(r.reviewedStages()) || r.turnaroundTrims() != "" {
 		// Stages trimmed (or unrecorded) and fresh, nothing open — an untrimmed qualify remains.
 		return "finalize"
+	}
+	if len(r.resultStagesProblems(r.reviewedStages())) > 0 {
+		return "re-qualify"
 	}
 	return "ready" // full-reviewed, tree fresh, nothing open → merge-ready
 }

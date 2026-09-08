@@ -76,9 +76,12 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 			if strings.Contains(entry, ":skipped(") {
 				continue
 			}
-			stage, _, _ := strings.Cut(entry, ":")
-			f.runReport("stage-returned", stage, "001-grammar")
-			f.runReport("no-items", stage, "001-grammar")
+			stage, outcome, partial := strings.Cut(entry, ":")
+			if !partial {
+				outcome = "complete"
+			}
+			result := f.cleanStageResultIn(cleanStageOptions{dir: f.repo, stage: stage, outcome: outcome, intent: "001-grammar"})
+			f.runReport("stage-result", result, "001-grammar")
 		}
 		f.runReport("stamp", legal, "001-grammar")
 		f.record("stamp accepts '"+legal+"'", f.status == 0, f.evidence())

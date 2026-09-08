@@ -72,13 +72,17 @@ func TestDiscardDestructivePath(t *testing.T) {
 	only := newShip(t, "001-only-ship")
 	only.newIntentFile("001-only-ship")
 	only.runReport("invalidate", "001-only-ship")
-	only.runReport("stage-returned", "code-review", "001-only-ship")
-	markers := only.repo + "/.git/idsd-stage-returns/001-only-ship"
+	only.recordCleanStage("code-review", "001-only-ship")
+	only.runReport("decisions-reviewed", "001-only-ship")
+	decisionMarkers := only.repo + "/.git/idsd-stage-returns/001-only-ship"
+	only.record("fixture has decision review evidence", only.status == 0 && only.isFile(decisionMarkers+"/decisions-reviewed"), only.evidence())
+	markers := only.stageResultsPath("001-only-ship")
+	only.record("fixture has accepted results", only.status == 0 && only.isFile(markers), only.evidence())
 	only.runReport("discard", "001-only-ship")
 	only.assertIdsdRemoved("discard removes the whole .idsd/ when this ship was the only thing in it")
-	// The stage markers live in the git dir, so removing .idsd/ cannot reach them. They need their own
-	// removal, or the next ship for this intent inherits a completed stage record and stamps for free.
-	only.record("and the stage markers in the git dir, which removing .idsd/ never reaches", !only.exists(markers), "")
+	// The stage results live in the git dir, so removing .idsd/ cannot reach them. They need their own
+	// removal, or the next ship for this intent retains results from a completed pass.
+	only.record("and the stage results in the git dir, which removing .idsd/ never reaches", !only.exists(markers) && !only.exists(decisionMarkers), "")
 	// Zero traces means the working tree too. There is no exclusion to drop any more, so what has to
 	// hold is that nothing was ever put in the tree for one to hide.
 	only.record("and left nothing in the working tree either", only.treeIsFreeOfScratch(), "")

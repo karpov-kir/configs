@@ -30,8 +30,7 @@ func TestScopePermitsOnlyProvenSkips(t *testing.T) {
 			f.runReport("scope", "HEAD")
 			f.record("scope measured", f.status == 0, f.evidence())
 			for _, stage := range []string{"code-review", "edit"} {
-				f.runReport("stage-returned", stage)
-				f.runReport("no-items", stage)
+				f.recordCleanStage(stage)
 			}
 			f.runReport("decisions-reviewed")
 			f.runReport("stamp", "code-review,security-review:skipped(not-applicable),edit,refactor:skipped(not-applicable)")
@@ -60,7 +59,12 @@ func TestSkipReceiptMustDescribeThisCandidate(t *testing.T) {
 	f.runReport("stamp", record)
 	f.record("fresh code scope requires security", f.status == 2 && strings.Contains(f.out, "security-review"), f.evidence())
 	f.runReport("stamp", allStagesStampedAs)
-	f.record("all stages remain valid without skips", f.status == 0, f.evidence())
+	f.record("old stage results cannot certify the changed candidate", f.status == 2 && strings.Contains(f.out, "no accepted result"), f.evidence())
+	for _, stage := range allStages {
+		f.recordCleanStage(stage)
+	}
+	f.runReport("stamp", allStagesStampedAs)
+	f.record("fresh results permit all stages without skips", f.status == 0, f.evidence())
 }
 
 func TestScopeSeesCommittedRenamedDeletedAndLinkedCode(t *testing.T) {
@@ -115,8 +119,7 @@ func TestEditSkipNeedsKnownEmptyScope(t *testing.T) {
 	f.runReport("invalidate")
 	f.runReport("scope", "HEAD")
 	for _, stage := range []string{"code-review", "security-review", "refactor"} {
-		f.runReport("stage-returned", stage)
-		f.runReport("no-items", stage)
+		f.recordCleanStage(stage)
 	}
 	f.runReport("decisions-reviewed")
 	f.runReport("stamp", "code-review,security-review,edit:skipped(not-applicable),refactor")

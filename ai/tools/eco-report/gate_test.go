@@ -116,8 +116,7 @@ func TestATrimmedPassIsNotAFullOne(t *testing.T) {
 	// Every stage but the trimmed one is marked. A skipped entry is not required to have returned, and
 	// leaving security-review unmarked is what pins that.
 	for _, stage := range []string{"code-review", "edit", "refactor"} {
-		f.runReport("stage-returned", stage, "001-trimmed")
-		f.runReport("no-items", stage, "001-trimmed")
+		f.recordCleanStage(stage, "001-trimmed")
 	}
 	f.runReport("stamp", "code-review,security-review:skipped(turnaround),edit,refactor", "001-trimmed")
 	f.record("a stage skipped for turnaround stamps without having returned",

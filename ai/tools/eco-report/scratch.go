@@ -118,6 +118,7 @@ func (r *run) cmdPromote() {
 	}
 
 	moved := r.idsdDir
+	priorResults := r.preparePromotedResults(target)
 	r.movePromotedScratch(target)
 
 	// The index moves here, so the memoized `ls-files .idsd` answer goes with it: it is what decides
@@ -133,6 +134,11 @@ func (r *run) cmdPromote() {
 		r.refuseUnmoved(moved, target,
 			"error: nothing under "+target+" could be staged, so this is still a throwaway — not promoted.",
 			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a playbook.")
+	}
+	for _, path := range priorResults {
+		if err := os.Remove(path); err != nil {
+			r.errLines("warning: promotion retained an unused prior result manifest: " + err.Error())
+		}
 	}
 	r.line("promoted: moved the scratch to %s and staged it, each ship's scratch ignored via .gitignore — commit when ready (not committed here)", target)
 }
@@ -249,6 +255,7 @@ func (r *run) cmdDiscard() {
 	}
 	// The stage markers sit in the git dir, which the .idsd/ removal below never reaches.
 	_ = os.RemoveAll(r.stageReturnsDir)
+	r.clearResultManifest()
 	rmdirIfEmpty(r.intentsDir, r.idsdDir+"/archive")
 	if kept := r.survivingContent(); kept != "" {
 		// `close` may already have taken the report, and a ship can have no intent file, so
@@ -270,6 +277,9 @@ func (r *run) cmdClose(args []string) {
 	name, isForced := nameAndForceFlag(args)
 	r.requireReport(name)
 	if !isForced {
+		if manifest := r.readResultManifest(); manifest != nil {
+			r.assertResultProjection(*manifest)
+		}
 		r.readOpenTodos("nothing was closed.")
 		if r.openTodos != "" {
 			r.refuse("error: "+r.report+" still holds open '- [ ]' — nothing was closed.",
@@ -281,6 +291,7 @@ func (r *run) cmdClose(args []string) {
 	// The stage markers are in the git dir, so removing the report leaves them behind, and the next
 	// ship for this intent would inherit a completed stage record and stamp for free.
 	_ = os.RemoveAll(r.stageReturnsDir)
+	r.clearResultManifest()
 	rmdirIfEmpty(r.intentsDir)
 	r.line("closed %s — its stage markers are gone; decisions.md is untouched", stemOfReportPath(r.report))
 }

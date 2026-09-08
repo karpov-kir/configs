@@ -344,13 +344,8 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 	})
 }
 
-func TestPerWorktreeStateGoesToTheWorktreesOwnGitDir(t *testing.T) {
+func TestStageResultsStayOutsideALinkedWorktree(t *testing.T) {
 	t.Parallel()
-	// The other half of the gitPath/gitCommonPath split, and the one that must stay per-worktree: a
-	// ship's stage markers. `--git-path` answers a RELATIVE path in an ordinary repo and an ABSOLUTE one
-	// in a linked worktree, so an absolute answer joined onto the root builds the markers at
-	// `<worktree>/<absolute path>` — a directory tree inside the checkout, while the marker the next
-	// command looks for is not there. Every command still reports success.
 	f := newShip(t, "001-markers")
 	second := f.base + "/marker-worktree"
 	f.mustGit("worktree", "add", "-q", second, "-b", "markers")
@@ -363,27 +358,22 @@ func TestPerWorktreeStateGoesToTheWorktreesOwnGitDir(t *testing.T) {
 	// can never match and the case passes while observing nothing.
 	before := strings.Join(f.entries(second), "\n")
 	f.runReportIn(second, "invalidate", "001-markers")
-	f.runReportIn(second, "stage-returned", "code-review", "001-markers")
-	f.record("a stage marker written from a linked worktree is recorded",
+	f.recordCleanStageIn(cleanStageOptions{dir: second, stage: "code-review", intent: "001-markers"})
+	f.record("a stage result submitted from a linked worktree is recorded",
 		f.status == 0, f.evidence())
 	after := strings.Join(f.entries(second), "\n")
 	f.record("and nothing new appeared inside the worktree, so no absolute git path was prefixed onto the root",
 		after == before, "before:\n"+before+"\nafter:\n"+after)
-	// And the marker is readable back from that same worktree, which is what the stamp depends on.
-	f.runReportIn(second, "no-items", "code-review", "001-markers")
+	// Stamping reads the accepted result back from the same worktree.
+	for _, stage := range []string{"security-review", "edit", "refactor"} {
+		f.recordCleanStageIn(cleanStageOptions{dir: second, stage: stage, intent: "001-markers"})
+	}
+	f.runReportIn(second, "decisions-reviewed", "001-markers")
+	f.runReportIn(second, "stamp", allStagesStampedAs, "001-markers")
 	f.record("and reads back, so the stamp can see it", f.status == 0, f.evidence())
 }
 
-// The same guard, reached the other way. gitPath resolves the git dir from the on-disk layout first
-// and only asks git when an environment override makes the layout untrustworthy, so the case above
-// never reaches the `--git-path` answer at all: for a linked worktree the layout resolver answers, and
-// the prefixing arm below it is skipped. That left the arm reachable and unreached — a guard with a
-// case named against it that could not fail.
-//
-// GIT_CEILING_DIRECTORIES is the cheapest override that forces the fallback: layoutOverridden reads it
-// and declines, while git's own answer for a path under the fixture is unchanged. t.Setenv bars
-// t.Parallel, which is why this is its own case rather than a subtest of the one above.
-func TestPerWorktreeStateGoesToItsOwnGitDirWhenTheLayoutIsOverridden(t *testing.T) {
+func TestStageResultsStayOutsideALinkedWorktreeWithLayoutOverrides(t *testing.T) {
 	t.Setenv("GIT_CEILING_DIRECTORIES", t.TempDir()+"/elsewhere")
 	f := newShip(t, "002-markers")
 	second := f.base + "/override-worktree"
@@ -393,13 +383,17 @@ func TestPerWorktreeStateGoesToItsOwnGitDirWhenTheLayoutIsOverridden(t *testing.
 	}
 	before := strings.Join(f.entries(second), "\n")
 	f.runReportIn(second, "invalidate", "002-markers")
-	f.runReportIn(second, "stage-returned", "code-review", "002-markers")
-	f.record("a stage marker written from a linked worktree with the layout overridden is recorded",
+	f.recordCleanStageIn(cleanStageOptions{dir: second, stage: "code-review", intent: "002-markers"})
+	f.record("a stage result submitted from a linked worktree with the layout overridden is recorded",
 		f.status == 0, f.evidence())
 	after := strings.Join(f.entries(second), "\n")
 	f.record("and nothing new appeared inside the worktree, so the absolute --git-path answer was not prefixed onto the root",
 		after == before, "before:\n"+before+"\nafter:\n"+after)
-	f.runReportIn(second, "no-items", "code-review", "002-markers")
+	for _, stage := range []string{"security-review", "edit", "refactor"} {
+		f.recordCleanStageIn(cleanStageOptions{dir: second, stage: stage, intent: "002-markers"})
+	}
+	f.runReportIn(second, "decisions-reviewed", "002-markers")
+	f.runReportIn(second, "stamp", allStagesStampedAs, "002-markers")
 	f.record("and reads back, so the stamp can see it", f.status == 0, f.evidence())
 }
 
@@ -533,10 +527,11 @@ func TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity(t *testing.T) {
 		f.armFullPass("094-unmintable")
 		// Unwritable by construction: a directory where the token file goes, so the write fails for every
 		// user including root.
+		f.remove(f.repo + "/.git/idsd-worktree-id")
 		f.mkdirAll(f.repo + "/.git/idsd-worktree-id")
 		f.runReport("stamp", allStagesStampedAs, "094-unmintable")
 		f.assertRefused("stamp refuses when this worktree's identity cannot be established")
-		f.assertReports("NOT stamped", "and says the pass was not stamped")
+		f.assertReports("could not establish which worktree", "and names the missing worktree identity")
 		// Still the placeholder invalidate left, so nothing was recorded.
 		f.record("and wrote no reviewed-worktree value",
 			fieldFrom(f.read(f.reportPath("094-unmintable")), "reviewed-worktree") == "pending",

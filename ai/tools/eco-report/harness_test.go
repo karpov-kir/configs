@@ -434,17 +434,11 @@ func (f *fixture) treeIsFreeOfScratch() bool {
 	return status == 0 && !strings.Contains(dirty, ".idsd")
 }
 
-// Every pipeline stage, in the two forms a pass names them: one per `stage-returned`, and comma-joined
-// for the stamp. Stated once, because a stage marked but left out of the stamp record — or the reverse
-// — is a fixture that arms a pass the stamp then refuses, and the case reads as a broken guard.
 var (
 	allStages          = []string{"code-review", "security-review", "edit", "refactor"}
 	allStagesStampedAs = strings.Join(allStages, ",")
 )
 
-// Everything a stamp demands short of the stamp itself: this pass invalidated, every stage marked
-// returned and then empty, and the decision log accounted for. Invalidate comes first because a
-// marker means nothing until it is known which pass made it.
 func (f *fixture) armFullPass(ship string) {
 	f.t.Helper()
 	f.armFullPassIn(f.repo, ship)
@@ -464,8 +458,7 @@ func (f *fixture) armFullPassIn(dir, ship string) {
 	f.t.Helper()
 	f.runReportIn(dir, "invalidate", ship)
 	for _, stage := range allStages {
-		f.runReportIn(dir, "stage-returned", stage, ship)
-		f.runReportIn(dir, "no-items", stage, ship)
+		f.recordCleanStageIn(cleanStageOptions{dir: dir, stage: stage, intent: ship})
 	}
 	f.runReportIn(dir, "decisions-reviewed", ship)
 }

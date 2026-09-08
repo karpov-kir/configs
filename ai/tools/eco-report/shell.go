@@ -160,40 +160,6 @@ func writeAll(w io.Writer, text string) {
 	_, _ = io.WriteString(w, text)
 }
 
-// The POSIX cksum CRC, which is what the stage markers hold. Reimplemented rather than shelled out to,
-// because during any swap a marker written by one version of this tool is read by the other: a different
-// digest there would read as "the report has moved" and free a stamp the pass never earned.
-func cksum(content []byte) (uint32, int) {
-	var crc uint32
-	for _, b := range content {
-		crc = crc<<8 ^ cksumTable[byte(crc>>24)^b]
-	}
-	for length := len(content); length != 0; length >>= 8 {
-		crc = crc<<8 ^ cksumTable[byte(crc>>24)^byte(length)]
-	}
-	return ^crc, len(content)
-}
-
-// The CRC-32 table cksum reads, over the POSIX polynomial. Built once: it is the same 256 entries for
-// every marker, and a marker is written and read on every stage return.
-var cksumTable = newCksumTable()
-
-func newCksumTable() [256]uint32 {
-	var table [256]uint32
-	for i := range table {
-		crc := uint32(i) << 24
-		for range 8 {
-			if crc&0x80000000 != 0 {
-				crc = crc<<1 ^ 0x04C11DB7
-			} else {
-				crc <<= 1
-			}
-		}
-		table[i] = crc
-	}
-	return table
-}
-
 // How many non-directory entries a directory holds, and up to sampleBound of their paths relative to
 // it. The count and the sample are separate returns because the sample is bounded: reporting len(sample)
 // as the count understates a directory of a hundred files as twenty.

@@ -174,6 +174,7 @@ func (r *run) cmdFinalize(args []string) {
 	// The stage markers live in the git dir, which the folder move never reaches — left behind, the
 	// next ship for this intent inherits a completed stage record and stamps for free.
 	_ = os.RemoveAll(r.stageReturnsDir)
+	r.clearResultManifest()
 
 	if err := os.MkdirAll(shell.DirName(target), 0o700); err != nil {
 		r.refuse("error: could not create " + shell.DirName(target) + " (" + err.Error() + ") — this ship's scratch is already gone, so re-run once the directory can be made.")

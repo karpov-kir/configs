@@ -28,11 +28,9 @@
 //	repo-mode        print committed|throwaway — is .idsd/ tracked in git?
 //	invalidate       clear reviewed-tree/reviewed-worktree/reviewed-stages and drop the stage markers at
 //	                 pass start, so no stamp outlives its tree; stamp refuses until this pass has run it
-//	stage-returned <stage>  mark a stage returned, recording the report as it then stood; stamp refuses until
-//	                 the report has changed since, so a stage's items cannot be left unrecorded. One stage at
-//	                 a time — refused while another stage's mark still has nothing recorded against it
-//	no-items <stage> mark a stage already marked returned as having surfaced nothing, the one way to clear
-//	                 its marker without editing the report
+//	stage-result <json-file>  durably accept one typed stage result and render its findings; exact pending
+//	                 retry recovers an interrupted projection, while completed duplicate IDs refuse
+//	result-context   print the active attempt and current candidate identity for a worker
 //	decisions-reviewed  record that this pass re-evaluated the decision log — bumping what it reached and
 //	                 found still true, evicting what its subject has left. stamp refuses until it has run,
 //	                 and invalidate clears it, so every pass accounts for the log afresh
@@ -152,6 +150,10 @@ func (inv Invocation) Exec() (code int) {
 		}
 	}()
 	r.resolveRoot()
+	if r.needsReportLock() {
+		lock := r.lockReports()
+		defer lock.Close()
+	}
 	r.dispatch()
 	return 0
 }
@@ -209,8 +211,6 @@ const reportName = "qualify-report.md"
 
 // The intent file inside a ship folder, and inside an archived one.
 const intentName = "intent.md"
-
-const noItemsMarker = "no-items"
 
 func newRun(inv Invocation) *run {
 	r := &run{
@@ -293,10 +293,10 @@ func (r *run) dispatch() {
 		r.cmdInit(r.args[1:])
 	case "repo-mode":
 		r.line("%s", r.repoMode())
-	case "stage-returned":
-		r.cmdStageReturned()
-	case "no-items":
-		r.cmdNoItems()
+	case "stage-result":
+		r.cmdStageResult()
+	case "result-context":
+		r.cmdResultContext()
 	case "decisions-reviewed":
 		r.cmdDecisionsReviewed()
 	case "scope":
@@ -330,7 +330,7 @@ func (r *run) dispatch() {
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

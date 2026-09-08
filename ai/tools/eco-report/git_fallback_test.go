@@ -74,12 +74,16 @@ func TestTheGitFallbackResolvesWhatTheLayoutReaderWould(t *testing.T) {
 		// worktree, never the shape of the wrong path, which mirrors wherever the fixture happens to live.
 		before := strings.Join(f.entries(second), "\n")
 		f.runReportIn(second, "invalidate", "001-fallback-markers")
-		f.runReportIn(second, "stage-returned", "code-review", "001-fallback-markers")
-		f.record("a stage marker written from a linked worktree is recorded", f.status == 0, f.evidence())
+		f.recordCleanStageIn(cleanStageOptions{dir: second, stage: "code-review", intent: "001-fallback-markers"})
+		f.record("a stage result submitted from a linked worktree is recorded", f.status == 0, f.evidence())
 		after := strings.Join(f.entries(second), "\n")
 		f.record("and nothing new appeared inside the worktree", after == before,
 			"before:\n"+before+"\nafter:\n"+after)
-		f.runReportIn(second, "no-items", "code-review", "001-fallback-markers")
+		for _, stage := range []string{"security-review", "edit", "refactor"} {
+			f.recordCleanStageIn(cleanStageOptions{dir: second, stage: stage, intent: "001-fallback-markers"})
+		}
+		f.runReportIn(second, "decisions-reviewed", "001-fallback-markers")
+		f.runReportIn(second, "stamp", allStagesStampedAs, "001-fallback-markers")
 		f.record("and it reads back, so the stamp can see it", f.status == 0, f.evidence())
 	})
 }

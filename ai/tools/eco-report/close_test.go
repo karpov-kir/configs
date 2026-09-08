@@ -29,25 +29,23 @@ func TestCloseRetiresOneShipScratchAndNothingElse(t *testing.T) {
 	alone.record("close reads --force as a flag, not as the intent name",
 		alone.status == 0 && !alone.isFile(alone.reportPath("")), alone.evidence())
 
-	// The stage markers sit in the git dir, which removing the report never reaches, and they are keyed
-	// by the report stem — so the next ship for the same intent inherits them. Asserted on the dir as
-	// well as on its effect, the way `discard`'s own case for this is.
 	relanding := newShip(t, "001-relanding")
-	relanding.runReport("stage-returned", "code-review", "001-relanding")
+	relanding.runReport("invalidate", "001-relanding")
+	relanding.recordCleanStage("code-review", "001-relanding")
+	relanding.runReport("decisions-reviewed", "001-relanding")
 	markers := relanding.repo + "/.git/idsd-stage-returns/001-relanding"
-	relanding.record("fixture: the closing ship marked a stage returned", relanding.isFile(markers+"/code-review"),
-		relanding.evidence())
+	relanding.record("fixture: decision review evidence exists", relanding.status == 0 && relanding.isFile(markers+"/decisions-reviewed"), relanding.evidence())
+	manifest := relanding.stageResultsPath("001-relanding")
+	relanding.record("fixture: the closing ship accepted a stage result", relanding.status == 0 && relanding.isFile(manifest), relanding.evidence())
 	relanding.runReport("close", "001-relanding")
-	relanding.record("close takes the ship's stage markers with its report",
-		relanding.status == 0 && !relanding.exists(markers), joinLines(relanding.find(markers)))
-	// What an inherited marker does to the next ship. A report scaffolded from the same template for
-	// the same intent is byte-identical to the one just closed, so the stale marker's checksum matches
-	// it: the first stage to return is refused for a return the closed ship made, and nothing in the
-	// new pass can clear a marker it does not know is there.
+	relanding.record("close removes the ship's results with its report", relanding.status == 0 && !relanding.exists(manifest) && !relanding.exists(markers), relanding.evidence())
 	relanding.runReport("init", "001-relanding")
-	relanding.runReport("stage-returned", "security-review", "001-relanding")
-	relanding.record("so the next ship for that intent is not refused for the closed one's return",
-		relanding.status == 0, relanding.evidence())
+	relanding.runReport("result-context", "001-relanding")
+	relanding.assertRefused("the next report cannot inherit the closed pass")
+	relanding.runReport("invalidate", "001-relanding")
+	relanding.recordCleanStage("security-review", "001-relanding")
+	relanding.record("a fresh pass accepts its own result", relanding.status == 0, relanding.evidence())
+
 }
 
 func TestCloseOnACleanReportThePathDoneRuns(t *testing.T) {

@@ -11,20 +11,20 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 
 1. **`~/.kk-flavor/skills/idsd-qualify/scripts/report.sh check-ignore`**, before anything else (**Report**).
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
-3. **`report.sh invalidate <intent>`**, once the report is set — `stamp` refuses until you have.
+3. **`report.sh invalidate <intent>`**, once the report is set. Retain its JSON context for this attempt; pass it to the stage workers with their candidate scope.
 4. For applicability-based skips, run `report.sh scope <base-ref> <intent>` with the review's explicit base. It records the exact candidate and worktree. Without a valid scope receipt, run every stage rather than inventing a skip. If repairs change the candidate, refresh this receipt against the same base and revalidate affected evidence before stamping.
 
-**Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
+**Accept each completed stage with `report.sh stage-result <result.json> <intent>`.** [stage-results.md](stage-results.md) is the complete submission and recovery procedure. The tool records completion and renders its decision items; an empty item list accounts for a stage with no residue. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): submit only after the worker's final verdict and your reconciliation of its findings.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 
 When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — **its usage string is the entry vocabulary's only home**, and a copy in this file would drift from the tool that validates it. A stage that ran is never stamped skipped, or vice versa.
 
-**The prose/comment stage stamps under `edit`.** A historical `tighten` record is not evidence for the new contract; let the report tool route stale records.
+**Historical marker-based passes need requalification.** Let the tool reject their missing typed evidence; do not construct receipts for work whose inputs cannot be verified.
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
-**Report post-processing.** Edit the report inline with `kk-edit`'s outward-text guidance before presenting it. Preserve every decision item, its evidence and stakes; never drop or soften an unchecked `- [ ]`. Do not spawn another worker or run an external judge for the structured report. The report is check-ignored, so this wording pass does not invalidate its stamp.
+**Report wording settles before submission.** Apply `kk-edit` inline to authored items, preserving every decision, its evidence and stakes. Generated finding blocks preserve the accepted wording: resolve their checkboxes only on positive evidence, and put explanations outside the blocks. Surrounding authored prose remains editable. Do not spawn another worker or run an external judge for the structured report.
 
 ## Report
 
@@ -59,7 +59,7 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 <optional: context several items share, stated once here, never per item>
 
-- [ ] **<N> · <Falsified | Fork | Pending evidence> —** <the action, one line>
+- [ ] **<stable ID> · <Falsified | Fork | Pending evidence> —** <the action, one line>
   <the case: what it is, why it matters, the evidence>
   **Recommend:** <the answer>
 ```
@@ -67,6 +67,7 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 **What earns an item and the order it lands in are `~/.kk-flavor/skills/kk-qualify/SKILL.md` → **The residue**.** This file adds only where that residue is written:
 
 - **One group, `Decide`** — no per-stage sections, no summary, and no reading list. A monitor-only observation goes to the decision log.
+- **Persisted items use stable IDs instead of positional numbers**, so a later stage can refer to an earlier decision without renumbering it. The tool renders submitted severity alongside each item.
 - **On re-qualify every unresolved `- [ ]` carries forward verbatim** (`report.sh carry <intent>` lists them) — dropped only on positive evidence it's resolved (fixed in the tree, or the human acted on it), never because this pass didn't re-examine its area.
 
 ## After the pass

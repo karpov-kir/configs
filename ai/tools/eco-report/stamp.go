@@ -19,46 +19,14 @@ const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
     not-applicable  = scope <base-ref> proved its condition unmet for this candidate
 `
 
-// Serialising the marks is what makes stages.go's checksum rule per-stage: the round's stages return
-// together, so back-to-back marks share one checksum and one edit would clear them all.
-func (r *run) cmdStageReturned() {
-	r.requireReport(r.arg(2))
-	stage := r.arg(1)
-	r.assertValidStage(stage, "stage-returned")
-	outstanding := r.outstandingStage()
-	// Its own name is the one exception. A streamed stage returns, gets resumed with what landed, and
-	// returns again with nothing recorded in between — the report has not moved, so it is itself the
-	// outstanding stage. Re-marking it rewrites the same checksum, so this is idempotent; what the guard
-	// exists to stop is a *second* stage being waved through on the first's unrecorded return.
-	if outstanding != "" && outstanding != stage {
-		r.refuse("error: " + outstanding + " is marked returned and the report has not moved since — record its items, or run report.sh no-items " + outstanding + ", before marking a stage returned.")
-	}
-	r.writeStageMarker(stage, r.reportChecksum())
-	r.line("recorded return of %s — record its items, or report.sh no-items %s, before taking the next stage's return", stage, stage)
-}
-
-// The escape hatch for a stage that genuinely surfaced nothing. It demands a marker: without that, a
-// pass that ran nothing can declare every stage empty and stamp.
-func (r *run) cmdNoItems() {
-	r.requireReport(r.arg(2))
-	stage := r.arg(1)
-	r.assertValidStage(stage, "no-items")
-	if !r.stageWasMarkedReturned(stage) {
-		r.refuse("error: " + stage + " was never marked returned — run report.sh stage-returned " + stage + " when it returns, then report.sh no-items " + stage + " once you have read its findings.")
-	}
-	r.writeStageMarker(stage, noItemsMarker)
-	r.line("recorded %s as having surfaced nothing for the report", stage)
-}
-
 // The pass's account of the decision log, which `stamp` requires. Whether an entry was reached and is
 // still true is a judgment no tool can take for the agent — `records.md` → **Every entry is dated and
 // counted**. So what is enforced here is only that the pass said it worked the log. That is the
-// guarantee `no-items` gives a stage that surfaced nothing, and it is here for the same reason:
+// guarantee a typed completion gives a stage that surfaced nothing, and it is here for the same reason:
 // without it, a pass that never opened the record stamps exactly like one that pruned it.
 //
 // It lives in the stage-returns directory, so `invalidate` clears it along with everything else. It
-// holds a word rather than a checksum, which keeps `outstandingStage` from taking it for a stage
-// awaiting its items.
+// holds a word; typed stage results live in their own shared manifest.
 const decisionsMarker = "decisions-reviewed"
 
 func (r *run) cmdDecisionsReviewed() {
@@ -95,27 +63,12 @@ func (r *run) cmdStamp() {
 	if problems := r.skipBlockReasons(entries); len(problems) > 0 {
 		r.refuse("error: invalid scope evidence for skipped stages", strings.Join(problems, "\n"))
 	}
-	// Run stages still require their returns, independently of applicability.
-	var blockReasons []string
-	for _, entry := range strings.Split(entries, ",") {
-		if strings.Contains(entry, ":skipped(") {
-			stage, _, _ := strings.Cut(entry, ":")
-			if r.stageWasMarkedReturned(stage) {
-				blockReasons = append(blockReasons, stage+": returned and cannot be recorded as skipped")
-			}
-			continue
-		}
-		stage, _, _ := strings.Cut(entry, ":")
-		if reason := r.stageBlockReason(stage); reason != "" {
-			blockReasons = append(blockReasons, "  "+stage+": "+reason)
-		}
-	}
-	if len(blockReasons) > 0 {
-		r.refuse("error: these stages are recorded as having run, but:", strings.Join(blockReasons, "\n"))
+	if problems := r.resultStagesProblems(entries); len(problems) > 0 {
+		r.refuse("error: these stages are recorded as having run, but:", strings.Join(problems, "\n"))
 	}
 	// Last of the preconditions, so a pass missing both this and a stage's items is told about the
 	// stage first — that one names which stage, and this one would send it to the record instead.
-	if !r.stageWasMarkedReturned(decisionsMarker) {
+	if !r.hasPassMarker(decisionsMarker) {
 		r.refuse("error: this pass has not accounted for the decision log — NOT stamped.",
 			"  Re-evaluate every entry against the tree: bump what this pass reached and found still true,",
 			"  evict what its subject has left, and leave what this pass never went near.",
@@ -143,6 +96,9 @@ func (r *run) cmdStamp() {
 
 func (r *run) cmdInvalidate() {
 	r.requireReport(r.arg(1))
+	if manifest := r.readResultManifest(); manifest != nil {
+		r.assertResultProjection(*manifest)
+	}
 	// Before the stamp, not after: the sentence below is only true while the stamp still stands. Clearing
 	// it first and failing here leaves a report that reads as invalidated under a refusal saying it is not.
 	// Last pass's stage returns would otherwise satisfy this pass's stamp for free.
@@ -156,7 +112,7 @@ func (r *run) cmdInvalidate() {
 	if err != nil {
 		r.exit(2)
 	}
-	r.line("invalidated reviewed-tree — restamp when the pass completes")
+	r.beginResultAttempt()
 }
 
 // `tr -d '[:space:]'`, so a stage record pasted across two lines still reads as one.

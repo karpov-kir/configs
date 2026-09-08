@@ -6,6 +6,8 @@ package ecoreport_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -246,32 +248,6 @@ func frontmatterAndBody(report string) (frontmatter, body string) {
 	return strings.Join(lines[1:], "\n"), ""
 }
 
-// `cksum <file>` reduced to the two fields a stage marker holds. False means cksum(1) is not on this
-// machine.
-func posixCksum(path string) (string, bool) {
-	out, err := exec.Command("cksum", path).Output()
-	if err != nil {
-		return "", false
-	}
-	fields := strings.Fields(string(out))
-	if len(fields) < 2 {
-		return "", false
-	}
-	return fields[0] + " " + fields[1], true
-}
-
-// A marker's value beside cksum(1)'s own answer for the same file. False means cksum(1) is not on
-// this machine, and the comparison is skipped rather than failed.
-func (f *fixture) markerAgainstCksum(marker, report string) (held, want string, ok bool) {
-	f.t.Helper()
-	want, ok = posixCksum(report)
-	if !ok {
-		f.t.Logf("skip  cksum(1) is not on this machine — the digest comparison cannot run")
-		return "", "", false
-	}
-	return strings.TrimRight(f.read(marker), "\n"), want, true
-}
-
 func sortedWords(text string) string {
 	words := strings.Fields(text)
 	if len(words) == 0 {
@@ -346,4 +322,81 @@ func fieldFrom(text, field string) string {
 		}
 	}
 	return ""
+}
+
+type fixtureStageContext struct {
+	Version  int    `json:"version"`
+	Attempt  string `json:"attempt"`
+	Head     string `json:"head"`
+	Tree     string `json:"tree"`
+	Worktree string `json:"worktree"`
+}
+
+type fixtureStageResult struct {
+	fixtureStageContext
+	Id      string            `json:"id"`
+	Stage   string            `json:"stage"`
+	Status  string            `json:"status"`
+	Outcome string            `json:"outcome"`
+	Items   []json.RawMessage `json:"items"`
+}
+
+type cleanStageOptions struct {
+	dir     string
+	stage   string
+	outcome string
+	intent  string
+}
+
+func (f *fixture) cleanStageResultIn(options cleanStageOptions) string {
+	dir, stage, outcome, intent := options.dir, options.stage, options.outcome, options.intent
+	f.t.Helper()
+	f.runReportIn(dir, "result-context", intent)
+	if f.status != 0 {
+		f.t.Fatalf("read stage context: %s", f.evidence())
+	}
+	var context fixtureStageContext
+	if err := json.Unmarshal([]byte(f.out), &context); err != nil {
+		f.t.Fatalf("decode stage context: %v: %s", err, f.out)
+	}
+	file, err := os.CreateTemp(f.base, "stage-result-*.json")
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	result := fixtureStageResult{fixtureStageContext: context, Id: filepath.Base(file.Name()), Stage: stage, Status: "complete", Outcome: outcome, Items: []json.RawMessage{}}
+	err = json.NewEncoder(file).Encode(result)
+	closeErr := file.Close()
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if closeErr != nil {
+		f.t.Fatal(closeErr)
+	}
+	return file.Name()
+}
+
+func (f *fixture) recordCleanStage(stage string, intent ...string) {
+	f.t.Helper()
+	ship := ""
+	if len(intent) != 0 {
+		ship = intent[0]
+	}
+	f.recordCleanStageIn(cleanStageOptions{dir: f.repo, stage: stage, intent: ship})
+}
+
+func (f *fixture) recordCleanStageIn(options cleanStageOptions) {
+	dir, intent := options.dir, options.intent
+	options.outcome = "complete"
+	f.t.Helper()
+	path := f.cleanStageResultIn(options)
+	f.runReportIn(dir, "stage-result", path, intent)
+}
+
+func (f *fixture) stageResultsPath(intent string) string {
+	f.t.Helper()
+	report, err := filepath.EvalSymlinks(f.reportPath(intent))
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return fmt.Sprintf("%s/.git/idsd-stage-results/%x.json", f.repo, sha256.Sum256([]byte(report)))
 }
