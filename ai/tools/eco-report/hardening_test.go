@@ -11,6 +11,7 @@ package ecoreport_test
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -378,18 +379,26 @@ func TestAReportRewriteIsStagedBesideTheReport(t *testing.T) {
 	// Pinned through which failure fires when the reports directory cannot be written: staged beside the
 	// report, the temp file itself cannot be created, and that is a different sentence from a write that
 	// got as far as the move.
-	// The SHIP FOLDER, not intents/ above it: the temp file is created beside the report, which is what
-	// this case exists to pin, so intents/ at 0500 leaves the write it is trying to block untouched —
-	// the run then succeeds, the case takes its skip, and both assertions below never run.
+	// Deny writes to the report's actual parent, including its for-agents directory. Probe the
+	// permission independently: a successful rewrite must fail this case, never trigger its skip.
 	f := newShip(t, "099-staged")
-	f.chmod(f.shipDir("099-staged"), 0o500)
+	parent := filepath.Dir(f.reportPath("099-staged"))
+	f.chmod(parent, 0o500)
+	defer f.chmod(parent, 0o755)
+	probe, err := os.CreateTemp(parent, ".permission-probe.")
+	if err == nil {
+		probe.Close()
+		os.Remove(probe.Name())
+		t.Skip("this process writes into a mode-0500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so this case cannot be built here")
+	}
+	if !os.IsPermission(err) {
+		t.Fatalf("permission probe failed for an unrelated reason: %v", err)
+	}
 	f.runReport("invalidate", "099-staged")
 	status := f.status
 	output := f.out
-	f.chmod(f.shipDir("099-staged"), 0o755)
-	if status == 0 {
-		t.Skip("this process writes into a mode-0500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so this case cannot be built here")
-	}
+	f.chmod(parent, 0o755)
+	f.assertRefused("the rewrite refuses when its staging directory is not writable")
 	f.record("the rewrite fails at creating its temp file, which is beside the report",
 		strings.Contains(output, "mktemp failed"),
 		"exit "+strconv.Itoa(status)+"\n"+output)
