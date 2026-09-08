@@ -96,7 +96,9 @@ region_writable() { # <file>
   # modified, but the read has already happened, and this library has no business reading a file its
   # caller only named one name for.
   local links
-  links="$(stat -f '%l' "$file" 2>/dev/null || stat -c '%h' "$file" 2>/dev/null || printf '1')"
+  links="$(stat -f '%l' "$file" 2>/dev/null)" ||
+    links="$(stat -c '%h' "$file" 2>/dev/null)" ||
+    links=1
   if [ "$links" -gt 1 ] 2>/dev/null; then
     refuse "$file has $links hard links, so its contents are shared with a file this never named — nothing was written"
     return 1
