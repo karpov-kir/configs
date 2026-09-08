@@ -47,6 +47,7 @@ type Root struct {
 	// root cannot be resolved, and every caller reads that emptiness as "not there".
 	canon string
 	home  string
+	agent string
 }
 
 // The same two candidates, tried in the same order for both tools, so a bare invocation of either
@@ -57,7 +58,16 @@ var candidates = []string{".", "./ai"}
 // order. The second return is false when no candidate holds both directories,
 // which each tool reports in its own words — a check or a measurement that did not run is not a
 // clean one, so neither may fold this into an ordinary result.
-func New(named string) (Root, bool) {
+func New(named, agent string) (Root, bool) {
+	if agent != "claude" && agent != "codex" {
+		return Root{}, false
+	}
+	root, ok := Checkout(named)
+	root.agent = agent
+	return root, ok
+}
+
+func Checkout(named string) (Root, bool) {
 	if named == "" {
 		for _, candidate := range candidates {
 			if holdsBoth(candidate) {
@@ -133,16 +143,32 @@ func (r Root) Skills() string { return r.skills }
 // in the tree resolves through them.
 func (r Root) FlavorMount() string { return shell.Join(r.home, ".kk-flavor") }
 
-func (r Root) SkillsMount() string { return shell.Join(r.home, ".claude/skills") }
+func (r Root) SkillsMount() string {
+	r.requireAgent()
+	if r.agent == "codex" {
+		return shell.Join(r.home, ".agents/skills")
+	}
+	return shell.Join(r.home, ".claude/skills")
+}
 
-// IsInstalled reports whether this checkout is the one $HOME mounts — the gate on every figure that
-// would otherwise be taken from outside the tree. Anywhere else, in a clone or a PR review's
-// worktree, the mounts resolve to the *installed* checkout. A branch someone else wrote then names
-// files in the invoking user's real `~/.claude/` and folds their sizes into a number it also
-// authored.
-//
-// Canonicalising follows a symlinked *directory*, so refusing a symlinked `$root/kk-flavor` is what
-// stops a branch committing one to the real install and opening that gate.
+func (r Root) Agent() string { r.requireAgent(); return r.agent }
+
+func (r Root) InstructionFile() string {
+	r.requireAgent()
+	if r.agent == "codex" {
+		return shell.Join(r.named, "AGENTS.md")
+	}
+	return shell.Join(r.named, "CLAUDE.md")
+}
+
+func (r Root) BudgetScope() string {
+	r.requireAgent()
+	if r.agent == "codex" {
+		return " (checkout budget; excludes global instructions and their referenced files)"
+	}
+	return ""
+}
+
 func (r Root) IsInstalled() bool {
 	if r.home == "" || shell.IsSymlink(r.flavor) {
 		return false
@@ -163,4 +189,10 @@ func (r Root) Contains(file string) bool {
 // the directory compared is the skill's own, which is never the root itself.
 func (r Root) HoldsSkillFile(file string) bool {
 	return strings.HasPrefix(shell.CanonicalDir(shell.DirName(file)), r.canon+"/")
+}
+
+func (r Root) requireAgent() {
+	if r.agent != "claude" && r.agent != "codex" {
+		panic("ecoroot: explicit agent required for provider-specific paths")
+	}
 }

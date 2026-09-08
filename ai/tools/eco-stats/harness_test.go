@@ -104,7 +104,7 @@ func (f *fixture) run(args ...string) (stdout, stderr string, status int) {
 	f.t.Helper()
 	f.prepare()
 	var out, errOut bytes.Buffer
-	status = ecostats.Run(f.self(), args, &out, &errOut)
+	status = ecostats.Run(f.self(), append([]string{"--agent=claude"}, args...), &out, &errOut)
 	return out.String(), errOut.String(), status
 }
 
@@ -135,7 +135,7 @@ func (f *fixture) routerWordsFromCheck() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{f.root}, &out, io.Discard)
+	ecocheck.Run([]string{"--agent=claude", f.root}, &out, io.Discard)
 	return firstSubmatch(checkRouterWords, out.String())
 }
 
@@ -144,7 +144,7 @@ func (f *fixture) checkOutput() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{f.root}, &out, &out)
+	ecocheck.Run([]string{"--agent=claude", f.root}, &out, &out)
 	return out.String()
 }
 

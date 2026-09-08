@@ -121,17 +121,19 @@ func rollDeadline(configHome, home string) (time.Duration, string, error) {
 		deadline, path, defaultRollDeadline), nil
 }
 
-// runBounded runs one model call and kills it when the deadline passes.
-//
-// The process *group*, not the process: `claude` starts children of its own, and killing only the one
-// we started leaves them running on a machine whose stalls already track its load. WaitDelay covers
-// what is left — a surviving grandchild holding the output pipe would keep this blocked long after
-// the child is gone, which is the hang the deadline exists to remove.
-func runBounded(deadline time.Duration, name string, args []string, stdin string) (string, error) {
+type modelCommand struct {
+	name  string
+	args  []string
+	stdin string
+	dir   string
+}
+
+func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdin = strings.NewReader(stdin)
+	cmd := exec.CommandContext(ctx, command.name, command.args...)
+	cmd.Stdin = strings.NewReader(command.stdin)
+	cmd.Dir = command.dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 5 * time.Second

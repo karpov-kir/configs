@@ -1,35 +1,20 @@
-// The judge: what a named reader would delete from an outward text, decided by a model that sees only
-// what that reader sees.
+// Package bloatjudge deletes comment blocks or prose units by majority vote across three model calls.
+// --changed offers only blocks touched by the diff, while showing the model the whole file.
+// The model returns unit numbers; it cannot rewrite text or delete source code.
 //
-//	usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]
-//	       every kind takes a file, or reads stdin when no path is given
+// JUDGE_PROVIDER is required. Missing, unknown or unavailable providers fail with exit 2.
+// JUDGE_MODEL overrides haiku for Claude or gpt-5.4-mini for Codex. These defaults remain
+// provisional until the negatives eval selects each provider's model.
+// Calls use the selected CLI's existing login and the deadline configured in deadline.go.
+// Codex ignores config, rules and workspace instructions, disables external tools, and uses
+// a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.
 //
-// --changed offers only the blocks the diff added or touched — `git diff HEAD` plus untracked files, or
-// the revisions given — while the whole file stays the view. The lanes run this form: without it a
-// change touching one line of a human-written file would put every comment in that file up for
-// deletion, and the sample says the judge takes about half of them.
-//
-// Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
-// unit starts on, one per line — a block reports the line it starts on, never every line it took.
-// Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
-// unreadable path, a model that did not answer inside its deadline, or an answer that was not numbers.
-//
-// Two lanes make this judge mandatory (writing.md → Replying to a human, skill-protocol.md → Verdict),
-// so blocking forever is worse here than refusing: an agent that gives up on a hung run leaves nothing
-// behind saying the gate did not happen. Every roll is bounded, so a run is too — deadline.go holds
-// the figure, what it was read from, and how a machine retunes it.
-//
-// Only agent-written units should ever be offered, and that is still owed: for a source file the blocks
-// the change added or edited, on a branch the agent authored; for a PR body or review comment, only until a human's first edit. The verdict
-// is memoised per machine under $XDG_CACHE_HOME/kk-flavor/judged. It is owed as the judged content's hash
-// on the artifact itself — a `Judged:` trailer, an HTML comment — so a second machine meeting a matching
-// hash treats the text as judged instead of cutting it again. haiku, three rolls and a majority is
-// provisional: the negatives eval, human-written comments that survived review, picks the model.
-//
-// The model returns numbers and nothing else, and this applies them. It never rewrites and never
-// explains, so there is nothing for a writer to negotiate with, and for a source file the units offered
-// are its comment blocks alone, so code cannot be touched whatever the model says. A block goes or stays
-// whole: shortening one is a rewrite, which is the writer's job under code-style.md → Comments.
+// Two obligations remain unimplemented:
+//   - Offer only agent-written units: changed source blocks on an agent-authored branch,
+//     and PR bodies or review comments only until a human's first edit.
+//   - Carry the judged content's hash on the artifact, such as a Judged trailer or HTML comment,
+//     so another machine can recognize the verdict. Today memoization is machine-local,
+//     under $XDG_CACHE_HOME/kk-flavor/judged.
 package bloatjudge
 
 import (
@@ -154,7 +139,7 @@ func (m *Memo) record(kind, content string, gone []int) {
 // roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
 func ClaudeCaller(deadline time.Duration) Caller {
 	return func(prompt, view string) (string, error) {
-		return runBounded(deadline, "claude", claudeArgs(prompt), view)
+		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt), stdin: view})
 	}
 }
 
@@ -165,7 +150,7 @@ func ClaudeCaller(deadline time.Duration) Caller {
 // numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
 func claudeArgs(prompt string) []string {
 	return []string{
-		"-p", "--model", "haiku", "--output-format", "text",
+		"-p", "--model", judgeModel("haiku"), "--output-format", "text",
 		"--tools", "", "--strict-mcp-config", "--setting-sources", "user",
 		prompt,
 	}

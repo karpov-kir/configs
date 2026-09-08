@@ -16,7 +16,7 @@ Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — withou
 
 **Start from a committed tree** — git is this campaign's undo, and on a dirty tree the human's own work reverts with the cuts. Dirty → they commit or stash before Phase 1.
 
-**Open the `stats.md` row** — `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --append "<what is about to run>, start"`. Phase 7 closes it; `stats.md` owns everything else about that file.
+**Open the `stats.md` row** — `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}" --append "<what is about to run>, start"`. Phase 7 closes it; `stats.md` owns everything else about that file.
 
 **Take Phase 1's target from `stats.md`**, not from a number you invent. How far the tree drifted since the last closing row is what there is to give back. Reach for ≥40% only where that file holds no comparable pair.
 
@@ -44,7 +44,7 @@ One agent per theme, each running `kk-ecosystem` over its own scope.
 
 **Partition by file, not by topic.** Two agents that share a file clobber each other; two with disjoint files run concurrently however related their themes. Sequence only where a real dependency exists — a fold that must land before the file it folds into is deleted, a hoist that must precede the skills it hoists from.
 
-**The wiring check over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**) — `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh`. Run it between phases and at the end.
+**The wiring check over the root is yours, not theirs** (`AGENT-BRIEF.md` → **Scope discipline**) — `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"`. Run it between phases and at the end.
 
 **You own the cross-scope queue**, at `<scratch>/reduce-cross-scope/` — where an agent files the edit another agent's file needs, as a patch (`AGENT-BRIEF.md` → **Scope discipline**). **Drain it as each patch arrives, not in Phase 4**: apply it or record why you declined, then resume its owner with what landed. A patch outliving its author can only be repaired by hand, which `~/.kk-flavor/standards/streaming.md` → **The caller's half** forbids. Phase 4 takes only what arrived after its owner finished. A *handoff* is not a cross-scope entry: it names a lane rather than an edit, and Phase 6 drains it (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
@@ -86,7 +86,7 @@ Its deltas: the entrypoint is a fresh agent reading the shrunk tree, and what it
 
 A `DIVERGED` scenario stops the campaign as a red gate does. Restore the instruction it names, **re-enter Phase 6 over the files you touched** — a restoration made here is otherwise unrepaired and unscanned — then re-drive.
 
-**Close the `stats.md` row** — `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --append "<what ran>"`. **An open item does not live in the note** (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). Put it where whoever trips over it will read it — a comment at the site, a rule in the file that owns it — and let the note name it in a clause.
+**Close the `stats.md` row** — `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}" --append "<what ran>"`. **An open item does not live in the note** (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). Put it where whoever trips over it will read it — a comment at the site, a rule in the file that owns it — and let the note name it in a clause.
 
 ## Rules
 

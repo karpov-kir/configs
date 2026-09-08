@@ -186,7 +186,7 @@
     <div>
       <div class="eyebrow">Field guide</div>
       <h1>Two families, one&nbsp;tree of instructions</h1>
-      <p class="lede">This is a set of skills for Claude Code. Each one is a <b>lane</b>: a single job, with a description that says what it covers and what it deliberately does not. You rarely pick a lane yourself — you go through a door, and the door picks. This page is what the doors know.</p>
+      <p class="lede">These skills give coding agents a defined job, or <b>lane</b>. Start with one of the entry skills below; it chooses the lanes your task needs.</p>
     </div>
     <div class="facts">
       <div class="fact"><b>25</b><span>skills</span></div>
@@ -343,7 +343,7 @@
     <h2>Every skill, in its own words</h2>
     <p class="sec-note">Generated from each skill's own description, so this list cannot drift from the tree.</p>
   </div>
-  <p class="lede" style="margin:0 0 26px">Each line below is the skill's own description, quoted as written — the same text Claude reads when it decides which skill applies. Three terms recur in them: a <b>gate</b> is a command that has to pass before the work moves on, a <b>chip</b> is the button Claude Code offers you to start a follow-up session, and a <b>merge stamp</b> is the record a quality pass leaves behind so a later step can check that it actually ran.</p>
+  <p class="lede" style="margin:0 0 26px">The descriptions below are quoted from the skills. A <b>gate</b> is a command that must pass before work continues. A <b>chip</b> starts a follow-up session; clients with task tools create it directly. A <b>merge stamp</b> records that a quality pass ran, for later steps to check.</p>
   <div class="lanes">
     <div class="group-label"><span>idsd-*</span><i></i></div>
     <div class="lane">
@@ -427,7 +427,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-handoff</code></div>
-      <p>Write the prompt that hands a piece of work to a fresh session, then create the chip that starts it. Use for "hand this off", "spawn a session for this", and before creating a background-task chip for any reason. The receiver holds none of this conversation — not a stage subagent spawned inside this run, and not a quality stage naming the next lane for its caller.</p>
+      <p>Write the prompt that hands a piece of work to a fresh session, then start the new task. Use for "hand this off", "spawn a session for this", and before starting a separate task. The receiver holds none of this conversation — not a stage subagent spawned inside this run, and not a quality stage naming the next lane for its caller.</p>
       <p class="hint">takes: the work to hand off</p>
     </div>
     <div class="lane">
@@ -498,7 +498,7 @@
 
 <footer>
   <span>Skills under <code>ai/kk-flavor/skills/</code>, standards under <code>ai/kk-flavor/standards/</code>, tools under <code>ai/tools/</code>.</span>
-  <span>Install: <code>ai/bootstrap.sh</code> for this machine, or <code>ai/install-project.sh &lt;project&gt;</code> for one project · Add <code>--maintainer</code> for the few skills that only maintain this tree · Rebuild this page: <code>ai/guide.sh</code></span>
+  <span>Install: <code>ai/bootstrap.sh --agent=&lt;agent&gt;</code> for this machine, or <code>ai/install-project.sh --agent=&lt;agent&gt; &lt;project&gt;</code> for one project · Choose <code>claude</code> or <code>codex</code> explicitly · Add <code>--maintainer</code> for the few skills that only maintain this tree · Rebuild this page: <code>ai/guide.sh</code></span>
 </footer>
 
 </div>

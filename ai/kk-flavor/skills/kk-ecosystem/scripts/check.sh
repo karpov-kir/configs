@@ -2,7 +2,7 @@
 # Ecosystem wiring check, the mechanical half of kk-ecosystem. It checks that every reference an
 # agent could follow resolves to something that exists, and that every script still parses.
 #
-#   usage: check.sh [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
+#   usage: check.sh --agent=claude|codex [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
 #
 # Prints one line per finding, plus two always-loaded budgets: the router's files, and every skill's
 # `description:`. Outside the install it prints `mounts: skipped`; no such line means the mount scan

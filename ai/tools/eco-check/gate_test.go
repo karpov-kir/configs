@@ -21,7 +21,7 @@ import (
 const (
 	gateLine      = "gitignored path(s) skipped"
 	notChecked    = "check.sh: exit 2 — nothing was checked"
-	gateUsage     = "usage: check.sh [--gate] [<root>]"
+	gateUsage     = "usage: check.sh --agent=claude|codex [--gate] [<root>]"
 	unanswerable  = "git check-ignore could not answer"
 	citedSection  = "**A Real Section**"
 	missingRegion = "**No Such Section**"
@@ -240,7 +240,7 @@ func TestTheFlagRefusesWhereGitCannotAnswer(t *testing.T) {
 	f.isolate()
 
 	var output bytes.Buffer
-	if status := ecocheck.Run([]string{"--gate", f.root}, &output, &output); status != 2 {
+	if status := ecocheck.Run([]string{"--agent=claude", "--gate", f.root}, &output, &output); status != 2 {
 		f.t.Fatalf("expected exit 2 outside a repository, got %d\n%s", status, indent(output.String()))
 	}
 	f.assertHolds("the refusal names what could not answer", output.String(), unanswerable)
@@ -256,7 +256,7 @@ func TestAnUnknownArgumentIsRefused(t *testing.T) {
 
 	for _, args := range [][]string{{"--tracked-only", f.root}, {f.root, f.root}} {
 		var output bytes.Buffer
-		if status := ecocheck.Run(args, &output, &output); status != 2 {
+		if status := ecocheck.Run(append([]string{"--agent=claude"}, args...), &output, &output); status != 2 {
 			f.t.Errorf("expected exit 2 for %q, got %d\n%s", args, status, indent(output.String()))
 		}
 		f.assertHolds("the refusal names the usage", output.String(), gateUsage)
@@ -432,13 +432,9 @@ func assertGatedMatchesBare(t *testing.T, root string) {
 
 func runLines(t *testing.T, args ...string) []string {
 	t.Helper()
-	var output bytes.Buffer
-	if status := ecocheck.Run(args, &output, &output); status == 2 {
-		t.Fatalf("Run %v exited 2 — nothing was checked, so this case cannot be trusted\n%s",
-			args, indent(output.String()))
-	}
+	output := runChecker(t, append([]string{"--agent=claude"}, args...)...)
 	var kept []string
-	for _, line := range strings.Split(strings.TrimRight(output.String(), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimRight(output, "\n"), "\n") {
 		if !strings.HasPrefix(line, "gate: ") {
 			kept = append(kept, line)
 		}

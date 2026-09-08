@@ -41,7 +41,16 @@ const budgetRefusalCap = 5
 // its program name; self is the program name itself, which is where the ledger is looked for. An
 // empty root means the two candidates ecoroot tries, in order.
 func Run(self string, args []string, out, errOut io.Writer) int {
+	agent, args, err := ecoroot.AgentArgs(args)
+	if err != nil {
+		fmt.Fprintln(errOut, "stats.sh:", err)
+		return 2
+	}
 	note, rest, ok := noteFrom(args, errOut)
+	if len(rest) > 1 {
+		fmt.Fprintln(errOut, "stats.sh: usage: stats.sh --agent=claude|codex [--append <note>] [<root>]")
+		return 2
+	}
 	if !ok {
 		return 2
 	}
@@ -49,7 +58,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	if len(rest) > 0 {
 		root = rest[0]
 	}
-	resolved, ok := ecoroot.New(root)
+	resolved, ok := ecoroot.New(root, agent)
 	if !ok {
 		fmt.Fprintln(errOut, "stats.sh: no root holding both kk-flavor/ and kk-flavor/skills/")
 		fmt.Fprintln(errOut, "stats.sh: exit 2 — nothing was measured. Fix the invocation; do not read this as no change.")

@@ -62,7 +62,7 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
    - **Comment blocks** go to the outward-text lane directly, never the prose lane first, and their fixes land after refactor's.
 4. **Refactor** — batched, a loop to compliance; a pass trimming for turnaround runs one iteration instead. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is residue for the human with what's open, and duplication deferred under the extract threshold goes to whatever record the pass appends its settled decisions to. Run the refactor lane's scanner before the first iteration; its second run is never a reason for another iteration.
 
-**A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or `CLAUDE.md` goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.
+**A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or agent instruction file goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.
 
 **A retrospective is not one of these either** — no pass runs, offers or schedules one, and the human starts it.
 

@@ -4,7 +4,7 @@ description: Write or edit .idsd/charter.md — an IDSD project's what & why —
 argument-hint: "the vision, scope or constraint to set, or omit to seed both files"
 ---
 
-Write `.idsd/charter.md` and `.idsd/constraints.md`. Don't list features (that's the roadmap), detail behaviour (the intents), or restate the project's `CLAUDE.md` — link to them.
+Write `.idsd/charter.md` and `.idsd/constraints.md`. Don't list features (that's the roadmap), detail behaviour (the intents), or restate the project's agent instructions — link to them.
 
 **The two files are independent.** A repo with no charter still takes constraints, and a request that names only one touches only that one.
 
@@ -28,7 +28,7 @@ Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/
 
 **Write each constraint only through `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh record {append|bump|revise|evict|admit} constraints "<text>"`** — the same hazard as the decision log (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **The decision log**). `~/.kk-flavor/standards/records.md` is the whole delta. **It is pruned here and nowhere else.**
 
-Run `~/.kk-flavor/scripts/bloat-judge.sh record-entry` over the constraints; what it names is a proposal to the human (**Rules**).
+Run `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry` over the constraints; what it names is a proposal to the human (**Rules**).
 
 A constraint promoted from `.idsd/decisions.md` arrives as a proposal, never as the entry itself: the human owns the threshold. Once they accept it, delete the source entry with `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh record evict decisions "<text identifying it>"`.
 

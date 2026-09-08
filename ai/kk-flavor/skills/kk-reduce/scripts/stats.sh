@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ecosystem size ledger — the numbers that decide whether a pass is worth running. Owned by kk-reduce.
-#   usage: stats.sh [<root>]                    print the current measurements
-#          stats.sh --append "<note>" [<root>]  print them and append a dated row to stats.md
+#   usage: stats.sh --agent=claude|codex [<root>]                    print the current measurements
+#          stats.sh --agent=claude|codex --append "<note>" [<root>]  print them and append a dated row to stats.md
 # The note is one argument: quote it, or its first word is read as <root>.
 # <root> holds kk-flavor/ and skills/; defaults to . then ./ai, matching check.sh.
 # Exits 0 on success and 2 when it could not measure; a 2 never means the measurement was zero.

@@ -1,36 +1,12 @@
 #!/usr/bin/env bash
 #
-# Set the agent side of this machine up from this repository: link the instructions, the kk-flavor
-# bucket and every skill into place, install the tools they run, register the MCP servers, then verify
-# the result by running the repository's own suites.
 #
-#   usage: ai/bootstrap.sh [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew]
-#                          [--skip-tools] [--skip-mcp] [--skip-verify] [--uninstall]
 #
-# Safe to re-run: every step checks the state it wants before changing anything, so a second run over
-# a finished machine reports "ok" throughout and writes nothing.
 #
-# It will not move a machine that is already mounted from somewhere else. Run from a second checkout —
-# a scratch clone, a colleague's copy — every link this script writes would be repointed at the copy,
-# and deleting the copy afterwards leaves the human with no agent instructions and no skills. That is
-# refused before anything is written; `--relocate` is how you say you mean it.
 #
-# It refuses rather than deletes. A target it does not already own is reported and skipped, and the
-# run exits non-zero with the list. Two things it does remove, both its own leavings. One is a mount
-# under `~/.claude/skills/` whose skill this checkout no longer has — what a rename leaves behind —
-# and lib/mount.sh carries why removing it is the script's job. The other is `~/.claude/RTK.md`,
-# which this repository used to write and nothing reads any more; the rtk step below says why.
-#
-# It reaches other scripts rather than reimplementing them: `tools/install.sh` for the Go tool
-# binaries, `mcp-sync.sh` for the MCP registry, `run-tests.sh` to verify. Each of those owns its own
-# contract and has its own suite.
-#
-# Independent of env/bootstrap.sh in both directions: neither reads the other's mounts, so this is the
-# whole of what a machine needs to run these agents, on a machine whose shell setup is its own.
-#
-# tested by: bootstrap-test.sh
-# untested: brew, gh and claude are external commands. Faking them would only assert the fake, so the
-# suite covers the linking and the refusals and drives the three external steps behind --skip flags.
+#   usage: ai/bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew]
+#                          [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--uninstall]
+# tested by: bootstrap-test.sh and rtk-bootstrap-test.sh
 set -uo pipefail
 
 # `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so `repo` comes back two
@@ -46,18 +22,22 @@ relocate=false
 skip_brew=false
 skip_tools=false
 skip_mcp=false
+skip_rtk=false
 skip_verify=false
 maintainer=false
 owner=false
 uninstall=false
+agent=""
 
 for arg in "$@"; do
   case "$arg" in
+    --agent=claude|--agent=codex) agent="${arg#*=}" ;;
     --dry-run) dry_run=true ;;
     --relocate) relocate=true ;;
     --skip-brew) skip_brew=true ;;
     --skip-tools) skip_tools=true ;;
     --skip-mcp) skip_mcp=true ;;
+    --skip-rtk) skip_rtk=true ;;
     --skip-verify) skip_verify=true ;;
     # Opt IN. A tree's own maintenance skills are useless to a machine that only uses the tree, and
     # every skill's description costs context in every session whether or not it is invoked — so the
@@ -80,6 +60,11 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+[ -n "$agent" ] || {
+  printf 'ai/bootstrap.sh: --agent=claude|codex is required — nothing was changed\n' >&2
+  exit 2
+}
 
 bulk_label="skills"
 # Refused by name rather than left to `.` failing. Without `set -e` a missing library carries on into
@@ -106,19 +91,115 @@ done
 
 # --- the mount table ------------------------------------------------------------------------------
 
-add_cfg "$repo/kk-flavor" "$HOME/.kk-flavor"
-
-claude_md="$HOME/.claude/CLAUDE.md"
-
-# Only the owner's machine mounts this checkout's CLAUDE.md as its own. That file carries their rtk
-# hook and their memory rules on top of the region below, which is why it is not everyone's: a
-# colleague has their own instructions there and this install adds to them rather than replacing
-# them. The two shapes are exclusive on purpose — a machine cannot both link the file and edit it.
-if $owner; then
-  add_cfg "$repo/CLAUDE.md" "$claude_md"
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+skills_mount="$HOME/.claude/skills"
+instruction_file="$HOME/.claude/CLAUDE.md"
+if [ "$agent" = codex ]; then
+  skills_mount="$HOME/.agents/skills"
+  instruction_file="$codex_home/AGENTS.md"
 fi
 
-add_skill_mounts "$repo/kk-flavor/skills" "$HOME/.claude/skills" "$maintainer" "$uninstall"
+if [ "$agent" = codex ] && [ -s "$codex_home/AGENTS.override.md" ] && ! $uninstall; then
+  refuse "$codex_home/AGENTS.override.md shadows AGENTS.md — merge its instructions before installing"
+  report_and_exit
+fi
+
+keep_bucket=false
+if $uninstall; then
+  for mount_dir in "$HOME/.claude/skills" "$HOME/.agents/skills" "$codex_home/skills"; do
+    { [ "$mount_dir" = "$skills_mount" ] || [ "$mount_dir" -ef "$skills_mount" ]; } && continue
+    for mounted in "$mount_dir"/*; do
+      [ -L "$mounted" ] || continue
+      case "$(readlink "$mounted")" in
+        "$repo/kk-flavor/skills/"*) keep_bucket=true ;;
+      esac
+    done
+  done
+fi
+if $keep_bucket; then
+  say "  kept     ~/.kk-flavor: another client still has skill mounts"
+else
+  add_cfg "$repo/kk-flavor" "$HOME/.kk-flavor"
+fi
+
+owner_source="$repo/owner-instructions.md"
+owner_receipt="${instruction_file}.kk-flavor-installed"
+
+owner_file_matches() {
+  if [ -L "$instruction_file" ]; then
+    case "$(readlink "$instruction_file")" in
+      "$repo/CLAUDE.md" | "$repo/AGENTS.md" | "$owner_source") return 0 ;;
+      *) return 1 ;;
+    esac
+    return
+  fi
+  [ -f "$instruction_file" ] || return 1
+  cmp -s "$instruction_file" "$owner_source" && return 0
+  if [ -f "$owner_receipt" ] && [ ! -L "$owner_receipt" ] && cmp -s "$instruction_file" "$owner_receipt"; then
+    return 0
+  fi
+  [ "$agent" = codex ] || return 1
+  local actual expected legacy_rtk
+  actual="$(sed '/^[[:space:]]*$/d' "$instruction_file")"
+  expected="$(printf '%s\n%s\n%s\n' "$flavor_region_open" "$(flavor_region_body)" "$flavor_region_close" | sed '/^[[:space:]]*$/d')"
+  legacy_rtk="$(printf '@%s/RTK.md\n\n<!-- kk-flavor-rtk:begin -->\nRead `%s/RTK.md` for RTK usage. For unsupported commands or exact output, use `rtk proxy <command>`.\n<!-- kk-flavor-rtk:end -->' "$codex_home" "$codex_home" | sed '/^[[:space:]]*$/d')"
+  [ "$actual" = "$expected" ] || [ "$actual" = "$expected
+$legacy_rtk" ]
+}
+
+write_owner_instructions() {
+  [ -f "$owner_source" ] && [ ! -L "$owner_source" ] || { refuse "$owner_source must be a regular owner instruction source"; return 1; }
+  if [ -L "$owner_receipt" ] || { [ -e "$owner_receipt" ] && [ ! -f "$owner_receipt" ]; }; then
+    refuse "$owner_receipt must be a regular installation receipt"
+    return 1
+  fi
+  if { [ -e "$instruction_file" ] || [ -L "$instruction_file" ]; } && ! owner_file_matches; then
+    refuse "$instruction_file contains personal instructions — preserve them before replacing it with the owner copy"
+    return 1
+  fi
+  if $dry_run; then
+    say "  would install $owner_source as a regular copy at $instruction_file"
+    return 0
+  fi
+  local staged backup
+  mkdir -p -- "${instruction_file%/*}" || { refuse "could not create instruction directory"; return 1; }
+  if [ -L "$instruction_file" ] || ! cmp -s "$instruction_file" "$owner_source"; then
+    if [ -e "$instruction_file" ]; then
+      backup="$(mktemp "${instruction_file}.backup.XXXXXX")" || { refuse "could not create instruction backup"; return 1; }
+      cp -p -- "$instruction_file" "$backup" || { refuse "could not back up $instruction_file"; return 1; }
+      say "  backup   $backup"
+    fi
+    staged="$(mktemp "${instruction_file}.tmp.XXXXXX")" || { refuse "could not stage owner instructions"; return 1; }
+    if ! cp -- "$owner_source" "$staged" || ! mv -f -- "$staged" "$instruction_file"; then
+      rm -f -- "$staged"
+      refuse "could not install owner instructions"
+      return 1
+    fi
+  fi
+  if ! cmp -s "$owner_source" "$owner_receipt"; then
+    cp -- "$owner_source" "$owner_receipt" || { refuse "could not record installed owner instructions"; return 1; }
+  fi
+  say "  ok       $instruction_file is an independent owner copy"
+}
+
+remove_owner_instructions() {
+  if [ -e "$instruction_file" ] || [ -L "$instruction_file" ]; then
+    if ! owner_file_matches; then
+      refuse "$instruction_file was modified — owner instructions were preserved"
+      return 1
+    fi
+    if $dry_run; then
+      say "  would remove the owner copy at $instruction_file"
+    else
+      rm -- "$instruction_file" || { refuse "could not remove owner instructions"; return 1; }
+    fi
+  fi
+  if ! $dry_run && [ -f "$owner_receipt" ] && [ ! -L "$owner_receipt" ]; then
+    rm -- "$owner_receipt" || { refuse "could not remove owner receipt"; return 1; }
+  fi
+}
+
+add_skill_mounts "$repo/kk-flavor/skills" "$skills_mount" "$maintainer" "$uninstall"
 
 # --- uninstall -------------------------------------------------------------------------------------
 
@@ -129,19 +210,23 @@ if $uninstall; then
   unmount_run
   say "instructions"
   if $owner; then
-    say "  ok       the instruction file was a mount, removed above"
-  elif [ -e "$claude_md" ]; then
-    region_remove "$claude_md" "$flavor_region_open" "$flavor_region_close"
+    remove_owner_instructions
+  elif [ -e "$instruction_file" ]; then
+    region_remove "$instruction_file" "$flavor_region_open" "$flavor_region_close"
   else
-    say "  ok       $claude_md is not there"
+    say "  ok       $instruction_file is not there"
+  fi
+
+  if ! $owner && [ "$agent" = codex ] && [ -f "$instruction_file" ]; then
+    region_remove "$instruction_file" '<!-- kk-flavor-rtk:begin -->' '<!-- kk-flavor-rtk:end -->'
   fi
 
   projects="$(registry_live | grep -c . || true)"
   if [ "$projects" -gt 0 ]; then
     say ""
-    say "  $projects project(s) still hold skills mounted from this checkout. Their mounts now dangle:"
+    say "  $projects project(s) still hold skills mounted from this checkout. Uninstall them before deleting it:"
     registry_live | while IFS= read -r p; do [ -n "$p" ] && say "    $p"; done
-    say "  Run ai/install-project.sh --uninstall <project> for each before removing this checkout."
+    say "  Run ai/install-project.sh --agent=claude|codex --uninstall <project> for each before removing this checkout."
   fi
   say ""
   say "  jq is left installed: nothing records whether this machine had it already or what else"
@@ -158,9 +243,24 @@ fi
 # Scanned rather than listed, and scoped to what this checkout wrote — a skill mounted from somebody
 # else's tree is not ours to drop. Not narrowed by tier: a skill left out for want of `--maintainer`
 # is still in the tree, so its mount still resolves and is not stale.
-add_unmount_scan "$HOME/.claude/skills" "$repo/kk-flavor/skills"
+add_unmount_scan "$skills_mount" "$repo/kk-flavor/skills"
 
 mount_run
+
+if [ "$agent" = codex ] && [ ! "$codex_home/skills" -ef "$skills_mount" ]; then
+  for mounted in "$codex_home/skills"/*; do
+    [ -L "$mounted" ] || continue
+    source_path="$(readlink "$mounted")"
+    case "$source_path" in
+      "$repo/kk-flavor/skills/"*)
+        replacement="$skills_mount/${mounted##*/}"
+        if [ -L "$replacement" ] && [ "$replacement" -ef "$mounted" ]; then
+          unlink_mount "$mounted"
+        fi
+        ;;
+    esac
+  done
+fi
 
 # Said out loud, and after the mounts so it reads beside them. A flag that quietly leaves skills out is
 # indistinguishable from a discovery loop that stopped finding them: the machine ends up short of
@@ -186,32 +286,50 @@ fi
 
 # --- the instruction file ----------------------------------------------------------------------------
 
-# Everyone but the owner keeps their own ~/.claude/CLAUDE.md and gets a region added to it. The owner
-# mounted this checkout's file instead, above, so there is nothing to write there.
 write_instruction_region() {
   say "instructions"
   if $owner; then
-    say "  ok       the instruction file is mounted from this checkout"
+    write_owner_instructions || return 1
+    local memory="$HOME/Document/AI/MEMORY.md"
+    if [ ! -e "$memory" ]; then
+      if $dry_run; then
+        say "  would create $memory"
+      else
+        mkdir -p -- "${memory%/*}" && (set -o noclobber; printf '# Memory\n' >"$memory") || {
+          refuse "could not create owner memory at $memory"
+          return 1
+        }
+      fi
+    fi
+    if ! $dry_run && { [ ! -f "$memory" ] || [ ! -r "$memory" ] || [ ! -w "$memory" ]; }; then
+      refuse "$memory must be a readable, writable memory file"
+      return 1
+    fi
     return 0
   fi
-  if [ ! -e "$claude_md" ] && [ ! -L "$claude_md" ]; then
+  if [ "$agent" = codex ] && [ -s "$codex_home/AGENTS.override.md" ]; then
+    refuse "$codex_home/AGENTS.override.md shadows AGENTS.md — merge its instructions before installing"
+    return 1
+  fi
+  if [ ! -e "$instruction_file" ] && [ ! -L "$instruction_file" ]; then
     if $dry_run; then
-      say "  would create $claude_md and add the kk-flavor region"
+      say "  would create $instruction_file and add the kk-flavor region"
       return 0
     fi
-    [ -d "${claude_md%/*}" ] || mkdir -p -- "${claude_md%/*}" || {
-      refuse "could not create ${claude_md%/*}, so the instruction region was not written"
+    [ -d "${instruction_file%/*}" ] || mkdir -p -- "${instruction_file%/*}" || {
+      refuse "could not create ${instruction_file%/*}, so the instruction region was not written"
       return 1
     }
-    : >"$claude_md" || {
-      refuse "could not create $claude_md, so the instruction region was not written"
+    : >"$instruction_file" || {
+      refuse "could not create $instruction_file, so the instruction region was not written"
       return 1
     }
   fi
-  region_write "$claude_md" "$flavor_region_open" "$flavor_region_close" "$(flavor_region_body)"
+  region_write "$instruction_file" "$flavor_region_open" "$flavor_region_close" "$(flavor_region_body)"
 }
 
-write_instruction_region
+instructions_ready=false
+if write_instruction_region; then instructions_ready=true; fi
 
 # --- packages ------------------------------------------------------------------------------------
 
@@ -245,20 +363,11 @@ fi
 
 # --- rtk ------------------------------------------------------------------------------------------
 
-# `~/.claude/RTK.md` is a leftover, and this step is what clears it. ai/CLAUDE.md used to import that
-# path with `@RTK.md`, which resolves relative to `~/.claude/`, and this script copied ai/RTK.md there
-# so the import had something to resolve to. The import is gone and its two surviving sentences are
-# inline in ai/CLAUDE.md, so nothing writes that file any more and nothing reads it.
-#
-# The step is here rather than in the human's hands because the file sits in their home, not in this
-# repository, and a step is what carries the removal to their other machines. It stays for good:
-# `rtk init -g` writes its own template at that path, so the next one puts the file back.
-#
-# `! -L` in the directory arm, so a symlink to a directory goes the way the file does — a link carries
-# no data of its own.
 say "rtk"
 rtk_md="$HOME/.claude/RTK.md"
-if ! $owner; then
+if [ "$agent" = codex ]; then
+  say "  ok       Claude RTK cleanup does not apply to Codex"
+elif ! $owner; then
   say "  skipped  rtk is the owner tier's"
 elif [ ! -e "$rtk_md" ] && [ ! -L "$rtk_md" ]; then
   say "  ok       no leftover $rtk_md"
@@ -271,6 +380,59 @@ elif rm -f -- "$rtk_md"; then
 else
   refuse "could not remove the leftover $rtk_md"
 fi
+
+configure_rtk() {
+  if ! $owner || $skip_rtk; then
+    say "  skipped  RTK initialization"
+    return 0
+  fi
+  if ! $instructions_ready; then
+    say "  skipped  RTK initialization: instructions were refused"
+    return 1
+  fi
+  local needs_rtk_init=true rtk_stage
+  local rtk_args=(init --agent claude --global --hook-only --auto-patch)
+  if [ "$agent" = codex ]; then
+    rtk_args=(init --codex --global)
+    if [ -e "$codex_home/RTK.md" ] || [ -L "$codex_home/RTK.md" ]; then
+      region_writable "$codex_home/RTK.md" || return 1
+      needs_rtk_init=false
+    fi
+  fi
+  if $dry_run; then
+    if $needs_rtk_init; then say "  would run rtk ${rtk_args[*]}"; fi
+    [ "$agent" != codex ] || say "  owner instructions already describe RTK usage"
+    return 0
+  fi
+  if ! command -v rtk >/dev/null 2>&1; then
+    refuse "rtk is not on PATH — install it or use --skip-rtk"
+    return 1
+  fi
+  if $needs_rtk_init; then
+    if [ "$agent" = codex ]; then
+      rtk_stage="$(mktemp -d)" || { refuse "could not create RTK staging directory"; return 1; }
+      if ! CODEX_HOME="$rtk_stage" rtk "${rtk_args[@]}" || [ ! -f "$rtk_stage/RTK.md" ]; then
+        rm -rf -- "$rtk_stage"
+        refuse "rtk init failed for $agent"
+        return 1
+      fi
+      mkdir -p -- "$codex_home" && cp -n -- "$rtk_stage/RTK.md" "$codex_home/RTK.md" || {
+        rm -rf -- "$rtk_stage"
+        refuse "could not install Codex RTK instructions"
+        return 1
+      }
+      rm -rf -- "$rtk_stage"
+    elif ! rtk "${rtk_args[@]}"; then
+      refuse "rtk init failed for $agent"
+      return 1
+    fi
+  else
+    say "  kept     $codex_home/RTK.md"
+  fi
+
+}
+
+configure_rtk
 
 # --- the repository's own tools ------------------------------------------------------------------
 
@@ -308,12 +470,12 @@ fi
 if $skip_mcp; then
   say "mcp (skipped)"
 elif $dry_run; then
-  say "mcp: would run ai/mcp-sync.sh"
-elif ! command -v claude >/dev/null 2>&1; then
-  refuse "the claude CLI is not on PATH, so the MCP servers were not registered"
+  say "mcp: would run ai/mcp-sync.sh --agent=$agent"
+elif ! command -v "$agent" >/dev/null 2>&1; then
+  refuse "the $agent CLI is not on PATH, so the MCP servers were not registered"
 else
   say "mcp"
-  "$repo/mcp-sync.sh" || refuse "ai/mcp-sync.sh failed"
+  "$repo/mcp-sync.sh" "--agent=$agent" || refuse "ai/mcp-sync.sh failed"
 fi
 
 # --- verify --------------------------------------------------------------------------------------

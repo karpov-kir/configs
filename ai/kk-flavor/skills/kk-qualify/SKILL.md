@@ -41,7 +41,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 - **A blocking question is asked live and never recorded**, except the unanswered one (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). **A drive step the human dropped is neither** — it is one line in the closing reply (**After the pass**); asking before dropping is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**.
 - **Each item stands alone** — someone who never saw the run understands what it is, why it matters, and can act. Cut run-narration and command strings, never the stakes.
 - **Roughly 60 words an item, and the recommendation closes it on its own line** — this skill's bound on the exception `~/.kk-flavor/standards/writing.md` → **Density** licenses. Over the bound the surplus is the case restated for a reader who has just read it. **Having no recommendation is itself an opening**: "nothing — this is a product call" beats a hedge dressed as advice.
-- **Last, with the items written, run `~/.kk-flavor/scripts/bloat-judge.sh report` over the residue's text** — the closing reply's one judge run, in place of the `reply` run `~/.kk-flavor/standards/writing.md` → **Replying to a human** makes. What it names goes, an item excepted: each is a decision the human owes.
+- **Last, with the items written, run `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh report` over the residue's text** — the closing reply's one judge run, in place of the `reply` run `~/.kk-flavor/standards/writing.md` → **Replying to a human** makes. What it names goes, an item excepted: each is a decision the human owes.
 
 ## After the pass
 

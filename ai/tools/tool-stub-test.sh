@@ -92,6 +92,15 @@ mkdir -p "$density_repo"
 }
 
 # skill | script | cwd for the probe | args | a string the tool prints when it really ran
+run_stub() {
+  stub_path=$1
+  shift
+  case "$stub_path" in
+    */check.sh|*/stats.sh) "$stub_path" --agent=claude "$@" ;;
+    *) "$stub_path" "$@" ;;
+  esac
+}
+
 stubs() {
   cat <<TABLE
 kk-ecosystem|check.sh|$base|$ai|always-loaded:
@@ -105,20 +114,13 @@ TABLE
 
 echo "shared:tool-stub"
 
-# bloat-judge.sh in situ, and the reason every stub declares its own offset instead of the region holding one
-# depth. Most stubs sit at `skills/<skill>/scripts/`, three below the tools directory; this one and
-# `tree-fingerprint.sh` are at `kk-flavor/scripts/`, two below, and `gate.sh` sits beside `tools/`
-# itself. The copied fixtures further down are all built at the three-below depth, and the offset scan
-# near the bottom is what reaches the other two; this drives the real file at the real depth against
-# its real tool. The probe table cannot hold it because that harness passes exactly one argument, and
-# the judge with none prints its usage and exits 2.
 judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
 name="bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
 if [ -x "$judge_stub" ]; then
   judge_err="$base/judge-probe.err"
-  (CDPATH= cd "$base" && "$judge_stub" >/dev/null 2>"$judge_err")
+  (CDPATH= cd "$base" && env -u JUDGE_PROVIDER "$judge_stub" >/dev/null 2>"$judge_err")
   status=$?
-  if [ "$status" -eq 2 ] && grep -q "usage:" "$judge_err"; then
+  if [ "$status" -eq 2 ] && grep -q "JUDGE_PROVIDER is required" "$judge_err"; then
     record_pass "$name"
   else
     record_fail "$name" "exit $status, stderr: $(cat "$judge_err" 2>/dev/null)"
@@ -131,7 +133,7 @@ fi
 while IFS='|' read -r skill script cwd args marker; do
   [ -n "$skill" ] || continue
   stub="$skills/$skill/scripts/$script"
-  out=$(CDPATH= cd "$cwd" && "$stub" "$args" 2>&1)
+  out=$(CDPATH= cd "$cwd" && run_stub "$stub" "$args" 2>&1)
   status=$?
   expect_out "$script reaches its tool from an unrelated cwd" "$marker"
   if [ "$status" -eq 2 ]; then
@@ -151,7 +153,7 @@ while IFS='|' read -r skill script cwd args marker; do
   mkdir -p "$orphan"
   cp "$skills/$skill/scripts/$script" "$orphan/$script"
   chmod 755 "$orphan/$script"
-  out=$("$orphan/$script" "$args" 2>&1)
+  out=$(run_stub "$orphan/$script" "$args" 2>&1)
   status=$?
   expect_status "$script exits 2 in a checkout with no tools directory" 2
   expect_out "$script names what that checkout is missing" "does not ship ai/tools/"
@@ -164,7 +166,7 @@ while IFS='|' read -r skill script cwd args marker; do
   chmod 755 "$noexec/kk-flavor/skills/$skill/scripts/$script"
   cp "$tools/resolve.sh" "$noexec/tools/resolve.sh"
   chmod 644 "$noexec/tools/resolve.sh"
-  out=$("$noexec/kk-flavor/skills/$skill/scripts/$script" "$args" 2>&1)
+  out=$(run_stub "$noexec/kk-flavor/skills/$skill/scripts/$script" "$args" 2>&1)
   status=$?
   expect_status "$script exits 2 when the resolver is not executable" 2
   expect_out "$script says to chmod it" "chmod"
@@ -194,7 +196,7 @@ while IFS='|' read -r skill script cwd args marker; do
   chmod 755 "$escape/tools/resolve.sh"
   cp "$skills/$skill/scripts/$script" "$escape/root/kk-flavor/skills/$skill/scripts/$script"
   chmod 755 "$escape/root/kk-flavor/skills/$skill/scripts/$script"
-  out=$(CDPATH= cd "$cwd" && "$escape/root/kk-flavor/skills/$skill/scripts/$script" "$args" 2>&1)
+  out=$(CDPATH= cd "$cwd" && run_stub "$escape/root/kk-flavor/skills/$skill/scripts/$script" "$args" 2>&1)
   status=$?
   expect_status "$script exits 2 rather than reaching a tools/ outside the checkout" 2
   expect_out "$script names the resolver it could not find" "no resolver at"
@@ -275,7 +277,7 @@ cp "$tools/bin/eco-stats" "$fake/tools/bin/eco-stats"
 cp "$skills/kk-reduce/scripts/stats.sh" "$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh"
 chmod 755 "$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh"
 
-out=$("$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh" --append "tool-stub-test fixture row" "$ai" 2>&1)
+out=$("$fake/kk-flavor/skills/kk-reduce/scripts/stats.sh" --agent=claude --append "tool-stub-test fixture row" "$ai" 2>&1)
 status=$?
 expect_status "the ledger write lands under the invoking skill directory" 0
 expect_out "and says where it appended" "$fake/kk-flavor/skills/kk-reduce/$ledger_name"

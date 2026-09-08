@@ -10,7 +10,7 @@ You are one round's fixer for `kk-patrol`. You are given **one finding's path**.
 
 **Invoke `kk-foreman` unattended on the finding** (`~/.kk-flavor/skills/kk-foreman/SKILL.md` → **The argument may hand you the run**) — nobody is at the keyboard here, and without that argument it returns a recommendation rather than running one. It owns which skill runs and in what order.
 
-**A change to what agents read is integrated, not just applied** — skills, standards, prompts, templates, `CLAUDE.md`. `kk-foreman` routes that to `kk-ecosystem`; land what comes back from there, not your first draft. Every finding argues for text, and each is defensible alone. A loop that adds a rule a round without asking whether it earns its place bloats the tree it was started to improve.
+**A change to what agents read is integrated, not just applied** — skills, standards, prompts, templates, agent instructions. `kk-foreman` routes that to `kk-ecosystem`; land what comes back from there, not your first draft. Every finding argues for text, and each is defensible alone. A loop that adds a rule a round without asking whether it earns its place bloats the tree it was started to improve.
 
 **A defect an instrument could have caught is not finished when the instance is fixed — the class goes into the instrument** (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**). Later rounds get it free, and a loop that only fixes instances grinds the same ground forever.
 

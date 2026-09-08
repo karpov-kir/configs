@@ -74,6 +74,8 @@ var rankTable = []struct {
 	{mountWithoutASkill, 1},
 
 	{budgetFileRefused, 2},
+	{codexPolicyRefused, 2},
+	{codexPolicyMismatch, 3},
 	{scriptNamesMissingTest, 2},
 	{scriptNamesAmbiguousTest, 2},
 	{scriptNamesTooManySuites, 2},

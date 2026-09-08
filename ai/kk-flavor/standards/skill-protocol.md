@@ -24,7 +24,7 @@ Take the first that fits:
 
 ## Setup
 
-Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) points at for what you're reviewing, and the project's own `CLAUDE.md` — the root one and any in a directory your target touches. Further reading, and any index you build from it, is your skill's delta.
+Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) points at for what you're reviewing, and the project's shared instructions and the selected client's additions, at the root and in directories your target touches. Further reading, and any index you build from it, is your skill's delta.
 
 ## Queue
 
@@ -60,7 +60,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
-**A spawned return carries these, plus what your own skill's return section names, and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals only, and delete what it names.
+**A spawned return carries these, plus what your own skill's return section names, and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Then run `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh return` over your findings and proposals only, and delete what it names.
 
 ## Redact before you quote
 

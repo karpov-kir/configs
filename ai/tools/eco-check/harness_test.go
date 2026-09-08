@@ -349,9 +349,14 @@ func (f *fixture) check() string {
 // Which spelling a caller used is not meant to change a finding, which is what those cases assert.
 func (f *fixture) checkWith(args ...string) string {
 	f.t.Helper()
+	return runChecker(f.t, append([]string{"--agent=claude"}, args...)...)
+}
+
+func runChecker(t *testing.T, args ...string) string {
+	t.Helper()
 	var output bytes.Buffer
 	if status := ecocheck.Run(args, &output, &output); status == 2 {
-		f.t.Fatalf("Run exited 2 — nothing was checked, so this case cannot be trusted\n%s", indent(output.String()))
+		t.Fatalf("Run %v exited 2 — nothing was checked, so this case cannot be trusted\n%s", args, indent(output.String()))
 	}
 	return output.String()
 }

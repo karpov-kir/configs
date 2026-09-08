@@ -140,6 +140,10 @@ func (m importMount) resolve(name string) (target, refusal string) {
 // cap it is not called, so its own reset never runs and the last examined name's reason would
 // otherwise be reported against a name nothing looked at.
 func (r Root) ResolveImports(scan ImportScan) []string {
+	r.requireAgent()
+	if r.agent != "claude" {
+		return nil
+	}
 	mount := r.newImportMount(scan.Read)
 	var uncounted []string
 	attempts := 0

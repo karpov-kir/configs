@@ -13,7 +13,7 @@ import (
 func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {
 	t.Run("resolves a directory holding both kk-flavor and skills", func(t *testing.T) {
 		_, dir := newCheckout(t, "")
-		root, ok := ecoroot.New(dir)
+		root, ok := ecoroot.New(dir, "claude")
 		if !ok {
 			t.Fatalf("New(%q) refused a checkout holding both directories", dir)
 		}
@@ -25,7 +25,7 @@ func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {
 	t.Run("keeps a redundant path as the caller wrote it, never cleaned", func(t *testing.T) {
 		base, _ := newCheckout(t, "ai")
 		t.Chdir(base)
-		root, ok := ecoroot.New("ai/../ai")
+		root, ok := ecoroot.New("ai/../ai", "claude")
 		if !ok {
 			t.Fatal(`New("ai/../ai") refused a checkout it can reach`)
 		}
@@ -44,7 +44,7 @@ func TestARootMissingEitherDirectoryIsRefused(t *testing.T) {
 			}
 			// Refused rather than half-resolved: a tool that measured this tree would report a
 			// figure for a checkout that is not one, and a reader cannot tell that from a real zero.
-			if _, ok := ecoroot.New(dir); ok {
+			if _, ok := ecoroot.New(dir, "claude"); ok {
 				t.Errorf("New accepted a directory holding no %s/", missing)
 			}
 		})
@@ -55,7 +55,7 @@ func TestABareInvocationTriesTheTwoCandidatesInOrder(t *testing.T) {
 	t.Run("finds the checkout in the working directory", func(t *testing.T) {
 		_, dir := newCheckout(t, "")
 		t.Chdir(dir)
-		root, ok := ecoroot.New("")
+		root, ok := ecoroot.New("", "claude")
 		if !ok {
 			t.Fatal("New(\"\") found no checkout in a working directory that is one")
 		}
@@ -65,7 +65,7 @@ func TestABareInvocationTriesTheTwoCandidatesInOrder(t *testing.T) {
 	t.Run("falls through to ./ai when the working directory is not one", func(t *testing.T) {
 		base, _ := newCheckout(t, "ai")
 		t.Chdir(base)
-		root, ok := ecoroot.New("")
+		root, ok := ecoroot.New("", "claude")
 		if !ok {
 			t.Fatal("New(\"\") found no checkout under ./ai")
 		}
@@ -74,7 +74,7 @@ func TestABareInvocationTriesTheTwoCandidatesInOrder(t *testing.T) {
 
 	t.Run("refuses when neither candidate holds both directories", func(t *testing.T) {
 		t.Chdir(t.TempDir())
-		if _, ok := ecoroot.New(""); ok {
+		if _, ok := ecoroot.New("", "claude"); ok {
 			t.Error("New(\"\") accepted a working directory holding no checkout")
 		}
 	})

@@ -85,7 +85,7 @@ const recordsStandard = "~/.kk-flavor/standards/records.md"
 // The judge the cap's last rung runs, and the one an over-cap prune uses — `records.md` → **The cap
 // evicts by what the record can afford to lose**. A constant, because two notes hand it over and they
 // must not offer different judges.
-const judgeCommand = "~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin"
+const judgeCommand = `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin`
 
 // The moves at the cap that free a slot at no loss, in `records.md`'s order. A constant for the same
 // reason judgeCommand is — the same two notes quote both.

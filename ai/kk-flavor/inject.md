@@ -4,7 +4,7 @@ The first time you load this file in a session, open your reply with this banner
 🍦 kk-flavor loaded 🍦
 ```
 
-Read a doc only when its trigger below matches what you're doing. **`project.md`, `architecture/core.md` and `testing.md` bind a new project, or one already following them. Anywhere else, match what the project already does.** A project's own `PROJECT_CODE_STYLE.md` / `CLAUDE.md` layers on top and wins on conflict.
+Read a doc only when its trigger below matches what you're doing. **`project.md`, `architecture/core.md` and `testing.md` bind a new project, or one already following them. Anywhere else, match what the project already does.** The project's own instructions and code-style rules layer on top and win on conflict.
 
 ## Read always (any task)
 
@@ -23,7 +23,7 @@ Read a doc only when its trigger below matches what you're doing. **`project.md`
 | writing outward text — anything a person reads as communication | [standards/human-writing.md](standards/human-writing.md) |
 | setting up env, scripts, local dev / Docker; **writing a schema migration; adding or upgrading a dependency** | [standards/project.md](standards/project.md) |
 | committing, pushing, opening a PR | [standards/git.md](standards/git.md) |
-| editing a skill, standard, prompt, template or `CLAUDE.md` | [standards/ecosystem.md](standards/ecosystem.md) |
+| editing a skill, standard, prompt, template or agent instruction file | [standards/ecosystem.md](standards/ecosystem.md) |
 | invoking another skill, orchestrating a run of them, or **about to compact, clear or hand off your context** | [standards/skill-protocol.md](standards/skill-protocol.md) |
 | running a multi-stage quality pass over one change set | [standards/quality-pipeline.md](standards/quality-pipeline.md) |
 | appending to a record kept across runs | [standards/records.md](standards/records.md) |

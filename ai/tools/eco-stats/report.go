@@ -13,7 +13,7 @@ func (s *stats) alwaysLoaded() int { return s.alwaysLoadedWords + s.descriptionW
 // teaches a later pass the tier held still while it grew. The mark is what the row carries; the names
 // behind it go to the printed line only, where there is room for them.
 func (s *stats) budgetMark() string {
-	if len(s.uncounted) == 0 {
+	if len(s.uncounted) == 0 && s.root.Agent() != "codex" {
 		return ""
 	}
 	return "+"
@@ -45,7 +45,7 @@ func (s *stats) report(out io.Writer) {
 		s.ledgerWords)
 	s.reportMountedOutside(out)
 	fmt.Fprintf(out, "always-loaded:%6d words  = %d router + %d descriptions across %d of %d skills%s%s\n",
-		s.alwaysLoaded(), s.alwaysLoadedWords, s.descriptionWords, s.routedSkills, s.skills, s.budgetNote(), s.refusalNote())
+		s.alwaysLoaded(), s.alwaysLoadedWords, s.descriptionWords, s.routedSkills, s.skills, s.budgetNote()+s.root.BudgetScope(), s.refusalNote())
 	s.reportUnreadable(out)
 }
 

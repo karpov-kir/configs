@@ -22,7 +22,7 @@ func newCheckerOverTree(t *testing.T, body string) (*checker, string) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	c, ok := newChecker(root)
+	c, ok := newChecker(root, "claude")
 	if !ok {
 		t.Fatal("the fixture is not a checkout")
 	}

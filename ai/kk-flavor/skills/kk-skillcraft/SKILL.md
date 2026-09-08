@@ -7,11 +7,9 @@ audience: maintainer
 
 Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-tighten`'s; neither applies this one.
 
-A big skill is a symptom. Read it for the cause.
-
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one unit per message, one verdict for the unit, and the queue, ledger and `N/M` all count units.
 
-**A queued artifact that is not a skill** — a standard, a prompt, a template, a `CLAUDE.md` — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
+**A queued artifact that is not a skill** — a standard, a prompt, a template, an agent instruction file — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
 
 Check every unit against all four, in order. A unit that took one lens and moved on has been read, not reviewed.
 

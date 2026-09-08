@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -19,10 +20,15 @@ func main() {
 	if !ok {
 		os.Exit(2)
 	}
+	call, err := bloatjudge.ConfiguredCaller(deadline)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v — the judge did NOT run\n", self, err)
+		os.Exit(2)
+	}
 	memo := bloatjudge.DefaultMemo()
 	if os.Getenv("JUDGE_NO_CACHE") != "" {
 		memo = nil
 	}
 	os.Exit(bloatjudge.Run(self, os.Args[1:], os.Stdin, os.Stdout, os.Stderr,
-		bloatjudge.Voting(bloatjudge.ClaudeCaller(deadline), 3), memo))
+		bloatjudge.Voting(call, 3), memo))
 }

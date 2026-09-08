@@ -4,6 +4,9 @@
 #
 #   usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
 #
+# Set JUDGE_PROVIDER=codex or JUDGE_PROVIDER=claude explicitly. Missing, unknown or unavailable
+# providers fail with exit 2; no auto-selection or fallback. JUDGE_MODEL overrides the selected model.
+#
 # Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
 # unit starts on. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown
 # kind, an unreadable path, a model that did not answer inside its deadline, or an answer that was not

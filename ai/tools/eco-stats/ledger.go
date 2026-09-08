@@ -20,8 +20,8 @@ import (
 // is no ledger yet, which is never the tree that would show it had drifted.
 const ledgerSeed = "# Ecosystem size\n" +
 	"\n" +
-	"Appended by `kk-reduce` alone, via `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --append <note>`: one row before a\n" +
-	"campaign, whose note ends `, start`, and one after. **A delta across that pair is the campaign's own\n" +
+	"Appended by `kk-reduce` alone, via `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent=\"${ECO_AGENT:?choose claude or codex explicitly}\" --append <note>`: one row before a\n" +
+	"campaign, whose note marks `, start`, and one after. **A delta across that pair is the campaign's own\n" +
 	"cut, not drift** — drift is measured from a closing row forward.\n" +
 	"\n" +
 	"`kk-reduce`'s own SKILL.md defines what each row's note carries. **A column is a measurement and is\n" +
@@ -29,8 +29,8 @@ const ledgerSeed = "# Ecosystem size\n" +
 	"(`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): every delta is read off the rows below it,\n" +
 	"so one corrected figure silently restates every campaign since.\n" +
 	"\n" +
-	"**A `+` on a row's always-loaded figure makes it a lower bound**: `stats.sh` named an `@import` it\n" +
-	"could not resolve and left it uncounted. Read the delta between two marked rows as \"at least this\n" +
+	"**A `+` on a row's always-loaded figure makes it a lower bound**: referenced or externally loaded\n" +
+	"instructions were left uncounted. Read the delta between two marked rows as \"at least this\n" +
 	"much\". From a marked row to an unmarked one, part of the rise is `stats.sh` resolving more rather\n" +
 	"than the tree growing. The unmarked row's note says how much.\n" +
 	"\n" +
@@ -40,6 +40,10 @@ const ledgerSeed = "# Ecosystem size\n" +
 // Every write below is guarded: unguarded, an unwritable ledger still prints "appended to …" and
 // exits 0, and the next pass reads a row that never landed as what happened.
 func (s *stats) appendRow(self, note string, out, errOut io.Writer) int {
+	note += " [agent=" + s.root.Agent() + "]"
+	if s.root.Agent() == "codex" {
+		note += " [checkout budget excludes global instructions and their referenced files]"
+	}
 	// The row states how much of its always-loaded figure came from imports this run resolved, or a
 	// reader comparing two rows cannot tell a tier that grew from one the tool merely started seeing.
 	// Appended after the sanitising in noteFrom, and safe there: fixed text and a digit string forge

@@ -16,7 +16,7 @@ set -u
 # marker. Cleared once here rather than per invocation: the case at the guard sets the marker on its
 # own command line, so a case that means to test the skip still does, and one written tomorrow cannot
 # inherit it by forgetting.
-unset BOOTSTRAP_VERIFYING
+unset BOOTSTRAP_VERIFYING CODEX_HOME
 
 here=$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 checkout=$(CDPATH= cd -P -- "$here/.." && pwd -P)
@@ -34,7 +34,7 @@ suite_name="ai/bootstrap-test.sh"
 # makes the suite slow, network-dependent, and able to write to the real MCP registry. Named once, so a
 # step that grows a flag cannot pick it up at some of the runs below and reach the network at the
 # rest.
-skip_network=(--skip-brew --skip-tools --skip-mcp)
+skip_network=(--skip-brew --skip-tools --skip-mcp --skip-rtk)
 skip_network_and_verify=("${skip_network[@]}" --skip-verify)
 
 run_boot() {
@@ -51,7 +51,7 @@ fixture_ai_checkout() { # <root>
   local root="$1"
   fixture_checkout "$root" ai
   mkdir -p "$root/ai/kk-flavor"
-  : >"$root/ai/CLAUDE.md"
+  : >"$root/ai/owner-instructions.md"
 }
 
 echo "ai/bootstrap.sh"
@@ -59,7 +59,7 @@ echo "ai/bootstrap.sh"
 # --- a fresh machine ------------------------------------------------------------------------------
 
 fresh_home
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_status "a fresh home exits 0" 0
 expect_out "and reports ok" "ai bootstrap: ok"
 expect_link_to "the flavor bucket is mounted" "$home/.kk-flavor" "$here/kk-flavor"
@@ -92,7 +92,7 @@ got_skills=$(find "$home/.claude/skills" -mindepth 1 -maxdepth 1 -type l 2>/dev/
 
 # --- re-running -----------------------------------------------------------------------------------
 
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_status "a second run over a finished home exits 0" 0
 expect_out "and reports the targets as already ok" "  ok       $home/.kk-flavor"
 expect_not_out "and relinks nothing" "linked   $home/.kk-flavor"
@@ -104,7 +104,7 @@ fresh_home
 mkdir -p "$home/.claude/skills"
 first_skill=$(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)
 fixture_link "$first_skill/" "$home/.claude/skills/$(basename "$first_skill")"
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_out "a skill link differing only by a trailing slash is left alone" "  ok       $home/.claude/skills/$(basename "$first_skill")"
 expect_not_out "and is not rewritten" "repointed $home/.claude/skills/$(basename "$first_skill")"
 
@@ -117,7 +117,7 @@ fixture_link "skills/kk-relative" "$home/.claude/skills/kk-relative"
 # Run from inside the checkout rather than through run_boot: resolved against the working directory
 # instead of against the link that holds it, `skills/kk-relative` would name this checkout's own
 # skills/ and be swept with the mount beside it.
-out=$(cd "$here" && HOME="$home" bash "$script" "${skip_network_and_verify[@]}" 2>&1)
+out=$(cd "$here" && HOME="$home" bash "$script" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "a mount whose skill is gone from this checkout exits 0" 0
 expect_out "and says it removed it" "removed  $home/.claude/skills/kk-was-renamed"
@@ -132,7 +132,7 @@ mkdir -p "$home/.claude/skills" "$tmp_real/another-checkout/ai/kk-flavor/skills"
 fixture_link "$tmp_real/a-skill-of-my-own" "$home/.claude/skills/hand-made"
 fixture_link "$tmp_real/another-checkout/ai/kk-flavor/skills/kk-gone" "$home/.claude/skills/kk-gone"
 mkdir -p "$home/.claude/skills/copied-in-by-hand"
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_status "a home holding mounts from elsewhere exits 0" 0
 expect_symlink "and a dangling link the human made themselves is left alone" \
   "$home/.claude/skills/hand-made"
@@ -147,7 +147,7 @@ expect_out "and the summary claims only the mounts this checkout wrote" \
 fresh_home
 mkdir -p "$home/.claude/skills"
 fixture_link "$here/kk-flavor/skills/kk-was-renamed" "$home/.claude/skills/kk-was-renamed"
-run_boot "$home" --dry-run
+run_boot "$home" --dry-run --agent=claude
 expect_status "--dry-run over a stale mount exits 0" 0
 expect_out "and says it would remove it" "would remove $home/.claude/skills/kk-was-renamed"
 expect_symlink "and leaves the stale mount where it is" "$home/.claude/skills/kk-was-renamed"
@@ -157,7 +157,7 @@ fixture_ai_checkout "$noskills"
 fresh_home
 mkdir -p "$home/.claude/skills"
 fixture_link "$noskills/ai/kk-flavor/skills/kk-anything" "$home/.claude/skills/kk-anything"
-out=$(HOME="$home" bash "$noskills/ai/bootstrap.sh" "${skip_network_and_verify[@]}" 2>&1)
+out=$(HOME="$home" bash "$noskills/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "a checkout with no skills directory exits 1" 1
 expect_symlink "and every mount it cannot read a source for is left alone" \
@@ -176,7 +176,7 @@ mkdir -p "$emptyskills/ai/kk-flavor/skills"
 fresh_home
 mkdir -p "$home/.claude/skills"
 fixture_link "$emptyskills/ai/kk-flavor/skills/kk-was-renamed" "$home/.claude/skills/kk-was-renamed"
-out=$(HOME="$home" bash "$emptyskills/ai/bootstrap.sh" "${skip_network_and_verify[@]}" 2>&1)
+out=$(HOME="$home" bash "$emptyskills/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "a checkout whose skills directory is empty exits 1" 1
 expect_symlink "and every mount it has no source to compare against is left alone" \
@@ -194,7 +194,7 @@ SKILL
 fresh_home
 mkdir -p "$home/.claude/skills"
 fixture_link "$emptyskills/ai/kk-flavor/skills/kk-was-renamed" "$home/.claude/skills/kk-was-renamed"
-out=$(HOME="$home" bash "$emptyskills/ai/bootstrap.sh" "${skip_network_and_verify[@]}" 2>&1)
+out=$(HOME="$home" bash "$emptyskills/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "control: the same checkout holding one skill exits 0" 0
 expect_absent "control: and the stale mount is swept once there is a source to compare against" \
@@ -212,7 +212,7 @@ hostile="$tmp_real/hostile-name"
 fixture_ai_checkout "$hostile"
 mkdir -p "$hostile/ai/kk-flavor/skills/idsd${esc}[2Kgone" "$hostile/ai/kk-flavor/skills/kk-stays"
 fresh_home
-out=$(HOME="$home" bash "$hostile/ai/bootstrap.sh" "${skip_network_and_verify[@]}" 2>&1)
+out=$(HOME="$home" bash "$hostile/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 # The control, and the load-bearing half: without it every assertion below is equally satisfied by a
 # run that never mounted the name, and the case would be measuring nothing.
@@ -220,7 +220,7 @@ expect_symlink "control: a skill whose directory name carries an ESC is mounted 
   "$home/.claude/skills/idsd${esc}[2Kgone"
 
 rm -rf "$hostile/ai/kk-flavor/skills/idsd${esc}[2Kgone"
-out=$(HOME="$home" bash "$hostile/ai/bootstrap.sh" "${skip_network_and_verify[@]}" 2>&1)
+out=$(HOME="$home" bash "$hostile/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "dropping a mount whose name carries an ESC exits 0" 0
 expect_out "and still says which mount it removed" "removed  $home/.claude/skills/idsd"
@@ -229,17 +229,8 @@ expect_absent "and the mount is gone" "$home/.claude/skills/idsd${esc}[2Kgone"
 
 # --- the file this repository used to write, and now removes ---------------------------------------
 
-# ai/CLAUDE.md's `@RTK.md` import is gone and its two surviving sentences are inline there, so
-# `~/.claude/RTK.md` is text nothing writes and nothing reads. The removal is a step in the script
-# rather than something done by hand because that file sits in the human's home, outside this
-# repository — a step is what makes it a removal they run knowingly, and what carries it to their other
-# machines.
-#
-# `--owner` throughout: the leftover is one this repository wrote on the owner's own machines and
-# never anywhere else, so it followed rtk into that tier. A default run skips the step entirely,
-# which the last case in this block proves.
 fresh_home
-run_boot "$home" --owner
+run_boot "$home" --owner --agent=claude
 expect_status "a fresh home with no leftover exits 0" 0
 expect_out "and says there was nothing to remove" "no leftover $home/.claude/RTK.md"
 expect_absent "and nothing is written at that path any more" "$home/.claude/RTK.md"
@@ -249,7 +240,7 @@ expect_absent "and nothing is written at that path any more" "$home/.claude/RTK.
 fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/RTK.md" 'the copy an earlier bootstrap left here'
-run_boot "$home" --owner
+run_boot "$home" --owner --agent=claude
 expect_status "a leftover file is removed and the run exits 0" 0
 expect_out "and says it removed it" "removed  $home/.claude/RTK.md"
 expect_absent "and the leftover is actually gone" "$home/.claude/RTK.md"
@@ -261,7 +252,7 @@ fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/pointed-at.md" 'the file the link named'
 fixture_link "$home/.claude/pointed-at.md" "$home/.claude/RTK.md"
-run_boot "$home" --owner
+run_boot "$home" --owner --agent=claude
 expect_status "a symlink left at that path is removed too" 0
 expect_absent "and the link is gone" "$home/.claude/RTK.md"
 expect_file_body "and what it pointed at was not followed and deleted" \
@@ -273,7 +264,7 @@ expect_file_body "and what it pointed at was not followed and deleted" \
 fresh_home
 mkdir -p "$home/.claude/RTK.md"
 fixture_write "$home/.claude/RTK.md/notes.md" 'somebody else put this here'
-run_boot "$home" --owner
+run_boot "$home" --owner --agent=claude
 expect_status "a directory at that path exits 1" 1
 expect_out "and says it will not remove a directory" "is a directory, and this script only ever wrote a file"
 expect_not_out "and does not report having removed it" "removed  $home/.claude/RTK.md"
@@ -284,7 +275,7 @@ expect_file_body "and what was inside it survives" "$home/.claude/RTK.md/notes.m
 fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/RTK.md" 'still here afterwards'
-run_boot "$home" --owner --dry-run
+run_boot "$home" --owner --dry-run --agent=claude
 expect_status "--dry-run over a leftover exits 0" 0
 expect_out "and says it would remove it" "would remove the leftover $home/.claude/RTK.md"
 expect_file_body "and leaves the leftover alone" "$home/.claude/RTK.md" 'still here afterwards'
@@ -294,7 +285,7 @@ expect_file_body "and leaves the leftover alone" "$home/.claude/RTK.md" 'still h
 fresh_home
 mkdir -p "$home/.claude"
 fixture_write "$home/.claude/RTK.md" 'not ours to remove'
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_status "a default run exits 0 with a leftover present" 0
 expect_out "and says the step is the owner tier's" "rtk is the owner tier's"
 expect_file_body "and leaves the file alone" "$home/.claude/RTK.md" 'not ours to remove'
@@ -302,7 +293,7 @@ expect_file_body "and leaves the file alone" "$home/.claude/RTK.md" 'not ours to
 # --- --dry-run ------------------------------------------------------------------------------------
 
 fresh_home
-run_boot "$home" --dry-run
+run_boot "$home" --dry-run --agent=claude
 expect_status "--dry-run exits 0" 0
 expect_out "and says what it would do" "would link"
 [ ! -e "$home/.kk-flavor" ] && [ ! -e "$home/.claude" ] &&
@@ -337,7 +328,7 @@ else
 fi
 
 fresh_home
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_status "a default run exits 0" 0
 
 unmounted=""
@@ -362,7 +353,7 @@ expect_out "and says how many it left out, rather than excluding them quietly" "
 # above; this is the half that proves the flag still reaches them, so a default that excluded
 # everything could not pass both.
 fresh_home
-run_boot "$home" --maintainer
+run_boot "$home" --maintainer --agent=claude
 missing=""
 for skill_name in $maintainer_skills; do
   [ -L "$home/.claude/skills/$skill_name" ] || missing="$missing $skill_name"
@@ -376,7 +367,7 @@ done
 # A documented, published mode with nothing measuring it. What it removes, and what it must not write
 # on the way there.
 fresh_home
-run_boot "$home" --uninstall
+run_boot "$home" --uninstall --agent=claude
 expect_status "--uninstall over a machine holding nothing exits 0" 0
 # The load-bearing one. Declared above mount_run, the uninstall path links every mount and then
 # removes it — so an interrupt between the two leaves the machine installed by the command that exists
@@ -387,8 +378,8 @@ expect_not_out "and links nothing on the way" "  linked   "
   record_fail "and leaves no bucket behind" "$home/.kk-flavor is there"
 
 fresh_home
-run_boot "$home"
-run_boot "$home" --uninstall
+run_boot "$home" --agent=claude
+run_boot "$home" --uninstall --agent=claude
 expect_status "--uninstall over an installed machine exits 0" 0
 [ ! -e "$home/.kk-flavor" ] && [ ! -L "$home/.kk-flavor" ] &&
   record_pass "and the bucket mount is gone" ||
@@ -401,8 +392,8 @@ expect_status "--uninstall over an installed machine exits 0" 0
 # audience filter builds its removal table for the tier being asked for NOW. `--maintainer` in and
 # plain out leaves exactly the marked skills mounted, reporting ok.
 fresh_home
-run_boot "$home" --maintainer
-run_boot "$home" --uninstall
+run_boot "$home" --maintainer --agent=claude
+run_boot "$home" --uninstall --agent=claude
 left=""
 for skill_name in $maintainer_skills; do
   [ -e "$home/.claude/skills/$skill_name" ] || [ -L "$home/.claude/skills/$skill_name" ] &&
@@ -413,18 +404,17 @@ done
   record_fail "a plain --uninstall removes what --maintainer installed" "still mounted:$left"
 
 fresh_home
-run_boot "$home" --skip-maintainer-skills
+run_boot "$home" --skip-maintainer-skills --agent=claude
 expect_status "the retired --skip-maintainer-skills is refused, not ignored" 2
 expect_out "and names the option it did not know" "unknown option --skip-maintainer-skills"
 
 # The owner tier, reached through its wrapper. What it adds over --maintainer is the instruction
 # mount; rtk and the leftover removal need brew and are behind the skip flags here.
 fresh_home
-out=$(HOME="$home" bash "$here/bootstrap-owner.sh" --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
+out=$(HOME="$home" bash "$here/bootstrap-owner.sh" --agent=claude --skip-rtk --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
 status=$?
 expect_status "the owner wrapper exits 0" 0
-expect_link_to "and mounts this checkout's CLAUDE.md as the machine's own" \
-  "$home/.claude/CLAUDE.md" "$here/CLAUDE.md"
+[ ! -L "$home/.claude/CLAUDE.md" ] && cmp -s "$home/.claude/CLAUDE.md" "$here/owner-instructions.md" && record_pass "Claude owner receives a regular copy" || record_fail "Claude owner receives a regular copy" "wrong content or symlink"
 
 # Discovery's second vacuity case. A checkout where the flag excludes every skill mounts nothing, and
 # the empty-tree refusal would report that as a skills directory holding no skill — a false diagnosis
@@ -445,7 +435,7 @@ audience: maintainer
 SKILL
 
 fresh_home
-out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" \
+out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" --agent=claude \
   "${skip_network_and_verify[@]}" 2>&1)
 
 status=$?
@@ -468,7 +458,7 @@ audience: maintainr
 SKILL
 
 fresh_home
-out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" \
+out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" --agent=claude \
   "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "a misspelled audience exits 1 rather than installing quietly" 1
@@ -481,7 +471,7 @@ fresh_home
 sed -i.bak 's/^audience: maintainr$/audience: maintainer/' "$typo_audience/ai/kk-flavor/skills/kk-typo/SKILL.md"
 # --maintainer, because the tree's only skill is marked: without it the default tier correctly
 # excludes the lot and this control would be asserting the exclusion rather than the marker.
-out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" \
+out=$(HOME="$home" bash "$typo_audience/ai/bootstrap.sh" --agent=claude \
   "${skip_network_and_verify[@]}" --maintainer 2>&1)
 
 status=$?
@@ -491,7 +481,7 @@ expect_not_out "control: and refuses nothing" "no reader knows"
 # The control, and the load-bearing half: the same checkout with --maintainer mounts its one skill.
 # Without it the refusal above would pass over a fixture that never had a skill to mount.
 fresh_home
-out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" \
+out=$(HOME="$home" bash "$only_maintainer/ai/bootstrap.sh" --agent=claude \
   "${skip_network_and_verify[@]}" --maintainer 2>&1)
 
 status=$?
@@ -505,7 +495,7 @@ expect_link_to "control: and mounts its one skill" \
 # that check ever stops exiting, this case must fail rather than proceed into brew, gh, the claude CLI
 # and a verify run that discovers this very suite — a regression should redden, not install things.
 fresh_home
-out=$(HOME="$home" bash "$script" "${skip_network_and_verify[@]}" --not-a-flag 2>&1)
+out=$(HOME="$home" bash "$script" --agent=claude "${skip_network_and_verify[@]}" --not-a-flag 2>&1)
 status=$?
 expect_status "an unknown option exits 2" 2
 expect_out "and names the option it rejected" "--not-a-flag"
@@ -527,7 +517,7 @@ else
 fi
 
 fresh_home
-out=$(HOME="$home" bash "$script" --help 2>&1)
+out=$(HOME="$home" bash "$script" --agent=claude --help 2>&1)
 status=$?
 expect_status "--help exits 0" 0
 expect_out "and prints the header's opening line, so the range still starts where it should" "$help_first"
@@ -542,7 +532,7 @@ expect_not_out "and stops before the notes under it" "Safe to re-run"
 # one no reader can find, and a usage line long enough to wrap can wrap out of the printed range, which
 # is two line numbers nothing else checks. Both sides are read off the shipped script and its own
 # output, so a flag cannot be added to one and missed in the other.
-parsed_flags=$(sed -n 's/^    \(--[a-z][a-z-]*\)).*$/\1/p' "$script" | sort -u)
+parsed_flags=$(sed -n 's/^    \(--[a-z][a-z-]*\)[=)].*$/\1/p' "$script" | sort -u)
 help_flags=$(printf '%s\n' "$out" | grep -oE -- '--[a-z][a-z-]*' | sort -u)
 if [ -n "$parsed_flags" ] && [ -n "$help_flags" ]; then
   record_pass "control: flags were found in both the parser and the help output, so this case compares something"
@@ -587,12 +577,16 @@ STUB
 # Every step but this one skipped, so what the exit status reports is the tools step alone.
 tools_only=(--skip-brew --skip-mcp --skip-verify)
 
+run_tools_boot() {
+  marker="$tmp/tools-marker-$case_no"
+  out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
+    bash "$tools_repo/ai/bootstrap.sh" --agent=claude "${tools_only[@]}" 2>&1)
+  status=$?
+}
+
 write_stub_installer 0
 fresh_home
-marker="$tmp/tools-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
-  bash "$tools_repo/ai/bootstrap.sh" "${tools_only[@]}" 2>&1)
-status=$?
+run_tools_boot
 expect_status "an installer that installed exits 0" 0
 [ -f "$marker" ] &&
   record_pass "control: and the installer really ran, so the arms below read a real exit code" ||
@@ -602,10 +596,7 @@ expect_status "an installer that installed exits 0" 0
 # so it must not become a refusal — and the wording is the whole of what tells it from the arm below.
 write_stub_installer 3
 fresh_home
-marker="$tmp/tools-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
-  bash "$tools_repo/ai/bootstrap.sh" "${tools_only[@]}" 2>&1)
-status=$?
+run_tools_boot
 expect_status "an installer reporting no release to install from exits 0" 0
 expect_out "and says the tools build from source instead" "build from source on first use"
 expect_out "and names what that needs" "needs Go"
@@ -615,10 +606,7 @@ expect_not_out "and does not report it as a failure" "ai/tools/install.sh failed
 # be a blanket "the installer's exit code is ignored" and read exactly the same.
 write_stub_installer 2
 fresh_home
-marker="$tmp/tools-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" PATH="$tools_path:$PATH" \
-  bash "$tools_repo/ai/bootstrap.sh" "${tools_only[@]}" 2>&1)
-status=$?
+run_tools_boot
 expect_status "an installer that refused exits 1" 1
 expect_out "and says the installer failed" "ai/tools/install.sh failed"
 expect_not_out "and does not call it an absent release" "build from source on first use"
@@ -646,7 +634,7 @@ write_stub_runner 0
 
 fresh_home
 marker="$tmp/verify-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/ai/bootstrap.sh" \
+out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/ai/bootstrap.sh" --agent=claude \
   "${skip_network[@]}" 2>&1)
 status=$?
 expect_status "a run with verify enabled exits 0" 0
@@ -658,7 +646,7 @@ expect_status "a run with verify enabled exits 0" 0
 # thing stopping verify from recursing is every caller remembering --skip-verify.
 fresh_home
 marker="$tmp/verify-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" BOOTSTRAP_VERIFYING=1 bash "$verify_repo/ai/bootstrap.sh" \
+out=$(HOME="$home" MARKER="$marker" BOOTSTRAP_VERIFYING=1 bash "$verify_repo/ai/bootstrap.sh" --agent=claude \
   "${skip_network[@]}" 2>&1)
 status=$?
 expect_status "a nested run exits 0" 0
@@ -673,7 +661,7 @@ write_stub_runner 2
 
 fresh_home
 marker="$tmp/verify-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/ai/bootstrap.sh" \
+out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/ai/bootstrap.sh" --agent=claude \
   "${skip_network[@]}" 2>&1)
 status=$?
 expect_status "a runner that could not measure exits 1" 1
@@ -688,7 +676,7 @@ write_stub_runner 3
 
 fresh_home
 marker="$tmp/verify-marker-$case_no"
-out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/ai/bootstrap.sh" \
+out=$(HOME="$home" MARKER="$marker" bash "$verify_repo/ai/bootstrap.sh" --agent=claude \
   "${skip_network[@]}" 2>&1)
 status=$?
 expect_status "a runner that refused its own result exits 1" 1
@@ -710,7 +698,7 @@ expect_not_out "and does not call it a machine that could not measure" "could no
 rm -f "$verify_repo/ai/run-tests.sh"
 
 fresh_home
-out=$(HOME="$home" bash "$verify_repo/ai/bootstrap.sh" "${skip_network[@]}" 2>&1)
+out=$(HOME="$home" bash "$verify_repo/ai/bootstrap.sh" --agent=claude "${skip_network[@]}" 2>&1)
 status=$?
 expect_status "a checkout without the suite runner exits 1" 1
 expect_out "and says the runner is missing" "is not in this checkout"
@@ -718,7 +706,7 @@ expect_out "and says that is not a pass" "not the same as passing"
 expect_not_out "and does not blame the suites" "reported a failing suite"
 
 fresh_home
-out=$(HOME="$home" bash "$verify_repo/ai/bootstrap.sh" "${skip_network[@]}" --dry-run 2>&1)
+out=$(HOME="$home" bash "$verify_repo/ai/bootstrap.sh" --agent=claude "${skip_network[@]}" --dry-run 2>&1)
 status=$?
 expect_status "a dry run without the suite runner exits 1" 1
 expect_not_out "and does not report ok" "ai bootstrap: ok"
@@ -731,11 +719,11 @@ skeleton="$tmp/skeleton"
 fixture_checkout "$skeleton" ai
 mkdir -p "$skeleton/ai/kk-flavor/skills"
 fresh_home
-out=$(HOME="$home" bash "$skeleton/ai/bootstrap.sh" "${skip_network_and_verify[@]}" --owner 2>&1)
+out=$(HOME="$home" bash "$skeleton/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" --owner 2>&1)
 
 status=$?
 expect_status "a checkout with no skills exits 1" 1
-expect_out "and names a missing source" "is missing from the repository"
+expect_out "and names a missing source" "must be a regular owner instruction source"
 expect_out "and refuses an empty skills directory rather than mounting nothing" "nothing was mounted"
 
 # --- a checkout missing the library the two scripts share -----------------------------------------
@@ -750,7 +738,7 @@ libless="$tmp/libless"
 fixture_checkout "$libless" ai
 rm -f "$libless/lib/mount.sh"
 fresh_home
-out=$(HOME="$home" bash "$libless/ai/bootstrap.sh" "${skip_network_and_verify[@]}" 2>&1)
+out=$(HOME="$home" bash "$libless/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" 2>&1)
 status=$?
 expect_status "a checkout without lib/mount.sh exits 2" 2
 expect_out "and names the file that is missing" "lib/mount.sh is missing from this checkout"
@@ -776,7 +764,7 @@ for skill_path in $(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type 
 done
 # Read from the shipped script for the same reason the brew lists are: a config mount added to
 # ai/bootstrap.sh and missed here would leave this case asserting a total that no longer covers it.
-want_cfg=$(grep -c '^add_cfg "' "$script")
+want_cfg=$(grep -c 'add_cfg "$repo/kk-flavor"' "$script")
 want_total=$((want_cfg + want_skill))
 
 if [ "$want_cfg" -gt 0 ] && [ "$want_skill" -gt 0 ]; then
@@ -787,12 +775,12 @@ else
 fi
 
 fresh_home
-HOME="$home" bash "$other_repo/ai/bootstrap.sh" "${skip_network_and_verify[@]}" >/dev/null 2>&1
+HOME="$home" bash "$other_repo/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" >/dev/null 2>&1
 first_shared=$(basename "$(find "$here/kk-flavor/skills" -mindepth 1 -maxdepth 1 -type d | sort | head -1)")
 
 expect_link_to "control: the fixture checkout is really what this home is mounted from" \
   "$home/.claude/skills/$first_shared" "$other_repo/ai/kk-flavor/skills/$first_shared"
-run_boot "$home"
+run_boot "$home" --agent=claude
 expect_status "a run from a second checkout exits 1" 1
 expect_out "and leads with the count, so the skills are not lost behind the named configs" \
   "$want_total mounts ($want_cfg configs and $want_skill skills)"
@@ -804,17 +792,17 @@ expect_link_to "and the skill mount was left where the machine had it" \
   "$home/.claude/skills/$first_shared" "$other_repo/ai/kk-flavor/skills/$first_shared"
 
 fresh_home
-HOME="$home" bash "$other_repo/ai/bootstrap.sh" "${skip_network_and_verify[@]}" >/dev/null 2>&1
-run_boot "$home" --relocate
+HOME="$home" bash "$other_repo/ai/bootstrap.sh" --agent=claude "${skip_network_and_verify[@]}" >/dev/null 2>&1
+run_boot "$home" --relocate --agent=claude
 expect_status "--relocate exits 0" 0
 expect_out "and says how many mounts it moved, and off what" "moving $want_total mount(s)"
 expect_link_to "and the skill mount now points at this checkout" \
   "$home/.claude/skills/$first_shared" "$here/kk-flavor/skills/$first_shared"
 
 
-# --- ai/CLAUDE.md carries the same region body every other tier is given ---------------------------
+# --- ai/owner-instructions.md carries the same region body every other tier is given ---------------------------
 
-# The owner tier mounts ai/CLAUDE.md, so its reader gets that file's own text; everyone else gets the
+# The owner tier copies ai/owner-instructions.md, so its reader gets that file's own text; everyone else gets the
 # fenced region flavor_region_body() writes. The two say the same thing and cannot be derived from one
 # another — generating three lines would cost a generator and a gate unit to keep it honest — so this
 # is what catches the wording drifting apart. Compared as the body's lines, not as a whole file: the
@@ -822,18 +810,109 @@ expect_link_to "and the skill mount now points at this checkout" \
 region_body_missing=""
 while IFS= read -r region_line; do
   [ -n "$region_line" ] || continue
-  grep -qF -- "$region_line" "$here/CLAUDE.md" || region_body_missing="$region_line"
+  grep -qF -- "$region_line" "$here/owner-instructions.md" || region_body_missing="$region_line"
 done < <(
   # shellcheck source=../lib/flavor-region.sh
   . "$checkout/lib/flavor-region.sh" && flavor_region_body
 )
 [ -z "$region_body_missing" ] &&
-  record_pass "ai/CLAUDE.md carries every line of the region body the other tiers are given" ||
-  record_fail "ai/CLAUDE.md carries every line of the region body the other tiers are given" \
+  record_pass "ai/owner-instructions.md carries every line of the region body the other tiers are given" ||
+  record_fail "ai/owner-instructions.md carries every line of the region body the other tiers are given" \
     "missing: $region_body_missing"
 
 # --- the brew list and the README cannot drift apart --------------------------------------------
 
 expect_brew_matches_readme "$script" "$here/README.md"
+
+# --- Codex target -------------------------------------------------------------------------------
+fresh_home
+run_boot "$home" --agent=unknown
+expect_status "an unknown agent is rejected before installing" 2
+
+fresh_home
+out=$(HOME="$home" CODEX_HOME="$home/codex-profile" bash "$script" "${skip_network_and_verify[@]}" --agent=codex 2>&1)
+status=$?
+expect_status "Codex installs into a custom profile" 0
+expect_link_to "Codex skills use the shared discovery directory" "$home/.agents/skills/kk-build" "$here/kk-flavor/skills/kk-build"
+[ -f "$home/codex-profile/AGENTS.md" ] && record_pass "Codex instructions respect CODEX_HOME" || record_fail "Codex instructions respect CODEX_HOME" "missing AGENTS.md"
+[ ! -e "$home/.claude" ] && record_pass "Codex install does not create Claude state" || record_fail "Codex install does not create Claude state" "created .claude"
+
+fresh_home
+mkdir -p "$home/.codex/skills"
+ln -s "$here/kk-flavor/skills/kk-build" "$home/.codex/skills/kk-build"
+run_boot "$home" --agent=codex
+expect_status "Codex migrates its existing mounts" 0
+[ ! -L "$home/.codex/skills/kk-build" ] && record_pass "the duplicate old Codex mount is removed" || record_fail "the duplicate old Codex mount is removed" "old link remains"
+run_boot "$home" --agent=codex
+expect_status "a second Codex install succeeds" 0
+expect_not_out "a second Codex install writes no links" "linked   "
+run_boot "$home" --agent=claude
+expect_status "Claude can coexist with Codex" 0
+run_boot "$home" --agent=codex --uninstall
+expect_status "Codex can be uninstalled independently" 0
+expect_link_to "Claude retains the shared bucket" "$home/.kk-flavor" "$here/kk-flavor"
+expect_link_to "Claude retains its skills" "$home/.claude/skills/kk-build" "$here/kk-flavor/skills/kk-build"
+
+fresh_home
+mkdir -p "$home/.codex"
+printf 'custom override\n' >"$home/.codex/AGENTS.override.md"
+run_boot "$home" --agent=codex
+expect_status "Codex refuses a shadowed instruction file" 1
+expect_out "Codex explains the override" "AGENTS.override.md"
+
+fresh_home
+out=$(HOME="$home" CODEX_HOME="$home/.agents" bash "$script" "${skip_network_and_verify[@]}" --agent=codex 2>&1)
+status=$?
+expect_status "CODEX_HOME can equal the shared discovery directory" 0
+expect_link_to "migration never removes its own destination" "$home/.agents/skills/kk-build" "$here/kk-flavor/skills/kk-build"
+
+fresh_home
+mkdir -p "$home/.claude"
+printf 'existing rtk\n' >"$home/.claude/RTK.md"
+run_boot "$home" --agent=codex --owner
+expect_status "Codex owner install succeeds" 0
+expect_link_to "Codex owner includes maintainer skills" "$home/.agents/skills/kk-ecosystem" "$here/kk-flavor/skills/kk-ecosystem"
+[ ! -L "$home/.codex/AGENTS.md" ] && cmp -s "$home/.codex/AGENTS.md" "$here/owner-instructions.md" && record_pass "Codex owner receives its own source copy" || record_fail "Codex owner receives its own source copy" "wrong content or symlink"
+[ -f "$home/.claude/RTK.md" ] && record_pass "Codex owner preserves Claude RTK state" || record_fail "Codex owner preserves Claude RTK state" "removed RTK.md"
+run_boot "$home" --agent=codex --owner --uninstall
+expect_status "Codex owner uninstall succeeds" 0
+expect_absent "the final client removes the bucket" "$home/.kk-flavor"
+
+fresh_home
+mkdir -p "$home/.codex/skills" "$home/.agents/skills/kk-build"
+ln -s "$here/kk-flavor/skills/kk-build" "$home/.codex/skills/kk-build"
+run_boot "$home" --agent=codex
+expect_status "Codex refuses an occupied skill destination" 1
+expect_link_to "a failed migration preserves its old skill" "$home/.codex/skills/kk-build" "$here/kk-flavor/skills/kk-build"
+
+fresh_home
+mkdir -p "$home/.agents"
+ln -s "$home/.agents" "$home/profile"
+out=$(HOME="$home" CODEX_HOME="$home/profile" bash "$script" "${skip_network_and_verify[@]}" --agent=codex 2>&1)
+status=$?
+expect_status "Codex accepts a profile alias to the discovery directory" 0
+expect_link_to "profile aliases cannot delete migrated skills" "$home/.agents/skills/kk-build" "$here/kk-flavor/skills/kk-build"
+out=$(HOME="$home" CODEX_HOME="$home/profile" bash "$script" "${skip_network_and_verify[@]}" --agent=codex --uninstall 2>&1)
+status=$?
+expect_status "Codex uninstalls through a profile alias" 0
+expect_absent "a profile alias is not counted as another client" "$home/.kk-flavor"
+
+fresh_home
+mkdir -p "$home/.codex/skills"
+ln -s "$here/kk-flavor/skills/kk-build/" "$home/.codex/skills/kk-build"
+run_boot "$home" --agent=codex
+expect_status "Codex migrates a legacy link ending in a slash" 0
+expect_absent "equivalent legacy links do not duplicate skill discovery" "$home/.codex/skills/kk-build"
+
+fresh_home
+for entry in "$script" "$here/bootstrap-owner.sh"; do
+  for mode in '' --uninstall --dry-run; do
+    out=$(HOME="$home" bash "$entry" "${skip_network_and_verify[@]}" $mode 2>&1)
+    status=$?
+    expect_status "a missing target is rejected by $entry $mode" 2
+    expect_out "the refusal names the required selector" "--agent=claude|codex is required"
+    expect_absent "no target means no installation" "$home/.kk-flavor"
+  done
+done
 
 report_suite

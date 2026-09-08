@@ -6,7 +6,7 @@ argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or
 
 Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, broken logic, violated invariants and constraints, leaks, races, misuse that makes the code do the wrong thing.
 
-**Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `kk-refactor`'s lane — never flag them here; broad security auditing is `kk-security-review`'s. A security rule the project's `CLAUDE.md` states is in scope — violating one is a constraint bug.
+**Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `kk-refactor`'s lane — never flag them here; broad security auditing is `kk-security-review`'s. A security rule the project's agent instructions state is in scope — violating one is a constraint bug.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below. This reviews *changes* — no whole-project mode by design.
 
@@ -14,7 +14,7 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 
 Check every changed file against all five:
 
-1. **Standards correctness rules** — violations (kk-flavor standards or the project's `CLAUDE.md`) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
+1. **Standards correctness rules** — violations (kk-flavor standards or the project's agent instructions) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
    - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
 2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.

@@ -19,7 +19,8 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 The app reads its config from one typed object, never raw `os.Getenv` / `import.meta.env`. Build it at startup as a singleton.
 
 - Coerce to real types: numbers, booleans, the environment as an **enum** — not bare strings.
-- Define defaults inline; env vars only override them.
+- Define defaults inline; env vars only override them. **Provider selection is required when multiple providers are supported.** Reject missing, invalid or unavailable selections with a clear error before acting; never infer a provider or fall back to another.
+- For the same role across model providers, choose comparable capability, latency and cost tiers, and document the pairing.
 - Log it with secrets masked.
 
 ## Logging
@@ -66,6 +67,8 @@ Schema changes are versioned SQL files an idempotent tool applies — forward-on
 ## Repo files
 
 Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore`.
+
+Shared project instructions live in `AGENTS.md`. `CLAUDE.md` imports it with `@AGENTS.md` and holds Claude-specific additions; keep it a separate file, not a symlink.
 
 ## Dependencies
 

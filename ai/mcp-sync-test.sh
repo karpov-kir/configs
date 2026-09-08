@@ -135,7 +135,7 @@ check "control: and it is the guard refusing, not a command this PATH lacks" "st
 run_guarded --help
 check "--help exits 0" "0" "$status"
 check "and prints usage rather than performing the sync" "held" "$(held 'usage: mcp-sync.sh' "$out")"
-check "and says the script takes no arguments" "held" "$(held 'takes no arguments' "$out")"
+check "and names the required agent selector" "held" "$(held '--agent=claude|codex' "$out")"
 
 # The two lines above come from a `printf`. The rest of that arm is a line range out of the script's
 # own header — a claim about a file's content held by two line numbers, which a line added above the
@@ -274,7 +274,7 @@ sync_run() { # <label> <directory to run the copy from> <'with-env'|'no-env'|'de
     dead-env) cp "$script_dir/mcp-env.sh" "$dir/mcp-env.sh" && chmod 644 "$dir/mcp-env.sh" ;;
   esac
   out="$(CLAUDE_CONFIG_DIR="$tmp/sync-config-$label" CLAUDE_CALL_LOG="$call_log" \
-    CLAUDE_JSON_DIR="$json_dir" PATH="$stub_dir:$PATH" bash "$dir/mcp-sync.sh" 2>&1)"
+    CLAUDE_JSON_DIR="$json_dir" PATH="$stub_dir:$PATH" bash "$dir/mcp-sync.sh" --agent=claude 2>&1)"
   status=$?
 }
 
@@ -316,5 +316,58 @@ sync_run unexecutable "$tmp/unexecutable/ai" dead-env
 check "an mcp-env.sh that is not executable is refused too" "1" "$status"
 check "and names it as well" "held" "$(held 'mcp-env.sh is missing or not executable' "$out")"
 
-echo "$pass passed, $fail failed"
+run_guarded --agent=unknown
+check "unknown agents are rejected" "2" "$status"
+out="$(PATH="$bare" bash "$script_dir/mcp-sync.sh" 2>&1)"
+status=$?
+check "the sync requires an explicit agent" "2" "$status"
+
+for valid in '{"type":"stdio","command":"/bin/echo","args":["a b","$(literal)"],"env":{"VALUE":"x=y"}}' '{"type":"http","url":"http://127.0.0.1:9/mcp"}'; do
+  check "Codex accepts representable transport fields" "yes" "$(validate_codex_config "$valid" >/dev/null 2>&1 && echo yes || echo no)"
+done
+for invalid in '{"type":"sse","url":"https://example.invalid"}' '{"type":"http","url":"https://example.invalid","headers":{"X":"value"}}' '{"command":"echo","args":[1]}' '{"command":"echo","env":{"X":2}}' '{"command":"echo","cwd":"/tmp"}' '{"command":"echo","args":["a\u0000b"]}'; do
+  check "Codex refuses fields it cannot preserve" "no" "$(validate_codex_config "$invalid" >/dev/null 2>&1 && echo yes || echo no)"
+done
+
+skipped=0
+if command -v codex >/dev/null 2>&1; then
+  codex_dir="$tmp/codex-sync"
+  codex_profile="$tmp/codex-profile"
+  mkdir -p "$codex_dir" "$codex_profile"
+  cp "$script_dir/mcp-sync.sh" "$script_dir/mcp-env.sh" "$codex_dir/"
+  cat >"$codex_dir/mcp.jsonc" <<'JSON'
+{"mcpServers":{"literal":{"type":"stdio","command":"/bin/echo","args":["a b","$(literal)","a\nb"],"env":{"VALUE":"x=y z"}},"http":{"type":"http","url":"http://127.0.0.1:9/mcp"}}}
+JSON
+  out="$(CODEX_HOME="$codex_profile" bash "$codex_dir/mcp-sync.sh" --agent=codex 2>&1)"
+  status=$?
+  check "Codex sync registers both transports" "0" "$status"
+  config="$(CODEX_HOME="$codex_profile" codex mcp get literal --json 2>/dev/null)"
+  check "Codex preserves argument boundaries and literal shell text" '["a b","$(literal)","a\nb"]' "$(jq -c '.transport.args' <<<"$config")"
+  check "Codex preserves environment values" 'x=y z' "$(jq -r '.transport.env.VALUE' <<<"$config")"
+  config="$(CODEX_HOME="$codex_profile" codex mcp get http --json 2>/dev/null)"
+  check "Codex registers streamable HTTP" 'http://127.0.0.1:9/mcp' "$(jq -r '.transport.url' <<<"$config")"
+  cat >"$codex_dir/mcp.private.jsonc" <<'JSON'
+{"mcpServers":{"literal":{"command":"/bin/echo","args":["updated"]}}}
+JSON
+  out="$(CODEX_HOME="$codex_profile" bash "$codex_dir/mcp-sync.sh" --agent=codex 2>&1)"
+  status=$?
+  check "Codex upserts existing entries and private overrides" "0" "$status"
+  config="$(CODEX_HOME="$codex_profile" codex mcp get literal --json 2>/dev/null)"
+  check "the private definition wins" '["updated"]' "$(jq -c '.transport.args' <<<"$config")"
+  before="$(cat "$codex_profile/config.toml")"
+  printf '{"mcpServers":{"unsupported":{"type":"http","url":"https://example.invalid","headers":{"X":"value"}}}}' >"$codex_dir/mcp.private.jsonc"
+  out="$(CODEX_HOME="$codex_profile" bash "$codex_dir/mcp-sync.sh" --agent=codex 2>&1)"
+  status=$?
+  check "unsupported private fields refuse the whole sync" "1" "$status"
+  check "private validation happens before public entries are changed" "$before" "$(cat "$codex_profile/config.toml")"
+else
+  skipped=1
+  echo "skip — real Codex registry integration: codex CLI is unavailable"
+fi
+
+if [ "$skipped" -gt 0 ]; then
+  echo "$pass passed, $fail failed, $skipped skipped"
+else
+  echo "$pass passed, $fail failed"
+fi
 [ "$fail" -eq 0 ]

@@ -800,7 +800,7 @@ var mutants = []mutant{
 	// unobservable is one this harness reports as killing nothing.
 	{"gate: a gitignored SKILL.md still found by name", "skills.go", "./eco-check/", "TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne", `if !c.holdsRegularFile(shell.Join(entry.path, "SKILL.md")) {`, `if !shell.IsRegularFile(shell.Join(entry.path, "SKILL.md")) {`},
 	{"gate: a gitignored SKILL.md still counted in the census", "skills.go", "./eco-check/", "TestAGitignoredSkillFileLeavesItsDirectoryWithoutOne", "if !c.holdsRegularFile(file) {", "if !shell.IsRegularFile(file) {"},
-	{"gate: a gitignored CLAUDE.md still counted into the budget", "budget.go", "./eco-check/", "TestAGitignoredClaudeMdIsNeitherCountedNorScanned", "if c.holdsSomething(claudeMd) {", "if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {"},
+	{"gate: gitignored project instructions still counted into the budget", "budget.go", "./eco-check/", "TestAGitignoredClaudeMdIsNeitherCountedNorScanned", "if c.holdsSomething(instructionFile) {", "if shell.PathExists(instructionFile) || shell.IsSymlink(instructionFile) {"},
 	// Without the arm above it, a gitignored doc reaches absentOrOutOfReach, whose Lstat finds the file
 	// sitting right where the router points and reports that nothing could answer for it — a refusal
 	// about this machine, where the fact is that the commit does not carry the file.

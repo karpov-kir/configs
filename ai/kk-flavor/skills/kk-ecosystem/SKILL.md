@@ -1,6 +1,6 @@
 ---
 name: kk-ecosystem
-description: Refine what agents read — skills, standards, prompts, templates, CLAUDE.md — cutting what no longer earns its place and checking the wiring. Use for "refine the ecosystem", "de-bloat", or anything routed to the instruction lane. Runs the shape (kk-skillcraft) and prose (kk-tighten) stages itself.
+description: Refine what agents read — skills, standards, prompts, templates, agent instructions — cutting what no longer earns its place and checking the wiring. Use for "refine the ecosystem", "de-bloat", or anything routed to the instruction lane. Runs the shape (kk-skillcraft) and prose (kk-tighten) stages itself.
 argument-hint: "the ecosystem root, a subset of it, or the change to refine (default: the whole ecosystem)"
 audience: maintainer
 ---
@@ -15,11 +15,11 @@ Refine the ecosystem. The product is a **smaller** set of instructions that stee
 
 ## 1. Check the wiring
 
-Run `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh` over the ecosystem root and fix what it finds before anything else. Changing `check.sh` itself carries duties its own header states.
+Run `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"` over the ecosystem root and fix what it finds before anything else. Changing `check.sh` itself carries duties its own header states.
 
 ## 2. Audit the always-loaded set
 
-`check.sh` prints this set's size, not its members. The set is `CLAUDE.md`, `~/.kk-flavor/inject.md`, the standards that file marks as read on every task, every `@import` those carry, and every skill `description:` the harness holds for a skill without `disable-model-invocation`. Read them whole and hold each line to the top of the rising bar (`~/.kk-flavor/standards/ecosystem.md` → **Earn the place**); anything narrower moves down a tier. Run `~/.kk-flavor/scripts/bloat-judge.sh instruction <file>` over each file in it, and delete what it names. An import an installer owns outside this tree is audited here too. Being unable to change it makes the finding a report, not a skip.
+`check.sh` measures the repository portion; read its exclusions and audit the installed global instructions separately. The set is the selected client's global and project instructions, `~/.kk-flavor/inject.md`, the standards that file marks as read on every task, the files those explicitly load, and every skill `description:` the harness holds for a skill. Read them whole and hold each line to the top of the rising bar (`~/.kk-flavor/standards/ecosystem.md` → **Earn the place**); anything narrower moves down a tier. Run `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh instruction <file>` over each file in it, and delete what it names. An import an installer owns outside this tree is audited here too. Being unable to change it makes the finding a report, not a skip.
 
 ## 3. Cut, or move
 
@@ -33,7 +33,7 @@ Before calling a rule dead, read `~/.kk-flavor/standards/ecosystem.md` → **Mov
 
 ## 4. Shape
 
-Spawn `kk-skillcraft` over every skill directory in the resolved scope, **and over the standards, prompts, templates and `CLAUDE.md` in it**. Skip the stage only when the scope holds none of them, and say so when you do.
+Spawn `kk-skillcraft` over every skill directory in the resolved scope, **and over the standards, prompts, templates and agent instruction files in it**. Skip the stage only when the scope holds none of them, and say so when you do.
 
 ## 5. Prose
 
@@ -45,7 +45,7 @@ A script this pass edited is code no stage of this lane reviews. Hand it off per
 
 ## 7. Account for it
 
-Re-run `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh` — the cuts themselves break references — then report, in this order:
+Re-run `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"` — the cuts themselves break references — then report, in this order:
 
 - every rule **deleted**, and what still covers it — or plainly that nothing did;
 - every rule **added**, and which one it replaced;

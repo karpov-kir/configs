@@ -34,8 +34,8 @@
 
 ## Where it starts
 
-<!-- The repository, by absolute path, and the base commit, by SHA, that must resolve inside it. A
-     chip carries the working directory; a prompt someone pastes carries nothing, so a draft that
+<!-- The target client (claude or codex), the repository by absolute path, and the base commit, by SHA, that must resolve inside it. A
+     launch carries the working directory; a prompt someone pastes carries nothing, so a draft that
      names only the commit leaves them guessing which checkout it is in. Then every file another live
      session is holding, and the instruction to rebase onto their work rather than collide with it.
      `None` is refused: name the commit even when no one else is live. -->

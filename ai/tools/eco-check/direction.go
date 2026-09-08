@@ -51,8 +51,11 @@ type directionCounters struct {
 // reader from inside one too.
 func (c *checker) scanDirection() {
 	targets := []string{c.root.Flavor()}
-	if shell.IsRegularFile(shell.Join(c.root.Named(), "CLAUDE.md")) {
-		targets = append(targets, shell.Join(c.root.Named(), "CLAUDE.md"))
+	for _, name := range []string{"CLAUDE.md", "AGENTS.md"} {
+		file := shell.Join(c.root.Named(), name)
+		if shell.IsRegularFile(file) {
+			targets = append(targets, file)
+		}
 	}
 
 	lanes := c.laneAlternation()

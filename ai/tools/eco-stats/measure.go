@@ -56,10 +56,6 @@ type stats struct {
 	// Which paths were already counted unread, so a directory both the prose and the scripts walk reach
 	// is one path rather than two.
 	refusedUnreadable map[string]bool
-	// How many of those paths were not under the root. A skill mounted at `~/.claude/skills` lives in
-	// the user's home, so a shortfall message calling it a path "under <root>" sends a reader hunting
-	// through the wrong tree. Not a second gate — every unread path already withholds the row — it only
-	// decides how that one message describes where they were.
 	unreadableOutside int
 }
 
