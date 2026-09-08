@@ -10,7 +10,7 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestra
 
 Require the target client explicitly before launching and carry it into every handoff.
 
-- **Codex desktop:** drafting agents return checked prompts; the reactor launches them through `kk-handoff`. Track returned task IDs. Use `wait_threads` for completion, `send_message_to_thread` for authorized sibling reports, and `list_threads` for inventory. Use this task's ID from runtime context as the return address; never guess it from a title. Tasks start immediately. Ending a turn does not schedule a future check.
+- **Codex desktop:** the reactor prepares and launches checked prompts through `kk-handoff` inline. Track returned task IDs. Use `wait_threads` for completion, `send_message_to_thread` for authorized sibling reports, and `list_threads` for inventory. Use this task's ID from runtime context as the return address; never guess it from a title. Tasks start immediately. Ending a turn does not schedule a future check.
 - **Claude Code:** use the available chip mechanism, `get_session "self"` for the return address, and `list_sessions` for inventory. Chips wait for a click; incoming session messages wake the reactor.
 
 Without the selected client's task tools, return checked drafts instead of claiming a launch.
@@ -30,7 +30,7 @@ The launchable set:
 
 Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second task for one intent puts two sessions on one branch.
 
-**At most 10 intents in flight**, counted as authored-but-unlanded plus building. Never a count of sessions: one intent is an authoring session and later a build session, and the agents you spawn at **2** write nothing. What the cap protects is not machine load: every authoring session regenerates `.idsd/roadmap.md`, so authors collide there and serialise through rebase-and-retry. A regeneration off a stale tree also drops edges without reddening any gate. **Finalize contention is the sharper limit**: a ship forced to re-qualify holds the merge slot across that whole pass (`~/.kk-flavor/skills/idsd-finalize/SKILL.md` → **2. Take the slot**), and every other finalize waits it out. Over the cap, keep the intents others wait on and drop the rest from the set, parked — **2** launches one session per intent still in it.
+**At most 10 intents in flight**, counted as authored-but-unlanded plus building. Count each intent once across authoring and build sessions; an exploration worker does not add an intent. What the cap protects is not machine load: every authoring session regenerates `.idsd/roadmap.md`, so authors collide there and serialise through rebase-and-retry. A regeneration off a stale tree also drops edges without reddening any gate. **Finalize contention is the sharper limit**: a ship forced to re-qualify holds the merge slot across that whole pass (`~/.kk-flavor/skills/idsd-finalize/SKILL.md` → **2. Take the slot**), and every other finalize waits it out. Over the cap, keep the intents others wait on and drop the rest from the set, parked — **2** launches one session per intent still in it.
 
 **Present the schedule and launch only what the human confirms.** Say the cap and what it currently counts; it is theirs to change for the run. Read the launchable set back by name, say what each later intent waits on and what you are leaving parked, and count the `draft` intents in the set — each grills the human in its own thread at `idsd-build`'s gap rounds. Nothing on disk marks an intent as parked, since `status: draft` fits a fresh intent and a shelved one alike, so the ask is the only place that knowledge enters. Say that this session is the reactor's address: it launches the later intents only while it stays open. **After an audit, a Blocker touching what they confirmed stops the launch**: route each through the skill the audit names, then re-run the audit.
 
@@ -38,24 +38,24 @@ Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree alrea
 
 **One intent set has one reactor.** A second recomputes the same graph and cannot see the branch the first is about to cut, so the branch check above does not reach it — that check is one reactor's view of what exists, never of what another is deciding. The sessions fare worse than the branches: each was given one address for `done`, the slot question and contract changes, so half the run reports to a reactor that does not know what the other half was told. **Succession is stop then start** — the human archives the incumbent, then starts the successor — so **never launch your own replacement while you are live**, however certain you are that you are going.
 
-## 2. Launch — one agent per intent
+## 2. Launch — one task per intent
 
-Spawn one agent per launchable intent, **every spawn in a single message**, so the drafting — the slow part — happens at once. Each agent then runs `kk-handoff` **inline**. That skill bars spawning *it*, not spawning an agent that runs it over context you handed it — so you spawn the agent, never `kk-handoff`.
+Prepare each confirmed intent's handoff in this coordinator through `kk-handoff` inline. Reuse verified shared facts while their inputs remain unchanged; keep each draft's slug, branch, allocation and licence specific to its task. Delegate bounded discovery only when a handoff needs substantial context not already held, within the available worker capacity. A discovery worker returns facts to this coordinator, which owns the checked draft and launch.
 
-**Keep the handoff prompt thin** — the one the agent drafts. It states one task: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
+**Keep the handoff prompt thin.** It states one task: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
 
-**Say in the prompt that the pass spawns one subagent per stage**, so the human's launch approval authorises those spawns. You cannot authorise them yourself — you are that session's peer, not its user — and a session whose own instructions bar it from spawning otherwise reads the prompt as withholding it and reviews its own work instead.
+**Include independent quality workers in the schedule the human approves**, then carry that authorization into each handoff. The receiving coordinator dispatches applicable leaves under `~/.kk-flavor/standards/quality-pipeline.md`, within its worker capacity. It retains independent reviews and protected model roles without assigning a worker to every inline phase.
 
-Hand each agent what no file on disk carries, for that prompt:
+Each prompt also carries what no file on disk holds:
 
 - the branch each sibling cuts (`idsd/NNN-<slug>`), for `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md` → **Where it starts**;
 - its shared-runtime allocation — a port range, plus the browser and any single-slot install held by one session at a time;
 - this session's return address, resolved by **Client mechanics**;
 - the three messages to send here (**3**), each sent **before** the session archives itself, since archiving stops it and loses anything unsent.
 
-**A drafting agent without the launch mechanism returns a draft path.** Launch those drafts yourself once the agents are back, again in one message.
+**Launch each confirmed intent as soon as its handoff passes the check and its allocation is available.** Independent checks may run concurrently; an unfinished sibling draft does not hold a ready launch. After a partial launch, reconcile returned task IDs with the branch/worktree and client inventories before retrying, so a retry does not create a duplicate task. Without the selected client's launch mechanism, return the checked draft paths.
 
-Done when one task per launchable intent exists, off that single round of spawns. **Deferred tasks need a human click**; with nobody at the keyboard, name those still waiting and end the turn. Immediately started tasks proceed to **3**.
+Done when one task per confirmed launchable intent exists, or each remaining draft has a stated blocker. **Deferred tasks need a human click**; with nobody at the keyboard, name those still waiting and end the turn. Immediately started tasks proceed to **3**.
 
 ## 3. React
 
