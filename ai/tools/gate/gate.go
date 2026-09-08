@@ -292,7 +292,11 @@ func (g *gate) resolveMachine() int {
 	}
 	goVersion, _ := g.capture("go", "version")
 	gitVersion, _ := g.capture("git", "--version")
-	g.stamp = fmt.Sprintf("%s | %s | gate %s", goVersion, gitVersion, digest)
+	nodeVersion, err := g.capture("node", "--version")
+	if err != nil {
+		nodeVersion = "unavailable"
+	}
+	g.stamp = fmt.Sprintf("%s | %s | node %s | gate %s", goVersion, gitVersion, nodeVersion, digest)
 	return 0
 }
 

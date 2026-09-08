@@ -168,6 +168,12 @@ func (g *gate) discoverShellSuites() int {
 		case "ai/rtk-bootstrap-test.sh":
 			sibling = "ai/bootstrap.sh"
 			inputs = append(inputs, "ai/owner-instructions.md")
+		case "ai/install-project-test.sh", "ai/project-skills-test.sh":
+			sibling = "ai/install-project.sh"
+			inputs = append(inputs, "ai/project-skills.sh", "ai/project-dependencies.sh",
+				"ai/project-mcp.sh", "ai/project-mcp.mjs", "ai/mcp.jsonc", "ai/mcp-env.sh")
+		case "ai/project-mcp-test.sh":
+			inputs = append(inputs, "ai/project-mcp.mjs", "ai/mcp.jsonc", "ai/mcp-env.sh")
 		}
 		siblingPath := filepath.Join(g.root, sibling)
 		if _, err := os.Stat(siblingPath); err == nil {

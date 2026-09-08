@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install this repository's skills into one project, rather than into the machine.
+# Install project skills, instructions and MCP configuration with mise as the prerequisite.
 #
 #   usage: ai/install-project.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--uninstall] <project>
 #
@@ -87,6 +87,24 @@ done
 . "$repo/../lib/skill-audience.sh"
 # shellcheck source=../lib/flavor-region.sh
 . "$repo/../lib/flavor-region.sh"
+
+for helper in project-skills.sh project-dependencies.sh project-mcp.sh project-mcp.mjs; do
+  [ -r "$repo/$helper" ] || {
+    refuse "$repo/$helper is missing — use a complete checkout"
+    report_and_exit
+  }
+done
+. "$repo/project-skills.sh"
+
+configure_project_mcp() {
+  local options=("--agent=$agent")
+  $dry_run && options+=(--dry-run)
+  $uninstall && options+=(--uninstall)
+  bash "$repo/project-mcp.sh" "${options[@]}" "$project" || {
+    refuse "project MCP configuration needs attention; see the error above"
+    report_and_exit
+  }
+}
 
 bulk_label="skills"
 mount_scope_label="$project's skills"
@@ -180,7 +198,10 @@ say "$label: $project"
 # --- uninstall --------------------------------------------------------------------------------------
 
 if $uninstall; then
+  configure_project_mcp
+  project_skills_writable || report_and_exit
   unmount_run
+  project_disable_worktrees
   say "project files"
   if other_agent_mounted; then
     say "  kept     shared project instructions: another client still uses them"
@@ -201,15 +222,8 @@ if $uninstall; then
     registry_forget "$project"
   fi
 
-  remaining="$(registry_live | grep -c . || true)"
-  if [ "$remaining" -eq 0 ]; then
-    say ""
-    say "  No project on this machine is installed any more. ~/.kk-flavor and the machine-wide"
-    say "  steps are still in place; remove them with ai/bootstrap.sh --agent=$agent --uninstall if you are done."
-  else
-    say ""
-    say "  $remaining project(s) still use ~/.kk-flavor, so nothing machine-wide was touched."
-  fi
+  say ""
+  say "  Shared ~/.kk-flavor was kept. User-level client setup was not changed."
   report_and_exit
 fi
 
@@ -238,8 +252,36 @@ for file in "$instructions_md" "$claude_md"; do
   fi
 done
 
-add_unmount_scan "$project/$agent_directory/skills" "$repo/kk-flavor/skills"
-mount_run
+project_skills_writable || report_and_exit
+add_cfg "$repo/kk-flavor" "$HOME/.kk-flavor"
+# Survey existing bucket and legacy project links before the first write.
+(dry_run=true; mount_run; [ "${#refusals[@]}" -eq 0 ]) >/dev/null || { (dry_run=true; mount_run); exit 1; }
+ensure_project_dependencies() {
+  if $dry_run; then
+    bash "$repo/project-dependencies.sh" --dry-run
+  else
+    bash "$repo/project-dependencies.sh"
+  fi
+}
+ensure_project_dependencies || {
+  refuse "mise prerequisite needs attention; see the error above"
+  report_and_exit
+}
+configure_project_mcp
+if $dry_run; then
+  say "  would link $HOME/.kk-flavor -> $repo/kk-flavor"
+  for ((i=0; i<${#bulk_targets[@]}; i++)); do
+    say "  would link ${bulk_targets[i]} -> $HOME/.kk-flavor/skills/${bulk_sources[i]##*/}"
+  done
+else
+  link "$repo/kk-flavor" "$HOME/.kk-flavor" || report_and_exit
+  for ((i=0; i<${#bulk_sources[@]}; i++)); do
+    bulk_sources[i]="$HOME/.kk-flavor/skills/${bulk_sources[i]##*/}"
+  done
+  add_unmount_scan "$project/$agent_directory/skills" "$repo/kk-flavor/skills"
+  mount_run
+fi
+project_enable_worktrees
 
 say "project files"
 if [ -n "$broad_agent_rule" ]; then

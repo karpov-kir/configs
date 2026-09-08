@@ -20,6 +20,15 @@ suite_name="ai/install-project-test.sh"
 . "$checkout/lib/test-harness.sh" ||
   { printf '%s: lib/test-harness.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
 
+mkdir -p "$tmp_real/tools"
+cat > "$tmp_real/tools/mise" <<'MISE'
+#!/usr/bin/env bash
+[ "$#" -eq 1 ] && [ "$1" = --version ] || exit 2
+printf 'mise test fixture\n'
+MISE
+chmod +x "$tmp_real/tools/mise"
+export PATH="$tmp_real/tools:$PATH"
+
 echo "ai/install-project.sh"
 
 run_install() { # <project> [flags...]
@@ -242,7 +251,7 @@ expect_out "and says the scope is this project's skills, not the machine's confi
 
 run_install "$project" --relocate --agent=claude
 expect_status "--relocate exits 0" 0
-[ "$(readlink "$project/.claude/skills/$first_skill")" = "$here/kk-flavor/skills/$first_skill" ] &&
+[ "$(readlink "$project/.claude/skills/$first_skill")" = "$home/.kk-flavor/skills/$first_skill" ] &&
   record_pass "and the mount now points at this checkout" ||
   record_fail "and the mount now points at this checkout" "$(readlink "$project/.claude/skills/$first_skill")"
 
@@ -379,5 +388,6 @@ for client in claude codex; do
   expect_symlink "$client upgrade preserves another checkout's link" "$skill_parent/kk-stranger"
   expect_symlink "$client upgrade mounts the prose editor" "$skill_parent/kk-edit"
 done
+
 
 report_suite
