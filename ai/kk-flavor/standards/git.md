@@ -28,4 +28,4 @@ Match the recent style on the branch (`git log` first). Use semantic prefixes (`
 
 ## Pull requests
 
-Open as drafts; follow the repo's PR template if it has one.
+Open as drafts; follow the repo's PR template if it has one. Keep them drafts until the human explicitly authorizes marking them ready for review. That transition can notify CODEOWNERS and assign reviewers automatically. Permission to commit, push, ship or merge does not authorize review notifications. Requesting or re-requesting reviewers also needs explicit authorization.
