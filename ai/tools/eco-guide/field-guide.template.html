@@ -15,6 +15,8 @@
     - A placeholder that is missing, or one that is misspelled, refuses the build rather than
       shipping a half-filled page.
 -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>kk-flavor Field Guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -134,6 +136,28 @@
   }
   .aside b{color:var(--ink)}
 
+  .workflow{margin:24px 0 32px;padding:24px;border:1px solid var(--rule-2);border-radius:8px;background:var(--surface)}
+  .workflow figcaption{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+  .flow-row{display:flex;align-items:center;gap:14px}
+  .flow-node{flex:1;min-width:0;border:1px solid var(--rule-2);border-radius:6px;padding:17px;background:var(--sunk)}
+  .flow-node strong,.flow-node small,.flow-node code{display:block}
+  .flow-node strong{font-size:1rem;font-weight:600}
+  .flow-node small{font-size:.8rem;color:var(--ink-2);margin-top:7px;line-height:1.5}
+  .flow-node code{font-size:.75rem;color:var(--idsd);margin-top:6px;overflow-wrap:anywhere}
+  .flow-node.hub{background:var(--idsd-soft);border-color:var(--idsd-edge)}
+  .flow-node.human{background:var(--kk-soft);border-color:var(--kk-edge)}
+  .flow-arrow{flex:0 0 auto;color:var(--idsd);font-size:1.5rem;text-align:center}
+  .flow-branches{display:grid;gap:12px;flex:1.4;min-width:0}
+  .flow-route{display:flex;align-items:center;gap:14px}
+  .flow-return{margin-top:16px;padding-top:14px;border-top:1px dashed var(--idsd-edge);color:var(--idsd);font-size:.84rem;text-align:center}
+  .flow-note{font-size:.82rem;color:var(--muted);margin-top:16px}
+  @media (max-width:680px){
+    .workflow{padding:18px}
+    .flow-row{flex-direction:column;align-items:stretch;gap:10px}
+    .flow-row > .flow-arrow{transform:rotate(90deg);align-self:center}
+    .flow-branches{gap:10px}
+  }
+
   /* ---- the inventory ---- */
   .lanes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
   .lane{border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:10px}
@@ -239,8 +263,33 @@
 <section>
   <div class="sec-head">
     <h2>The intent-driven path</h2>
-    <p class="sec-note">Once per project, then a loop per feature. The numbers are the real order.</p>
+    <p class="sec-note">One reactor coordinates the intent set; separate tasks own each feature.</p>
   </div>
+  <p class="lede" style="margin-top:0">Use <code>idsd-reactor</code> as the central task for coordinating intents and requesting new ones. Bring new work to that task, including requests that arrive while other features are being built. The reactor starts separate tasks for authoring and shipping; the steps below show the work those tasks own.</p>
+  <figure class="workflow" aria-label="Requests go to the reactor, which starts authoring or shipping tasks. Both report back to the reactor.">
+    <figcaption>One place to bring the next request</figcaption>
+    <div class="flow-row">
+      <div class="flow-node human"><strong>Your request</strong><small>A new feature, a change, or the next milestone.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node hub"><strong>Coordinate</strong><code>idsd-reactor</code><small>Assign numbers, track dependencies, start tasks.</small></div>
+      <div class="flow-branches">
+        <div class="flow-route"><span class="flow-arrow" aria-hidden="true">→</span><div class="flow-node"><strong>No intent yet? Author it.</strong><code>idsd-intent</code><small>Separate task. Ask questions, write and land the ICE.</small></div></div>
+        <div class="flow-route"><span class="flow-arrow" aria-hidden="true">→</span><div class="flow-node"><strong>Ready and approved? Ship it.</strong><code>idsd-ship</code><small>Separate task. Build, qualify and land the feature.</small></div></div>
+      </div>
+    </div>
+    <div class="flow-return">↩ Both tasks report back to the reactor. It updates the schedule.</div>
+  </figure>
+  <figure class="workflow" aria-label="Within a shipping task, build is followed by qualification and then authorized finalization.">
+    <figcaption>Inside one shipping task</figcaption>
+    <div class="flow-row">
+      <div class="flow-node"><strong>Build</strong><code>idsd-build</code><small>Implement the intent and pass its checks.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node"><strong>Qualify</strong><code>idsd-qualify</code><small>Review the change and record the result.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node hub"><strong>Land</strong><code>idsd-finalize</code><small>With merge authorization, integrate and archive.</small></div>
+    </div>
+    <p class="flow-note">Fixes return through the checks they affect. Each intent has its own worktree; finalization takes a shared merge slot.</p>
+  </figure>
   <div class="pipe">
 
     <div class="step">
@@ -266,7 +315,7 @@
       <div class="num">2</div>
       <div class="step-body">
         <h3>Ship it <code>idsd-ship</code></h3>
-        <p>The door you actually type. It writes the intent first if there isn't one, then runs the three stages below in order and stops to ask you before anything is merged.</p>
+        <p>The reactor starts a shipping task for each ready intent. You can also use this skill directly for one feature. It writes the intent first if there isn't one, then runs the three stages below in order and stops to ask you before anything is merged.</p>
         <p class="writes">idsd-build → idsd-qualify → idsd-finalize</p>
       </div>
     </div>
@@ -304,10 +353,26 @@
 
 <section>
   <div class="sec-head">
-    <h2>Many features at once</h2>
-    <p class="sec-note">Two skills sit above the loop rather than inside it.</p>
+    <h2>Keep coordination in the reactor</h2>
+    <p class="sec-note">One reactor per intent set. Return to it with new requests.</p>
   </div>
-  <p class="lede" style="margin-top:0">Once a project has more than a handful of intents, two questions come up that no single feature can answer: do they still agree with each other, and which of them could be built right now? <code>idsd-audit</code> answers the first and derives the order the second needs; <code>idsd-reactor</code> runs that order, launching a session per feature as its dependencies land. Both are listed with the rest below.</p>
+  <p class="lede" style="margin-top:0">A request without an intent goes to <code>idsd-reactor</code>. It assigns an intent number and starts a separate <code>idsd-intent</code> task to author the ICE, without building it. Answer that task's questions there. It lands the intent on the target branch and reports back to the reactor.</p>
+  <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. <code>idsd-audit</code> checks consistency and derives the build order.</p>
+  <p>Keep the reactor task available throughout the run. Bring additions and coordination requests back to it; answer feature-specific questions in the task that asks them.</p>
+  <figure class="workflow" aria-label="Example dependency graph: A lands, then B and C can build in parallel. D waits for both B and C to land.">
+    <figcaption>Dependencies open the next work</figcaption>
+    <div class="flow-row">
+      <div class="flow-node"><strong>A lands</strong><small>The shared prerequisite is ready.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-branches">
+        <div class="flow-node hub"><strong>B builds</strong><small>One shipping task.</small></div>
+        <div class="flow-node hub"><strong>C builds</strong><small>Another task, running alongside B.</small></div>
+      </div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node"><strong>D waits for both</strong><small>Starts when B and C have landed.</small></div>
+    </div>
+    <p class="flow-note">Example: B and C depend on A; D depends on both B and C. An intent that depends only on B can start as soon as B lands.</p>
+  </figure>
   <div class="direction">
     <div class="arrow">depends-on&nbsp;→&nbsp;parallel</div>
     <p><b>Dependencies decide what runs together; shared files do not.</b> Two features touching the same code still start at once — the overlap is resolved when each one merges. Hold a pair back only when they would be redoing each other's work.</p>
@@ -325,8 +390,12 @@
       <div class="do"><code class="k">kk-foreman</code> — say what you want done and it picks the skills, orders them and runs them. Add <code>unattended</code> to hand it the whole run.</div>
     </div>
     <div class="case">
+      <div class="want">I want one place to coordinate intents and request new ones.</div>
+      <div class="do"><code class="i">idsd-reactor</code> — keep this task as the coordinator. It starts authoring tasks for new requests and shipping tasks for ready intents, then tracks their reports and dependencies.</div>
+    </div>
+    <div class="case">
       <div class="want">I want to plan a feature properly before anyone writes code.</div>
-      <div class="do"><code class="i">idsd-intent</code> — it questions you, then writes the intent. No charter yet? It offers <code class="i">idsd-charter</code> once.</div>
+      <div class="do">Bring the request to your <code class="i">idsd-reactor</code> task. For standalone authoring, use <code class="i">idsd-intent</code> directly: it questions you, then writes the intent. No charter yet? It offers <code class="i">idsd-charter</code> once.</div>
     </div>
     <div class="case">
       <div class="want">I want this feature built, reviewed and merged.</div>
@@ -334,7 +403,7 @@
     </div>
     <div class="case">
       <div class="want">I have a batch of intents and want them all going at once.</div>
-      <div class="do"><code class="i">idsd-reactor</code> — one session per feature that is ready, and it starts the rest as their dependencies land.</div>
+      <div class="do">Use your <code class="i">idsd-reactor</code> task to choose the milestone and approve the schedule. It starts one shipping task per ready intent and launches the rest as their dependencies land.</div>
     </div>
     <div class="case">
       <div class="want">Something is broken and nobody knows why.</div>
@@ -357,7 +426,7 @@
 
 <section>
   <div class="sec-head">
-    <h2>Every skill, in its own words</h2>
+    <h2>End-user skills, in their own words</h2>
     <p class="sec-note">Generated from each skill's own description, so this list cannot drift from the tree.</p>
   </div>
   <p class="lede" style="margin:0 0 26px">The descriptions below are quoted from the skills. A <b>gate</b> is a command that must pass before work continues. A <b>chip</b> starts a follow-up session; clients with task tools create it directly. A <b>merge stamp</b> records that a quality pass ran, for later steps to check.</p>
@@ -391,7 +460,7 @@
 
 <footer>
   <span>Skills under <code>ai/kk-flavor/skills/</code>, standards under <code>ai/kk-flavor/standards/</code>, tools under <code>ai/tools/</code>.</span>
-  <span>Install: <code>ai/bootstrap.sh --agent=&lt;agent&gt;</code> for this machine, or <code>ai/install-project.sh --agent=&lt;agent&gt; &lt;project&gt;</code> for one project · Choose <code>claude</code> or <code>codex</code> explicitly · Add <code>--maintainer</code> for the few skills that only maintain this tree · Rebuild this page: <code>ai/guide.sh</code></span>
+  <span>Install: <code>ai/bootstrap.sh --agent=&lt;agent&gt;</code> for this machine, or <code>ai/install-project.sh --agent=&lt;agent&gt; &lt;project&gt;</code> for one project · Choose <code>claude</code> or <code>codex</code> explicitly.</span>
 </footer>
 
 </div>

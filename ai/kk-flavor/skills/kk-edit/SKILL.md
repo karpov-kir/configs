@@ -1,6 +1,6 @@
 ---
 name: kk-edit
-description: Edit prose and code comments for clarity, concision and natural voice. Use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; changing agent rules belongs to kk-ecosystem, skill triggering and structure to kk-skillcraft.
+description: Edit prose and code comments for clarity, concision and natural voice. Use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; excludes changes to agent rules, skill triggering and skill structure.
 argument-hint: "text, file, directory, or git scope such as staged or the changes"
 ---
 
