@@ -12,7 +12,7 @@ One coordinator owns this lifecycle under `~/.kk-flavor/standards/skill-protocol
 |---|---|
 | `idsd-ship <arg>` | Build + qualify + gate message. `<arg>` is an existing intent slug, or a **ticket / new-feature ref**. |
 | `idsd-ship done [<intent>]` | Merge, gated on review freshness and the stage record. **Names the intent whenever more than one ship is open** — `report.sh gate` refuses to guess between them. |
-| `idsd-ship qualify` | `idsd-qualify` over the working tree — trimmed for turnaround unless your caller says the merge is waiting; no build, no merge. |
+| `idsd-ship qualify` | `idsd-qualify` over the working tree; trim only on an explicit caller request for turnaround. No build or merge. |
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
 | `idsd-ship promote` | Turn a throwaway `.idsd/` into a durable idsd project. |
 

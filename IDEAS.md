@@ -2,17 +2,17 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
-## 1x | 2026-09-08 | Local model helpers with agent fallback
+## 2x | 2026-09-08 | Local model helpers with agent fallback
 
-Status: worth a later experiment, after the central model policy exists. No runtime or model was installed, and no inference benchmark was run for this investigation.
+Status: the central model policy now exists; local inference still needs an acceptance benchmark before integration. The follow-up inspection found no Ollama, llama.cpp server or MLX server on PATH, and no Ollama or LM Studio application at their usual installation paths. No runtime or model was installed, and no inference benchmark was run. The owner asked to be contacted before installation.
 
 The inspected machine is a MacBook Pro with an Apple M2 Max and 32 GB of unified memory, verified through system_profiler. This is a plausible machine for a small quantized helper model. Start with bounded text tasks, not implementation, correctness/security review, instruction semantics, or decisions that authorize skipping those lanes. Those roles retain the original task’s selected model.
 
 ### Hardware and model scope
 
-Start by testing one 4–8B model at roughly 4-bit quantization, short inputs, and one concurrent request. A 14B model is a comparison candidate if quality justifies its extra memory and latency. Ideal weight storage is approximately parameters × bits / 8: about 4 GB for an 8B model at 4 bits, 7 GB for 14B, and 16 GB for 32B. These are weight-only arithmetic estimates, not download sizes or measured runtime requirements. Quantization metadata, unquantized tensors, KV cache, buffers, macOS and development tools need additional memory. A 32B model might fit some configurations, but is a poor first choice alongside active development on this 32 GB machine.
+Start by testing one 4–9B model at roughly 4-bit quantization, short inputs, and one concurrent request. A 14B model is a comparison candidate if quality justifies its extra memory and latency. Ideal weight storage is approximately parameters × bits / 8: about 4 GB for an 8B model at 4 bits, 7 GB for 14B, and 16 GB for 32B. These are weight-only arithmetic estimates, not download sizes or measured runtime requirements. Quantization metadata, unquantized tensors, KV cache, buffers, macOS and development tools need additional memory. A 32B model might fit some configurations, but is a poor first choice alongside active development on this 32 GB machine.
 
-Concrete candidates to evaluate are quantized Qwen3-8B and Qwen3-14B. Their official cards document local runners and thinking/non-thinking operation; try non-thinking mode for short helper jobs. Pin the chosen artifact, quantization and digest after evaluation. No quality or speed claim for this Mac follows from the model cards. [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B), [Qwen3-14B](https://huggingface.co/Qwen/Qwen3-14B).
+The current first comparison candidates are Qwen3.5 4B and 9B in Ollama's Q4_K_M packages, listed at 3.4 GB and 6.6 GB respectively. These are package sizes, not runtime memory estimates. Start with the smaller candidate; test the larger only if its quality could justify the added resources. Pin the actual artifact digest, quantization and runtime version in the experiment record. Model-card benchmarks do not establish quality or speed for these pipeline tasks on this Mac. [Qwen3.5 4B](https://ollama.com/library/qwen3.5:4b), [Qwen3.5 9B](https://ollama.com/library/qwen3.5:9b).
 
 ### First tasks
 
@@ -62,4 +62,18 @@ Measure cold/warm latency, peak memory pressure and swap, impact on concurrent b
 
 Later trial: use 30–50 representative extraction/editing/log tasks with known expected outcomes, including lost-negation and altered-number cases. Compare the local candidate with the configured cloud helper, then test unavailable server, missing model, busy queue, oversized input, malformed output and timeout/cancellation. Separately evaluate semantic errors that pass schema validation. Keep the feature disabled unless it preserves required quality and improves measured cost or responsiveness under ordinary machine load.
 
-Standing cost: model downloads of several GB, a local runner to update, memory residency while active, one Go adapter and a maintained evaluation set. Defer installation and implementation until the central role resolver and acceptance tests are ready.
+Standing cost: model downloads of several GB, a local runner to update, memory residency while active, one Go adapter and a maintained evaluation set. Prepare the acceptance cases before requesting installation; build the production adapter only after the benchmark earns it.
+
+## 1x | 2026-09-08 | Typed qualification results and reusable gate evidence
+
+Status: the next workflow experiment, before adding another orchestrator or lowering its model. Keep the focused public skills; move repetitive bookkeeping into the existing Go report tool.
+
+A clean four-stage qualification currently requires eight bookkeeping invocations: each stage takes `stage-returned` and `no-items`. For stages with findings, the marker checks whether report bytes changed after the return; it cannot prove that the findings were retained. One typed result per stage could replace the pair and render its report items. Four fewer invocations is a structural estimate, not a measured token or latency saving: callers can already batch tool calls.
+
+Design one ingestion operation that binds a result to its qualification attempt, stage, candidate and worktree. Preserve finding IDs, evidence, severity and unresolved decisions in the report. Reject stale or duplicate results and unknown stages. A failed or incomplete worker cannot submit an empty passing result. Record completion only after its findings are durably accepted, including recovery after interrupted writes. The caller still judges meaning and reviews proposed repairs; the tool cannot prove a reviewer found every defect.
+
+Gate reuse is a separate follow-up. Finalize currently reruns build gates, while report stamps hold no command, tool, dependency or environment evidence that could justify avoiding them. Keep those reruns until an explicit gate receipt can establish equivalent inputs and a successful real execution. Store such evidence in scratch, separate from human project records. Include commands, working directory, exit status, candidate/dependency identity, relevant tool/configuration identity and logs without exposing secrets. External or otherwise unbounded inputs require rerunning the gate.
+
+Compare the existing and proposed workflows on clean returns, multiple findings, repaired candidates, interruption, duplicate delivery and main advancing. Count coordinator turns, uncached/cached provider usage, retries and elapsed time. Negative controls must reject missing findings during rendering, stale results and changed gate inputs. A JSON schema check alone is insufficient. Ship the tool and its callers together after announcing the shared-tool transition to active consumers.
+
+Standing cost: a versioned result format, migration of report callers, crash-recovery tests and maintained evidence rules. Start with stage ingestion; do not build a scheduler, provider runtime or gate cache in the same change.
