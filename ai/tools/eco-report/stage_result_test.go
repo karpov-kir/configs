@@ -362,7 +362,7 @@ func TestTypedStageResultPromotionKeepsFindingObligations(t *testing.T) {
 	if f.status != 0 {
 		t.Fatalf("promotion failed: %s", f.out)
 	}
-	report := f.repo + "/.idsd/intents/001-promoted-result/qualify-report.md"
+	report := f.repo + "/.idsd/intents/001-promoted-result/for-agents/qualify-report.md"
 	f.write(report, strings.Replace(f.read(report), "The owner of café is unknown", "removed", 1))
 	f.runReport("invalidate", "001-promoted-result")
 	if f.status == 0 || !strings.Contains(f.out, "finding") {

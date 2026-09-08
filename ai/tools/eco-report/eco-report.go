@@ -2,7 +2,7 @@
 // by hand. The mechanism lives here; the contract it serves (repo modes, what goes in the report,
 // never commit it) is `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. idsd-ship calls it too
 // (gate/state/promote/discard). One report per intent, at
-// .idsd/intents/<intent>/qualify-report.md, so two ships never share a file.
+// .idsd/intents/<intent>/for-agents/qualify-report.md, so two ships never share a file.
 //
 // It is a library with a thin command beside it, for the reason ecocheck is: the suite that proves it
 // drives it once per case, and a process spawn per case is the cost that makes a mutation run take
@@ -22,6 +22,9 @@
 //	init "<intent>" [--force]  scaffold .idsd/ + the report from the template, stamping its intent
 //	                 line. Refuses over an existing report unless --force, which first prints the open
 //	                 `- [ ]` it is about to discard. Refuses a symlink either way
+//	layout check     report misplaced artifacts and charter constraints requiring curation
+//	layout migrate --dry-run|--apply
+//	                 explicitly relocate inactive legacy artifacts; refuse live reports, links and collisions
 //	root             print the resolved scratch directory — the in-tree .idsd/ in committed mode, and
 //	                 outside the working tree in throwaway mode. The only way a skill learns it;
 //	                 joining `.idsd/` onto the repo root is what made the location per-worktree
@@ -154,6 +157,7 @@ func (inv Invocation) Exec() (code int) {
 		lock := r.lockReports()
 		defer lock.Close()
 	}
+	r.assertCurrentIdsdLayout()
 	r.dispatch()
 	return 0
 }
@@ -287,6 +291,8 @@ func (r *run) dispatch() {
 	// which is where knowing the directory matters most.
 	r.noteOverride()
 	switch r.arg(0) {
+	case "layout":
+		r.cmdLayout()
 	case "root":
 		r.line("%s", r.idsdDir)
 	case "init":
@@ -330,7 +336,7 @@ func (r *run) dispatch() {
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|layout check|layout migrate --dry-run|layout migrate --apply|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

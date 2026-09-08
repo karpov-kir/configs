@@ -30,7 +30,15 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **`.idsd/` in this suite means the resolved scratch root, not a path in the repo.** `report.sh root` prints it, and it is the only way to learn it. In **committed** mode it is `<repo>/.idsd/`. In **throwaway** mode it is outside the working tree — shared by every branch and worktree of the clone — so a skill that joins `.idsd/` onto the repo root writes where no other worktree will look, and where the next `git add -A` can see it. Every `.idsd/<file>` below, and in every skill of this suite, is relative to what that subcommand printed.
 
-**One report per intent**, at `.idsd/intents/<intent>/qualify-report.md`, **persisting across runs** — the working digest. `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
+**The layout is fixed at both scopes.** Human-facing project files are `.idsd/charter.md` and generated `.idsd/roadmap.md`; each active or archived intent exposes only `intent.md` beside `for-agents/`.
+
+- Project records: `.idsd/for-agents/{language,decisions,playbook}.md`.
+- Intent records and report: `.idsd/intents/<intent>/for-agents/{language,decisions,playbook,qualify-report}.md`; archiving preserves this structure under `.idsd/archive/<intent>/`.
+- Arbitrary handoffs, proposals and evidence: `for-agents/supporting/` at the project or intent scope. Tool-owned qualification state stays in the tool's reserved paths.
+
+Run `report.sh layout check` to validate the layout. For an old layout, explicitly run `report.sh layout migrate --dry-run`, review the planned moves, then `report.sh layout migrate --apply`. Migration refuses active reports: finish their pass or preserve and resolve their outstanding residue before closing them. Never bypass that refusal. Legacy `constraints.md` moves to `.idsd/for-agents/supporting/constraints.md` for manual curation through `idsd-charter`; migration never promotes its entries or invents a charter. Use only the new paths after migration.
+
+**One report per intent**, at `.idsd/intents/<intent>/for-agents/qualify-report.md`, **persisting across runs** — the working digest. `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` owns the path and every deterministic operation on it, `idsd-ship`'s lifecycle ones included — never done by hand. **Every subcommand that reads a report takes the intent as its last argument**, omitted only while one report is open — so pass it whenever you know it.
 
 **Two intents ship in parallel only in separate worktrees.** The freshness stamp fingerprints the **whole tree**, not the intent's files, so two ships in one worktree each stamp a tree holding the other's edits and invalidate each other's gate on every save.
 
@@ -42,9 +50,11 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 ### The decision log
 
-`.idsd/decisions.md`. **Written for the next agent, not the human** — nothing here is presented. It holds **decisions a stage settled without asking**, each with what determined it, and **standing observations** — monitor-only notes and pointers to follow-ups routed out of the report. The companion rule is `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
+`.idsd/for-agents/decisions.md`. **Written for the next agent, not the human** — nothing here is presented. It holds **decisions a stage settled without asking**, each with what determined it, and **standing observations** — monitor-only notes and pointers to follow-ups routed out of the report. The companion rule is `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
 
-It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta.
+It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. Its two sections are `## Promotion candidates` and `## Decisions`, sharing the record's cap. Candidates are settled decisions worth proposing as project-wide invariants; open human questions remain in the report.
+
+Classify an existing entry with `report.sh record --intent <NNN-slug> classify local-decisions "<selector>" candidate|decision` (for the project log, use `project-decisions` and omit `--intent <NNN-slug>`). Classification preserves the entry and its count; it neither edits the charter nor grants promotion approval.
 
 **Write it only through `report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-decisions "<text>"`** — this ship's own log, which finalize merges upward. Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
 

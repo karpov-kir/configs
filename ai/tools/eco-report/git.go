@@ -214,10 +214,10 @@ func (r *run) assertReportIsIgnored() {
 // the tree, which is the only state either caller is about.
 func ignoreSurface() []string {
 	return []string{
-		".idsd/intents/*/decisions.md",
-		".idsd/intents/*/language.md",
-		".idsd/intents/*/playbook.md",
-		".idsd/intents/*/" + reportName,
+		".idsd/intents/*/for-agents/decisions.md",
+		".idsd/intents/*/for-agents/language.md",
+		".idsd/intents/*/for-agents/playbook.md",
+		".idsd/intents/*/for-agents/" + reportName,
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -49,16 +50,16 @@ func reportNameFor(value string) string {
 // and reportNames' skip are the guards, and a second copy of the same predicate here would shadow
 // them, leaving nothing able to observe whether either still works.
 func (r *run) setReportPaths(name string) {
-	r.report = r.shipDir(name) + "/" + reportName
+	r.report = r.shipAgentsDir(name) + "/" + reportName
 	// Per-pass bookkeeping, in the git dir: no commit and no `git add -A` reaches it, and it is
 	// per-worktree so ships cannot collide. Under .idsd/, committed mode would commit them. Keyed by
 	// stem, or `invalidate` on one intent would clear another's stage markers and free its stamp.
 	r.stageReturnsDir = r.gitPath("idsd-stage-returns/" + name)
 }
 
-// The stem is the ship folder's own name now, so this reads the parent rather than trimming a suffix.
+// The report sits under for-agents; its grandparent names the ship.
 func stemOfReportPath(path string) string {
-	return shell.BaseName(shell.DirName(path))
+	return shell.BaseName(shell.DirName(shell.DirName(path)))
 }
 
 // One ship's folder.
@@ -107,7 +108,7 @@ func (r *run) reportNames() []string {
 		}
 		// A ship folder with no report in it is a ship whose report was closed, or one authored before any
 		// pass ran. Neither is an open report, and neither is a name to list.
-		if !shell.IsRegularFile(r.shipDir(name) + "/" + reportName) {
+		if !shell.IsRegularFile(r.shipAgentsDir(name) + "/" + reportName) {
 			continue
 		}
 		stem := name
@@ -220,7 +221,7 @@ func (r *run) assertShipExists(slug string) {
 
 // What is left under .idsd/ that is not this ship's scratch, as a printable list — empty means
 // `discard` may take the whole directory. What counts as remaining is named, never "the .idsd/ root
-// is non-empty", so a stray dotfile cannot keep the dir alive. `decisions.md` is deliberately NOT on
+// is non-empty". Unknown artifacts are preserved; `decisions.md` is deliberately NOT on
 // the list — `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **The decision log** makes it throwaway
 // scratch by design. `roadmap.md` is off it for its own reason: `~/.kk-flavor/skills/idsd-intent/SKILL.md`
 // → **Phase 3 — Emit** generates it from the intents' own frontmatter, so whenever it holds anything,
@@ -229,7 +230,7 @@ func (r *run) assertShipExists(slug string) {
 // Read after this ship's own files are gone, so every count it takes is of what survives.
 func (r *run) survivingContent() string {
 	kept := ""
-	for _, durable := range []string{"charter.md", "constraints.md", "language.md", "playbook.md"} {
+	for _, durable := range []string{"charter.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting"} {
 		if shell.PathExists(r.idsdDir + "/" + durable) {
 			kept += " " + durable
 		}
@@ -248,6 +249,23 @@ func (r *run) survivingContent() string {
 			kept += " " + strconv.Itoa(left) + " other intent(s)"
 		} else {
 			kept += " unrecognised content under intents/ or archive/"
+		}
+	}
+
+	for _, dir := range []string{r.idsdDir, r.projectAgentsDir()} {
+		entries, err := os.ReadDir(dir)
+		if err != nil && !os.IsNotExist(err) {
+			r.refuse("error: could not inspect surviving content: " + shell.Oneline(err.Error()))
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if dir == r.idsdDir && (name == "charter.md" || name == "roadmap.md" || name == "intents" || name == "archive" || name == agentsDirName) {
+				continue
+			}
+			if dir == r.projectAgentsDir() && (name == "decisions.md" || name == "language.md" || name == "playbook.md" || name == "supporting") {
+				continue
+			}
+			kept += " unrecognised artifact " + shell.Oneline(filepath.Join(dir, name))
 		}
 	}
 	return kept
@@ -281,6 +299,7 @@ func countShipFolders(dirs ...string) int {
 // points.
 func (r *run) assertWritePathsAreReal(outcome string) {
 	r.assertScratchDirsAreReal(outcome)
+	r.assertRealPathParents(r.report, outcome)
 	// The report is never legitimately a symlink, and `--force` does not override this. The write is a
 	// staged copy then rename, so it replaces a link instead of following it. What this catches is
 	// `--force` destroying whatever link the human left there — including a dangling one, which an
@@ -315,4 +334,28 @@ func readLink(path string) string {
 		return ""
 	}
 	return target
+}
+
+func (r *run) assertRealPathParents(path, outcome string) {
+	relative, err := filepath.Rel(r.idsdDir, filepath.Dir(path))
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		r.refuse("error: path is outside the scratch root — " + outcome)
+	}
+	parent := r.idsdDir
+	for _, component := range append([]string{""}, strings.Split(relative, string(filepath.Separator))...) {
+		parent = filepath.Join(parent, component)
+		info, err := os.Lstat(parent)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			r.refuse("error: could not inspect " + parent + ": " + err.Error() + " — " + outcome)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			r.refuse("error: " + parent + " is a symlink — " + outcome)
+		}
+		if !info.IsDir() {
+			r.refuse("error: " + parent + " is not a directory — " + outcome)
+		}
+	}
 }

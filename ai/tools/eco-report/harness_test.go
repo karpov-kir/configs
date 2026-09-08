@@ -43,21 +43,21 @@ const flavorSource = "../../kk-flavor"
 // reportEntry names it rather than an index into this.
 func ignoreEntries() []string {
 	return []string{
-		".idsd/intents/*/decisions.md",
-		".idsd/intents/*/language.md",
-		".idsd/intents/*/playbook.md",
-		".idsd/intents/*/qualify-report.md",
+		".idsd/intents/*/for-agents/decisions.md",
+		".idsd/intents/*/for-agents/language.md",
+		".idsd/intents/*/for-agents/playbook.md",
+		".idsd/intents/*/for-agents/qualify-report.md",
 	}
 }
 
-func reportEntry() string { return ".idsd/intents/*/qualify-report.md" }
+func reportEntry() string { return ".idsd/intents/*/for-agents/qualify-report.md" }
 
 // Those entries as a gitignore file's worth of lines.
 func ignoreBlock() string { return strings.Join(ignoreEntries(), "\n") + "\n" }
 
 // A path the report entry covers. `git check-ignore` reads its argument as a literal pathname rather
 // than as a glob, so a case asking git whether the entry took effect must ask about a path it matches.
-func ignoreProbePath() string { return ".idsd/intents/__probe__/qualify-report.md" }
+func ignoreProbePath() string { return ".idsd/intents/__probe__/for-agents/qualify-report.md" }
 
 // One case's tree.
 type fixture struct {
@@ -315,7 +315,7 @@ func (f *fixture) runReportStdout(args ...string) string {
 // A standalone `review: …` has no slug and shares the one `review` stem, which is what most fixtures
 // below use.
 func (f *fixture) reportPath(name string) string {
-	return f.shipDir(name) + "/qualify-report.md"
+	return f.shipDir(name) + "/for-agents/qualify-report.md"
 }
 
 // An archived ship keeps its folder, so the record a build leaves travels as one directory.

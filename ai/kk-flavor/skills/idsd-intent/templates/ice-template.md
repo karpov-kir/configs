@@ -11,7 +11,7 @@ links:               # neighbouring intents, one edge per line: "extends NNN —
 
 ## Constraints
 
-Absolute qualities/thresholds the outcome must hold (3–7, business language; violation = failure). This intent inherits `.idsd/constraints.md` — list only the intent-specific ones here.
+Absolute qualities/thresholds the outcome must hold (3–7, business language; violation = failure). This intent inherits the **Constraints** section in `.idsd/charter.md` — list only the intent-specific ones here. They may strengthen inherited constraints, never silently override them.
 
 - <constraint, prefer measurable, e.g. "search returns in < 300ms">
 

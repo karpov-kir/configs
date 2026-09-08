@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -35,14 +36,10 @@ type recordKind struct {
 	file  string
 	bound int
 	// Where the file sits. A local record lives inside one ship's folder and needs that ship named; a
-	// project one sits at the scratch root. Nothing infers this — every caller says which it writes,
+	// project one sits in the project agent directory. Nothing infers this — every caller says which it writes,
 	// because the two are merged later and a write to the wrong one is invisible until then.
 	isLocal bool
-	// Whether the header below says a human owns the wording. `records.md` → **Reaching the cap** lets
-	// an agent take every move at the cap unasked and exempts exactly these, so the note that hands over
-	// the commands has to know which it is writing to.
-	isHumanOwned bool
-	header       string
+	header  string
 }
 
 // Every record is capped, because an uncapped one grows until nobody reads it. The cap is held here
@@ -53,16 +50,10 @@ type recordKind struct {
 // What the tool never does is choose the loser. Which entry has stopped earning its place — and
 // whether the answer is to evict it, fold it into a neighbour or promote it — is a judgment
 // `records.md` gives the agent, not a count this tool may act on alone.
-//
-// The numbers differ because what one entry costs differs. A decision log, a playbook and a
-// vocabulary are each read by one agent starting one piece of work, and they sit together. Every
-// constraint is inherited by every intent, so that record is the one paid for most often and is held
-// at half the rest.
 const (
-	decisionsBound   = 100
-	playbookBound    = 100
-	languageBound    = 100
-	constraintsBound = 50
+	decisionsBound = 100
+	playbookBound  = 100
+	languageBound  = 100
 )
 
 // A local record covers one ship. Past a couple of dozen entries the thing to fix is the ship's scope,
@@ -125,7 +116,7 @@ func fullAtLine(bound int) string {
 // constant rather than written out again: a header saying 40 over an append refusing at 30 is a drift
 // no reader of either could see.
 //
-// Each header also names who the file is written for and who owns its wording. These four sit side by
+// Each header also names who the file is written for and who owns its wording. These records sit side by
 // side under one directory and read alike, and a human who opens `decisions.md` expecting the charter's
 // register finds an agent talking to the next agent. What the line says is the audience, never a
 // prohibition: nothing here is secret, and a human is free to read any of it.
@@ -138,6 +129,8 @@ const (
 	prunedInShip     = "Pruned by the ship that owns it, when that ship reads it. Merged upward and deleted at finalize.\n"
 )
 
+const decisionHeadings = "\n## Promotion candidates\n\n## Decisions\n\n"
+
 var recordKinds = []recordKind{
 	{
 		name:  "project-decisions",
@@ -145,7 +138,7 @@ var recordKinds = []recordKind{
 		bound: decisionsBound,
 		header: "# Decisions\n\n" +
 			"Written for the next agent — never presented to a human, and no human maintains it.\n" +
-			fullAtLine(decisionsBound) + prunedAtFinalize + "\n",
+			fullAtLine(decisionsBound) + prunedAtFinalize + decisionHeadings,
 	},
 	{
 		name:  "project-playbook",
@@ -161,8 +154,7 @@ var recordKinds = []recordKind{
 		file:  "language.md",
 		bound: languageBound,
 		header: "# Language\n\n" +
-			"The project's ubiquitous language, written for both — an agent keeps it current,\n" +
-			"and a human may correct any entry.\n" +
+			"The project's ubiquitous language, written for the next agent — an agent keeps it current.\n" +
 			fullAtLine(languageBound) + prunedAtFinalize +
 			"A term no artifact uses is deleted, whatever its count.\n\n",
 	},
@@ -174,7 +166,7 @@ var recordKinds = []recordKind{
 		header: "# Decisions — this ship's\n\n" +
 			"What this ship settled, written for the next agent. Merged into the project's own at finalize,\n" +
 			"where an entry restating one already there becomes a bump rather than a second line.\n" +
-			fullAtLine(localBound) + prunedInShip + "\n",
+			fullAtLine(localBound) + prunedInShip + decisionHeadings,
 	},
 	{
 		name:    "local-playbook",
@@ -195,20 +187,6 @@ var recordKinds = []recordKind{
 			"Terms this ship coined or narrowed. Merged into the project's own at finalize: the same term in\n" +
 			"the same sense bumps, while the same term in another sense is a contradiction nothing merges.\n" +
 			fullAtLine(localBound) + prunedInShip + "\n",
-	},
-	{
-		// No prefix and no local twin. The prefix on the six above separates two copies of one record;
-		// this one has a single copy because a human owns its wording, so a ship proposes a change to it
-		// and never writes one to merge later.
-		name:         "constraints",
-		file:         "constraints.md",
-		bound:        constraintsBound,
-		isHumanOwned: true,
-		header: "# Constraints\n\n" +
-			"Thresholds every intent inherits. The human owns every line — an agent proposes one,\n" +
-			"and never edits one without confirmation.\n" +
-			fullAtLine(constraintsBound) +
-			"One that rules out nothing another does not is deleted.\n\n",
 	},
 }
 
@@ -275,19 +253,20 @@ func recordEntriesIn(lines []string) []recordEntry {
 	return entries
 }
 
-// `record <append|bump|revise|evict|admit> <decisions|playbook|language|constraints> "<text>" ["<new text>"]`.
+// Record mutations hold a file lock across reading and writing.
 func (r *run) cmdRecord(args []string) {
 	// The ship a local record belongs to, taken before the count below so the shapes stay comparable.
 	// A leading flag rather than a trailing argument: the last one is already the replacement text for
 	// revise and admit, and a slug there would be indistinguishable from a one-word entry.
 	args = r.takeRecordIntent(args)
 	if len(args) < 3 || len(args) > 4 {
-		r.refuse("usage: report.sh record [--intent <NNN-slug>] {append|bump|revise|evict|admit} {"+recordNames()+"} \"<text>\" [\"<new text>\"]",
+		r.refuse("usage: report.sh record [--intent <NNN-slug>] {append|bump|revise|evict|admit|classify} {"+recordNames()+"} \"<text>\" [\"<new text>\"]",
 			"  --intent names the ship a local-* record belongs to, and is required for those and refused for the rest.",
 			"  append adds `1x | <today> | <text>`; bump raises one entry's count and dates it today.",
 			"  revise replaces one entry's text, keeping its count; evict removes one.",
 			"  admit is the swap at a full record: it drops the entry named and lands the new one at 1x.",
-			"  bump, revise, evict and admit take text that appears in exactly one entry, not a line number.")
+			"  classify moves a decision entry: classify {project-decisions|local-decisions} <selector> {candidate|decision}.",
+			"  bump, revise, evict, admit and classify take text that appears in exactly one entry, not a line number.")
 	}
 	op, name, text := args[0], args[1], args[2]
 	kind := recordKindFor(name)
@@ -307,19 +286,22 @@ func (r *run) cmdRecord(args []string) {
 	// Before recordPath, which resolves and guards a path, and before the append that creates the
 	// scratch directory: an operation nobody spelled right should leave nothing behind at all, and a
 	// refusal that first made a directory is a command that did nothing and still wrote.
-	if op != "append" && op != "bump" && op != "revise" && op != "evict" && op != "admit" {
-		r.refuse("error: '" + op + "' is not a record operation — they are append, bump, revise, evict and admit.")
+	if op != "append" && op != "bump" && op != "revise" && op != "evict" && op != "admit" && op != "classify" {
+		r.refuse("error: '" + op + "' is not a record operation — they are append, bump, revise, evict, admit and classify.")
 	}
-	// Only the two that write a new text take a fourth. Accepting a stray one anywhere else would
-	// silently drop it, and the dropped word is as likely to be half the entry someone meant as it is a
-	// typo.
-	if (op == "revise" || op == "admit") != (len(args) == 4) {
-		r.refuse("error: revise and admit take the entry to overwrite and the text to put there; append, bump and evict take one text only.",
+	// Reject stray arguments rather than silently dropping part of an entry.
+	if (op == "revise" || op == "admit" || op == "classify") != (len(args) == 4) {
+		r.refuse("error: revise and admit take selector and replacement; classify takes selector and candidate or decision; append, bump and evict take one text only.",
 			"  "+kind.file+" is unchanged.")
+	}
+	if op == "classify" && (kind.file != "decisions.md" || (args[3] != "candidate" && args[3] != "decision")) {
+		r.refuse("error: classify takes project-decisions or local-decisions and candidate or decision — nothing was written.")
 	}
 	text = r.entryText(kind, text)
 	path := r.recordPath(kind)
 	switch op {
+	case "classify":
+		r.recordClassify(kind, path, text, args[3])
 	case "append":
 		r.recordAppend(kind, path, text)
 	case "bump":
@@ -377,10 +359,11 @@ func (r *run) recordPath(kind *recordKind) string {
 	// inside the checkout takes the write into the working tree, where `git add -A` reaches it — the
 	// very layout `check-ignore` refuses.
 	r.assertScratchIsUnreachableByGit()
-	path := r.idsdDir + "/" + kind.file
+	path := r.projectAgentsDir() + "/" + kind.file
 	if kind.isLocal {
-		path = r.shipDir(r.recordSlug) + "/" + kind.file
+		path = r.shipAgentsDir(r.recordSlug) + "/" + kind.file
 	}
+	r.assertRealPathParents(path, "the record was not written")
 	if shell.IsSymlink(path) {
 		r.refuse("error: "+path+" is a symlink -> "+shell.Oneline(readLink(path))+" — the record was not written.",
 			"  A shared record is always a regular file. Remove the link, then re-run.")
@@ -442,8 +425,12 @@ func (r *run) openLockedRecord(path string, creating bool) (*os.File, []string, 
 
 func (r *run) recordAppend(kind *recordKind, path, text string) {
 	r.makeScratchDir()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		r.refuse("error: could not create record directory: " + err.Error())
+	}
 	handle, lines, ended := r.openLockedRecord(path, true)
 	defer handle.Close()
+	r.assertDecisionSections(kind, path, lines)
 
 	// An exact restatement is `records.md` → **Every entry is dated and counted**: it bumps the entry
 	// already there rather than adding a line. Only identical text is caught here — a restatement in
@@ -454,9 +441,14 @@ func (r *run) recordAppend(kind *recordKind, path, text string) {
 	entries := recordEntriesIn(lines)
 	for _, entry := range entries {
 		if entry.text == text {
-			r.refuse("error: "+path+" already holds that entry — nothing was appended.",
-				"  "+entry.quoted(),
-				"  It is a restatement, so bump it: report.sh record bump "+kind.name+" \"<text identifying it>\"")
+			found := r.oneMatchingEntry(path, lines, text, "bumped")
+			found.count++
+			found.date = today()
+			lines[found.line] = found.String()
+			r.overwriteRecord(path, handle, lines)
+			r.line("bumped in %s: %s", kind.file, found.quoted())
+			r.noteBound(kind, path, lines)
+			return
 		}
 	}
 	if len(entries) >= kind.bound {
@@ -508,7 +500,6 @@ func (r *run) refuseFull(kind *recordKind, path string, held int, text string) {
 		"  saying so is the whole of it. Where it spares the new entry and names an incumbent, the new",
 		"  entry takes that incumbent's place:",
 		"    report.sh record admit "+kind.name+" \"<text identifying the entry it beat>\" \"<the new entry>\"")
-	note = append(note, humanOwnedNote(kind)...)
 	// Last, under the commands, never above them. The entry is quoted back because the refusal is
 	// otherwise where it dies — but its text can come from a fetched ticket or the tree under review, and
 	// a line of that sitting above a block of runnable commands reads as one more instruction.
@@ -524,21 +515,12 @@ func pruneCommands(kind *recordKind) []string {
 	}
 }
 
-// The line that closes both notes on a record whose header says a human owns its wording: the
-// commands above it are ready to run and are not the agent's to run — `records.md` → **Reaching the
-// cap** makes every move there a proposal. Empty for the rest, so either note appends it unasked.
-func humanOwnedNote(kind *recordKind) []string {
-	if !kind.isHumanOwned {
-		return nil
-	}
-	return []string{"  " + kind.file + " is the human's: propose each move and run none of them until they answer."}
-}
-
 // The four ops that act on an entry already there. Each rewrites the whole file, so each holds the
 // lock across the read and the write — openLockedRecord takes it, and the deferred Close drops it.
 func (r *run) recordBump(kind *recordKind, path, text string) {
 	handle, lines, _ := r.openLockedRecord(path, false)
 	defer handle.Close()
+	r.assertDecisionSections(kind, path, lines)
 
 	found := r.oneMatchingEntry(path, lines, text, "bumped")
 	// The date is the last time the entry was confirmed, never the day it was written —
@@ -557,6 +539,7 @@ func (r *run) recordBump(kind *recordKind, path, text string) {
 func (r *run) recordRevise(kind *recordKind, path, text, replacement string) {
 	handle, lines, _ := r.openLockedRecord(path, false)
 	defer handle.Close()
+	r.assertDecisionSections(kind, path, lines)
 
 	found := r.entryToOverwrite(path, lines, text, replacement, "revised",
 		"  Folding two into one is: revise the one to keep, then evict the other.")
@@ -599,6 +582,7 @@ func (r *run) recordRevise(kind *recordKind, path, text, replacement string) {
 func (r *run) recordAdmit(kind *recordKind, path, text, entry string) {
 	handle, lines, _ := r.openLockedRecord(path, false)
 	defer handle.Close()
+	r.assertDecisionSections(kind, path, lines)
 
 	// Only at the cap. Below it the append works, and admitting there would throw a live entry away for
 	// a slot the file already had free.
@@ -646,6 +630,7 @@ func (r *run) entryToOverwrite(path string, lines []string, text, replacement, v
 func (r *run) recordEvict(kind *recordKind, path, text string) {
 	handle, lines, _ := r.openLockedRecord(path, false)
 	defer handle.Close()
+	r.assertDecisionSections(kind, path, lines)
 
 	found := r.oneMatchingEntry(path, lines, text, "evicted")
 	lines = append(lines[:found.line], lines[found.line+1:]...)
@@ -749,7 +734,6 @@ func (r *run) noteBound(kind *recordKind, path string, lines []string) {
 	note = append(note,
 		"  Where it names nothing, the record stays over its cap — no entry may be evicted on that answer.")
 	note = append(note, pruneCommands(kind)...)
-	note = append(note, humanOwnedNote(kind)...)
 	r.errLines(note...)
 }
 
@@ -774,4 +758,56 @@ func (r *run) takeRecordIntent(args []string) []string {
 	}
 	r.recordSlug = slug
 	return args[2:]
+}
+
+func (r *run) assertDecisionSections(kind *recordKind, path string, lines []string) {
+	if kind.file != "decisions.md" || len(lines) == 0 {
+		return
+	}
+	if err := decisionSectionsError(lines); err != nil {
+		r.refuse("error: " + path + ": " + err.Error() + " — nothing was written.")
+	}
+}
+
+func decisionSectionsError(lines []string) error {
+	candidate, decisions := -1, -1
+	for index, line := range lines {
+		switch {
+		case line == "## Promotion candidates" && candidate == -1 && decisions == -1:
+			candidate = index
+		case line == "## Decisions" && candidate >= 0 && decisions == -1:
+			decisions = index
+		case strings.HasPrefix(strings.TrimSpace(line), "##"):
+			return errors.New("malformed or duplicate decision headings")
+		default:
+			if _, isEntry := parseRecordEntry(index, line); isEntry && candidate == -1 {
+				return errors.New("decision entry outside its sections")
+			}
+		}
+	}
+	if candidate == -1 || decisions == -1 {
+		return errors.New("needs ## Promotion candidates followed by ## Decisions")
+	}
+	return nil
+}
+
+func (r *run) recordClassify(kind *recordKind, path, text, classification string) {
+	handle, lines, _ := r.openLockedRecord(path, false)
+	defer handle.Close()
+	r.assertDecisionSections(kind, path, lines)
+	found := r.oneMatchingEntry(path, lines, text, "classified")
+	entryLine := lines[found.line]
+	lines = append(lines[:found.line], lines[found.line+1:]...)
+	insertion := len(lines)
+	if classification == "candidate" {
+		for index, line := range lines {
+			if line == "## Decisions" {
+				insertion = index
+				break
+			}
+		}
+	}
+	lines = append(lines[:insertion], append([]string{entryLine}, lines[insertion:]...)...)
+	r.overwriteRecord(path, handle, lines)
+	r.line("classified in %s as %s: %s", kind.file, classification, found.quoted())
 }

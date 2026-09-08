@@ -19,12 +19,12 @@ import (
 // The file a record name writes. The project-*/local-* prefix names which copy, never the filename —
 // the two are the same basename under different roots, which is the whole of what makes them mergeable.
 func recordFile(f *fixture, name string) string {
-	return f.scratch() + "/" + strings.TrimPrefix(name, "project-") + ".md"
+	return f.scratch() + "/for-agents/" + strings.TrimPrefix(name, "project-") + ".md"
 }
 
 // A local record's file, inside the folder of the ship that owns it.
 func localRecordFile(f *fixture, slug, name string) string {
-	return f.shipDir(slug) + "/" + strings.TrimPrefix(name, "local-") + ".md"
+	return f.shipDir(slug) + "/for-agents/" + strings.TrimPrefix(name, "local-") + ".md"
 }
 
 func today() string {
@@ -99,7 +99,6 @@ func TestFirstWriteCreatesTheRecordWithItsHeader(t *testing.T) {
 		"project-decisions": {"100", "never presented to a human"},
 		"project-playbook":  {"100", "never presented to a human"},
 		"project-language":  {"100", "an agent keeps it current"},
-		"constraints":       {"50", "The human owns every line"},
 	}
 	for name, want := range headers {
 		f.runReport("record", "append", name, "the first thing anyone wrote here")
@@ -130,12 +129,12 @@ func TestFirstWriteCreatesTheRecordWithItsHeader(t *testing.T) {
 func TestReviseReplacesTheTextAndKeepsTheCount(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
-	f.runReport("record", "append", "constraints", "p99 under 200ms on search")
-	f.runReport("record", "append", "constraints", "p99 under 200ms on autocomplete")
-	path := recordFile(f, "constraints")
+	f.runReport("record", "append", "project-playbook", "p99 under 200ms on search")
+	f.runReport("record", "append", "project-playbook", "p99 under 200ms on autocomplete")
+	path := recordFile(f, "project-playbook")
 	f.replaceLine(path, "1x | "+today()+" | p99 under 200ms on search", "4x | 2020-01-01 | p99 under 200ms on search")
 
-	f.runReport("record", "revise", "constraints", "on search", "p99 under 200ms on every read endpoint")
+	f.runReport("record", "revise", "project-playbook", "on search", "p99 under 200ms on every read endpoint")
 	content := f.read(path)
 	f.record("revise replaces the text, keeps the count and dates it today",
 		f.status == 0 && strings.Contains(content, "4x | "+today()+" | p99 under 200ms on every read endpoint\n"), content)
@@ -149,25 +148,25 @@ func TestReviseReplacesTheTextAndKeepsTheCount(t *testing.T) {
 		strings.Contains(f.out, "it replaced: ") && strings.Contains(f.out, "p99 under 200ms on search"), f.evidence())
 
 	// Folding two entries into one is revise-then-evict, so the pair has to end as a single entry.
-	f.runReport("record", "evict", "constraints", "on autocomplete")
+	f.runReport("record", "evict", "project-playbook", "on autocomplete")
 	f.record("evicting the folded-in entry leaves one covering both",
 		f.status == 0 && strings.Count(f.read(path), "x | ") == 1, f.read(path))
 
 	// Revising one entry into the exact text of another is the half-done fold: the record would hold the
 	// same line twice, and every later bump or evict naming it would refuse as ambiguous.
-	f.runReport("record", "append", "constraints", "WCAG 2.1 AA on every page")
+	f.runReport("record", "append", "project-playbook", "WCAG 2.1 AA on every page")
 	before := f.read(path)
-	f.runReport("record", "revise", "constraints", "WCAG", "p99 under 200ms on every read endpoint")
+	f.runReport("record", "revise", "project-playbook", "WCAG", "p99 under 200ms on every read endpoint")
 	f.assertRefused("revising an entry into the text of another is refused")
 	f.record("and the record is unchanged", f.read(path) == before, f.read(path))
 
 	// Re-stating an entry's own current text is not a collision with itself.
-	f.runReport("record", "revise", "constraints", "WCAG", "WCAG 2.1 AA on every page")
+	f.runReport("record", "revise", "project-playbook", "WCAG", "WCAG 2.1 AA on every page")
 	f.record("revising an entry to its own text is allowed", f.status == 0, f.evidence())
 
 	// Sharpening is the move that shortens a record, and the rewrite goes over the old bytes before it
 	// trims them. A missed trim would leave the tail of the longer wording standing under the new one.
-	f.runReport("record", "revise", "constraints", "WCAG", "WCAG AA")
+	f.runReport("record", "revise", "project-playbook", "WCAG", "WCAG AA")
 	after := f.read(path)
 	f.record("a revision that shortens an entry leaves no tail of the old wording",
 		f.status == 0 && strings.HasSuffix(after, "| WCAG AA\n") && strings.Count(after, "x | ") == 2, after)
@@ -177,11 +176,11 @@ func TestReviseReplacesTheTextAndKeepsTheCount(t *testing.T) {
 	// threshold — a real rewording is not a substring of what it replaces. This is the only write in
 	// an append-only record that can remove text, so it is the one that must not do it in silence.
 	beforeGuard := f.read(path)
-	f.runReport("record", "revise", "constraints", "every read endpoint", "p99 under 200ms")
+	f.runReport("record", "revise", "project-playbook", "every read endpoint", "p99 under 200ms")
 	f.record("a replacement contained in the entry is refused, and the record is untouched",
 		f.status != 0 && f.read(path) == beforeGuard, f.evidence())
 	f.record("and the refusal says revise takes the whole entry, and offers evict",
-		strings.Contains(f.out, "WHOLE new entry") && strings.Contains(f.out, "record evict constraints"), f.evidence())
+		strings.Contains(f.out, "WHOLE new entry") && strings.Contains(f.out, "record evict project-playbook"), f.evidence())
 }
 
 func TestBumpRaisesTheCountAndRedatesWithoutAddingALine(t *testing.T) {
@@ -204,9 +203,9 @@ func TestBumpRaisesTheCountAndRedatesWithoutAddingALine(t *testing.T) {
 	// An append of text already there is the same event, and `records.md` says it bumps rather than
 	// adding a line. Only the identical text is caught — a restatement in other words is a judgment.
 	f.runReport("record", "append", "project-decisions", "settled twice")
-	f.assertRefused("appending an entry already there is refused")
-	f.assertReports("record bump", "and the refusal names bump as what to do instead")
-	f.record("and the record is unchanged", f.read(path) == content, f.read(path))
+	f.record("appending identical text bumps the existing entry", f.status == 0 &&
+		strings.Contains(f.read(path), "2x | "+today()+" | settled twice\n") &&
+		strings.Count(f.read(path), "| settled twice") == 1, f.evidence()+f.read(path))
 }
 
 // `records.md` → **Reaching the cap** makes the cap a wall rather than advice: the writer refuses the
@@ -217,7 +216,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 	f := newRepo(t)
 	f.mkdirAll(f.scratch())
 	var seed strings.Builder
-	seed.WriteString("# Decisions\n\n")
+	seed.WriteString("# Decisions\n\n## Promotion candidates\n\n## Decisions\n\n")
 	for i := range 99 {
 		seed.WriteString("5x | 2026-06-0" + strconv.Itoa(i%9+1) + " | filler " + strconv.Itoa(i) + "\n")
 	}
@@ -288,8 +287,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 	// A restatement wants no slot, so a full record answers it with bump rather than sending the agent
 	// to the judge, which would put a live entry out for a copy of itself.
 	f.runReport("record", "append", "project-decisions", "filler 7")
-	f.assertRefused("a restatement into a full record is refused")
-	f.assertReports("record bump", "as the restatement it is, not as a record with no room")
+	f.record("a restatement into a full record bumps without consuming a slot", f.status == 0 && strings.Contains(f.read(path), "6x | "+today()+" | filler 7\n"), f.evidence())
 	f.record("and it is not sent to the judge", !strings.Contains(f.out, "is full"), f.evidence())
 
 	// The judge's verdict, applied: one out for one in, in a single write.
@@ -362,57 +360,6 @@ func TestAnEntryIsNotShadowedByALongerOneQuotingItWhole(t *testing.T) {
 	f.record("and neither copy was removed", f.read(path) == before, f.read(path))
 }
 
-// The cap belongs to the record, not to this tool: `records.md` has each file state its own, and
-// constraints.md is held at half of decisions.md. A refusal quoting one figure for all four would be
-// right about decisions.md and wrong everywhere else, and nothing in the header case above would see
-// it — that one reads the file, this one reads what the tool said about it.
-//
-// It is also where constraints.md's exception has to land. `records.md` → **Reaching the cap** lets an
-// agent take every move at the cap unasked except on a record whose header says a human owns the
-// wording, and constraints.md's header — written by this same tool — says exactly that.
-func TestTheCapCarriesTheRecordsOwnNumberAndItsOwner(t *testing.T) {
-	t.Parallel()
-	f := newRepo(t)
-	f.mkdirAll(f.scratch())
-	var seed strings.Builder
-	seed.WriteString("# Constraints\n\n")
-	for i := range 50 {
-		seed.WriteString("2x | 2026-06-01 | constraint " + strconv.Itoa(i) + "\n")
-	}
-	path := recordFile(f, "constraints")
-	f.write(path, seed.String())
-
-	f.runReport("record", "append", "constraints", "the one that would have crossed the tighter cap")
-	f.assertRefused("a full record refuses the append whatever its number")
-	f.record("the refusal quotes this record's own cap rather than another record's",
-		strings.Contains(f.out, "is full — 50 entries") && !strings.Contains(f.out, "is full — 100"), f.evidence())
-	f.record("and a record whose header says a human owns it is told to propose, not act",
-		strings.Contains(f.out, "propose each move"), f.evidence())
-
-	// A record already over its cap is one edited by hand, or one whose cap was lowered under it —
-	// nothing these subcommands do can put one there. It still has to say so on every write it accepts.
-	f.appendTo(path, "2x | 2026-06-01 | the fifty-first, put there by hand\n")
-	f.runReport("record", "bump", "constraints", "constraint 49")
-	f.record("an over-cap record is reported against its own number, and nothing is deleted",
-		f.status == 0 && strings.Contains(f.out, "over its cap of 50") &&
-			strings.Count(f.read(path), "x | ") == 51, f.evidence())
-	f.record("and the note names the ladder to work rather than a verdict",
-		strings.Contains(f.out, "promote what") && strings.Contains(f.out, "evict what the judge names"), f.evidence())
-	// The over-cap note hands over the same judge as the full-record refusal, so it owes the same two
-	// readings. Left with "evict what the judge names" alone, an agent whose judge named nothing has
-	// been handed a rung with no outcome, and one that met exit 2 cannot tell it from a clean answer.
-	f.record("and says a judge naming nothing leaves the record over its cap",
-		strings.Contains(f.out, "Where it names nothing, the record stays over its cap"), f.evidence())
-	f.record("and reads exit 2 as the judge not having run rather than as a silent verdict",
-		strings.Contains(f.out, "Exit 2 is not an answer: the judge did NOT run"), f.evidence())
-	f.record("and cites the standard by a path rather than a bare filename",
-		strings.Contains(f.out, "Work ~/.kk-flavor/standards/records.md -> Reaching the cap"), f.evidence())
-	f.record("and names no entry as the one to drop",
-		!strings.Contains(f.out, "fifty-first") && !strings.Contains(f.out, "constraint 7"), f.evidence())
-	f.record("and the human's record is told to propose each move",
-		strings.Contains(f.out, "propose each move"), f.evidence())
-}
-
 func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)
@@ -440,8 +387,8 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 			"needs --intent", "a local write with no ship lands at the project root"},
 		{"a project record given a ship is refused", []string{"record", "--intent", "001-a", "append", "project-decisions", "x"},
 			"belongs to no single ship", "a project write under a ship's name is a local one the caller mistyped"},
-		{"an operation that is not one of the five is refused", []string{"record", "amend", "project-decisions", "x"},
-			"append, bump, revise, evict and admit", "a typo must not fall through to a write"},
+		{"an operation that is not one of the six is refused", []string{"record", "amend", "project-decisions", "x"},
+			"append, bump, revise, evict, admit and classify", "a typo must not fall through to a write"},
 		{"a fourth argument to an op that takes three is refused", []string{"record", "bump", "project-decisions", "one entry", "stray"},
 			"revise and admit take", "a silently dropped argument is as likely to be half the entry someone meant"},
 		{"revise without its new text is refused", []string{"record", "revise", "project-decisions", "one entry"},
@@ -490,7 +437,7 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	// A symlink at the record steers the write — and the truncation a rewrite does — wherever it
 	// points, which is the rule assertWritePathsAreReal states for every other write in this tool.
 	linked := newRepo(t)
-	linked.mkdirAll(linked.scratch())
+	linked.mkdirAll(linked.scratch() + "/for-agents")
 	outside := linked.base + "/elsewhere.md"
 	linked.write(outside, "1x | 2026-01-01 | not this file\n")
 	linked.symlink(outside, recordFile(linked, "project-decisions"))
@@ -507,8 +454,8 @@ func TestRecordRefusesEveryWriteItCannotResolve(t *testing.T) {
 	// the terminal. Anyone who can write the scratch directory can plant one; the agent reading the
 	// refusal is who the erased lines are for.
 	escaped := newRepo(t)
-	escaped.mkdirAll(escaped.scratch())
-	escaped.symlink("/nowhere\x1b[1A\x1b[2K/decisions.md", recordFile(escaped, "project-decisions"))
+	escaped.mkdirAll(escaped.scratch() + "/for-agents")
+	escaped.symlink("/nowhere\x1b[1A\x1b[2K/for-agents/decisions.md", recordFile(escaped, "project-decisions"))
 	escaped.runReport("record", "append", "project-decisions", "steered")
 	escaped.assertRefused("a symlinked record whose target holds an escape is still refused")
 	escaped.record("and the target is collapsed rather than driving the terminal",
@@ -531,7 +478,7 @@ func TestAnEntryCannotDriveTheTerminalOrRunAwayInLength(t *testing.T) {
 	planted := newRepo(t)
 	planted.mkdirAll(planted.scratch())
 	plantedPath := recordFile(planted, "project-decisions")
-	planted.write(plantedPath, "# Decisions\n\n1x | 2026-01-01 | hand-written "+esc+"\n")
+	planted.write(plantedPath, "# Decisions\n\n## Promotion candidates\n\n## Decisions\n\n1x | 2026-01-01 | hand-written "+esc+"\n")
 	planted.runReport("record", "bump", "project-decisions", "hand-written")
 	// Quoted, every piece of evidence in this case: a failure prints it, and the whole subject here is
 	// text that drives the terminal it would print to.
@@ -594,7 +541,7 @@ func TestAMutationNeverLosesALineItDidNotTarget(t *testing.T) {
 	tail := newRepo(t)
 	tail.mkdirAll(tail.scratch())
 	tailPath := recordFile(tail, "project-decisions")
-	tail.write(tailPath, "1x | 2026-01-01 | no newline after me")
+	tail.write(tailPath, "# Decisions\n\n## Promotion candidates\n\n## Decisions\n\n1x | 2026-01-01 | no newline after me")
 	tail.runReport("record", "append", "project-decisions", "an entry of my own")
 	tail.record("an append to a record with no trailing newline is still its own entry",
 		strings.Contains(tail.read(tailPath), "no newline after me\n1x | "+today()+" | an entry of my own\n"),
@@ -606,14 +553,14 @@ func TestRecordsLandWhereTheRepoModePutsThem(t *testing.T) {
 	throwaway := newRepo(t)
 	throwaway.runReport("record", "append", "project-decisions", "throwaway")
 	throwaway.record("in throwaway mode the record is outside the working tree",
-		throwaway.isFile(throwaway.sharedIdsd()+"/decisions.md") && !throwaway.exists(throwaway.treeIdsd()+"/decisions.md"),
+		throwaway.isFile(throwaway.sharedIdsd()+"/for-agents/decisions.md") && !throwaway.exists(throwaway.treeIdsd()+"/for-agents/decisions.md"),
 		throwaway.evidence())
 	throwaway.record("and the tree stays clean", throwaway.treeIsFreeOfScratch(), throwaway.indexState())
 
 	committed := newCommittedRepo(t)
 	committed.runReport("record", "append", "project-decisions", "committed")
 	committed.record("in committed mode it is the tracked one in the tree",
-		committed.isFile(committed.treeIdsd()+"/decisions.md"), committed.evidence())
+		committed.isFile(committed.treeIdsd()+"/for-agents/decisions.md"), committed.evidence())
 }
 
 func TestAnEntryRoundTripsWhateverTextItCarries(t *testing.T) {
@@ -704,7 +651,7 @@ func TestOnlyAnAppendCreatesARecord(t *testing.T) {
 	// this is the case that observes the `creating` gate itself. Above, the open fails on the missing
 	// parent whether or not O_CREATE is set, which is why those assertions pass with the gate removed.
 	existing := newRepo(t)
-	existing.mkdirAll(existing.scratch())
+	existing.mkdirAll(existing.scratch() + "/for-agents")
 	existing.runReport("record", "bump", "project-playbook", "still nothing is here")
 	existing.assertRefused("a bump into an existing scratch directory is still refused when the record is absent")
 	existing.assertReports("there is no", "and says the record is not there, not that no entry matched")
@@ -747,7 +694,7 @@ func TestAnEvictLeavesNoTailOfWhatItRemoved(t *testing.T) {
 	// and does not then trim the file leaves the tail of the old content standing — and that tail is
 	// whole, well-formed entries the parser goes on to count, match and bump. Asserted as the file's
 	// exact bytes rather than by counting entries, because a duplicated entry satisfies every count.
-	head := "# Decisions\n\n"
+	head := "# Decisions\n\n## Promotion candidates\n\n## Decisions\n\n"
 	keep := "1x | 2026-02-02 | one short entry\n2x | 2026-03-03 | another short entry\n"
 	f.write(path, head+"1x | 2026-01-01 | "+strings.Repeat("a long entry that is about to go, ", 12)+"end\n"+keep)
 

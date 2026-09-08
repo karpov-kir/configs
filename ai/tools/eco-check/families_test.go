@@ -15,7 +15,7 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("idsd-build")
 		f.newMountedSkill("kk-drive")
-		f.write(f.root+"/kk-flavor/skills/kk-drive/SKILL.md", "how to run it may be recorded in .idsd/playbook.md\n")
+		f.write(f.root+"/kk-flavor/skills/kk-drive/SKILL.md", "how to run it may be recorded in .idsd/for-agents/playbook.md\n")
 		f.reports(crossFamily)
 	})
 

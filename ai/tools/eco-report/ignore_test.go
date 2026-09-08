@@ -93,7 +93,7 @@ func TestIgnoredMeansIgnoredForEveryoneNotJustThisMachine(t *testing.T) {
 		}
 		worktree.runReportIn(worktreeDir, "init", "001-in-a-worktree")
 		worktree.record("init works in a linked worktree, writing into that worktree's own tree",
-			worktree.status == 0 && worktree.isFile(worktreeDir+"/.idsd/intents/001-in-a-worktree/qualify-report.md"),
+			worktree.status == 0 && worktree.isFile(worktreeDir+"/.idsd/intents/001-in-a-worktree/for-agents/qualify-report.md"),
 			worktree.evidence())
 	})
 }

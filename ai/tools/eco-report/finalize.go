@@ -169,7 +169,7 @@ func (r *run) cmdFinalize(args []string) {
 	}
 
 	for _, scratch := range shipScratchFiles {
-		_ = rmFile(r.shipDir(stem) + "/" + scratch)
+		_ = rmFile(r.shipAgentsDir(stem) + "/" + scratch)
 	}
 	// The stage markers live in the git dir, which the folder move never reaches — left behind, the
 	// next ship for this intent inherits a completed stage record and stamps for free.

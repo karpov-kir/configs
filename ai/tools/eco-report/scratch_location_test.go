@@ -112,7 +112,7 @@ func TestCommittedModeKeepsItsScratchInTheTree(t *testing.T) {
 		f.runReportStdout("root") == f.treeIdsd(), f.runReportStdout("root"))
 	f.runReport("init", "001-committed")
 	f.record("and init writes the report there",
-		f.status == 0 && f.isFile(f.treeIdsd()+"/intents/001-committed/qualify-report.md"), f.evidence())
+		f.status == 0 && f.isFile(f.treeIdsd()+"/intents/001-committed/for-agents/qualify-report.md"), f.evidence())
 	f.record("and nothing was created under the shared git dir", !f.exists(f.sharedIdsd()), "")
 }
 
@@ -138,7 +138,7 @@ func TestAnOverrideMovesTheRootAndSaysSo(t *testing.T) {
 	// on it, so a note on stdout would be read as a routing answer.
 	f.runReport("init", "001-overridden")
 	f.record("and init wrote the report under the override",
-		f.status == 0 && f.isFile(root+"/intents/001-overridden/qualify-report.md"), f.evidence())
+		f.status == 0 && f.isFile(root+"/intents/001-overridden/for-agents/qualify-report.md"), f.evidence())
 	f.record("and `state` still prints one bare token, with the note on stderr",
 		f.runReportStdout("state", "001-overridden") == "resume", f.runReportStdout("state", "001-overridden"))
 }

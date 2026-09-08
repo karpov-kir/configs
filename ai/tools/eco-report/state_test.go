@@ -244,8 +244,11 @@ func TestAFilenameCannotForgeAListingRow(t *testing.T) {
 	if err := os.MkdirAll(forgedDir, 0o755); err != nil {
 		t.Skipf("this filesystem refused a newline in a directory name, so this case cannot run here: %v", err)
 	}
-	if err := os.WriteFile(forgedDir+"/qualify-report.md", []byte("---\nintent: x\n---\n"), 0o644); err != nil {
-		t.Skipf("this filesystem refused a newline in a directory name, so this case cannot run here: %v", err)
+	if err := os.MkdirAll(forgedDir+"/for-agents", 0o755); err != nil {
+		t.Fatalf("could not create the forged report's agent directory: %v", err)
+	}
+	if err := os.WriteFile(forgedDir+"/for-agents/qualify-report.md", []byte("---\nintent: x\n---\n"), 0o644); err != nil {
+		t.Fatalf("could not write the forged report: %v", err)
 	}
 
 	listing := f.runReportStdout("list")

@@ -166,10 +166,10 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 	typo := newRepo(t)
 	typo.runReport("check-ignore")
 	typo.mkdirAll(typo.scratch())
-	typo.write(typo.scratch()+"/decisions.md", "# decisions\n")
+	typo.write(typo.scratch()+"/for-agents/decisions.md", "# decisions\n")
 	typo.runReport("discard", "999-typo")
 	typo.assertRefused("discard refuses a typo rather than removing the directory around it")
-	typo.record("and the decision log survives", typo.isFile(typo.scratch()+"/decisions.md"), "")
+	typo.record("and the decision log survives", typo.isFile(typo.scratch()+"/for-agents/decisions.md"), "")
 
 	// A repo that never used idsd has nothing to lose; the guard is what stops discard tearing down a
 	// scratch dir it never created.
@@ -263,14 +263,14 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	// that list deletes the file it names and reports zero traces, so every row gets a fixture. The
 	// list is spelled out again rather than read from the source: a test looping the real one would
 	// follow a dropped row instead of catching it.
-	for _, durable := range []string{"charter.md", "constraints.md", "language.md", "playbook.md"} {
+	for _, durable := range []string{"charter.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting/reference.txt"} {
 		f := newShip(t, "001-durable")
 		f.write(f.scratch()+"/"+durable, "# the human's own\n")
 		f.runReport("discard", "001-durable")
 		f.record(durable+" alone keeps .idsd/ standing through a discard",
 			f.status == 0 && f.isFile(f.scratch()+"/"+durable) && !f.isFile(f.reportPath("001-durable")),
 			"exit "+strconv.Itoa(f.status)+"; left: "+joinLines(f.find(f.scratch()))+"\n"+f.out)
-		f.assertReports(durable, "and discard names "+durable+" as what kept it")
+		f.assertReports(strings.TrimSuffix(durable, "/reference.txt"), "and discard names "+durable+" as what kept it")
 	}
 
 	// Another ship's intent file is the only thing under .idsd/ that identifies that ship once its own

@@ -16,8 +16,13 @@ The project's what & why — the level-0 intent above the feature intents.
 - **Out (for now):** <deliberately excluded — back in only if the Vision is redrawn>
 - **Not yet specified:** <in scope, not yet sharp enough to be an intent — revisit as earlier intents land, and clear it from here the moment it becomes one>
 
+## Constraints
+
+<!-- Human-owned: approve wording changes explicitly before editing. -->
+
+- <project-wide invariant; use concise top-level bullets, at most 30>
+
 ## See also
 
-- Thresholds every intent inherits: [constraints.md](constraints.md)
 - Feature intents & status: [roadmap.md](roadmap.md)
-- Domain vocabulary: [language.md](language.md)
+- Domain vocabulary: [language.md](for-agents/language.md)

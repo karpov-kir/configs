@@ -38,7 +38,7 @@ func TestANonAbsoluteConfigHomeIsNotAnOverride(t *testing.T) {
 	f.runReport("check-ignore")
 	f.runReport("init", "001-relative-config")
 	f.record("and init wrote the report at the default location",
-		f.status == 0 && f.isFile(f.sharedIdsd()+"/intents/001-relative-config/qualify-report.md"),
+		f.status == 0 && f.isFile(f.sharedIdsd()+"/intents/001-relative-config/for-agents/qualify-report.md"),
 		f.evidence())
 	f.record("and nothing was written where the relative file pointed",
 		!f.exists(f.base+"/hijacked"), "")
@@ -113,7 +113,7 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	f.runReport("check-ignore")
 	outside := f.base + "/outside-promote"
 	f.mkdirAll(outside + "/intents/001-linked")
-	f.write(outside+"/intents/001-linked/qualify-report.md", "---\nintent: 001-linked\n---\n")
+	f.write(outside+"/intents/001-linked/for-agents/qualify-report.md", "---\nintent: 001-linked\n---\n")
 	// Something durable, so promote has a reason to get as far as the move: without it the refusal below
 	// could be the nothing-to-promote guard instead, and the case would pass observing nothing.
 	f.write(outside+"/intents-placeholder.md", "# intent\n")
@@ -126,8 +126,27 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	staged, _ := f.git("diff", "--cached", "--name-only")
 	f.record("and staged nothing", !strings.Contains(staged, ".idsd"), "staged:\n"+staged)
 	f.record("and left the report where it was, outside the tree",
-		f.isFile(outside+"/intents/001-linked/qualify-report.md"), "")
+		f.isFile(outside+"/intents/001-linked/for-agents/qualify-report.md"), "")
 	f.remove(f.sharedIdsd())
+}
+
+func TestPromoteRefusesSymlinkedIntentsRatherThanStagingTheLink(t *testing.T) {
+	t.Parallel()
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	outside := f.base + "/outside-intents"
+	report := outside + "/001-linked/for-agents/qualify-report.md"
+	f.write(report, "---\nintent: 001-linked\n---\n")
+	f.write(f.sharedIdsd()+"/charter.md", "# Charter\n")
+	f.symlink(outside, f.sharedIdsd()+"/intents")
+
+	f.runReport("promote")
+	f.assertRefused("promote refuses a symlinked intents directory")
+	f.assertReports("is a symlink", "the refusal identifies the linked directory")
+	f.record("promotion leaves the scratch outside the working tree", !f.exists(f.treeIdsd()), f.evidence())
+	staged, _ := f.git("diff", "--cached", "--name-only")
+	f.record("promotion stages no linked intent directory", !strings.Contains(staged, ".idsd"), staged)
+	f.record("the outside report is preserved", f.isFile(report), f.evidence())
 }
 
 func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
@@ -144,8 +163,8 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// subcommand needs the report to be there, so a stem of `..` only gets past requireReport when a
 	// file of that name exists. This tool will not create one — reportNameFor refuses the leading dot —
 	// but a committed one arrives through someone else's branch, and the argument is then all it takes.
-	// `intents/../qualify-report.md` resolves to one level above intents/, which is the scratch root.
-	escaped := f.scratch() + "/" + "qualify-report.md"
+	// `intents/../for-agents/qualify-report.md` resolves to one level above intents/, which is the scratch root.
+	escaped := f.scratch() + "/for-agents/qualify-report.md"
 	f.write(escaped,
 		"---\nintent: 001-real\nreviewed-tree: pending\nreviewed-worktree: pending\nreviewed-stages: pending\n---\n")
 	f.record("fixture: a report named for the stem under test is in place", f.isFile(escaped), "")

@@ -21,7 +21,9 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Re-run the build's gates**, resolved the way the build resolved them (`~/.kk-flavor/standards/building.md` → **Before the loop**) — no record carries the commands. The qualify pass and the follow-up work both edited this tree since the build ran them, and a fix that broke one is invisible until they run again.
 
-**Prepare the record merge before taking the slot.** Apply step 3's rules to the ship and project records, resolve questions and cap decisions now, and retain the exact inputs with the settled operations in scratch. Use the protected adjudication role from `~/.kk-flavor/standards/model-policy.md`.
+**Prepare the record merge before taking the slot.** Apply step 3's rules to the ship and project records, resolve questions and cap decisions now, and retain the exact inputs with the settled operations in private scratch outside the reviewed repository. Use the protected adjudication role from `~/.kk-flavor/standards/model-policy.md`.
+
+**Review promotion candidates before taking the slot.** Identify settled decisions that qualify as high-level project invariants, from both the ship and project logs. Present exact charter wording through `idsd-charter` and obtain explicit approval before editing. Apply its cap and protected-section rules; remove a source decision only after the accepted constraint is written. Retain declined or unanswered candidates; after any approved promotion, refresh the prepared record inputs and operations. Every accepted charter constraint change requires requalification of affected work before continuing, in committed and throwaway modes alike; an unchanged git fingerprint does not preserve semantic qualification.
 
 **Then check this intent's `links:`** by the rules `idsd-audit` applies set-wide. A bad link stops you; fix or route it first. Whole-set consistency stays that skill's job.
 
@@ -46,7 +48,7 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Language needs the distinction spelled out, because a term is not a command.** The same term in the same sense is a duplicate and bumps. The same term carrying a different meaning, or two terms for one thing, is a **contradiction** — the check `idsd-audit` runs set-wide, firing here per ship and on two candidates rather than on the whole set.
 
-**`constraints.md` is not one of the three.** A human owns its wording, so a threshold this ship earned is a proposal through `idsd-charter` and never a write from here.
+**Charter promotions are settled in step 1 through `idsd-charter`.** Preserve each decision’s candidate classification when merging it upward; resolve a classification disagreement with the other record questions before taking the slot.
 
 ## 4. Archive
 

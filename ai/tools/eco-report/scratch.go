@@ -14,7 +14,7 @@ import (
 // nothing else can recover.
 
 // The ignore-surface entries `attempt` reports as failing, rendered as the quoted run all three
-// refusals below echo: ` '.idsd/intents/*/qualify-report.md'`, and empty when none failed. `attempt` may act
+// refusals below echo: ` '.idsd/intents/*/for-agents/qualify-report.md'`, and empty when none failed. `attempt` may act
 // rather than merely test — promote's use of it is the appendLine that writes the entry.
 func (r *run) ignoreEntriesFailing(attempt func(entry string) bool) string {
 	failing := ""

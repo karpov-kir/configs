@@ -16,7 +16,7 @@ const resultFileLimit = 4 << 20
 
 func (r *run) needsReportLock() bool {
 	switch r.arg(0) {
-	case "init", "invalidate", "stage-result", "result-context", "decisions-reviewed", "scope", "stamp", "gate", "carry", "state", "list", "close", "discard", "finalize", "promote":
+	case "record", "merge-slot", "init", "invalidate", "stage-result", "result-context", "decisions-reviewed", "scope", "stamp", "gate", "carry", "state", "list", "close", "discard", "finalize", "promote":
 		return true
 	}
 	return false
@@ -127,7 +127,7 @@ func (r *run) preparePromotedResults(target string) []string {
 		}
 		r.assertResultProjection(*manifest)
 		originals = append(originals, r.resultManifestPath())
-		r.report = filepath.Join(target, "intents", name, reportName)
+		r.report = filepath.Join(target, "intents", name, agentsDirName, reportName)
 		manifest.Report = r.canonicalReportPath()
 		r.writeResultManifest(*manifest)
 	}
