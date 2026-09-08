@@ -304,7 +304,7 @@ func TestAReviewedTreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 
 	// The other reader of the same field, and a separate call site: stamp refuses when the pass never
 	// invalidated, quoting whatever stands on the line.
-	f.runReport("stamp", "code-review,security-review,tighten,refactor", "099-tree")
+	f.runReport("stamp", "code-review,security-review,edit,refactor", "099-tree")
 	f.record("stamp refuses a pass that never invalidated", f.status == 2, f.evidence())
 	f.record("and no control byte reached the output from that call site either",
 		!strings.ContainsRune(f.out, 0x1b), f.out)

@@ -189,7 +189,7 @@
       <p class="lede">These skills give coding agents a defined job, or <b>lane</b>. Start with one of the entry skills below; it chooses the lanes your task needs.</p>
     </div>
     <div class="facts">
-      <div class="fact"><b>25</b><span>skills</span></div>
+      <div class="fact"><b>24</b><span>skills</span></div>
       <div class="fact"><b>2</b><span>families</span></div>
       <div class="fact"><b>5</b><span>you always type</span></div>
     </div>
@@ -362,7 +362,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-finalize</code><span class="tag you">you type it</span></div>
-      <p>Merge one built intent's records into the project's, then archive it. Use for "finalize the intent". The pipeline's fourth stage, after idsd-qualify — idsd-ship's <code>done</code> invokes it.</p>
+      <p>Finalize an already qualified intent by merging its records and archiving it. Use for "finalize the intent" or an explicit final checkpoint. Stops after its gated commit; the broader ship lifecycle and throwaway cleanup belong to idsd-ship.</p>
       <p class="hint">takes: &lt;NNN-slug&gt;</p>
     </div>
     <div class="lane">
@@ -381,7 +381,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-ship</code></div>
-      <p>Ship one ICE intent end-to-end — author it if missing, build, qualify, gate, merge — or review standalone changes. Use for "ship it", "merge this", "continue the ship". The orchestrator above idsd-build, idsd-qualify and idsd-finalize; several intents at once is idsd-reactor's.</p>
+      <p>Coordinate an ICE intent through build, qualification and authorized landing. Use for "ship it", "merge this", or "continue the ship". For one checkpoint use idsd-build, idsd-qualify or idsd-finalize; several intents at once belong to idsd-reactor.</p>
       <p class="hint">takes: &lt;arg&gt; | done [&lt;intent&gt;] | qualify | continue [&lt;intent&gt;] | promote</p>
     </div>
     <div class="group-label"><span>kk-*</span><i></i></div>
@@ -416,6 +416,11 @@
       <p class="hint">takes: the scenarios to drive, plus how to run the project</p>
     </div>
     <div class="lane">
+      <div class="lane-top"><code class="k">kk-edit</code></div>
+      <p>Edit prose and code comments for clarity, concision and natural voice. Use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; changing agent rules belongs to kk-ecosystem, skill triggering and structure to kk-skillcraft.</p>
+      <p class="hint">takes: text, file, directory, or git scope such as staged or the changes</p>
+    </div>
+    <div class="lane">
       <div class="lane-top"><code class="k">kk-foreman</code><span class="tag you">you type it</span></div>
       <p>The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". The idsd-* intent workflow is its own door (idsd-ship).</p>
       <p class="hint">takes: what you want done, plus "unattended" to hand the run over (default: look at the working tree and recommend)</p>
@@ -431,18 +436,13 @@
       <p class="hint">takes: the work to hand off</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-humanize</code></div>
-      <p>Rewrite outward text — PR/ticket text, commit messages, chat, email, README-grade docs — and code comments so they read as a person wrote them. Use for "humanize", "de-AI this", "make the comments readable". The outward counterpart to kk-tighten; comment placement and truth belong to other lanes.</p>
-      <p class="hint">takes: file, git scope ("the changes", "staged"), or the text itself</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="k">kk-patrol</code><span class="tag you">you type it</span></div>
       <p>Run refinement as a standing loop rather than a pass — each round spawns a scout that finds one defect and dies, then a fixer that commits it to the patrol's branch and dies. Use for "keep refining", "patrol the tree", "run until there is nothing left to fix". Built to run cheaply for a long time, not quickly. The loop above kk-foreman, which dispatches one piece of work; a bounded campaign that shrinks a tree of instructions is a different shape again.</p>
       <p class="hint">takes: the tree to patrol, and any angle to start from (default: this repo, every angle)</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-pr</code></div>
-      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-humanize), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
+      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
       <p class="hint">takes: &lt;review|address-review|refine-description|review-and-address&gt; [PR number, URL, or head branch]</p>
     </div>
     <div class="lane">
@@ -452,7 +452,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-refactor</code></div>
-      <p>Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-tighten).</p>
+      <p>Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-edit).</p>
       <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope</p>
     </div>
     <div class="lane">
@@ -464,11 +464,6 @@
       <div class="lane-top"><code class="k">kk-security-review</code></div>
       <p>Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.</p>
       <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), or natural-language scope</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">kk-tighten</code></div>
-      <p>Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; reconciling a whole instruction tree's rules against one another is a wider pass than this, and contains it.</p>
-      <p class="hint">takes: file, directory, or natural-language scope (e.g. "the changes", "staged")</p>
     </div>
   </div>
 </section>

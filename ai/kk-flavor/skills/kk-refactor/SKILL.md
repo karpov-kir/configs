@@ -1,12 +1,12 @@
 ---
 name: kk-refactor
-description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-tighten).
+description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-edit).
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope"
 ---
 
 Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
 
-**Quality, not correctness or security.** Functional bugs are `kk-code-review`'s, exploitable weaknesses `kk-security-review`'s, trimming prose for concision `kk-tighten`'s — never flag those here. A true comment attached to the wrong construct *is* yours.
+**Quality, not correctness or security.** Functional bugs are `kk-code-review`'s, exploitable weaknesses `kk-security-review`'s, trimming prose for concision `kk-edit`'s — never flag those here. A true comment attached to the wrong construct *is* yours.
 
 **Scope override — cross-file changes:** `~/.kk-flavor/standards/core-principles.md` → **3. Surgical changes** does not apply here — refactoring *is* the task, so editing any file is in scope — under the gate in `~/.kk-flavor/standards/skill-protocol.md` → **Queue**. Hunt, don't stumble:
 

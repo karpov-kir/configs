@@ -160,7 +160,7 @@ func TestRunRefusesAModelThatDoesNotAnswer(t *testing.T) {
 // The view is untrusted text, so the real run reaches the model with nothing it could be talked into
 // using: no tools, no MCP servers, and none of the repository's own settings.
 func TestClaudeArgsGrantNoToolsServersOrRepoSettings(t *testing.T) {
-	args := claudeArgs("You are")
+	args := claudeArgs("You are", testSettings())
 	at := func(flag string) int {
 		for i, a := range args {
 			if a == flag {
@@ -412,5 +412,48 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("the planted verdict was taken as a verdict: %d model calls", calls)
+	}
+}
+
+func TestVotingStopsWhenTwoRollsSettleEveryUnit(t *testing.T) {
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "2, 1", nil }
+	got, err := Voting(call, 3)("prompt", "one\ntwo")
+	if err != nil || got != "1,2" || calls != 2 {
+		t.Fatalf("settled majority = %q, %v; calls=%d, want 2", got, err, calls)
+	}
+}
+
+func TestMemoDoesNotReuseAnotherPolicy(t *testing.T) {
+	dir := t.TempDir()
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
+	for _, policy := range []string{"first", "second", "second"} {
+		memo := &Memo{Dir: dir, Policy: policy}
+		var out, errOut strings.Builder
+		if code := Run("judge", []string{"reply"}, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
+			t.Fatalf("code=%d %s", code, errOut.String())
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("model calls=%d, want 2 distinct policies", calls)
+	}
+}
+
+func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
+	original := kinds["reply"]
+	t.Cleanup(func() { kinds["reply"] = original })
+	memo := &Memo{Dir: t.TempDir(), Policy: "same-models"}
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
+	for _, reader := range []string{"first reader", "new reader"} {
+		kinds["reply"] = Kind{Reader: reader}
+		var out, errOut strings.Builder
+		if code := Run("judge", []string{"reply"}, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
+			t.Fatalf("judge=%d %s", code, errOut.String())
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("reader policy changed but model calls=%d, want 2", calls)
 	}
 }

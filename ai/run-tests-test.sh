@@ -63,6 +63,8 @@ tmp="$(mktemp -d)" || {
   exit 2
 }
 trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/runner-logs"
+export TMPDIR="$tmp/runner-logs"
 
 new_suite() { # <path> <summary line>
   printf '#!/usr/bin/env bash\necho "%s"\n' "$2" > "$1"
@@ -93,6 +95,55 @@ check "both suites are found, including a nested one" "2" "$(matching_output_lin
 check "the count is reported, so a shrinking tree is visible" "1" \
   "$(matching_output_lines '2 suite(s) found: 2 passed, 0 failed, 0 unmeasured')"
 
+check "successful suites create no diagnostic logs" "0" "$(find "$TMPDIR" -type f | wc -l | tr -d ' ')"
+
+mkdir -p "$tmp/noisy"
+cat > "$tmp/noisy/early-test.sh" <<'SUITE'
+#!/usr/bin/env bash
+echo 'early failure evidence' >&2
+for ((i=1; i<=60; i++)); do echo "later output $i"; done
+exit 1
+SUITE
+out="$("$runner" "$tmp/noisy" 2>&1)"; rc=$?
+check "a noisy failure retains its failing exit" "1" "$rc"
+log="$(printf '%s\n' "$out" | sed -n 's/^     full log: //p')"
+check "a noisy failure reports one readable full log" "yes" "$([ -f "$log" ] && echo yes)"
+check "the full log retains the early failure before the tail" "1" "$(grep -c '^early failure evidence$' "$log" 2>/dev/null || true)"
+check "failure console output remains bounded" "yes" "$([ "$(printf '%s\n' "$out" | wc -l)" -le 20 ] && echo yes)"
+check "the log path survives an outer tail" "1" "$(printf '%s\n' "$out" | tail -5 | grep -c 'full log: ')"
+check "the full log is outside the subject root" "yes" "$([ -n "$log" ] && [ "${log#"$tmp/noisy"/}" = "$log" ] && echo yes)"
+check "the full log is private" "-rw-------" "$(LC_ALL=C ls -l "$log" 2>/dev/null | awk '{print substr($1, 1, 10)}')"
+first_log="$log"
+out="$("$runner" "$tmp/noisy" 2>&1)"
+log="$(printf '%s\n' "$out" | sed -n 's/^     full log: //p')"
+check "separate failed runs keep distinct logs" "yes" "$([ "$first_log" != "$log" ] && [ -f "$first_log" ] && [ -f "$log" ] && echo yes)"
+ln -s "$tmp/noisy" "$tmp/log-link"
+out="$(TMPDIR="$tmp/log-link" "$runner" "$tmp/noisy" 2>&1)"
+log="$(printf '%s\n' "$out" | sed -n 's/^     full log: //p')"
+check "a temporary directory resolving inside the subject does not receive logs" "0" "$(find "$tmp/noisy" -name 'kk-suite-logs.*' | wc -l | tr -d ' ')"
+check "the outside fallback still retains the full diagnostics" "1" "$(grep -c '^early failure evidence$' "$log" 2>/dev/null || true)"
+if [ -f "$log" ]; then rm -rf "$(dirname "$log")"; fi
+newline_root="$tmp/subject"$'\n'
+mkdir -p "$newline_root/logs"
+cp "$tmp/noisy/early-test.sh" "$newline_root/early-test.sh"
+out="$(TMPDIR="$newline_root/logs" "$runner" "$newline_root" 2>&1)"
+log="$(printf '%s\n' "$out" | sed -n 's/^     full log: //p')"
+check "a newline-ending subject root cannot hide an inside-root temporary directory" "0" "$(find "$newline_root" -name 'kk-suite-logs.*' | wc -l | tr -d ' ')"
+if [ -f "$log" ]; then rm -rf "$(dirname "$log")"; fi
+cp "$tmp/noisy/early-test.sh" "$tmp/noisy/second-test.sh"
+out="$("$runner" "$tmp/noisy" 2>&1)"
+log_dir="$(printf '%s\n' "$out" | sed -n 's/^full logs: //p')"
+check "the final directory pointer survives a many-failure outer tail" "1" "$(printf '%s\n' "$out" | tail -5 | grep -c '^full logs: ')"
+check "the final directory contains every failed suite log" "2" "$(find "$log_dir" -type f 2>/dev/null | wc -l | tr -d ' ')"
+check "retained logs identify both originating suites after console truncation" "2" "$(grep -lE '^suite: (early|second)-test.sh$' "$log_dir"/* | wc -l | tr -d ' ')"
+check "retained logs carry the failing status" "2" "$(grep -l '^status: 1$' "$log_dir"/* | wc -l | tr -d ' ')"
+rm "$tmp/noisy/second-test.sh"
+out="$(TMPDIR="$tmp/missing/logs" "$runner" "$tmp/noisy" 2>&1)"; rc=$?
+check "failed log persistence preserves the suite failure" "1" "$rc"
+check "failed log persistence prints the otherwise lost evidence" "1" "$(matching_output_lines '^early failure evidence$')"
+check "failed log persistence is explicit" "1" "$(matching_output_lines 'could not retain full log')"
+check "unavailable diagnostic storage remains explicit after outer truncation" "1" "$(printf '%s\n' "$out" | tail -5 | grep -c '^warning: full logs unavailable for 1 suite(s)')"
+
 mkdir -p "$tmp/red"
 new_suite "$tmp/red/good-test.sh" "1 passed, 0 failed"
 printf '#!/usr/bin/env bash\necho "something broke" >&2\nexit 1\n' > "$tmp/red/bad-test.sh"
@@ -120,12 +171,15 @@ out="$("$runner" "$tmp/fields" 2>&1)"; rc=$?
 check "the count is read by field name, not by position" "0" "$rc"
 
 mkdir -p "$tmp/nomeasure"
-printf '#!/usr/bin/env bash\necho "0 passed, 0 failed" >&2\nexit 2\n' > "$tmp/nomeasure/loaded-test.sh"
+printf '#!/usr/bin/env bash\necho "missing prerequisite evidence" >&2\necho "0 passed, 0 failed" >&2\nexit 2\n' > "$tmp/nomeasure/loaded-test.sh"
 out="$("$runner" "$tmp/nomeasure" 2>&1)"; rc=$?
 check "a suite exiting 2 makes the run exit 2, never 0" "2" "$rc"
 check "it is reported as unmeasured, not as a failure" "1" "$(matching_output_lines '^NOMEASURE loaded-test.sh')"
 check "and it is counted apart from failures" "1" \
   "$(matching_output_lines '1 suite(s) found: 0 passed, 0 failed, 1 unmeasured')"
+
+log="$(printf '%s\n' "$out" | sed -n 's/^     full log: //p')"
+check "unmeasured suite diagnostics also survive in a full log" "1" "$(grep -c '^missing prerequisite evidence$' "$log" 2>/dev/null || true)"
 
 mkdir -p "$tmp/both"
 new_unmeasured_suite "$tmp/both/unmeasured-test.sh"

@@ -55,14 +55,39 @@ the matching CLI yourself. Missing, invalid or unavailable providers fail with e
 `auto` mode or fallback.
 
 ```sh
-JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh reply < reply.txt
+JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh instruction instructions.md
 ```
 
-The judge pairs `haiku` on Claude with `gpt-5.4-mini` at low reasoning effort on Codex.
-These models target fast, economical helper work; see [Haiku's positioning](https://platform.claude.com/docs/en/models/haiku-4-5/overview)
-and [GPT-5.4 mini's positioning](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
-Equal judging quality still needs task-specific evaluation.
-`JUDGE_MODEL` remains an explicit override.
+Model assignments and usage sites live in [models.json](kk-flavor/models.json). The shipped policy
+keeps agent work on the original task's model and preserves the judge's existing helper assignments.
+Read [model policy](kk-flavor/standards/model-policy.md) before choosing an override or a cheaper
+coordinator. The resolver prints requested settings and provenance; native or CLI dispatch still
+must verify the effective selection. `JUDGE_PROVIDER` selects the client, not a fallback provider.
+Change the central policy to tune the judge; a legacy `JUDGE_MODEL` setting is refused.
+
+Reply editing and structured stage returns do not call the judge. Durable deletion disputes can use
+it explicitly. Matching first and second votes avoid a third call; cache identity includes the model
+policy and judging policy so a changed assignment cannot reuse an old verdict.
+
+## Pipeline use
+
+Use `kk-build` to implement a settled requirement, `kk-qualify` for its quality pass, and `idsd-ship`
+for the intent lifecycle. Individual IDSD checkpoints remain available. These entries share one
+coordinator, which dispatches bounded leaf workers and waits on completion. Independent correctness
+and security reviews keep separate contexts; fixes reopen affected evidence.
+
+`kk-edit` combines the former concision and humanization passes for prose and comments. It preserves
+meaning and stops at an edited artifact. `kk-skillcraft` remains the focused skill-structure entry;
+`kk-ecosystem` owns instruction semantics and applies its ordered checks within one worker. A full
+ecosystem audit requires an explicit request. The editor never deletes agent obligations.
+
+After landing an upgrade, rerun bootstrap and each recorded project's installer for every installed
+client. They mount `kk-edit` and remove retired links owned by that checkout. During candidate
+validation, use explicit worktree paths; do not point installed mounts at unfinished skills.
+
+Qualification receipts use the `edit` stage. Existing receipts using the retired `tighten` stage
+require requalification. A not-applicable skip needs a scope receipt for the exact review base and
+candidate; unknown paths and security surfaces keep their reviews.
 
 Both clients install `jq` (`brew install jq`) and sync `mcp.jsonc` plus the optional gitignored
 `mcp.private.jsonc` with `mcp-sync.sh --agent=codex` or `--agent=claude`. Codex stdio servers retain

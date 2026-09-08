@@ -1,9 +1,11 @@
 ---
 name: idsd-finalize
-description: Merge one built intent's records into the project's, then archive it. Use for "finalize the intent". The pipeline's fourth stage, after idsd-qualify — idsd-ship's `done` invokes it.
+description: Finalize an already qualified intent by merging its records and archiving it. Use for "finalize the intent" or an explicit final checkpoint. Stops after its gated commit; the broader ship lifecycle and throwaway cleanup belong to idsd-ship.
 disable-model-invocation: true
 argument-hint: "<NNN-slug>"
 ---
+
+An explicit request to finalize invokes this skill directly; the invocation marker disables automatic selection, not a human's natural-language request.
 
 The last stage of a ship: what its own records learned goes up into the project's, and the ship moves to `archive/`. You orchestrate under `~/.kk-flavor/standards/skill-protocol.md`, and step 3 is `~/.kk-flavor/standards/records.md` applied rather than restated — read it whole first.
 
@@ -19,6 +21,8 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Re-run the build's gates**, resolved the way the build resolved them (`~/.kk-flavor/standards/building.md` → **Before the loop**) — no record carries the commands. The qualify pass and the follow-up work both edited this tree since the build ran them, and a fix that broke one is invisible until they run again.
 
+**Prepare the record merge before taking the slot.** Apply step 3's rules to the ship and project records, resolve questions and cap decisions now, and retain the exact inputs with the settled operations in scratch. Use the protected adjudication role from `~/.kk-flavor/standards/model-policy.md`.
+
 **Then check this intent's `links:`** by the rules `idsd-audit` applies set-wide. A bad link stops you; fix or route it first. Whole-set consistency stays that skill's job.
 
 ## 2. Take the slot
@@ -29,13 +33,15 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Establishing that is yours, and the refusal cannot do it for you** — the tool started no process it could ask about. Look for a session working in the worktree it names; none, and the slot outlived its holder. **A slot is held from here until step 4 finishes**, so a session that dies in between leaves one nobody else frees.
 
+**Revalidate the record inputs after acquiring the slot**, before any record mutation. If they changed, release the slot and settle the new merge outside it. Reacquire and repeat validation. This does not remove the moved-main requalification protection above.
+
 ## 3. Merge the three records upward
 
-`decisions`, `playbook` and `language`, each of the ship's own entries against the project's. Write only through `report.sh record`, naming `project-*` for the destination.
+`decisions`, `playbook` and `language`, each of the ship's own entries against the project's. Step 1 settles these rules; after step 2 revalidates their inputs, apply only those settled operations. Write through `report.sh record`, naming `project-*` for the destination.
 
 - **It restates one already there** → `record bump` the project's entry. **That bump is the point of the whole split**: two ships independently needing one thing becomes a count, which `~/.kk-flavor/standards/records.md` → **Promotion is the exit upward** reads as a rule nobody has written down yet.
 - **It says something new** → `record append`.
-- **It contradicts one** — and that is never a write. Finalize has no authority to choose between a project truth and a ship's, so it goes to the human as a proposal and the ship's entry stays unmerged until they settle it.
+- **It contradicts one** — and that is never a write. Finalize has no authority to choose between a project truth and a ship's, so it goes to the human before taking the slot. The ship's entry stays unmerged until they settle it.
 - **The project record is full** → `~/.kk-flavor/standards/records.md` → **Reaching the cap**, whose four moves you work in its order. This is the one place the cap is judged with the whole batch visible, which is why it is judged here and not where each entry was written.
 
 **Language needs the distinction spelled out, because a term is not a command.** The same term in the same sense is a duplicate and bumps. The same term carrying a different meaning, or two terms for one thing, is a **contradiction** — the check `idsd-audit` runs set-wide, firing here per ship and on two candidates rather than on the whole set.

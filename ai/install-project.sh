@@ -238,6 +238,7 @@ for file in "$instructions_md" "$claude_md"; do
   fi
 done
 
+add_unmount_scan "$project/$agent_directory/skills" "$repo/kk-flavor/skills"
 mount_run
 
 say "project files"

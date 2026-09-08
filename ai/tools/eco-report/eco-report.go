@@ -36,6 +36,8 @@
 //	decisions-reviewed  record that this pass re-evaluated the decision log — bumping what it reached and
 //	                 found still true, evicting what its subject has left. stamp refuses until it has run,
 //	                 and invalidate clears it, so every pass accounts for the log afresh
+//	scope <base-ref> resolve a commit and record applicability for this candidate/worktree;
+//	                 unknown files require every lane. invalidate drops this evidence.
 //	stamp "<stages>" compute the tree fingerprint (throwaway index) and record reviewed-tree +
 //	                 reviewed-worktree + reviewed-stages, one entry per pipeline stage. Any `(turnaround)`
 //	                 marks the pass not-full. Refuses when this worktree's identity cannot be
@@ -297,6 +299,8 @@ func (r *run) dispatch() {
 		r.cmdNoItems()
 	case "decisions-reviewed":
 		r.cmdDecisionsReviewed()
+	case "scope":
+		r.cmdScope()
 	case "stamp":
 		r.cmdStamp()
 	case "gate":
@@ -326,7 +330,7 @@ func (r *run) dispatch() {
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

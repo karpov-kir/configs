@@ -4,7 +4,7 @@ description: Implement one ICE intent — settle the gaps it leaves, then build 
 argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 ---
 
-**The build is `~/.kk-flavor/skills/kk-build/SKILL.md`** — read it whole; this file is the ICE-shaped delta over it. You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`.
+**This is the ICE-shaped contract over `~/.kk-flavor/skills/kk-build/SKILL.md`.** The current coordinator applies its selected build phases inline; no nested build agent is required. Read that contract when entering the build and reuse it while unchanged. `~/.kk-flavor/standards/skill-protocol.md` governs delegation and model protection.
 
 **The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
 
@@ -14,10 +14,12 @@ Input: an intent file at `.idsd/intents/NNN-<slug>/intent.md` — one folder per
 
 **Start with `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh intent-ready <NNN-slug>`.** It blocks on the mechanical gaps — an unfilled template placeholder, an empty required section, either direction of an unshipped link, and a `blocks` or `extends` edge naming an intent that exists nowhere — this intent's own `depends-on`, or a sibling declaring `blocks` on it. Fold each fix into the ICE through `idsd-intent`, or build the dependency first, and re-run until it clears.
 
-Then two **gap rounds** of `kk-grill`, recomputing what is still open between them:
+Check these two sources of gaps against the current intent and code. Run `kk-grill` only for genuinely unsettled questions, recomputing what remains between them:
 
 1. **What the intent leaves open against the code as it stands.** `idsd-intent`'s clarify pass already read the ICE for its own coherence. This round reads it beside the code, and asks only what would stop an implementer: a goal term, scenario or constraint the code leaves reading two ways; a UI or observable-behaviour intent whose **presentation** neither the ICE nor the code pins (surface form, highlighting, loading and empty states, …); an acceptance bar nothing in the repo can measure.
 2. **The stack choices this build must make and the intent cannot** — `~/.kk-flavor/skills/kk-build/technical-round.md`, run here rather than inside the build, because `status: approved` below means both rounds closed. Only where such a choice exists. Tell `kk-build` its **Phase 2** is done, or it opens the round again.
+
+A prior closed round remains closed while its requirements, code assumptions and decisions remain valid. Record which changed facts reopened a question; a new phase alone is not a reason to ask again.
 
 **Ask questions rather than playing the ICE back.** They wrote it; a restatement spends the round they should be answering in.
 
@@ -35,7 +37,7 @@ The gate resolution is `~/.kk-flavor/standards/building.md` → **Before the loo
 
 ## Phase 3 — Build
 
-Invoke `kk-build`, naming what it asks its caller for:
+Apply `kk-build` in this coordinator, supplying:
 
 - **The requirement set** — this intent's goal, scenarios and constraints.
 - **The branch** — `idsd/NNN-<slug>`.
@@ -60,7 +62,7 @@ Invoke `kk-build`, naming what it asks its caller for:
 
 When `idsd-ship` invokes you:
 
-- Run every phase unchanged; the interactive gates still fire.
+- Run the applicable phases; genuinely open decisions still reach the human, and settled rounds are reused only against unchanged assumptions.
 - Stop when the build completes — gates green, and no requirement the conformance gate found undelivered. Skip the Phase 4 checkpoint. **Hand back what that checkpoint would have presented and the diff does not carry**: the lanes the loop found, the rest of the conformance gate's return, every constraint no command can check, and every open follow-up.
 - Archiving is not yours in either mode — `idsd-ship` invokes `idsd-finalize` after its own approval.
 

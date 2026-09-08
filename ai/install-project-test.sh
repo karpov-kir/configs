@@ -362,4 +362,22 @@ expect_status "Claude also refuses symlinked shared instructions" 1
 expect_absent "shared symlink target stays absent" "$tmp_real/untouched-shared-target"
 ! grep -q '@AGENTS.md' "$project/CLAUDE.md" && record_pass "failed shared install creates no import" || record_fail "failed shared install creates no import" "import created"
 
+for client in claude codex; do
+  fresh_home
+  new_project "renamed-$client"
+  skill_parent="$project/.claude/skills"
+  [ "$client" = codex ] && skill_parent="$project/.agents/skills"
+  mkdir -p "$skill_parent"
+  ln -s "$here/kk-flavor/skills/kk-was-renamed" "$skill_parent/kk-was-renamed"
+  ln -s "$tmp_real/another-checkout/ai/kk-flavor/skills/kk-stranger" "$skill_parent/kk-stranger"
+  run_install "$project" "--agent=$client" --dry-run
+  expect_status "$client rename dry-run succeeds" 0
+  expect_symlink "$client dry-run keeps retired link" "$skill_parent/kk-was-renamed"
+  run_install "$project" "--agent=$client"
+  expect_status "$client rename migration succeeds" 0
+  expect_absent "$client upgrade removes retired skill link" "$skill_parent/kk-was-renamed"
+  expect_symlink "$client upgrade preserves another checkout's link" "$skill_parent/kk-stranger"
+  expect_symlink "$client upgrade mounts the prose editor" "$skill_parent/kk-edit"
+done
+
 report_suite

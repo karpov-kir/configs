@@ -4,7 +4,7 @@ description: Take a settled requirement to a green tree — place the work, plan
 argument-hint: "the requirement to build — a ticket, an issue, a file holding it, or the ask itself"
 ---
 
-You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-protocol.md`. **Phase 4 is `~/.kk-flavor/standards/building.md`** — read it whole before you start, since the phases around it exist to feed it. This file owns only what that standard cannot: where the work is placed, what gets planned before it, and who sees the result.
+Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md`; do not spawn a build wrapper merely to invoke this entry. Apply `~/.kk-flavor/standards/building.md` when Phase 4 starts. Read the selected phase's additional references only when needed. Implementation and semantic choices follow `~/.kk-flavor/standards/model-policy.md`'s protected original-task model.
 
 **Your caller names two things** — the requirement set, and the homes that receive what this build produces: a decision it settled, a follow-up it opened, a proposal only a human can accept. **With no home named, they go to your caller** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**), never into a file you chose.
 
@@ -18,26 +18,24 @@ You spawn other skills, so you orchestrate under `~/.kk-flavor/standards/skill-p
 
 **Only where a choice is genuinely open**, and skipped whole where none is. A requirement the repo already answers needs no round, and opening one anyway spends the human on a question their own code settled. **A caller that has already run this says so, and the phase does not run.**
 
-**Explore, spawned.** Read-only and bounded, returning what this repo has already chosen — language, runtime, test runner, datastore, deployment shape, CI. **Skip it on a greenfield tree**: an explorer sent to read an empty repo returns nothing, and greenfield is the case this phase exists for.
+**Explore only the unanswered choice.** Use the context already held or a bounded read-only worker when discovery is substantial and independent. Return the existing stack facts needed for that choice; do not inventory a known or empty repository.
 
 **Decide, here, with the human.** A choice reaches this phase only because reversing it is expensive, which is exactly the class `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** puts live to them. **A subagent has no human**: it prepares the question and never answers it. `~/.kk-flavor/skills/kk-build/technical-round.md` is the whole delta — **what earns a question at all**, what one carries, and what closes it. Everything under that bar you settle yourself; a choice the human could reasonably expect you to make is one that spends them for nothing.
 
 ## Phase 3 — Plan the change (non-interactive)
 
-**One subagent explores and settles**, returning a plan rather than a question. A shape internal to one module, or additive to an existing one, is cheap to reverse and therefore the agent's to settle — the same rule that made Phase 2 interactive makes this one not.
+Plan the change in the implementation context. Reuse an established shape; a local edit does not require another planning agent. Where a new boundary needs substantial exploration, the coordinator may dispatch one bounded worker and carry its decision forward. Read `~/.kk-flavor/standards/architecture/core.md` only for architectural choices; compare alternatives where its module-boundary rules apply.
 
-It reads the existing boundaries, drafts two or three shapes as `~/.kk-flavor/standards/architecture/core.md` → **Module depth** requires, chooses on depth and on where change concentrates, and returns the choice with what determined it. Keeping the rejected drafts out of this thread is most of what it buys.
-
-**It returns a shape, never a procedure** — the boundaries, what each one publishes, and what decided between them. Not the files to add, not the order to write them, not the body of anything. A plan detailed enough to follow line by line has spent the loop's judgement before the loop ran, and Phase 4 is where the body is decided against code this phase never read.
+**An exploration worker returns a shape, never a procedure** — the boundaries, what each one publishes, and what decided between them. Not the files to add, not the order to write them, not the body of anything. A plan detailed enough to follow line by line has spent the loop's judgement before the loop ran, and Phase 4 is where the body is decided against code this phase never read.
 
 - **Which modules should exist at all** is a further question, and only worth asking where this build creates a new module boundary. Inside an existing one it is already answered.
 - **The carve-out is narrow.** A surface another slice consumes, or one crossing a process or repo boundary — a published package, an HTTP API, a wire payload — fails the cheap-to-reverse test and is not the subagent's to settle. It returns that as a proposal, and it goes to the human on Phase 2's route.
 
 ## Phase 4 — Build
 
-**Start with `~/.kk-flavor/standards/building.md` → **Before the loop**** — the reading and the gate resolution. Phases 2 and 3 read this repo for what it chose and how it is shaped; this reads the code the requirement itself touches, and turns every gate it carries into a command. Neither earlier read replaces it.
+**Start with `~/.kk-flavor/standards/building.md` → **Before the loop**** — the reading and the gate resolution. Phases 2 and 3 read this repo for what it chose and how it is shaped; this reads the code the requirement itself touches, and turns every gate it carries into a command. Reuse facts already verified against unchanged code; inspect the touched implementation and resolve any missing gate commands.
 
-**Then `~/.kk-flavor/standards/building.md` → **The loop****. Its first step is already answered: Phase 3 chose the surface, and the step is where that choice gets written rather than made again.
+**Then `~/.kk-flavor/standards/building.md` → **The loop****. Carry Phase 3's settled choice into the loop; reopen it only when implementation evidence contradicts it.
 
 **Then the conformance gate**, once the loop is green: `~/.kk-flavor/skills/kk-conform/SKILL.md`, per `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**. Its requirement set is the one your caller named. Run it **inline** — only this thread reaches the human. A requirement it finds undelivered is a red result you fix and re-run; the rest of its return goes to the checkpoint.
 

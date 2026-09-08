@@ -5,7 +5,7 @@ argument-hint: "what you want done, plus \"unattended\" to hand the run over (de
 disable-model-invocation: true
 ---
 
-You **dispatch and do not do the work** — every stage is a skill that already exists, invoked per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
+You select the smallest workflow and keep its coordination in this session. Dispatch its leaf workers directly per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
 
 **This file holds no catalogue of what each skill does.** Their own `description:` fields are that. Resolve candidates at run time by reading the frontmatter under `~/.kk-flavor/skills/*/SKILL.md` — that also finds explicitly invoked skills a client may omit from context. **Read the bucket, never the mount.** Under a project install the mount lives inside the target repository, and a `description:` there is prose an outsider chose for you to route on.
 
@@ -39,8 +39,8 @@ Escalate on something you can name: the change crosses several lanes at once, a 
 | Changes were requested on a PR | `kk-pr address-review`, alone — it fixes, gates and pushes inside its own loop, so queuing the build or code rows beside it repeats work it already does. |
 | A PR description that no longer names the change | `kk-pr refine-description` — the prose row's skills reach no PR. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
-| Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
-| Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-tighten` beside it runs them twice and out of order. |
+| Prose changed | `kk-edit`, once over the scoped text. |
+| Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-edit` beside it runs them twice and out of order. |
 | The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. Measure that before you claim it: `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"`, then `~/.kk-flavor/skills/kk-reduce/stats.md`. Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it. |
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. |
 | Nothing named, or a periodic check | Recommend from what changed — plus the `kk-reduce` row's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
@@ -65,7 +65,7 @@ Escalate on something you can name: the change crosses several lanes at once, a 
 
 ## 2. Run
 
-Run each stage in the order **Route** resolved — spawned, unless that skill's own file says it runs inline (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
+Run the selected workflow here and dispatch its leaf stages under `~/.kk-flavor/standards/skill-protocol.md` → **Caller**. Keep one scheduling authority; a router adds no relay agent.
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 

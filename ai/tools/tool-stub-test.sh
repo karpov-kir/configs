@@ -108,7 +108,7 @@ kk-reduce|stats.sh|$base|$ai|prose:
 idsd-qualify|report.sh|$report_repo|list|no reports
 kk-ecosystem|ruleecho.sh|$base|$echo_root|rule stated twice
 kk-ecosystem|cite-graph.sh|$base|$echo_root|citation edge(s)
-kk-humanize|comment-density.sh|$density_repo|HEAD|reached the scan
+kk-edit|comment-density.sh|$density_repo|HEAD|reached the scan
 TABLE
 }
 

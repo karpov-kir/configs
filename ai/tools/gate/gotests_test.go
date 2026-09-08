@@ -220,3 +220,21 @@ func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 		}
 	}
 }
+
+func TestModelPolicyChangeInvalidatesGoGate(t *testing.T) {
+	g := &gate{stamp: "toolchain", manifest: []manifestLine{{hash: "first", path: "ai/kk-flavor/models.json"}, {hash: "source", path: goSource}}}
+	g.addGoChecks()
+	for _, u := range g.units {
+		if u.id != "gotest" {
+			continue
+		}
+		before, _ := g.keyMaterial(u)
+		g.manifest[0].hash = "changed"
+		after, _ := g.keyMaterial(u)
+		if before == after {
+			t.Fatal("model policy changed but Go gate kept its cached verdict")
+		}
+		return
+	}
+	t.Fatal("Go gate was not registered")
+}

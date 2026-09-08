@@ -15,7 +15,7 @@ import (
 // Every pipeline stage, in pipeline order. One list, read by the vocabulary check below, by the usage
 // line it prints, and by `stamp`'s required-set check — so a stage added to the pipeline cannot be
 // accepted by one of the three and missed by the others.
-const stageNames = "code-review security-review tighten refactor"
+const stageNames = "code-review security-review edit refactor"
 
 func stageList() []string { return strings.Fields(stageNames) }
 
@@ -137,11 +137,11 @@ func stageOfEntry(entry string) (string, bool) {
 	switch entry {
 	case "code-review":
 		return "code-review", true
-	case "refactor", "refactor:partial(turnaround)", "refactor:partial(cap)":
+	case "refactor", "refactor:partial(turnaround)", "refactor:partial(cap)", "refactor:skipped(not-applicable)":
 		// partial = the loop ended non-compliant, which is a record of what ran, not a trim.
 		return "refactor", true
 	}
-	for _, stage := range []string{"security-review", "tighten"} {
+	for _, stage := range []string{"security-review", "edit"} {
 		if entry == stage || entry == stage+":skipped(turnaround)" || entry == stage+":skipped(not-applicable)" {
 			return stage, true
 		}

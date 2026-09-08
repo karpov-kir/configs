@@ -438,7 +438,7 @@ func (f *fixture) treeIsFreeOfScratch() bool {
 // for the stamp. Stated once, because a stage marked but left out of the stamp record — or the reverse
 // — is a fixture that arms a pass the stamp then refuses, and the case reads as a broken guard.
 var (
-	allStages          = []string{"code-review", "security-review", "tighten", "refactor"}
+	allStages          = []string{"code-review", "security-review", "edit", "refactor"}
 	allStagesStampedAs = strings.Join(allStages, ",")
 )
 

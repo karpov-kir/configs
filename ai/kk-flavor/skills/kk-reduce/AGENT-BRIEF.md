@@ -31,7 +31,7 @@ not prose you saved. What else that extraction owes is `~/.kk-flavor/standards/e
 - Edit **only** your listed files. Other agents own the rest and run concurrently.
 - A change another file needs is a **patch in the cross-scope queue your caller names**, never a reach outside your scope and never prose in your return — described instead of patched, its owner re-derives the work. One patch per file, `<your theme>-<seq>.patch` plus a sibling `.md` carrying its case (`~/.kk-flavor/standards/streaming.md` → **The stage's half**; no tier, since no two scopes here share a file).
 - **Skip `kk-ecosystem`'s wiring check over the root** (its first and last steps) — that is your orchestrator's. Other agents are mid-edit and their in-flight state reads as findings; fixing it would clobber files you do not own.
-- **Skip its shape and prose stages too** — it spawns `kk-skillcraft` and `kk-tighten`, and the campaign runs both later over what survived. Rule economy is the whole of your pass.
+- **Skip its shape and prose stages too** — it normally applies shape and prose inline, and the campaign runs both later over what survived. Rule economy is the whole of your pass.
 - Never delete a file unless your scope says to.
 - Do not add rules. One you believe is missing is a `PROPOSAL`.
 
@@ -50,7 +50,7 @@ DELETED: one line per rule removed, each naming what still covers it — or plai
 MOVED: what you split, extracted, or gave one home, and where the pointer sits
 RESCUED-KEPT: one line per plan-rescued passage, confirming it survives and where
 CROSS-SCOPE: the patches you queued, by filename — or "none"
-HANDOFF: each lane your edits opened (skill + the files that opened it) — never kk-skillcraft or kk-tighten (**Scope discipline**) — or "none"
+HANDOFF: each lane your edits opened (skill + the files that opened it) — never kk-skillcraft or kk-edit (**Scope discipline**) — or "none"
 PROPOSAL: additions you did not make — or "none"
 BROKEN: references your edits invalidated — or "none"
 ```

@@ -36,10 +36,10 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 		// The retired turnaround token. It was the vocabulary before the modes were removed, so it is
 		// the one wrong word a stamp is most likely to carry — and `turnaroundTrims` reads `(turnaround)`,
 		// so a record still saying `fast` would gate a trimmed pass as untrimmed.
-		{"code-review,security-review:skipped(fast),tighten,refactor", "malformed entry: security-review:skipped(fast)"},
-		{"code-review,security-review,tighten,refactor:partial(fast)", "malformed entry: refactor:partial(fast)"},
-		{"code-review,code-review,security-review,tighten,refactor", "duplicate stage: code-review"},
-		{"code-review,security-review,tighten", "missing stage: refactor"},
+		{"code-review,security-review:skipped(fast),edit,refactor", "malformed entry: security-review:skipped(fast)"},
+		{"code-review,security-review,edit,refactor:partial(fast)", "malformed entry: refactor:partial(fast)"},
+		{"code-review,code-review,security-review,edit,refactor", "duplicate stage: code-review"},
+		{"code-review,security-review,edit", "missing stage: refactor"},
 	} {
 		f.runReport("stamp", bad.record, "001-grammar")
 		f.assertRefused("stamp refuses '" + bad.record + "'")
@@ -51,7 +51,7 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 
 	// Whitespace goes before the record is read, so a record pasted across two lines is one record.
 	// Left in, every entry after the first is malformed and a legitimate stamp is refused.
-	f.runReport("stamp", "code-review, security-review,\n  tighten, refactor", "001-grammar")
+	f.runReport("stamp", "code-review, security-review,\n  edit, refactor", "001-grammar")
 	f.record("a record pasted across lines stamps as one record",
 		f.status == 0, f.evidence())
 	f.record("and no whitespace reaches the record the gate reads",
@@ -59,17 +59,27 @@ func TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim(t *testing.T) {
 
 	// Every legal form, each one a record a real pass produces. `refactor:partial(…)` records that the
 	// loop ended non-compliant, which is what ran rather than a trim; `skipped(turnaround)` is a turnaround
-	// trim and `skipped(not-applicable)` an unmet condition, and only the two optional stages take
-	// either.
+	// trim and `skipped(not-applicable)` requires measured scope evidence.
 	for _, legal := range []string{
-		"code-review,security-review,tighten,refactor:partial(turnaround)",
-		"code-review,security-review,tighten,refactor:partial(cap)",
-		"code-review,security-review:skipped(not-applicable),tighten,refactor",
-		"code-review,security-review,tighten:skipped(not-applicable),refactor",
-		"code-review,security-review:skipped(turnaround),tighten,refactor",
-		"code-review,security-review,tighten:skipped(turnaround),refactor",
+		"code-review,security-review,edit,refactor:partial(turnaround)",
+		"code-review,security-review,edit,refactor:partial(cap)",
+		"code-review,security-review,edit,refactor:skipped(not-applicable)",
+		"code-review,security-review:skipped(not-applicable),edit,refactor",
+		"code-review,security-review,edit:skipped(not-applicable),refactor",
+		"code-review,security-review:skipped(turnaround),edit,refactor",
+		"code-review,security-review,edit:skipped(turnaround),refactor",
 	} {
-		f.armFullPass("001-grammar")
+		f.runReport("invalidate", "001-grammar")
+		f.runReport("scope", "HEAD", "001-grammar")
+		f.runReport("decisions-reviewed", "001-grammar")
+		for _, entry := range strings.Split(legal, ",") {
+			if strings.Contains(entry, ":skipped(") {
+				continue
+			}
+			stage, _, _ := strings.Cut(entry, ":")
+			f.runReport("stage-returned", stage, "001-grammar")
+			f.runReport("no-items", stage, "001-grammar")
+		}
 		f.runReport("stamp", legal, "001-grammar")
 		f.record("stamp accepts '"+legal+"'", f.status == 0, f.evidence())
 		f.record("and records '"+legal+"' as the gate will read it",

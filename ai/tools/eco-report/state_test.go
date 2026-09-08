@@ -210,11 +210,11 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	trimmed := newShip(t, "001-trimmed-token")
 	trimmed.runReport("invalidate", "001-trimmed-token")
 	trimmed.runReport("decisions-reviewed", "001-trimmed-token")
-	for _, stage := range []string{"code-review", "tighten", "refactor"} {
+	for _, stage := range []string{"code-review", "edit", "refactor"} {
 		trimmed.runReport("stage-returned", stage, "001-trimmed-token")
 		trimmed.runReport("no-items", stage, "001-trimmed-token")
 	}
-	trimmed.runReport("stamp", "code-review,security-review:skipped(turnaround),tighten,refactor", "001-trimmed-token")
+	trimmed.runReport("stamp", "code-review,security-review:skipped(turnaround),edit,refactor", "001-trimmed-token")
 	trimmed.runReport("state", "001-trimmed-token")
 	trimmed.record("finalize for a fresh pass with a stage trimmed for turnaround",
 		trimmed.out == "finalize", "said '"+trimmed.out+"'")

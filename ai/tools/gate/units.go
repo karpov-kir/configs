@@ -28,6 +28,7 @@ const (
 	extAudience  = "lib/skill-audience.sh"
 	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
+	extModels    = "ai/kk-flavor/models.json"
 	// The stub scripts ai/tools/tool-stub-test.sh copies into fixtures and runs. copiedRepoFiles finds
 	// only the one path that suite spells out literally; the other six live in its `stubs()` table,
 	// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
@@ -104,7 +105,7 @@ func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
-	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows)
+	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit

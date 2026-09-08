@@ -687,7 +687,7 @@ var mutants = []mutant{
 	{"stamp: a pass that never accounted for the decision log", "../eco-report/stamp.go", "./eco-report/", "TestAStampDemandsThePassAccountForTheDecisionLog", "if !r.stageWasMarkedReturned(decisionsMarker) {", "if false {"},
 	{"invalidate: last pass's stage returns survive it", "../eco-report/stamp.go", "./eco-report/", "TestInvalidateClearsThePassItStarts", "if err := os.RemoveAll(r.stageReturnsDir); err != nil {", "if err := os.RemoveAll(r.stageReturnsDir + \"/no-such-stage\"); err != nil {"},
 	{"stage vocabulary: any word accepted as a stage", "../eco-report/stages.go", "./eco-report/", "TestAStageNameThatIsNotAStageIsRefused", "if stage == known {", "if stage != known {"},
-	{"stage vocabulary: a stage renamed out of the pipeline", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `const stageNames = "code-review security-review tighten refactor"`, `const stageNames = "code-review security-review tighten refactors"`},
+	{"stage vocabulary: a stage renamed out of the pipeline", "../eco-report/stages.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `const stageNames = "code-review security-review edit refactor"`, `const stageNames = "code-review security-review edit refactors"`},
 	// SURVIVOR, and unreachable rather than merely unobserved — so it stays one. reportChecksum answers
 	// empty only for a report os.ReadFile cannot open, and `stage-returned` reaches this through
 	// requireReport, which refuses anything that is not a readable regular file first. Every shape a
@@ -707,10 +707,10 @@ var mutants = []mutant{
 	{"stamp grammar: any entry at all accepted", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", "stage, ok := stageOfEntry(entry)\n\t\tif !ok {", "stage, ok := stageOfEntry(entry)\n\t\tif false && !ok {"},
 	{"stamp grammar: a missing stage accepted", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", "case seen[stage] == 0:", "case false:"},
 	{"stamp grammar: a duplicate stage accepted", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", "case seen[stage] > 1:", "case false:"},
-	{"stamp grammar: refactor:partial(turnaround) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `case "refactor", "refactor:partial(turnaround)", "refactor:partial(cap)":`, `case "refactor", "refactor:partial(cap)":`},
+	{"stamp grammar: refactor:partial(turnaround) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `case "refactor", "refactor:partial(turnaround)", "refactor:partial(cap)", "refactor:skipped(not-applicable)":`, `case "refactor", "refactor:partial(cap)", "refactor:skipped(not-applicable)":`},
 	{"stamp grammar: skipped(turnaround) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestATrimmedPassIsNotAFullOne", `if entry == stage || entry == stage+":skipped(turnaround)" || entry == stage+":skipped(not-applicable)" {`, `if entry == stage || entry == stage+":skipped(not-applicable)" {`},
 	{"stamp grammar: skipped(not-applicable) no longer legal", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `if entry == stage || entry == stage+":skipped(turnaround)" || entry == stage+":skipped(not-applicable)" {`, `if entry == stage || entry == stage+":skipped(turnaround)" {`},
-	{"stamp grammar: a stage left out of the skippable set", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `[]string{"security-review", "tighten"} {`, `[]string{"security-review"} {`},
+	{"stamp grammar: a stage left out of the skippable set", "../eco-report/stages.go", "./eco-report/", "TestTheStampGrammarIsTheAuthorityOnWhatAPassMayClaim", `[]string{"security-review", "edit"} {`, `[]string{"security-review"} {`},
 
 	// shell.go — the primitives whose exact edges a refusal turns on, and the digest a marker holds.
 	{"slug charset: the dash left out of the set", "../eco-report/shell.go", "./eco-report/", "TestTwoIntentsShipSideBySide", `b == '.' || b == '_' || b == '-'`, `b == '.' || b == '_'`},

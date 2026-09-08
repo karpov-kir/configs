@@ -1,10 +1,9 @@
-// Package bloatjudge deletes comment blocks or prose units by majority vote across three model calls.
+// Package bloatjudge deletes prose by majority vote, stopping when remaining rolls cannot change it.
 // --changed offers only blocks touched by the diff, while showing the model the whole file.
 // The model returns unit numbers; it cannot rewrite text or delete source code.
 //
 // JUDGE_PROVIDER is required. Missing, unknown or unavailable providers fail with exit 2.
-// JUDGE_MODEL overrides haiku for Claude or gpt-5.4-mini for Codex. These defaults remain
-// provisional until the negatives eval selects each provider's model.
+// Model assignments come from kk-flavor/models.json. JUDGE_MODEL is retired and refused.
 // Calls use the selected CLI's existing login and the deadline configured in deadline.go.
 // Codex ignores config, rules and workspace instructions, disables external tools, and uses
 // a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.
@@ -29,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	modelpolicy "kk-flavor/tools/model-policy"
 
 	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
@@ -75,10 +76,13 @@ type Caller func(prompt, view string) (string, error)
 // over its own output deleted more. Idempotence therefore cannot come from the model, so it comes from
 // here: an artifact is judged once, its judged form is final, and a resend — or a second agent picking
 // up the same text — meets the record rather than a new roll. Nil disables it, which the eval uses.
-type Memo struct{ Dir string }
+type Memo struct {
+	Dir    string
+	Policy string
+}
 
 // DefaultMemo lives outside every repo, under the cache home, so a repo never carries judged state.
-func DefaultMemo() *Memo {
+func DefaultMemo(policy string) *Memo {
 	base := os.Getenv("XDG_CACHE_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -87,11 +91,15 @@ func DefaultMemo() *Memo {
 		}
 		base = filepath.Join(home, ".cache")
 	}
-	return &Memo{Dir: filepath.Join(base, "kk-flavor", "judged")}
+	return &Memo{Dir: filepath.Join(base, "kk-flavor", "judged"), Policy: policy}
 }
 
 func (m *Memo) key(kind, content string) string {
-	sum := sha256.Sum256([]byte(kind + "\n" + content))
+	kindName, _, _ := strings.Cut(kind, "\n")
+	specification := kinds[kindName]
+	// Bump the algorithm version when unit extraction or majority semantics change.
+	identity := "judge-v2\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
+	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
 
@@ -137,9 +145,9 @@ func (m *Memo) record(kind, content string, gone []int) {
 
 // ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally. Each
 // roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
-func ClaudeCaller(deadline time.Duration) Caller {
+func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 	return func(prompt, view string) (string, error) {
-		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt), stdin: view})
+		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view})
 	}
 }
 
@@ -148,12 +156,15 @@ func ClaudeCaller(deadline time.Duration) Caller {
 // dialog. Without these flags a checked-out branch's `.claude/settings.json` would apply, allow rules
 // and hooks and all, and a comment telling the model to run a command would be obeyed before the
 // numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
-func claudeArgs(prompt string) []string {
-	return []string{
-		"-p", "--model", judgeModel("haiku"), "--output-format", "text",
+func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
+	args := []string{
+		"-p", "--model", settings.Model, "--output-format", "text",
 		"--tools", "", "--strict-mcp-config", "--setting-sources", "user",
-		prompt,
 	}
+	if settings.Effort != "" {
+		args = append(args, "--effort", settings.Effort)
+	}
+	return append(args, prompt)
 }
 
 func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
@@ -525,10 +536,8 @@ func Apply(lines []string, units []Unit, gone []int) string {
 	return strings.Join(kept, "\n") + "\n"
 }
 
-// Voting wraps a Caller so a unit is deleted only when a majority of independent rolls name it. The
-// model is not consistent from one run to the next, and precision matters more than recall here: a
-// block only one roll of three would delete stays. Each roll is parsed on its own, so one roll that
-// explains instead of answering fails the whole vote rather than being outvoted into silence.
+// Voting deletes only by majority. It omits remaining calls once none can change any unit;
+// every attempted roll must still produce a valid verdict.
 func Voting(call Caller, rolls int) Caller {
 	return func(prompt, view string) (string, error) {
 		count := strings.Count(view, "\n") + 1
@@ -544,6 +553,17 @@ func Voting(call Caller, rolls int) Caller {
 			}
 			for _, n := range gone {
 				tally[n]++
+			}
+			remaining := rolls - i - 1
+			settled := true
+			for n := 1; n <= count; n++ {
+				if tally[n]*2 <= rolls && (tally[n]+remaining)*2 > rolls {
+					settled = false
+					break
+				}
+			}
+			if settled {
+				break
 			}
 		}
 		var agreed []string

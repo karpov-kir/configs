@@ -12,10 +12,11 @@ import (
 
 const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
   code-review                                   always runs, always bare
-  refactor | refactor:partial(turnaround|cap)   partial = the loop ended non-compliant
-  security-review|tighten [:skipped(turnaround|not-applicable)]
+  refactor | refactor:partial(turnaround|cap) | refactor:skipped(not-applicable)
+    partial         = the loop ended non-compliant
+  security-review|edit [:skipped(turnaround|not-applicable)]
     turnaround      = trimmed to answer sooner; blocks the merge gate until an untrimmed pass
-    not-applicable  = its condition was unmet
+    not-applicable  = scope <base-ref> proved its condition unmet for this candidate
 `
 
 // Serialising the marks is what makes stages.go's checksum rule per-stage: the round's stages return
@@ -91,10 +92,17 @@ func (r *run) cmdStamp() {
 		}
 		r.refuse("error: this pass never invalidated — reviewed-tree still reads '" + stamped + "', not 'pending'. Run report.sh invalidate first, or the stamp and the stage markers standing here are the previous pass's, not this one's.")
 	}
-	// `refactor` is legally shaped whether or not it ran, hence the per-stage check.
+	if problems := r.skipBlockReasons(entries); len(problems) > 0 {
+		r.refuse("error: invalid scope evidence for skipped stages", strings.Join(problems, "\n"))
+	}
+	// Run stages still require their returns, independently of applicability.
 	var blockReasons []string
 	for _, entry := range strings.Split(entries, ",") {
 		if strings.Contains(entry, ":skipped(") {
+			stage, _, _ := strings.Cut(entry, ":")
+			if r.stageWasMarkedReturned(stage) {
+				blockReasons = append(blockReasons, stage+": returned and cannot be recorded as skipped")
+			}
 			continue
 		}
 		stage, _, _ := strings.Cut(entry, ":")

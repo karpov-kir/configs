@@ -1,25 +1,12 @@
 #!/usr/bin/env bash
-# Qualify report tool — the deterministic gates the skills must not execute by hand. idsd-ship calls
-# it too. What the gates do, and what each subcommand means, is `ai/tools/eco-report/`.
-#   usage: report.sh {init <intent>|root|repo-mode|invalidate|scope <base-ref>|stage-returned <stage>|no-items <stage>|
-#                     decisions-reviewed|stamp "<stages>"|gate|intent-ready <NNN-slug>|carry|
-#                     check-ignore|promote|discard|finalize|merge-slot|close|state|list|
-#                     record <op> <record-name> "<text>"}
-#                     [<intent>]
-#
-# Two sibling files are found from argv[0] and one from $HOME, so this must stay in the skill's
-# scripts/ directory: ./todo-gate.sh, ../templates/qualify-report-template.md, and
-# `~/.kk-flavor/scripts/tree-fingerprint.sh`. Both installs symlink into the same repo, so they ship
-# together or not at all.
-#
-# tested by: the Go suite beside the tool, `ai/tools/eco-report/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
-
+# Resolve requested model settings without launching a worker.
+# usage: model-policy.sh --client codex|claude --role <role> [--config <file>] [--origin <file>]
+# Run --help for native inheritance and policy pinning options.
+# tested by: the Go suite in ai/tools/model-policy/; shared stub by tool-stub-test.sh.
 set -euo pipefail
 
-tool="eco-report"
-# How far THIS file sits above the tools directory.
-tools_offset="../../../.."
+tool="model-policy"
+tools_offset="../.."
 
 # --- shared:tool-stub ---
 # Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than

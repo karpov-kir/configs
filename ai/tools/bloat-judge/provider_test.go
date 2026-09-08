@@ -1,6 +1,7 @@
 package bloatjudge
 
 import (
+	modelpolicy "kk-flavor/tools/model-policy"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func TestCodexCallerUsesOnlyTheFinalMessage(t *testing.T) {
 done
 printf 'progress, not a verdict\n'
 printf 'none\n' > "$answer"`)
-	got, err := CodexCaller(time.Second)("prompt", "view")
+	got, err := CodexCaller(time.Second, testSettings())("prompt", "view")
 	if err != nil || got != "none\n" {
 		t.Fatalf("answer = %q, %v; want final message", got, err)
 	}
@@ -71,21 +72,21 @@ func fakeCodex(t *testing.T, script string) {
 
 func TestCodexCallerRefusesMissingFinalAnswer(t *testing.T) {
 	fakeCodex(t, "echo none")
-	if _, err := CodexCaller(time.Second)("prompt", "view"); err == nil || !strings.Contains(err.Error(), "final answer") {
+	if _, err := CodexCaller(time.Second, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "final answer") {
 		t.Fatalf("missing answer accepted: %v", err)
 	}
 }
 
 func TestCodexCallerRefusesFailedProcess(t *testing.T) {
 	fakeCodex(t, "exit 7")
-	if _, err := CodexCaller(time.Second)("prompt", "view"); err == nil || !strings.Contains(err.Error(), "exit status 7") {
+	if _, err := CodexCaller(time.Second, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "exit status 7") {
 		t.Fatalf("failed process accepted: %v", err)
 	}
 }
 
 func TestCodexCallerBoundsTheRoll(t *testing.T) {
 	fakeCodex(t, "sleep 30")
-	if _, err := CodexCaller(100*time.Millisecond)("prompt", "view"); err == nil || !strings.Contains(err.Error(), "within 100ms") {
+	if _, err := CodexCaller(100*time.Millisecond, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "within 100ms") {
 		t.Fatalf("timeout was not reported: %v", err)
 	}
 }
@@ -108,7 +109,7 @@ while [ "$#" -gt 0 ]; do
  shift
 done
 cat > "$answer"`)
-	got, err := CodexCaller(time.Second)("judge", "résumé $() `command`")
+	got, err := CodexCaller(time.Second, testSettings())("judge", "résumé $() `command`")
 	if err != nil || got != "judge\n\nrésumé $() `command`" {
 		t.Fatalf("input = %q, %v", got, err)
 	}
@@ -125,44 +126,59 @@ cat > "$answer"`)
 	}
 }
 
-func TestJudgeModelOverride(t *testing.T) {
+func testSettings() modelpolicy.Settings {
+	return modelpolicy.Settings{Model: "fixture-model", Effort: "low"}
+}
+
+func TestRetiredJudgeModelIsRejected(t *testing.T) {
 	t.Setenv("JUDGE_MODEL", "chosen-model")
-	for _, args := range [][]string{claudeArgs("prompt"), codexArgs("answer")} {
+	if _, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "missing"}); err == nil || !strings.Contains(err.Error(), "retired") {
+		t.Fatalf("retired override not rejected: %v", err)
+	}
+}
+
+func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
+	fakeCodex(t, "exit 0")
+	t.Setenv("JUDGE_PROVIDER", "codex")
+	t.Setenv("JUDGE_MODEL", "")
+	os.Unsetenv("JUDGE_MODEL")
+	configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/models.json"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configured.Decision.Requested.Model != "gpt-5.4-mini" || configured.Decision.Requested.Effort != "low" {
+		t.Fatalf("central judge assignment = %+v", configured.Decision)
+	}
+	for _, args := range [][]string{codexArgs("answer", testSettings()), claudeArgs("prompt", testSettings())} {
 		found := false
 		for i, arg := range args {
-			if arg == "--model" && args[i+1] == "chosen-model" {
+			if arg == "--model" && i+1 < len(args) && args[i+1] == "fixture-model" {
 				found = true
 			}
 		}
 		if !found {
-			t.Fatalf("model override missing: %v", args)
+			t.Fatalf("configured model was lost: %v", args)
 		}
 	}
 }
 
-func TestJudgeDefaultModelTier(t *testing.T) {
-	t.Setenv("JUDGE_MODEL", "")
-	for _, c := range []struct {
-		provider string
-		args     []string
-		model    string
-	}{
-		{"claude", claudeArgs("prompt"), "haiku"},
-		{"codex", codexArgs("answer"), "gpt-5.4-mini"},
-	} {
-		t.Run(c.provider, func(t *testing.T) {
-			for i, arg := range c.args {
-				if arg == "--model" && i+1 < len(c.args) && c.args[i+1] == c.model {
-					return
-				}
-			}
-			t.Fatalf("judge must explicitly select lightweight model %s: %v", c.model, c.args)
-		})
+func TestJudgeCacheSeparatesClientSelections(t *testing.T) {
+	fakeCodex(t, "exit 0")
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
 	}
-	for _, arg := range codexArgs("answer") {
-		if arg == `model_reasoning_effort="low"` {
-			return
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	identities := map[string]bool{}
+	for _, client := range []string{"codex", "claude"} {
+		t.Setenv("JUDGE_PROVIDER", client)
+		configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/models.json"})
+		if err != nil {
+			t.Fatal(err)
 		}
+		if configured.CacheIdentity == "" || identities[configured.CacheIdentity] {
+			t.Fatalf("judge cache did not distinguish %s selection: %q", client, configured.CacheIdentity)
+		}
+		identities[configured.CacheIdentity] = true
 	}
-	t.Fatal("Codex judge must use low reasoning effort")
 }

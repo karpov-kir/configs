@@ -31,7 +31,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	resumed := newShip(t, "review: resumed stage")
 	resumed.runReport("invalidate")
 	resumed.runReport("decisions-reviewed")
-	for _, cleared := range []string{"security-review", "tighten", "refactor"} {
+	for _, cleared := range []string{"security-review", "edit", "refactor"} {
 		resumed.runReport("stage-returned", cleared)
 		resumed.runReport("no-items", cleared)
 	}
@@ -62,7 +62,7 @@ func TestAStampCannotOutliveThePassThatEarnedIt(t *testing.T) {
 	unmarked := newShip(t, "review: unmarked stage")
 	unmarked.runReport("invalidate")
 	unmarked.runReport("decisions-reviewed")
-	for _, cleared := range []string{"code-review", "security-review", "tighten"} {
+	for _, cleared := range []string{"code-review", "security-review", "edit"} {
 		unmarked.runReport("stage-returned", cleared)
 		unmarked.runReport("no-items", cleared)
 	}

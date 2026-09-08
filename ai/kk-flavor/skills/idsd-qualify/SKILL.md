@@ -3,15 +3,16 @@ name: idsd-qualify
 description: Run the quality pipeline over the working tree with a merge stamp. Use for "qualify the changes" inside an IDSD project. The `.idsd` report layer over kk-qualify — the same pass without a report is that skill's.
 ---
 
-Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. You orchestrate, so read `~/.kk-flavor/standards/skill-protocol.md` whole.
+Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. The current coordinator owns leaf dispatch under `~/.kk-flavor/standards/skill-protocol.md`; do not create another qualification coordinator.
 
-**The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`** — read it and run it **inline**, since it needs the human continuously and they reach only your thread (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). That skill ends at a closing reply; this one adds the report, the stamp and the lifecycle around it. **Every heading below that it also carries is the delta over its section of that name**, and the rest is this skill's own.
+**The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`** — apply its pass **inline**, reusing the unchanged contract already held (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). That skill ends at a closing reply; this one adds the report, the stamp and the lifecycle around it. **Every heading below that it also carries is the delta over its section of that name**, and the rest is this skill's own.
 
 ## Running a pass
 
 1. **`~/.kk-flavor/skills/idsd-qualify/scripts/report.sh check-ignore`**, before anything else (**Report**).
 2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
-3. **`report.sh invalidate <intent>`**, once the base is set — `stamp` refuses until you have.
+3. **`report.sh invalidate <intent>`**, once the report is set — `stamp` refuses until you have.
+4. For applicability-based skips, run `report.sh scope <base-ref> <intent>` with the review's explicit base. It records the exact candidate and worktree. Without a valid scope receipt, run every stage rather than inventing a skip. If repairs change the candidate, refresh this receipt against the same base and revalidate affected evidence before stamping.
 
 **Take one stage's return at a time.** Run `report.sh stage-returned <stage> <intent>` before you read its findings, then record its items — or `report.sh no-items <stage> <intent>` when it surfaced nothing — and only then pick up the next stage's return. Every stage that ran takes this, refactor included. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): cases are read and applied as they arrive, while `stage-returned` still waits for the stage's own verdict.
 
@@ -19,11 +20,11 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 
 When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` — **its usage string is the entry vocabulary's only home**, and a copy in this file would drift from the tool that validates it. A stage that ran is never stamped skipped, or vice versa.
 
-**Stage 3 stamps under `tighten` whichever skill ran it** — `kk-tighten`, or `kk-humanize` for the comment pass.
+**The prose/comment stage stamps under `edit`.** A historical `tighten` record is not evidence for the new contract; let the report tool route stale records.
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
-**Report post-processing.** After stamping, when the report has items, apply `kk-humanize`'s lens over this pass's report file before presenting — **inline**, since it is text you already hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). **The report is outward text**, so `kk-tighten`'s internal-prose lens never runs over it. **Lossless, where `kk-humanize` deletes**: every item and its stakes survive, and a `- [ ]` is never dropped or softened. (The report is check-ignored, so this never invalidates the stamp.)
+**Report post-processing.** Edit the report inline with `kk-edit`'s outward-text guidance before presenting it. Preserve every decision item, its evidence and stakes; never drop or soften an unchecked `- [ ]`. Do not spawn another worker or run an external judge for the structured report. The report is check-ignored, so this wording pass does not invalidate its stamp.
 
 ## Report
 
