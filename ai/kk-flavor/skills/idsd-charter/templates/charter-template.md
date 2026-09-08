@@ -18,7 +18,7 @@ The project's what & why — the level-0 intent above the feature intents.
 
 ## Constraints
 
-<!-- Human-owned: approve wording changes explicitly before editing. -->
+<!-- Protected: additions, changes and removals require explicit user approval. Rejected or unanswered proposals leave this section unchanged. -->
 
 - <one project-wide promise or boundary, understandable without technical knowledge; at most 30 bullets>
 

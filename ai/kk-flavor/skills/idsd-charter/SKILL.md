@@ -26,7 +26,9 @@ Invoke `kk-grill` at project scope, over the sections of `templates/charter-temp
 
 Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh check-ignore` first (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**), then confirm the path once. Prepare `.idsd/charter.md` from the template. In "See also", link only to artifacts that exist. Domain terms go in `.idsd/for-agents/language.md`.
 
-Present the exact proposed charter edit and obtain explicit approval before writing it; existing authorization for that edit suffices. For a promotion, write the accepted constraint before removing its source decision through `report.sh record evict` with the appropriate scope. A declined or unanswered proposal leaves the source intact.
+Present the exact proposed charter edit and obtain explicit user approval before writing it; existing authorization for that exact edit suffices. For a promotion, write the accepted constraint before removing a fully promoted source decision through `report.sh record evict` with the appropriate scope. A rejected or unanswered proposal leaves both the charter and source decision intact.
+
+Re-read the charter immediately before applying the approved edit. Preserve unrelated changes; if the affected wording changed since approval, present the revised proposal instead of overwriting it with the older copy.
 
 Before proposing a promotion, extract the enduring project-wide obligation from the decision and rewrite it against **Rules** below. Do not copy the decision entry into the charter. Preserve its meaning without expanding its scope; keep implementation details and rationale in the agent records. If the decision contains no project-wide obligation, leave it there. If only part is promoted, retain the remaining useful detail instead of evicting the whole entry.
 
@@ -35,6 +37,8 @@ Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh layout check` after the 
 ## Rules
 
 Curated, not generated: humans own the wording. **Open no prose-lane handoff for the charter.**
+
+**Constraints are protected against every mutation:** adding, rewording, replacing, combining or deleting a bullet requires explicit user approval of the resulting change. Permission to build, finalize, merge, clean up or run unattended does not grant that approval. Rejecting a promotion rejects that proposal, not an existing constraint. An explicit user instruction to remove a named existing constraint authorizes only that removal. Preserve all other constraints, including during template regeneration, migration and conflict resolution.
 
 Exactly one `## Constraints` section holds at most 30 concise, single-line, top-level `- ` bullets: project-wide invariants only, with no dates or usage counts. Each must rule out something no existing constraint already rules out. An intent may add stricter requirements but cannot silently override these invariants; resolve a conflict through an explicitly approved charter edit before building against it.
 
