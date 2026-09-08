@@ -433,6 +433,14 @@ func TestASiblingWorktreeCannotReadAStampItNeverEarned(t *testing.T) {
 	f.runReport("state", "090-twin")
 	f.record("while the worktree that ran the pass still reads ready",
 		strings.TrimSpace(f.out) == "ready", f.evidence())
+
+	f.appendTo(f.reportPath("090-twin"), "\n- [ ] Human release approval remains.\n")
+	f.runReport("state", "090-twin")
+	f.record("the reviewed worktree routes its open item to decide",
+		strings.TrimSpace(f.out) == "decide", f.evidence())
+	f.runReportIn(twin, "state", "090-twin")
+	f.record("a sibling must requalify before acting on the report items",
+		strings.TrimSpace(f.out) == "re-qualify", f.evidence())
 }
 
 func TestTheStampRecordsWhichWorktreeReviewedTheTree(t *testing.T) {
