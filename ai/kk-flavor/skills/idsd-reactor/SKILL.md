@@ -8,6 +8,8 @@ You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestra
 
 ## Client mechanics
 
+At startup, rename this session to `[<repo abbreviation>] IDSD reactor` through the client's session-title control. Use the abbreviation rule in `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md`. If renaming is unavailable, give the human the intended title.
+
 Require the target client explicitly before launching and carry it into every handoff.
 
 - **Codex desktop:** the reactor prepares and launches checked prompts through `kk-handoff` inline. Track returned task IDs. Use `wait_threads` for completion, `send_message_to_thread` for authorized sibling reports, and `list_threads` for inventory. Use this task's ID from runtime context as the return address; never guess it from a title. Tasks start immediately. Ending a turn does not schedule a future check.

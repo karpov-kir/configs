@@ -6,6 +6,8 @@ argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promot
 
 One coordinator owns this lifecycle under `~/.kk-flavor/standards/skill-protocol.md`. Load `idsd-build` when building, `idsd-qualify` when qualifying, and `idsd-finalize` only when entering `done`; use their contracts inline. Load lifecycle/report guidance when its operation is needed, not every sub-skill at startup. Reuse unchanged contracts and settled gap answers. A genuine new gap still reaches the human.
 
+Once the intent is resolved, rename this session to `[<repo abbreviation>] IDSD ship <NNN>` through the client's session-title control. Use the intent's number and the abbreviation rule in `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md`. If renaming is unavailable, give the human the intended title.
+
 ## Subcommands
 
 | Command | What it does |
