@@ -8,7 +8,7 @@ Every skill runs standalone (the user is your caller) or spawned by an orchestra
 
 Never exceed your licence — a gated, out-of-scope, or human-decision change — just because you can't ask; and never end blocked where returning a proposal would do. **An absolute that exists to keep you from deciding something yields to being told plainly to do it** — it bars your initiative, not their instruction, and following that instruction is them acting through you. Agreeing with your findings is not that instruction. **An absolute that holds however it is authorised says so, and says why.**
 
-**Invoking a skill applies its contract; it does not require another agent.** Keep orchestration in one caller. Run the selected phase inline when its context is already held or it needs the human. Delegate bounded exploration or independent review when isolation earns its setup cost. Spawned workers return further-work requests; the caller dispatches them directly rather than creating wrapper agents. Read only the references needed for the selected branch, and reuse unchanged instructions already read.
+**Invoking a skill applies its contract within the caller's assigned session role; it does not transfer ownership.** Required session boundaries take precedence over the inline default. Within the owning session, keep orchestration in one caller and run the selected phase inline when its context is already held or it needs the human. Delegate bounded exploration or independent review when isolation earns its setup cost. Spawned workers return further-work requests; the caller dispatches them directly rather than creating wrapper agents. Read only the references needed for the selected branch, and reuse unchanged instructions already read.
 
 **Model selection follows [model-policy.md](model-policy.md).** Build, correctness, security and semantic judgment retain the original task's protected model. A smaller coordinator cannot confer its own model on protected workers by inheritance.
 
@@ -16,7 +16,7 @@ Never exceed your licence — a gated, out-of-scope, or human-decision change �
 
 A **phase** is one chunk of work inside a session — the grilling, the build, the pass. **The gap between two is the only place this decision belongs**; mid-phase, continue or split what is left into subagents.
 
-Take the first that fits:
+Preserve any required session boundary first. Otherwise take the first that fits:
 
 1. **Continue** — the next phase wants this one as a **primary source**, the reasoning verbatim rather than an account of it, or the window still holds it comfortably. Avoids a new handoff; retained context still costs tokens.
 2. **Clear** — the exploration, the decisions and the dead ends are all disposable to what follows. The cheapest move, and the one whose mistake is one-way: the *why* goes, and reading the diff back does not return it.

@@ -1,10 +1,18 @@
 ---
 name: idsd-reactor
-description: "Build several ICE intents at once — one session per unblocked intent, launching each as its dependencies land. Use for \"build the mvp\", \"ship these intents in parallel\", \"start the next wave\". One intent end-to-end is idsd-ship's, and the order or the consistency report on its own is idsd-audit's."
+description: "Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for \"build the mvp\", \"ship these intents in parallel\", \"start the next wave\", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is idsd-audit's."
 argument-hint: "milestone or intent slugs to build (default: ask which milestone)"
 ---
 
-You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**. **You write nothing under the intent set** — every intent's work, grill to merge, belongs to the session that owns it and runs `idsd-ship`.
+You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
+
+## Session role
+
+**This session owns scheduling, handoffs and reconciliation. Separate intent sessions own authoring, implementation, qualification and landing.** Your writes are coordination drafts and records outside the repository and intent set; inspect those trees to route work and verify reports.
+
+Keep this role across turns and resumes until the human explicitly ends or reassigns it. A request to create an intent, ship it, "proceed" or "continue" changes the work you coordinate. Route authoring through **3** and shipment through **2**, even when only one intent remains. Resume an existing owner after reconciling its task and repository state; a bounded subagent does not replace the owning task. Inline phase instructions apply inside that owning session.
+
+Before selecting a skill on a resumed turn, reload this section. Carry the role, this skill's path, the reactor's return address, intent-to-task IDs, allocations and standing authorization in the resume record. Reconcile missing ownership through the client inventory and repository before dispatching. If the client cannot launch, return checked handoff drafts; the reactor does not take over the work. Before an explicit role reassignment, account for outstanding owners and who will receive their reports.
 
 ## Client mechanics
 

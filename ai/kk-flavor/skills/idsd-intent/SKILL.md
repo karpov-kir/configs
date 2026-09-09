@@ -8,6 +8,8 @@ Capture **what** to build and **why** as an **ICE** — Intent · Context · Exp
 
 ## Phase 0 — Detect scope
 
+**Check session ownership before authoring.** If this is a reactor session, follow `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role** and prepare or resume the authoring task. Outside a reactor, run the authoring phases here.
+
 Pick scope from the request, not repo state: one ticket or one outcome → a **feature**, one ICE; "plan the project" / "map the MVP" / several features → a **project**, a map of linked ICEs each tagged by `milestone`.
 
 At project scope, read `.idsd/charter.md` to ground decomposition; if it is missing, offer once to run `idsd-charter` — never force it.

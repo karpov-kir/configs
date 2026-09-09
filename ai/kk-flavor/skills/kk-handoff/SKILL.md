@@ -10,7 +10,7 @@ Hand the work over as one prompt that stands alone, plus the task that starts a 
 
 **Runs inline, never spawned** — the context being handed off is context only you hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
 
-**Hand off scope, never effort.** Work you could finish in this run is work you finish. **Handing off is one of the moves at a phase boundary**, and `~/.kk-flavor/standards/skill-protocol.md` → **Phase boundaries** ranks them — reaching here past a cheaper one writes a file nobody needed.
+**Hand off scope, never effort.** Work owned by this session stays here when you can finish it. A required session boundary assigns the work elsewhere, regardless of its size or the context already held. For optional handoffs, `~/.kk-flavor/standards/skill-protocol.md` → **Phase boundaries** ranks the available moves.
 
 ## 1. Draft it
 

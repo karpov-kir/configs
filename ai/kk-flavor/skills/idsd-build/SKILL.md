@@ -4,7 +4,7 @@ description: Implement one ICE intent — settle the gaps it leaves, then build 
 argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 ---
 
-**This is the ICE-shaped contract over `~/.kk-flavor/skills/kk-build/SKILL.md`.** The current coordinator applies its selected build phases inline; no nested build agent is required. Read that contract when entering the build and reuse it while unchanged. `~/.kk-flavor/standards/skill-protocol.md` governs delegation and model protection.
+**This is the ICE-shaped contract over `~/.kk-flavor/skills/kk-build/SKILL.md`.** The session that owns this intent applies its selected build phases inline; no nested build agent is required. A reactor reaching this skill first follows `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role**. Read the build contract when entering the build and reuse it while unchanged. `~/.kk-flavor/standards/skill-protocol.md` governs delegation and model protection.
 
 **The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
 
