@@ -431,7 +431,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-finalize</code><span class="tag you">you type it</span></div>
-      <p>Finalize an already qualified intent by merging its records and archiving it. Use for "finalize the intent" or an explicit final checkpoint. Stops after its gated commit; the broader ship lifecycle and throwaway cleanup belong to idsd-ship.</p>
+      <p>Land an already qualified intent through a direct merge or a PR, and archive its records. Use for "finalize the intent" or an explicit final checkpoint. Waits for verified landing; the broader ship lifecycle and throwaway cleanup belong to idsd-ship.</p>
       <p class="hint">takes: &lt;NNN-slug&gt;</p>
     </div>
     <div class="lane">
@@ -445,7 +445,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-reactor</code></div>
-      <p>Build several ICE intents at once — one session per unblocked intent, launching each as its dependencies land. Use for "build the mvp", "ship these intents in parallel", "start the next wave". One intent end-to-end is idsd-ship's, and the order or the consistency report on its own is idsd-audit's.</p>
+      <p>Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for "build the mvp", "ship these intents in parallel", "start the next wave", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is idsd-audit's.</p>
       <p class="hint">takes: milestone or intent slugs to build (default: ask which milestone)</p>
     </div>
     <div class="lane">
@@ -486,7 +486,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-edit</code></div>
-      <p>Edit prose and code comments for clarity, concision and natural voice. Use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; excludes changes to agent rules, skill triggering and skill structure.</p>
+      <p>The edit lane for authored or revised outward artifacts before approval or delivery, including PR text, commit messages, docs and code comments. Also use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; ordinary session replies and structured worker returns use writing rules directly. Rule and skill-structure changes belong to their own lanes.</p>
       <p class="hint">takes: text, file, directory, or git scope such as staged or the changes</p>
     </div>
     <div class="lane">

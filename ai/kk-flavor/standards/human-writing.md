@@ -4,6 +4,12 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**), and takes any lane it is owed before the send, never after.
 
+## Edit pass
+
+Run the **edit lane** over outward artifacts you author or revise before presenting them for approval, delivering them or publishing them. This includes PR titles and bodies, commit messages, tickets, docs, messages to others and code comments. Apply it inline by default; a separate worker or external judge is not required. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
+
+Ordinary session replies and structured worker returns apply the writing rules directly. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
+
 ## Budget — the keep test
 
 **Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. Cut a sentence with no consequence only when the meaning-preservation check below permits it. Keep uncertain cases for judgment.

@@ -2,6 +2,8 @@
 
 Enter with a qualified intent, settled landing authorization, prepared record operations and the resume evidence required by `SKILL.md`. Read `~/.kk-flavor/standards/git.md` for publication and review-notification gates.
 
+Before opening or updating the PR, ensure its authored title and body have cleared `kk-edit` under `~/.kk-flavor/standards/human-writing.md` → **Edit pass**.
+
 1. In committed mode, include the archive, project records and regenerated roadmap in the implementation PR. In throwaway mode, retain the active intent and report locally until merge. Commit and push the prepared branch under the settled authorization, then open a draft PR against the agreed target, or reuse its existing PR. Verify its head, base and diff. Release the merge slot before waiting for reviews or CI.
 2. Observe the PR through the client's available waiting mechanism. An open PR, green CI, enabled auto-merge or a closed-but-unmerged PR is unfinished. Report a closed-but-unmerged PR for a user decision. Mark ready, request reviewers or merge the PR only with authorization for that action. Honor required checks and reviews; never bypass branch protection.
 3. After a head or target change, return through qualification and the landing gate before any authorized update or merge. If archiving retired the report, restore this intent's active layout and saved evidence locally first, preserving unrelated work. Old evidence cannot authorize a changed tree: rerun qualification, revalidate record inputs under the slot and regenerate the archive in the same PR. Preserve already-applied record operations across retries. Release the slot again before waiting.

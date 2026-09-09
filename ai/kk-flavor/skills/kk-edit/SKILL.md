@@ -1,16 +1,18 @@
 ---
 name: kk-edit
-description: Edit prose and code comments for clarity, concision and natural voice. Use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; excludes changes to agent rules, skill triggering and skill structure.
+description: The edit lane for authored or revised outward artifacts before approval or delivery, including PR text, commit messages, docs and code comments. Also use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; ordinary session replies and structured worker returns use writing rules directly. Rule and skill-structure changes belong to their own lanes.
 argument-hint: "text, file, directory, or git scope such as staged or the changes"
 ---
 
 Improve the resolved text in one pass. Stop with the edited artifact or, for pasted text, return the rewrite without touching files.
 
+This skill fills the **edit lane** required by `~/.kk-flavor/standards/human-writing.md` → **Edit pass**.
+
 Run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`. Use the `edit` role from `~/.kk-flavor/standards/model-policy.md`.
 
 ## Scope
 
-Resolve the requested files or text and its audience. A directory scope includes prose documents; a code scope includes comments and docstrings only. Include prose this run authored when the caller named it. Preserve quoted material, code blocks, command output and code behavior.
+Resolve the requested files or text and its audience. A directory scope includes prose documents; a code scope includes comments and docstrings only. For the outward-artifact trigger, scope the pass to the artifact being prepared. Preserve quoted material, code blocks, command output and code behavior.
 
 Agent instructions may receive wording-only edits here. Deleting an obligation, changing a trigger, resolving conflicting rules or restructuring a skill goes to the instruction or skill-structure lane before mutation. Those lanes can apply this prose pass inline after settling semantics.
 
