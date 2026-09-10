@@ -189,6 +189,7 @@ check "a red outranks a non-measurement" "1" "$rc"
 
 # A suite can measure something real and still not have measured its whole effect: writing outside its
 # own fixtures while reporting every case green. So the run has to notice the checkout moved under it.
+# guarded-block: this machine may have no git, and discovery cannot be driven through it there.
 if command -v git >/dev/null; then
   new_greedy_checkout "$tmp/repo"
   out="$("$runner" "$tmp/repo" 2>&1)"; rc=$?
@@ -227,6 +228,7 @@ fi
 out="$("$runner" "$tmp/green" 2>&1)"
 check "outside a checkout the summary says containment went unchecked" "1" \
   "$(matching_output_lines 'unmeasured, containment unchecked')"
+# guarded-block: this machine may have no git, and discovery cannot be driven through it there.
 if command -v git >/dev/null; then
   out="$("$runner" "$tmp/repo" 2>&1)"
   check "inside one it does not, so a clean tail means the tree was checked" "0" \
@@ -262,6 +264,7 @@ check "control: and the suite beside it really was found, so this is not an empt
 # property that must survive the narrowing — a suite written five minutes ago is untracked, and this
 # runner's whole claim is that it runs without anyone registering it. The ignored suite exits 1, so
 # it is a control rather than an assertion about a name: if it ran at all, the run goes red.
+# guarded-block: this machine may have no git, and discovery cannot be driven through it there.
 if command -v git >/dev/null; then
   mkdir -p "$tmp/ignored/vendor"
   ( cd "$tmp/ignored" && git init -q . && git config user.email t@t && git config user.name t ) >/dev/null 2>&1
@@ -435,7 +438,15 @@ for name in a b c; do new_marking_suite "$tmp/together/$name-test.sh" "$name"; d
 # concurrency is broken.
 out="$(RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "suites asked to run three at a time all pass" "0" "$rc"
-check "and they overlap" "3" "$(most_seen "$tmp/together")"
+# guarded-block: `wait -n` is bash 4.3, and without it run-tests.sh runs the suites one at a time on
+# purpose — "never wrong, only slower". On such a machine this assertion would report the runner broken
+# for doing exactly what it documents, so it is skipped by name rather than left to fail there.
+if [ "${BASH_VERSINFO[0]:-0}" -gt 4 ] ||
+  { [ "${BASH_VERSINFO[0]:-0}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -ge 3 ]; }; then
+  check "and they overlap" "3" "$(most_seen "$tmp/together")"
+else
+  record_skip 1 "this bash has no \`wait -n\`, so the runner correctly ran the suites one at a time"
+fi
 check "and the report still names them in discovery order" "a b c" \
   "$(printf '%s\n' "$out" | awk '/^ok   /{ sub(/-test\.sh$/, "", $2); printf "%s%s", (seen++ ? " " : ""), $2 }')"
 
@@ -452,10 +463,15 @@ check "a job count that is not a number exits 2" "2" "$rc"
 check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
 
 # The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
-# and it drifts where nobody looks: the only machine that prints them is the one without git. Held
+# and it drifts where nobody looks: the only machine that prints them is the one the guard is for. Held
 # against the source they describe instead, on every machine.
+#
+# Opened on the `# guarded-block:` marker rather than on the git condition it used to name. Keyed to
+# that one literal, it verified the git blocks and silently ignored a guard written on any other
+# condition — so the first such guard added was unchecked, which is how a skip count nobody counts
+# gets in.
 drift="$(awk '
-  /^if command -v git >\/dev\/null; then$/ { inblock = 1; n = 0; next }
+  /^# guarded-block:/                       { inblock = 1; n = 0; next }
   inblock == 1 && /^else$/                  { inblock = 2; next }
   inblock == 1 && /^  check /               { n++; next }
   inblock == 2 && /^  record_skip /         {

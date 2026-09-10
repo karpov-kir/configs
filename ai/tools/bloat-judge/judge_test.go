@@ -276,6 +276,40 @@ func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	}
 }
 
+func TestMemoDoesNotReuseAnotherPolicy(t *testing.T) {
+	dir := t.TempDir()
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
+	for _, policy := range []string{"first", "second", "second"} {
+		memo := &Memo{Dir: dir, Policy: policy}
+		var out, errOut strings.Builder
+		if code := Run("judge", []string{"reply"}, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
+			t.Fatalf("code=%d %s", code, errOut.String())
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("model calls=%d, want 2 distinct policies", calls)
+	}
+}
+
+func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
+	original := kinds["reply"]
+	t.Cleanup(func() { kinds["reply"] = original })
+	memo := &Memo{Dir: t.TempDir(), Policy: "same-models"}
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
+	for _, reader := range []string{"first reader", "new reader"} {
+		kinds["reply"] = Kind{Reader: reader}
+		var out, errOut strings.Builder
+		if code := Run("judge", []string{"reply"}, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
+			t.Fatalf("judge=%d %s", code, errOut.String())
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("reader policy changed but model calls=%d, want 2", calls)
+	}
+}
+
 // The form the lanes run. A committed file with two blocks gains a third: only the third is offered,
 // the two committed ones are shown as context and cannot be deleted whatever the model answers.
 func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
@@ -523,5 +557,35 @@ func TestVotingRollsOnWhenTheQuorumDisagrees(t *testing.T) {
 	}
 	if got != "1" {
 		t.Fatalf("got %q, want 1 — the third roll carried it", got)
+	}
+}
+
+// The roll count comes from the model policy, not from a literal, and that policy caps it at 9 — so
+// the wave arithmetic has to hold at the ceiling and not only at three. The ceiling is where an
+// off-by-one in a wave split would hide, and it is reachable by editing a config rather than only by
+// a test.
+//
+// Nine rolls put the quorum at five. Agreeing, the vote stops there: unit 1 is past a majority at
+// five, and a unit no roll named cannot reach one with four rolls left, so nothing is undecided.
+// Disagreeing two-of-five on unit 1 leaves it reachable — 2 now, 4 to come, 6 of 9 would carry it —
+// so the second wave has to fire.
+func TestTheWavesHoldAtThePolicysCeiling(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		replies []string
+		want    int
+	}{
+		{"a quorum that agrees stops at the quorum", []string{"1", "1", "1", "1", "1"}, 5},
+		{"a quorum that leaves a unit reachable rolls on", []string{"1", "1", "2", "2", "2", "1", "1", "1", "1"}, 9},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			call, calls := counting(rollsAnswering(c.replies...))
+			if _, err := Voting(call, 9)("p", viewOf("a", "b")); err != nil {
+				t.Fatalf("vote refused: %v", err)
+			}
+			if calls() != c.want {
+				t.Fatalf("%d call(s), want %d", calls(), c.want)
+			}
+		})
 	}
 }

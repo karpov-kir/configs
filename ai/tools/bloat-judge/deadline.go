@@ -28,7 +28,8 @@ import (
 // took. A roll is spent waiting on the API, so the bound scales with neither the text nor the load.
 //
 // 120 came from this same distribution read as though its worst roll were 39 seconds, and landed
-// inside it: two of the thirteen rolls above exceed it. That is the reported stall — a `record-entry`
+// inside it: one of the thirteen rolls above exceeds it, and two more land within three seconds
+// of it. That is the reported stall — a `record-entry`
 // judge over a full record, refused at exit 2 twice running, cut off mid-answer rather than hung.
 //
 // 420 is 2.8 times the slowest roll seen. Generous deliberately: this exists so a run ends, not so it

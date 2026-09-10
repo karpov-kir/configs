@@ -209,6 +209,13 @@ fi
 # has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
 if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
   { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
+  # Said, not done quietly. A caller who set RUN_TESTS_JOBS=6 and silently got one lane holds a
+  # number they believe they set and did not — the same defect this file refuses an unparsable
+  # RUN_TESTS_JOBS for, and it would show up only as a run that took six times as long.
+  if [ "$jobs" -gt 1 ]; then
+    printf '%s: bash %s has no `wait -n`, so the suites run one at a time rather than %s at a time\n' \
+      "${0##*/}" "${BASH_VERSINFO[0]:-?}.${BASH_VERSINFO[1]:-?}" "$jobs" >&2
+  fi
   jobs=1
 fi
 

@@ -98,8 +98,11 @@ func DefaultMemo(policy string) *Memo {
 func (m *Memo) key(kind, content string) string {
 	kindName, _, _ := strings.Cut(kind, "\n")
 	specification := kinds[kindName]
-	// Bump the algorithm version when unit extraction or majority semantics change.
-	identity := "judge-v2\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
+	// Bump the algorithm version when unit extraction or majority semantics change. v3: the bound a
+	// verdict is read against became the units on offer rather than the view's line count, and the
+	// vote became quorum-first waves — both of which can move a verdict over identical bytes, so a
+	// v2 record is not an answer to a v3 question.
+	identity := "judge-v3\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
 	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
@@ -537,7 +540,8 @@ func Apply(lines []string, units []Unit, gone []int) string {
 	return strings.Join(kept, "\n") + "\n"
 }
 
-// Voting wraps a Caller so a unit is deleted only when a majority of independent rolls name it. The
+// Voting wraps a Caller so a unit is deleted only when MORE THAN HALF the independent rolls name it —
+// which at an even count is a supermajority rather than a bare half: four rolls need three. The
 // model is not consistent from one run to the next, and precision matters more than recall here: a
 // block only one roll of three would delete stays. Each roll is parsed on its own, so one roll that
 // explains instead of answering — or names a unit that was never offered — fails the whole vote rather
