@@ -67,11 +67,27 @@ var copiedFileLine = regexp.MustCompile(`\bcp[ \t]+(?:-[-A-Za-z]+(?:=[^ \t\n]*)?
 var commentedLine = regexp.MustCompile(`^[ \t]*#`)
 
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
-	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
+	g.addUnit(unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
 }
 
 func (g *gate) addBlindToGoTests(id, kind string, inputs []string, cmd string) {
-	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
+	g.addUnit(unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
+}
+
+// The one place a unit is built, so the one place its declared inputs are made a set. Several append
+// sites reach the same file — a suite's sibling script is often also the library it sources, and
+// ai/run-tests.sh is both a seed input and one suite's own sibling — and a path listed twice made
+// `--units` report a count `--why` disagreed with, which is a number nobody can check a keying claim
+// against. Deduped here and not at each append site, because the site added next would forget: that
+// is why the `slices.Contains` guards that used to sit at two of them are gone, and why re-adding one
+// would only hide the next collision from the reader without changing the result.
+//
+// No cached verdict moves. A key comes from `linesUnder`, which walks the manifest and takes each
+// line at most once however many times a path is declared, and sorts what it takes — so a duplicate
+// never reached a key, and neither does the order this leaves the inputs in. Nothing indexes them.
+func (g *gate) addUnit(u unit) {
+	u.inputs = shell.SortUnique(u.inputs)
+	g.units = append(g.units, u)
 }
 
 func (g *gate) buildUnits() int {
@@ -197,9 +213,7 @@ func (g *gate) discoverShellSuites() int {
 			if err := safeToken("copied path", file); err != nil {
 				return g.fail("%s: %s", suite, err)
 			}
-			if !slices.Contains(inputs, file) {
-				inputs = append(inputs, file)
-			}
+			inputs = append(inputs, file)
 		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
@@ -217,9 +231,7 @@ func (g *gate) discoverShellSuites() int {
 					if err := safeToken("skill script", rel); err != nil {
 						return g.fail("%s: %s", suite, err)
 					}
-					if !slices.Contains(inputs, rel) {
-						inputs = append(inputs, rel)
-					}
+					inputs = append(inputs, rel)
 				}
 			}
 		}
