@@ -560,10 +560,14 @@ func TestVotingRollsOnWhenTheQuorumDisagrees(t *testing.T) {
 	}
 }
 
-// The roll count comes from the model policy, not from a literal, and that policy caps it at 9 — so
-// the wave arithmetic has to hold at the ceiling and not only at three. The ceiling is where an
-// off-by-one in a wave split would hide, and it is reachable by editing a config rather than only by
-// a test.
+// The count is Voting's own parameter and the wave split is derived from it, so the arithmetic has to
+// hold for counts other than the 3 production passes today. Nine because a high count is where an
+// off-by-one in a split hides, and because 3 alone would let a wrong general rule pass — at 3 the
+// quorum is 2 and almost any plausible formula gives 2.
+//
+// Deliberately says nothing about where the count comes from. An earlier version of this comment
+// claimed the model policy supplies it and caps it at 9; both were true of a change in another
+// session that has not landed, and neither was true of this tree.
 //
 // Nine rolls put the quorum at five. Agreeing, the vote stops there: unit 1 is past a majority at
 // five, and a unit no roll named cannot reach one with four rolls left, so nothing is undecided.

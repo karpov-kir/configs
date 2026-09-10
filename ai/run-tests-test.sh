@@ -462,6 +462,24 @@ out="$(RUN_TESTS_JOBS=two "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a job count that is not a number exits 2" "2" "$rc"
 check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
 
+# A suite whose runner subshell dies before it can write a status file. This is the one branch the
+# concurrent read-back added that nothing else drives, and it decides between NOMEASURE and folding a
+# suite that never reported into the pass count — the second being a green over a suite nobody
+# measured, which is the failure this whole file exists to refuse.
+#
+# The suite kills its own parent, which is the subshell running it, so `bash "$suite"` never returns
+# and the `printf ... > .status` after it never runs. Driven rather than reasoned, because reading the
+# `case` and agreeing with it is not evidence that the missing file reaches it.
+mkdir -p "$tmp/nostatus"
+new_suite "$tmp/nostatus/aa-good-test.sh" "1 passed, 0 failed"
+printf '#!/usr/bin/env bash\nkill -9 "$PPID"\nsleep 30\n' > "$tmp/nostatus/zz-dies-test.sh"
+out="$("$runner" "$tmp/nostatus" 2>&1)"; rc=$?
+check "a suite whose runner died is unmeasured, not a pass" "2" "$rc"
+check "and it is reported as NOMEASURE" "1" "$(matching_output_lines '^NOMEASURE .*zz-dies-test\.sh')"
+check "and it is counted as unmeasured, never passed" "1" \
+  "$(matching_output_lines '2 suite(s) found: 1 passed, 0 failed, 1 unmeasured')"
+check "and the suite beside it still passes" "1" "$(matching_output_lines '^ok   .*aa-good-test\.sh')"
+
 # The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
 # and it drifts where nobody looks: the only machine that prints them is the one the guard is for. Held
 # against the source they describe instead, on every machine.

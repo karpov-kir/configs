@@ -190,10 +190,11 @@ containment=""
 # a time bought only a tidy stream, and that is kept: each suite's output is buffered and the results
 # are read back in discovery order, so this prints exactly what it always printed.
 #
-# Bounded, not all at once. All fifteen in flight made the slowest suite take 146s where it takes 60
-# alone: they compete for the cores the `go build` inside them already wants. Half the machine leaves
-# that room. RUN_TESTS_JOBS=1 puts it back to one at a time, which is what to reach for when a suite
-# fails here and passes alone.
+# Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it
+# takes 80 alone — they compete for the cores the `go build` inside them already wants — and half the
+# machine leaves that room. Measured over the fifteen suites the tree then held; at nineteen it runs
+# 348s against 457s on one lane. RUN_TESTS_JOBS=1 puts it back to one at a time, which is what to
+# reach for when a suite fails here and passes alone.
 jobs="${RUN_TESTS_JOBS:-0}"
 case "$jobs" in
   "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;

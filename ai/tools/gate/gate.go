@@ -329,9 +329,12 @@ func hashString(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// The record's filename, which is not the id. Ids are package-qualified — `mutants:go:eco-check/
-// shell.go` — and a `/` in one names a directory the cache does not have, so every write for a go
-// mutation unit would fail and `--mutants` would report a pass having recorded nothing.
+// The record's filename, which is not the id. An id carries bytes a path segment may not: `:` in
+// every `mutants:go:…`, and `+` where a mutation unit covers more than one suite
+// (`mutants:go:shell+eco-stats`). Left as-is, a `/` in one would name a directory the cache does not
+// have and every write for that unit would fail, with `--mutants` reporting a pass having recorded
+// nothing — mutation ids no longer hold one, but nothing here promises that and a units-file table
+// may.
 func recordStem(id string) string {
 	var b strings.Builder
 	for i := 0; i < len(id); i++ {
