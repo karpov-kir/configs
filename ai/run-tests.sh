@@ -170,10 +170,12 @@ tree_state() {
 }
 
 # How many suites are in flight. Overlapping them is safe in the one respect anything here checks:
-# none writes into the checkout, and `tree_state` re-proves that on any run where git answers at all
-# — where it cannot, the summary says `containment unchecked` and nothing is proven. Each is meant to
-# build its own temp HOME, and nothing proves that one — `tree_state` is `git status` over the
-# checkout, blind to a write landing anywhere else, `$HOME` included.
+# none leaves a change behind in the checkout, and `tree_state` compares `git status` before against
+# after. That is narrower than it sounds. It catches a write still sitting there at the end, and misses
+# one a suite reverts before finishing, and one further edit to a file already dirty when the run
+# started; where git cannot answer, the summary says `containment unchecked` and nothing is compared at
+# all. Each suite is meant to build its own temp HOME, and none of this reaches that — `git status` over
+# the checkout is blind to a write landing anywhere else, `$HOME` included.
 #
 # So `bootstrap.sh --verify` takes one lane by default: it calls this runner right after writing
 # $HOME/.claude, $HOME/.kk-flavor and $HOME/.codex. One lane is no fix — a suite that escapes escapes
@@ -183,17 +185,26 @@ tree_state() {
 # 80 alone — they compete for the cores the `go build` inside them already wants — and half the machine
 # leaves that room.
 resolve_jobs() {
-  jobs="${RUN_TESTS_JOBS:-0}"
-  case "$jobs" in
-    "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
-  esac
+  # Naming nothing is held apart from every value a caller can spell, and only the first gets a
+  # default. Collapsing them — `${RUN_TESTS_JOBS:-0}` — makes the sentinel indistinguishable from a
+  # caller's own `0`, so a caller computing `$((n - 1))` into an underflow asks for the fewest lanes
+  # there are and silently gets half the machine. Zero in any spelling is refused instead, because no
+  # run is a run on no lanes, and set-but-empty with it: that is a caller's variable that did not
+  # expand, not a request to choose. Both arms were unreachable while `:-` rewrote them into a 0.
+  jobs="${RUN_TESTS_JOBS-}"
+  if [ -n "${RUN_TESTS_JOBS+named}" ]; then
+    case "$jobs" in
+      "") die "RUN_TESTS_JOBS is set but empty, so it names no number of suites" ;;
+      *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
+      *) [ "$jobs" -ge 1 ] || die "RUN_TESTS_JOBS is '$jobs', and a run needs at least one lane" ;;
+    esac
+  fi
   # A default, not a ceiling: a caller who has read the note above and wants the lanes on that path
-  # asks for a count and gets it. Only the request to choose is decided here — unset, or the explicit
-  # `0` that means the same thing, since both arrive as 0 and neither names a number.
-  if [ "$jobs" -lt 1 ] && [ -n "${BOOTSTRAP_VERIFYING:-}" ]; then
+  # asks for a count and gets it. Only the caller who named nothing is decided here.
+  if [ -z "$jobs" ] && [ -n "${BOOTSTRAP_VERIFYING:-}" ]; then
     jobs=1
   fi
-  if [ "$jobs" -lt 1 ]; then
+  if [ -z "$jobs" ]; then
     jobs=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
     [ "$jobs" -lt 1 ] && jobs=1
   fi

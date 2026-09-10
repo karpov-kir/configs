@@ -53,7 +53,7 @@ func (g *gate) unitLine(state, id, detail string) {
 // `shell:` is the group that must not overlap. Those suites build temp HOMEs and link into them, and
 // the one time containment failed it overwrote real config files. Serial is not what stops that: a
 // suite that escapes its temp HOME escapes alone just as well, and ai/run-tests.sh says as much where
-// it schedules suites inside one of these units. What serial stops is an escape compounding — peers
+// it schedules suites of its own. What serial stops is an escape compounding — peers
 // writing the same real paths in the same moment — and nothing can see it happen, because the
 // containment check is `git status` over the checkout and blind to a write landing anywhere else. So
 // the concurrency here is exactly one boundary: the shell block against everything else, the block

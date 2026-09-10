@@ -74,6 +74,26 @@ out="$(RUN_TESTS_JOBS=two "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a job count that is not a number exits 2" "2" "$rc"
 check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
 
+# Zero is a whole number and still no run, and it reaches here computed rather than typed — `$((n - 1))`
+# over an empty list. The caller who names nothing is the one meant to get a default, so a spelled zero
+# has to refuse rather than land on that same path holding half the machine.
+out="$(RUN_TESTS_JOBS=0 "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "a job count of zero exits 2" "2" "$rc"
+check "and says a run needs a lane" "1" "$(matching_output_lines 'a run needs at least one lane')"
+
+out="$(RUN_TESTS_JOBS=00 "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "and zero spelled another way is refused too" "2" "$rc"
+
+# Set but empty is the same mistake wearing a variable that did not expand.
+out="$(RUN_TESTS_JOBS= "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "an empty job count exits 2" "2" "$rc"
+check "and says it named no number" "1" "$(matching_output_lines 'set but empty')"
+
+# The negative control for all four: naming nothing at all is the one case that does get the default.
+rm -f "$tmp/together"/*.saw "$tmp/together"/*.running
+out="$("$runner" "$tmp/together" 2>&1)"; rc=$?
+check "naming no count at all still runs on the default" "0" "$rc"
+
 # A suite whose runner subshell dies before it can write a status file. Nothing else drives it, and it
 # decides between NOMEASURE and folding a suite that never reported into the pass count — a green over
 # a suite nobody measured, which is the failure this whole file exists to refuse.

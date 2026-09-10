@@ -8,7 +8,7 @@
 # It holds `check` and the two counters it moves, and not the summary line. Under
 # `~/.kk-flavor/standards/testing.md` → **7. What a suite reports** the shape of that line is itself an
 # assertion about the suite printing it: two fields say "no case in here is conditional", three say the
-# opposite. The three suites sourcing this print three different shapes, so one shared function would
+# opposite. The four suites sourcing this print three different shapes, so one shared function would
 # have to take the shape as an argument, which is the suite stating it either way. Sharing a summary is
 # not wrong in itself — lib/test-harness.sh's `report_suite` shares one across suites that all have the
 # same shape.
@@ -18,12 +18,8 @@
 # acquiring either, and it is why this file exists rather than lib/test-harness.sh growing a `check`:
 # that one mktemps and traps EXIT at source time.
 #
-# Not because it has no assertions. It has `record_pass`, `record_fail`, seven `expect_*` helpers and
-# `report_suite`, over `passed`/`failed` rather than `pass`/`fail`. So lib/ now carries two assertion
-# vocabularies for one job, and further suites hand-roll a third — ai/tools/install-test.sh's
-# `expect_eq` is this `check` renamed. Splitting test-harness.sh's assertion half out to source this
-# file is the change that ends with one; it reaches every suite sourcing that file and is deliberately
-# not in this one.
+# Not because that file has no assertions — it has `record_pass`, `record_fail`, eight `expect_*`
+# helpers and `report_suite`, over `passed`/`failed` rather than `pass`/`fail`.
 #
 # tested by: ai/mcp-env-test.sh, ai/mcp-sync-test.sh, ai/run-tests-test.sh,
 # ai/run-tests-concurrency-test.sh — a break here goes red in all four at once, which is the point of
