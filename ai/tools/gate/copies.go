@@ -1,11 +1,9 @@
-// Resolving what a suite copies into its fixture, and the git listing that answers it. Apart from the
-// unit table in units.go because a copied path is the one input read out of a script's text rather
-// than named by the table, so it is the only one that needs the checkout's own listing to become a
-// path — and the only one that can name a file the gate must refuse rather than key on.
+// Resolving what a suite copies into its fixture, and the git listing that answers it. A copied path
+// is the one input read out of a script's text, so only it needs the checkout's own listing to become
+// a path, and only it can name a file the gate must refuse rather than key on.
 package gate
 
 import (
-	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -149,30 +147,4 @@ func (g *gate) listFiles(pathspec string) ([]string, error) {
 		}
 	}
 	return listed, nil
-}
-
-func sourcedLibs(bodies ...string) []string {
-	var libs []string
-	for _, body := range bodies {
-		for _, match := range sourcedLibLine.FindAllStringSubmatch(body, -1) {
-			libs = append(libs, "lib/"+match[1])
-		}
-	}
-	return shell.SortUnique(libs)
-}
-
-// Empty rather than a refusal where the file cannot be read: the unit stays keyed on the suite either
-// way, and run-tests.sh is what reports a suite it cannot run.
-func fileText(path string) string {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	return string(body)
-}
-
-// Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
-// assumed safe: safeToken and the quoting are two defences, and an injection needs both to fail.
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }

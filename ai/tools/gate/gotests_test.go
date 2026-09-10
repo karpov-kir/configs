@@ -94,19 +94,37 @@ func TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests(t *testing.T) {
 		// Reaches the same tool AND compiles the module's own suites, so it sees `_test.go` and must
 		// stay keyed on them.
 		"compiles-test.sh": "#!/bin/sh\nai/tools/resolve.sh cite-graph\n(cd ai/tools && go test ./...)\n",
+		// Compiles the module and names no tool, so nothing but the `go test` reading keys it. Its
+		// inputs are the half that matters: flagged or not, a suite that compiles the tree and is keyed
+		// on nothing under it answers a cached pass over every tool it just built.
+		"suites-test.sh": "#!/bin/sh\n(cd ai/tools && go test ./...)\n",
 		// Names no tool at all, so it never took the tree and the flag is irrelevant to it.
 		"plain-test.sh": "#!/bin/sh\necho hello\n",
+		// The suite says nothing; the script it covers is what compiles the module. Read the suite
+		// alone and this is the unit that answers a cached pass over the tree it builds.
+		"covered-test.sh": "#!/bin/sh\nbash covered.sh\n",
+		"covered.sh":      "#!/bin/sh\n(cd ai/tools && go test ./...)\n",
 	}
 	for name, body := range suites {
 		writeFixture(t, filepath.Join(root, name), body)
 	}
 
-	g := &gate{root: root, env: Env{Root: root}}
+	said := &strings.Builder{}
+	g := &gate{root: root, env: Env{Root: root}, errOut: said}
 	if code := g.discoverShellSuites(); code != 0 {
-		t.Fatalf("discovery exited %d over a tree holding three suites", code)
+		t.Fatalf("discovery exited %d over a tree holding five suites: %s", code, said.String())
 	}
 
-	want := map[string]bool{"shell:binary": true, "shell:compiles": false, "shell:plain": false}
+	want := map[string]bool{
+		"shell:binary": true, "shell:compiles": false, "shell:suites": false, "shell:plain": false,
+		"shell:covered": false,
+	}
+	// Whether each is keyed on the tree at all, which the flag says nothing about: a unit can be
+	// unflagged because it compiles the module, or unflagged because it never touches it.
+	wantTree := map[string]bool{
+		"shell:binary": true, "shell:compiles": true, "shell:suites": true, "shell:plain": false,
+		"shell:covered": true,
+	}
 	seen := map[string]bool{}
 	for _, u := range g.units {
 		seen[u.id] = true
@@ -119,6 +137,11 @@ func TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests(t *testing.T) {
 			t.Errorf("%s has blindToGoTests=%v, wanted %v. A suite that runs `go test` sees the "+
 				"module's test files and must stay keyed on them; one that only execs a built tool "+
 				"cannot", u.id, u.blindToGoTests, expected)
+		}
+		if got := slices.Contains(u.inputs, goTree); got != wantTree[u.id] {
+			t.Errorf("%s is keyed on %s: %v, wanted %v. A suite that compiles the module and takes "+
+				"none of it answers a cached pass over the tools it built; its inputs are %v",
+				u.id, goTree, got, wantTree[u.id], u.inputs)
 		}
 	}
 	for id := range want {
@@ -184,10 +207,11 @@ func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 	// NUL yields one blob holding both — refused for the newline in it, and discovery finds nothing at
 	// all. Without this the case passes on a run that refuses everything.
 	writeFixture(t, filepath.Join(root, "second-test.sh"), "#!/bin/sh\ntrue\n")
-	clean := &gate{root: root, env: Env{Root: root}, errOut: &strings.Builder{}}
+	cleanSaid := &strings.Builder{}
+	clean := &gate{root: root, env: Env{Root: root}, errOut: cleanSaid}
 	if code := clean.discoverShellSuites(); code != 0 {
 		t.Fatalf("discovery refused a tree holding only ordinary names (exit %d): %s",
-			code, clean.errOut.(*strings.Builder).String())
+			code, cleanSaid.String())
 	}
 	var ids []string
 	for _, u := range clean.units {
@@ -201,7 +225,8 @@ func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 
 	writeFixture(t, filepath.Join(root, "two words-test.sh"), "#!/bin/sh\ntrue\n")
 
-	g := &gate{root: root, env: Env{Root: root}, errOut: &strings.Builder{}}
+	refused := &strings.Builder{}
+	g := &gate{root: root, env: Env{Root: root}, errOut: refused}
 	code := g.discoverShellSuites()
 
 	// Refused, and refused by the name that actually exists.
@@ -209,7 +234,7 @@ func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 		t.Fatalf("discovery accepted a suite name it cannot build a command from; it produced %d unit(s)",
 			len(g.units))
 	}
-	said := g.errOut.(*strings.Builder).String()
+	said := refused.String()
 	if !strings.Contains(said, "two words-test.sh") {
 		t.Errorf("the refusal does not name the file that caused it, so nobody can act on it: %q", said)
 	}

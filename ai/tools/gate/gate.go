@@ -227,6 +227,12 @@ func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string
 //
 // Refused rather than escaped, and refused at discovery rather than at use, so the gate fails closed
 // the way its other refusals do and says which name it cannot handle.
+// Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
+// assumed safe: safeToken and the quoting are two defences, and an injection needs both to fail.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
 func safeToken(what, value string) error {
 	if value == "" {
 		return fmt.Errorf("an empty %s names no file, so the gate refuses to build a command from it — nothing ran", what)

@@ -53,10 +53,8 @@ var sourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*\.[ \t]+"[^"]*/lib/([^"/]+\.
 // Neither reads a source line buried mid-line, nor a library some third file sources.
 var anySourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?\blib/([A-Za-z0-9._-]+\.sh)`)
 
-// A line that runs nothing. Read by both text scans below, which is why it matches only a line that
-// STARTS with `#`: a marker after a real command still counts. Anchoring the cp pattern above to the
-// start of a line would be the tighter guard there, but ai/mcp-sync-test.sh puts a real cp after a
-// `case` arm.
+// A line that runs nothing. Matches only a line that STARTS with `#`, so a marker after a real
+// command still counts. Read by drivesGoTool below and by copiedRepoFiles in copies.go.
 var commentedLine = regexp.MustCompile(`^[ \t]*#`)
 
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
@@ -172,10 +170,8 @@ func (g *gate) discoverShellSuites() int {
 		case "ai/rtk-bootstrap-test.sh":
 			sibling = "ai/bootstrap.sh"
 			inputs = append(inputs, "ai/owner-instructions.md")
-		// No ai/run-tests-concurrency.sh exists; this suite covers ai/run-tests.sh, which every shell
-		// unit already takes as a seed input. Naming it the sibling is what gets it SCANNED — otherwise
-		// the two units over that one script disagree about what it drives, which is the asymmetry the
-		// marker scan below was widened to close.
+		// No ai/run-tests-concurrency.sh exists; this suite covers ai/run-tests.sh. Being an input keys
+		// the unit on that file; naming it the sibling is what gets its text SCANNED.
 		case "ai/run-tests-concurrency-test.sh":
 			sibling = "ai/run-tests.sh"
 		case "ai/install-project-test.sh", "ai/project-skills-test.sh":
@@ -213,8 +209,7 @@ func (g *gate) discoverShellSuites() int {
 		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
-		// `_test.go` files — 101 of the 211 files under ai/tools, none of which `go build` puts in a
-		// binary. The 110 that remain are what one of these units carries, and only 100 are Go.
+		// `_test.go` files — `go build` puts none of them in one.
 		viaBinary := false
 		if strings.Contains(body, "kk-flavor/skills") {
 			matches, globErr := filepath.Glob(filepath.Join(g.root, skillScripts))
@@ -231,17 +226,15 @@ func (g *gate) discoverShellSuites() int {
 				}
 			}
 		}
-		// A suite living inside the tool tree observes it whatever its text says, and that is asserted
-		// from its path rather than read out of its prose. It is also what lets the scan below drop the
-		// bare `tools/` marker: ai/tools/source-stamp-test.sh matched only through comments, and the
-		// script it covers only through a shell variable that happens to be named `tools` — so on text
-		// alone the one suite that genuinely fingerprints the tree was the first to lose its keying.
-		if strings.HasPrefix(suite, goTree+"/") || drivesGoTool(body, siblingBody) {
+		// Three ways into one input. A suite inside the tool tree observes it whatever its text says,
+		// which is what lets the scan below ask for `ai/tools/` rather than a bare `tools/`. Running the
+		// module's own suites is the third: such a suite compiles the tree, so keying it on nothing is a
+		// cached pass over a tool that changed, and it decides the blindness rather than only clearing
+		// it — what it observes is the test files, not a binary built without them.
+		runsGoSuites := goSuiteRun.MatchString(body) || goSuiteRun.MatchString(siblingBody)
+		if strings.HasPrefix(suite, goTree+"/") || runsGoSuites || drivesGoTool(body, siblingBody) {
 			inputs = append(inputs, goTree)
-			viaBinary = true
-		}
-		if goSuiteRun.MatchString(body) {
-			viaBinary = false
+			viaBinary = !runsGoSuites
 		}
 		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit 2
 		// is "did not measure", and a suite exiting 0 having run no case is VACUOUS and a failure. Run
@@ -258,29 +251,23 @@ func (g *gate) discoverShellSuites() int {
 }
 
 // What a suite or its script says when it reaches into the Go tool tree. `ai/tools/` and not a bare
-// `tools/`: the loose form matched `$tmp_real/tools/mise`, a fake mise shim two suites write into
-// their own temp dir and put on PATH, and took 110 files on the strength of it.
+// `tools/`: the loose form also matches `$tmp_real/tools/mise`, a fake mise shim two suites write
+// into their own temp dir and put on PATH.
 //
 // `tools/install.sh` is spelt out because ai/bootstrap.sh reaches the installer through a variable —
-// `"$repo/tools/install.sh"` — and `ai/tools/` never matches that line. Without it both bootstrap
-// units are keyed only through the three diagnostic strings that happen to quote the full path, so
-// rewording a message would unkey them from the tree.
+// `"$repo/tools/install.sh"` — which `ai/tools/` never matches. Without it shell:ai/rtk-bootstrap,
+// whose own suite names no tool at all, is keyed only through the diagnostic strings that quote the
+// path.
 var goToolMarkers = []string{goTree + "/", "tools/install.sh", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"}
 
-// Both the suite and the script it covers, because either can be the one that runs the tool. Scanning
-// the suite alone left shell:ai/rtk-bootstrap unkeyed while ai/bootstrap.sh runs the installer, and
-// shell:ai/bootstrap keyed because its own suite happens to name that installer too — one script, two
-// units, opposite answers, decided by which of them mentioned it. Under-keying is the direction that
-// reports a pass nobody earned, so that asymmetry mattered more than the over-keying beside it.
+// Both the suite and the script it covers, because either can be the one that runs the tool. Read one
+// and not the other and two units over the same script get opposite answers.
 //
-// Comment lines do not count. A marker in prose runs nothing, and a header sentence naming a Go suite
-// was the whole reason shell:…/todo-gate carried 110 phantom inputs and went stale on every unrelated
-// Go edit. Only a line that starts with `#` is skipped: a marker after a real command still keys, which
-// is the conservative reading of a trailing comment.
+// Comment lines do not count: a marker in prose runs nothing, and a header sentence naming a Go suite
+// would take the whole tree on the strength of it.
 //
-// There is no refusal to fall back on here the way unreadLib has one — silence is a real answer, not a
-// scan that failed — so the units where a wrong answer is worst are the ones decided by path above
-// rather than by any of this.
+// Silence here is an answer, not a scan that failed, so there is no refusal to fall back on the way
+// unreadLib has one — which is why the units where a wrong answer costs most are decided by path.
 func drivesGoTool(bodies ...string) bool {
 	for _, body := range bodies {
 		for _, line := range strings.Split(body, "\n") {
@@ -295,6 +282,26 @@ func drivesGoTool(bodies ...string) bool {
 		}
 	}
 	return false
+}
+
+func sourcedLibs(bodies ...string) []string {
+	var libs []string
+	for _, body := range bodies {
+		for _, match := range sourcedLibLine.FindAllStringSubmatch(body, -1) {
+			libs = append(libs, "lib/"+match[1])
+		}
+	}
+	return shell.SortUnique(libs)
+}
+
+// Empty rather than a refusal where the file cannot be read: the unit stays keyed on the suite either
+// way, and run-tests.sh is what reports a suite it cannot run.
+func fileText(path string) string {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(body)
 }
 
 func unreadLib(keyed []string, bodies ...string) string {

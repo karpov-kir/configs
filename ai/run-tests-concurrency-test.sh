@@ -5,8 +5,8 @@
 #   usage: run-tests-concurrency-test.sh   # one line per case; exit 0 when all pass, 1 otherwise
 #
 # There is no ai/run-tests-concurrency.sh. This covers ai/run-tests.sh, the same script its sibling
-# ai/run-tests-test.sh covers, and the gate keys every shell unit on ai/run-tests.sh whether or not a
-# suite has a script of its own name (ai/tools/gate/units.go), so the split needed nothing there.
+# ai/run-tests-test.sh covers. Every shell unit is keyed on that file already, so the split needed no
+# new input; the gate names it this suite's sibling so its text is scanned too (ai/tools/gate/units.go).
 set -uo pipefail
 export LC_ALL=C
 
@@ -68,9 +68,8 @@ out="$(RUN_TESTS_JOBS=two "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a job count that is not a number exits 2" "2" "$rc"
 check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
 
-# Zero is a whole number and still no run, and it reaches here computed rather than typed — `$((n - 1))`
-# over a one-element list. The caller who names nothing is the one meant to get a default, so a
-# spelled zero has to refuse rather than land on that same path holding half the machine.
+# Zero passes the digits check and still names no run. Only an unset variable earns the default, so a
+# spelled zero has to refuse.
 out="$(RUN_TESTS_JOBS=0 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a job count of zero exits 2" "2" "$rc"
 check "and says a run needs a lane" "1" "$(matching_output_lines 'a run needs at least one lane')"
@@ -113,8 +112,7 @@ out="$(BOOTSTRAP_VERIFYING=1 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "under bootstrap --verify the suites still all pass" "0" "$rc"
 check "and no suite there ever sees another running" "1" "$(most_seen "$tmp/together")"
 
-# A default, not a ceiling. Without this the carve-out above could tighten into a rule nobody asked
-# for, and the case that proves it is honoured is the only thing standing between the two.
+# A default, not a ceiling: an explicit count still wins on that path.
 rm -f "$tmp/together"/*.saw "$tmp/together"/*.running
 out="$(BOOTSTRAP_VERIFYING=1 RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "an explicit count still wins under bootstrap --verify" "0" "$rc"

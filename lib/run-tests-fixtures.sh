@@ -3,9 +3,9 @@
 # The fixtures the run-tests suites share. Sourced, never executed — the filename does not end in
 # `-test.sh`, so run-tests.sh's discovery does not pick it up as a suite of its own.
 #
-# It lives under lib/ because that is the only place the gate can see it. ai/tools/gate/units.go keys
-# each shell unit on the libraries its suite sources, and both patterns that find them — sourcedLibs
-# and the wider unreadLib that refuses what they cannot read — match `lib/<name>.sh` and nothing else.
+# It lives under lib/ because that is the only place the gate can see it. The gate keys each shell unit
+# on the libraries its suite sources, and both patterns that find them — the scan and the wider refusal
+# for what it cannot read — match `lib/<name>.sh` and nothing else.
 # A fixtures file beside the suites in ai/ would be sourced without being keyed on, and the unit would
 # then answer out of its cache with these fixtures edited underneath it. That is a silent stale green,
 # so the directory is load-bearing rather than tidy.

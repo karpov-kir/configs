@@ -851,7 +851,7 @@ var mutants = []mutant{
 	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
 	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"if goSuiteRun.MatchString(body) {", "if goSuiteRun.MatchString(body) && false {"},
+		"runsGoSuites := goSuiteRun.MatchString(body) || goSuiteRun.MatchString(siblingBody)", "runsGoSuites := false"},
 	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
 	{"gate: a suite is keyed on nothing it sources from lib/", "../gate/units.go", "./gate/", "TestEditingASourcedLibraryMovesTheBootstrapUnitsKeys",

@@ -14,8 +14,8 @@ var notGoDriven = map[string]string{
 	"shell:ai/install-project":                                 "a fake mise shim the suite writes into its own temp dir under $tmp_real/tools/",
 	"shell:ai/project-skills":                                  "the same shim in that suite's fixture",
 	"shell:ai/kk-flavor/skills/idsd-qualify/scripts/todo-gate": "a header comment naming eco-report's Go suite",
-	// The other two units the comment skip is holding. Without them, dropping that skip re-keys three
-	// units and only one of them reddens, which reads as coverage this does not have.
+	// The other two the comment skip is holding: drop that skip and three units re-key, so all three
+	// have to be named here for the revert to redden.
 	"shell:ai/run-tests-concurrency": "this suite's own header naming ai/tools/gate/units.go",
 	"shell:lib/install-registry":     "lib/install-registry.sh's header naming a bloat-judge source",
 }
@@ -23,19 +23,22 @@ var notGoDriven = map[string]string{
 // The control, and the half that matters more: each of these does drive a Go tool, so a change that
 // unkeyed the scan entirely would satisfy the map above and be caught only here. source-stamp is the
 // one to keep in mind — it says so through a shell variable named `tools` and through comments, so on
-// marker text alone it is the first suite to lose keying it needs.
+// marker text alone. Every unit the current logic keys is listed, so a narrowing cannot slip past by
+// unkeying one nobody wrote down. Which arm holds each is worth knowing: source-stamp, ai/tools/install,
+// resolve and tool-stub are keyed by their path, the rest only by what their text says.
 var goDriven = map[string]string{
-	"shell:ai/tools/source-stamp": "source-stamp.sh fingerprints the tree",
-	"shell:ai/tools/install":      "the installer runs the tools built from it",
-	"shell:ai/rtk-bootstrap":      "ai/bootstrap.sh runs tools/install.sh",
-	// Was in neither map while both bootstrap units were keyed only through the three diagnostic
-	// strings that quote the installer's full path — reword a message and they unkey with nothing red.
-	"shell:ai/bootstrap": "ai/bootstrap.sh runs tools/install.sh, and this suite stubs and asserts on it",
-	"shell:ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph": "cite-graph.sh runs the cite-graph tool",
+	"shell:ai/tools/source-stamp":                               "source-stamp.sh fingerprints the tree, and says so only through a $tools variable",
+	"shell:ai/tools/install":                                    "the installer runs the tools built from it",
+	"shell:ai/tools/resolve":                                    "it lives in the tool tree and resolves the tools out of it",
+	"shell:ai/tools/tool-stub":                                  "it copies the stubs that reach the tools",
+	"shell:ai/rtk-bootstrap":                                    "ai/bootstrap.sh runs tools/install.sh, and this suite names no tool itself",
+	"shell:ai/bootstrap":                                        "the same script, and this suite also stubs ai/tools/install.sh and asserts on it",
+	"shell:ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph": "cite-graph.sh runs cite-graph through tools/resolve.sh",
+	"shell:ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho":   "ruleecho.sh runs rule-echo the same way",
 }
 
 func TestOnlyTheSuitesThatReachTheGoTreeAreKeyedOnIt(t *testing.T) {
-	g, _ := discoveredOverThisRepo(t)
+	g, _, _ := discoveredOverThisRepo(t)
 	keyed := map[string]bool{}
 	for _, u := range g.units {
 		keyed[u.id] = slices.Contains(u.inputs, goTree)
@@ -77,9 +80,12 @@ func TestTheGoToolScanReadsCommandsAndNotProse(t *testing.T) {
 		{"a tool named only in prose", "# the caller's side is pinned by eco-report's Go suite\n", false},
 		{"a tool named in a command", "eco-report --check\n", true},
 		{"a fixture path that merely holds the word", "cat > \"$tmp_real/tools/mise\" <<'MISE'\n", false},
-		// ai/bootstrap.sh:447 as it is actually written. Without this the only lines that match in that
-		// script are three diagnostic strings quoting the path, and rewording one unkeys two units.
+		// Copied from ai/bootstrap.sh — the `$repo` root is what `ai/tools/` cannot match. Reword the
+		// diagnostics that quote the full path and shell:ai/rtk-bootstrap unkeys without this.
 		{"the installer reached through a variable root", "  \"$repo/tools/install.sh\"\n", true},
+		// The clause that decides blindness as well as keying. A suite compiling the module observes its
+		// test files, so it takes the tree and is NOT blind to them.
+		{"a suite that runs the module's own suites", "(cd ai/tools && go test ./...)\n", false},
 		{"a comment after a real command", "run_it   # eco-check\n", true},
 		{"an indented comment", "  # eco-stats --agent=claude\n", false},
 	} {

@@ -185,17 +185,18 @@ tree_state() {
 # 80 alone — they compete for the cores the `go build` inside them already wants — and half the machine
 # leaves that room.
 resolve_jobs() {
-  # Naming nothing is held apart from every value a caller can spell, and only the first gets a
-  # default. Collapsing them — `${RUN_TESTS_JOBS:-0}` — makes the sentinel indistinguishable from a
-  # caller's own `0`, so a caller whose count lands on zero asks for the fewest lanes there are and
-  # silently gets half the machine. Zero in any spelling is refused instead, because no run is a run
-  # on no lanes, and set-but-empty with it: that is a caller's variable that did not expand, not a
-  # request to choose.
+  # Unset is held apart from every value a caller can spell, and only unset gets the default.
+  # `${RUN_TESTS_JOBS:-0}` would collapse them, making a caller's own `0` indistinguishable from the
+  # sentinel and handing it the default in silence. Zero is refused: no run is a run on no lanes.
+  # Set-but-empty is refused with it — a variable that did not expand names no number.
   jobs="${RUN_TESTS_JOBS-}"
   if [ -n "${RUN_TESTS_JOBS+named}" ]; then
     case "$jobs" in
       "") die "RUN_TESTS_JOBS is set but empty, so it names no number of suites" ;;
       *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
+      # Refused before the arithmetic below, which would otherwise report a number `test` could not
+      # read as one against the message about zero.
+      [0-9][0-9][0-9][0-9][0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is more lanes than a machine has" ;;
       *) [ "$jobs" -ge 1 ] || die "RUN_TESTS_JOBS is '$jobs', and a run needs at least one lane" ;;
     esac
   fi
@@ -205,7 +206,14 @@ resolve_jobs() {
     jobs=1
   fi
   if [ -z "$jobs" ]; then
-    jobs=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
+    # Validated like a caller's value, because it is read from outside: getconf answering something
+    # that is not a count would otherwise reach the arithmetic below and kill the runner with a
+    # syntax error, which callers read as a suite failing rather than as the runner not measuring.
+    cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+    case "$cores" in
+      "" | *[!0-9]*) cores=2 ;;
+    esac
+    jobs=$(( cores / 2 ))
     [ "$jobs" -lt 1 ] && jobs=1
   fi
   # `wait -n` arrived in bash 4.3. Without it there is no way to free one slot at a time, so the suites
