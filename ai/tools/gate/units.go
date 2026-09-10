@@ -235,7 +235,12 @@ func (g *gate) discoverShellSuites() int {
 				}
 			}
 		}
-		if drivesGoTool(body) {
+		// A suite living inside the tool tree observes it whatever its text says, and that is asserted
+		// from its path rather than read out of its prose. It is also what lets the scan below drop the
+		// bare `tools/` marker: ai/tools/source-stamp-test.sh matched only through comments, and the
+		// script it covers only through a shell variable that happens to be named `tools` — so on text
+		// alone the one suite that genuinely fingerprints the tree was the first to lose its keying.
+		if strings.HasPrefix(suite, goTree+"/") || drivesGoTool(body, siblingBody) {
 			inputs = append(inputs, goTree)
 			viaBinary = true
 		}
@@ -256,10 +261,35 @@ func (g *gate) discoverShellSuites() int {
 	return 0
 }
 
-func drivesGoTool(body string) bool {
-	for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
-		if strings.Contains(body, marker) {
-			return true
+// What a suite or its script says when it reaches into the Go tool tree. `ai/tools/` and not a bare
+// `tools/`: the loose form matched `$tmp_real/tools/mise`, a fake mise shim two suites write into
+// their own temp dir and put on PATH, and took ~110 Go sources on the strength of it.
+var goToolMarkers = []string{goTree + "/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"}
+
+// Both the suite and the script it covers, because either can be the one that runs the tool — scanning
+// the suite alone left shell:ai/rtk-bootstrap unkeyed on the tree while ai/bootstrap.sh executes
+// ai/tools/install.sh, and shell:ai/bootstrap keyed on it over that same script. Under-keying is the
+// direction that reports a pass nobody earned, so that asymmetry mattered more than the over-keying.
+//
+// Comment lines do not count. A marker in prose runs nothing, and a header sentence naming a Go suite
+// was the whole reason shell:…/todo-gate carried 110 phantom inputs and went stale on every unrelated
+// Go edit. Only a line that starts with `#` is skipped: a marker after a real command still keys, which
+// is the conservative reading of a trailing comment.
+//
+// There is no refusal to fall back on here the way unreadLib has one — silence is a real answer, not a
+// scan that failed — so the units where a wrong answer is worst are the ones decided by path above
+// rather than by any of this.
+func drivesGoTool(bodies ...string) bool {
+	for _, body := range bodies {
+		for _, line := range strings.Split(body, "\n") {
+			if commentedLine.MatchString(line) {
+				continue
+			}
+			for _, marker := range goToolMarkers {
+				if strings.Contains(line, marker) {
+					return true
+				}
+			}
 		}
 	}
 	return false

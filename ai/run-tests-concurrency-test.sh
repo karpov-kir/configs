@@ -6,13 +6,7 @@
 #
 # There is no ai/run-tests-concurrency.sh. This covers ai/run-tests.sh, the same script its sibling
 # ai/run-tests-test.sh covers, and the gate keys every shell unit on ai/run-tests.sh whether or not a
-# suite has a script of its own name (see gate/units.go), so the split needed nothing there.
-#
-# That path is written short on purpose. `drivesGoTool` beside it decides whether a suite's unit is
-# keyed on the whole Go tree by scanning this entire file for a few bare substrings, one of them the
-# word tools followed by a slash — so a comment quoting that full path is enough to trigger it. Spelt
-# out here it keyed this unit on ~110 Go sources the suite never reads, stale on every unrelated Go
-# edit. Lengthen the path and it comes back.
+# suite has a script of its own name (ai/tools/gate/units.go), so the split needed nothing there.
 set -uo pipefail
 export LC_ALL=C
 
