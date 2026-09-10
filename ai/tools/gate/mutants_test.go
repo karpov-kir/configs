@@ -8,6 +8,7 @@
 package gate
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -86,12 +87,7 @@ func TestFilesInOneDirectorySplitWhenTheirSuitesDiffer(t *testing.T) {
 		"mutants:go:eco-stats": "../eco-root/contained.go",
 		"mutants:go:eco-root":  "../eco-root/eco-root.go",
 	} {
-		group := groupNamed(t, id)
-		found := false
-		for _, file := range group.files {
-			found = found || file == suite
-		}
-		if !found {
+		if group := groupNamed(t, id); !slices.Contains(group.files, suite) {
 			t.Errorf("%s is not in %s, whose suite is the one it is mutated against", suite, id)
 		}
 	}

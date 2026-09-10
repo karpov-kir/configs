@@ -559,40 +559,22 @@ func Apply(lines []string, units []Unit, gone []int) string {
 func Voting(call Caller, rolls int) Caller {
 	return func(prompt, view string) (string, error) {
 		count := unitsInView(view)
-		named := make([][]int, rolls)
-		errs := make([]error, rolls)
 		tally := map[int]int{}
 		// The quorum of `rolls`, which is the fewest that can carry a majority: two of three. Rolling
 		// fewer than this first could never settle anything, so it would only add a wave.
-		for from := 0; from < rolls; from = min(from+rolls/2+1, rolls) {
-			upto := min(from+rolls/2+1, rolls)
-			var wg sync.WaitGroup
-			for i := from; i < upto; i++ {
-				wg.Add(1)
-				go func(i int) {
-					defer wg.Done()
-					reply, err := call(prompt, view)
-					if err != nil {
-						errs[i] = err
-						return
-					}
-					named[i], errs[i] = ParseVerdict(reply, count)
-				}(i)
+		quorum := rolls/2 + 1
+		for rolled := 0; rolled < rolls; {
+			named, err := rollWave(call, prompt, view, count, min(quorum, rolls-rolled))
+			if err != nil {
+				return "", err
 			}
-			wg.Wait()
-			// Read in roll order, not in the order they landed, so the same failures always report the
-			// same one and a refusal is reproducible.
-			for i := from; i < upto; i++ {
-				if errs[i] != nil {
-					return "", errs[i]
-				}
-			}
-			for i := from; i < upto; i++ {
-				for _, n := range named[i] {
+			rolled += len(named)
+			for _, gone := range named {
+				for _, n := range gone {
 					tally[n]++
 				}
 			}
-			if settled(tally, count, rolls, rolls-upto) {
+			if settled(tally, count, rolls, rolls-rolled) {
 				break
 			}
 		}
@@ -607,6 +589,33 @@ func Voting(call Caller, rolls int) Caller {
 		}
 		return strings.Join(agreed, ","), nil
 	}
+}
+
+func rollWave(call Caller, prompt, view string, count, wave int) ([][]int, error) {
+	named := make([][]int, wave)
+	errs := make([]error, wave)
+	var wg sync.WaitGroup
+	for i := 0; i < wave; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			reply, err := call(prompt, view)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			named[i], errs[i] = ParseVerdict(reply, count)
+		}(i)
+	}
+	wg.Wait()
+	// Read in roll order, not in the order they landed, so the same failures always report the
+	// same one and a refusal is reproducible.
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+	return named, nil
 }
 
 // settled says no unrolled roll could still change the answer: every unit is already past a majority,

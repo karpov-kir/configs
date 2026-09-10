@@ -169,6 +169,43 @@ tree_state() {
   git -C "$root" status --porcelain 2>/dev/null
 }
 
+# How many suites are in flight. They are independent — each builds its own temp HOME and none writes
+# into the checkout, which the containment check below re-proves on every run — so running them one at
+# a time bought only a tidy stream, and that is kept: each suite's output is buffered and the results
+# are read back in discovery order, so this prints exactly what it always printed.
+#
+# Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it
+# takes 80 alone — they compete for the cores the `go build` inside them already wants — and half the
+# machine leaves that room. Measured over the fifteen suites the tree then held; at nineteen it runs
+# 348s against 457s on one lane. RUN_TESTS_JOBS=1 puts it back to one at a time, which is what to
+# reach for when a suite fails here and passes alone.
+resolve_jobs() {
+  jobs="${RUN_TESTS_JOBS:-0}"
+  case "$jobs" in
+    "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
+  esac
+  if [ "$jobs" -lt 1 ]; then
+    jobs=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
+    [ "$jobs" -lt 1 ] && jobs=1
+  fi
+  # `wait -n` arrived in bash 4.3. Without it there is no way to free one slot at a time, so the suites
+  # run one at a time — which is what this did before, and is never wrong, only slower.
+  #
+  # Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
+  # has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
+  if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
+    { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
+    # Said, not done quietly. A caller who set RUN_TESTS_JOBS=6 and silently got one lane holds a
+    # number they believe they set and did not — the same defect this file refuses an unparsable
+    # RUN_TESTS_JOBS for, and it would show up only as a run that took six times as long.
+    if [ "$jobs" -gt 1 ]; then
+      printf '%s: bash %s has no `wait -n`, so the suites run one at a time rather than %s at a time\n' \
+        "${0##*/}" "${BASH_VERSINFO[0]:-?}.${BASH_VERSINFO[1]:-?}" "$jobs" >&2
+    fi
+    jobs=1
+  fi
+}
+
 # The sentinel preserves newlines belonging to the path, which command substitution strips.
 root_real="$(real_dir "$root" && printf .)" || exit 2
 root_real="${root_real%$'\n'.}"
@@ -185,40 +222,7 @@ before_tree="$(tree_state)"
 tree_readable=$?
 containment=""
 
-# How many suites are in flight. They are independent — each builds its own temp HOME and none writes
-# into the checkout, which the containment check below re-proves on every run — so running them one at
-# a time bought only a tidy stream, and that is kept: each suite's output is buffered and the results
-# are read back in discovery order, so this prints exactly what it always printed.
-#
-# Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it
-# takes 80 alone — they compete for the cores the `go build` inside them already wants — and half the
-# machine leaves that room. Measured over the fifteen suites the tree then held; at nineteen it runs
-# 348s against 457s on one lane. RUN_TESTS_JOBS=1 puts it back to one at a time, which is what to
-# reach for when a suite fails here and passes alone.
-jobs="${RUN_TESTS_JOBS:-0}"
-case "$jobs" in
-  "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
-esac
-if [ "$jobs" -lt 1 ]; then
-  jobs=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
-  [ "$jobs" -lt 1 ] && jobs=1
-fi
-# `wait -n` arrived in bash 4.3. Without it there is no way to free one slot at a time, so the suites
-# run one at a time — which is what this did before, and is never wrong, only slower.
-#
-# Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
-# has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
-if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
-  { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
-  # Said, not done quietly. A caller who set RUN_TESTS_JOBS=6 and silently got one lane holds a
-  # number they believe they set and did not — the same defect this file refuses an unparsable
-  # RUN_TESTS_JOBS for, and it would show up only as a run that took six times as long.
-  if [ "$jobs" -gt 1 ]; then
-    printf '%s: bash %s has no `wait -n`, so the suites run one at a time rather than %s at a time\n' \
-      "${0##*/}" "${BASH_VERSINFO[0]:-?}.${BASH_VERSINFO[1]:-?}" "$jobs" >&2
-  fi
-  jobs=1
-fi
+resolve_jobs
 
 work="$(mktemp -d)" || die "no temp directory to collect the suites' output in — nothing ran"
 trap 'rm -rf "$work"' EXIT
