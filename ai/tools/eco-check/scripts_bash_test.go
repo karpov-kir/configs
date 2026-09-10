@@ -19,7 +19,7 @@ func newCheckerOverAScript(t *testing.T, body string) *checker {
 	if err := os.WriteFile(root+"/kk-flavor/skills/broken.sh", []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	c, ok := newChecker(root)
+	c, ok := newChecker(root, "claude")
 	if !ok {
 		t.Fatal("the fixture is not a checkout")
 	}

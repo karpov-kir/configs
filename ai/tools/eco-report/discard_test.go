@@ -72,13 +72,17 @@ func TestDiscardDestructivePath(t *testing.T) {
 	only := newShip(t, "001-only-ship")
 	only.newIntentFile("001-only-ship")
 	only.runReport("invalidate", "001-only-ship")
-	only.runReport("stage-returned", "code-review", "001-only-ship")
-	markers := only.repo + "/.git/idsd-stage-returns/001-only-ship"
+	only.recordCleanStage("code-review", "001-only-ship")
+	only.runReport("decisions-reviewed", "001-only-ship")
+	decisionMarkers := only.repo + "/.git/idsd-stage-returns/001-only-ship"
+	only.record("fixture has decision review evidence", only.status == 0 && only.isFile(decisionMarkers+"/decisions-reviewed"), only.evidence())
+	markers := only.stageResultsPath("001-only-ship")
+	only.record("fixture has accepted results", only.status == 0 && only.isFile(markers), only.evidence())
 	only.runReport("discard", "001-only-ship")
 	only.assertIdsdRemoved("discard removes the whole .idsd/ when this ship was the only thing in it")
-	// The stage markers live in the git dir, so removing .idsd/ cannot reach them. They need their own
-	// removal, or the next ship for this intent inherits a completed stage record and stamps for free.
-	only.record("and the stage markers in the git dir, which removing .idsd/ never reaches", !only.exists(markers), "")
+	// The stage results live in the git dir, so removing .idsd/ cannot reach them. They need their own
+	// removal, or the next ship for this intent retains results from a completed pass.
+	only.record("and the stage results in the git dir, which removing .idsd/ never reaches", !only.exists(markers) && !only.exists(decisionMarkers), "")
 	// Zero traces means the working tree too. There is no exclusion to drop any more, so what has to
 	// hold is that nothing was ever put in the tree for one to hide.
 	only.record("and left nothing in the working tree either", only.treeIsFreeOfScratch(), "")
@@ -162,10 +166,10 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 	typo := newRepo(t)
 	typo.runReport("check-ignore")
 	typo.mkdirAll(typo.scratch())
-	typo.write(typo.scratch()+"/decisions.md", "# decisions\n")
+	typo.write(typo.scratch()+"/for-agents/decisions.md", "# decisions\n")
 	typo.runReport("discard", "999-typo")
 	typo.assertRefused("discard refuses a typo rather than removing the directory around it")
-	typo.record("and the decision log survives", typo.isFile(typo.scratch()+"/decisions.md"), "")
+	typo.record("and the decision log survives", typo.isFile(typo.scratch()+"/for-agents/decisions.md"), "")
 
 	// A repo that never used idsd has nothing to lose; the guard is what stops discard tearing down a
 	// scratch dir it never created.
@@ -259,14 +263,14 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	// that list deletes the file it names and reports zero traces, so every row gets a fixture. The
 	// list is spelled out again rather than read from the source: a test looping the real one would
 	// follow a dropped row instead of catching it.
-	for _, durable := range []string{"charter.md", "constraints.md", "language.md", "playbook.md"} {
+	for _, durable := range []string{"charter.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting/reference.txt"} {
 		f := newShip(t, "001-durable")
 		f.write(f.scratch()+"/"+durable, "# the human's own\n")
 		f.runReport("discard", "001-durable")
 		f.record(durable+" alone keeps .idsd/ standing through a discard",
 			f.status == 0 && f.isFile(f.scratch()+"/"+durable) && !f.isFile(f.reportPath("001-durable")),
 			"exit "+strconv.Itoa(f.status)+"; left: "+joinLines(f.find(f.scratch()))+"\n"+f.out)
-		f.assertReports(durable, "and discard names "+durable+" as what kept it")
+		f.assertReports(strings.TrimSuffix(durable, "/reference.txt"), "and discard names "+durable+" as what kept it")
 	}
 
 	// Another ship's intent file is the only thing under .idsd/ that identifies that ship once its own

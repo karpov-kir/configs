@@ -174,4 +174,6 @@ jobs:
       # before the binary execs, so build output is in the tree by the time the walk runs, and without
       # the flag the check reads files it cannot judge.
       - name: Check the instruction tree wires up
-        run: ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --gate
+        run: |
+          ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate
+          ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate

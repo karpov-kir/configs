@@ -1,35 +1,19 @@
-// The judge: what a named reader would delete from an outward text, decided by a model that sees only
-// what that reader sees.
+// Package bloatjudge deletes prose by majority vote, stopping when remaining rolls cannot change it.
+// --changed offers only blocks touched by the diff, while showing the model the whole file.
+// The model returns unit numbers; it cannot rewrite text or delete source code.
 //
-//	usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]
-//	       every kind takes a file, or reads stdin when no path is given
+// JUDGE_PROVIDER is required. Missing, unknown or unavailable providers fail with exit 2.
+// Model assignments come from kk-flavor/models.json. JUDGE_MODEL is retired and refused.
+// Calls use the selected CLI's existing login and the deadline configured in deadline.go.
+// Codex ignores config, rules and workspace instructions, disables external tools, and uses
+// a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.
 //
-// --changed offers only the blocks the diff added or touched — `git diff HEAD` plus untracked files, or
-// the revisions given — while the whole file stays the view. The lanes run this form: without it a
-// change touching one line of a human-written file would put every comment in that file up for
-// deletion, and the sample says the judge takes about half of them.
-//
-// Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
-// unit starts on, one per line — a block reports the line it starts on, never every line it took.
-// Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown kind, an
-// unreadable path, a model that did not answer inside its deadline, or an answer that was not numbers.
-//
-// Two lanes make this judge mandatory (writing.md → Replying to a human, skill-protocol.md → Verdict),
-// so blocking forever is worse here than refusing: an agent that gives up on a hung run leaves nothing
-// behind saying the gate did not happen. Every roll is bounded, so a run is too — deadline.go holds
-// the figure, what it was read from, and how a machine retunes it.
-//
-// Only agent-written units should ever be offered, and that is still owed: for a source file the blocks
-// the change added or edited, on a branch the agent authored; for a PR body or review comment, only until a human's first edit. The verdict
-// is memoised per machine under $XDG_CACHE_HOME/kk-flavor/judged. It is owed as the judged content's hash
-// on the artifact itself — a `Judged:` trailer, an HTML comment — so a second machine meeting a matching
-// hash treats the text as judged instead of cutting it again. haiku, three rolls and a majority is
-// provisional: the negatives eval, human-written comments that survived review, picks the model.
-//
-// The model returns numbers and nothing else, and this applies them. It never rewrites and never
-// explains, so there is nothing for a writer to negotiate with, and for a source file the units offered
-// are its comment blocks alone, so code cannot be touched whatever the model says. A block goes or stays
-// whole: shortening one is a rewrite, which is the writer's job under code-style.md → Comments.
+// Two obligations remain unimplemented:
+//   - Offer only agent-written units: changed source blocks on an agent-authored branch,
+//     and PR bodies or review comments only until a human's first edit.
+//   - Carry the judged content's hash on the artifact, such as a Judged trailer or HTML comment,
+//     so another machine can recognize the verdict. Today memoization is machine-local,
+//     under $XDG_CACHE_HOME/kk-flavor/judged.
 package bloatjudge
 
 import (
@@ -45,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	modelpolicy "kk-flavor/tools/model-policy"
 
 	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
@@ -91,10 +77,13 @@ type Caller func(prompt, view string) (string, error)
 // over its own output deleted more. Idempotence therefore cannot come from the model, so it comes from
 // here: an artifact is judged once, its judged form is final, and a resend — or a second agent picking
 // up the same text — meets the record rather than a new roll. Nil disables it, which the eval uses.
-type Memo struct{ Dir string }
+type Memo struct {
+	Dir    string
+	Policy string
+}
 
 // DefaultMemo lives outside every repo, under the cache home, so a repo never carries judged state.
-func DefaultMemo() *Memo {
+func DefaultMemo(policy string) *Memo {
 	base := os.Getenv("XDG_CACHE_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -103,11 +92,15 @@ func DefaultMemo() *Memo {
 		}
 		base = filepath.Join(home, ".cache")
 	}
-	return &Memo{Dir: filepath.Join(base, "kk-flavor", "judged")}
+	return &Memo{Dir: filepath.Join(base, "kk-flavor", "judged"), Policy: policy}
 }
 
 func (m *Memo) key(kind, content string) string {
-	sum := sha256.Sum256([]byte(kind + "\n" + content))
+	kindName, _, _ := strings.Cut(kind, "\n")
+	specification := kinds[kindName]
+	// Bump the algorithm version when unit extraction or majority semantics change.
+	identity := "judge-v2\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
+	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
 
@@ -153,9 +146,9 @@ func (m *Memo) record(kind, content string, gone []int) {
 
 // ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally. Each
 // roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
-func ClaudeCaller(deadline time.Duration) Caller {
+func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 	return func(prompt, view string) (string, error) {
-		return runBounded(deadline, "claude", claudeArgs(prompt), view)
+		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view})
 	}
 }
 
@@ -164,12 +157,15 @@ func ClaudeCaller(deadline time.Duration) Caller {
 // dialog. Without these flags a checked-out branch's `.claude/settings.json` would apply, allow rules
 // and hooks and all, and a comment telling the model to run a command would be obeyed before the
 // numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
-func claudeArgs(prompt string) []string {
-	return []string{
-		"-p", "--model", "haiku", "--output-format", "text",
+func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
+	args := []string{
+		"-p", "--model", settings.Model, "--output-format", "text",
 		"--tools", "", "--strict-mcp-config", "--setting-sources", "user",
-		prompt,
 	}
+	if settings.Effort != "" {
+		args = append(args, "--effort", settings.Effort)
+	}
+	return append(args, prompt)
 }
 
 func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
@@ -547,40 +543,53 @@ func Apply(lines []string, units []Unit, gone []int) string {
 // explains instead of answering — or names a unit that was never offered — fails the whole vote rather
 // than being outvoted into silence.
 //
-// The rolls go out together. They are independent, and a roll is spent waiting on the API rather than
-// on this machine, so running them in sequence bought nothing and cost a run three deadlines where it
-// now costs one. Measured: three concurrent rolls over the same 80KB view came back in 150 seconds,
-// against 343 for the same three in sequence, with no roll slower for having company.
+// The rolls go out in waves, and a wave goes out together. A majority is already decided once a
+// quorum of them agrees, so the first wave IS the quorum — two of three — and the rest are rolled
+// only where those two left a unit undecided. That costs the calls a sequential vote costs and the
+// wall clock a fully concurrent one costs, where each of those paid the other's price: stopping early
+// but rolling one at a time spent two deadlines to save a call, and rolling all three at once spent
+// the call to save the deadline.
+//
+// Concurrency is what makes a wave free: a roll waits on the API rather than on this machine, so three
+// at once came back in 150 seconds against 343 in sequence, none slower for the company.
 func Voting(call Caller, rolls int) Caller {
 	return func(prompt, view string) (string, error) {
 		count := unitsInView(view)
 		named := make([][]int, rolls)
 		errs := make([]error, rolls)
-		var wg sync.WaitGroup
-		for i := 0; i < rolls; i++ {
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				reply, err := call(prompt, view)
-				if err != nil {
-					errs[i] = err
-					return
-				}
-				named[i], errs[i] = ParseVerdict(reply, count)
-			}(i)
-		}
-		wg.Wait()
-		// Read in roll order, not in the order they landed, so the same three failures always report
-		// the same one and a refusal is reproducible.
-		for _, err := range errs {
-			if err != nil {
-				return "", err
-			}
-		}
 		tally := map[int]int{}
-		for _, gone := range named {
-			for _, n := range gone {
-				tally[n]++
+		// The quorum of `rolls`, which is the fewest that can carry a majority: two of three. Rolling
+		// fewer than this first could never settle anything, so it would only add a wave.
+		for from := 0; from < rolls; from = min(from+rolls/2+1, rolls) {
+			upto := min(from+rolls/2+1, rolls)
+			var wg sync.WaitGroup
+			for i := from; i < upto; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					reply, err := call(prompt, view)
+					if err != nil {
+						errs[i] = err
+						return
+					}
+					named[i], errs[i] = ParseVerdict(reply, count)
+				}(i)
+			}
+			wg.Wait()
+			// Read in roll order, not in the order they landed, so the same failures always report the
+			// same one and a refusal is reproducible.
+			for i := from; i < upto; i++ {
+				if errs[i] != nil {
+					return "", errs[i]
+				}
+			}
+			for i := from; i < upto; i++ {
+				for _, n := range named[i] {
+					tally[n]++
+				}
+			}
+			if settled(tally, count, rolls, rolls-upto) {
+				break
 			}
 		}
 		var agreed []string
@@ -594,6 +603,18 @@ func Voting(call Caller, rolls int) Caller {
 		}
 		return strings.Join(agreed, ","), nil
 	}
+}
+
+// settled says no unrolled roll could still change the answer: every unit is already past a majority,
+// or already past saving. Asked before a wave rather than after each roll, because a wave's rolls are
+// in flight together and there is no moment between them to ask in.
+func settled(tally map[int]int, count, rolls, remaining int) bool {
+	for n := 1; n <= count; n++ {
+		if tally[n]*2 <= rolls && (tally[n]+remaining)*2 > rolls {
+			return false
+		}
+	}
+	return true
 }
 
 // unitsInView counts what the view actually offers, which is the bound a roll's answer is read

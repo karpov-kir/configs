@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>kk-flavor Field Guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -117,6 +119,28 @@
   }
   .aside b{color:var(--ink)}
 
+  .workflow{margin:24px 0 32px;padding:24px;border:1px solid var(--rule-2);border-radius:8px;background:var(--surface)}
+  .workflow figcaption{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+  .flow-row{display:flex;align-items:center;gap:14px}
+  .flow-node{flex:1;min-width:0;border:1px solid var(--rule-2);border-radius:6px;padding:17px;background:var(--sunk)}
+  .flow-node strong,.flow-node small,.flow-node code{display:block}
+  .flow-node strong{font-size:1rem;font-weight:600}
+  .flow-node small{font-size:.8rem;color:var(--ink-2);margin-top:7px;line-height:1.5}
+  .flow-node code{font-size:.75rem;color:var(--idsd);margin-top:6px;overflow-wrap:anywhere}
+  .flow-node.hub{background:var(--idsd-soft);border-color:var(--idsd-edge)}
+  .flow-node.human{background:var(--kk-soft);border-color:var(--kk-edge)}
+  .flow-arrow{flex:0 0 auto;color:var(--idsd);font-size:1.5rem;text-align:center}
+  .flow-branches{display:grid;gap:12px;flex:1.4;min-width:0}
+  .flow-route{display:flex;align-items:center;gap:14px}
+  .flow-return{margin-top:16px;padding-top:14px;border-top:1px dashed var(--idsd-edge);color:var(--idsd);font-size:.84rem;text-align:center}
+  .flow-note{font-size:.82rem;color:var(--muted);margin-top:16px}
+  @media (max-width:680px){
+    .workflow{padding:18px}
+    .flow-row{flex-direction:column;align-items:stretch;gap:10px}
+    .flow-row > .flow-arrow{transform:rotate(90deg);align-self:center}
+    .flow-branches{gap:10px}
+  }
+
   /* ---- the inventory ---- */
   .lanes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
   .lane{border:1px solid var(--rule);border-radius:3px;background:var(--surface);padding:18px 20px;display:flex;flex-direction:column;gap:10px}
@@ -186,12 +210,12 @@
     <div>
       <div class="eyebrow">Field guide</div>
       <h1>Two families, one&nbsp;tree of instructions</h1>
-      <p class="lede">This is a set of skills for Claude Code. Each one is a <b>lane</b>: a single job, with a description that says what it covers and what it deliberately does not. You rarely pick a lane yourself — you go through a door, and the door picks. This page is what the doors know.</p>
+      <p class="lede">These skills give coding agents a defined job, or <b>lane</b>. Start with one of the entry skills below; it chooses the lanes your task needs.</p>
     </div>
     <div class="facts">
-      <div class="fact"><b>25</b><span>skills</span></div>
+      <div class="fact"><b>22</b><span>skills</span></div>
       <div class="fact"><b>2</b><span>families</span></div>
-      <div class="fact"><b>5</b><span>you always type</span></div>
+      <div class="fact"><b>3</b><span>you always type</span></div>
     </div>
   </div>
 </header>
@@ -222,8 +246,33 @@
 <section>
   <div class="sec-head">
     <h2>The intent-driven path</h2>
-    <p class="sec-note">Once per project, then a loop per feature. The numbers are the real order.</p>
+    <p class="sec-note">One reactor coordinates the intent set; separate tasks own each feature.</p>
   </div>
+  <p class="lede" style="margin-top:0">Use <code>idsd-reactor</code> as the central task for coordinating intents and requesting new ones. Bring new work to that task, including requests that arrive while other features are being built. The reactor starts separate tasks for authoring and shipping; the steps below show the work those tasks own.</p>
+  <figure class="workflow" aria-label="Requests go to the reactor, which starts authoring or shipping tasks. Both report back to the reactor.">
+    <figcaption>One place to bring the next request</figcaption>
+    <div class="flow-row">
+      <div class="flow-node human"><strong>Your request</strong><small>A new feature, a change, or the next milestone.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node hub"><strong>Coordinate</strong><code>idsd-reactor</code><small>Assign numbers, track dependencies, start tasks.</small></div>
+      <div class="flow-branches">
+        <div class="flow-route"><span class="flow-arrow" aria-hidden="true">→</span><div class="flow-node"><strong>No intent yet? Author it.</strong><code>idsd-intent</code><small>Separate task. Ask questions, write and land the ICE.</small></div></div>
+        <div class="flow-route"><span class="flow-arrow" aria-hidden="true">→</span><div class="flow-node"><strong>Ready and approved? Ship it.</strong><code>idsd-ship</code><small>Separate task. Build, qualify and land the feature.</small></div></div>
+      </div>
+    </div>
+    <div class="flow-return">↩ Both tasks report back to the reactor. It updates the schedule.</div>
+  </figure>
+  <figure class="workflow" aria-label="Within a shipping task, build is followed by qualification and then authorized finalization.">
+    <figcaption>Inside one shipping task</figcaption>
+    <div class="flow-row">
+      <div class="flow-node"><strong>Build</strong><code>idsd-build</code><small>Implement the intent and pass its checks.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node"><strong>Qualify</strong><code>idsd-qualify</code><small>Review the change and record the result.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node hub"><strong>Land</strong><code>idsd-finalize</code><small>With merge authorization, integrate and archive.</small></div>
+    </div>
+    <p class="flow-note">Fixes return through the checks they affect. Each intent has its own worktree; finalization takes a shared merge slot.</p>
+  </figure>
   <div class="pipe">
 
     <div class="step">
@@ -231,7 +280,7 @@
       <div class="step-body">
         <h3>Seed the project <code>idsd-charter</code></h3>
         <p>The what and why of the whole project, plus the limits every feature inherits — the response time you will not exceed, the dependency you will not add. Done once, edited rarely.</p>
-        <p class="writes">writes .idsd/charter.md · .idsd/constraints.md</p>
+        <p class="writes">writes .idsd/charter.md, including its protected Constraints section</p>
       </div>
     </div>
 
@@ -249,7 +298,7 @@
       <div class="num">2</div>
       <div class="step-body">
         <h3>Ship it <code>idsd-ship</code></h3>
-        <p>The door you actually type. It writes the intent first if there isn't one, then runs the three stages below in order and stops to ask you before anything is merged.</p>
+        <p>The reactor starts a shipping task for each ready intent. You can also use this skill directly for one feature. It writes the intent first if there isn't one, then runs the three stages below in order and stops to ask you before anything is merged.</p>
         <p class="writes">idsd-build → idsd-qualify → idsd-finalize</p>
       </div>
     </div>
@@ -287,10 +336,26 @@
 
 <section>
   <div class="sec-head">
-    <h2>Many features at once</h2>
-    <p class="sec-note">Two skills sit above the loop rather than inside it.</p>
+    <h2>Keep coordination in the reactor</h2>
+    <p class="sec-note">One reactor per intent set. Return to it with new requests.</p>
   </div>
-  <p class="lede" style="margin-top:0">Once a project has more than a handful of intents, two questions come up that no single feature can answer: do they still agree with each other, and which of them could be built right now? <code>idsd-audit</code> answers the first and derives the order the second needs; <code>idsd-reactor</code> runs that order, launching a session per feature as its dependencies land. Both are listed with the rest below.</p>
+  <p class="lede" style="margin-top:0">A request without an intent goes to <code>idsd-reactor</code>. It assigns an intent number and starts a separate <code>idsd-intent</code> task to author the ICE, without building it. Answer that task's questions there. It lands the intent on the target branch and reports back to the reactor.</p>
+  <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. <code>idsd-audit</code> checks consistency and derives the build order.</p>
+  <p>Keep the reactor task available throughout the run. Bring additions and coordination requests back to it; answer feature-specific questions in the task that asks them.</p>
+  <figure class="workflow" aria-label="Example dependency graph: A lands, then B and C can build in parallel. D waits for both B and C to land.">
+    <figcaption>Dependencies open the next work</figcaption>
+    <div class="flow-row">
+      <div class="flow-node"><strong>A lands</strong><small>The shared prerequisite is ready.</small></div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-branches">
+        <div class="flow-node hub"><strong>B builds</strong><small>One shipping task.</small></div>
+        <div class="flow-node hub"><strong>C builds</strong><small>Another task, running alongside B.</small></div>
+      </div>
+      <span class="flow-arrow" aria-hidden="true">→</span>
+      <div class="flow-node"><strong>D waits for both</strong><small>Starts when B and C have landed.</small></div>
+    </div>
+    <p class="flow-note">Example: B and C depend on A; D depends on both B and C. An intent that depends only on B can start as soon as B lands.</p>
+  </figure>
   <div class="direction">
     <div class="arrow">depends-on&nbsp;→&nbsp;parallel</div>
     <p><b>Dependencies decide what runs together; shared files do not.</b> Two features touching the same code still start at once — the overlap is resolved when each one merges. Hold a pair back only when they would be redoing each other's work.</p>
@@ -308,8 +373,12 @@
       <div class="do"><code class="k">kk-foreman</code> — say what you want done and it picks the skills, orders them and runs them. Add <code>unattended</code> to hand it the whole run.</div>
     </div>
     <div class="case">
+      <div class="want">I want one place to coordinate intents and request new ones.</div>
+      <div class="do"><code class="i">idsd-reactor</code> — keep this task as the coordinator. It starts authoring tasks for new requests and shipping tasks for ready intents, then tracks their reports and dependencies.</div>
+    </div>
+    <div class="case">
       <div class="want">I want to plan a feature properly before anyone writes code.</div>
-      <div class="do"><code class="i">idsd-intent</code> — it questions you, then writes the intent. No charter yet? It offers <code class="i">idsd-charter</code> once.</div>
+      <div class="do">Bring the request to your <code class="i">idsd-reactor</code> task. For standalone authoring, use <code class="i">idsd-intent</code> directly: it questions you, then writes the intent. No charter yet? It offers <code class="i">idsd-charter</code> once.</div>
     </div>
     <div class="case">
       <div class="want">I want this feature built, reviewed and merged.</div>
@@ -317,7 +386,7 @@
     </div>
     <div class="case">
       <div class="want">I have a batch of intents and want them all going at once.</div>
-      <div class="do"><code class="i">idsd-reactor</code> — one session per feature that is ready, and it starts the rest as their dependencies land.</div>
+      <div class="do">Use your <code class="i">idsd-reactor</code> task to choose the milestone and approve the schedule. It starts one shipping task per ready intent and launches the rest as their dependencies land.</div>
     </div>
     <div class="case">
       <div class="want">Something is broken and nobody knows why.</div>
@@ -340,10 +409,10 @@
 
 <section>
   <div class="sec-head">
-    <h2>Every skill, in its own words</h2>
+    <h2>End-user skills, in their own words</h2>
     <p class="sec-note">Generated from each skill's own description, so this list cannot drift from the tree.</p>
   </div>
-  <p class="lede" style="margin:0 0 26px">Each line below is the skill's own description, quoted as written — the same text Claude reads when it decides which skill applies. Three terms recur in them: a <b>gate</b> is a command that has to pass before the work moves on, a <b>chip</b> is the button Claude Code offers you to start a follow-up session, and a <b>merge stamp</b> is the record a quality pass leaves behind so a later step can check that it actually ran.</p>
+  <p class="lede" style="margin:0 0 26px">The descriptions below are quoted from the skills. A <b>gate</b> is a command that must pass before work continues. A <b>chip</b> starts a follow-up session; clients with task tools create it directly. A <b>merge stamp</b> records that a quality pass ran, for later steps to check.</p>
   <div class="lanes">
     <div class="group-label"><span>idsd-*</span><i></i></div>
     <div class="lane">
@@ -357,17 +426,17 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-charter</code></div>
-      <p>Write or edit .idsd/charter.md — an IDSD project's what &amp; why — and .idsd/constraints.md, the thresholds every intent inherits. Use for "seed the project", "set the project charter", "add a project-wide constraint". The level-0 files; one feature's intent is idsd-intent's.</p>
-      <p class="hint">takes: the vision, scope or constraint to set, or omit to seed both files</p>
+      <p>Write or edit .idsd/charter.md — an IDSD project's what &amp; why, including the constraints every intent inherits. Use for "seed the project", "set the project charter", "add a project-wide constraint". The level-0 charter; one feature's intent is idsd-intent's.</p>
+      <p class="hint">takes: the vision, scope or constraint to set, or omit to seed the charter</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-finalize</code><span class="tag you">you type it</span></div>
-      <p>Merge one built intent's records into the project's, then archive it. Use for "finalize the intent". The pipeline's fourth stage, after idsd-qualify — idsd-ship's <code>done</code> invokes it.</p>
+      <p>Land an already qualified intent through a direct merge or a PR, and archive its records. Use for "finalize the intent" or an explicit final checkpoint. Waits for verified landing; the broader ship lifecycle and throwaway cleanup belong to idsd-ship.</p>
       <p class="hint">takes: &lt;NNN-slug&gt;</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-intent</code></div>
-      <p>Author or refine an ICE intent — what to build and why, never how; also owns .idsd/roadmap.md and .idsd/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.</p>
+      <p>Author or refine an ICE intent — what to build and why, never how; also owns .idsd/roadmap.md and .idsd/for-agents/language.md. Triggers on "intent", "ICE", "IDSD", "plan a feature/project", "pin down a domain term". The feature level; the project's vision and its inherited constraints are idsd-charter's.</p>
       <p class="hint">takes: feature/project to plan, or an existing intent to refine</p>
     </div>
     <div class="lane">
@@ -376,12 +445,12 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-reactor</code></div>
-      <p>Build several ICE intents at once — one session per unblocked intent, launching each as its dependencies land. Use for "build the mvp", "ship these intents in parallel", "start the next wave". One intent end-to-end is idsd-ship's, and the order or the consistency report on its own is idsd-audit's.</p>
+      <p>Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for "build the mvp", "ship these intents in parallel", "start the next wave", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is idsd-audit's.</p>
       <p class="hint">takes: milestone or intent slugs to build (default: ask which milestone)</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-ship</code></div>
-      <p>Ship one ICE intent end-to-end — author it if missing, build, qualify, gate, merge — or review standalone changes. Use for "ship it", "merge this", "continue the ship". The orchestrator above idsd-build, idsd-qualify and idsd-finalize; several intents at once is idsd-reactor's.</p>
+      <p>Coordinate an ICE intent through build, qualification and authorized landing. Use for "ship it", "merge this", or "continue the ship". For one checkpoint use idsd-build, idsd-qualify or idsd-finalize; several intents at once belong to idsd-reactor.</p>
       <p class="hint">takes: &lt;arg&gt; | done [&lt;intent&gt;] | qualify | continue [&lt;intent&gt;] | promote</p>
     </div>
     <div class="group-label"><span>kk-*</span><i></i></div>
@@ -416,6 +485,11 @@
       <p class="hint">takes: the scenarios to drive, plus how to run the project</p>
     </div>
     <div class="lane">
+      <div class="lane-top"><code class="k">kk-edit</code></div>
+      <p>The edit lane for authored or revised outward artifacts before approval or delivery, including PR text, commit messages, docs and code comments. Also use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; ordinary session replies and structured worker returns use writing rules directly. Rule and skill-structure changes belong to their own lanes.</p>
+      <p class="hint">takes: text, file, directory, or git scope such as staged or the changes</p>
+    </div>
+    <div class="lane">
       <div class="lane-top"><code class="k">kk-foreman</code><span class="tag you">you type it</span></div>
       <p>The front door to the kk-* skills and the installed tool skills — say what you want done and this picks them, orders them, and runs them. Use when the work crosses more than one, when you don't know which applies, when it has to land in another system (a ticket, a page), or for a periodic "what does this repo need?". The idsd-* intent workflow is its own door (idsd-ship).</p>
       <p class="hint">takes: what you want done, plus "unattended" to hand the run over (default: look at the working tree and recommend)</p>
@@ -427,22 +501,12 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-handoff</code></div>
-      <p>Write the prompt that hands a piece of work to a fresh session, then create the chip that starts it. Use for "hand this off", "spawn a session for this", and before creating a background-task chip for any reason. The receiver holds none of this conversation — not a stage subagent spawned inside this run, and not a quality stage naming the next lane for its caller.</p>
+      <p>Write the prompt that hands a piece of work to a fresh session, then start the new task. Use for "hand this off", "spawn a session for this", and before starting a separate task. The receiver holds none of this conversation — not a stage subagent spawned inside this run, and not a quality stage naming the next lane for its caller.</p>
       <p class="hint">takes: the work to hand off</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-humanize</code></div>
-      <p>Rewrite outward text — PR/ticket text, commit messages, chat, email, README-grade docs — and code comments so they read as a person wrote them. Use for "humanize", "de-AI this", "make the comments readable". The outward counterpart to kk-tighten; comment placement and truth belong to other lanes.</p>
-      <p class="hint">takes: file, git scope ("the changes", "staged"), or the text itself</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">kk-patrol</code><span class="tag you">you type it</span></div>
-      <p>Run refinement as a standing loop rather than a pass — each round spawns a scout that finds one defect and dies, then a fixer that commits it to the patrol's branch and dies. Use for "keep refining", "patrol the tree", "run until there is nothing left to fix". Built to run cheaply for a long time, not quickly. The loop above kk-foreman, which dispatches one piece of work; a bounded campaign that shrinks a tree of instructions is a different shape again.</p>
-      <p class="hint">takes: the tree to patrol, and any angle to start from (default: this repo, every angle)</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="k">kk-pr</code></div>
-      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-humanize), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
+      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
       <p class="hint">takes: &lt;review|address-review|refine-description|review-and-address&gt; [PR number, URL, or head branch]</p>
     </div>
     <div class="lane">
@@ -452,23 +516,13 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-refactor</code></div>
-      <p>Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-tighten).</p>
+      <p>Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-edit).</p>
       <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">kk-retro</code><span class="tag you">you type it</span></div>
-      <p>Adversarial retrospective on how a run was conducted, never the change it produced. Only the human starts one, after a run that went badly, went oddly, or went well enough to be worth knowing why.</p>
-      <p class="hint">takes: the run or session to reflect on</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-security-review</code></div>
       <p>Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.</p>
       <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), or natural-language scope</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">kk-tighten</code></div>
-      <p>Tighten internal prose — docs, skills, standards, prompts — for the context window, cutting redundancy and inferable filler. Triggers on "tighten", "shrink", "de-duplicate". Outward text and code comments are kk-humanize's; reconciling a whole instruction tree's rules against one another is a wider pass than this, and contains it.</p>
-      <p class="hint">takes: file, directory, or natural-language scope (e.g. "the changes", "staged")</p>
     </div>
   </div>
 </section>
@@ -498,7 +552,7 @@
 
 <footer>
   <span>Skills under <code>ai/kk-flavor/skills/</code>, standards under <code>ai/kk-flavor/standards/</code>, tools under <code>ai/tools/</code>.</span>
-  <span>Install: <code>ai/bootstrap.sh</code> for this machine, or <code>ai/install-project.sh &lt;project&gt;</code> for one project · Add <code>--maintainer</code> for the few skills that only maintain this tree · Rebuild this page: <code>ai/guide.sh</code></span>
+  <span>Install: <code>ai/bootstrap.sh --agent=&lt;agent&gt;</code> for this machine, or <code>ai/install-project.sh --agent=&lt;agent&gt; &lt;project&gt;</code> for one project · Choose <code>claude</code> or <code>codex</code> explicitly.</span>
 </footer>
 
 </div>

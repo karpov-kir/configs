@@ -11,6 +11,7 @@ package ecoreport_test
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -38,7 +39,7 @@ func TestANonAbsoluteConfigHomeIsNotAnOverride(t *testing.T) {
 	f.runReport("check-ignore")
 	f.runReport("init", "001-relative-config")
 	f.record("and init wrote the report at the default location",
-		f.status == 0 && f.isFile(f.sharedIdsd()+"/intents/001-relative-config/qualify-report.md"),
+		f.status == 0 && f.isFile(f.sharedIdsd()+"/intents/001-relative-config/for-agents/qualify-report.md"),
 		f.evidence())
 	f.record("and nothing was written where the relative file pointed",
 		!f.exists(f.base+"/hijacked"), "")
@@ -113,7 +114,7 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	f.runReport("check-ignore")
 	outside := f.base + "/outside-promote"
 	f.mkdirAll(outside + "/intents/001-linked")
-	f.write(outside+"/intents/001-linked/qualify-report.md", "---\nintent: 001-linked\n---\n")
+	f.write(outside+"/intents/001-linked/for-agents/qualify-report.md", "---\nintent: 001-linked\n---\n")
 	// Something durable, so promote has a reason to get as far as the move: without it the refusal below
 	// could be the nothing-to-promote guard instead, and the case would pass observing nothing.
 	f.write(outside+"/intents-placeholder.md", "# intent\n")
@@ -126,8 +127,27 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	staged, _ := f.git("diff", "--cached", "--name-only")
 	f.record("and staged nothing", !strings.Contains(staged, ".idsd"), "staged:\n"+staged)
 	f.record("and left the report where it was, outside the tree",
-		f.isFile(outside+"/intents/001-linked/qualify-report.md"), "")
+		f.isFile(outside+"/intents/001-linked/for-agents/qualify-report.md"), "")
 	f.remove(f.sharedIdsd())
+}
+
+func TestPromoteRefusesSymlinkedIntentsRatherThanStagingTheLink(t *testing.T) {
+	t.Parallel()
+	f := newRepo(t)
+	f.runReport("check-ignore")
+	outside := f.base + "/outside-intents"
+	report := outside + "/001-linked/for-agents/qualify-report.md"
+	f.write(report, "---\nintent: 001-linked\n---\n")
+	f.write(f.sharedIdsd()+"/charter.md", "# Charter\n")
+	f.symlink(outside, f.sharedIdsd()+"/intents")
+
+	f.runReport("promote")
+	f.assertRefused("promote refuses a symlinked intents directory")
+	f.assertReports("is a symlink", "the refusal identifies the linked directory")
+	f.record("promotion leaves the scratch outside the working tree", !f.exists(f.treeIdsd()), f.evidence())
+	staged, _ := f.git("diff", "--cached", "--name-only")
+	f.record("promotion stages no linked intent directory", !strings.Contains(staged, ".idsd"), staged)
+	f.record("the outside report is preserved", f.isFile(report), f.evidence())
 }
 
 func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
@@ -144,8 +164,8 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// subcommand needs the report to be there, so a stem of `..` only gets past requireReport when a
 	// file of that name exists. This tool will not create one — reportNameFor refuses the leading dot —
 	// but a committed one arrives through someone else's branch, and the argument is then all it takes.
-	// `intents/../qualify-report.md` resolves to one level above intents/, which is the scratch root.
-	escaped := f.scratch() + "/" + "qualify-report.md"
+	// `intents/../for-agents/qualify-report.md` resolves to one level above intents/, which is the scratch root.
+	escaped := f.scratch() + "/for-agents/qualify-report.md"
 	f.write(escaped,
 		"---\nintent: 001-real\nreviewed-tree: pending\nreviewed-worktree: pending\nreviewed-stages: pending\n---\n")
 	f.record("fixture: a report named for the stem under test is in place", f.isFile(escaped), "")
@@ -304,7 +324,7 @@ func TestAReviewedTreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 
 	// The other reader of the same field, and a separate call site: stamp refuses when the pass never
 	// invalidated, quoting whatever stands on the line.
-	f.runReport("stamp", "code-review,security-review,tighten,refactor", "099-tree")
+	f.runReport("stamp", "code-review,security-review,edit,refactor", "099-tree")
 	f.record("stamp refuses a pass that never invalidated", f.status == 2, f.evidence())
 	f.record("and no control byte reached the output from that call site either",
 		!strings.ContainsRune(f.out, 0x1b), f.out)
@@ -359,18 +379,26 @@ func TestAReportRewriteIsStagedBesideTheReport(t *testing.T) {
 	// Pinned through which failure fires when the reports directory cannot be written: staged beside the
 	// report, the temp file itself cannot be created, and that is a different sentence from a write that
 	// got as far as the move.
-	// The SHIP FOLDER, not intents/ above it: the temp file is created beside the report, which is what
-	// this case exists to pin, so intents/ at 0500 leaves the write it is trying to block untouched —
-	// the run then succeeds, the case takes its skip, and both assertions below never run.
+	// Deny writes to the report's actual parent, including its for-agents directory. Probe the
+	// permission independently: a successful rewrite must fail this case, never trigger its skip.
 	f := newShip(t, "099-staged")
-	f.chmod(f.shipDir("099-staged"), 0o500)
+	parent := filepath.Dir(f.reportPath("099-staged"))
+	f.chmod(parent, 0o500)
+	defer f.chmod(parent, 0o755)
+	probe, err := os.CreateTemp(parent, ".permission-probe.")
+	if err == nil {
+		probe.Close()
+		os.Remove(probe.Name())
+		t.Skip("this process writes into a mode-0500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so this case cannot be built here")
+	}
+	if !os.IsPermission(err) {
+		t.Fatalf("permission probe failed for an unrelated reason: %v", err)
+	}
 	f.runReport("invalidate", "099-staged")
 	status := f.status
 	output := f.out
-	f.chmod(f.shipDir("099-staged"), 0o755)
-	if status == 0 {
-		t.Skip("this process writes into a mode-0500 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so this case cannot be built here")
-	}
+	f.chmod(parent, 0o755)
+	f.assertRefused("the rewrite refuses when its staging directory is not writable")
 	f.record("the rewrite fails at creating its temp file, which is beside the report",
 		strings.Contains(output, "mktemp failed"),
 		"exit "+strconv.Itoa(status)+"\n"+output)

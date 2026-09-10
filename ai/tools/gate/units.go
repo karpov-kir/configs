@@ -28,7 +28,7 @@ const (
 	extAudience  = "lib/skill-audience.sh"
 	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
-	// The shared shell libraries every installer sources.
+	extModels    = "ai/kk-flavor/models.json"
 	// The stub scripts ai/tools/tool-stub-test.sh copies into fixtures and runs. copiedRepoFiles finds
 	// only the one path that suite spells out literally; the other six live in its `stubs()` table,
 	// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
@@ -105,7 +105,7 @@ func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
-	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows)
+	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit
@@ -115,7 +115,7 @@ func (g *gate) addGoChecks() {
 	// reason of its own: eco-check reads Go sources only to find subcommand dispatches, and skips
 	// `_test.go` by name, because a test file's fixtures hold dispatch switches of their own.
 	g.addBlindToGoTests("wiring", "check", []string{"ai/kk-flavor", "ai/tools", "lib", ".gitignore"},
-		"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --gate")
+		"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate")
 }
 
 // The field guide is generated, so the committed page can fall behind the skills without anyone
@@ -162,6 +162,19 @@ func (g *gate) discoverShellSuites() int {
 		// unit's verdict with neither the suite nor its script moving a byte.
 		inputs := []string{suite, "ai/run-tests.sh"}
 		sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
+		switch suite {
+		case "ai/bootstrap-test.sh":
+			inputs = append(inputs, "ai/bootstrap-owner.sh", "ai/owner-instructions.md")
+		case "ai/rtk-bootstrap-test.sh":
+			sibling = "ai/bootstrap.sh"
+			inputs = append(inputs, "ai/owner-instructions.md")
+		case "ai/install-project-test.sh", "ai/project-skills-test.sh":
+			sibling = "ai/install-project.sh"
+			inputs = append(inputs, "ai/project-skills.sh", "ai/project-dependencies.sh",
+				"ai/project-mcp.sh", "ai/project-mcp.mjs", "ai/mcp.jsonc", "ai/mcp-env.sh")
+		case "ai/project-mcp-test.sh":
+			inputs = append(inputs, "ai/project-mcp.mjs", "ai/mcp.jsonc", "ai/mcp-env.sh")
+		}
 		siblingPath := filepath.Join(g.root, sibling)
 		if _, err := os.Stat(siblingPath); err == nil {
 			inputs = append(inputs, sibling)
@@ -231,23 +244,6 @@ func (g *gate) discoverShellSuites() int {
 		addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))
 	}
 	return 0
-}
-
-// Everything one shell suite's verdict can turn on, and whether it observes a compiled Go binary
-// rather than the module's sources — which is what decides that its key drops `_test.go`.
-//
-// Every rule here was a stale green: a file the suite reads, that no unit was keyed on, so an edit to
-// it left the unit answering from cache.
-
-// A file this tree is expected to hold, as text. Unreadable comes back empty, and every caller above
-// reads that as "this rule does not apply" — a suite that cannot be read keys on nothing extra rather
-// than taking the run down.
-func (g *gate) readOrEmpty(rel string) string {
-	body, err := os.ReadFile(filepath.Join(g.root, rel))
-	if err != nil {
-		return ""
-	}
-	return string(body)
 }
 
 func (g *gate) discoverGoMutants() int {

@@ -2,16 +2,19 @@
 # The judge: what a named reader would delete from an outward text, decided by a model that sees only
 # what that reader sees.
 #
-#   usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
+#   usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
+#
+# Set JUDGE_PROVIDER=codex or JUDGE_PROVIDER=claude explicitly. Missing, unknown or unavailable
+# providers fail with exit 2; no auto-selection or fallback. models.json selects the judge model.
+# A legacy JUDGE_MODEL setting is refused.
 #
 # Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
 # unit starts on. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown
 # kind, an unreadable path, a model that did not answer inside its deadline, or an answer that was not
 # numbers.
 #
-# This ends. Every roll of the model is bounded, so a slow run refuses rather than hanging; never kill
-# one and carry on, because the two lanes that mandate the judge are then unmet and only its own exit 2
-# says so. `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/bloat-judge.conf` retunes the bound on this machine
+# Every attempted roll is bounded. Cancellation supplies no verdict.
+# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/bloat-judge.conf` retunes the bound on this machine
 # with a `roll-timeout <seconds>` line; `ai/tools/bloat-judge/deadline.go` holds the figure it replaces.
 #
 # What the model may do, and why it is safe, is the package doc in `ai/tools/bloat-judge/judge.go`.

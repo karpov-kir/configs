@@ -43,21 +43,21 @@ const flavorSource = "../../kk-flavor"
 // reportEntry names it rather than an index into this.
 func ignoreEntries() []string {
 	return []string{
-		".idsd/intents/*/decisions.md",
-		".idsd/intents/*/language.md",
-		".idsd/intents/*/playbook.md",
-		".idsd/intents/*/qualify-report.md",
+		".idsd/intents/*/for-agents/decisions.md",
+		".idsd/intents/*/for-agents/language.md",
+		".idsd/intents/*/for-agents/playbook.md",
+		".idsd/intents/*/for-agents/qualify-report.md",
 	}
 }
 
-func reportEntry() string { return ".idsd/intents/*/qualify-report.md" }
+func reportEntry() string { return ".idsd/intents/*/for-agents/qualify-report.md" }
 
 // Those entries as a gitignore file's worth of lines.
 func ignoreBlock() string { return strings.Join(ignoreEntries(), "\n") + "\n" }
 
 // A path the report entry covers. `git check-ignore` reads its argument as a literal pathname rather
 // than as a glob, so a case asking git whether the entry took effect must ask about a path it matches.
-func ignoreProbePath() string { return ".idsd/intents/__probe__/qualify-report.md" }
+func ignoreProbePath() string { return ".idsd/intents/__probe__/for-agents/qualify-report.md" }
 
 // One case's tree.
 type fixture struct {
@@ -315,7 +315,7 @@ func (f *fixture) runReportStdout(args ...string) string {
 // A standalone `review: …` has no slug and shares the one `review` stem, which is what most fixtures
 // below use.
 func (f *fixture) reportPath(name string) string {
-	return f.shipDir(name) + "/qualify-report.md"
+	return f.shipDir(name) + "/for-agents/qualify-report.md"
 }
 
 // An archived ship keeps its folder, so the record a build leaves travels as one directory.
@@ -434,17 +434,11 @@ func (f *fixture) treeIsFreeOfScratch() bool {
 	return status == 0 && !strings.Contains(dirty, ".idsd")
 }
 
-// Every pipeline stage, in the two forms a pass names them: one per `stage-returned`, and comma-joined
-// for the stamp. Stated once, because a stage marked but left out of the stamp record — or the reverse
-// — is a fixture that arms a pass the stamp then refuses, and the case reads as a broken guard.
 var (
-	allStages          = []string{"code-review", "security-review", "tighten", "refactor"}
+	allStages          = []string{"code-review", "security-review", "edit", "refactor"}
 	allStagesStampedAs = strings.Join(allStages, ",")
 )
 
-// Everything a stamp demands short of the stamp itself: this pass invalidated, every stage marked
-// returned and then empty, and the decision log accounted for. Invalidate comes first because a
-// marker means nothing until it is known which pass made it.
 func (f *fixture) armFullPass(ship string) {
 	f.t.Helper()
 	f.armFullPassIn(f.repo, ship)
@@ -464,8 +458,7 @@ func (f *fixture) armFullPassIn(dir, ship string) {
 	f.t.Helper()
 	f.runReportIn(dir, "invalidate", ship)
 	for _, stage := range allStages {
-		f.runReportIn(dir, "stage-returned", stage, ship)
-		f.runReportIn(dir, "no-items", stage, ship)
+		f.recordCleanStageIn(cleanStageOptions{dir: dir, stage: stage, intent: ship})
 	}
 	f.runReportIn(dir, "decisions-reviewed", ship)
 }

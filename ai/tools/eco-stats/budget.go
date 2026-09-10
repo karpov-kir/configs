@@ -17,12 +17,12 @@ import (
 // what decides membership is shared with it rather than written twice.
 func (s *stats) budgetFiles(errOut io.Writer) []string {
 	var files []string
-	claudeMd := shell.Join(s.root.Named(), "CLAUDE.md")
-	if shell.PathExists(claudeMd) || shell.IsSymlink(claudeMd) {
-		if s.root.Contains(claudeMd) {
-			files = append(files, claudeMd)
+	instructionFile := s.root.InstructionFile()
+	if shell.PathExists(instructionFile) || shell.IsSymlink(instructionFile) {
+		if s.root.Contains(instructionFile) {
+			files = append(files, instructionFile)
 		} else {
-			s.refuseBudgetFile(errOut, claudeMd)
+			s.refuseBudgetFile(errOut, instructionFile)
 		}
 	}
 
@@ -51,17 +51,6 @@ func (s *stats) budgetFiles(errOut io.Writer) []string {
 		}
 		files = append(files, inject)
 	}
-	// One file counted once, however many times the router lists it. ecocheck dedupes this same tier
-	// with this same call, so a target listed twice does not leave the two tools reporting different
-	// file counts. `--append` writes that figure into stats.md, where a later pass reads it as
-	// measurement rather than as a number that drifted.
-	//
-	// Summed here rather than at each append, because the same file reaches this list by two routes —
-	// named in CLAUDE.md and listed under Read always — and neither route can see the other.
-	//
-	// Counted under the read bound, not by a bare wordsInFile: a file over it is refused, and a
-	// refusal that says "not read, not counted" beside its words in the total is the one shape a
-	// figure must never have.
 	files = shell.SortUnique(files)
 	for _, file := range files {
 		s.alwaysLoadedWords += s.countTreeWords(file, errOut)
@@ -127,7 +116,7 @@ func (s *stats) census(errOut io.Writer) {
 		// A SKILL.md that cannot be read still counts as routed, with no description words. Read as a
 		// skip instead, the "R of T skills" figure would quietly shrink on a file the tree can see.
 		lines := s.readTreeLines(file, errOut)
-		if shell.IsOptedOutOfModelInvocation(lines) {
+		if s.root.Agent() == "claude" && shell.IsOptedOutOfModelInvocation(lines) {
 			continue
 		}
 		s.routedSkills++
@@ -135,12 +124,6 @@ func (s *stats) census(errOut io.Writer) {
 	}
 }
 
-// Skills mounted at `~/.claude/skills` from outside this tree cost the same tier and no pass here can
-// shrink them, so they are counted apart.
-//
-// Only when this tree is the installed one: anywhere else — a clone, or a PR review's worktree — the
-// mounts resolve to the *installed* checkout, the exclusion below matches nothing, and the figure
-// publishes the reviewer's own local skill inventory into something an agent may quote.
 func (s *stats) mountedOutside(errOut io.Writer) {
 	if !s.root.IsInstalled() {
 		return
@@ -161,7 +144,7 @@ func (s *stats) mountedOutside(errOut io.Writer) {
 			continue
 		}
 		lines := s.readOutsideLines(file, errOut)
-		if shell.IsOptedOutOfModelInvocation(lines) {
+		if s.root.Agent() == "claude" && shell.IsOptedOutOfModelInvocation(lines) {
 			continue
 		}
 		s.outsideSkills++

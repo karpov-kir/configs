@@ -1,17 +1,15 @@
 ---
 name: kk-skillcraft
-description: Review and refine skills as skills — triggering, how steps and reference material are split, steering strength, and what in them is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy (kk-ecosystem) or prose (kk-tighten).
+description: Review and refine skills as skills — triggering, how steps and reference material are split, steering strength, and what in them is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy (kk-ecosystem) or prose (kk-edit).
 argument-hint: "a skill dir, several, or the whole skills tree"
 audience: maintainer
 ---
 
-Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-tighten`'s; neither applies this one.
+Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-edit`'s; neither applies this one.
 
-A big skill is a symptom. Read it for the cause.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one verdict for each unit; the queue, ledger and `N/M` count units. Reuse unchanged readings under the protocol's dependency rules.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one unit per message, one verdict for the unit, and the queue, ledger and `N/M` all count units.
-
-**A queued artifact that is not a skill** — a standard, a prompt, a template, a `CLAUDE.md` — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
+**A queued artifact that is not a skill** — a standard, a prompt, a template, an agent instruction file — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
 
 Check every unit against all four, in order. A unit that took one lens and moved on has been read, not reviewed.
 
@@ -27,7 +25,7 @@ The `description` is truncated at 1,536 characters in the listing, so text past 
 
 ## 2. Structure — steps and reference
 
-A skill divides into **steps** (the procedure) and **reference** (templates, definitions, glossaries, mode-specific detail the steps consume). Keep `SKILL.md` to the steps and as small as it will go: it is read in full every time.
+A skill divides into **steps** (the procedure) and **reference** (templates, definitions, glossaries, mode-specific detail the steps consume). Keep `SKILL.md` to the steps and as small as it will go: its initial read should expose the common procedure without loading unrelated branches.
 
 Find the **branches** — the conditional paths a run may or may not take. A branch's material does not belong inline; it belongs in a file the skill names at the branch, on the terms `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** sets for a **Split**, plus one this lens adds: the extracted file stands alone, without re-reading the parent.
 
@@ -47,7 +45,7 @@ When an agent ignores an instruction, argue less and steer harder.
 - **No-ops.** Text that reads like an instruction but changes no output; `~/.kk-flavor/standards/ecosystem.md` → **Earn the place** holds the test.
 - **Sediment.** What accumulates when several people edit one file and nobody dares delete anyone else's rule. It reads as a flat list of equals; it is actually one live procedure plus somebody's old edge case. Move the niche rules into the branch that needs them and kill the stale ones.
 
-**A rule a second file acts on is neither a no-op nor sediment.** You hold one skill at a time, so that file is never in front of you. Name the apparent restatement for `kk-ecosystem`, which scans the whole root, and leave the text standing.
+**A rule a second file acts on is neither a no-op nor sediment.** You hold one skill at a time, so that file is never in front of you. Name the apparent restatement for `kk-ecosystem`, which checks rule ownership across the affected scope, and leave the text standing.
 
 Deleting is not the only fix — try the moves in `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it** first.
 

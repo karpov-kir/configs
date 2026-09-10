@@ -32,11 +32,11 @@ func TestTwoIntentsShipSideBySide(t *testing.T) {
 			containsLine(f.read(f.reportPath("001-first-intent")), "reviewed-tree: <hash>"),
 		f.evidence())
 
-	f.runReport("stage-returned", "code-review", "001-first-intent")
+	f.armFullPass("001-first-intent")
 	f.runReport("invalidate", "002-second-intent")
-	f.runReport("no-items", "code-review", "001-first-intent")
-	f.record("one intent's invalidate leaves the other's stage markers standing", f.status == 0,
-		f.evidence())
+	f.runReport("stamp", allStagesStampedAs, "001-first-intent")
+	f.record("one intent's invalidate leaves the other's results usable", f.status == 0, f.evidence())
+	f.runReport("invalidate", "001-first-intent")
 
 	// The state column is asserted by value, not by "a tab follows the name". The looser form is
 	// satisfied by a listing that emits an empty token for every ship, or `BOGUS` where `resume`
@@ -210,11 +210,10 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	trimmed := newShip(t, "001-trimmed-token")
 	trimmed.runReport("invalidate", "001-trimmed-token")
 	trimmed.runReport("decisions-reviewed", "001-trimmed-token")
-	for _, stage := range []string{"code-review", "tighten", "refactor"} {
-		trimmed.runReport("stage-returned", stage, "001-trimmed-token")
-		trimmed.runReport("no-items", stage, "001-trimmed-token")
+	for _, stage := range []string{"code-review", "edit", "refactor"} {
+		trimmed.recordCleanStage(stage, "001-trimmed-token")
 	}
-	trimmed.runReport("stamp", "code-review,security-review:skipped(turnaround),tighten,refactor", "001-trimmed-token")
+	trimmed.runReport("stamp", "code-review,security-review:skipped(turnaround),edit,refactor", "001-trimmed-token")
 	trimmed.runReport("state", "001-trimmed-token")
 	trimmed.record("finalize for a fresh pass with a stage trimmed for turnaround",
 		trimmed.out == "finalize", "said '"+trimmed.out+"'")
@@ -245,8 +244,11 @@ func TestAFilenameCannotForgeAListingRow(t *testing.T) {
 	if err := os.MkdirAll(forgedDir, 0o755); err != nil {
 		t.Skipf("this filesystem refused a newline in a directory name, so this case cannot run here: %v", err)
 	}
-	if err := os.WriteFile(forgedDir+"/qualify-report.md", []byte("---\nintent: x\n---\n"), 0o644); err != nil {
-		t.Skipf("this filesystem refused a newline in a directory name, so this case cannot run here: %v", err)
+	if err := os.MkdirAll(forgedDir+"/for-agents", 0o755); err != nil {
+		t.Fatalf("could not create the forged report's agent directory: %v", err)
+	}
+	if err := os.WriteFile(forgedDir+"/for-agents/qualify-report.md", []byte("---\nintent: x\n---\n"), 0o644); err != nil {
+		t.Fatalf("could not write the forged report: %v", err)
 	}
 
 	listing := f.runReportStdout("list")

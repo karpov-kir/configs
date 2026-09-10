@@ -4,11 +4,11 @@ description: Run the multi-stage quality pipeline over a change set, in any repo
 argument-hint: "[scope: a path, a diff selector, or natural language]"
 ---
 
-**The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another. **Nothing waits on your pass unless your caller says it does**: bare, you may trim for turnaround, and you say what you trimmed.
+**The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another. **Nothing waits on your pass unless your caller says it does**: a request for a full or complete pass runs every applicable lane. Trim for turnaround only when the caller explicitly requests it, and state what was trimmed.
 
 **No persisted state.** No report file, no stamp, no directory of your own — a run's scratch ledgers and patch queue are not that. **No commit or push either** — fixes stay in the tree (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). The residue reaches the human in your closing reply and nowhere else. **A caller that needs it to outlive the run owns that home and says so.**
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); the per-file queue and loop belong to the subagents you spawn.
+**Protocol.** Use `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**. The current caller coordinates the pass directly; this skill is not a wrapper agent. Its leaf workers own their scoped queues.
 
 ## Lanes
 
@@ -21,15 +21,15 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | drive | `kk-drive` | — | — |
 | code-review | `kk-code-review` | — | `code-review` |
 | security-review | `kk-security-review` | — | `security` |
-| prose | `kk-tighten` | — | — |
-| outward-text | `kk-humanize` | `~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh` | `comments` |
+| edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh` for comments | `comments` |
+| instruction | `kk-ecosystem` | `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh` | — |
 | refactor | `kk-refactor` | `~/.kk-flavor/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
 
 **Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**). **Conformance is a gate, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**). A caller holding the ask runs it before invoking you; **bare, you hold the ask and run the gate yourself, before the round**. Only a change set with no ask at all reaches the stages ungated, and that section says what your status line then owes.
 
-**Two absences here are deliberate, and neither is yours to run** (`~/.kk-flavor/standards/quality-pipeline.md` → **The stages**): the **instruction lane**, which `kk-ecosystem` fills; and a retrospective, which is no lane at all and belongs to `kk-retro`.
+**Instruction work has one owner.** Dispatch `kk-ecosystem` directly over the instruction changes and affected references, unless the caller already assigned that scope. Its ordered checks replace another edit pass over those files. A retrospective is no lane and belongs to the human.
 
-**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, **every tiered row goes out in the round's one message — `kk-refactor` and `kk-humanize` alongside the reviews, never after them**. The **Tier** column is what each one's spawn prompt carries in its patch-queue slot. A lane with no tier runs unstreamed: prose in the round with the rest, drive still the gate before it.
+**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, dispatch ready tiered leaves together within runtime capacity; `kk-refactor` and `kk-edit` may join the reviews while patch ordering protects overlapping writes. The **Tier** column is what each one's spawn prompt carries in its patch-queue slot. The instruction lane runs unstreamed; drive remains the gate before the round. File write conflicts still obey the shared pipeline ordering.
 
 ## The residue
 
@@ -41,7 +41,8 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 - **A blocking question is asked live and never recorded**, except the unanswered one (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). **A drive step the human dropped is neither** — it is one line in the closing reply (**After the pass**); asking before dropping is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**.
 - **Each item stands alone** — someone who never saw the run understands what it is, why it matters, and can act. Cut run-narration and command strings, never the stakes.
 - **Roughly 60 words an item, and the recommendation closes it on its own line** — this skill's bound on the exception `~/.kk-flavor/standards/writing.md` → **Density** licenses. Over the bound the surplus is the case restated for a reader who has just read it. **Having no recommendation is itself an opening**: "nothing — this is a product call" beats a hedge dressed as advice.
-- **Last, with the items written, run `~/.kk-flavor/scripts/bloat-judge.sh report` over the residue's text** — the closing reply's one judge run, in place of the `reply` run `~/.kk-flavor/standards/writing.md` → **Replying to a human** makes. What it names goes, an item excepted: each is a decision the human owes.
+- Edit the residue inline, preserving every item and its stakes. Reports and structured stage returns do not require an external judge.
+
 
 ## After the pass
 

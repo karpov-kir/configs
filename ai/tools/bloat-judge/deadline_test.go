@@ -21,7 +21,7 @@ func fakeClaude(t *testing.T, script string) {
 
 func TestClaudeCallerAnswersWhatTheModelPrinted(t *testing.T) {
 	fakeClaude(t, "echo none")
-	reply, err := ClaudeCaller(10*time.Second)("prompt", "view")
+	reply, err := ClaudeCaller(10*time.Second, testSettings())("prompt", "view")
 	if err != nil || strings.TrimSpace(reply) != "none" {
 		t.Fatalf("got %q %v, want none", reply, err)
 	}
@@ -31,7 +31,7 @@ func TestClaudeCallerAnswersWhatTheModelPrinted(t *testing.T) {
 // from one whose model crashed: only the first is worth another run.
 func TestClaudeCallerNamesTheDeadlineItCutTheRollOffAt(t *testing.T) {
 	fakeClaude(t, "sleep 30")
-	_, err := ClaudeCaller(300*time.Millisecond)("prompt", "view")
+	_, err := ClaudeCaller(300*time.Millisecond, testSettings())("prompt", "view")
 	if err == nil || !strings.Contains(err.Error(), "did not answer within 300ms") {
 		t.Fatalf("got %v, want the deadline named", err)
 	}
@@ -39,7 +39,7 @@ func TestClaudeCallerNamesTheDeadlineItCutTheRollOffAt(t *testing.T) {
 
 func TestClaudeCallerReportsAModelThatFailedRatherThanTimedOut(t *testing.T) {
 	fakeClaude(t, "exit 1")
-	_, err := ClaudeCaller(10*time.Second)("prompt", "view")
+	_, err := ClaudeCaller(10*time.Second, testSettings())("prompt", "view")
 	if err == nil || strings.Contains(err.Error(), "within") {
 		t.Fatalf("got %v, want a plain failure and no deadline in it", err)
 	}
@@ -52,7 +52,7 @@ func TestClaudeCallerReportsAModelThatFailedRatherThanTimedOut(t *testing.T) {
 func TestClaudeCallerDoesNotWaitOnAChildThatOutlivesTheRoll(t *testing.T) {
 	fakeClaude(t, "sleep 30 &\nsleep 30")
 	started := time.Now()
-	if _, err := ClaudeCaller(500*time.Millisecond)("prompt", "view"); err == nil {
+	if _, err := ClaudeCaller(500*time.Millisecond, testSettings())("prompt", "view"); err == nil {
 		t.Fatal("a roll that never answered came back with no error")
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
@@ -66,7 +66,7 @@ func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
 	path := write(t, source)
 	var out, errOut strings.Builder
 	fakeClaude(t, "sleep 30")
-	code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond), nil)
+	code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}

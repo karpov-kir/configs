@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	ecoroot "kk-flavor/tools/eco-root"
@@ -74,7 +75,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		rootName = named[0]
 	}
 
-	root, ok := ecoroot.New(rootName)
+	root, ok := ecoroot.Checkout(rootName)
 	if !ok {
 		return fail("no checkout holding kk-flavor/ and kk-flavor/skills/ at '%s' — the guide was NOT generated",
 			or(rootName, ". or ./ai"))
@@ -173,12 +174,12 @@ const (
 func namedDelta(held, want string) (added, removed []string) {
 	heldNames, wantNames := cardNames(held), cardNames(want)
 	for _, name := range wantNames {
-		if !contains(heldNames, name) {
+		if !slices.Contains(heldNames, name) {
 			added = append(added, name)
 		}
 	}
 	for _, name := range heldNames {
-		if !contains(wantNames, name) {
+		if !slices.Contains(wantNames, name) {
 			removed = append(removed, name)
 		}
 	}
@@ -209,15 +210,6 @@ func cardNames(page string) []string {
 		}
 	}
 	return names
-}
-
-func contains(list []string, want string) bool {
-	for _, item := range list {
-		if item == want {
-			return true
-		}
-	}
-	return false
 }
 
 func at(lines []string, i int) string {

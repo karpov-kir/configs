@@ -23,7 +23,7 @@ Every review comment on the PR that `~/.kk-flavor/skills/kk-pr/SKILL.md` → **C
 
 ## Hand it back
 
-**Print it, do not run it**: the review can be re-requested with `gh pr edit <N> --add-reviewer <login>`, and that call is the human's. It pulls a person to the PR and nothing takes that back (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**).
+The review can be re-requested with `gh pr edit <N> --add-reviewer <login>`. Follow `~/.kk-flavor/standards/git.md` → **Pull requests** before running it; otherwise print the command for the human.
 
 The verdict block goes in your closing reply, carrying every question only the author can settle.
 

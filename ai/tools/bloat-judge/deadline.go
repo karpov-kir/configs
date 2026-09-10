@@ -15,8 +15,9 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// defaultRollDeadline bounds one roll of the model. The vote's rolls go out together, so a judge run
-// is bounded at about this rather than three times it, and can no longer block forever.
+// defaultRollDeadline bounds one roll of the model. The vote rolls a wave at a time, so a judge run is
+// bounded at two of these rather than three, and can no longer block forever — and at one whenever the
+// quorum settles, which is the common case.
 //
 // Read from measurement. Seven rolls timed here — 68, 85, 95, 98, 104, 119 and 150 seconds — over
 // texts from 13KB up to the 80KB a decision record at its 100-entry cap presents, beside the 30, 36,
@@ -32,7 +33,7 @@ import (
 //
 // 420 is 2.8 times the slowest roll seen. Generous deliberately: this exists so a run ends, not so it
 // ends soon, and a bound that clips an honest roll costs the caller the whole gate. Concurrency is
-// what makes it affordable — in sequence, this figure would bound a run at 21 minutes.
+// what makes it affordable — one roll at a time, this figure would bound a run at 21 minutes.
 const defaultRollDeadline = 420 * time.Second
 
 // The only line the override file may carry.
@@ -123,17 +124,19 @@ func rollDeadline(configHome, home string) (time.Duration, string, error) {
 		deadline, path, defaultRollDeadline), nil
 }
 
-// runBounded runs one model call and kills it when the deadline passes.
-//
-// The process *group*, not the process: `claude` starts children of its own, and killing only the one
-// we started leaves them running on a machine whose stalls already track its load. WaitDelay covers
-// what is left — a surviving grandchild holding the output pipe would keep this blocked long after
-// the child is gone, which is the hang the deadline exists to remove.
-func runBounded(deadline time.Duration, name string, args []string, stdin string) (string, error) {
+type modelCommand struct {
+	name  string
+	args  []string
+	stdin string
+	dir   string
+}
+
+func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdin = strings.NewReader(stdin)
+	cmd := exec.CommandContext(ctx, command.name, command.args...)
+	cmd.Stdin = strings.NewReader(command.stdin)
+	cmd.Dir = command.dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 5 * time.Second

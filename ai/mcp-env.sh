@@ -3,7 +3,7 @@
 # Launch an MCP server with a chosen environment instead of an inherited one.
 #   usage: mcp-env.sh <command> [<arg>...]
 #
-# A stdio MCP server is a child of Claude Code, so without this it inherits every variable exported
+# A stdio MCP server is a child of the agent client, so without this it inherits every variable exported
 # in the shell that launched the session — every API key, token and credential — and two of the
 # servers in mcp.jsonc are unpinned `npx` packages whose code changes on every launch.
 #

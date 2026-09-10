@@ -2,7 +2,11 @@
      applies. That includes a lead you inferred, however useful it looks. Omit an empty slot
      entirely. -->
 
-Run the `<skill name>` skill in full, per its SKILL.md.
+Apply the `<skill name>` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
+
+Model role and original-task selection: <resolved under `~/.kk-flavor/standards/model-policy.md`; preserve protected roles>
+
+Candidate and evidence: <base, current scope identity, reusable verdicts and their unchanged inputs, or none>
 
 Change scope: <the change set the orchestrator resolved — files, diff selector, worktree path, …>
 

@@ -79,17 +79,21 @@ type checker struct {
 	bashBinaries func() []string
 }
 
-// Run checks the tree under args and writes the report to out. The arguments are an optional root and
-// an optional --gate, in either order: an empty root means the two candidates ecoroot tries, in order,
+// Run requires --agent=claude|codex and accepts an optional root and --gate in any order.
+// It checks the tree and writes the report to out. An empty root tries ecoroot's two candidates in order,
 // and --gate narrows the walk to what a commit can carry (gate.go). It returns the process exit code:
 // 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan. A check that
 // did not run is not a clean one, which is why the last is not folded into either of the others.
 func Run(args []string, out, errOut io.Writer) int {
-	root, isGate, ok := parseArgs(args)
-	if !ok {
-		return refuseToRun(errOut, "usage: check.sh ["+gateFlag+"] [<root>]")
+	agent, rest, err := ecoroot.AgentArgs(args)
+	if err != nil {
+		return refuseToRun(errOut, err.Error())
 	}
-	c, found := newChecker(root)
+	root, isGate, ok := parseArgs(rest)
+	if !ok {
+		return refuseToRun(errOut, "usage: check.sh --agent=claude|codex ["+gateFlag+"] [<root>]")
+	}
+	c, found := newChecker(root, agent)
 	if !found {
 		named := root
 		if named == "" {
@@ -175,8 +179,8 @@ func (c *checker) cannotRun(reason string) {
 	c.unrunnable = append(c.unrunnable, reason)
 }
 
-func newChecker(root string) (*checker, bool) {
-	resolved, ok := ecoroot.New(root)
+func newChecker(root, agent string) (*checker, bool) {
+	resolved, ok := ecoroot.New(root, agent)
 	if !ok {
 		return nil, false
 	}

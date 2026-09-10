@@ -15,8 +15,8 @@ However that is authorised (`~/.kk-flavor/standards/skill-protocol.md` → **Cal
 5. **Run the stages there unchanged, with five exceptions.**
    - **Each stage proposes rather than applies**, whatever its own contract permits.
    - **The pass does not stream** — your product is a landing, which fails `~/.kk-flavor/standards/streaming.md`'s test.
-   - **A PR touching the agents' own instruction tree gets `kk-ecosystem` over those files, spawned by you.** `kk-qualify` leaves that lane out, so nothing else here reaches it; its findings become comments like any stage's, never edits to the PR.
-   - **`kk-humanize` runs only over text you wrote yourself** — never the author's, not through `kk-tighten`'s handoff and not through the comment-block route the stages send straight to it. Their voice stays theirs, so a concision cut may become a finding but a voice rewrite never does.
+   - **A PR touching agent instructions uses the pass's one `kk-ecosystem` owner over those files.** Its findings become comments, never edits to the PR; do not dispatch a second instruction worker.
+   - **`kk-edit` runs only over text you wrote yourself** — never the author's prose or comments. Their voice stays theirs, so a concision cut may become a finding but a voice rewrite never does.
    - **`kk-refactor`'s repo-wide reach stops at the diff.** Resolve its scope to the PR's files; writing the limit into the spawn prompt is not the route, because that prompt narrows no stage's lens.
 
 ## A second round over an unchanged diff

@@ -1,136 +1,217 @@
-# ai — Claude Code, the standards, the skills
+# Agent ecosystem
 
-This file is how you install it. [`field-guide.html`](field-guide.html) is what it does and which
-skill to reach for — open it in a browser. That page is generated from the skills themselves by
-`ai/guide.sh`, so it cannot fall behind them; the prose around the list is hand-written, in
-`ai/tools/eco-guide/field-guide.template.html`.
+Install the standards, skills and their Go tools from a permanent checkout. Skill symlinks point
+back here; deleting the checkout breaks them. [The field guide](field-guide.html) describes the skills.
 
-## Which install you want
+## Install into a project
 
-There are three tiers and two scopes, and they are separate questions.
-
-**The tiers.** By default you get the skills that work in any repository. `--maintainer` adds the few
-that exist to maintain this instruction tree itself — they declare `audience: maintainer` in their own
-frontmatter, and they do nothing for a repository that merely uses the tree. Leaving them out is the
-default because every skill's `description:` is loaded in every session whether or not it is invoked,
-so an unusable skill is a standing cost. `ai/bootstrap-owner.sh` is the third tier: `--maintainer`
-plus `rtk` and this checkout's own `CLAUDE.md` as the machine's instruction file. That one is for the
-person who owns this repository, not for anyone installing from it.
-
-**The scopes.** `ai/bootstrap.sh` installs machine-wide: the skills land in `~/.claude/skills/` and
-every session on the machine loads them. `ai/install-project.sh <project>` installs into one project
-instead — the skills land in `<project>/.claude/skills/` and cost nothing in your other repositories.
-The machine-wide half that a project install still needs (`~/.kk-flavor`, the Go tools, the MCP
-servers, `jq`) comes from `ai/bootstrap.sh`, so run that once and the project script once per project.
-
-Both are safe to re-run: a second run over a finished machine or project reports "ok" throughout and
-writes nothing.
+For “install Claude integration to this project”, run only the project installer from a permanent
+checkout of this repository, passing the target project's directory:
 
 ```sh
-ai/bootstrap.sh                       # machine-wide, the any-repo skills
-ai/bootstrap.sh --maintainer          # and the ones that maintain this tree
-ai/bootstrap-owner.sh                 # the owner's machine: maintainer + rtk + this CLAUDE.md
-ai/install-project.sh ~/code/thing    # one project, after ai/bootstrap.sh has run once
+/path/to/configs/ai/install-project.sh --agent=claude "$PWD"
+# Or select Codex:
+/path/to/configs/ai/install-project.sh --agent=codex "$PWD"
 ```
 
-## Installing from an agent
+The installer creates the shared `~/.kk-flavor` bucket and mounts its skills into the project's
+`.claude/skills` or `.agents/skills`. It writes project `AGENTS.md`, the `CLAUDE.md` import, skill
+ignore rules and browser MCP configuration: `.mcp.json` for Claude, `.codex/config.toml` for Codex. It never writes user client instructions or user client skills. Keep the source
+checkout: the shared bucket points back to it. Existing unrelated MCP settings are preserved; conflicting
+server definitions and Git ignore rules that hide project MCP files are reported. Private MCP settings
+are never copied. Claude requires approval for
+project MCP servers; Codex loads project configuration only in trusted projects. Approve or trust
+through the client after reviewing the generated files.
 
-If you are Claude, and someone asks you to install this into their projects, this is the whole of it.
-Clone the repository somewhere permanent — **not** a scratch directory, because every mount points
-back into it and deleting it breaks them all — then:
+Skill links are local and ignored, so Git cannot carry them into a new worktree. Installation syncs
+existing worktrees and installs a repository-local `post-checkout` hook to sync future normal
+`git worktree add` checkouts. The hook only maintains skills; it does not reinstall dependencies or
+edit tracked instructions. Existing hook managers are preserved and reported for explicit integration.
+For a checkout created with hooks disabled, restore skills with:
 
-1. `ai/bootstrap.sh` once, from the clone. This is the machine-wide half and needs `brew`, `gh` and
-   the `claude` CLI. Its `--skip-brew`, `--skip-tools` and `--skip-mcp` flags turn off the steps that
-   reach the network if any of those is missing.
-2. `ai/install-project.sh <project>` once per project named.
+```sh
+bash "$HOME/.kk-flavor/../project-skills.sh" --sync /path/to/worktree
+```
 
-Do not pass `--maintainer` or run `ai/bootstrap-owner.sh` unless the person asked for them by name.
-Report any line the run prints as `REFUSED` rather than working around it: each one names a target the
-scripts will not take over, and each is a decision for the human whose machine it is.
+Other machines and fresh clones still need their own project installation.
 
-## What a project install puts in the project
+Project setup requires mise. It reuses a working installation or installs only mise through an
+existing Homebrew installation. If neither is available, it reports the prerequisite and stops;
+follow [mise's installation instructions](https://mise.jdx.dev/installing-mise.html) and rerun.
+Project MCP setup reuses Node on PATH or obtains it through mise; the first run may download
+that runtime. It does not
+install RTK, sync user MCP settings, prebuild every Go tool, or run repository tests.
+Go tools resolve on first use; that requires Go if a verified binary is not already available.
 
-- A symlink per skill under `<project>/.claude/skills/`, pointing back at the clone. Mounted rather
-  than copied, so one tree serves every project and an update reaches all of them at once.
-- Ignore rules for those symlinks in `<project>/.gitignore`, fenced with `# kk-flavor:begin`. If the
-  project already ignores `.claude/` wholesale, the run reports that and adds nothing — that rule
-  covers the project's own settings too, so what to do about it is a human's call.
-- A short region in `<project>/CLAUDE.md`, fenced with `<!-- kk-flavor:begin -->`, pointing at
-  `~/.kk-flavor/inject.md`. The fences are how a re-run recognises its own work and how an uninstall
-  finds it again; edit inside them and the next run refuses rather than overwriting you.
+For agents performing a project install: use the requested client and project, inspect the resulting
+project diff, verify the links, then ask for confirmation before committing and landing the project
+changes on main. Report refusals and leave unrelated changes alone. Machine bootstrap and the owner
+or maintainer tier require an explicit request.
 
-The `.gitignore` lines and the `CLAUDE.md` region are meant to be committed. A colleague who clones
-the project without installing anything is unaffected: the region names a path they do not have, and
-Claude Code skips an instruction file it cannot find.
+## Install machine-wide
 
-**One known rough edge.** A symlinked skill loads and is invocable, but Claude Code has had issues
-listing symlinked skills in `/` autocomplete. If a skill does not appear when you type `/`, invoke it
-by name — it is there.
+Choose `--agent=claude` or `--agent=codex` for every install and uninstall. There is no default.
 
-## The flags
+```sh
+ai/bootstrap.sh --agent=codex          # Codex, machine-wide
+ai/bootstrap.sh --agent=claude         # Claude Code, machine-wide
+ai/bootstrap.sh --agent=codex --maintainer  # include ecosystem maintenance skills
+ai/bootstrap-owner.sh --agent=claude   # Claude owner instructions, maintainer skills and RTK
+ai/bootstrap-owner.sh --agent=codex    # same owner instructions, maintainer skills and RTK
+```
 
-The flags and the refusals both bootstrap scripts share are in the repository's root `README.md`; a
-target this one reports and skips is still yours to link with the commands below. The last thing
-`ai/bootstrap.sh` does is run the repository's own suites over what it just linked; `--skip-verify`
-turns that off, and `--skip-brew`, `--skip-tools` and `--skip-mcp` turn off the steps that reach the
-network.
+| Target | Machine skills | Machine instructions | Project skills | Project instructions |
+| --- | --- | --- | --- | --- |
+| `--agent=claude` | `~/.claude/skills` | `~/.claude/CLAUDE.md` | `.claude/skills` | `AGENTS.md`, imported by `CLAUDE.md` |
+| `--agent=codex` | `~/.agents/skills` | `${CODEX_HOME:-~/.codex}/AGENTS.md` | `.agents/skills` | `AGENTS.md`, imported by `CLAUDE.md` |
 
-Because the skills below are mounted by discovery, renaming or deleting one leaves its old link
-behind. Each run removes those, and names what it removed — only a link it would have written itself:
-an absolute symlink under `~/.claude/skills/`, pointing into this checkout's `ai/kk-flavor/skills/`,
-whose directory is gone. Everything else it leaves. So if the wiring check
-(`ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh`) keeps naming a mount no run drops, remove that
-one by hand.
+Codex paths follow [OpenAI's skill discovery](https://learn.chatgpt.com/docs/build-skills) and
+[instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md). An existing
+nonempty `AGENTS.override.md` shadows `AGENTS.md`; bootstrap reports that conflict. Restart Codex
+after installation to load the new global instructions.
 
-## By hand
+Both clients share `~/.kk-flavor` and the source tree, but can be installed and removed independently.
+The shared bucket stays while another client has skill mounts from this checkout. Codex migrates old
+`$CODEX_HOME/skills` links only after their replacements exist under `~/.agents/skills`. It leaves unrelated links alone.
+
+The default tier excludes skills marked `audience: maintainer`. Add `--maintainer` to include them.
+Normal installations add a shared fenced region to the client's instructions and keep its memory policy.
+
+Owner installs copy [owner-instructions.md](owner-instructions.md) to the client's user instruction
+file: `CLAUDE.md` for Claude or `AGENTS.md` for Codex. These are independent copies. The repository
+stores only the template, so working here doesn't load owner instructions as project instructions.
+Re-run bootstrap after changing the template. An adjacent receipt identifies unchanged copies for
+upgrades and removal; local edits are preserved and reported. An older generated Codex instruction
+file is backed up before replacement. If it contains added personal text, bootstrap refuses to replace it.
+
+Both clients use `~/Document/AI/MEMORY.md` for owner memory. Bootstrap creates the file only when absent
+and never removes it on uninstall.
+
+For a machine-wide install, run bootstrap for the requested client. Report `REFUSED` lines so the
+user can resolve targets the installer left untouched.
+
+## Dependencies and controls
+
+The Go tools need `gh` to download verified releases, or Go to build from source when no release exists.
+Set `JUDGE_PROVIDER=codex` or `JUDGE_PROVIDER=claude` for each judge invocation and authenticate
+the matching CLI yourself. Missing, invalid or unavailable providers fail with exit 2. There is no
+`auto` mode or fallback.
+
+```sh
+JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh instruction instructions.md
+```
+
+Model assignments and usage sites live in [models.json](kk-flavor/models.json). The shipped policy
+keeps agent work on the original task's model and preserves the judge's existing helper assignments.
+Read [model policy](kk-flavor/standards/model-policy.md) before choosing an override or a cheaper
+coordinator. The resolver prints requested settings and provenance; native or CLI dispatch still
+must verify the effective selection. `JUDGE_PROVIDER` selects the client, not a fallback provider.
+Change the central policy to tune the judge; a legacy `JUDGE_MODEL` setting is refused.
+
+Reply editing and structured stage returns do not call the judge. Durable deletion disputes can use
+it explicitly. Matching first and second votes avoid a third call; cache identity includes the model
+policy and judging policy so a changed assignment cannot reuse an old verdict.
+
+## Pipeline use
+
+Use `kk-build` to implement a settled requirement, `kk-qualify` for its quality pass, and `idsd-ship`
+for the intent lifecycle. Individual IDSD checkpoints remain available. These entries share one
+coordinator, which dispatches bounded leaf workers and waits on completion. Independent correctness
+and security reviews keep separate contexts; fixes reopen affected evidence.
+
+`kk-edit` combines the former concision and humanization passes for prose and comments. It preserves
+meaning and stops at an edited artifact. `kk-skillcraft` remains the focused skill-structure entry;
+`kk-ecosystem` owns instruction semantics and applies its ordered checks within one worker. A full
+ecosystem audit requires an explicit request. The editor never deletes agent obligations.
+
+After landing an upgrade, rerun the installer matching each existing scope: bootstrap for machine
+installs, the project installer for project installs, selecting each installed client. They mount
+`kk-edit` and remove retired links owned by that checkout. During candidate
+validation, use explicit worktree paths; do not point installed mounts at unfinished skills.
+
+Qualification receipts use the `edit` stage. Existing receipts using the retired `tighten` stage
+require requalification. A not-applicable skip needs a scope receipt for the exact review base and
+candidate; unknown paths and security surfaces keep their reviews.
+
+Machine bootstrap installs `jq` (`brew install jq`) and syncs `mcp.jsonc` plus the optional gitignored
+`mcp.private.jsonc` with `mcp-sync.sh --agent=codex` or `--agent=claude`. Codex stdio servers retain
+their command, arguments and environment; HTTP servers use Codex's streamable HTTP transport.
+Authenticate servers that require OAuth with `codex mcp login <name>` after syncing.
+
+The owner tier installs `rtk` (`brew install rtk`). Codex runs `rtk init --codex --global` in a
+temporary profile, then copies `RTK.md` to `CODEX_HOME` if none exists there. The owner instruction
+template stays untouched and supplies RTK guidance to both clients. Codex selects commands explicitly;
+Claude uses its native hook.
+Use `rtk proxy <command>` when exact output is needed, including every diff read for review.
+
+- `--dry-run`: report changes without writing them.
+- `--relocate`: authorize moving mounts from another checkout; otherwise the installer refuses before writing.
+- `--skip-tools`, `--skip-brew`, `--skip-mcp`, `--skip-rtk`: skip the corresponding machine step.
+- `--skip-verify`: skip the repository suites, which bootstrap runs last by default.
+
+Re-runs preserve correct links and unchanged owned regions. A target owned by somebody else or a
+modified fenced region is refused. Bootstrap also removes its stale skill links after a skill disappears.
+
+Project installs add fenced ignore rules for skill symlinks and a shared instruction region in
+`AGENTS.md`. A regular `CLAUDE.md` imports it with `@AGENTS.md`, using
+[Claude's import syntax](https://code.claude.com/docs/en/memory). The installer replaces its old flavor
+region in `CLAUDE.md` with that import and preserves other prose in both files. Commit both files
+and the ignore regions after the requested confirmation.
+
+Removing one client keeps shared instructions while the other still has mounts. Removing the last
+removes only installer-owned regions. Each client has its own ignore region; a broad ignore rule
+for the client's whole directory is reported and left unchanged.
+
+The wiring check and statistics tool also require `--agent=claude|codex`:
+
+```sh
+~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex ai
+~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent=codex ai
+```
+
+In skill commands, set `ECO_AGENT` explicitly to supply that argument; set `JUDGE_PROVIDER`
+separately for model calls. Reports name instructions excluded from measurement; audit those
+installed files separately. Skills restricted to explicit invocation carry Claude frontmatter and
+[Codex invocation policy](https://learn.chatgpt.com/docs/build-skills) in
+`agents/openai.yaml`.
+
+## Machine-wide setup by hand
 
 - [Claude Code](https://code.claude.com)
-  - Mount the kk-flavor bucket — standards, templates, scripts, and the skills themselves: `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
-  - Point your `~/.claude/CLAUDE.md` at it, by adding a line reading ``Read `~/.kk-flavor/inject.md` now and follow it``. The owner's machine symlinks this checkout's own file there instead: `ln -s ~/Documents/WP/configs/ai/CLAUDE.md ~/.claude/CLAUDE.md`
-  - Install the skills (each is a dir under `ai/kk-flavor/skills/`): `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/kk-flavor/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
+  - Mount the shared standards, templates, scripts and skills: `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
+  - Add this line to `~/.claude/CLAUDE.md`: ``Read `~/.kk-flavor/inject.md` now and follow it``. For owner instructions, use `ai/bootstrap-owner.sh --agent=claude`; it installs a regular copy and tracks it for upgrades.
+  - Mount each skill under `ai/kk-flavor/skills/`: `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/kk-flavor/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
   - Install the Go tools the skills run (needs `gh`, not Go): `~/Documents/WP/configs/ai/tools/install.sh`. Re-run after a new release. Skip it and the skills build from source on first use, which does need Go.
-  - MCP servers: `ai/mcp.jsonc` is the public source of truth. Machine-private servers for internal hosts sit beside it in `ai/mcp.private.jsonc`, gitignored and the same shape. Claude Code has no global MCP file to symlink, so `~/Documents/WP/configs/ai/mcp-sync.sh` syncs both into the user scope. That covers every project, in the CLI and the IDE. Re-run it after editing either file. Needs `jq` (`brew install jq`). An `http` server registers without ever being contacted, so it lands as `! Needs authentication`: run `/mcp` in an interactive session and complete its login once.
+  - Sync the MCP files described above with `~/Documents/WP/configs/ai/mcp-sync.sh --agent=claude`. This needs `jq` (`brew install jq`) and registers servers for every project in the CLI and IDE. Re-run after editing either file. HTTP registration does not contact the server. If it shows `! Needs authentication`, run `/mcp` in an interactive session to log in.
   - The `chrome-devtools` server drives the Chrome you already have open. Turn remote debugging on once at `chrome://inspect/#remote-debugging` (Chrome 144+). While it's on, any session can reach that profile, so untick it when you're done.
-- [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before Claude Code reads it
+- [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before the agent reads it
   - `brew install rtk`
-  - `rtk init -g`, then restart Claude Code
-- [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) — a code graph, for the reachability questions `grep` answers a round at a time
-  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`. `checksums.txt` ships in that same release, so a matching hash only says the two files agree with each other — the attestation is the only thing saying where the binary came from, and `--repo` on its own is weaker than it reads: any workflow in that repository holding `id-token: write` can sign for it. Read the signer workflow's path off a release run and pin it with `--signer-workflow`, the way `ai/tools/install.sh` pins this repository's own
+  - `rtk init --agent claude --global --hook-only --auto-patch`, then restart Claude Code
+- [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) provides a code graph for reachability questions.
+  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`. Read the signer workflow path from a release run and pin it with `--signer-workflow`, as `ai/tools/install.sh` does. The release's `checksums.txt` checks consistency, not provenance; `--repo` alone permits any signing workflow in that repository.
   - Unpack it to `~/.local/bin/codebase-memory-mcp` (~283 MB) and `chmod +x` it
-  - **Do not run its `install` subcommand.** It wires itself into every agent client it can find. This machine reaches it by CLI only, on purpose: as an MCP server its tool schema costs ~6k tokens in every session
+  - Do not run its `install` subcommand: it registers with every agent client it finds. Use the CLI only; the MCP tool schema costs ~6k tokens per session.
   - Confine it: `CBM_ALLOWED_ROOT=~/Documents/WP` makes it refuse a path outside that tree
   - Remove with `rm ~/.local/bin/codebase-memory-mcp && rm -rf ~/.cache/codebase-memory-mcp`
   - Not part of `bootstrap.sh`: the download is a release asset you verify by hand
 
-## Removing it
+## Remove
 
-Each install has a mode that takes itself back out, over the same table it went in by — so nothing is
-left behind because an uninstall re-derived the list and got it wrong.
+Pass the same client selector used for installation:
 
 ```sh
-ai/install-project.sh --uninstall ~/code/thing   # one project
-ai/bootstrap.sh --uninstall                      # the machine-wide half
+ai/install-project.sh --agent=codex --uninstall ~/code/thing
+ai/bootstrap.sh --agent=codex --uninstall
+ai/bootstrap.sh --agent=claude --uninstall
 ```
 
-A project uninstall removes the skill symlinks, the `.gitignore` rules and the `CLAUDE.md` region —
-its own fenced lines only, never anything you wrote beside them. A machine-wide uninstall removes the
-mounts and, unless you are the owner, the region it wrote in `~/.claude/CLAUDE.md`. Both remove a
-symlink only when it resolves back into this checkout: anything else is reported and left, on the same
-rule the install follows.
+Uninstall removes owned symlinks and fenced regions, preserving surrounding instructions. For an
+owner installation, use `ai/bootstrap-owner.sh --agent=claude|codex --uninstall` to remove its instruction copy.
+Bootstrap lists recorded projects still using the checkout; uninstall those before deleting it.
 
-`ai/bootstrap.sh --uninstall` also names every project still holding mounts from this checkout, read
-from `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/installs`. Those mounts would dangle the moment the
-checkout goes, so uninstall each project before deleting it.
+Tool binaries live in `ai/tools/bin/` and go with the checkout. Uninstall preserves client sessions,
+settings, Brew dependencies, native RTK setup and MCP connections. List Claude connections with
+`claude mcp list` and remove them with `claude mcp remove <name> -s user`.
 
-The tool binaries live in `ai/tools/bin/` inside this checkout, so they go with the checkout. What
-outlives it:
-
-- The MCP servers: `claude mcp list` to see what the sync registered, then
-  `claude mcp remove <name> -s user` for each one.
-- `jq` and `rtk` stay installed, and there is no suggestion here to remove them. A brew formula is
-  shared and unrefcounted: nothing records whether this machine already had one or what else depends
-  on it now, so uninstalling on a guess breaks unrelated tooling while leaving a small CLI in place
-  costs nothing. Treat them as dependencies this repository may have installed, and decide yourself.
-
-Nothing here touches `~/.claude/projects`, `~/.claude/settings.json` or anything else Claude Code
-writes for itself.
+Remove Codex RTK setup with `rtk init --codex --global --uninstall`; remove a Codex MCP connection
+with `codex mcp remove <name>`. Owner memory is preserved.

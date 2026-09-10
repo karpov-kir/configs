@@ -1,11 +1,12 @@
 # Changing the Ecosystem
 
-Rules for editing what agents read: skills, standards, prompts, templates, `CLAUDE.md`. Every line here is context each future run pays for. The bar is never "is this true" — it is "does this change what an agent does".
+Rules for editing what agents read: skills, standards, prompts, templates, agent instructions. Every line here is context each future run pays for. The bar is never "is this true" — it is "does this change what an agent does".
 
 These rules bind any edit, however small. **Run the instruction lane after a batch of edits here.** A rule half-duplicated by the clause beside it leaves a contradiction, and no scoped hunt catches it — the file was never the thing under review.
 
 ## Earn the place
 
+- **Write shared instructions in terms of roles and capabilities.** Name providers only where their behavior, paths, formats or commands differ; keep those distinctions at the boundary that needs them.
 - **Delete before you rephrase.** Keep what is essential, plus the supporting detail that makes it unambiguous. Drop the rest.
 - **Nice-to-have is a cut** where no move saves it (**Move it before you cut it**, below) — a rule that fires rarely, or that a competent agent follows anyway.
 - **A rule you add names what it replaces**, or says plainly that nothing covered this — in the instruction lane's account, never in the file, where **No evidence in a rule file** (below) cuts it.
@@ -19,13 +20,15 @@ Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "o
 
 Every rule lives in exactly one file; everywhere else cross-references it by path.
 
+Owner user-scoped instructions are installed as independent copies from a discoverable template; keep the template outside repository `AGENTS.md` and `CLAUDE.md` entry points.
+
 **A citation is an instruction to load a file, and costs what that file costs.** It earns its place only where the reader must open the target — a branch to take, or a delta too big to state here. **Beside a rule the citing file owns and states whole, the link is attribution: cut it.**
 
 **Ownership is stated in the owned file, never broadcast to the files that do not own it.**
 
 **A rule's home is the file whose reader would otherwise get it wrong** — not the file that proves it, and not the file that happens to depend on it.
 
-**The shared layer — a standard, a template under `kk-flavor/`, `CLAUDE.md` — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
+**The shared layer — a standard, a template under `kk-flavor/`, agent instruction file — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
 
 ## Family direction
 
@@ -36,13 +39,13 @@ Every rule lives in exactly one file; everywhere else cross-references it by pat
 ## Conventions a new file joins
 
 - **A skill authored in this tree joins one of two families**, by prefix: `kk-` works in any repo, `idsd-` belongs to a single workflow and carries that workflow's own on-disk machinery. An installed tool skill is a skill outside this tree, not a third family inside it.
-- **A skill the human always initiates carries `disable-model-invocation: true`**, which drops its description out of every session's context. Model invocation is for the skill that must fire on work the human would not think to name.
+- **A skill the human always initiates carries `disable-model-invocation: true` for Claude Code and `policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex.** These disable automatic invocation; only Claude's marker promises to remove the description from context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **A skill whose subject is this tree's own instructions carries `audience: maintainer`.** Omitting it means the skill works on anyone's project, so only the exceptions carry the key and a new skill inherits the right default by writing nothing. The install offers to skip the marked ones, and every reader of the marker — the installer, the mount scan — takes it from the frontmatter rather than a list, so discovery still holds when a fourth arrives. **A skill that judges work against `~/.kk-flavor/` is marked** however general its subject sounds: it cannot travel to a tree that does not have them.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
 - **A skill that runs a script cites it by full path — `~/.kk-flavor/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
 - **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes.** **An override file that is present but unusable refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
 - **An edit in a worktree is not what a spawned agent reads.** The mounts resolve to the main checkout, so a stage you spawn reads the landed version of every skill and standard, not the tree you are editing. Land it, or exercise it inline, before spawning anything to test it.
-- **A new skill is not live until it is mounted** — a symlink at the skill mount — `~/.claude/skills/<name>` for a machine-wide install, `<project>/.claude/skills/<name>` for a project-scoped one — pointing back at its directory here. **Mount or unmount only once the tree change it reflects has landed, as the last step of that landing and never a later tidy-up.** The symlink is machine-wide and immediate while the add or the delete is branch-local: mounted early it points at a directory no checkout has, unmounted early it pulls a skill the tree still ships. **Prove the mount by running the instruction lane's wiring check** — its mount scan runs only in the install, so a green from a worktree says nothing about mounts, in either direction.
+- **A new skill is not live until it is mounted** by a symlink pointing back at its directory here. Use `.agents/skills/<name>` for Codex or `.claude/skills/<name>` for Claude Code, under `~` machine-wide or under the project for a project install. **Mount or unmount only once the tree change it reflects has landed, as the last step of that landing and never a later tidy-up.** Mounts change immediately while tree edits are branch-local: mounted early a skill may be absent from the installed checkout; unmounted early it disappears while the tree still ships it. **Prove the mount by running the instruction lane's wiring check** — its mount scan runs only in the install, so a green from a worktree says nothing about mounts, in either direction.
 
 ## Move it before you cut it
 
@@ -66,7 +69,7 @@ A move away from the common path is only a win when that path genuinely never ne
 
 ## Memory
 
-`CLAUDE.md`'s Memory section is a staging area, not a record kept across runs: an entry stays there until it fits a standard or a skill, then moves into that file. Entries are authoritative — don't reorganize them.
+Memory uses the location named by the active agent instructions; do not assume it lives in their Memory section. It is a staging area: an entry stays there until it fits a standard or a skill, then moves into that file. Entries are authoritative — don't reorganize them.
 
 ## Approved means edited now
 

@@ -1,4 +1,4 @@
-// MCP servers for Claude Code's user scope. Edit here, then run ./mcp-sync.sh.
+// User MCP servers. Edit here, then run ./mcp-sync.sh --agent=claude or --agent=codex.
 // A comment has to own its whole line. mcp-sync.sh blanks any line starting with `//`, so a string
 // value that starts one gets blanked too. A `//` later in a line survives, and jq won't parse it.
 // URLs inside quotes are fine.
@@ -8,22 +8,6 @@
     // host, or anything carrying a credential, goes in ai/mcp.private.jsonc, which is gitignored and
     // which mcp-sync.sh reads in the same run — ai/README.md states that policy.
 
-    // Both stdio servers run unpinned on purpose. Every launch takes the newest release, so code
-    // I haven't read runs at session start. That much is accepted; what they inherit is not.
-    // Both launch through mcp-env.sh, which re-execs behind `env -i` and passes only the variables a
-    // node process needs to start. The allow-list, and the reason for each name, live in that file.
-    // What that buys is the environment, and only the environment. HOME is on the allow-list, so
-    // these servers still read every file this account can — ~/.ssh, ~/.aws, and ~/.claude.json,
-    // where mcp-sync.sh has written each registered server's config. The wrapper is not a sandbox.
-    // `"env": {}` would not do it: that adds to the inherited environment rather than replacing it,
-    // so a server still sees every credential exported in the shell that started Claude Code.
-    // Measured on Claude Code 2.1.247: `claude mcp list` launches each stdio server to
-    // health-check it, so one whose command dumps `env` reports what it was handed. `"env": {}` and
-    // no `env` key at all handed it the same environment, an exported test variable included, and
-    // `{"X": "y"}` handed it that same environment plus X — which is what rules out the field being
-    // ignored outright.
-    // `@CONFIGS@` is this directory. mcp-sync.sh substitutes it at registration, because the path
-    // differs per machine and this file is committed.
 
     // Launches a Chrome of its own, on a profile that persists between runs, one per project
     // directory. It isn't a clean room: what I sign into there stays signed in. One browser at a
@@ -36,8 +20,7 @@
     // Drives the Chrome already running on this machine, my everyday profile and my open tabs. It
     // needs Chrome's remote debugging switched on; README.md carries that step and the warning
     // about leaving it on.
-    // --autoConnect asks for the connection once per server process, so it's one dialog per Claude
-    // Code session rather than one per tool call.
+    // --autoConnect asks for the connection once per server process.
     "chrome-devtools": {
       "type": "stdio",
       "command": "@CONFIGS@/mcp-env.sh",

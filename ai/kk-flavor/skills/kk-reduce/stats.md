@@ -1,7 +1,7 @@
 # Ecosystem size
 
-Appended by `kk-reduce` alone, via `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --append <note>`: one row before a
-campaign, whose note ends `, start`, and one after. **A delta across that pair is the campaign's own
+Appended by `kk-reduce` alone, via `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}" --append <note>`: one row before a
+campaign, whose note marks `, start`, and one after. **A delta across that pair is the campaign's own
 cut, not drift** — drift is measured from a closing row forward.
 
 `kk-reduce`'s own SKILL.md defines what each row's note carries. **A column is a measurement and is
@@ -9,8 +9,8 @@ never edited — however that edit is authorised**
 (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): every delta is read off the rows below it,
 so one corrected figure silently restates every campaign since.
 
-**A `+` on a row's always-loaded figure makes it a lower bound**: `stats.sh` named an `@import` it
-could not resolve and left it uncounted. Read the delta between two marked rows as "at least this
+**A `+` on a row's always-loaded figure makes it a lower bound**: referenced or externally loaded
+instructions were left uncounted. Read the delta between two marked rows as "at least this
 much". From a marked row to an unmarked one, part of the rise is `stats.sh` resolving more rather
 than the tree growing. The unmarked row's note says how much.
 

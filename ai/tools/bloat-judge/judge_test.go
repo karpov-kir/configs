@@ -162,7 +162,7 @@ func TestRunRefusesAModelThatDoesNotAnswer(t *testing.T) {
 // The view is untrusted text, so the real run reaches the model with nothing it could be talked into
 // using: no tools, no MCP servers, and none of the repository's own settings.
 func TestClaudeArgsGrantNoToolsServersOrRepoSettings(t *testing.T) {
-	args := claudeArgs("You are")
+	args := claudeArgs("You are", testSettings())
 	at := func(flag string) int {
 		for i, a := range args {
 			if a == flag {
@@ -352,6 +352,24 @@ func rollsAnswering(replies ...string) Caller {
 	}
 }
 
+// A caller that counts, safe to call from one wave's goroutines at once. The count is read after
+// Voting returns, so a bare int here is a race rather than a wrong number — and the -race build says
+// so instead of the count quietly being short.
+func counting(inner Caller) (Caller, func() int) {
+	var mu sync.Mutex
+	calls := 0
+	return func(prompt, view string) (string, error) {
+			mu.Lock()
+			calls++
+			mu.Unlock()
+			return inner(prompt, view)
+		}, func() int {
+			mu.Lock()
+			defer mu.Unlock()
+			return calls
+		}
+}
+
 // A real view, so the unit numbers the cases below name are numbers the vote actually offered. A
 // hand-written string is not one: the vote bounds an answer by the units in the margin, and a string
 // carrying no margins offers nothing.
@@ -454,12 +472,22 @@ func TestUnitsInViewCountsUnitsAndNotLines(t *testing.T) {
 	}
 }
 
-// The rolls go out together. Each blocks until all three have arrived, so a Voting that ran them in
-// sequence never reaches the second and this ends on the timeout instead of the reply.
-func TestVotingRunsItsRollsConcurrently(t *testing.T) {
-	const rolls = 3
+// Two rolls carry a majority of three, so a vote they agree on never rolls the third.
+func TestVotingStopsWhenTwoRollsSettleEveryUnit(t *testing.T) {
+	call, calls := counting(func(string, string) (string, error) { return "2, 1", nil })
+	got, err := Voting(call, 3)("prompt", viewOf("one", "two"))
+	if err != nil || got != "1,2" || calls() != 2 {
+		t.Fatalf("settled majority = %q, %v; calls=%d, want 2", got, err, calls())
+	}
+}
+
+// The quorum goes out together, which is the half of it a call count cannot see. Both rolls block
+// until both have arrived, so a vote that rolled them one at a time never reaches the second and this
+// ends on the timeout instead of the reply. Two and not three: the third is a wave of its own, and
+// these two agree, so it is never rolled.
+func TestTheQuorumsRollsGoOutTogether(t *testing.T) {
 	var arrived sync.WaitGroup
-	arrived.Add(rolls)
+	arrived.Add(2)
 	call := func(string, string) (string, error) {
 		arrived.Done()
 		arrived.Wait()
@@ -467,7 +495,7 @@ func TestVotingRunsItsRollsConcurrently(t *testing.T) {
 	}
 	done := make(chan string, 1)
 	go func() {
-		reply, err := Voting(call, rolls)("p", viewOf("a", "b"))
+		reply, err := Voting(call, 3)("p", viewOf("a", "b"))
 		if err != nil {
 			done <- "refused: " + err.Error()
 			return
@@ -480,6 +508,20 @@ func TestVotingRunsItsRollsConcurrently(t *testing.T) {
 			t.Fatalf("got %q, want 1", reply)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("the rolls ran one after another — the second never started while the first was waiting")
+		t.Fatal("the quorum's rolls ran one after another — the second never started while the first waited")
+	}
+}
+
+// And where the quorum leaves a unit undecided, the rest are rolled. One roll each for units 1 and 2
+// leaves both one short of a majority with one roll still to come, so stopping here would answer
+// "none" over a unit the third roll could carry.
+func TestVotingRollsOnWhenTheQuorumDisagrees(t *testing.T) {
+	call, calls := counting(rollsAnswering("1", "2", "1"))
+	got, err := Voting(call, 3)("p", viewOf("a", "b"))
+	if err != nil || calls() != 3 {
+		t.Fatalf("got %q %v after %d call(s), want 3 calls", got, err, calls())
+	}
+	if got != "1" {
+		t.Fatalf("got %q, want 1 — the third roll carried it", got)
 	}
 }

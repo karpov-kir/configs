@@ -1,7 +1,7 @@
 // Comment-density detector. By default Run flags changed source files whose ADDED lines are
 // comment-heavy. With `--bar` it holds the whole change set to the host repo's own comment rate
 // (bar.go). The command-line contract (arguments, environment, exit codes) is the stub's:
-// ai/kk-flavor/skills/kk-humanize/scripts/comment-density.sh.
+// ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh.
 //
 // The default mode is a targeting aid, not a bar: it counts ADDED lines, so rewording a comment the
 // base already carried moves it into the added set, and the ratio can rise across a pass that cut

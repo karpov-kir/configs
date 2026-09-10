@@ -2,25 +2,26 @@
 
 The stages a quality pass runs over one change set. **Binding on whoever runs a pass, any single stage of one, or one of its lanes on its own** — the rules here that bind a standalone lane say so.
 
-You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over any changed code**; beyond those two, **which stages run is the orchestrator's call**. Each stage below states its own trigger. **A pass a merge waits on** has no such latitude: every stage its trigger fires runs.
+You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the stage subagents' contract. **Code-review always runs, and so does refactor over changed code.** Evaluate the other triggers against the actual change set and record why each absent lane is not applicable. A standalone pass may trim only on an explicit caller request for turnaround; a pass a merge waits on runs every triggered lane. Unknown scope or uncertain applicability means inspect further or run the lane, never assume a skip.
 
-**Each scanner lives with the lens it serves**, and you run it from there. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; a change set already committed is seen only by naming the range. **A spawn prompt describes the tree you read, never the tree you intended.** **Every scanner runs again after the lane it serves returns** — a hit still standing is resolved, or goes to the human as residue.
+**Each scanner lives with the lens it serves**, and you run it from there. **A script's output is evidence only when the script ran** — an exit you did not look at never reaches a spawn prompt as "returned no hits". **A scanner handed a revision skips untracked files**, so a change set holding new ones is seen whole only by the bare form; a change set already committed is seen only by naming the range. **A spawn prompt describes the tree you read, never the tree you intended.** **Reuse a scanner result only while its inputs and tool are unchanged.** Rerun after changes to those inputs; a hit still standing is resolved or returned as residue. Retain full failure logs outside the context window.
 
 ## The round
 
-**Settle the path before you spawn**, then spawn the round's stages **in one message** so they run concurrently. Where the path pays, the pass streams: **the comment pass and refactor go out in that message with the reviews**, none waiting on another's return. [streaming.md](streaming.md) → **A quality pass's tiers** is the whole delta for the path.
+**One caller owns the round and dispatches leaf workers directly.** Reading a build or qualify entry does not spawn another coordinator. Resolve model roles through [model-policy.md](model-policy.md); semantic adjudication remains protected even when dispatch is cheaper.
 
-**Batched, refactor is a fresh spawn after the round**, which must have settled *to a decision* first: every blocking finding answered *and applied*, asked of the human as it arrives. Fixes you applied in that interval get one fresh pass of the code-review lane, scoped to the files they changed, before refactor.
+**Settle scope and write ownership before dispatch.** Run independent code and security reviews in separate contexts against the same candidate. Parallelize other applicable leaves where inputs and writes do not conflict, within the actual worker limit. At capacity, wait or reuse a completed worker for a valid continuation; do not retry failed spawns through proxy agents.
 
-**One subagent per stage.** Every decision, and everything the pass itself writes, stay in this thread. Carry a mid-session deferral into the spawn prompt of every stage that runs afterwards.
+Where streaming pays, [streaming.md](streaming.md) supplies patch ordering. Otherwise reviews return proposals for one caller to apply, and refactor follows the settled round. Fixes made after a review invalidate that review over the changed files and affected dependencies; dispatch that scoped review before accepting the candidate.
 
-**Before accepting that it cannot spawn, a session tests the bar** ([skill-protocol.md](skill-protocol.md) → **Caller**) — the bar an agent would rather not test is the one this rule exists to catch. Where the session still cannot spawn, the stages run inline and the closing status names which of these happened: the author reviewed their own work, each lens read the diff with the build's reasoning already in the window, no file got a fresh read. Every lens still runs and every control is still proved. **A pass a merge waits on runs only from a session that can spawn.**
+**Refactor needs a fresh independent compliance check after repairs settle**, including streamed repairs. Reuse unaffected evidence, but recheck any refactor obligation opened by later edits. A structural or behavioral repair also takes independent correctness review and, if it touches a security surface, security review.
 
+If independent review cannot run, report the missing independence. Standalone passes may return that limitation; a merge-gating pass waits for independent workers. No substitute review by the author is silently accepted.
 **A handoff a stage returns joins this round at the receiving skill's own stage number** ([skill-protocol.md](skill-protocol.md) → **Finish in the lanes your edits opened**).
 
 **Reconcile contradictions empirically** — two stages opposing on one location, or a claim against an observation: re-run the check yourself rather than trust either side's word. **A claim you cannot verify has an author**: `git log` the line before you replace it with an inference.
 
-**Settle design once.** Scoping narrows *files*, never which rules a stage applies. A change reworking a **shared or cross-repo primitive** settles its target shape with the human in one pass *before* iterating.
+**Settle design once.** Scoping narrows *files*, never which rules a stage applies. A change reworking a **shared or cross-repo primitive** settles any genuinely open, expensive-to-reverse choice with the human before iterating. Existing authorization and settled requirements remain binding.
 
 **A stage that hard-fails (red gate, broken build) stops the pipeline.**
 
@@ -56,16 +57,15 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings; record the others.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or an invariant the project's own standards mark security-critical).
-3. **Prose & comment pass** — *only if* the change added or changed standalone prose, or touched any comment.
-   - **Standalone prose** joins the round via the **prose lane**, scoped to the change set's prose. Prose that reaches no diff-scoped stage — what this pass itself wrote outside the repo, an open PR's body — is **named explicitly in the spawn prompt's scope slot**. Its handoff goes to the **outward-text lane** over the files it names.
-   - **A comment finding splits by placement and content**: a true comment on the wrong construct is the refactor lane's, a false claim about the code is the code-review lane's. Each lane states only its own side.
-   - **Comment blocks** go to the outward-text lane directly, never the prose lane first, and their fixes land after refactor's.
-4. **Refactor** — batched, a loop to compliance; a pass trimming for turnaround runs one iteration instead. Each iteration spawns a **fresh** subagent (never a resume) to run the refactor lane; blocked→resume still holds *within* an iteration. Stop the moment one reports compliant; a cap reached without compliance is residue for the human with what's open, and duplication deferred under the extract threshold goes to whatever record the pass appends its settled decisions to. Run the refactor lane's scanner before the first iteration; its second run is never a reason for another iteration.
+3. **Edit** — only if the change adds or changes prose or comments. Scope it to those artifacts, including prose outside the repository that the pass itself produces. The audience determines the wording guidance in this one lane; do not send the same prose through separate concision and humanization passes. False comments remain correctness findings, and misplaced comments remain refactor findings. Apply comment edits after changes to the code they describe settle.
+4. **Refactor** — required over changed code. Run the scanner, apply actionable repairs, then obtain the final compliance check. A changed candidate reopens affected files and dependencies, not the whole passed queue. Stop when compliant; an unresolved warning or safety cap is reported rather than stamped clean. A scanner hit by itself does not justify repeatedly spawning a fresh full-scope agent.
 
-**A change to the agents' own instructions is not one of these** — a skill, standard, prompt, template or `CLAUDE.md` goes to the **instruction lane** directly, and a pass that finds one **names it in its return rather than running it**. That lane owns shape and prose itself, so running it from inside a pass queues both a second time.
+**Agent instructions go to the instruction lane**, which owns rule semantics, shape and wording in that order. The shared caller dispatches one scoped instruction worker, or records an already active owner. That worker applies the ordered checks to the target it holds; it does not spawn another orchestration stack or hand the same files to edit again. A broader ecosystem audit requires its own scope.
 
 **A retrospective is not one of these either** — no pass runs, offers or schedules one, and the human starts it.
 
 ## Gates
 
 **Verify the repo's baseline gates are real.** A command that *can't run*, that *runs but can't fail*, or that runs and can fail but *never reads the changed code*, is a **stale gate** rather than verification — never an assumed green. Read what CI actually invokes, never its stage names. What a stale one then becomes is the orchestrator's.
+
+Freeze the final candidate before expensive gates. A required repair reopens only evidence whose inputs it changes, with whole-tree gates retaining their own freshness rules. Optional wording work does not keep a settled candidate moving.

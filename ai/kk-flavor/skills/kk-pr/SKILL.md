@@ -1,6 +1,6 @@
 ---
 name: kk-pr
-description: Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-humanize), and it runs the kk-flavor pipeline where the bundled code-review does not.
+description: Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.
 argument-hint: "<review|address-review|refine-description|review-and-address> [PR number, URL, or head branch]"
 ---
 
@@ -54,7 +54,8 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
    - **The defect, then the fix, in two or three sentences.** A ` ```suggestion ` block replaces that prose when the fix is code on the diff's own lines. Severity and an exploit scenario stay on a security finding.
    - **A finding that fails that bar is dropped, not lost** — it reaches the human in your closing reply, who decides what becomes its own change.
    - **Nothing outside the diff is posted** — a duplicated site elsewhere, a gated proposal, a pre-existing defect.
-2. **Humanize the draft — spawned, not inline.** Write everything you are about to send to a scratch file and spawn `kk-humanize` over it. `~/.kk-flavor/standards/skill-protocol.md` → **Caller** would permit inline here, the target being text you already hold; spawn anyway — you just argued these findings, so your own lens is attached to them. It rewrites the file in place, so read it back as your draft, then hold it against `~/.kk-flavor/standards/human-writing.md` → **Budget** yourself.
+2. **Edit the draft inline with `kk-edit`.** The target is text you already hold. Preserve every finding, severity and required decision; read the final draft before sending. An independent rewrite is warranted only when unresolved wording needs another judgment.
+
 3. **Scan for secrets before anything reaches GitHub.** Check every suggestion body, comment and reply for credential-shaped strings, and mask any per `~/.kk-flavor/skills/kk-security-review/SKILL.md`'s secret-handling rule, replacing the suggestion with the fix described in words. **A secret in the PR's own diff is a Critical finding and is never quoted — however that quoting is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): the comment publishes it the instant it exists and no later instruction un-publishes it. This is the last check between a credential and a network write — nothing after you catches what you sent.
 4. **Say what goes public, then send.** One sentence naming what is about to exist. `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act** wants the human to have seen it, and an instruction is not a reading. Say it and send; you are not asking again. **Spawned, that sentence goes in your return** — the mode came from your caller and nothing here waits for a second yes.
 

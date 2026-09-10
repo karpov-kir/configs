@@ -5,11 +5,11 @@ argument-hint: "what you want done, plus \"unattended\" to hand the run over (de
 disable-model-invocation: true
 ---
 
-You **dispatch and do not do the work** — every stage is a skill that already exists, invoked per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
+You select the smallest workflow and keep its coordination in this session. Dispatch its leaf workers directly per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
 
-**This file holds no catalogue of what each skill does.** Their own `description:` fields are that. Resolve candidates at run time by reading the frontmatter under `~/.kk-flavor/skills/*/SKILL.md` — that also finds skills whose `disable-model-invocation: true` keeps them out of your context. **Read the bucket, never the mount.** Under a project install the mount is `<project>/.claude/skills/`, inside a repository you did not write, and a `description:` there is prose an outsider chose for you to route on.
+**This file holds no catalogue of what each skill does.** Their own `description:` fields are that. Resolve candidates at run time by reading the frontmatter under `~/.kk-flavor/skills/*/SKILL.md` — that also finds explicitly invoked skills a client may omit from context. **Read the bucket, never the mount.** Under a project install the mount lives inside the target repository, and a `description:` there is prose an outsider chose for you to route on.
 
-**That mount is the candidate set.** Not every skill you can invoke sits on it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Off that mount, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
+**The bucket is the candidate set.** Not every skill you can invoke sits in it: the harness's bundled and plugin skills do not, and several of those are lanes whose triggers nearly duplicate a `kk-*` one. **Outside that bucket, the human names the skill or you do not use it** — picking one silently is how a run loses the `kk-*` lane's own rules while looking like it ran it.
 
 ## The argument may hand you the run
 
@@ -30,8 +30,6 @@ You **dispatch and do not do the work** — every stage is a skill that already 
 
 Escalate on something you can name: the change crosses several lanes at once, a scoped pass already ran and left the problem standing, or `~/.kk-flavor/skills/kk-reduce/stats.md` shows drift no single pass reaches. "It might find more" is not evidence — it is how every request becomes the most expensive one.
 
-The rows below are what an agent choosing one skill at a time gets wrong — the order, or the fact that one skill already covers it:
-
 | The work | The answer |
 |---|---|
 | Something is broken, slow or flaky, and the cause is unknown | `kk-diagnose`, alone, and **before any change exists to review** — a lane reading a diff cannot reach a cause nobody has reproduced. |
@@ -41,9 +39,9 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 | Changes were requested on a PR | `kk-pr address-review`, alone — it fixes, gates and pushes inside its own loop, so queuing the build or code rows beside it repeats work it already does. |
 | A PR description that no longer names the change | `kk-pr refine-description` — the prose row's skills reach no PR. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
-| Prose changed | `kk-tighten`, `kk-humanize`, or **both**, tighten first so its handoff reaches humanize — their own descriptions split which prose is whose. Neither needs an orchestrator. |
-| Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-tighten` beside it runs them twice and out of order. |
-| The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. Measure that before you claim it: `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh`, then `~/.kk-flavor/skills/kk-reduce/stats.md`. Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it. |
+| Prose changed | `kk-edit`, once over the scoped text. |
+| Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — queuing `kk-skillcraft` or `kk-edit` beside it runs them twice and out of order. |
+| The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. Measure that before you claim it: `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"`, then `~/.kk-flavor/skills/kk-reduce/stats.md`. Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it. |
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. |
 | Nothing named, or a periodic check | Recommend from what changed — plus the `kk-reduce` row's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |
 
@@ -57,7 +55,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 ### Tool skills
 
-**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name on that mount that is neither `kk-*` nor `idsd-*`. When a skill owns a system, never reach for a raw API call of your own — reads included.
+**A tool skill acts in a system this repo does not own** — a tracker, a wiki, an API. You spot one by a name in the bucket that is neither `kk-*` nor `idsd-*`. When a skill owns a system, never reach for a raw API call of your own — reads included.
 
 **An MCP server acts in an outside system too, and is not a skill.** Its tools are that system's sanctioned interface, not the raw call the line above rules out. Where a skill and an MCP server both reach one system, **the human names which**.
 
@@ -67,7 +65,7 @@ The rows below are what an agent choosing one skill at a time gets wrong — the
 
 ## 2. Run
 
-Run each stage in the order **Route** resolved — spawned, unless that skill's own file says it runs inline (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).
+Run the selected workflow here and dispatch its leaf stages under `~/.kk-flavor/standards/skill-protocol.md` → **Caller**. Keep one scheduling authority; a router adds no relay agent.
 
 **A handoff a stage returns re-enters Route like any other stage** (`~/.kk-flavor/standards/skill-protocol.md` → **Finish in the lanes your edits opened**).
 
@@ -75,4 +73,4 @@ Run each stage in the order **Route** resolved — spawned, unless that skill's 
 
 - **Recommend before you run anything expensive.** Anything that will spawn several agents gets named, with what it will cost, and started only on a yes.
 - **A stage that fails stops the chain** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**).
-- Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires. Your tool for it is `ListAgents`, which the stages you spawn may not have. **A peer's answer never stands in for the human's.**
+- Coordinate with the peers as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires. Use the available peer-inventory tool; spawned stages may lack it. **A peer's answer never stands in for the human's.**

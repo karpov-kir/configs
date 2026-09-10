@@ -109,6 +109,7 @@ func (r *run) cmdInit(args []string) {
 	if err != nil {
 		r.exit(2)
 	}
+	r.clearResultManifest()
 	r.line("initialized %s (repo mode: %s, intent: %s)", r.report, r.repoMode(), intent)
 }
 

@@ -41,7 +41,7 @@ func TestInitRefusesRatherThanWritingThroughALink(t *testing.T) {
 	reports.runReport("init", "review: symlinked reports dir")
 	reports.assertRefused("init refuses a symlinked intents directory")
 	reports.record("nothing was written outside the repo through intents/",
-		!reports.exists(reports.base+"/outside-reports/review/qualify-report.md"), "")
+		!reports.exists(reports.base+"/outside-reports/review/for-agents/qualify-report.md"), "")
 	// Asserted on which refusal it is, because the exit alone cannot tell them apart: git refuses any
 	// pathspec beyond a symbolic link, so without this directory's own link test the ignore check
 	// refuses instead — for want of an ignore rule, naming `check-ignore` as the remedy.

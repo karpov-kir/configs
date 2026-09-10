@@ -126,12 +126,55 @@ summary_field() { # <field> <the suite's last line>
   }'
 }
 
+# Keep the complete diagnostics when the console tail cannot hold the first failure. A failed
+# write must print the full output instead: losing it would force another diagnostic run.
+report_output() {
+  local directory log
+  printf '%s\n' "$output" | tail -15 | sed 's/^/     /'
+  directory="$diagnostic_dir"
+  if [ -z "$directory" ]; then
+    directory="$(real_dir "${TMPDIR:-/tmp}" 2>/dev/null && printf .)" || directory=""
+    directory="${directory%$'\n'.}"
+    if [ -n "$directory" ]; then
+      case "$directory/" in
+        "$root_real/"*)
+          directory="$(real_dir /tmp 2>/dev/null && printf .)" || directory=""
+          directory="${directory%$'\n'.}"
+          ;;
+      esac
+    fi
+    case "$directory/" in
+      "$root_real/"*) directory="" ;;
+    esac
+    if [ -n "$directory" ]; then
+      diagnostic_dir="$(umask 077; mktemp -d "$directory/kk-suite-logs.XXXXXX")" || diagnostic_dir=""
+    fi
+    directory="$diagnostic_dir"
+  fi
+  if [ -n "$directory" ] &&
+    log="$(umask 077; mktemp "$directory/suite.XXXXXX")" &&
+    (umask 077; printf 'suite: %s\nstatus: %s\n\n%s\n' "$name" "$status" "$output" >| "$log"); then
+    printf '     full log: %s\n' "$log"
+  else
+    diagnostic_unretained=$((diagnostic_unretained + 1))
+    printf '     could not retain full log; complete output follows:\n' >&2
+    printf '%s\n' "$output"
+  fi
+}
+
 # The repository's own dirty set, so a suite that writes into the checkout is caught once here rather
 # than in every suite. Empty output with a non-zero status means git could not answer, which is not
 # the same as a clean tree — the caller distinguishes them.
 tree_state() {
   git -C "$root" status --porcelain 2>/dev/null
 }
+
+# The sentinel preserves newlines belonging to the path, which command substitution strips.
+root_real="$(real_dir "$root" && printf .)" || exit 2
+root_real="${root_real%$'\n'.}"
+root_real="${root_real%/}"
+diagnostic_dir=""
+diagnostic_unretained=0
 
 passed=0
 failed=0
@@ -206,12 +249,13 @@ for index in "${!suites[@]}"; do
   if [ "$status" -eq 2 ]; then
     printf 'NOMEASURE %-47s %s\n' "$name" "$last"
     unmeasured=$((unmeasured + 1))
+    report_output
     continue
   fi
 
   if [ "$status" -ne 0 ]; then
     printf 'FAIL %s\n' "$name"
-    printf '%s\n' "$output" | tail -15 | sed 's/^/     /'
+    report_output
     failed=$((failed + 1))
     continue
   fi
@@ -223,6 +267,7 @@ for index in "${!suites[@]}"; do
   declined="$(summary_field skipped "$last")"
   if [ "${ran:-0}" -eq 0 ] && [ "${declined:-0}" -eq 0 ]; then
     printf 'VACUOUS %-49s %s\n' "$name" "$last"
+    report_output
     failed=$((failed + 1))
     continue
   fi
@@ -254,6 +299,8 @@ absent_note=""
 [ "$absent" -eq 0 ] || absent_note=", $absent tracked but absent from the working tree"
 broken_note=""
 [ "$broken" -eq 0 ] || broken_note=", $broken present but not runnable"
+[ "$diagnostic_unretained" -eq 0 ] || printf 'warning: full logs unavailable for %s suite(s); complete diagnostics were printed above\n' "$diagnostic_unretained"
+[ -z "$diagnostic_dir" ] || printf 'full logs: %s\n' "$diagnostic_dir"
 printf '\n%s suite(s) found: %s passed, %s failed, %s unmeasured%s%s%s, discovered by %s\n' \
   "${#suites[@]}" "$passed" "$failed" "$unmeasured" "$absent_note" "$broken_note" "$containment" "$discovery"
 

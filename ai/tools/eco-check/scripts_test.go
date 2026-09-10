@@ -1,7 +1,6 @@
 package ecocheck_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,11 +39,7 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 	}
 	t.Chdir(base)
 
-	var buffer bytes.Buffer
-	if status := ecocheck.Run([]string{root}, &buffer, &buffer); status == 2 {
-		t.Fatalf("Run exited 2 — nothing was checked, so this case cannot be trusted\n%s", buffer.String())
-	}
-	return root, buffer.String()
+	return root, runChecker(t, "--agent=claude", root)
 }
 
 func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) {

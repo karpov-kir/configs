@@ -1,8 +1,10 @@
 # Project Records
 
-A record agents **append to** across many runs rather than rewrite: a decision log, a playbook of how a repo is operated, a project's vocabulary, the constraints its work inherits. **This binds any skill that writes one.** The skill names three things: the file, the writer that stops two runs clobbering each other, and **the one point at which the record is pruned**. Two pruning points put two agents on the same cap with different readings of what it can afford to lose. That point owns the routine sweep of the whole record. An append into a full record still forces one move where it happened (**Reaching the cap**).
+A record agents **append to** across many runs rather than rewrite: a decision log, a playbook of how a repo is operated, a project's vocabulary. **This binds any skill that writes one.** The skill names three things: the file, the writer that stops two runs clobbering each other, and **the one point at which the record is pruned**. Two pruning points put two agents on the same cap with different readings of what it can afford to lose. That point owns the routine sweep of the whole record. An append into a full record still forces one move where it happened (**Reaching the cap**).
 
 **Where nothing can overlap, the skill says so and writes by hand** — a record only a human ever triggers is that case.
+
+A human-curated charter constraint section is not an appended record: its owning lane controls its format, cap and approval.
 
 A **generated** file is not one of these. Regenerated from a source that is itself bounded, it needs no cap and no promotion — pruning its source is the whole of it.
 
@@ -22,7 +24,7 @@ A record of **measurements** carries a different entry: a row of figures, dated 
 
 Every record is capped, states its bound in the file itself, and **the writer holds that bound** — an append into a full record refuses. Where the record is hand-written under the exception above, the skill states the bound instead, and its own pruning point holds it.
 
-**Eviction is the judge's** — `~/.kk-flavor/scripts/bloat-judge.sh record-entry` over every entry.
+**Eviction is the judge's** — `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry` over every entry.
 
 **Never evict by count, and never from the top of the file.** The count says how often the record has been needed, never how much the next agent needs the entry. Age is worse: the settled decisions everything rests on are old *because* nothing has needed to revisit them.
 
@@ -45,12 +47,12 @@ The cap is a prompt to judge, never a queue to trim from the bottom. Work the mo
 
 **A count that keeps rising is a rule nobody has written down yet.** A quiet entry you would not accept losing goes up too: **promote at any count**. Move it to whatever binds:
 
-- how the project is built → the record holding its constraints
+- a project-wide invariant → the charter section holding its constraints
 - what the project is for → the file holding its scope
 - a domain term → the record holding its vocabulary
-- how agents or the project work → the standard or `CLAUDE.md` section owning that lane, never `CLAUDE.md`'s Memory, which entries leave rather than enter
+- how agents or the project work → the standard or agent-instruction section owning that lane, never the configured memory store, which entries leave rather than enter
 
-**Promoting deletes the entry.**
+**Promoting deletes the entry only after its destination is written.** A protected destination requires its owner’s approval first; until then, retain the source.
 
 **A file that receives promotions carries a test as well as any cap it has**, applied to every entry on every edit:
 

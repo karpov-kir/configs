@@ -4,13 +4,19 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**), and takes any lane it is owed before the send, never after.
 
+## Edit pass
+
+Run the **edit lane** over outward artifacts you author or revise before presenting them for approval, delivering them or publishing them. This includes PR titles and bodies, commit messages, tickets, docs, messages to others and code comments. Apply it inline by default; a separate worker or external judge is not required. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
+
+Ordinary session replies and structured worker returns apply the writing rules directly. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
+
 ## Budget — the keep test
 
-**Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. A sentence whose consequence you cannot name is already cut, and **unsure counts as unnamed**.
+**Name this artifact's reader and the one action they'll take** — for a comment, every later reader of the file, not this change's reviewer. Then, sentence by sentence, **name the edit it causes or the answer only this reader can give** — in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. Cut a sentence with no consequence only when the meaning-preservation check below permits it. Keep uncertain cases for judgment.
 
-**Then run `~/.kk-flavor/scripts/bloat-judge.sh <kind>` over what survived, and delete what it names.** The kind is the artifact's class: `--changed comment <file>` for a source file (`--changed=<revisions>` where the scope is git revisions); `pr-body`, `review`, `commit`, `ticket`, `slack`, … on stdin. A class with no kind — a doc, an email — ends at the keep test above.
+Preserve the artifact's required meaning: facts, negation, exceptions, numbers, tense, conditionality, commitments, severity and open questions. When a sentence carries one of these, shorten its expression instead of deleting its substance. Keep quoted text unchanged.
 
-**Deleting is the only exit from either cut, and it needs no home and no permission.**
+Apply this check within the current editing pass. External voting is an explicit tool for a disputed durable deletion, not a required call for each reply, review return or artifact.
 
 **Your method is never the content** — not the machine you drove on, not what you substituted for something unavailable, not the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it never does. Name the gap a verdict rests on, never the search that found it.
 
@@ -18,7 +24,7 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 ## AI tells
 
-A watch-list, not a complete set. What they share is manufactured polish and symmetry.
+A watch-list, not a complete set.
 
 **Typography & structure** — em dashes stitching clauses (use commas or periods); bold-prefixed parallel bullets ("**Speed:** …"); emoji headers; Title Case Headings; bullets where two sentences would do.
 

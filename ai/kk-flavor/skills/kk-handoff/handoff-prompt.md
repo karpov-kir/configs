@@ -1,7 +1,10 @@
 <!-- Fill every slot and delete its comment. Everything you know that the base commit does not show
      belongs in a slot, or it is lost; `handoff-check.sh` refuses what falls short of that. -->
 
-# <one imperative line: the work>
+# [<repo abbreviation>] <one imperative line: the work>
+
+<!-- Infer a recognizable abbreviation of 1–5 letters from the repository name. Reuse it for
+     handoffs from the same repo. Keep the square brackets and use this full line as the session title. -->
 
 ## The task
 
@@ -34,8 +37,8 @@
 
 ## Where it starts
 
-<!-- The repository, by absolute path, and the base commit, by SHA, that must resolve inside it. A
-     chip carries the working directory; a prompt someone pastes carries nothing, so a draft that
+<!-- The target client (claude or codex), the repository by absolute path, and the base commit, by SHA, that must resolve inside it. A
+     launch carries the working directory; a prompt someone pastes carries nothing, so a draft that
      names only the commit leaves them guessing which checkout it is in. Then every file another live
      session is holding, and the instruction to rebase onto their work rather than collide with it.
      `None` is refused: name the commit even when no one else is live. -->

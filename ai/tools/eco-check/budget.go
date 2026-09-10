@@ -15,8 +15,6 @@ const (
 	importRefused            = "import refused"
 )
 
-// The always-loaded budget: the root CLAUDE.md every system prompt carries, inject.md, and every doc
-// it lists under "Read always".
 func (c *checker) reportBudget(out io.Writer) {
 	files, uncounted := c.withImports(c.budgetFiles())
 
@@ -34,7 +32,7 @@ func (c *checker) reportBudget(out io.Writer) {
 		budgetWords += words
 	}
 	writeLinef(out, "always-loaded: %d lines, %d words across %d files%s",
-		budgetLines, budgetWords, len(counted), uncountedNote(uncounted))
+		budgetLines, budgetWords, len(counted), uncountedNote(uncounted)+c.root.BudgetScope())
 }
 
 // How a doc inject.md lists under Read always is named when it is refused. One spelling for the three
@@ -42,18 +40,14 @@ func (c *checker) reportBudget(out io.Writer) {
 // not meet two wordings of one fact.
 const readAlwaysTargetPrefix = "inject.md Read-always target "
 
-// Every budget file is contained under the root before it is read — CLAUDE.md and inject.md
-// included, not just the docs one of them lists. All three are attacker-authored when this runs as a
-// PR review's ecosystem stage (quality-pipeline.md → **The stages**), and the import scan prints
-// matched substrings, so a `../../` target reaches a reviewing agent's context.
 func (c *checker) budgetFiles() []string {
 	var files []string
-	claudeMd := shell.Join(c.root.Named(), "CLAUDE.md")
-	if c.holdsSomething(claudeMd) {
-		if c.root.Contains(claudeMd) {
-			files = append(files, claudeMd)
+	instructionFile := c.root.InstructionFile()
+	if c.holdsSomething(instructionFile) {
+		if c.root.Contains(instructionFile) {
+			files = append(files, instructionFile)
 		} else {
-			c.refuseBudgetFile(claudeMd)
+			c.refuseBudgetFile(instructionFile)
 		}
 	}
 	inject := shell.Join(c.root.Flavor(), "inject.md")

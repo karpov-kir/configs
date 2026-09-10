@@ -1,6 +1,6 @@
 // The qualify report tool as a command.
 //
-//	usage: report.sh {init <intent>|repo-mode|invalidate|stage-returned <stage>|no-items <stage>|
+//	usage: report.sh {init <intent>|repo-mode|invalidate|result-context|stage-result <json-file>|
 //	                  stamp "<stages>"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]
 //
 // It reads its skill directory from argv[0], as the shell version read it from $0, so a copied skill

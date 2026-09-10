@@ -34,7 +34,7 @@ func TestTheStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 func refusedUsage(t *testing.T) string {
 	t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run([]string{"one", "two"}, &output, &output); status != 2 {
+	if status := ecocheck.Run([]string{"--agent=claude", "one", "two"}, &output, &output); status != 2 {
 		t.Fatalf("expected exit 2 from a refused invocation, got %d\n%s", status, output.String())
 	}
 	for _, line := range strings.Split(output.String(), "\n") {

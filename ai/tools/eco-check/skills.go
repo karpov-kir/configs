@@ -2,6 +2,7 @@ package ecocheck
 
 import (
 	"io"
+	"strings"
 
 	"kk-flavor/tools/shell"
 )
@@ -11,6 +12,8 @@ const (
 	skillNameDirMismatch     = "skill name/dir mismatch"
 	skillWithoutDescription  = "skill without a description: "
 	audienceNothingReads     = "audience nothing reads"
+	codexPolicyRefused       = "Codex invocation policy refused: "
+	codexPolicyMismatch      = "Codex invocation policy mismatch: "
 )
 
 // Each defect here makes a skill unreachable rather than merely mis-linked: the loader finds a skill
@@ -32,6 +35,9 @@ func (c *checker) scanSkillDirectories() {
 		// readLines has already named the file; that finding is the true one.
 		if err != nil {
 			continue
+		}
+		if c.root.Agent() == "codex" {
+			c.checkCodexInvocation(file, lines)
 		}
 		declared := shell.FrontmatterName(lines)
 		if declared != shell.BaseName(shell.DirName(file)) {
@@ -69,7 +75,7 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 		// has already named it at rank 1, so what is left to get right here is not counting it as a
 		// description this run measured. The total above still counts it — the skill is in the tree,
 		// which is what that number says; only the claim to have read its description goes.
-		if err != nil || shell.IsOptedOutOfModelInvocation(lines) {
+		if err != nil || (c.root.Agent() == "claude" && shell.IsOptedOutOfModelInvocation(lines)) {
 			continue
 		}
 		routedSkills++
@@ -77,4 +83,35 @@ func (c *checker) reportDescriptionCensus(out io.Writer) {
 	}
 	writeLinef(out, "always-loaded: %d words of skill description across %d of %d skills",
 		descriptionWords, routedSkills, skillTotal)
+}
+
+func (c *checker) checkCodexInvocation(file string, lines []string) {
+	sidecar := shell.Join(shell.DirName(file), "agents/openai.yaml")
+	optedOut := false
+	if c.holdsSomething(sidecar) {
+		if !c.root.Contains(sidecar) {
+			c.add(codexPolicyRefused + shell.Oneline(sidecar))
+			return
+		}
+		policy, err := c.readLines(sidecar)
+		if err != nil {
+			return
+		}
+		inPolicy := false
+		for _, line := range policy {
+			if strings.TrimSpace(line) == "policy:" {
+				inPolicy = true
+				continue
+			}
+			if len(line) > 0 && line[0] != ' ' && line[0] != '\t' && !strings.HasPrefix(line, "#") {
+				inPolicy = false
+			}
+			if inPolicy && strings.TrimSpace(line) == "allow_implicit_invocation: false" {
+				optedOut = true
+			}
+		}
+	}
+	if optedOut != shell.IsOptedOutOfModelInvocation(lines) {
+		c.add(codexPolicyMismatch + shell.Oneline(file) + " — disable-model-invocation must match agents/openai.yaml policy.allow_implicit_invocation: false")
+	}
 }

@@ -1,7 +1,7 @@
 // The ecosystem size ledger as a command.
 //
-//	usage: ecostats [<root>]                    print the current measurements
-//	       ecostats --append "<note>" [<root>]  print them and append a dated row to stats.md
+//	usage: ecostats --agent=claude|codex [<root>]                    print the current measurements
+//	       ecostats --agent=claude|codex --append "<note>" [<root>]  print them and append a dated row to stats.md
 //
 // The note is one argument — quote it, or its first word is read as <root>. <root> holds kk-flavor/
 // with skills/ inside it, and defaults to . then ./ai, matching ecocheck. The row goes to

@@ -3,6 +3,7 @@ name: kk-retro
 description: Adversarial retrospective on how a run was conducted, never the change it produced. Only the human starts one, after a run that went badly, went oddly, or went well enough to be worth knowing why.
 argument-hint: "the run or session to reflect on"
 disable-model-invocation: true
+audience: maintainer
 ---
 
 Look back at **how a run was conducted**, not at the change it produced — review, refactor and security-review cover that. Read the run cold and never self-grade: whoever ran the work rationalises their own choices. Assume there is something to find.

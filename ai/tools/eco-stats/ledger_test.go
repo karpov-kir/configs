@@ -146,7 +146,7 @@ func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
 			f.write(f.root+"/CLAUDE.md", "one two\n")
 
 			var out, errOut bytes.Buffer
-			status := ecostats.Run(c.self, []string{"--append", "should not land", f.root}, &out, &errOut)
+			status := ecostats.Run(c.self, []string{"--agent=claude", "--append", "should not land", f.root}, &out, &errOut)
 
 			if status != 2 || !strings.Contains(errOut.String(), "could not resolve") {
 				t.Errorf("status: %d (want 2)\n%s", status, indent(out.String()+errOut.String()))
@@ -164,7 +164,7 @@ func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
 		t.Chdir(f.root + "/kk-flavor/skills/kk-reduce/scripts")
 
 		var out, errOut bytes.Buffer
-		if status := ecostats.Run("./stats.sh", []string{"--append", "lands", f.root}, &out, &errOut); status != 0 {
+		if status := ecostats.Run("./stats.sh", []string{"--agent=claude", "--append", "lands", f.root}, &out, &errOut); status != 0 {
 			t.Fatalf("status: %d\n%s", status, indent(out.String()+errOut.String()))
 		}
 		if rowsIn(t, ledger)-before != 1 {

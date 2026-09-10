@@ -27,7 +27,7 @@ func TestFinalizeArchivesTheShipWithoutItsScratch(t *testing.T) {
 		joinLines(f.find(f.scratch())))
 
 	// The report goes: it recorded one pass and any later pass reproduces it.
-	f.record("the archived folder carries no qualify-report.md", !f.exists(archived+"/qualify-report.md"),
+	f.record("the archived folder carries no qualify-report.md", !f.exists(archived+"/for-agents/qualify-report.md"),
 		joinLines(f.find(archived)))
 
 	// The three records stay, and this is the half that has to be asserted rather than assumed. The
@@ -36,7 +36,7 @@ func TestFinalizeArchivesTheShipWithoutItsScratch(t *testing.T) {
 	// rebuild, a term's meaning not being recoverable from the code that used it.
 	for _, kept := range []string{"decisions.md", "playbook.md", "language.md"} {
 		f.record("and still carries "+kept+", which may hold the only copy of an unmerged entry",
-			f.isFile(archived+"/"+kept), joinLines(f.find(archived)))
+			f.isFile(archived+"/for-agents/"+kept), joinLines(f.find(archived)))
 	}
 }
 
