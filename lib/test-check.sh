@@ -5,16 +5,25 @@
 # byte-identical and the third differing only in a format verb. Sourced, never executed: the filename
 # does not end in `-test.sh`, so run-tests.sh's discovery does not pick it up as a suite of its own.
 #
-# It holds `check` and the two counters it moves, and deliberately NOT the summary line. Under
-# `~/.kk-flavor/standards/testing.md` → **7. What a suite reports**, the shape of that line is itself
-# an assertion about the suite printing it: two fields say "no case in here is conditional", three say
-# the opposite. A shared summary would erase that per-suite claim rather than remove a duplicate, so
-# each suite still prints its own and this file stays out of it.
+# It holds `check` and the two counters it moves, and not the summary line. Under
+# `~/.kk-flavor/standards/testing.md` → **7. What a suite reports** the shape of that line is itself an
+# assertion about the suite printing it: two fields say "no case in here is conditional", three say the
+# opposite. The three suites sourcing this print three different shapes, so one shared function would
+# have to take the shape as an argument, which is the suite stating it either way. Sharing a summary is
+# not wrong in itself — lib/test-harness.sh's `report_suite` shares one across suites that all have the
+# same shape.
 #
 # Nothing here creates a directory, writes a file or installs a trap. That is what lets a suite with no
 # scratch of its own — ai/mcp-env-test.sh says so in its header, and means it — source this without
-# acquiring either. lib/test-harness.sh is the other shared file and is not that: it is the bootstrap
-# suites' fixtures, it mktemps at source time, and it has no `check` at all.
+# acquiring either, and it is why this file exists rather than lib/test-harness.sh growing a `check`:
+# that one mktemps and traps EXIT at source time.
+#
+# Not because it has no assertions. It has `record_pass`, `record_fail`, seven `expect_*` helpers and
+# `report_suite`, over `passed`/`failed` rather than `pass`/`fail`. So lib/ now carries two assertion
+# vocabularies for one job, and further suites hand-roll a third — ai/tools/install-test.sh's
+# `expect_eq` is this `check` renamed. Splitting test-harness.sh's assertion half out to source this
+# file is the change that ends with one; it reaches every suite sourcing that file and is deliberately
+# not in this one.
 #
 # tested by: ai/mcp-env-test.sh, ai/mcp-sync-test.sh, ai/run-tests-test.sh,
 # ai/run-tests-concurrency-test.sh — a break here goes red in all four at once, which is the point of

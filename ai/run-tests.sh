@@ -170,7 +170,8 @@ tree_state() {
 }
 
 # How many suites are in flight. Overlapping them is safe in the one respect anything here checks:
-# none writes into the checkout, and `tree_state` re-proves that every run. Each is also meant to
+# none writes into the checkout, and `tree_state` re-proves that on any run where git answers at all
+# — where it cannot, the summary says `containment unchecked` and nothing is proven. Each is meant to
 # build its own temp HOME, and nothing proves that one — `tree_state` is `git status` over the
 # checkout, blind to a write landing anywhere else, `$HOME` included.
 #
@@ -187,7 +188,8 @@ resolve_jobs() {
     "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
   esac
   # A default, not a ceiling: a caller who has read the note above and wants the lanes on that path
-  # sets RUN_TESTS_JOBS and gets them. Only the unset case is decided here.
+  # asks for a count and gets it. Only the request to choose is decided here — unset, or the explicit
+  # `0` that means the same thing, since both arrive as 0 and neither names a number.
   if [ "$jobs" -lt 1 ] && [ -n "${BOOTSTRAP_VERIFYING:-}" ]; then
     jobs=1
   fi
