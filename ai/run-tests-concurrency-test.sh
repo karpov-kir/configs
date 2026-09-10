@@ -69,8 +69,8 @@ check "a job count that is not a number exits 2" "2" "$rc"
 check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
 
 # Zero is a whole number and still no run, and it reaches here computed rather than typed — `$((n - 1))`
-# over an empty list. The caller who names nothing is the one meant to get a default, so a spelled zero
-# has to refuse rather than land on that same path holding half the machine.
+# over a one-element list. The caller who names nothing is the one meant to get a default, so a
+# spelled zero has to refuse rather than land on that same path holding half the machine.
 out="$(RUN_TESTS_JOBS=0 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a job count of zero exits 2" "2" "$rc"
 check "and says a run needs a lane" "1" "$(matching_output_lines 'a run needs at least one lane')"

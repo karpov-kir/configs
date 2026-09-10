@@ -187,10 +187,10 @@ tree_state() {
 resolve_jobs() {
   # Naming nothing is held apart from every value a caller can spell, and only the first gets a
   # default. Collapsing them — `${RUN_TESTS_JOBS:-0}` — makes the sentinel indistinguishable from a
-  # caller's own `0`, so a caller computing `$((n - 1))` into an underflow asks for the fewest lanes
-  # there are and silently gets half the machine. Zero in any spelling is refused instead, because no
-  # run is a run on no lanes, and set-but-empty with it: that is a caller's variable that did not
-  # expand, not a request to choose. Both arms were unreachable while `:-` rewrote them into a 0.
+  # caller's own `0`, so a caller whose count lands on zero asks for the fewest lanes there are and
+  # silently gets half the machine. Zero in any spelling is refused instead, because no run is a run
+  # on no lanes, and set-but-empty with it: that is a caller's variable that did not expand, not a
+  # request to choose.
   jobs="${RUN_TESTS_JOBS-}"
   if [ -n "${RUN_TESTS_JOBS+named}" ]; then
     case "$jobs" in

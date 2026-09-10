@@ -32,9 +32,6 @@ const (
 	// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
 	// a pattern stored as an input would match nothing once git is asked with literal pathspecs.
 	skillScripts = "ai/kk-flavor/skills/*/scripts/*.sh"
-	// Where the skills keep the stub scripts that reach the Go tools. ai/tools/tool-stub-test.sh copies
-	// the stubs in its own table into fixtures and executes them, so they are that suite's subject —
-	// see the keying below for why naming the tree is not enough.
 )
 
 // The two directories eco-report's harness copies from: scripts/ for todo-gate.sh, templates/ for the
@@ -62,8 +59,10 @@ var anySourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*
 // variable, so a copy whose basename is itself a variable names nothing.
 var copiedFileLine = regexp.MustCompile(`\bcp[ \t]+(?:-[-A-Za-z]+(?:=[^ \t\n]*)?[ \t]+)*"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/([^"$*?\n]+)"`)
 
-// Anchoring the pattern above to the start of a line would be the tighter guard, but
-// ai/mcp-sync-test.sh puts a real cp after a `case` arm.
+// A line that runs nothing. Read by both text scans below, which is why it matches only a line that
+// STARTS with `#`: a marker after a real command still counts. Anchoring the cp pattern above to the
+// start of a line would be the tighter guard there, but ai/mcp-sync-test.sh puts a real cp after a
+// `case` arm.
 var commentedLine = regexp.MustCompile(`^[ \t]*#`)
 
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
@@ -74,17 +73,14 @@ func (g *gate) addBlindToGoTests(id, kind string, inputs []string, cmd string) {
 	g.addUnit(unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
 }
 
-// The one place a unit is built, so the one place its declared inputs are made a set. Several append
-// sites reach the same file — a suite's sibling script is often also the library it sources, and
-// ai/run-tests.sh is both a seed input and one suite's own sibling — and a path listed twice made
-// `--units` report a count `--why` disagreed with, which is a number nobody can check a keying claim
-// against. Deduped here and not at each append site, because the site added next would forget: that
-// is why the `slices.Contains` guards that used to sit at two of them are gone, and why re-adding one
-// would only hide the next collision from the reader without changing the result.
+// The one place a unit is built, so the one place its declared inputs are made a set. Six append
+// sites below can reach one file — a sibling script is often also the library it sources, or a file
+// the suite copies into its fixture — and a path listed twice made `--units` report a count `--why`
+// disagreed with. Guarding at the site instead is what let the other sites collide unnoticed.
 //
-// No cached verdict moves. A key comes from `linesUnder`, which walks the manifest and takes each
-// line at most once however many times a path is declared, and sorts what it takes — so a duplicate
-// never reached a key, and neither does the order this leaves the inputs in. Nothing indexes them.
+// Deduping moves no key. `linesUnder` walks the manifest and takes each line at most once however
+// many times a path is declared, then sorts what it takes, so neither a duplicate nor the order this
+// leaves behind ever reached a key. Nothing indexes a unit's inputs.
 func (g *gate) addUnit(u unit) {
 	u.inputs = shell.SortUnique(u.inputs)
 	g.units = append(g.units, u)
@@ -182,6 +178,12 @@ func (g *gate) discoverShellSuites() int {
 		case "ai/rtk-bootstrap-test.sh":
 			sibling = "ai/bootstrap.sh"
 			inputs = append(inputs, "ai/owner-instructions.md")
+		// No ai/run-tests-concurrency.sh exists; this suite covers ai/run-tests.sh, which every shell
+		// unit already takes as a seed input. Naming it the sibling is what gets it SCANNED — otherwise
+		// the two units over that one script disagree about what it drives, which is the asymmetry the
+		// marker scan below was widened to close.
+		case "ai/run-tests-concurrency-test.sh":
+			sibling = "ai/run-tests.sh"
 		case "ai/install-project-test.sh", "ai/project-skills-test.sh":
 			sibling = "ai/install-project.sh"
 			inputs = append(inputs, "ai/project-skills.sh", "ai/project-dependencies.sh",
@@ -217,8 +219,8 @@ func (g *gate) discoverShellSuites() int {
 		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
-		// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
-		// puts in a binary.
+		// `_test.go` files — 101 of the 211 files under ai/tools, none of which `go build` puts in a
+		// binary. The 110 that remain are what one of these units carries, and only 100 are Go.
 		viaBinary := false
 		if strings.Contains(body, "kk-flavor/skills") {
 			matches, globErr := filepath.Glob(filepath.Join(g.root, skillScripts))
@@ -263,13 +265,19 @@ func (g *gate) discoverShellSuites() int {
 
 // What a suite or its script says when it reaches into the Go tool tree. `ai/tools/` and not a bare
 // `tools/`: the loose form matched `$tmp_real/tools/mise`, a fake mise shim two suites write into
-// their own temp dir and put on PATH, and took ~110 Go sources on the strength of it.
-var goToolMarkers = []string{goTree + "/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"}
+// their own temp dir and put on PATH, and took 110 files on the strength of it.
+//
+// `tools/install.sh` is spelt out because ai/bootstrap.sh reaches the installer through a variable —
+// `"$repo/tools/install.sh"` — and `ai/tools/` never matches that line. Without it both bootstrap
+// units are keyed only through the three diagnostic strings that happen to quote the full path, so
+// rewording a message would unkey them from the tree.
+var goToolMarkers = []string{goTree + "/", "tools/install.sh", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"}
 
-// Both the suite and the script it covers, because either can be the one that runs the tool — scanning
-// the suite alone left shell:ai/rtk-bootstrap unkeyed on the tree while ai/bootstrap.sh executes
-// ai/tools/install.sh, and shell:ai/bootstrap keyed on it over that same script. Under-keying is the
-// direction that reports a pass nobody earned, so that asymmetry mattered more than the over-keying.
+// Both the suite and the script it covers, because either can be the one that runs the tool. Scanning
+// the suite alone left shell:ai/rtk-bootstrap unkeyed while ai/bootstrap.sh runs the installer, and
+// shell:ai/bootstrap keyed because its own suite happens to name that installer too — one script, two
+// units, opposite answers, decided by which of them mentioned it. Under-keying is the direction that
+// reports a pass nobody earned, so that asymmetry mattered more than the over-keying beside it.
 //
 // Comment lines do not count. A marker in prose runs nothing, and a header sentence naming a Go suite
 // was the whole reason shell:…/todo-gate carried 110 phantom inputs and went stale on every unrelated

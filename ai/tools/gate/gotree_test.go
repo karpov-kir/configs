@@ -14,6 +14,10 @@ var notGoDriven = map[string]string{
 	"shell:ai/install-project":                                 "a fake mise shim the suite writes into its own temp dir under $tmp_real/tools/",
 	"shell:ai/project-skills":                                  "the same shim in that suite's fixture",
 	"shell:ai/kk-flavor/skills/idsd-qualify/scripts/todo-gate": "a header comment naming eco-report's Go suite",
+	// The other two units the comment skip is holding. Without them, dropping that skip re-keys three
+	// units and only one of them reddens, which reads as coverage this does not have.
+	"shell:ai/run-tests-concurrency": "this suite's own header naming ai/tools/gate/units.go",
+	"shell:lib/install-registry":     "lib/install-registry.sh's header naming a bloat-judge source",
 }
 
 // The control, and the half that matters more: each of these does drive a Go tool, so a change that
@@ -21,14 +25,17 @@ var notGoDriven = map[string]string{
 // one to keep in mind — it says so through a shell variable named `tools` and through comments, so on
 // marker text alone it is the first suite to lose keying it needs.
 var goDriven = map[string]string{
-	"shell:ai/tools/source-stamp":                               "source-stamp.sh fingerprints the tree",
-	"shell:ai/tools/install":                                    "the installer runs the tools built from it",
-	"shell:ai/rtk-bootstrap":                                    "ai/bootstrap.sh executes ai/tools/install.sh",
+	"shell:ai/tools/source-stamp": "source-stamp.sh fingerprints the tree",
+	"shell:ai/tools/install":      "the installer runs the tools built from it",
+	"shell:ai/rtk-bootstrap":      "ai/bootstrap.sh runs tools/install.sh",
+	// Was in neither map while both bootstrap units were keyed only through the three diagnostic
+	// strings that quote the installer's full path — reword a message and they unkey with nothing red.
+	"shell:ai/bootstrap": "ai/bootstrap.sh runs tools/install.sh, and this suite stubs and asserts on it",
 	"shell:ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph": "cite-graph.sh runs the cite-graph tool",
 }
 
 func TestOnlyTheSuitesThatReachTheGoTreeAreKeyedOnIt(t *testing.T) {
-	g := discoveredOverThisRepo(t)
+	g, _ := discoveredOverThisRepo(t)
 	keyed := map[string]bool{}
 	for _, u := range g.units {
 		keyed[u.id] = slices.Contains(u.inputs, goTree)
@@ -70,6 +77,9 @@ func TestTheGoToolScanReadsCommandsAndNotProse(t *testing.T) {
 		{"a tool named only in prose", "# the caller's side is pinned by eco-report's Go suite\n", false},
 		{"a tool named in a command", "eco-report --check\n", true},
 		{"a fixture path that merely holds the word", "cat > \"$tmp_real/tools/mise\" <<'MISE'\n", false},
+		// ai/bootstrap.sh:447 as it is actually written. Without this the only lines that match in that
+		// script are three diagnostic strings quoting the path, and rewording one unkeys two units.
+		{"the installer reached through a variable root", "  \"$repo/tools/install.sh\"\n", true},
 		{"a comment after a real command", "run_it   # eco-check\n", true},
 		{"an indented comment", "  # eco-stats --agent=claude\n", false},
 	} {

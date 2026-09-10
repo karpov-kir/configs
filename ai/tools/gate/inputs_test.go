@@ -1,6 +1,5 @@
-// A unit's declared inputs are a set. Two views of one unit that disagree about how many files it is
-// keyed on make any count taken from either unusable, and that is not hypothetical: a reviewer
-// checking a keying claim off `--units` had to cross-check `--why` to get a figure worth quoting.
+// A unit's declared inputs are a set. `--units` prints them and `--why` prints what they resolve to,
+// so any count read off either is only usable while the two agree.
 package gate
 
 import (
@@ -11,10 +10,14 @@ import (
 )
 
 // The real table, not a fixture. The collision guarded against here is two append sites reaching one
-// file, and it is the repository's own suites that put a sibling script, a sourced library and a named
-// peer on the same path. A fixture would have to stage the collision to catch it, which is the case
-// asserting what it was handed rather than what discovery does.
-func discoveredOverThisRepo(t *testing.T) *gate {
+// file, and it is the repository's own suites that put a sibling script, a sourced library and a file
+// copied into a fixture on the same path. A fixture would have to stage the collision to catch it,
+// which is the case asserting what it was handed rather than what discovery does.
+//
+// The Go checks and the shell suites, and deliberately not discoverGoMutants: that one runs `go build`
+// and writes a binary into the tree, which no case here needs — the mutation units' inputs come from
+// a static table, not from any of the append sites this file is about.
+func discoveredOverThisRepo(t *testing.T) (*gate, int) {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
@@ -24,21 +27,27 @@ func discoveredOverThisRepo(t *testing.T) *gate {
 		t.Fatalf("%s is not this repository's root, so nothing below measures its units: %v", root, err)
 	}
 	g := &gate{root: root, env: Env{Root: root}, errOut: &strings.Builder{}}
-	if code := g.buildUnits(); code != 0 {
+	suites, err := g.listFiles("*-test.sh")
+	if err != nil || len(suites) == 0 {
+		t.Fatalf("listing this repository's suites: %v", err)
+	}
+	g.addGoChecks()
+	g.addGuideCheck()
+	if code := g.discoverShellSuites(); code != 0 {
 		t.Fatalf("discovery over this repository exited %d: %s",
 			code, g.errOut.(*strings.Builder).String())
 	}
-	return g
+	return g, len(suites)
 }
 
 func TestNoUnitDeclaresAnInputTwice(t *testing.T) {
-	g := discoveredOverThisRepo(t)
+	g, suites := discoveredOverThisRepo(t)
 
-	// The control. A table of one unit, or of units carrying no inputs, would walk the loop below
-	// having checked nothing and report a pass for it.
-	if len(g.units) < 20 {
-		t.Fatalf("discovery produced %d unit(s) over this repository, too few to be its real table",
-			len(g.units))
+	// The control, counted rather than guessed: one unit per suite plus the five Go and guide checks.
+	// A table missing any of them would walk the loop below having checked less than it looks like.
+	if want := suites + 5; len(g.units) != want {
+		t.Fatalf("discovery produced %d unit(s) over this repository's %d suite(s), wanted %d",
+			len(g.units), suites, want)
 	}
 	for _, u := range g.units {
 		if len(u.inputs) == 0 {
@@ -89,5 +98,13 @@ func TestADuplicatedInputDoesNotMoveAUnitsKey(t *testing.T) {
 	if len(twiceLines) != len(onceLines) {
 		t.Errorf("the duplicate reached the key material: %v against %v",
 			pathsIn(twiceLines), pathsIn(onceLines))
+	}
+
+	// The half the two comparisons above cannot show: a keyMaterial that ignored its lines entirely
+	// would satisfy both. A unit over strictly fewer files has to key differently.
+	narrower := unit{id: "shell:x", kind: "check", inputs: []string{shellFile}, cmd: "run"}
+	if narrowKey, _ := g.keyMaterial(narrower); narrowKey == onceKey {
+		t.Error("a unit keyed on one of the two files hashes the same as one keyed on both, so the key " +
+			"is not built from the inputs at all and the comparisons above prove nothing")
 	}
 }
