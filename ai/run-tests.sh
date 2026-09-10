@@ -169,9 +169,14 @@ tree_state() {
   git -C "$root" status --porcelain 2>/dev/null
 }
 
-# How many suites are in flight. They are independent — each builds its own temp HOME and none writes
-# into the checkout, which the containment check below re-proves on every run — so running them one at
-# a time bought only a tidy stream, which the per-suite buffering keeps.
+# How many suites are in flight. Overlapping them is safe in the one respect anything here checks:
+# none writes into the checkout, and `tree_state` re-proves that every run. Each is also meant to
+# build its own temp HOME, and nothing proves that one — `tree_state` is `git status` over the
+# checkout, blind to a write landing anywhere else, `$HOME` included.
+#
+# So `bootstrap.sh --verify` takes one lane by default: it calls this runner right after writing
+# $HOME/.claude, $HOME/.kk-flavor and $HOME/.codex. One lane is no fix — a suite that escapes escapes
+# alone too — it only keeps that from happening beside five peers while the config is half-written.
 #
 # Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it takes
 # 80 alone — they compete for the cores the `go build` inside them already wants — and half the machine
@@ -181,6 +186,11 @@ resolve_jobs() {
   case "$jobs" in
     "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
   esac
+  # A default, not a ceiling: a caller who has read the note above and wants the lanes on that path
+  # sets RUN_TESTS_JOBS and gets them. Only the unset case is decided here.
+  if [ "$jobs" -lt 1 ] && [ -n "${BOOTSTRAP_VERIFYING:-}" ]; then
+    jobs=1
+  fi
   if [ "$jobs" -lt 1 ]; then
     jobs=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
     [ "$jobs" -lt 1 ] && jobs=1

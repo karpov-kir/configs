@@ -28,21 +28,9 @@ script="${MCP_ENV_UNDER_TEST:-$here/mcp-env.sh}"
   exit 2
 }
 
-pass=0
-fail=0
-
-check() { # <name> <expected> <actual>
-  local name="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "ok   — $name"
-    pass=$((pass + 1))
-  else
-    echo "FAIL — $name"
-    printf '       expected: %q\n' "$expected"
-    printf '       actual:   %q\n' "$actual"
-    fail=$((fail + 1))
-  fi
-}
+# shellcheck source=../lib/test-check.sh
+. "$here/../lib/test-check.sh" ||
+  { printf '%s: lib/test-check.sh did not load to the end — nothing was measured\n' "ai/mcp-env-test.sh" >&2; exit 2; }
 
 # --- shared:needle-tests ---
 # Each reports its condition with a distinctive word, so a check that fails prints the whole output

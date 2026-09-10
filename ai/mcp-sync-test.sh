@@ -23,21 +23,9 @@ export CLAUDE_CONFIG_DIR="$tmp/registry"
 # shellcheck source=./mcp-sync.sh
 . "$script_dir/mcp-sync.sh"
 
-pass=0
-fail=0
-
-check() {
-  local name="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "ok   — $name"
-    pass=$((pass + 1))
-  else
-    echo "FAIL — $name"
-    printf '       expected: %q\n' "$expected"
-    printf '       actual:   %q\n' "$actual"
-    fail=$((fail + 1))
-  fi
-}
+# shellcheck source=../lib/test-check.sh
+. "$script_dir/../lib/test-check.sh" ||
+  { printf '%s: lib/test-check.sh did not load to the end — nothing was measured\n' "ai/mcp-sync-test.sh" >&2; exit 2; }
 
 printf '// a comment\n{"a": 1}\n' > "$tmp/lead.jsonc"
 check "a line starting with // is blanked" \

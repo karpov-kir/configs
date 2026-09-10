@@ -2,90 +2,25 @@
 # Tests for run-tests.sh — the runner CI calls, so a bug here is a gate that stops gating quietly.
 #   usage: run-tests-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise
 #
-# Every case builds its own root under mktemp and points the runner at it. None of them run the
-# runner over this repository, which is what keeps this file — discovered by that runner like any
-# other suite — from recursing into itself.
-#
 # The two that matter most are the cases a green run cannot otherwise be told apart from: `no suites
 # found`, where discovery silently matches nothing, and a suite that exits 0 having run no case at
 # all. Both report a clean tree that was never read.
+#
+# The concurrency cases are ai/run-tests-concurrency-test.sh; the fixtures both halves need are in
+# lib/run-tests-fixtures.sh rather than copied into each.
 set -uo pipefail
 export LC_ALL=C
-# The machine's own git config must not reach these fixtures. Both, because NOSYSTEM blocks
-# /etc/gitconfig alone and ~/.gitconfig is the one that reaches in: a global core.excludesFile holding
-# `*.conf` refuses new_greedy_checkout's `git add kept.conf`, and the whole containment family below
-# then goes red on a runner that is working perfectly.
-export GIT_CONFIG_NOSYSTEM=1
-export GIT_CONFIG_GLOBAL=/dev/null
 
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+suite_name="ai/run-tests-test.sh"
 runner="$here/run-tests.sh"
 
-pass=0
-fail=0
-# Counted, and printed as its own field. Cases below sit behind `command -v git`, and a two-field
-# summary line asserts that no case is conditional — `~/.kk-flavor/standards/testing.md` →
-# **7. What a suite reports**. Worse than untidy: `run-tests.sh` reads `skipped` BY NAME to decide
-# vacuity, so on a machine without git this suite would report only the cases that did run and the
-# runner would accept it as a clean run with the guarded ones silently gone.
-skipped=0
-
-# <count> <why>. The count is how many cases the guarded block holds. It is a literal, and the drift
-# case at the end of this file is what holds it in step.
-record_skip() {
-  skipped=$((skipped + $1))
-  echo "skip — $1 case(s) not run: $2"
-}
-# Counts lines of the last run's output, which every case below leaves in `out`.
-matching_output_lines() { # <grep pattern>
-  printf '%s' "$out" | grep -c "$1"
-}
-check() {
-  local name="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "ok   — $name"
-    pass=$((pass + 1))
-  else
-    echo "FAIL — $name"
-    printf '       expected: %s\n       actual:   %s\n' "$expected" "$actual"
-    fail=$((fail + 1))
-  fi
-}
-
-# Exit 2, not 1: a fixture root that cannot be created is this suite failing to measure, where 1
-# would claim the script under test is broken — a different statement, and a false one.
-[ -x "$runner" ] || {
-  echo "run-tests-test: $runner is not an executable file — nothing was tested" >&2
-  exit 2
-}
-tmp="$(mktemp -d)" || {
-  echo "run-tests-test: could not create a temporary directory — nothing was tested" >&2
-  exit 2
-}
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/runner-logs"
-export TMPDIR="$tmp/runner-logs"
-
-new_suite() { # <path> <summary line>
-  printf '#!/usr/bin/env bash\necho "%s"\n' "$2" > "$1"
-}
-new_failing_suite() { # <path>
-  printf '#!/usr/bin/env bash\nexit 1\n' > "$1"
-}
-new_unmeasured_suite() { # <path>
-  printf '#!/usr/bin/env bash\nexit 2\n' > "$1"
-}
-
-# A checkout seeded with one committed file, plus a suite that overwrites it — the shape that makes the
-# tree move under a run.
-new_greedy_checkout() { # <dir>
-  mkdir -p "$1"
-  ( cd "$1" && git init -q . && git config user.email t@t && git config user.name t &&
-    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
-  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
-    > "$1/greedy-test.sh"
-}
-
+# shellcheck source=../lib/test-check.sh
+. "$here/../lib/test-check.sh" ||
+  { printf '%s: lib/test-check.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
+# shellcheck source=../lib/run-tests-fixtures.sh
+. "$here/../lib/run-tests-fixtures.sh" ||
+  { printf '%s: lib/run-tests-fixtures.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
 mkdir -p "$tmp/green/nested"
 new_suite "$tmp/green/a-test.sh" "2 passed, 0 failed"
 new_suite "$tmp/green/nested/b-test.sh" "1 passed, 0 failed"
@@ -406,120 +341,9 @@ check "and does not run it" "0" "$(matching_output_lines '1 passed')"
 out="$("$runner" -z "$tmp/named" 2>&1)"; rc=$?
 check "an unknown flag exits 2" "2" "$rc"
 
-# --- the suites run several at a time -------------------------------------------------------------
-
-# Overlap is measured rather than timed: each suite marks that it is running, waits, counts the marks
-# it can see, then clears its own. A wall-clock assertion proves nothing — it goes green on a fast
-# machine whatever the runner did, and red on a loaded one that was right.
-#
-# The marks are cleared on the way out, so a serial run leaves every suite seeing exactly its own. Left
-# behind, the second suite of a serial run would see two and read as overlap.
-new_marking_suite() { # <path> <name> <peers>
-  cat > "$1" <<EOF
-#!/usr/bin/env bash
-dir="\$(dirname "\$0")"
-: > "\$dir/$2.running"
-# Wait for the peers to mark, rather than sleeping a fixed second and counting whoever happened to
-# have arrived. That sleep made this suite's verdict a race the wrong way round: a peer forked a moment
-# late was counted absent, and the case reported the runner serialising when it had not — a 1.2s start
-# delay on one of three turned "and they overlap" red.
-#
-# The second break is what keeps a genuinely serial run cheap: a peer that has already written its
-# own count proves it is not running beside us, so there is nothing left to wait for.
-for _ in \$(seq 1 100); do
-  [ "\$(ls "\$dir"/*.running 2>/dev/null | wc -l)" -ge $3 ] && break
-  ls "\$dir"/*.saw >/dev/null 2>&1 && break
-  sleep 0.05
-done
-ls "\$dir"/*.running | wc -l | tr -d ' ' > "\$dir/$2.saw"
-rm -f "\$dir/$2.running"
-echo "1 passed, 0 failed"
-EOF
-}
-
-most_seen() { # <dir>
-  cat "$1"/*.saw 2>/dev/null | sort -n | tail -1
-}
-
-mkdir -p "$tmp/together"
-for name in a b c; do new_marking_suite "$tmp/together/$name-test.sh" "$name" 3; done
-
-# The count is named rather than left to the default, so this measures the mechanism on every machine.
-# The default is half the cores, which is 1 on a two-core runner, and there the case would assert that
-# concurrency is broken.
-out="$(RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
-check "suites asked to run three at a time all pass" "0" "$rc"
-# guarded-block: `wait -n` is bash 4.3, and without it run-tests.sh runs the suites one at a time on
-# purpose — "never wrong, only slower". On such a machine this assertion would report the runner broken
-# for doing exactly what it documents, so it is skipped by name rather than left to fail there.
-if [ "${BASH_VERSINFO[0]:-0}" -gt 4 ] ||
-  { [ "${BASH_VERSINFO[0]:-0}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -ge 3 ]; }; then
-  check "and they overlap" "3" "$(most_seen "$tmp/together")"
-else
-  record_skip 1 "this bash has no \`wait -n\`, so the runner correctly ran the suites one at a time"
-fi
-check "and the report still names them in discovery order" "a b c" \
-  "$(printf '%s\n' "$out" | awk '/^ok   /{ sub(/-test\.sh$/, "", $2); printf "%s%s", (seen++ ? " " : ""), $2 }')"
-
-rm -f "$tmp/together"/*.saw "$tmp/together"/*.running
-out="$(RUN_TESTS_JOBS=1 "$runner" "$tmp/together" 2>&1)"; rc=$?
-check "RUN_TESTS_JOBS=1 puts them back on one lane" "0" "$rc"
-check "and then no suite ever sees another running" "1" "$(most_seen "$tmp/together")"
-check "and it still reports all three" "3" "$(matching_output_lines '^ok   ')"
-
-# The downgrade to one lane, and the notice it prints. Every machine that runs this suite has
-# `wait -n`, so the seam is what reaches the branch at all; the control below asserts the notice stays
-# absent without the seam, so one that fired unconditionally could not pass as green either.
-rm -f "$tmp/together"/*.saw
-out="$(RUN_TESTS_NO_WAIT_N=1 RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
-check "a bash without wait -n still runs every suite" "0" "$rc"
-check "and says it downgraded, naming the count it did not get" "1" \
-  "$(matching_output_lines 'has no .wait -n., so the suites run one at a time rather than 3')"
-check "and really does run them one at a time" "1" "$(most_seen "$tmp/together")"
-
-rm -f "$tmp/together"/*.saw
-out="$(RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
-check "and on a bash that has it, no downgrade notice appears" "0" \
-  "$(matching_output_lines 'has no .wait -n.')"
-
-# A count this does not understand refuses, rather than being read as zero and quietly restoring the
-# serial run the caller was trying to move off.
-out="$(RUN_TESTS_JOBS=two "$runner" "$tmp/together" 2>&1)"; rc=$?
-check "a job count that is not a number exits 2" "2" "$rc"
-check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
-
-# A suite whose runner subshell dies before it can write a status file. Nothing else drives it, and it
-# decides between NOMEASURE and folding a suite that never reported into the pass count — a green over
-# a suite nobody measured, which is the failure this whole file exists to refuse.
-#
-# The suite kills its own parent, which is the subshell running it, so `bash "$suite"` never returns and
-# the `printf ... > .status` after it never runs.
-mkdir -p "$tmp/nostatus"
-new_suite "$tmp/nostatus/aa-good-test.sh" "1 passed, 0 failed"
-printf '#!/usr/bin/env bash\nkill -9 "$PPID"\nsleep 30\n' > "$tmp/nostatus/zz-dies-test.sh"
-out="$("$runner" "$tmp/nostatus" 2>&1)"; rc=$?
-check "a suite whose runner died is unmeasured, not a pass" "2" "$rc"
-check "and it is reported as NOMEASURE" "1" "$(matching_output_lines '^NOMEASURE .*zz-dies-test\.sh')"
-check "and it is counted as unmeasured, never passed" "1" \
-  "$(matching_output_lines '2 suite(s) found: 1 passed, 0 failed, 1 unmeasured')"
-check "and the suite beside it still passes" "1" "$(matching_output_lines '^ok   .*aa-good-test\.sh')"
-
-# The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
-# and it drifts where nobody looks: the only machine that prints them is the one the guard is for. Held
-# against the source they describe instead, on every machine.
-#
-# Opened on the `# guarded-block:` marker rather than on the git condition it used to name: keyed to
-# that one literal, it silently ignored a guard written on any other condition.
-drift="$(awk '
-  /^# guarded-block:/                       { inblock = 1; n = 0; next }
-  inblock == 1 && /^else$/                  { inblock = 2; next }
-  inblock == 1 && /^  check /               { n++; next }
-  inblock == 2 && /^  record_skip /         {
-    if ($2 != n) { printf "line %d declares %s skipped over a block holding %d case(s); ", NR, $2, n }
-    inblock = 0
-  }
-' "$0")"
-check "every record_skip count matches the cases its block holds" "" "$drift"
+# Held on every machine, not only the one a guard is for: the skip counts are literals nothing derives.
+# skip_count_drift takes the file to scan because both suites carry guarded blocks now.
+check "every record_skip count matches the cases its block holds" "" "$(skip_count_drift "$0")"
 
 echo "$pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]
