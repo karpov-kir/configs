@@ -420,9 +420,9 @@ new_marking_suite() { # <path> <name> <peers>
 dir="\$(dirname "\$0")"
 : > "\$dir/$2.running"
 # Wait for the peers to mark, rather than sleeping a fixed second and counting whoever happened to
-# have arrived. That sleep made this suite's verdict a race the wrong way round: a peer forked a
-# moment late was counted absent, and the case then reported the runner serialising when it had not.
-# Proven, not guessed — a 1.2s start delay on one of three turned "and they overlap" red.
+# have arrived. That sleep made this suite's verdict a race the wrong way round: a peer forked a moment
+# late was counted absent, and the case reported the runner serialising when it had not — a 1.2s start
+# delay on one of three turned "and they overlap" red.
 #
 # The second break is what keeps a genuinely serial run cheap: a peer that has already written its
 # own count proves it is not running beside us, so there is nothing left to wait for.
@@ -467,10 +467,9 @@ check "RUN_TESTS_JOBS=1 puts them back on one lane" "0" "$rc"
 check "and then no suite ever sees another running" "1" "$(most_seen "$tmp/together")"
 check "and it still reports all three" "3" "$(matching_output_lines '^ok   ')"
 
-# The downgrade to one lane, and the notice it prints. A behaviour-changing fix lands a case per
-# branch it introduces, and this branch had none: every machine that runs this suite has `wait -n`, so
-# nothing here could reach it. The seam forces it, and the control below asserts the notice stays
-# absent without the seam — so a notice that fired unconditionally could not pass as green either.
+# The downgrade to one lane, and the notice it prints. Every machine that runs this suite has
+# `wait -n`, so the seam is what reaches the branch at all; the control below asserts the notice stays
+# absent without the seam, so one that fired unconditionally could not pass as green either.
 rm -f "$tmp/together"/*.saw
 out="$(RUN_TESTS_NO_WAIT_N=1 RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a bash without wait -n still runs every suite" "0" "$rc"
@@ -489,14 +488,12 @@ out="$(RUN_TESTS_JOBS=two "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "a job count that is not a number exits 2" "2" "$rc"
 check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
 
-# A suite whose runner subshell dies before it can write a status file. This is the one branch the
-# concurrent read-back added that nothing else drives, and it decides between NOMEASURE and folding a
-# suite that never reported into the pass count — the second being a green over a suite nobody
-# measured, which is the failure this whole file exists to refuse.
+# A suite whose runner subshell dies before it can write a status file. Nothing else drives it, and it
+# decides between NOMEASURE and folding a suite that never reported into the pass count — a green over
+# a suite nobody measured, which is the failure this whole file exists to refuse.
 #
-# The suite kills its own parent, which is the subshell running it, so `bash "$suite"` never returns
-# and the `printf ... > .status` after it never runs. Driven rather than reasoned, because reading the
-# `case` and agreeing with it is not evidence that the missing file reaches it.
+# The suite kills its own parent, which is the subshell running it, so `bash "$suite"` never returns and
+# the `printf ... > .status` after it never runs.
 mkdir -p "$tmp/nostatus"
 new_suite "$tmp/nostatus/aa-good-test.sh" "1 passed, 0 failed"
 printf '#!/usr/bin/env bash\nkill -9 "$PPID"\nsleep 30\n' > "$tmp/nostatus/zz-dies-test.sh"
@@ -511,10 +508,8 @@ check "and the suite beside it still passes" "1" "$(matching_output_lines '^ok  
 # and it drifts where nobody looks: the only machine that prints them is the one the guard is for. Held
 # against the source they describe instead, on every machine.
 #
-# Opened on the `# guarded-block:` marker rather than on the git condition it used to name. Keyed to
-# that one literal, it verified the git blocks and silently ignored a guard written on any other
-# condition — so the first such guard added was unchecked, which is how a skip count nobody counts
-# gets in.
+# Opened on the `# guarded-block:` marker rather than on the git condition it used to name: keyed to
+# that one literal, it silently ignored a guard written on any other condition.
 drift="$(awk '
   /^# guarded-block:/                       { inblock = 1; n = 0; next }
   inblock == 1 && /^else$/                  { inblock = 2; next }

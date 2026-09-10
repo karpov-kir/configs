@@ -99,9 +99,8 @@ func (m *Memo) key(kind, content string) string {
 	kindName, _, _ := strings.Cut(kind, "\n")
 	specification := kinds[kindName]
 	// Bump the algorithm version when unit extraction or majority semantics change. v3: the bound a
-	// verdict is read against became the units on offer rather than the view's line count, and the
-	// vote became quorum-first waves — both of which can move a verdict over identical bytes, so a
-	// v2 record is not an answer to a v3 question.
+	// verdict is read against became the units on offer rather than the view's line count, and the vote
+	// became quorum-first waves. Either can move a verdict over identical bytes.
 	identity := "judge-v3\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
 	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
@@ -541,18 +540,15 @@ func Apply(lines []string, units []Unit, gone []int) string {
 }
 
 // Voting wraps a Caller so a unit is deleted only when MORE THAN HALF the independent rolls name it —
-// which at an even count is a supermajority rather than a bare half: four rolls need three. The
-// model is not consistent from one run to the next, and precision matters more than recall here: a
-// block only one roll of three would delete stays. Each roll is parsed on its own, so one roll that
-// explains instead of answering — or names a unit that was never offered — fails the whole vote rather
-// than being outvoted into silence.
+// at an even count a supermajority rather than a bare half: four rolls need three. The model is not
+// consistent from one run to the next, and precision matters more than recall here. Each roll is
+// parsed on its own, so one that explains instead of answering, or names a unit that was never
+// offered, fails the whole vote rather than being outvoted into silence.
 //
 // The rolls go out in waves, and a wave goes out together. A majority is already decided once a
-// quorum of them agrees, so the first wave IS the quorum — two of three — and the rest are rolled
-// only where those two left a unit undecided. That costs the calls a sequential vote costs and the
-// wall clock a fully concurrent one costs, where each of those paid the other's price: stopping early
-// but rolling one at a time spent two deadlines to save a call, and rolling all three at once spent
-// the call to save the deadline.
+// quorum of them agrees, so the first wave IS the quorum — two of three — and the rest are rolled only
+// where those two left a unit undecided. That costs the calls a sequential vote costs and the wall
+// clock a fully concurrent one costs.
 //
 // Concurrency is what makes a wave free: a roll waits on the API rather than on this machine, so three
 // at once came back in 150 seconds against 343 in sequence, none slower for the company.
@@ -635,11 +631,10 @@ func settled(tally map[int]int, count, rolls, remaining int) bool {
 // nothing else, so the numbered margins are the units. Counted here rather than passed in, because a
 // Caller is handed the prompt and the view and nothing besides.
 //
-// The line count stood here before, and is not the same number: prose units skip blank lines, a fenced
-// block is one unit over many lines, and a source file's units are its comment blocks alone — for one
-// the vote would have accepted 501 as a unit number over 40 blocks. Every such answer was tallied,
-// carried to a majority, and only then refused by Run, which reports it as the whole judge failing
-// instead of as the one roll that lost the plot.
+// Never the view's line count, which stood here before and is a different number: prose units skip
+// blank lines, a fenced block is one unit over many lines, and a source file's units are its comment
+// blocks alone. Bounded by lines, a roll naming a unit nobody offered reached a majority before Run
+// refused it, as the whole judge failing rather than as the one roll that lost the plot.
 func unitsInView(view string) int {
 	count := 0
 	for _, line := range shell.SplitLines(view) {

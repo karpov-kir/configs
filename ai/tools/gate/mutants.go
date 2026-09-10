@@ -1,8 +1,5 @@
 // The gate's Go mutation units: how the harness's own listing becomes units, and why one unit covers
 // a set of suites rather than a single file.
-//
-// Its own file because units.go held the whole of discovery and crossed the size bar carrying this,
-// and because `mutants_test.go` covers exactly this and named no source file of its own.
 package gate
 
 import (
@@ -62,14 +59,11 @@ type mutantGroup struct {
 //
 // It costs no freshness. A unit was already keyed on every suite directory its mutants name, and a
 // file under `ai/tools/eco-report` is inside `ai/tools/eco-report` — so a change anywhere in that
-// package re-ran all sixteen of its units before this and re-runs the one unit after it. The per-file
-// key never bought a narrower re-run than the package it sat in.
+// package re-ran all sixteen of its units before this and re-runs the one unit after it.
 //
-// The baseline cannot be left to Go's test cache instead, which would keep a unit per file. Measured:
-// with `./eco-report` cached green, breaking a file the fixtures copy in from outside the module
-// (`ai/kk-flavor/skills/idsd-qualify/scripts/todo-gate.sh`) still answered `ok (cached)`, while the
-// same tree run with `-count=1` FAILED. A cached baseline is a green served over a red suite, and
-// every mutant verdict standing behind one says nothing.
+// The baseline cannot be left to Go's test cache instead, which would keep a unit per file: the cache
+// serves a green over a suite that a change from outside the module has already broken. Measured, and
+// recorded in IDEAS.md.
 func groupMutants(listing, root string) ([]mutantGroup, error) {
 	var groups []mutantGroup
 	at := map[string]int{}
@@ -116,11 +110,10 @@ func suiteDirs(suites string) []string {
 	return dirs
 }
 
-// What a suite set is called. Read off suiteDirs so the name and the inputs cannot come to different
-// answers about which suites a group covers.
-//
-// A set that names no suite comes back "root" rather than empty: an id is flattened to a record name
-// by recordStem, and an empty one is the single stem that could collide with another empty one.
+// What a suite set is called. Read off suiteDirs so the name and the inputs cannot disagree about
+// which suites a group covers. A set naming no suite comes back "root" rather than empty: recordStem
+// flattens an id to a record filename, and an empty one is the single stem two such sets would
+// collide on.
 func suiteSetName(suites string) string {
 	var names []string
 	for _, dir := range suiteDirs(suites) {

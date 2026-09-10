@@ -71,17 +71,9 @@ func fakeCodex(t *testing.T, script string) {
 }
 
 // The roll deadline for a case whose subject is NOT the deadline — every Codex case here but
-// TestCodexCallerBoundsTheRoll, which owns that subject and keeps its own 100ms.
-//
-// Generous deliberately. These cases assert on the isolated cwd, the argument set, the final-answer
-// file and the temp directory's cleanup; none of them on latency. At a one-second bound, spawning the
-// fake alone can exceed it on a loaded machine, and then runBounded cancels the roll and NONE of those
-// assertions runs — the case fails with `the model did not answer within 1s`, which is not a finding
-// about anything it was written to check. Reported failing that way with six sessions live on this
-// machine, and reproduced here by forcing the bound to 1ms: same line, same message.
-//
-// Named rather than written out at each call, so a later reader tightening "1s, surely that's plenty"
-// has to notice what the number is for.
+// TestCodexCallerBoundsTheRoll, which keeps its own 100ms. Generous deliberately: no case here
+// asserts on latency, and at a one-second bound spawning the fake alone can exceed it on a loaded
+// machine, so runBounded cancels the roll and the case fails on the bound rather than on its subject.
 const notTheSubject = 10 * time.Second
 
 func TestCodexCallerRefusesMissingFinalAnswer(t *testing.T) {

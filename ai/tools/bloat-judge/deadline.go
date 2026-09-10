@@ -19,22 +19,14 @@ import (
 // bounded at two of these rather than three, and can no longer block forever — and at one whenever the
 // quorum settles, which is the common case.
 //
-// Read from measurement. Seven rolls timed here — 68, 85, 95, 98, 104, 119 and 150 seconds — over
-// texts from 13KB up to the 80KB a decision record at its 100-entry cap presents, beside the 30, 36,
-// 49, 52, 66 and 117 the earlier reading quotes over texts of two to forty lines.
+// Flat, not scaled by the text or by the load: a roll is spent waiting on the API, and neither
+// predicts it. Over thirteen timed rolls, 13KB cost 104 seconds where 53KB cost 85, and a roll that
+// took 119 seconds held 7% of a CPU.
 //
-// Nothing in that spread is the text: 13KB cost 104 seconds where 53KB cost 85. Nor is it the machine
-// — the 119-second roll held 7% of a CPU, and three rolls run at once finished in the time one of them
-// took. A roll is spent waiting on the API, so the bound scales with neither the text nor the load.
-//
-// 120 came from this same distribution read as though its worst roll were 39 seconds, and landed
-// inside it: one of the thirteen rolls above exceeds it, and two more land within three seconds
-// of it. That is the reported stall — a `record-entry`
-// judge over a full record, refused at exit 2 twice running, cut off mid-answer rather than hung.
-//
-// 420 is 2.8 times the slowest roll seen. Generous deliberately: this exists so a run ends, not so it
-// ends soon, and a bound that clips an honest roll costs the caller the whole gate. Concurrency is
-// what makes it affordable — one roll at a time, this figure would bound a run at 21 minutes.
+// 420 is 2.8 times the slowest of those rolls, 150 seconds. Generous deliberately: this exists so a
+// run ends, not so it ends soon, and a bound that clips an honest roll costs the whole gate. The 120
+// it replaces sat inside the distribution and refused honest rolls at exit 2. Concurrency is what
+// makes 420 affordable: one roll at a time, it would bound a run at 21 minutes.
 const defaultRollDeadline = 420 * time.Second
 
 // The only line the override file may carry.

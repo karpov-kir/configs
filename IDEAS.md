@@ -80,8 +80,6 @@ Standing cost of typed ingestion: a versioned format, retained manifests, caller
 
 ## 1x | 2026-09-10 | Where the gate's remaining wall clock is, and what not to try
 
-Recorded because the measurement cost an hour of machine time and the conclusions are mostly negative — without them written down, the next pass re-derives them or re-tries something already disproved.
-
 A cold `ai/gate.sh --full` is its default lane end to end: the shell lane runs alongside and finishes inside it, so speeding the shell suites up does not move the gate at all. After grouping the mutation units by suite set, one unit is 46% of the whole run — `mutants:go:eco-report` at 630s of a 1357s cold gate, where the next largest is `mutants:go:eco-check` at 174s and nothing else exceeds 50s. Any further reduction lives in that one unit, which means in the eco-report suite it runs as its baseline, not in the gate's own scheduling.
 
 Three things not to try. **Widening the gate's lanes gains nothing**: `go-mutate` already runs its mutants `NumCPU-2` wide, so overlapping mutation units over-subscribes the machine rather than filling it, and the non-mutation checks total single-digit seconds warm. **`serialGroupFor`'s shell/non-shell boundary is not a scheduling choice** — it is containment, with a recorded incident where a suite escaped and overwrote real config files, and widening it would buy nothing anyway for the reason above. **The mutation baseline cannot be left to Go's test cache** to avoid re-running per unit: measured on 2026-09-08, with `./eco-report` cached green, breaking a file the fixtures copy in from outside the module still answered `ok (cached)` while the same tree run with `-count=1` failed. A cached baseline is a green served over a red suite.

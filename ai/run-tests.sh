@@ -171,14 +171,11 @@ tree_state() {
 
 # How many suites are in flight. They are independent — each builds its own temp HOME and none writes
 # into the checkout, which the containment check below re-proves on every run — so running them one at
-# a time bought only a tidy stream, and that is kept: each suite's output is buffered and the results
-# are read back in discovery order, so this prints exactly what it always printed.
+# a time bought only a tidy stream, which the per-suite buffering keeps.
 #
-# Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it
-# takes 80 alone — they compete for the cores the `go build` inside them already wants — and half the
-# machine leaves that room. Measured over the fifteen suites the tree then held; at nineteen it runs
-# 348s against 457s on one lane. RUN_TESTS_JOBS=1 puts it back to one at a time, which is what to
-# reach for when a suite fails here and passes alone.
+# Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it takes
+# 80 alone — they compete for the cores the `go build` inside them already wants — and half the machine
+# leaves that room.
 resolve_jobs() {
   jobs="${RUN_TESTS_JOBS:-0}"
   case "$jobs" in
@@ -194,16 +191,14 @@ resolve_jobs() {
   # Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
   # has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
   #
-  # `RUN_TESTS_NO_WAIT_N` is a seam, and it is here because this branch is otherwise undrivable: every
-  # machine that runs the suite HAS `wait -n`, so nothing could reach the downgrade or its notice, and
-  # a regression in either would look exactly like a pass. It forces the fallback; it never suppresses
-  # one.
+  # `RUN_TESTS_NO_WAIT_N` is a seam: every machine that runs the suite HAS `wait -n`, so without it
+  # nothing could reach the downgrade or its notice, and a regression in either would look exactly like
+  # a pass. It forces the fallback; it never suppresses one.
   if [ -n "${RUN_TESTS_NO_WAIT_N:-}" ] ||
     [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
     # Said, not done quietly. A caller who set RUN_TESTS_JOBS=6 and silently got one lane holds a
-    # number they believe they set and did not — the same defect this file refuses an unparsable
-    # RUN_TESTS_JOBS for, and it would show up only as a run that took six times as long.
+    # number they believe they set and did not, and would see it only as a run six times as long.
     if [ "$jobs" -gt 1 ]; then
       printf '%s: bash %s has no `wait -n`, so the suites run one at a time rather than %s at a time\n' \
         "${0##*/}" "${BASH_VERSINFO[0]:-?}.${BASH_VERSINFO[1]:-?}" "$jobs" >&2

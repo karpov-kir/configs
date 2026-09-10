@@ -2,9 +2,7 @@
 //
 // What these pin is the reason for the grouping rather than the grouping itself: the harness runs a
 // full uncached baseline per invocation, so the number of invocations IS the cost, and the only key
-// that shares a baseline correctly is the set of suites it covers. A grouping that looked tidier —
-// by the directory the mutated file sits in — puts files whose mutants run another package's suite
-// into a unit whose baseline covers neither.
+// that shares a baseline correctly is the set of suites it covers.
 package gate
 
 import (
@@ -126,8 +124,7 @@ func TestASetOfTwoSuitesCarriesBoth(t *testing.T) {
 }
 
 // A mutant naming no suite keys on the whole module, which is what it keyed on before it was grouped,
-// and is called something rather than nothing: recordStem turns an id into a record's filename, and an
-// empty id is the one stem that could collide with another empty one.
+// and is called something rather than nothing (see suiteSetName).
 func TestAMutantWithNoSuiteIsTheModuleRootsAndIsNamed(t *testing.T) {
 	group := groupNamed(t, "mutants:go:root")
 	// Membership, not position: both sibling cases read `inputs` as a set, and reordering it without
@@ -161,12 +158,8 @@ func TestAFileTheGateCannotQuoteRefuses(t *testing.T) {
 
 // Every listed file reaches exactly one unit. This is the property the saving must not cost: the
 // harness selects mutants by matching these tokens exactly, so a file dropped from every group is its
-// mutants silently not run, and a file in two groups is them run twice. Measured against the real
-// tree: 65 mutated files and 518 anchors become 18 units, and one grouped invocation over
-// eco-report's 16 files selected 256 of them — the exact sum of their per-file counts.
-//
-// The anchor table is `go-mutate/mutants.go` and no grouping change touches it, so these totals move
-// only when a mutated file is added or removed. They were 62 and 525 before this branch merged main.
+// mutants silently not run, and a file in two groups is them run twice. Measured against the real tree
+// too: eco-report's 16 files in one invocation selected 256 mutants, the sum of their per-file counts.
 func TestEveryFileLandsInExactlyOneUnit(t *testing.T) {
 	seen := map[string]int{}
 	for _, group := range grouped(t) {

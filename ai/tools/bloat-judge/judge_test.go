@@ -387,8 +387,7 @@ func rollsAnswering(replies ...string) Caller {
 }
 
 // A caller that counts, safe to call from one wave's goroutines at once. The count is read after
-// Voting returns, so a bare int here is a race rather than a wrong number — and the -race build says
-// so instead of the count quietly being short.
+// Voting returns, so a bare int here would be a race the -race build reports, not a short count.
 func counting(inner Caller) (Caller, func() int) {
 	var mu sync.Mutex
 	calls := 0
@@ -483,10 +482,8 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 }
 
 // A roll that names a unit nobody offered has lost the plot exactly as a roll that explains has, and
-// fails the vote the same way. Bounded by the view's line count instead, this answer was tallied,
-// could reach a majority, and was refused only by Run — as the whole judge failing rather than as the
-// one roll that went wrong. The gap is widest where it matters most: a source file's units are its
-// comment blocks, so a 500-line file with 40 of them accepted 501.
+// fails the vote the same way. The gap the old line-count bound left is widest in a source file, whose
+// units are its comment blocks: a 500-line file with 40 of them accepted 501.
 func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
 	view := viewOf("a", "b")
 	if _, err := Voting(rollsAnswering("1", "3", "1"), 3)("p", view); err == nil {
@@ -565,15 +562,11 @@ func TestVotingRollsOnWhenTheQuorumDisagrees(t *testing.T) {
 // off-by-one in a split hides, and because 3 alone would let a wrong general rule pass — at 3 the
 // quorum is 2 and almost any plausible formula gives 2.
 //
-// Deliberately says nothing about where the count comes from. An earlier version of this comment
-// claimed the model policy supplies it and caps it at 9; both were true of a change in another
-// session that has not landed, and neither was true of this tree.
-//
 // Nine rolls put the quorum at five. Agreeing, the vote stops there: unit 1 is past a majority at
 // five, and a unit no roll named cannot reach one with four rolls left, so nothing is undecided.
 // Disagreeing two-of-five on unit 1 leaves it reachable — 2 now, 4 to come, 6 of 9 would carry it —
 // so the second wave has to fire.
-func TestTheWavesHoldAtThePolicysCeiling(t *testing.T) {
+func TestTheWaveSplitHoldsAtAHigherRollCount(t *testing.T) {
 	for _, c := range []struct {
 		name    string
 		replies []string
