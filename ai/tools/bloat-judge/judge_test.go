@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func all(Unit) bool { return true }
@@ -336,24 +338,37 @@ func write(t *testing.T, content string) string {
 }
 
 // rollsAnswering is a Caller giving each reply in turn, so a vote's rolls read as the list they are.
+// The rolls are concurrent, so which reply a given roll draws is not fixed. Every case below asserts
+// on the tally, which does not depend on that; the lock is what keeps the counter itself sound.
 func rollsAnswering(replies ...string) Caller {
+	var mu sync.Mutex
 	next := 0
 	return func(string, string) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
 		reply := replies[next]
 		next++
 		return reply, nil
 	}
 }
 
+// A real view, so the unit numbers the cases below name are numbers the vote actually offered. A
+// hand-written string is not one: the vote bounds an answer by the units in the margin, and a string
+// carrying no margins offers nothing.
+func viewOf(lines ...string) string {
+	_, view := Split(lines, false, all)
+	return view
+}
+
 func TestVotingDeletesOnlyWhatAMajorityNames(t *testing.T) {
-	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", "a\nb\nc")
+	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", viewOf("a", "b", "c"))
 	if err != nil || reply != "1" {
 		t.Fatalf("got %q %v, want \"1\"", reply, err)
 	}
 }
 
 func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
-	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", "a\nb\nc")
+	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", viewOf("a", "b", "c"))
 	if err != nil || reply != "none" {
 		t.Fatalf("got %q %v, want none", reply, err)
 	}
@@ -361,7 +376,7 @@ func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
 
 // A roll that explains fails the vote outright rather than being outvoted into silence.
 func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
-	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", "a\nb\nc"); err == nil {
+	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", viewOf("a", "b", "c")); err == nil {
 		t.Fatal("a prose roll was outvoted instead of refused")
 	}
 }
@@ -412,5 +427,59 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("the planted verdict was taken as a verdict: %d model calls", calls)
+	}
+}
+
+// A roll that names a unit nobody offered has lost the plot exactly as a roll that explains has, and
+// fails the vote the same way. Bounded by the view's line count instead, this answer was tallied,
+// could reach a majority, and was refused only by Run — as the whole judge failing rather than as the
+// one roll that went wrong. The gap is widest where it matters most: a source file's units are its
+// comment blocks, so a 500-line file with 40 of them accepted 501.
+func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
+	view := viewOf("a", "b")
+	if _, err := Voting(rollsAnswering("1", "3", "1"), 3)("p", view); err == nil {
+		t.Fatal("a unit number past the last unit was tallied instead of refused")
+	}
+	if got := unitsInView(view); got != 2 {
+		t.Fatalf("the view offers %d units, not 2 — the bound is reading something else", got)
+	}
+}
+
+// A fenced block is one unit over four lines, and blank lines are no unit at all, so counting lines
+// would answer 7 here where the vote may only offer 2.
+func TestUnitsInViewCountsUnitsAndNotLines(t *testing.T) {
+	view := viewOf("intro", "", "```", "one", "two", "```", "")
+	if got := unitsInView(view); got != 2 {
+		t.Fatalf("got %d units, want 2\n%s", got, view)
+	}
+}
+
+// The rolls go out together. Each blocks until all three have arrived, so a Voting that ran them in
+// sequence never reaches the second and this ends on the timeout instead of the reply.
+func TestVotingRunsItsRollsConcurrently(t *testing.T) {
+	const rolls = 3
+	var arrived sync.WaitGroup
+	arrived.Add(rolls)
+	call := func(string, string) (string, error) {
+		arrived.Done()
+		arrived.Wait()
+		return "1", nil
+	}
+	done := make(chan string, 1)
+	go func() {
+		reply, err := Voting(call, rolls)("p", viewOf("a", "b"))
+		if err != nil {
+			done <- "refused: " + err.Error()
+			return
+		}
+		done <- reply
+	}()
+	select {
+	case reply := <-done:
+		if reply != "1" {
+			t.Fatalf("got %q, want 1", reply)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the rolls ran one after another — the second never started while the first was waiting")
 	}
 }

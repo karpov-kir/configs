@@ -15,23 +15,25 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// defaultRollDeadline bounds one roll of the model. The vote's rolls run in sequence, so a judge run
-// is bounded at three times this and can no longer block forever.
+// defaultRollDeadline bounds one roll of the model. The vote's rolls go out together, so a judge run
+// is bounded at about this rather than three times it, and can no longer block forever.
 //
-// Read from measurement, not chosen. Timed on the machine and the load that produced the stall — five
-// ship sessions and their audits at once — a `return` run took 30 to 49 seconds over a two-line text,
-// 66 to 117 over a five-line one and 36 to 52 over a forty-line one, five samples each. Three rolls to
-// a run puts the worst roll measured at about 39 seconds, so a bound of 60 would cut off work that
-// finished honestly and 120 leaves three times over. That upper sample also reproduces the run the
-// report described: slow, past a caller's 120-second patience, and not hung at all.
+// Read from measurement. Seven rolls timed here — 68, 85, 95, 98, 104, 119 and 150 seconds — over
+// texts from 13KB up to the 80KB a decision record at its 100-entry cap presents, beside the 30, 36,
+// 49, 52, 66 and 117 the earlier reading quotes over texts of two to forty lines.
 //
-// Flat rather than scaled by the text, because the forty-line run was the *faster* one: what a roll
-// costs tracks how loaded the machine is, not how much it was given to read.
+// Nothing in that spread is the text: 13KB cost 104 seconds where 53KB cost 85. Nor is it the machine
+// — the 119-second roll held 7% of a CPU, and three rolls run at once finished in the time one of them
+// took. A roll is spent waiting on the API, so the bound scales with neither the text nor the load.
 //
-// The number is the weaker half of the fix. What matters is that a roll ends and says it did: a
-// deadline set too tight refuses loudly, at exit 2, where no deadline at all left a mandatory gate
-// skipped in silence.
-const defaultRollDeadline = 120 * time.Second
+// 120 came from this same distribution read as though its worst roll were 39 seconds, and landed
+// inside it: two of the thirteen rolls above exceed it. That is the reported stall — a `record-entry`
+// judge over a full record, refused at exit 2 twice running, cut off mid-answer rather than hung.
+//
+// 420 is 2.8 times the slowest roll seen. Generous deliberately: this exists so a run ends, not so it
+// ends soon, and a bound that clips an honest roll costs the caller the whole gate. Concurrency is
+// what makes it affordable — in sequence, this figure would bound a run at 21 minutes.
+const defaultRollDeadline = 420 * time.Second
 
 // The only line the override file may carry.
 const overrideKey = "roll-timeout"
