@@ -10,7 +10,7 @@ Never exceed your licence â€” a gated, out-of-scope, or human-decision change â€
 
 **Invoking a skill applies its contract within the caller's assigned session role; it does not transfer ownership.** Required session boundaries take precedence over the inline default. Within the owning session, keep orchestration in one caller and run the selected phase inline when its context is already held or it needs the human. Delegate bounded exploration or independent review when isolation earns its setup cost. Spawned workers return further-work requests; the caller dispatches them directly rather than creating wrapper agents. Read only the references needed for the selected branch, and reuse unchanged instructions already read.
 
-**Model selection follows [model-policy.md](model-policy.md).** Build, correctness, security and semantic judgment retain the original task's protected model. A smaller coordinator cannot confer its own model on protected workers by inheritance.
+**Model selection follows [model-policy.md](model-policy.md), and every dispatch names its task there.** A dispatch that names none inherits the orchestrator's model, so a cheap coordinator quietly lowers every worker under it.
 
 ## Phase boundaries
 

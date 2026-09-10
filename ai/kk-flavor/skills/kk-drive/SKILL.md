@@ -4,6 +4,8 @@ description: Use a change the way its user will and report each scenario's obser
 argument-hint: "the scenarios to drive, plus how to run the project"
 ---
 
+**Runs:** dispatched
+
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The unit is a **scenario**, not a file: the queue is the scenarios you were handed, and each one gets an outcome. And you change no code, so nothing here is a fix — a `DIVERGED` scenario is resolved by returning it. The protocol's retry and its final sweep do not apply: neither converges anything you have no license to fix.
 
 **You were handed the scenarios and how to run the project. Don't go looking for the diff** — not `git diff`, not a commit's changes, not the implementation of the thing you are driving. Read how it was done and you will confirm the code does what it does, which is the one thing this lane cannot be for. **Handed no scenarios, take them from the ask** — an intent's scenarios, the ticket, or your caller (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**) — never from the diff.

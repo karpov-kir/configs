@@ -4,6 +4,8 @@ description: "Coordinate an ICE intent through build, qualification and authoriz
 argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote"
 ---
 
+**Runs:** inline — landing
+
 **Check session ownership before renaming, opening a report or changing the tree.** If this is a reactor session, follow `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role** and prepare or resume the owning task instead of entering this lifecycle here.
 
 The session that owns this intent coordinates its lifecycle under `~/.kk-flavor/standards/skill-protocol.md`. Load `idsd-build` when building, `idsd-qualify` when qualifying, and `idsd-finalize` only when entering `done`; use their contracts inline. Load lifecycle/report guidance when its operation is needed, not every sub-skill at startup. Reuse unchanged contracts and settled gap answers. A genuine new gap still reaches the human.

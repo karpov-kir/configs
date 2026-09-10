@@ -8,7 +8,7 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 ## The round
 
-**One caller owns the round and dispatches leaf workers directly.** Reading a build or qualify entry does not spawn another coordinator. Resolve model roles through [model-policy.md](model-policy.md); semantic adjudication remains protected even when dispatch is cheaper.
+**One caller owns the round and dispatches leaf workers directly.** Reading a build or qualify entry does not spawn another coordinator. Resolve each leaf's model through [model-policy.md](model-policy.md) by its task name; a stage whose green a human trusts stays on its assigned tier however cheap the dispatch is.
 
 **Settle scope and write ownership before dispatch.** Run independent code and security reviews in separate contexts against the same candidate. Parallelize other applicable leaves where inputs and writes do not conflict, within the actual worker limit. At capacity, wait or reuse a completed worker for a valid continuation; do not retry failed spawns through proxy agents.
 

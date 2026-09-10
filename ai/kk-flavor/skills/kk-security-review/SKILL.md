@@ -4,6 +4,8 @@ description: Adversarially review the working-tree changes for exploitable vulne
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
+**Runs:** dispatched
+
 Adversarially review every change resolved from `$ARGUMENTS`: assume the code is hostile until proven otherwise. Scoped to the change and the data flows it touches — no whole-project mode by design.
 
 **Exploitable weaknesses only** — functional bugs are `kk-code-review`'s lane, style and structure `kk-refactor`'s.

@@ -53,13 +53,10 @@ func Run(command Command) int {
 	flags.SetOutput(command.Stderr)
 	config := flags.String("config", "", "policy JSON file; defaults to models.json beside the installed flavor scripts")
 	client := flags.String("client", "", "required: codex or claude")
-	role := flags.String("role", "", "required role from the policy")
-	originPath := flags.String("origin", "", "origin JSON FILE with client, model and effort; never inline JSON")
-	transport := flags.String("transport", "native", "native or cli; this resolver does not execute either")
-	fromOriginal := flags.Bool("from-original-task", false, "attest this dispatch runs directly in the original task; only native inheritance can use it")
-	digest := flags.String("policy-digest", "", "expected policy digest; refuse a changed policy")
+	task := flags.String("task", "", "task from the policy, such as kk-code-review or patrol/scout")
+	limits := flags.Bool("limits", false, "emit the policy's limits instead of a task's settings")
 	flags.Usage = func() {
-		fmt.Fprintln(command.Stderr, "Usage: model-policy.sh --client codex|claude --role <role> [options]\nEmits requested settings and policy digest, never observed settings or an availability claim.")
+		fmt.Fprintln(command.Stderr, "Usage: model-policy.sh --client codex|claude --task <task> [--config <file>]\nEmits the requested settings and the policy digest. It never dispatches, and never reports what actually ran.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(command.Args); err != nil {
@@ -69,45 +66,40 @@ func Run(command Command) int {
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(command.Stderr, "model-policy: unexpected positional arguments")
-		return 2
+		return refuse(command.Stderr, "unexpected positional arguments")
 	}
 	if *config == "" {
 		path, err := InstalledPath(command.Invocation)
 		if err != nil {
-			fmt.Fprintln(command.Stderr, "model-policy:", err)
-			return 2
+			return refuse(command.Stderr, err)
 		}
 		*config = path
 	}
 	policy, err := Load(*config)
 	if err != nil {
-		fmt.Fprintln(command.Stderr, "model-policy:", err)
-		return 2
+		return refuse(command.Stderr, err)
 	}
-	request := Request{Client: *client, Role: *role, Transport: *transport, FromOriginalTask: *fromOriginal, PolicyDigest: *digest}
-	if *originPath != "" {
-		raw, err := readJsonFile(*originPath)
-		if err != nil {
-			fmt.Fprintln(command.Stderr, "model-policy: read origin:", err)
-			return 2
+	if *limits {
+		if err := json.NewEncoder(command.Stdout).Encode(policy.Limits()); err != nil {
+			return refuse(command.Stderr, "write limits:", err)
 		}
-		request.Origin, err = ParseOrigin(raw)
-		if err != nil {
-			fmt.Fprintln(command.Stderr, "model-policy:", err)
-			return 2
-		}
+		return 0
 	}
-	decision, err := policy.Resolve(request)
+	decision, err := policy.Resolve(Request{Client: *client, Task: *task})
 	if err != nil {
-		fmt.Fprintln(command.Stderr, "model-policy:", err)
-		return 2
+		return refuse(command.Stderr, err)
 	}
 	if err := json.NewEncoder(command.Stdout).Encode(decision); err != nil {
-		fmt.Fprintln(command.Stderr, "model-policy: write decision:", err)
-		return 2
+		return refuse(command.Stderr, "write decision:", err)
 	}
 	return 0
+}
+
+// Every decline leaves the same two marks: the tool's name ahead of the reason on stderr, and status
+// 2, which the shell stubs read as "did not run". One place, so a new failure path cannot differ.
+func refuse(stderr io.Writer, reason ...any) int {
+	fmt.Fprintln(stderr, append([]any{"model-policy:"}, reason...)...)
+	return 2
 }
 
 func readJsonFile(path string) ([]byte, error) {

@@ -4,6 +4,8 @@ description: Grill the user relentlessly about a plan, decision or idea — roun
 argument-hint: "the plan, decision or idea to stress-test"
 ---
 
+**Runs:** inline — human
+
 Interview the user relentlessly until you reach a shared understanding. Map the topic as a **design tree**: every decision branches into the decisions that hang off it.
 
 Runs **inline**, never spawned (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**) — only the main thread reaches the user.
@@ -19,6 +21,8 @@ Format each question like so:
 ```
 
 Their answers reshape the tree: recompute the frontier, then ask the next round.
+
+**Dispatches:** `facts`
 
 Finding _facts_ is your job, never the user's — dispatch a subagent for any fact the environment holds, and **don't block on it**: only the questions downstream of it wait, so ask the rest of the frontier now. The _decisions_ are the user's — put each to them and wait.
 

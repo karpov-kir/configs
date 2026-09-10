@@ -4,9 +4,13 @@ description: Take a settled requirement to a green tree — place the work, plan
 argument-hint: "the requirement to build — a ticket, an issue, a file holding it, or the ask itself"
 ---
 
-Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md`; do not spawn a build wrapper merely to invoke this entry. Apply `~/.kk-flavor/standards/building.md` when Phase 4 starts. Read the selected phase's additional references only when needed. Implementation and semantic choices follow `~/.kk-flavor/standards/model-policy.md`'s protected original-task model.
+**Runs:** inline — human
+
+Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md`; do not spawn a build wrapper merely to invoke this entry. Apply `~/.kk-flavor/standards/building.md` when Phase 4 starts. Read the selected phase's additional references only when needed. Phase 3's exploration worker dispatches as `kk-build/explore`; every other phase answers `kk-build` (`~/.kk-flavor/standards/model-policy.md`).
 
 **Your caller names two things** — the requirement set, and the homes that receive what this build produces: a decision it settled, a follow-up it opened, a proposal only a human can accept. **With no home named, they go to your caller** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**), never into a file you chose.
+
+**Dispatches:** `explore`
 
 **Two traps for every subagent below.** Give each spawn its own ledger path (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) — a shared fixed name is the one two concurrent spawns both pick. And build every prompt from `~/.kk-flavor/templates/spawn-prompt.md`.
 

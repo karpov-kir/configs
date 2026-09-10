@@ -18,7 +18,7 @@ You are one round's scout for `kk-patrol`. You are given **one angle** and the l
 - **The rule that just landed** — diff the instruction tree since the SHA on this angle's last ledger row and ask what it now forbids that the tree still does. A rule arrives binding text nobody has reread against it.
 - **Unearned place** — a file nothing enters, a rule that fires for nobody, a script no call site reaches, a binary whose source is gone.
 - **A test that cannot fail** — a case whose assertion holds however the code under it changes.
-- **The patrol itself** — this brief, `FIXER.md`, `SKILL.md`. A vague angle, a bar letting noise through, a guard that fires on the wrong thing.
+- **The patrol itself** — this brief, `~/.kk-flavor/workers/patrol/fixer.md`, `~/.kk-flavor/skills/kk-patrol/SKILL.md`. A vague angle, a bar letting noise through, a guard that fires on the wrong thing.
 - **The ledger** — after enough rounds it is evidence about the loop: angles that never find anything, findings that always get held, rounds that got reverted.
 
 ## The bar

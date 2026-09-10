@@ -4,6 +4,8 @@ description: Find the cause of a bug, a flake or a performance regression. Use f
 argument-hint: "the symptom, in the words of whoever hit it"
 ---
 
+**Runs:** dispatched
+
 Find what causes the symptom. **Phase 1 is the skill** — with a loop that goes **red** on this symptom, bisection, probes and theories all just consume it; without one, no amount of reading finds the cause.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The unit is a **symptom**, not a file — one per run, so the queue, the ledger and the final sweep do not apply. The phases below are the loop, and the safety stop is Phase 1's own exit. This skill quotes commands, output and captured artifacts throughout, so → **Redact before you quote** binds every phase.

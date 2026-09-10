@@ -5,7 +5,11 @@ import (
 	"testing"
 )
 
-const sample = `{"version":1,"profiles":{"task":{"source":"task-origin"},"judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}}},"roles":{"implement":{"profile":"task","uses":["build"]},"correctness":{"profile":"task","uses":["review"]},"security":{"profile":"task","uses":["security"]},"judge":{"profile":"judge","uses":["judge"]}}}`
+const sample = `{"version":3,"limits":{"intents-in-flight":10},` +
+	`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"model":"opus"}}},` +
+	`"workers":{` +
+	`"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"},"rolls":3},` +
+	`"kk-build/explore":{"codex":{"effort":"low"},"claude":{"model":"sonnet"}}}}`
 
 func policyForTest(t *testing.T) *Policy {
 	t.Helper()
@@ -15,30 +19,73 @@ func policyForTest(t *testing.T) *Policy {
 	}
 	return p
 }
-func TestProtectedWorkUsesOriginalTask(t *testing.T) {
+
+func TestEachClientGetsItsOwnSettingsAndRolls(t *testing.T) {
 	p := policyForTest(t)
-	for _, role := range []string{"implement", "correctness", "security"} {
-		got, err := p.Resolve(Request{Client: "codex", Role: role, Transport: "native", Origin: &Origin{Client: "codex", Model: "original-strong", Effort: "high"}})
-		if err != nil || got.Requested.Model != "original-strong" || got.Requested.Effort != "high" || got.Source != "task-origin" || len(got.PolicyDigest) != 64 {
-			t.Fatalf("%s lost original-task settings: %+v, %v", role, got, err)
+	got, err := p.Resolve(Request{Client: "claude", Task: "bloat-judge"})
+	if err != nil || got.Requested.Model != "haiku" || got.Requested.Effort != "" || got.Rolls != 3 {
+		t.Fatalf("claude judge = %+v, %v", got, err)
+	}
+	if len(got.PolicyDigest) != 64 {
+		t.Fatalf("digest = %q", got.PolicyDigest)
+	}
+	got, err = p.Resolve(Request{Client: "codex", Task: "bloat-judge"})
+	if err != nil || got.Requested.Model != "helper" || got.Requested.Effort != "low" {
+		t.Fatalf("codex judge = %+v, %v", got, err)
+	}
+}
+
+// An effort with no model is the one lever that keeps a site on the caller's model, so it must survive
+// resolution rather than being filled in with a guess.
+func TestEffortWithoutModelResolvesAndInventsNoModel(t *testing.T) {
+	got, err := policyForTest(t).Resolve(Request{Client: "codex", Task: "kk-build"})
+	if err != nil || got.Requested.Effort != "high" || got.Requested.Model != "" {
+		t.Fatalf("effort-only row = %+v, %v", got, err)
+	}
+}
+
+func TestUnassignedTaskFailsRatherThanInheriting(t *testing.T) {
+	p := policyForTest(t)
+	for _, request := range []Request{
+		{Client: "claude", Task: "kk-code-review"},
+		{Client: "claude", Task: ""},
+		{Client: "unknown", Task: "bloat-judge"},
+	} {
+		if got, err := p.Resolve(request); err == nil {
+			t.Fatalf("unassigned dispatch accepted: %+v -> %+v", request, got)
 		}
 	}
 }
-func TestPolicyRejectsMalformedAndProtectedDowngrades(t *testing.T) {
+
+func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 	for name, raw := range map[string]string{
-		"wrong key case":   strings.Replace(sample, `"version":1`, `"Version":1`, 1),
-		"unknown field":    strings.Replace(sample, `"version":1`, `"version":1,"typo":true`, 1),
-		"duplicate field":  strings.Replace(sample, `"version":1`, `"version":1,"version":1`, 1),
+		// These three keep the version valid on purpose: Go's decoder matches keys case-insensitively
+		// and takes the last of a duplicate pair, so a wrong version would fail them on the version
+		// alone and prove nothing about strictness.
+		"wrong key case":   strings.Replace(sample, `"version":3`, `"Version":3`, 1),
+		"unknown field":    strings.Replace(sample, `"version":3`, `"version":3,"typo":true`, 1),
+		"duplicate field":  strings.Replace(sample, `"version":3`, `"version":3,"version":3`, 1),
 		"nested duplicate": strings.Replace(sample, `"model":"helper"`, `"model":"helper","model":"other"`, 1),
-		"unknown client":   strings.Replace(sample, `"codex":`, `"other":`, 1),
-		"version":          strings.Replace(sample, `"version":1`, `"version":2`, 1),
+		"unknown client":   strings.Replace(sample, `"codex":{"model":"helper"`, `"other":{"model":"helper"`, 1),
+		"version 1":        strings.Replace(sample, `"version":3`, `"version":1`, 1),
 		"trailing value":   sample + ` {}`,
 		"null":             `null`,
-		"downgrade":        strings.Replace(sample, `"implement":{"profile":"task"`, `"implement":{"profile":"judge"`, 1),
-		"mixed source":     strings.Replace(sample, `"source":"task-origin"`, `"source":"task-origin","codex":{"model":"helper"}`, 1),
-		"unknown profile":  strings.Replace(sample, `"profile":"task"`, `"profile":"absent"`, 1),
-		"duplicate use":    strings.Replace(sample, `"uses":["review"]`, `"uses":["build"]`, 1),
+		"no tasks":         `{"version":3,"limits":{"intents-in-flight":10},"sessions":{},"workers":{}}`,
+		"no cap":           strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":0`, 1),
+		"one client only":  strings.Replace(sample, `"claude":{"model":"haiku"},`, ``, 1),
+		"empty settings":   strings.Replace(sample, `"claude":{"model":"haiku"}`, `"claude":{}`, 1),
 		"unknown effort":   strings.Replace(sample, `"effort":"low"`, `"effort":"turbo"`, 1),
+		// The other row of the effort table: three effort names are codex's alone, so one on a claude
+		// entry reads as a tier and sets nothing. Without this case the two halves of the set can be
+		// merged into one and every case here stays green.
+		"codex-only effort on claude": strings.Replace(sample, `"claude":{"model":"opus"}`, `"claude":{"model":"opus","effort":"ultra"}`, 1),
+		"claude effort alone":         strings.Replace(sample, `"claude":{"model":"opus"}`, `"claude":{"effort":"high"}`, 1),
+		"option-shaped model":         strings.Replace(sample, `"model":"helper"`, `"model":"--dangerously-skip-permissions"`, 1),
+		"even rolls":                  strings.Replace(sample, `"rolls":3`, `"rolls":4`, 1),
+		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),
+		"cap over the ceiling":        strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":999999`, 1),
+		"task name with space":        strings.Replace(sample, `"bloat-judge":`, `"bloat judge":`, 1),
+		"negative rolls":              strings.Replace(sample, `"rolls":3`, `"rolls":-1`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Parse([]byte(raw)); err == nil {
@@ -47,43 +94,23 @@ func TestPolicyRejectsMalformedAndProtectedDowngrades(t *testing.T) {
 		})
 	}
 }
-func TestInheritanceRequiresOriginalTaskNativeDispatch(t *testing.T) {
-	p := policyForTest(t)
-	for _, r := range []Request{
-		{Client: "codex", Role: "implement", Transport: "cli", FromOriginalTask: true},
-		{Client: "codex", Role: "implement", Transport: "native"},
-		{Client: "codex", Role: "implement", Transport: "native", Origin: &Origin{Client: "claude", Model: "other", Effort: "high"}},
-		{Client: "unknown", Role: "judge", Transport: "cli"},
-		{Client: "codex", Role: "unknown", Transport: "cli"},
-		{Client: "codex", Role: "judge", Transport: "unknown"},
-		{Client: "codex", Role: "judge", Transport: "cli", PolicyDigest: "stale"},
-	} {
-		if got, err := p.Resolve(r); err == nil {
-			t.Fatalf("unsafe dispatch accepted: %+v -> %+v", r, got)
-		}
-	}
-	got, err := p.Resolve(Request{Client: "codex", Role: "implement", Transport: "native", FromOriginalTask: true})
-	if err != nil || got.Source != "original-task-native-inheritance" || got.Requested.Model != "" {
-		t.Fatalf("original native inheritance = %+v, %v", got, err)
-	}
-}
-func TestJudgeResolvesWithoutOriginAndDoesNotInventEffort(t *testing.T) {
-	p := policyForTest(t)
-	got, err := p.Resolve(Request{Client: "claude", Role: "judge", Transport: "cli"})
-	if err != nil || got.Requested.Model != "haiku" || got.Requested.Effort != "" || got.Source != "profile" {
-		t.Fatalf("judge = %+v, %v", got, err)
-	}
-}
 
-func TestUnknownOriginEffortRequiresOriginalNativeParent(t *testing.T) {
-	p := policyForTest(t)
-	request := Request{Client: "codex", Role: "implement", Transport: "cli", Origin: &Origin{Client: "codex", Model: "original"}}
-	if _, err := p.Resolve(request); err == nil {
-		t.Fatal("CLI accepted unknown origin effort")
+// The digest is the judge's cache identity, so a changed assignment has to change it or a stale
+// verdict is reused under the new policy.
+func TestDigestTracksEveryAssignment(t *testing.T) {
+	first := policyForTest(t)
+	changed, err := Parse([]byte(strings.Replace(sample, `"model":"haiku"`, `"model":"sonnet"`, 1)))
+	if err != nil {
+		t.Fatal(err)
 	}
-	request.Transport = "native"
-	request.FromOriginalTask = true
-	if got, err := p.Resolve(request); err != nil || got.Source != "original-task-native-inheritance" {
-		t.Fatalf("native fallback: %+v %v", got, err)
+	if first.Digest() == changed.Digest() {
+		t.Fatal("a changed model left the digest alone")
+	}
+	rerolled, err := Parse([]byte(strings.Replace(sample, `"rolls":3`, `"rolls":5`, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Digest() == rerolled.Digest() {
+		t.Fatal("a changed roll count left the digest alone")
 	}
 }

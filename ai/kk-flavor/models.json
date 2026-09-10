@@ -1,125 +1,50 @@
 {
-  "version": 1,
-  "profiles": {
-    "task": {
-      "source": "task-origin"
-    },
-    "judge": {
-      "codex": {
-        "model": "gpt-5.4-mini",
-        "effort": "low"
-      },
-      "claude": {
-        "model": "haiku"
-      }
-    }
+  "version": 3,
+  "limits": {
+    "intents-in-flight": 10
   },
-  "roles": {
-    "coordinate": {
-      "profile": "task",
-      "uses": [
-        "workflow/dispatch",
-        "idsd-reactor/dispatch",
-        "kk-patrol/dispatch",
-        "kk-reduce/dispatch"
-      ]
-    },
-    "navigate": {
-      "profile": "task",
-      "uses": [
-        "kk-build/explore",
-        "kk-ecosystem/inventory"
-      ]
-    },
-    "implement": {
-      "profile": "task",
-      "uses": [
-        "kk-build/implement",
-        "kk-pr/address",
-        "kk-patrol/fix"
-      ]
-    },
-    "correctness": {
-      "profile": "task",
-      "uses": [
-        "kk-code-review"
-      ]
-    },
-    "security": {
-      "profile": "task",
-      "uses": [
-        "kk-security-review"
-      ]
-    },
-    "refactor": {
-      "profile": "task",
-      "uses": [
-        "kk-refactor"
-      ]
-    },
-    "diagnose": {
-      "profile": "task",
-      "uses": [
-        "kk-diagnose",
-        "kk-patrol/scout"
-      ]
-    },
-    "drive": {
-      "profile": "task",
-      "uses": [
-        "kk-drive"
-      ]
-    },
-    "conform": {
-      "profile": "task",
-      "uses": [
-        "kk-conform"
-      ]
-    },
-    "instructions": {
-      "profile": "task",
-      "uses": [
-        "kk-ecosystem/scoped",
-        "kk-skillcraft",
-        "kk-ecosystem/audit",
-        "kk-reduce/scoped",
-        "kk-reduce/arbitrate"
-      ]
-    },
-    "adjudicate": {
-      "profile": "task",
-      "uses": [
-        "workflow/resolve",
-        "idsd-finalize/records",
-        "idsd-reactor/contracts"
-      ]
-    },
-    "author": {
-      "profile": "task",
-      "uses": [
-        "idsd-intent",
-        "idsd-charter",
-        "idsd-audit",
-        "kk-grill",
-        "kk-retro",
-        "kk-handoff/author",
-        "kk-pr/author"
-      ]
-    },
-    "edit": {
-      "profile": "task",
-      "uses": [
-        "kk-edit/outward",
-        "kk-edit/reference",
-        "kk-pr/description",
-        "kk-handoff/edit"
-      ]
-    },
-    "judge": {
-      "profile": "judge",
-      "uses": [
-        "bloat-judge"
-      ]
-    }
+  "sessions": {
+    "idsd-build":               { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "idsd-charter":             { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "idsd-finalize":            { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "idsd-intent":              { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "idsd-qualify":             { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "idsd-reactor":             { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "idsd-ship":                { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-again":                 { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-build":                 { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-foreman":               { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-grill":                 { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-handoff":               { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-patrol":                { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-pr":                    { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-pr/refine-description": { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-qualify":               { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-reduce":                { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-retro":                 { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } }
+  },
+  "workers": {
+    "bloat-judge":            { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "rolls": 3 },
+    "idsd-audit":             { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "idsd-qualify/reconcile": { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-build/explore":       { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-code-review":         { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-conform":             { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-diagnose":            { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-drive":               { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-ecosystem":           { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-edit":                { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-grill/facts":         { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+            "kk-reduce/arbitrate":    { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-reduce/converge":     { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-reduce/fan-out":      { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-reduce/over-cut":     { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-reduce/reconcile":    { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-reduce/repair":       { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-refactor":            { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-security-review":     { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "kk-skillcraft":          { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "patrol/fixer":           { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "patrol/scout":           { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } }
   }
 }

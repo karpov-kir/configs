@@ -4,6 +4,8 @@ description: Write or edit .idsd/charter.md — an IDSD project's what & why, in
 argument-hint: "the vision, scope or constraint to set, or omit to seed the charter"
 ---
 
+**Runs:** inline — human
+
 Write `.idsd/charter.md`, including its protected `## Constraints` section. Don't list features (that's the roadmap), detail behaviour (the intents), or restate the project's agent instructions — link to them.
 
 A request naming one section touches only that section. A missing charter is missing input: obtain its content from the human rather than inventing project purpose to house a constraint.

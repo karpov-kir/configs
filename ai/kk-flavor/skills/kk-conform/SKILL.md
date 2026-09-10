@@ -4,6 +4,8 @@ description: Check a change set against the ask it was given — every requireme
 argument-hint: "the requirement set, plus the change set to judge against it"
 ---
 
+**Runs:** dispatched
+
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. **The unit is a requirement**, not a file: the queue is the checklist you derive below. **You change no code**, so nothing here is a fix and a finding is resolved by returning it. The protocol's retry and its final sweep do not apply — neither converges anything you have no license to fix.
 
 The gate you fill, where each finding goes, and what a change set with no ask owes, are all `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**.

@@ -4,7 +4,7 @@
 
 Apply the `<skill name>` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
 
-Model role and original-task selection: <resolved under `~/.kk-flavor/standards/model-policy.md`; preserve protected roles>
+Model: <the task name from `~/.kk-flavor/models.json` and the settings it resolved to; name it, since a dispatch that omits it inherits mine>
 
 Candidate and evidence: <base, current scope identity, reusable verdicts and their unchanged inputs, or none>
 

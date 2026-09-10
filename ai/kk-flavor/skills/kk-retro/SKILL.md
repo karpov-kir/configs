@@ -6,6 +6,8 @@ disable-model-invocation: true
 audience: maintainer
 ---
 
+**Runs:** inline — session-context
+
 Look back at **how a run was conducted**, not at the change it produced — review, refactor and security-review cover that. Read the run cold and never self-grade: whoever ran the work rationalises their own choices. Assume there is something to find.
 
 ## Input

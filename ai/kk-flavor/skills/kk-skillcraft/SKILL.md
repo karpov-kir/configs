@@ -5,6 +5,8 @@ argument-hint: "a skill dir, several, or the whole skills tree"
 audience: maintainer
 ---
 
+**Runs:** dispatched
+
 Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-edit`'s; neither applies this one.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one verdict for each unit; the queue, ledger and `N/M` count units. Reuse unchanged readings under the protocol's dependency rules.

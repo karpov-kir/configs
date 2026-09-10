@@ -146,8 +146,11 @@ func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configured.Decision.Requested.Model != "gpt-5.4-mini" || configured.Decision.Requested.Effort != "low" {
+	if configured.Decision.Requested.Model != "gpt-5.6-luna" || configured.Decision.Requested.Effort != "low" {
 		t.Fatalf("central judge assignment = %+v", configured.Decision)
+	}
+	if configured.Decision.Rolls != 3 {
+		t.Fatalf("central judge roll count = %d", configured.Decision.Rolls)
 	}
 	for _, args := range [][]string{codexArgs("answer", testSettings()), claudeArgs("prompt", testSettings())} {
 		found := false

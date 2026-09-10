@@ -6,11 +6,15 @@ disable-model-invocation: true
 audience: maintainer
 ---
 
+**Runs:** inline — human
+
 Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — without losing what steers an agent.
 
 **You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); read it and `~/.kk-flavor/standards/ecosystem.md`, the bar every agent judges against, before Phase 1.
 
 **This campaign uses independent workers for the agents below** — a second opinion from a context that already holds your conclusions is not a second opinion. Hand `~/.kk-flavor/skills/kk-reduce/AGENT-BRIEF.md` verbatim to every scoped agent that **edits** — Phases 3–5, and only those, never a skill you invoke, which carries its own contract. It carries their invariants and return contract, so your prompt carries only that agent's scope and delta.
+
+**Dispatches:** `over-cut`, `arbitrate`, `fan-out`, `reconcile`, `converge`, `repair`
 
 ## 0. Baseline
 

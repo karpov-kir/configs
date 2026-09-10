@@ -4,6 +4,8 @@ description: Author or refine an ICE intent — what to build and why, never how
 argument-hint: "feature/project to plan, or an existing intent to refine"
 ---
 
+**Runs:** inline — human
+
 Capture **what** to build and **why** as an **ICE** — Intent · Context · Expectations — never **how**. You author Intent and Expectations (goal, constraints, scenarios); `idsd-build` assembles Context and owns implementation.
 
 ## Phase 0 — Detect scope

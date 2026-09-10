@@ -4,6 +4,8 @@ description: Write the prompt that hands a piece of work to a fresh session, the
 argument-hint: "the work to hand off"
 ---
 
+**Runs:** inline — session-context
+
 Hand the work over as one prompt that stands alone, plus the task that starts a session on it.
 
 `~/.kk-flavor/templates/spawn-prompt.md` covers spawning a stage subagent inside this run.
@@ -31,7 +33,7 @@ Name the target client explicitly in the draft's **Where it starts** slot. Missi
 - **Codex desktop:** use `create_thread` only when the user requested a separate task. Resolve the project with `list_projects`, pass the draft's title and prompt, and follow the tool's checkout/worktree rules. Creation starts work immediately; a returned task ID is the handoff, not a chip waiting for a click. Use subagents for work within the current task.
 - **Claude Code:** use the available chip mechanism. The title is the draft's `# ` line, the prompt is everything below it, the working directory is the repository root, and the summary is for the human deciding whether to click.
 
-Keep the target's configured model unless the user selected another. Resolve any role override through `~/.kk-flavor/standards/model-policy.md`; a comparable tier in another provider is not inherited task identity.
+Keep the target's configured model unless the user selected another. Resolve any override by task through `~/.kk-flavor/standards/model-policy.md`; a comparable tier in another provider is not the same assignment.
 
 **No task or chip mechanism for the selected client?** Return the draft's path and say it is ready to paste.
 

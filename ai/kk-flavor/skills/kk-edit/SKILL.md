@@ -4,11 +4,13 @@ description: The edit lane for authored or revised outward artifacts before appr
 argument-hint: "text, file, directory, or git scope such as staged or the changes"
 ---
 
+**Runs:** dispatched
+
 Improve the resolved text in one pass. Stop with the edited artifact or, for pasted text, return the rewrite without touching files.
 
 This skill fills the **edit lane** required by `~/.kk-flavor/standards/human-writing.md` → **Edit pass**.
 
-Run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`. Use the `edit` role from `~/.kk-flavor/standards/model-policy.md`.
+Run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Artifact`. Dispatch as `kk-edit` under `~/.kk-flavor/standards/model-policy.md`.
 
 ## Scope
 

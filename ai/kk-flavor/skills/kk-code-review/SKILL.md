@@ -4,6 +4,8 @@ description: Review the working-tree changes for correctness bugs — apply the 
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
 ---
 
+**Runs:** dispatched
+
 Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, broken logic, violated invariants and constraints, leaks, races, misuse that makes the code do the wrong thing.
 
 **Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `kk-refactor`'s lane — never flag them here; broad security auditing is `kk-security-review`'s. A security rule the project's agent instructions state is in scope — violating one is a constraint bug.

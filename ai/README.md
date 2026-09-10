@@ -101,12 +101,14 @@ the matching CLI yourself. Missing, invalid or unavailable providers fail with e
 JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh instruction instructions.md
 ```
 
-Model assignments and usage sites live in [models.json](kk-flavor/models.json). The shipped policy
-keeps agent work on the original task's model and preserves the judge's existing helper assignments.
-Read [model policy](kk-flavor/standards/model-policy.md) before choosing an override or a cheaper
-coordinator. The resolver prints requested settings and provenance; native or CLI dispatch still
-must verify the effective selection. `JUDGE_PROVIDER` selects the client, not a fallback provider.
-Change the central policy to tune the judge; a legacy `JUDGE_MODEL` setting is refused.
+Every dispatch site's model lives in [models.json](kk-flavor/models.json), which is the one place to
+tune what a run costs. It holds `workers` — the model a dispatch actually sets — and `sessions`, the
+tier a session should be started at, which nothing can enforce once it is running. A task the policy
+does not name is refused rather than run at the caller's tier. Read [model policy](kk-flavor/standards/model-policy.md) before changing an assignment: it says
+which rows a tool enforces, which are a convention an agent keeps, and which two cost levers no row
+can reach. The resolver prints requested settings only; dispatch still verifies what it selected.
+`JUDGE_PROVIDER` selects the client, not a fallback provider. Change the `bloat-judge` task to tune
+the judge's model, effort or vote count; a legacy `JUDGE_MODEL` setting is refused.
 
 Reply editing and structured stage returns do not call the judge. Durable deletion disputes can use
 it explicitly. Matching first and second votes avoid a third call; cache identity includes the model

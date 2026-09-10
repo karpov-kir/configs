@@ -105,6 +105,17 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(names)
 	})
 
+	// The reviewed tree picks its own skill directory names, so one outside the lane-name character set
+	// reaches the alternation builder, and nothing in the tool may panic on it: a MustCompilePOSIX
+	// panic here takes the mounts, dangling-link and home-ref scans down too. Such a name loses its
+	// direction guard by design, the trade laneNames states, so what is asserted is a silent run.
+	t.Run("survives a skill directory named outside the lane-name characters", func(t *testing.T) {
+		f := newRoot(t)
+		f.newMountedSkill("kk-drivé")
+		f.write(f.root+"/kk-flavor/standards/x.md", "route it through `kk-drivé`\n")
+		f.doesNotReport(names)
+	})
+
 	t.Run("fires on a path into a lane that is not a SKILL.md", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-humanize")
@@ -178,10 +189,12 @@ func TestDirectionScan(t *testing.T) {
 	// is entered only where some lane basename is unique, and a tree of nothing but `SKILL.md` has
 	// none, so without it this case is quiet because no basename was looked at. The control after it
 	// is what says otherwise.
+	// `unchecked` rides in the same assertion because the cross-lane-tree branch shares this line:
+	// without it, a branch marking every repeated name ambiguous would leave this case green.
 	t.Run("stays quiet on a basename more than one lane carries", func(t *testing.T) {
 		f := newTwoLaneTree(t)
 		f.write(f.root+"/kk-flavor/standards/x.md", "a bare name is not a path: run it per its SKILL.md\n")
-		f.doesNotReport(basenames)
+		f.doesNotReport(basenames, unchecked)
 	})
 
 	t.Run("while firing on this same tree's unique lane basename (control for the case above)", func(t *testing.T) {
@@ -360,4 +373,110 @@ func newSymlinkedFlavorViolation(t *testing.T) *fixture {
 	f.write(f.root+"/real-flavor/standards/x.md", "see `~/.kk-flavor/skills/kk-drive/SKILL.md`\n")
 	f.write(f.root+"/CLAUDE.md", "# Root\n")
 	return f
+}
+
+// `workers/` is the second lane tree, and these three hold its boundary from both sides: the
+// exemption covers a worker, it does not widen to the files around it, and a worker still owns its
+// own basename. Read as shared layer instead, a worker's mention of its own skill is a finding and
+// its basename drops out of the uniqueness census the basename scan needs.
+func TestDirectionScanAcrossLaneTrees(t *testing.T) {
+	t.Run("stays quiet on a worker naming the lane it belongs to", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerNamingItsLane)
+		f.doesNotReport(names)
+	})
+
+	t.Run("fires on a standard naming a lane even once workers exist", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerNamingItsLane)
+		f.write(f.root+"/kk-flavor/standards/x.md", "run kk-patrol over the tree\n")
+		f.reports(names)
+	})
+
+	t.Run("names the worker owning a basename a shared file reaches for", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `scout.md` verbatim\n")
+		f.reports(basenames)
+	})
+}
+
+// The two lane trees with one worker between them: `skills/kk-patrol` is the lane and
+// `workers/patrol/scout.md` the prompt that belongs to it. `brief` is the prompt's own text, the
+// subject in some cases and irrelevant in others, so each case states it rather than inheriting it.
+func newWorkerLaneTree(t *testing.T, brief string) *fixture {
+	t.Helper()
+	f := newRoot(t)
+	f.mkdirAll(f.root + "/kk-flavor/skills/kk-patrol")
+	f.mkdirAll(f.root + "/kk-flavor/workers/patrol")
+	f.write(f.root+"/kk-flavor/skills/kk-patrol/SKILL.md", "# Patrol\n")
+	f.write(f.root+"/kk-flavor/workers/patrol/scout.md", brief+"\n")
+	return f
+}
+
+const (
+	workerNamingItsLane = "you are the scout kk-patrol spawns"
+	workerBrief         = "the scout brief"
+)
+
+// The exemption's entrance, and the census it narrowed. Exempting `workers/` from the shared layer is
+// half a rule: without the other half a shared file still steers a reader into a worker prompt, and
+// the router's always-read block loads a lane-steering rule with this scan silent. The census half is
+// the mirror: a name two lane trees hold used to be reported, so it must not now vanish.
+func TestTheWorkersExemptionHasAnEntrance(t *testing.T) {
+	t.Run("fires on a standard citing a path into a worker prompt", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `~/.kk-flavor/workers/patrol/scout.md` verbatim\n")
+		f.reports(cites)
+	})
+
+	t.Run("stays quiet on a standard naming the layer's own directory", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/standards/x.md", "a worker's prompt lives in `kk-flavor/workers/`\n")
+		f.doesNotReport(cites)
+	})
+
+	// The spelling the tree actually writes, in kk-patrol's own SKILL.md. The arm's members already
+	// begin at `workers/`, so a required prefix would catch the `~/.kk-flavor/...` form and miss this.
+	t.Run("fires on the bare flavor-relative spelling of that path", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `workers/patrol/scout.md` verbatim\n")
+		f.reports(cites)
+	})
+
+	// The exemption covers every file under a lane tree, so the entrance has to as well: a glob over
+	// prompts alone would exempt a cited data file and catch nothing on the way in.
+	t.Run("fires on a cited worker file that is not a prompt", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/workers/patrol/notes.txt", "not a prompt\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "see `~/.kk-flavor/workers/patrol/notes.txt` for it\n")
+		f.reports(cites)
+	})
+
+	t.Run("stays quiet on a worker prompt this tree does not carry", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `~/.kk-flavor/workers/patrol/absent.md` verbatim\n")
+		f.doesNotReport(cites)
+	})
+
+	// Two copies means the scan cannot say which was meant, so it must say it narrowed rather than
+	// fall silent — the `basename not checked` notice, not the violation it would otherwise forge.
+	t.Run("reports a basename two lane trees both hold as unchecked", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/skills/kk-patrol/scout.md", "a second file of that name\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `scout.md` verbatim\n")
+		f.reports(unchecked)
+	})
+
+	// And it is the notice rather than the violation: testing the violation set first is what would
+	// forge a finding against a name this scan has just admitted it cannot attribute.
+	t.Run("does not forge a violation for that same basename", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/skills/kk-patrol/scout.md", "a second file of that name\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `scout.md` verbatim\n")
+		f.doesNotReport(basenames)
+	})
+
+	t.Run("names the worker path when a shared file reaches for its basename", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `scout.md` verbatim\n")
+		f.reports("workers/patrol/scout.md")
+	})
 }

@@ -30,6 +30,8 @@ Owner user-scoped instructions are installed as independent copies from a discov
 
 **The shared layer — a standard, a template under `kk-flavor/`, agent instruction file — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
 
+**`kk-flavor/skills/` and `kk-flavor/workers/` are the lane trees, and neither is the shared layer.** A worker's prompt is one skill's work addressed to one agent, so it names and cites that skill the way a skill does. Every other directory under `kk-flavor/` is shared by default, so one added tomorrow is held to the paragraph above with nothing to opt it in.
+
 ## Family direction
 
 **Inside the skill layer the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. A workflow skill invokes an any-repo one and cites it. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.
@@ -42,6 +44,7 @@ Owner user-scoped instructions are installed as independent copies from a discov
 - **A skill the human always initiates carries `disable-model-invocation: true` for Claude Code and `policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex.** These disable automatic invocation; only Claude's marker promises to remove the description from context. Model invocation is for the skill that must fire on work the human would not think to name.
 - **A skill whose subject is this tree's own instructions carries `audience: maintainer`.** Omitting it means the skill works on anyone's project, so only the exceptions carry the key and a new skill inherits the right default by writing nothing. The install offers to skip the marked ones, and every reader of the marker — the installer, the mount scan — takes it from the frontmatter rather than a list, so discovery still holds when a fourth arrives. **A skill that judges work against `~/.kk-flavor/` is marked** however general its subject sounds: it cannot travel to a tree that does not have them.
 - **Cite a section as `<file>.md → **Section**`.** That form is machine-checked; "its **Report** section" is not.
+- **A dispatched worker is assigned a model, and its prompt belongs in `kk-flavor/workers/`, one file per worker** — one without a file yet stays declared inside the skill that spawns it, so both forms sit in the tree until that move finishes ([model-policy.md](model-policy.md) → **One row per skill, one per dispatch site**, which owns each form and what checks it).
 - **A skill that runs a script cites it by full path — `~/.kk-flavor/skills/<skill>/scripts/<x>.sh` — whenever the run's working directory can hold code the human did not write.** The test is where the script runs, not who owns it.
 - **A machine-local override lives at `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/<name>.conf`, never in this tree.** `~/.kk-flavor` is a symlink into the checkout, so a value tuned there would show up as a dirty working tree and travel to everyone on the next commit. One file per thing being overridden, one `<key> <value>` per line, comments on `#`. **An override that takes effect says so, on stderr, in the output of every command it changes.** **An override file that is present but unusable refuses**, never falling back to the tracked default in silence. A default quietly restored is indistinguishable from the override working.
 - **An edit in a worktree is not what a spawned agent reads.** The mounts resolve to the main checkout, so a stage you spawn reads the landed version of every skill and standard, not the tree you are editing. Land it, or exercise it inline, before spawning anything to test it.
@@ -62,6 +65,7 @@ A move away from the common path is only a win when that path genuinely never ne
 ## Prefer the mechanism
 
 - A rule a script can enforce belongs in the script; prose duplicating what a script already enforces is a deletion.
+- **A number that multiplies what a run costs belongs in `~/.kk-flavor/models.json`, not in prose or a literal** ([model-policy.md](model-policy.md) → **Cost is a design constraint**).
 - **A change to a shared script lands its call site in the same edit.**
 - **A script is held to the bar it enforces** — converting prose into a script moves the cost rather than removing it.
 - **A script is Go under `ai/tools/`, reached by the `shared:tool-stub` region; shell only where Go cannot yet run.** The install path and the stub settle whether Go can run, at the moment the script runs.

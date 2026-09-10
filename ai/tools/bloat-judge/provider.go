@@ -23,7 +23,7 @@ type Configured struct {
 
 func Configure(configuration Configuration) (Configured, error) {
 	if _, present := os.LookupEnv("JUDGE_MODEL"); present {
-		return Configured{}, fmt.Errorf("JUDGE_MODEL is retired; select the judge profile in models.json or use --config for an evaluation policy")
+		return Configured{}, fmt.Errorf("JUDGE_MODEL is retired; set the bloat-judge task in models.json or use --config for an evaluation policy")
 	}
 	provider, err := resolveProvider()
 	if err != nil {
@@ -33,9 +33,14 @@ func Configure(configuration Configuration) (Configured, error) {
 	if err != nil {
 		return Configured{}, err
 	}
-	decision, err := policy.Resolve(modelpolicy.Request{Client: provider, Role: "judge", Transport: "cli"})
+	decision, err := policy.Resolve(modelpolicy.Request{Client: provider, Task: "bloat-judge"})
 	if err != nil {
 		return Configured{}, err
+	}
+	// A vote needs a roll to count; the policy owns how many, so an unset count is its error, not a
+	// default this tool supplies.
+	if decision.Rolls < 1 {
+		return Configured{}, fmt.Errorf("the bloat-judge task sets no roll count, so there is no vote to take")
 	}
 	call := ClaudeCaller(configuration.Deadline, decision.Requested)
 	if provider == "codex" {
@@ -84,14 +89,19 @@ func CodexCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 	}
 }
 
+// An effort-only row means "keep the model, lower the effort", so the flag is omitted rather than
+// passed empty — `--model ""` asks the CLI for a model with no name instead of asking for none.
 func codexArgs(answer string, settings modelpolicy.Settings) []string {
 	args := []string{
 		"exec", "--ignore-user-config", "--ignore-rules", "--ephemeral",
 		"--skip-git-repo-check", "--sandbox", "read-only", "--color", "never",
-		"--model", settings.Model, "--output-last-message", answer,
+		"--output-last-message", answer,
 		"-c", "approval_policy=\"never\"", "-c", "project_doc_max_bytes=0",
 		"-c", "web_search=\"disabled\"", "-c", "tools.update_plan.enabled=false",
 		"-c", "suppress_unstable_features_warning=true",
+	}
+	if settings.Model != "" {
+		args = append(args, "--model", settings.Model)
 	}
 	if settings.Effort != "" {
 		args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(settings.Effort))

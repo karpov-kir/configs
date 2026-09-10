@@ -5,6 +5,8 @@ argument-hint: "what was wrong with it, or which earlier reply to re-answer (def
 disable-model-invocation: true
 ---
 
+**Runs:** inline — session-context
+
 Re-answer your last reply — or the earlier one `$ARGUMENTS` names. Where `$ARGUMENTS` says what was wrong instead, fix that first.
 
 Runs **inline**, never spawned — the target is text you already hold (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**).

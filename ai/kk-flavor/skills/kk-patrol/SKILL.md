@@ -6,6 +6,8 @@ disable-model-invocation: true
 audience: maintainer
 ---
 
+**Runs:** inline — landing
+
 **You orchestrate and you never read the work.** Your context grows by a line a round: each round's two agents are thrown away with everything they read, and that is what buys the hours. Read a diff to check it and the loop's budget is gone. **Verify from the ref, never from the report.**
 
 **A round spawns fresh agents and never resumes an earlier round's**, departing from `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**. A scout carrying last round's conclusions reads its own notes rather than the tree, and finds the shape it found before; a fresh context is what keeps the loop converging on the tree being right rather than on one agent's taste.
@@ -14,11 +16,13 @@ audience: maintainer
 
 1. **Fetch, then merge `origin/main` into the branch.** A branch that drifts gates against a tree nobody has; merging a stale `origin/main` leaves it drifting. **A conflict stops the round and asks the human**: resolving another session's work is not the loop's call.
 2. **Pick the angle** — the ledger's least-recently-swept row (**The ledger**, below).
-3. **Spawn the scout**, handing it `~/.kk-flavor/skills/kk-patrol/SCOUT.md` verbatim, the angle, and the ledger path. It returns the path of one written finding and the path of the file that finding is about, or nothing. The second path is what keeps two patrols off one file (**Rules**, below).
+3. **Spawn the scout**, handing it `~/.kk-flavor/workers/patrol/scout.md` verbatim, the angle, and the ledger path. It returns the path of one written finding and the path of the file that finding is about, or nothing. The second path is what keeps two patrols off one file (**Rules**, below).
 4. **Empty?** Stamp the angle swept and go to 1 — in a healthy tree, the common case.
-5. **Spawn the fixer**, handing it `~/.kk-flavor/skills/kk-patrol/FIXER.md` verbatim and that path. **Never the scout's prose** — prose relayed through you is prose you now hold, and an interrupted round leaves a file recoverable where it leaves a message gone. **Never a second finding**: a round carrying two cannot be stopped or reverted in the middle, and a loop with no safe stopping point is one the human cannot afford to start.
+5. **Spawn the fixer**, handing it `~/.kk-flavor/workers/patrol/fixer.md` verbatim and that path. **Never the scout's prose** — prose relayed through you is prose you now hold, and an interrupted round leaves a file recoverable where it leaves a message gone. **Never a second finding**: a round carrying two cannot be stopped or reverted in the middle, and a loop with no safe stopping point is one the human cannot afford to start.
 6. **Confirm it landed where it says.** Check the SHA it named is on the patrol's branch. A working-tree edit and a commit read identically in a summary, and the difference is the whole of whether the round happened.
 7. **Stamp the ledger** — the sweep, plus the path of any finding the fixer wrote beside its own — and report the round in one line: angle, finding, SHA or `held`, cost.
+
+**Say what this session costs before the first round** (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). The loop is built to run for hours, so its own tier is multiplied by every round, where the scout and fixer are charged once each.
 
 **Start from a committed tree, on the branch the ledger names.** Git is this loop's only undo, and on a dirty tree the human's own work reverts with a round's. Where the ledger names no branch, create `patrol/<slug>` and record it there. The loop commits without asking, so a session that starts on `main` lands every round straight onto it, taking the merge out of the human's hands.
 
@@ -26,19 +30,19 @@ audience: maintainer
 
 Your licence is `~/.kk-flavor/skills/kk-foreman/SKILL.md` → **The argument may hand you the run**, **minus the push that licence lifts**. **Nothing else.**
 
-**A round ends at a commit on the patrol's own branch**; the merge is the human's. `FIXER.md` holds the conditions, and they are not yours to relax.
+**A round ends at a commit on the patrol's own branch**; the merge is the human's. `workers/patrol/fixer.md` holds the conditions, and they are not yours to relax.
 
-**An unmerged fix to an instruction is not in effect** (`~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins**) — a round that fixes `SCOUT.md`, `FIXER.md` or a standard does not change what the next round runs. The ledger's commit column is what stops a later round re-finding it.
+**An unmerged fix to an instruction is not in effect** (`~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins**) — a round that fixes `workers/patrol/scout.md`, `workers/patrol/fixer.md` or a standard does not change what the next round runs. The ledger's commit column is what stops a later round re-finding it.
 
 **A fixer that reports a commit you cannot find on the branch ends the loop** rather than the round — one agent misreporting a landing is a bug in the round, and a loop that keeps running on unverified landings builds on them.
 
 ## The ledger
 
-`${XDG_STATE_HOME:-~/.local/state}/kk-flavor/patrol/<repo>.md` — the loop's whole memory, since no agent's survives it. **It names the patrol's branch**, which is how a later session resumes onto it rather than opening a second one and orphaning every round on the first. One row per sweep: the angle, the fingerprint and branch SHA it was read at, the outcome, and the commit where a fix landed. Seed it from `SCOUT.md`'s angles on the first run.
+`${XDG_STATE_HOME:-~/.local/state}/kk-flavor/patrol/<repo>.md` — the loop's whole memory, since no agent's survives it. **It names the patrol's branch**, which is how a later session resumes onto it rather than opening a second one and orphaning every round on the first. One row per sweep: the angle, the fingerprint and branch SHA it was read at, the outcome, and the commit where a fix landed. Seed it from `workers/patrol/scout.md`'s angles on the first run.
 
 **Machine-local, never inside the tree under patrol** — a ledger there is a dirty working tree that travels to everyone on the next commit. It holds only what is in flight: sweeps, findings a fixer wrote and nobody took, and findings held for the human. Anything durable was written into the file it binds.
 
-**Rewritten, not appended** (`~/.kk-flavor/standards/records.md`) — which is why it carries no cap. The angle table holds one row per angle in `SCOUT.md` and is overwritten in place; a held finding is deleted the round it lands or the human answers it. **That deletion is the pruning point, and it is here.** Nothing in the file grows without a bound already set somewhere else.
+**Rewritten, not appended** (`~/.kk-flavor/standards/records.md`) — which is why it carries no cap. The angle table holds one row per angle in `workers/patrol/scout.md` and is overwritten in place; a held finding is deleted the round it lands or the human answers it. **That deletion is the pruning point, and it is here.** Nothing in the file grows without a bound already set somewhere else.
 
 Take the fingerprint with `~/.kk-flavor/scripts/tree-fingerprint.sh`; where it refuses, **stamp the failure rather than a guess**, or a stale row reads as a valid resume point.
 
@@ -65,7 +69,7 @@ Asked what the patrol has changed over some period, **answer and run no rounds**
 git log --since='<period>' --grep='^Patrol-angle:' --format='%h %s%n  %(trailers:key=Patrol-angle,valueonly)'
 ```
 
-`FIXER.md` puts that trailer on every round's commit. It is a trailer and not a subject prefix because the type — `fix:`, `docs:`, `refactor:` — says what the change *is*, and a round that fixes a bug is still a `fix:`; provenance is a second fact about the same commit.
+`workers/patrol/fixer.md` puts that trailer on every round's commit. It is a trailer and not a subject prefix because the type — `fix:`, `docs:`, `refactor:` — says what the change *is*, and a round that fixes a bug is still a `fix:`; provenance is a second fact about the same commit.
 
 **What was held, and what swept empty, comes from the ledger** — neither leaves a commit. **Report both**: from git alone this reads as a list of wins with the holds invisible, which flatters the loop exactly where it did least. Say so plainly when the ledger is missing, rather than offering the git half as the whole.
 
@@ -73,6 +77,6 @@ git log --since='<period>' --grep='^Patrol-angle:' --format='%h %s%n  %(trailers
 
 ## Rules
 
-- **Resume, do not restart.** The first act of a new session is to read the ledger; a sweep already stamped **empty** at the current fingerprint is not repeated. **A held angle is swept again** — `SCOUT.md` bars raising a finding the ledger already holds, so the next sweep finds something else or comes back empty. Skipping it instead deadlocks the loop: the angle can never reach `empty`, and **Stopping** never fires.
+- **Resume, do not restart.** The first act of a new session is to read the ledger; a sweep already stamped **empty** at the current fingerprint is not repeated. **A held angle is swept again** — `workers/patrol/scout.md` bars raising a finding the ledger already holds, so the next sweep finds something else or comes back empty. Skipping it instead deadlocks the loop: the angle can never reach `empty`, and **Stopping** never fires.
 - **Say what a round cost.** The human starts this against spare budget and can only spend it deliberately if the burn is visible.
 - Peers may be patrolling the same tree. Coordinate as `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** requires, and never spawn a fixer onto a file another session is holding.

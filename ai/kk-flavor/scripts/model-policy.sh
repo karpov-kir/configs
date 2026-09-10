@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Resolve requested model settings without launching a worker.
-# usage: model-policy.sh --client codex|claude --role <role> [--config <file>] [--origin <file>]
-# Run --help for native inheritance and policy pinning options.
+# Resolve requested model settings without launching a worker. --help lists every argument.
+# usage: model-policy.sh --client codex|claude --task <task> [--config <file>]
 # tested by: the Go suite in ai/tools/model-policy/; shared stub by tool-stub-test.sh.
 set -euo pipefail
 

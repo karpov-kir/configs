@@ -35,7 +35,7 @@ Name the blocker in your return and land the rest. The loop continues; a blocker
 
 - **A number nobody measured** — a cap, a threshold, a bound. Inventing one teaches every later round to trim until it clears.
 - **Keeping something the standards say to replace** (`~/.kk-flavor/standards/core-principles.md` → **2. Simplicity first**).
-- **Loosening what constrains the patrol** — an angle removed from `SCOUT.md`, a stopping condition widened, a landing condition above relaxed. Sharpening the patrol is an ordinary round; **the loop cannot check its own supervision, because the thing checking is what changed.**
+- **Loosening what constrains the patrol** — an angle removed from `~/.kk-flavor/workers/patrol/scout.md`, a stopping condition widened, a landing condition above relaxed. Sharpening the patrol is an ordinary round; **the loop cannot check its own supervision, because the thing checking is what changed.**
 - Anything else whose undo has to be arranged first (`~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act**).
 
 ## What you return

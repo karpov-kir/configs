@@ -5,6 +5,8 @@ disable-model-invocation: true
 argument-hint: "<NNN-slug>"
 ---
 
+**Runs:** inline — landing
+
 An explicit request to finalize invokes this skill directly; the invocation marker disables automatic selection, not a human's natural-language request.
 
 The last stage of a ship: what its own records learned goes up into the project's, and the ship moves to `archive/`. You orchestrate under `~/.kk-flavor/standards/skill-protocol.md`, and step 3 is `~/.kk-flavor/standards/records.md` applied rather than restated — read it whole first.
@@ -25,7 +27,7 @@ Read the caller's landing instruction: direct merge or open a PR and wait, with 
 
 **Re-run the build's gates**, resolved the way the build resolved them (`~/.kk-flavor/standards/building.md` → **Before the loop**) — no record carries the commands. The qualify pass and the follow-up work both edited this tree since the build ran them, and a fix that broke one is invisible until they run again.
 
-**Prepare the record merge before taking the slot.** Apply step 3's rules to the ship and project records, resolve questions and cap decisions now, and retain the exact inputs with the settled operations in private scratch outside the reviewed repository. Use the protected adjudication role from `~/.kk-flavor/standards/model-policy.md`.
+**Prepare the record merge before taking the slot.** Apply step 3's rules to the ship and project records, resolve questions and cap decisions now, and retain the exact inputs with the settled operations in private scratch outside the reviewed repository. This pass answers `idsd-finalize` under `~/.kk-flavor/standards/model-policy.md`.
 
 **Review promotion candidates before taking the slot.** Identify settled decisions that qualify as high-level project invariants, from both the ship and project logs. Use `~/.kk-flavor/skills/idsd-charter/SKILL.md` → **Phase 3 — Emit** to extract and rewrite the obligation for a nontechnical reader, preserving useful source details. Check its **Rules** before presenting the exact charter change, including any replaced or removed bullets. Obtain an explicit user approval or rejection for each proposed promotion before continuing; an unanswered proposal pauses finalize before taking the slot, even unattended. Rejection leaves the charter and source decision intact. Apply only the approved changes; remove a fully promoted source decision only after the accepted constraint is written. After any approved promotion, refresh the prepared record inputs and operations. Every accepted charter constraint change requires requalification of affected work before continuing, in committed and throwaway modes alike; an unchanged git fingerprint does not preserve semantic qualification.
 

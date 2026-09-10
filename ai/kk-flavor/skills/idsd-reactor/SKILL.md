@@ -4,6 +4,8 @@ description: "Coordinate ICE intents through separate owning sessions, launching
 argument-hint: "milestone or intent slugs to build (default: ask which milestone)"
 ---
 
+**Runs:** inline — human
+
 You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
 
 ## Session role
@@ -15,6 +17,8 @@ Keep this role across turns and resumes until the human explicitly ends or reass
 Before selecting a skill on a resumed turn, reload this section. Carry the role, this skill's path, the reactor's return address, intent-to-task IDs, allocations and standing authorization in the resume record. Reconcile missing ownership through the client inventory and repository before dispatching. If the client cannot launch, return checked handoff drafts; the reactor does not take over the work. Before an explicit role reassignment, account for outstanding owners and who will receive their reports.
 
 ## Client mechanics
+
+**Say what this session costs before you schedule anything** (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). You hold the longest-lived context in a run and pay it on every turn, so the tier you coordinate at outweighs any single worker's.
 
 At startup, rename this session to `[<repo abbreviation>] IDSD reactor` through the client's session-title control. Use the abbreviation rule in `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md`. If renaming is unavailable, give the human the intended title.
 
@@ -42,7 +46,7 @@ The launchable set:
 
 Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree already exists (`git branch --list 'idsd/*'`, `git worktree list`) — a second task for one intent puts two sessions on one branch.
 
-**At most 10 intents in flight**, counted as authored-but-unlanded plus building. Count each intent once across authoring and build sessions; an exploration worker does not add an intent. What the cap protects is not machine load: every authoring session regenerates `.idsd/roadmap.md`, so authors collide there and serialise through rebase-and-retry. A regeneration off a stale tree also drops edges without reddening any gate. **Finalize contention is the sharper limit**: a ship forced to re-qualify holds the merge slot across that whole pass (`~/.kk-flavor/skills/idsd-finalize/SKILL.md` → **2. Take the slot**), and every other finalize waits it out. Over the cap, keep the intents others wait on and drop the rest from the set, parked — **2** launches one session per intent still in it.
+**The cap on intents in flight is `~/.kk-flavor/scripts/model-policy.sh --limits`**, counted as authored-but-unlanded plus building. It lives there because every intent in flight is a whole session, which makes it the largest single multiplier on a run's cost (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). Count each intent once across authoring and build sessions; an exploration worker does not add an intent. What the cap protects is not machine load: every authoring session regenerates `.idsd/roadmap.md`, so authors collide there and serialise through rebase-and-retry. A regeneration off a stale tree also drops edges without reddening any gate. **Finalize contention is the sharper limit**: a ship forced to re-qualify holds the merge slot across that whole pass (`~/.kk-flavor/skills/idsd-finalize/SKILL.md` → **2. Take the slot**), and every other finalize waits it out. Over the cap, keep the intents others wait on and drop the rest from the set, parked — **2** launches one session per intent still in it.
 
 **Present the schedule and launch only what the human confirms.** Say the cap and what it currently counts; it is theirs to change for the run. Read the launchable set back by name, say what each later intent waits on and what you are leaving parked, and count the `draft` intents in the set — each grills the human in its own thread at `idsd-build`'s gap rounds. Nothing on disk marks an intent as parked, since `status: draft` fits a fresh intent and a shelved one alike, so the ask is the only place that knowledge enters. Say that this session is the reactor's address: it launches the later intents only while it stays open. **After an audit, a Blocker touching what they confirmed stops the launch**: route each through the skill the audit names, then re-run the audit.
 
@@ -56,7 +60,7 @@ Prepare each confirmed intent's handoff in this coordinator through `kk-handoff`
 
 **Keep the handoff prompt thin.** It states one task: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
 
-**Include independent quality workers in the schedule the human approves**, then carry that authorization into each handoff. The receiving coordinator dispatches applicable leaves under `~/.kk-flavor/standards/quality-pipeline.md`, within its worker capacity. It retains independent reviews and protected model roles without assigning a worker to every inline phase.
+**Include independent quality workers in the schedule the human approves**, then carry that authorization into each handoff. The receiving coordinator dispatches applicable leaves under `~/.kk-flavor/standards/quality-pipeline.md`, within its worker capacity. It retains independent reviews and each leaf's assigned model without assigning a worker to every inline phase.
 
 Each prompt also carries what no file on disk holds:
 

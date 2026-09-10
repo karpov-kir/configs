@@ -4,6 +4,8 @@ description: Review files against the kk-flavor standards and refactor them into
 argument-hint: "file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope"
 ---
 
+**Runs:** dispatched
+
 Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
 
 **Quality, not correctness or security.** Functional bugs are `kk-code-review`'s, exploitable weaknesses `kk-security-review`'s, trimming prose for concision `kk-edit`'s — never flag those here. A true comment attached to the wrong construct *is* yours.

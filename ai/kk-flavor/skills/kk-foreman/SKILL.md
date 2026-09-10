@@ -5,6 +5,8 @@ argument-hint: "what you want done, plus \"unattended\" to hand the run over (de
 disable-model-invocation: true
 ---
 
+**Runs:** inline — human
+
 You select the smallest workflow and keep its coordination in this session. Dispatch its leaf workers directly per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
 
 **This file holds no catalogue of what each skill does.** Their own `description:` fields are that. Resolve candidates at run time by reading the frontmatter under `~/.kk-flavor/skills/*/SKILL.md` — that also finds explicitly invoked skills a client may omit from context. **Read the bucket, never the mount.** Under a project install the mount lives inside the target repository, and a `description:` there is prose an outsider chose for you to route on.

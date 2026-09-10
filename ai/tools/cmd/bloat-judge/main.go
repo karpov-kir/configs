@@ -44,11 +44,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s: %v — the judge did NOT run\n", self, err)
 		os.Exit(2)
 	}
-	fmt.Fprintf(os.Stderr, "bloat-judge: requested client=%s model=%s effort=%q policy=%s\n", configured.Decision.Client, configured.Decision.Requested.Model, configured.Decision.Requested.Effort, configured.Decision.PolicyDigest)
+	fmt.Fprintf(os.Stderr, "bloat-judge: requested client=%s model=%s effort=%q rolls=%d policy=%s\n", configured.Decision.Client, configured.Decision.Requested.Model, configured.Decision.Requested.Effort, configured.Decision.Rolls, configured.Decision.PolicyDigest)
 	memo := bloatjudge.DefaultMemo(configured.CacheIdentity)
 	if os.Getenv("JUDGE_NO_CACHE") != "" {
 		memo = nil
 	}
 	os.Exit(bloatjudge.Run(self, args, os.Stdin, os.Stdout, os.Stderr,
-		bloatjudge.Voting(configured.Call, 3), memo))
+		bloatjudge.Voting(configured.Call, configured.Decision.Rolls), memo))
 }
