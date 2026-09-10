@@ -130,8 +130,10 @@ func TestASetOfTwoSuitesCarriesBoth(t *testing.T) {
 // empty id is the one stem that could collide with another empty one.
 func TestAMutantWithNoSuiteIsTheModuleRootsAndIsNamed(t *testing.T) {
 	group := groupNamed(t, "mutants:go:root")
-	if len(group.inputs) < 2 || group.inputs[1] != "ai/tools" {
-		t.Fatalf("keyed on %v, want the module root", group.inputs)
+	// Membership, not position: both sibling cases read `inputs` as a set, and reordering it without
+	// changing what the unit keys on is not a defect this case should report.
+	if !slices.Contains(group.inputs, "ai/tools") {
+		t.Fatalf("keyed on %v, want the module root among them", group.inputs)
 	}
 	if recordStem(group.id) == recordStem("mutants:go:") {
 		t.Fatal("the unnamed set flattens to the same record as an empty one")
@@ -160,8 +162,11 @@ func TestAFileTheGateCannotQuoteRefuses(t *testing.T) {
 // Every listed file reaches exactly one unit. This is the property the saving must not cost: the
 // harness selects mutants by matching these tokens exactly, so a file dropped from every group is its
 // mutants silently not run, and a file in two groups is them run twice. Measured against the real
-// tree at the time of the grouping: 62 files, 525 mutants, 18 units — and one grouped invocation over
-// eco-report's 16 files selected 256 anchors, the exact sum of their per-file counts.
+// tree: 65 mutated files and 518 anchors become 18 units, and one grouped invocation over
+// eco-report's 16 files selected 256 of them — the exact sum of their per-file counts.
+//
+// The anchor table is `go-mutate/mutants.go` and no grouping change touches it, so these totals move
+// only when a mutated file is added or removed. They were 62 and 525 before this branch merged main.
 func TestEveryFileLandsInExactlyOneUnit(t *testing.T) {
 	seen := map[string]int{}
 	for _, group := range grouped(t) {

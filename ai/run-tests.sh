@@ -193,7 +193,13 @@ resolve_jobs() {
   #
   # Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
   # has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
-  if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
+  #
+  # `RUN_TESTS_NO_WAIT_N` is a seam, and it is here because this branch is otherwise undrivable: every
+  # machine that runs the suite HAS `wait -n`, so nothing could reach the downgrade or its notice, and
+  # a regression in either would look exactly like a pass. It forces the fallback; it never suppresses
+  # one.
+  if [ -n "${RUN_TESTS_NO_WAIT_N:-}" ] ||
+    [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
     # Said, not done quietly. A caller who set RUN_TESTS_JOBS=6 and silently got one lane holds a
     # number they believe they set and did not — the same defect this file refuses an unparsable

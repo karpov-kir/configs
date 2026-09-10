@@ -414,12 +414,23 @@ check "an unknown flag exits 2" "2" "$rc"
 #
 # The marks are cleared on the way out, so a serial run leaves every suite seeing exactly its own. Left
 # behind, the second suite of a serial run would see two and read as overlap.
-new_marking_suite() { # <path> <name>
+new_marking_suite() { # <path> <name> <peers>
   cat > "$1" <<EOF
 #!/usr/bin/env bash
 dir="\$(dirname "\$0")"
 : > "\$dir/$2.running"
-sleep 1
+# Wait for the peers to mark, rather than sleeping a fixed second and counting whoever happened to
+# have arrived. That sleep made this suite's verdict a race the wrong way round: a peer forked a
+# moment late was counted absent, and the case then reported the runner serialising when it had not.
+# Proven, not guessed — a 1.2s start delay on one of three turned "and they overlap" red.
+#
+# The second break is what keeps a genuinely serial run cheap: a peer that has already written its
+# own count proves it is not running beside us, so there is nothing left to wait for.
+for _ in \$(seq 1 100); do
+  [ "\$(ls "\$dir"/*.running 2>/dev/null | wc -l)" -ge $3 ] && break
+  ls "\$dir"/*.saw >/dev/null 2>&1 && break
+  sleep 0.05
+done
 ls "\$dir"/*.running | wc -l | tr -d ' ' > "\$dir/$2.saw"
 rm -f "\$dir/$2.running"
 echo "1 passed, 0 failed"
@@ -431,7 +442,7 @@ most_seen() { # <dir>
 }
 
 mkdir -p "$tmp/together"
-for name in a b c; do new_marking_suite "$tmp/together/$name-test.sh" "$name"; done
+for name in a b c; do new_marking_suite "$tmp/together/$name-test.sh" "$name" 3; done
 
 # The count is named rather than left to the default, so this measures the mechanism on every machine.
 # The default is half the cores, which is 1 on a two-core runner, and there the case would assert that
@@ -455,6 +466,22 @@ out="$(RUN_TESTS_JOBS=1 "$runner" "$tmp/together" 2>&1)"; rc=$?
 check "RUN_TESTS_JOBS=1 puts them back on one lane" "0" "$rc"
 check "and then no suite ever sees another running" "1" "$(most_seen "$tmp/together")"
 check "and it still reports all three" "3" "$(matching_output_lines '^ok   ')"
+
+# The downgrade to one lane, and the notice it prints. A behaviour-changing fix lands a case per
+# branch it introduces, and this branch had none: every machine that runs this suite has `wait -n`, so
+# nothing here could reach it. The seam forces it, and the control below asserts the notice stays
+# absent without the seam — so a notice that fired unconditionally could not pass as green either.
+rm -f "$tmp/together"/*.saw
+out="$(RUN_TESTS_NO_WAIT_N=1 RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "a bash without wait -n still runs every suite" "0" "$rc"
+check "and says it downgraded, naming the count it did not get" "1" \
+  "$(matching_output_lines 'has no .wait -n., so the suites run one at a time rather than 3')"
+check "and really does run them one at a time" "1" "$(most_seen "$tmp/together")"
+
+rm -f "$tmp/together"/*.saw
+out="$(RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "and on a bash that has it, no downgrade notice appears" "0" \
+  "$(matching_output_lines 'has no .wait -n.')"
 
 # A count this does not understand refuses, rather than being read as zero and quietly restoring the
 # serial run the caller was trying to move off.
