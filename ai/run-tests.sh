@@ -3,6 +3,11 @@
 #   usage: run-tests.sh [-s <suite>] [<root>]   # <root> defaults to the repository this script lives in
 #          -s  run just this one suite, by path, instead of discovering them all
 #
+# The suites run several at a time, half the machine's cores by default, and their output is buffered
+# and printed in discovery order — so this reads exactly as it did when they ran one after another.
+# `RUN_TESTS_JOBS=1` puts them back on one lane, which is the first thing to try when a suite fails
+# here and passes on its own.
+#
 # `-s` gives a caller that already knows which suite a change could have moved (`ai/gate.sh` is one)
 # this file's reading of the result: the exit-2 "did not measure", and the vacuity check that makes a
 # suite exiting 0 having run no case a failure. `bash <suite>` gives neither.
@@ -136,10 +141,64 @@ checkout_moved=0
 before_tree="$(tree_state)"
 tree_readable=$?
 containment=""
-for suite in "${suites[@]}"; do
+
+# How many suites are in flight. They are independent — each builds its own temp HOME and none writes
+# into the checkout, which the containment check below re-proves on every run — so running them one at
+# a time bought only a tidy stream, and that is kept: each suite's output is buffered and the results
+# are read back in discovery order, so this prints exactly what it always printed.
+#
+# Bounded, not all at once. All fifteen in flight made the slowest suite take 146s where it takes 60
+# alone: they compete for the cores the `go build` inside them already wants. Half the machine leaves
+# that room. RUN_TESTS_JOBS=1 puts it back to one at a time, which is what to reach for when a suite
+# fails here and passes alone.
+jobs="${RUN_TESTS_JOBS:-0}"
+case "$jobs" in
+  "" | *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
+esac
+if [ "$jobs" -lt 1 ]; then
+  jobs=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2) / 2 ))
+  [ "$jobs" -lt 1 ] && jobs=1
+fi
+# `wait -n` arrived in bash 4.3. Without it there is no way to free one slot at a time, so the suites
+# run one at a time — which is what this did before, and is never wrong, only slower.
+#
+# Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
+# has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
+  { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
+  jobs=1
+fi
+
+work="$(mktemp -d)" || die "no temp directory to collect the suites' output in — nothing ran"
+trap 'rm -rf "$work"' EXIT
+
+# Buffered per suite rather than streamed, because concurrent suites writing to one stream interleave
+# mid-line. The status goes to its own file: `wait` reports the status of whichever job it reaped, not
+# of the suite this index names.
+run_suite() { # <index> <suite>
+  bash "$2" >"$work/$1.out" 2>&1
+  printf '%s' "$?" >"$work/$1.status"
+}
+
+running=0
+for index in "${!suites[@]}"; do
+  if [ "$running" -ge "$jobs" ]; then
+    wait -n
+    running=$((running - 1))
+  fi
+  run_suite "$index" "${suites[$index]}" &
+  running=$((running + 1))
+done
+wait
+
+for index in "${!suites[@]}"; do
+  suite="${suites[$index]}"
   name="${suite#"$root"/}"
-  output="$(bash "$suite" 2>&1)"
-  status=$?
+  output="$(cat "$work/$index.out" 2>/dev/null)"
+  # A missing status file is a suite whose subshell died before it could write one — unmeasured, and
+  # never folded into a pass. 2 is this file's own word for that.
+  status="$(cat "$work/$index.status" 2>/dev/null)"
+  case "$status" in "" | *[!0-9]*) status=2 ;; esac
   last="$(printf '%s' "$output" | tail -1)"
 
   # Exit 2 is a suite saying it did not measure — a dependency missing, a machine too loaded to time

@@ -349,6 +349,54 @@ check "and does not run it" "0" "$(matching_output_lines '1 passed')"
 out="$("$runner" -z "$tmp/named" 2>&1)"; rc=$?
 check "an unknown flag exits 2" "2" "$rc"
 
+# --- the suites run several at a time -------------------------------------------------------------
+
+# Overlap is measured rather than timed: each suite marks that it is running, waits, counts the marks
+# it can see, then clears its own. A wall-clock assertion proves nothing — it goes green on a fast
+# machine whatever the runner did, and red on a loaded one that was right.
+#
+# The marks are cleared on the way out, so a serial run leaves every suite seeing exactly its own. Left
+# behind, the second suite of a serial run would see two and read as overlap.
+new_marking_suite() { # <path> <name>
+  cat > "$1" <<EOF
+#!/usr/bin/env bash
+dir="\$(dirname "\$0")"
+: > "\$dir/$2.running"
+sleep 1
+ls "\$dir"/*.running | wc -l | tr -d ' ' > "\$dir/$2.saw"
+rm -f "\$dir/$2.running"
+echo "1 passed, 0 failed"
+EOF
+}
+
+most_seen() { # <dir>
+  cat "$1"/*.saw 2>/dev/null | sort -n | tail -1
+}
+
+mkdir -p "$tmp/together"
+for name in a b c; do new_marking_suite "$tmp/together/$name-test.sh" "$name"; done
+
+# The count is named rather than left to the default, so this measures the mechanism on every machine.
+# The default is half the cores, which is 1 on a two-core runner, and there the case would assert that
+# concurrency is broken.
+out="$(RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "suites asked to run three at a time all pass" "0" "$rc"
+check "and they overlap" "3" "$(most_seen "$tmp/together")"
+check "and the report still names them in discovery order" "a b c" \
+  "$(printf '%s\n' "$out" | awk '/^ok   /{ sub(/-test\.sh$/, "", $2); printf "%s%s", (seen++ ? " " : ""), $2 }')"
+
+rm -f "$tmp/together"/*.saw "$tmp/together"/*.running
+out="$(RUN_TESTS_JOBS=1 "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "RUN_TESTS_JOBS=1 puts them back on one lane" "0" "$rc"
+check "and then no suite ever sees another running" "1" "$(most_seen "$tmp/together")"
+check "and it still reports all three" "3" "$(matching_output_lines '^ok   ')"
+
+# A count this does not understand refuses, rather than being read as zero and quietly restoring the
+# serial run the caller was trying to move off.
+out="$(RUN_TESTS_JOBS=two "$runner" "$tmp/together" 2>&1)"; rc=$?
+check "a job count that is not a number exits 2" "2" "$rc"
+check "and says so" "1" "$(matching_output_lines 'not a whole number of suites')"
+
 # The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
 # and it drifts where nobody looks: the only machine that prints them is the one without git. Held
 # against the source they describe instead, on every machine.
