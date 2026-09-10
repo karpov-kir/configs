@@ -886,9 +886,9 @@ var mutants = []mutant{
 		"return modeHelp, why, path, 0", "return selected, why, path, 0"},
 	// Suite discovery reading names whole. Split on whitespace, a name holding a space became two units
 	// keyed on files that do not exist, and the real suite was gated by nothing.
-	{"gate: suite names split on whitespace again", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
+	{"gate: suite names split on whitespace again", "../gate/copies.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
 		`for _, name := range strings.Split(out, "\x00") {`, "for _, name := range strings.Fields(out) {"},
-	{"gate: the -z flag dropped from discovery", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
+	{"gate: the -z flag dropped from discovery", "../gate/copies.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
 		`"ls-files", "-z",`, `"ls-files",`},
 
 	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim
