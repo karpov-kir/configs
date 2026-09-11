@@ -274,15 +274,29 @@ run_suite() { # <index> <suite>
   printf '%s' "$?" >"$work/$1.status"
 }
 
-running=0
-for index in "${!suites[@]}"; do
-  if [ "$running" -ge "$jobs" ]; then
-    wait -n
-    running=$((running - 1))
-  fi
-  run_suite "$index" "${suites[$index]}" &
-  running=$((running + 1))
-done
+# One lane runs in the foreground, and that is the only way to hold the bound on a bash without
+# `wait -n`. Backgrounding and then calling it there does not wait for anything — bash 3.2 rejects the
+# option, the slot is freed on the spot, and every suite is launched at once while the run reports
+# having serialised. Every stock macOS ships that bash, so the downgrade this runner prints was
+# describing behaviour it did not have.
+if [ "$jobs" -le 1 ]; then
+  # In a subshell, even though nothing here runs beside it. A suite that kills its own parent is how
+  # the unmeasured case is driven, and run_suite called directly would make that parent this runner:
+  # the run would die with the suite instead of reporting it never measured.
+  for index in "${!suites[@]}"; do
+    (run_suite "$index" "${suites[$index]}")
+  done
+else
+  running=0
+  for index in "${!suites[@]}"; do
+    if [ "$running" -ge "$jobs" ]; then
+      wait -n
+      running=$((running - 1))
+    fi
+    run_suite "$index" "${suites[$index]}" &
+    running=$((running + 1))
+  done
+fi
 wait
 
 for index in "${!suites[@]}"; do

@@ -70,8 +70,14 @@ check "and really does run them one at a time" "1" "$(most_seen "$tmp/together")
 
 rm -f "$tmp/together"/*.saw
 out="$(RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; rc=$?
-check "and on a bash that has it, no downgrade notice appears" "0" \
-  "$(matching_output_lines 'has no .wait -n.')"
+# guarded-block: the control for the notice above, and it only means anything where the runner has
+# `wait -n` to begin with. Where it does not, the notice is correct and its absence would be the bug.
+if [ "$runner_has_wait_n" = yes ]; then
+  check "and on a bash that has it, no downgrade notice appears" "0" \
+    "$(matching_output_lines 'has no .wait -n.')"
+else
+  record_skip 1 "this bash has no \`wait -n\`, so the downgrade notice is the correct answer"
+fi
 
 # A count this does not understand refuses, rather than being read as zero and quietly restoring the
 # serial run the caller was trying to move off.
