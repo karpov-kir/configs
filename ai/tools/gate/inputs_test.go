@@ -4,7 +4,9 @@ package gate
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -158,5 +160,93 @@ func TestADuplicatedInputDoesNotMoveAUnitsKey(t *testing.T) {
 	if narrowKey, _ := g.keyMaterial(narrower); narrowKey == onceKey {
 		t.Error("a unit keyed on one of the two files hashes the same as one keyed on both, so the key " +
 			"is not built from the inputs at all and the comparisons above prove nothing")
+	}
+}
+
+// The scripts carrying the shared stub region, found without asking the code under test. `git
+// ls-files` and a substring search are the whole of it, so a mutation inside stubScripts moves the
+// result and not this expectation — an oracle built by calling stubScripts would shrink and grow
+// with the thing it is supposed to be pinning, and pass either way.
+func stubsFoundIndependently(t *testing.T, root string) []string {
+	t.Helper()
+	out, err := exec.Command("git", "-C", root, "ls-files", "-z", "--", "*.sh").Output()
+	if err != nil {
+		t.Fatalf("listing this repository's scripts: %v", err)
+	}
+	var carrying []string
+	for _, name := range strings.Split(string(out), "\x00") {
+		if name == "" {
+			continue
+		}
+		body, readErr := os.ReadFile(filepath.Join(root, name))
+		if readErr != nil {
+			continue
+		}
+		if strings.Contains(string(body), "# --- shared:tool-stub ---") {
+			carrying = append(carrying, name)
+		}
+	}
+	slices.Sort(carrying)
+	return carrying
+}
+
+// The scan behind the stub unit's inputs finds every script carrying the region and nothing else.
+// Both halves matter and they fail in opposite directions: too few and the unit stops watching a
+// stub while `ai/tools/tool-stub-test.sh` keeps measuring it, so drift arrives as a green from cache;
+// too many and every unrelated script edit re-runs the suites that copy stubs.
+func TestTheStubScanFindsExactlyTheScriptsCarryingTheRegion(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	want := stubsFoundIndependently(t, g.root)
+	// Two controls, because the comparison is satisfied by two sets that are both empty, and by two
+	// that never leave one directory.
+	if len(want) < 5 {
+		t.Fatalf("the marker found %d script(s) in this repository, so this case proves nothing", len(want))
+	}
+	directories := map[string]bool{}
+	for _, stub := range want {
+		directories[filepath.Dir(stub)] = true
+	}
+	if len(directories) < 3 {
+		t.Fatalf("those stubs sit in %d director(ies), so a single-directory glob would satisfy this case", len(directories))
+	}
+
+	got, err := g.stubScripts()
+	if err != nil {
+		t.Fatalf("listing the scripts carrying the stub region: %v", err)
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("the stub scan found\n  %v\nbut the region is carried by\n  %v", got, want)
+	}
+}
+
+// And the unit is keyed on all of them, wherever they sit. The stubs are at four depths in this tree
+// — `ai/`, `ai/kk-flavor/scripts/`, `ai/kk-flavor/skills/*/scripts/`, `ai/kk-flavor/workers/*/` — so
+// this is asserted over the repository rather than a fixture, which would only assert the depths the
+// case itself chose.
+func TestTheStubUnitIsKeyedOnEveryScriptCarryingTheRegion(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	want := stubsFoundIndependently(t, g.root)
+	if len(want) < 5 {
+		t.Fatalf("the marker found %d script(s), so this case proves nothing about coverage", len(want))
+	}
+
+	const stubSuite = "shell:ai/tools/tool-stub"
+	found := false
+	for _, u := range g.units {
+		if u.id != stubSuite {
+			continue
+		}
+		found = true
+		for _, stub := range want {
+			if !slices.Contains(u.inputs, stub) {
+				t.Errorf("%s is not keyed on %s, so editing that stub leaves the unit answering from cache", stubSuite, stub)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("%s is not among the discovered units, so nothing here was checked", stubSuite)
 	}
 }

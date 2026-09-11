@@ -29,18 +29,17 @@ const (
 	extModels    = "ai/kk-flavor/models.json"
 )
 
-// The stub scripts ai/tools/tool-stub-test.sh copies into fixtures and runs. copiedRepoFiles finds
-// only the one path that suite spells out literally; the other six live in its `stubs()` table,
-// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
-// a pattern stored as an input would match nothing once git is asked with literal pathspecs.
+// The marker opening the shared stub region. It is what actually defines this input set:
+// `ai/tools/tool-stub-test.sh` enumerates every tracked `.sh` carrying it and reads the offset out of
+// each, so keying the unit on anything narrower leaves the suite measuring files the unit has stopped
+// watching — and the drift it exists to catch then arrives as a green from cache.
 //
-// Both lane trees, because a stub follows its lane: the refactor lane's moved to workers/ with it.
-// One glob over skills/ alone would still resolve, and would quietly stop keying the suites on a
-// stub that had gone — the drift it exists to catch arriving as a green from cache.
-var laneScripts = []string{
-	"ai/kk-flavor/skills/*/scripts/*.sh",
-	"ai/kk-flavor/workers/*/*.sh",
-}
+// Derived rather than globbed for that reason. A glob list has to be edited whenever a stub moves
+// between directories, and the edit that is forgotten is silent in exactly the direction that hurts:
+// the suite still covers the file, the cache no longer does. This change's own move of
+// `dup-literals.sh` out of `skills/*/scripts/` is the case in point, and a list would still be
+// missing the three under `kk-flavor/scripts/` and the two at `ai/`'s own root.
+const stubRegionMarker = "# --- shared:tool-stub ---"
 
 // The two directories eco-report's harness copies from: scripts/ for todo-gate.sh, templates/ for the
 // report template. Directories rather than the two files, so a third thing copied in later is still
@@ -220,21 +219,15 @@ func (g *gate) discoverShellSuites() int {
 		// `_test.go` files — `go build` puts none of them in one.
 		viaBinary := false
 		if strings.Contains(body, "kk-flavor/skills") || strings.Contains(body, "kk-flavor/workers") {
-			for _, glob := range laneScripts {
-				matches, globErr := filepath.Glob(filepath.Join(g.root, glob))
-				if globErr != nil {
-					continue
+			stubs, stubErr := g.stubScripts()
+			if stubErr != nil {
+				return g.fail("%s: cannot list the stub scripts it copies: %s", suite, stubErr)
+			}
+			for _, stub := range stubs {
+				if err := safeToken("stub script", stub); err != nil {
+					return g.fail("%s: %s", suite, err)
 				}
-				for _, match := range matches {
-					rel, relErr := filepath.Rel(g.root, match)
-					if relErr != nil {
-						continue
-					}
-					if err := safeToken("lane script", rel); err != nil {
-						return g.fail("%s: %s", suite, err)
-					}
-					inputs = append(inputs, rel)
-				}
+				inputs = append(inputs, stub)
 			}
 		}
 		// Three ways into one input: a suite inside the tool tree, one that compiles the module, one
@@ -322,4 +315,29 @@ func unreadLib(keyed []string, bodies ...string) string {
 		}
 	}
 	return ""
+}
+
+// Every tracked script carrying the shared stub region, read at DISCOVERY so what lands in `inputs`
+// is concrete paths — a pattern stored as an input matches nothing once git is asked with literal
+// pathspecs.
+//
+// A file that cannot be read is skipped rather than failing the run: git listed it, so it is tracked,
+// and the one thing that would make it unreadable here is a permission the suite covering it will hit
+// first and report with more to say.
+func (g *gate) stubScripts() ([]string, error) {
+	listed, err := g.listFiles("*.sh")
+	if err != nil {
+		return nil, err
+	}
+	var carrying []string
+	for _, file := range listed {
+		body, readErr := os.ReadFile(filepath.Join(g.root, file))
+		if readErr != nil {
+			continue
+		}
+		if strings.Contains(string(body), stubRegionMarker) {
+			carrying = append(carrying, file)
+		}
+	}
+	return carrying, nil
 }

@@ -130,7 +130,8 @@ type worker struct {
 	summary string
 	// Where the contract it runs is written, in the reader's own terms.
 	prompt string
-	// What the policy resolves for each client. Empty where the row assigns that client nothing.
+	// What the policy resolves for each client. Never empty: every row here came out of a parsed
+	// policy, and model-policy refuses a client with neither a model nor an effort.
 	claude string
 	codex  string
 }

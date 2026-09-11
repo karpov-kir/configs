@@ -85,7 +85,17 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),
 		"cap over the ceiling":        strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":999999`, 1),
 		"task name with space":        strings.Replace(sample, `"bloat-judge":`, `"bloat judge":`, 1),
-		"negative rolls":              strings.Replace(sample, `"rolls":3`, `"rolls":-1`, 1),
+		// A task name is resolved as a relative path by every reader that finds the prompt a row
+		// dispatches, and `/` has to be legal because `patrol/scout` is a real key — so each way a
+		// segment can leave the tree is refused here, at the one place all of those readers share.
+		// The field guide reads such a file and prints a line of it onto a committed page, so a name
+		// that escapes is a read primitive rather than only a broken lookup.
+		"task name climbing out":           strings.Replace(sample, `"bloat-judge":`, `"../../../etc/passwd":`, 1),
+		"task name with a dot-dot segment": strings.Replace(sample, `"build/explore":`, `"build/../../../secret":`, 1),
+		"task name with a dot segment":     strings.Replace(sample, `"build/explore":`, `"build/./explore":`, 1),
+		"task name with an empty segment":  strings.Replace(sample, `"build/explore":`, `"build//explore":`, 1),
+		"task name that is absolute":       strings.Replace(sample, `"bloat-judge":`, `"/etc/passwd":`, 1),
+		"negative rolls":                   strings.Replace(sample, `"rolls":3`, `"rolls":-1`, 1),
 		// Each way the field naming another row's prompt can name nothing, refused at parse time rather
 		// than at the dispatch that would read it.
 		"prompt owner is no row": strings.Replace(sample, `"claude":{"model":"sonnet"}`,

@@ -9,7 +9,7 @@ audience: maintainer
 
 Refine the named instruction scope so it steers agents with less redundant reading. Stop when its rules, structure, prose and affected wiring agree.
 
-Read `~/.kk-flavor/standards/ecosystem.md` for the deletion and ownership rules. Run under `~/.kk-flavor/standards/skill-protocol.md`, dispatched as `kk-ecosystem` under `~/.kk-flavor/standards/model-policy.md`. This worker owns the ordered checks below; they do not create nested agents.
+Read `~/.kk-flavor/standards/ecosystem.md` for the deletion and ownership rules. Run under `~/.kk-flavor/standards/skill-protocol.md`, dispatched as `kk-ecosystem` under `~/.kk-flavor/standards/model-policy.md`. This worker owns the ordered checks below; step 3's shape check is the one it dispatches, and no check creates a relay agent.
 
 ## 1. Resolve and check
 

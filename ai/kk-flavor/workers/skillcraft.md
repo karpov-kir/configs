@@ -17,8 +17,8 @@ Check every unit against all four, in order. A unit that took one lens and moved
 `~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes** owns the taxonomy. This lens catches a unit sitting in the wrong one, and it is the first question to ask of anything the scope proposes adding.
 
 - **Does a human ever enter it?** A door nobody types is overhead — a description that routes nothing, an `argument-hint` for arguments no human passes. That unit is a worker wearing a skill's directory: name it, and name the dispatch that reaches it.
-- **Does it hold model work, or hand every substantive step away?** One that dispatches each step is an orchestrator and should be cheap; one that holds the work is a session and takes the tier of what it holds. **A session holding a phase with no human in it is a worker that has not moved yet** — name the phase rather than the skill.
-- **Does it read a worker's prompt inline?** Read inline, that worker runs at the calling session's tier and its own row selects nothing. The exception is a session that must stay with the human through the step.
+- **Does it hold model work, or hand every substantive step away?** **A session holding a phase with no human in it is a worker that has not moved yet** — name the phase rather than the skill.
+- **Does it read a worker's prompt inline where a dispatch would do?** Name the read site and the worker it flattens.
 - **Does a worker's prompt address one agent doing one thing, and return once?** A worker written as a conversation, or as a menu of modes its caller chooses between, is a skill that lost its door rather than a worker.
 
 ## 1. Trigger — how it gets invoked

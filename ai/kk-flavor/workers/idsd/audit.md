@@ -1,6 +1,8 @@
 # Intent-audit brief
 
-You are one audit of a whole `.idsd/` intent set. You read the set, check it for cross-intent consistency, and derive the parallel build order it implies. You write nothing but the report. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
+You are one audit of a whole `.idsd/` intent set. You read the set, check it for cross-intent consistency, and derive the parallel build order it implies. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
+
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. **The unit is an invariant**, not a file: Phase 2's checks are the queue, and each one gets an outcome. **You change no file**, so nothing here is a fix and a finding is resolved by reporting it. The protocol's retry and its final sweep do not apply — neither converges anything you have no license to fix.
 
 ## Phase 1 — Load the set
 

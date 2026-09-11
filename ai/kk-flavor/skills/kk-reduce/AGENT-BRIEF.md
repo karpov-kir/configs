@@ -50,7 +50,7 @@ DELETED: one line per rule removed, each naming what still covers it — or plai
 MOVED: what you split, extracted, or gave one home, and where the pointer sits
 RESCUED-KEPT: one line per plan-rescued passage, confirming it survives and where
 CROSS-SCOPE: the patches you queued, by filename — or "none"
-HANDOFF: each lane your edits opened (skill + the files that opened it) — never the skillcraft worker or kk-edit (**Scope discipline**) — or "none"
+HANDOFF: each lane your edits opened (its skill or worker path + the files that opened it) — never the skillcraft worker or kk-edit (**Scope discipline**) — or "none"
 PROPOSAL: additions you did not make — or "none"
 BROKEN: references your edits invalidated — or "none"
 ```

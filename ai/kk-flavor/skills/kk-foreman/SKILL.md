@@ -42,7 +42,7 @@ Escalate on something you can name: the change crosses several lanes at once, a 
 | A PR description that no longer names the change | `kk-pr refine-description` — the prose row's skills reach no PR. |
 | Something has to happen in another system — a ticket, a page, a message | The tool skill that owns it does the acting; you order the `kk-*` work around it (**Tool skills**, below). |
 | Prose changed | `kk-edit`, once over the scoped text. |
-| Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — it dispatches the skillcraft and edit lanes itself, in its own order. |
+| Skills, standards, prompts or templates changed | `kk-ecosystem` over the diff, alone — it runs the skillcraft and edit lanes itself, in its own order. |
 | The tree has grown well past its last reduction | `kk-reduce` — a campaign, not a pass. Measure that before you claim it: `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"`, then `~/.kk-flavor/skills/kk-reduce/stats.md`. Decide from the delta, never from a threshold — a number invented here would just teach later passes to trim words until they clear it. |
 | A plan or a decision, with nothing built yet | `kk-grill`, alone. |
 | Nothing named, or a periodic check | Recommend from what changed — plus the `kk-reduce` row's measurement where the work touches the instruction tree. Recommending nothing is a valid outcome. |

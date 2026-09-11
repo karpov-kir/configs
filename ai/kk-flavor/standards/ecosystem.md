@@ -34,7 +34,7 @@ Owner user-scoped instructions are installed as independent copies from a discov
 
 ## Three kinds, two homes
 
-**A worker is `kk-flavor/workers/<path>.md`. It has no door, it is only ever dispatched, and its name carries no family prefix** — `code-review`, `conform`, `reduce/arbitrate`. Nothing the human types reaches it, which is what makes the model its row assigns the model it actually runs at.
+**A worker is `kk-flavor/workers/<path>.md`. It has no door, and it is only ever dispatched** — `code-review`, `conform`, `reduce/arbitrate`. Nothing the human types reaches it, which is what makes the model its row assigns the model it actually runs at.
 
 **An orchestrator and a session are both `kk-flavor/skills/<name>/SKILL.md` with a door**, and the difference between them is one declaration rather than one directory. An orchestrator dispatches every substantive step. A session holds model work itself, and takes the tier of the work it holds.
 

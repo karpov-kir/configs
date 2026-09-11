@@ -309,8 +309,28 @@ func validateSettings(client string, settings Settings) error {
 	return nil
 }
 
+// A task name is read as a path by everything that resolves a row to the prompt it dispatches — a
+// worker's file under workers/, a skill's SKILL.md — so what is legal here is what is legal as a
+// relative path inside the tree. `/` has to be allowed, because `patrol/scout` is a real row; that is
+// what makes the rest of this necessary. A name is refused unless every segment is a plain one.
+//
+// Without the segment rule a row keyed `../../../x` resolves to a file outside the checkout, and the
+// tools that read it are not all silent about what they found: the field guide prints a worker's
+// first sentence onto a committed page. Validating here rather than at each reader is the point —
+// there are four such readers and a fifth is a step away.
 func validName(value string) bool {
-	return value != "" && len(value) <= 200 && !strings.ContainsFunc(value, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) })
+	if value == "" || len(value) > 200 {
+		return false
+	}
+	if strings.ContainsFunc(value, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
+		return false
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // The efforts both CLIs answer to, and the three codex carries on its own.

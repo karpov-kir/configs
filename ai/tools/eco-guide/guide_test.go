@@ -299,14 +299,23 @@ func TestTheNarrativeCannotNameASkillThatIsGone(t *testing.T) {
 // A placeholder someone deleted while editing the narrative would drop the whole inventory off the
 // page, and the page would still look finished.
 func TestAMissingPlaceholderIsRefused(t *testing.T) {
-	withoutInventory := strings.Replace(fixtureTemplate, "{{skill-inventory}}", "", 1)
-	root := newRoot(t, withoutInventory, shipped)
-	status, output := run(t, root)
-	if status != 1 {
-		t.Fatalf("expected exit 1 for a template missing a placeholder, got %d\n%s", status, output)
-	}
-	if !strings.Contains(output, "{{skill-inventory}}") {
-		t.Errorf("the refusal does not name the missing placeholder\n%s", output)
+	// Written out rather than ranged over the package's own `placeholders`, which is the slice these
+	// cases exist to pin: an oracle taken from it would shrink with it and pass on a page that had
+	// silently stopped carrying a whole half.
+	for _, placeholder := range []string{
+		"{{skill-count}}", "{{family-count}}", "{{human-typed-count}}",
+		"{{skill-inventory}}", "{{worker-count}}", "{{worker-inventory}}",
+	} {
+		t.Run(placeholder, func(t *testing.T) {
+			root := newRoot(t, strings.Replace(fixtureTemplate, placeholder, "", 1), shipped)
+			status, output := run(t, root)
+			if status != 1 {
+				t.Fatalf("expected exit 1 for a template missing %s, got %d\n%s", placeholder, status, output)
+			}
+			if !strings.Contains(output, placeholder) {
+				t.Errorf("the refusal does not name the missing placeholder\n%s", output)
+			}
+		})
 	}
 }
 
