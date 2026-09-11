@@ -262,6 +262,43 @@ func TestNumberedHeadingCitations(t *testing.T) {
 	})
 }
 
+// A delimited citation is matched whole, so it can neither fall short of a heading nor run past one.
+// Running past is the half that read as correct and resolved anyway: a gate written to catch a
+// paraphrase accepted a paraphrase that only added to the name, and the citation names a section the
+// cited file does not have. Falling short already refused, and is here as the other wall.
+func TestADelimitedCitationMustNameItsHeadingWhole(t *testing.T) {
+	t.Run("fires on a citation that adds a word to a real heading", func(t *testing.T) {
+		newCitedHeading(t, "Read before you edit", "**Read before you edit it**").reports(dangling)
+	})
+
+	t.Run("still refuses one that falls short of it", func(t *testing.T) {
+		newCitedHeading(t, "Read before you edit", "**Read before you**").reports(dangling)
+	})
+
+	t.Run("while the heading named whole resolves (control)", func(t *testing.T) {
+		newCitedHeading(t, "Read before you edit", "**Read before you edit**").doesNotReport(dangling)
+	})
+
+	t.Run("and the backticked form is held to the same boundary", func(t *testing.T) {
+		newCitedHeading(t, "Read before you edit", "`Read before you edit it`").reports(dangling)
+	})
+
+	// The trimming this keeps: an undelimited citation is prose, so the parser hands over a run that
+	// ends wherever the sentence did — here, five words past the heading. Both halves are read off one
+	// check, because the claim is about a single run of it: this citation collects the undelimited
+	// finding it has earned and not a second one, which would send its author hunting for a rename
+	// nobody made. A fixture runs once — `isolate` calls t.Parallel, which a case may not call twice —
+	// so the two assertions take that run's output, the way the pattern cases above take theirs.
+	t.Run("reads an undelimited citation by its longest leading heading, and reports only that it is undelimited", func(t *testing.T) {
+		f := newCitedTarget(t, "## Read before you edit\n")
+		f.write(f.root+"/kk-flavor/standards/citer.md",
+			"see [target.md](target.md) → Read before you edit for the rule it states\n")
+		output := f.run()
+		f.found(output, undelimited)
+		f.absent(output, dangling)
+	})
+}
+
 func newNumberedHeading(t *testing.T, citation string) *fixture {
 	t.Helper()
 	return newCitedHeading(t, "7. What a suite reports", citation)
@@ -395,6 +432,24 @@ func TestDanglingSectionRefNamesItsVariant(t *testing.T) {
 	t.Run("and says a name nothing answers to reads like a paraphrase", func(t *testing.T) {
 		f := newDanglingVariant(t, "nothing here\n", "**The residue**")
 		f.reports("reads like a paraphrase of one")
+	})
+
+	// The class the strict matcher creates. Without its own variant it falls to the paraphrase
+	// sentence above, which is false of it — the heading is in the file the citation already names,
+	// and only its tail is missing.
+	t.Run("quotes the heading whole when the citation runs past it", func(t *testing.T) {
+		f := newDanglingVariant(t, "## Phase 2 — Assemble Context (progressive)\n", "**Phase 2 — Assemble Context**")
+		f.reports("that heading reads **Phase 2 — Assemble Context (progressive)** — cite it whole")
+	})
+
+	// A heading line with no text registers no name, so nothing answers to the empty one a citation
+	// like this reduces to. Registered, its key answered every lookup keyed on that name — including
+	// the tree-wide one, which then reported the section as having moved into the file citing it.
+	t.Run("does not enter a heading that has no text", func(t *testing.T) {
+		f := newDanglingVariant(t, "## \n", "**_**")
+		out := f.run()
+		f.found(out, dangling)
+		f.absent(out, "that heading is in ")
 	})
 }
 

@@ -82,6 +82,12 @@ func (c *checker) markdownHeadings(path string) map[string]string {
 		}
 		written := strings.Trim(headingMarker.ReplaceAllString(line, ""), shell.SpaceBytes)
 		heading := plainText(written)
+		// A `## ` line with nothing after it, or one carrying only markup, has no name to be cited by.
+		// Registered, its empty key answers every lookup an empty cited name reaches — including the
+		// tree-wide one, which then reports the section as having moved to the file citing it.
+		if heading == "" {
+			continue
+		}
 		// A heading may carry a subtitle after an em dash and a citation names only the run before
 		// it, so accept that run too. Cut at the em dash and nowhere else: a trailing run, or a
 		// word-by-word prefix, would let half a heading satisfy a citation.

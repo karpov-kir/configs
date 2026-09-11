@@ -98,28 +98,37 @@ func (c *checker) reportCitation(cited citation) {
 			" — it was NOT read")
 		return
 	}
-	if c.sectionResolves(target, cited.section) {
+	if c.sectionResolves(target, cited.section, cited.isDelimited) {
 		return
 	}
 	c.addCitationFinding(cited, danglingSectionRef+citedPath+" → "+
 		shell.Oneline(cited.section)+" — "+c.danglingVariant(cited, target))
 }
 
-// Prose runs on past the heading it names, so the longest leading run that is itself a heading
-// answers yes.
-func (c *checker) sectionResolves(target, section string) bool {
+// A delimited citation names its heading exactly: what sits between the `**` or the backticks is the
+// whole of the claim, so a name that extends a real heading by whole words resolves nowhere. Without
+// that stop the gate written to catch a paraphrase accepts paraphrase-by-extension — `**Read before
+// you edit it**` answering the heading **Read before you edit**, which reads to a person as naming a
+// section the file does not have.
+//
+// An undelimited one carries no such boundary. The parser takes the prose after the arrow and cuts it
+// at its first sentence punctuation, an em dash or the line end, so it routinely runs on past the
+// heading it names, and the longest leading run that is itself a heading is the only thing it can be
+// matched by. That citation
+// is already a finding on its own account; trimming here is what keeps it from collecting a second
+// one that would send its author hunting for a rename nobody made.
+func (c *checker) sectionResolves(target, section string, isDelimited bool) bool {
 	headings := c.markdownHeadings(target)
-	for want := plainText(section); want != ""; {
+	for want := plainText(section); ; {
 		if _, isHeading := headings[want]; isHeading {
 			return true
 		}
 		cut := strings.LastIndexByte(want, ' ')
-		if cut < 0 {
+		if isDelimited || cut < 0 {
 			return false
 		}
 		want = want[:cut]
 	}
-	return false
 }
 
 // Which of the four ways a section citation dangles this one is. All four read as correct to a human
@@ -141,10 +150,35 @@ func (c *checker) danglingVariant(cited citation, target string) string {
 	if written, isBolded := c.boldedRuns(target)[named]; isBolded {
 		return "**" + shell.Oneline(written) + "** is bolded text there, not a heading — cite the heading above it, or make it one"
 	}
+	// The class the strict matcher creates, and the one the fallthrough below describes worst: a name
+	// that runs on past a real heading, usually a heading carrying a trailing parenthetical cited
+	// without it. The heading is right there and the fix is a few characters, so "carries no heading of
+	// that name" would send its author hunting for a rename nobody made. The trimming that used to
+	// resolve such a citation lives here now, where it explains the name instead of accepting it.
+	if written, runsPast := c.headingThisNameRunsPast(target, named); runsPast {
+		return "that heading reads **" + shell.Oneline(written) + "** — cite it whole"
+	}
 	if elsewhere := c.fileWithHeading(named); elsewhere != "" {
 		return "that heading is in " + shell.Oneline(elsewhere) + " — the section did not move, the citation did"
 	}
 	return "that file carries no heading and no bolded run of that name — it reads like a paraphrase of one"
+}
+
+// The heading a cited name would have reached by dropping trailing words, and the text that heading
+// writes. Trimming starts one word in: a name matching a heading outright never reaches this, because
+// the citation resolved.
+func (c *checker) headingThisNameRunsPast(target, named string) (string, bool) {
+	headings := c.markdownHeadings(target)
+	for want := named; ; {
+		cut := strings.LastIndexByte(want, ' ')
+		if cut < 0 {
+			return "", false
+		}
+		want = want[:cut]
+		if written, isHeading := headings[want]; isHeading {
+			return written, true
+		}
+	}
 }
 
 // The bounds the tree-wide heading index is built under. It only ever enriches a finding already

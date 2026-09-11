@@ -3,44 +3,33 @@ package main
 import (
 	"regexp"
 	"sort"
-	"strings"
 
 	"kk-flavor/tools/shell"
 )
 
 var headingPattern = regexp.MustCompile(`^#{2,}\s+(.+?)\s*$`)
 
-// Whether a cited name enters a real heading, by check.sh's rule rather than a stricter one of our
-// own: prose runs on past the heading it names, so a citation naming a leading run of one resolves.
-// `→ **Phase 2 — Assemble Context**` enters `## Phase 2 — Assemble Context (progressive)`.
+// Whether a cited name enters a real heading, by check.sh's rule rather than a looser or stricter one
+// of our own: this tool only ever reads the delimited `→ **Section**` form, and a delimited citation
+// names its heading whole. `→ **Caller of a skill**` enters nothing where the heading is `## Caller`,
+// and neither does `→ **Phase 2 — Assemble Context**` against `## Phase 2 — Assemble Context
+// (progressive)`. The aliases below are the only names accepted in place of the whole one, and they
+// are the forms eco-check registers for the heading itself.
 //
-// Matching stricter than check.sh is worse than matching wrong: two detectors disagreeing about what
-// resolves is invisible until someone reads both.
+// Disagreeing with check.sh in either direction is worse than matching wrong: two detectors
+// disagreeing about what resolves is invisible until someone reads both. This used to truncate the
+// citation word by word, which resolved a name that ran past its heading — the paraphrase-by-extension
+// eco-check now refuses.
 func entersAHeading(headings map[string]bool, section string) (string, bool) {
+	// Never an empty name: every alias answers empty for a heading it does not apply to, so an empty
+	// run would enter whichever heading the sort visited first.
+	if section == "" {
+		return "", false
+	}
 	if headings[section] {
 		return section, true
 	}
-	// Truncate the citation to find a heading, which is check.sh's direction. Extending the citation
-	// to reach a longer heading is the inverse and accepts what check.sh refuses: `→ **Caller of a
-	// skill**` against `## Caller`.
-	//
-	// Longest run first, so a citation naming a real heading never resolves to a shorter one.
-	for cut := len(section); cut > 0; cut-- {
-		if cut < len(section) && section[cut] != ' ' && section[cut] != '\t' {
-			continue // a word boundary, so half a word cannot satisfy a citation
-		}
-		run := strings.TrimRight(section[:cut], " \t")
-		if run == "" {
-			continue
-		}
-		if headings[run] {
-			return run, true
-		}
-		if heading, ok := headingByAlias(headings, run); ok {
-			return heading, true
-		}
-	}
-	return "", false
+	return headingByAlias(headings, section)
 }
 
 // The names a heading also answers to, tried in this order. Each returns empty for a heading the

@@ -4,37 +4,43 @@ import (
 	"testing"
 )
 
-// check.sh truncates the CITATION to find a heading. Extending the citation to reach a longer heading
-// is the inverse and accepts what check.sh refuses. Both directions accept the em-dash case, so a
-// case built on that one cannot tell them apart.
-func TestCitationIsTruncatedToAHeadingNotExtended(t *testing.T) {
+// A delimited citation names its heading whole, which is check.sh's rule, so neither running past a
+// heading nor falling short of one resolves. Running past is the half that used to: this tool
+// truncated the citation word by word, so a name that only added to a heading entered it, and the
+// edge it counted pointed at a section nobody wrote.
+func TestACitationMustNameItsHeadingWhole(t *testing.T) {
 	headings := map[string]bool{"Caller": true, "Phase 2": true}
 
-	if got, ok := entersAHeading(headings, "Phase 2 — Assemble Context"); !ok || got != "Phase 2" {
-		t.Errorf("truncation: got %q %v, want \"Phase 2\" true", got, ok)
+	if got, ok := entersAHeading(headings, "Caller"); !ok || got != "Caller" {
+		t.Errorf("the heading named whole: got %q %v, want \"Caller\" true", got, ok)
 	}
-	if got, ok := entersAHeading(headings, "Caller of a skill"); !ok || got != "Caller" {
-		t.Errorf("truncation: got %q %v, want \"Caller\" true", got, ok)
+	for _, past := range []string{"Caller of a skill", "Phase 2 — Assemble Context"} {
+		if got, ok := entersAHeading(headings, past); ok {
+			t.Errorf("a citation running past its heading resolved: %q -> %q", past, got)
+		}
 	}
-	if got, ok := entersAHeading(headings, "Phase"); ok {
-		t.Errorf("extension: %q resolved to %q, which check.sh cannot reach", "Phase", got)
-	}
-	if _, ok := entersAHeading(headings, "Call"); ok {
-		t.Error("half a word satisfied a citation")
+	for _, short := range []string{"Phase", "Call"} {
+		if got, ok := entersAHeading(headings, short); ok {
+			t.Errorf("a citation falling short of its heading resolved: %q -> %q", short, got)
+		}
 	}
 }
 
 // The two tools have to agree on what resolves. `ecocheck` registers a heading's em-dash prefix as an
-// alias, so a citation truncating to it resolves there; this tool does not, so without the match
-// below a compliant citation reads as broken.
-func TestCitationTruncatingToAnEmDashPrefixResolves(t *testing.T) {
+// alias, so a citation naming that prefix resolves there; this tool needs the same match or a
+// compliant citation reads as broken. What it must NOT do is reach the heading from a name sitting
+// between the prefix and the whole — `phase 2 — assemble context` against `## phase 2 — assemble
+// context (progressive)` is the citation the tree carried, and eco-check now dangles it.
+func TestAnEmDashPrefixResolvesButAPartialNameDoesNot(t *testing.T) {
 	headings := map[string]bool{"phase 2 — assemble context (progressive)": true}
-	got, ok := entersAHeading(headings, "phase 2 — assemble context")
+	got, ok := entersAHeading(headings, "phase 2")
 	if !ok || got != "phase 2 — assemble context (progressive)" {
 		t.Fatalf("entersAHeading = %q, %v — want the full heading", got, ok)
 	}
-	if _, ok := entersAHeading(headings, "phase 9 — invented"); ok {
-		t.Fatal("resolved a section no heading answers to")
+	for _, partial := range []string{"phase 2 — assemble context", "phase 2 — assemble", "phase 9 — invented"} {
+		if got, ok := entersAHeading(headings, partial); ok {
+			t.Fatalf("%q resolved to %q — no heading answers to that name", partial, got)
+		}
 	}
 }
 
@@ -81,11 +87,11 @@ func TestNumberedHeadingIsEnteredNotDangling(t *testing.T) {
 func TestNumberedHeadingWithASubtitleResolvesByItsTextAlone(t *testing.T) {
 	headings := map[string]bool{"1. trigger — how it gets invoked": true}
 
+	// The four names eco-check registers for this heading, and the only four that may resolve: the
+	// heading, its numberless form, its em-dash prefix, and that prefix numberless.
 	for _, cited := range []string{
 		"1. trigger — how it gets invoked",
 		"trigger — how it gets invoked",
-		"trigger — how it gets",
-		"trigger —",
 		"1. trigger",
 		"trigger",
 	} {
@@ -94,11 +100,12 @@ func TestNumberedHeadingWithASubtitleResolvesByItsTextAlone(t *testing.T) {
 			t.Errorf("entersAHeading(%q) = %q, %v — want the full heading", cited, got, ok)
 		}
 	}
-	if got, ok := entersAHeading(headings, "1."); ok {
-		t.Errorf("the leading number alone resolved to %q", got)
-	}
-	if got, ok := entersAHeading(headings, "invented"); ok {
-		t.Errorf("a section no heading answers to resolved to %q", got)
+	// A name between two of those forms is not a fifth one. Both of these resolved while the citation
+	// was truncated word by word, and neither is a name the heading answers to.
+	for _, partial := range []string{"trigger — how it gets", "trigger —", "1.", "invented"} {
+		if got, ok := entersAHeading(headings, partial); ok {
+			t.Errorf("entersAHeading(%q) resolved to %q — no heading answers to that name", partial, got)
+		}
 	}
 }
 

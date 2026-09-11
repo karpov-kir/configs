@@ -28,7 +28,7 @@ With no `<arg>` and no subcommand, list the not-yet-built intents and ask which.
 
 The report contract — the **committed vs throwaway** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote** and its counterpart **discard**, the latter owned by `done` below.
 
-**Promote** — `report.sh promote` stages `.idsd/`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the project-instruction pointer at `.idsd/` per `~/.kk-flavor/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context**.
+**Promote** — `report.sh promote` stages `.idsd/`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the project-instruction pointer at `.idsd/` per `~/.kk-flavor/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context (progressive)**.
 
 ## Build, then qualify
 
