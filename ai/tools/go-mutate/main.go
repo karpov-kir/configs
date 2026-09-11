@@ -358,7 +358,7 @@ func selectByFile(list []mutant, names string) (selected []mutant, unmatched []s
 // One line per mutated file: the file, the suites its mutants name, and how many there are. Built
 // from the list rather than restated anywhere else — a second copy of this mapping is a second thing
 // to go stale when a mutant moves. This is the whole of what a caller scopes on — `discoverGoMutants`
-// in `ai/tools/gate/units.go` builds one unit per line — so a file dropped here is a mutation unit
+// in `ai/tools/gate/mutants.go` builds one unit per line — so a file dropped here is a mutation unit
 // that silently stops existing, which is the narrowing that harness exists to refuse.
 func unitLines(list []mutant, pkgDir string) []string {
 	var files []string

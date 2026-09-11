@@ -215,7 +215,7 @@ func TestAnEmptyScopeSelectsEverything(t *testing.T) {
 	}
 }
 
-// The unit listing is what `ai/tools/gate/units.go` builds its mutation units from, one per line, so a
+// The unit listing is what `ai/tools/gate/mutants.go` builds its mutation units from, one per line, so a
 // file missing from it is a whole unit that stops existing with nothing saying so.
 func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
 	list := []mutant{
