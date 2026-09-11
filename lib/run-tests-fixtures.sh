@@ -3,12 +3,10 @@
 # The fixtures the run-tests suites share. Sourced, never executed — the filename does not end in
 # `-test.sh`, so run-tests.sh's discovery does not pick it up as a suite of its own.
 #
-# It lives under lib/ because that is the only place the gate can see it. The gate keys each shell unit
-# on the libraries its suite sources, and both patterns that find them — the scan and the wider refusal
-# for what it cannot read — match `lib/<name>.sh` and nothing else.
-# A fixtures file beside the suites in ai/ would be sourced without being keyed on, and the unit would
-# then answer out of its cache with these fixtures edited underneath it. That is a silent stale green,
-# so the directory is load-bearing rather than tidy.
+# It lives under lib/ because that is the only place the gate can see it: both patterns that find a
+# suite's libraries match `lib/<name>.sh` and nothing else. Beside the suites in ai/ it would be
+# sourced without being keyed on, and the unit would answer from cache with these fixtures edited
+# underneath it.
 #
 # Before sourcing, a caller sets `suite_name` (what a refusal reports itself as) and `runner` (the
 # run-tests.sh under test, so a mutation run can point a suite at a mutated copy). After sourcing it
@@ -21,9 +19,8 @@
 # tested by: ai/run-tests-test.sh, ai/run-tests-concurrency-test.sh
 
 # The machine's own git config must not reach these fixtures. Both, because NOSYSTEM blocks
-# /etc/gitconfig alone and ~/.gitconfig is the one that reaches in: a global core.excludesFile holding
-# `*.conf` refuses new_greedy_checkout's `git add kept.conf`, and the whole containment family then
-# goes red on a runner that is working perfectly.
+# /etc/gitconfig alone and ~/.gitconfig is the one that reaches in — a global core.excludesFile holding
+# `*.conf` would refuse new_greedy_checkout's `git add kept.conf`.
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_CONFIG_GLOBAL=/dev/null
 

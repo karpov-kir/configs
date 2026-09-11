@@ -226,11 +226,9 @@ func (g *gate) discoverShellSuites() int {
 				}
 			}
 		}
-		// Three ways into one input. A suite inside the tool tree observes it whatever its text says,
-		// which is what lets the scan below ask for `ai/tools/` rather than a bare `tools/`. Running the
-		// module's own suites is the third: such a suite compiles the tree, so keying it on nothing is a
-		// cached pass over a tool that changed, and it decides the blindness rather than only clearing
-		// it — what it observes is the test files, not a binary built without them.
+		// Three ways into one input: a suite inside the tool tree, one that compiles the module, one
+		// whose text names a tool. The second also decides the blindness rather than only clearing it —
+		// what it observes is the test files, not a binary built without them.
 		runsGoSuites := goSuiteRun.MatchString(body) || goSuiteRun.MatchString(siblingBody)
 		if strings.HasPrefix(suite, goTree+"/") || runsGoSuites || drivesGoTool(body, siblingBody) {
 			inputs = append(inputs, goTree)
