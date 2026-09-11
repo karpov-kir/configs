@@ -500,92 +500,146 @@
 
 <section>
   <div class="sec-head">
-    <h2>Underneath: the 16 workers</h2>
-    <p class="sec-note">Nobody types these. Generated from the tree and the model policy, so neither the list nor the tiers can drift.</p>
+    <h2>Three kinds of thing, two places they live</h2>
+    <p class="sec-note">The shape underneath every skill above. Written out here; the standards enforce it.</p>
   </div>
-  <p class="lede" style="margin:0 0 26px">A skill above is a <b>door</b> — something you or the model invokes by name. Most of the work behind one door is done by a <b>worker</b>: one file, addressed to one agent, run once and returned. A worker has no door, which is what lets it carry a model of its own instead of inheriting whatever session called it — so this list is also where the tree's cost lives. Reading it tells you what a skill actually spends when it hands a step away.</p>
+  <p class="lede" style="margin:0 0 20px">Everything in this ecosystem is one of three kinds, and the difference is worth knowing because it decides what a request costs you.</p>
+  <div class="std">
+    <div>
+      <ul>
+        <li><b>A session</b> is a skill that does the work itself. It holds the thinking, and it runs at the model tier that work needs. It is a session because something about it needs you — it decides with you, or it holds context only that conversation has, or it does something with no undo.</li>
+        <li><b>An orchestrator</b> is a skill that does none of the work itself. It hands every substantive step to something else and spends almost nothing of its own.</li>
+        <li><b>A worker</b> is a single file addressed to one agent: it is handed a scope, it runs once, and it returns. It has <em>no door</em> — you cannot type it and the model cannot reach for it. That is exactly what lets it carry a model of its own instead of inheriting whatever session called it.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Two homes.</b> Sessions and orchestrators are both <code>skills/&lt;name&gt;/SKILL.md</code> — the difference between them is one declaration, not one directory. Workers are <code>workers/&lt;path&gt;.md</code>, and a worker's name carries no family prefix, so its path is what says which family it belongs to.</li>
+        <li><b>Dispatch is the edge that costs money</b>, and it always resolves into a worker. Three other things look the same in the text and are not dispatches: one skill reading another as its <em>delta</em>, a pipeline naming the <em>next stage</em>, and a pointer <em>placing</em> one skill beside its neighbour.</li>
+        <li><b>A door on top of a worker dispatches it</b> — it never reads it inline. Read inline, the worker runs at the calling session's tier and the model its own row names selects nothing.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Underneath: the 22 dispatch sites</h2>
+    <p class="sec-note">Nobody types these. Generated from the model policy and the prompts it prices, so neither the list nor the tiers can drift.</p>
+  </div>
+  <p class="lede" style="margin:0 0 26px">This is where the tree's cost lives: one card per dispatch the policy prices, with the tier it buys and where the contract it runs is written. Most name a worker file of their own. A few run another row's prompt under their own accounting name, and a few still point at a skill that has kept its door — those are the ones part-way through moving.</p>
   <div class="lanes">
     <div class="group-label"><span>idsd workers</span><i></i></div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd/audit</code><span class="tag">dispatched</span></div>
       <p>You are one audit of a whole <code>.idsd/</code> intent set.</p>
-      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/idsd/audit.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd/qualify/reconcile</code><span class="tag">dispatched</span></div>
       <p>You are the reconciliation for one completed stage of an <code>idsd-qualify</code> pass.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/idsd/qualify/reconcile.md</p>
     </div>
     <div class="group-label"><span>kk workers</span><i></i></div>
     <div class="lane">
+      <div class="lane-top"><code class="k">bloat-judge</code><span class="tag">dispatched</span></div>
+      <p>No prompt in the tree holds this row's contract.</p>
+      <p class="hint">tier: claude haiku &middot; codex gpt-5.6-luna low &middot; prompt: not in the tree</p>
+    </div>
+    <div class="lane">
       <div class="lane-top"><code class="k">build/explore</code><span class="tag">dispatched</span></div>
       <p>You are one bounded exploration for <code>kk-build</code>.</p>
-      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/build/explore.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">code-review</code><span class="tag">dispatched</span></div>
       <p>You are one correctness review.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/code-review.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">conform</code><span class="tag">dispatched</span></div>
       <p>You are the gate between a change set and the ask it was given.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/conform.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">drive</code><span class="tag">dispatched</span></div>
       <p>You are one drive gate.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/drive.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">grill/facts</code><span class="tag">dispatched</span></div>
       <p>You are one fact-finder for <code>kk-grill</code>.</p>
-      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/grill/facts.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">kk-diagnose</code><span class="tag">dispatched</span></div>
+      <p>Find the cause of a bug, a flake or a performance regression.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: skills/kk-diagnose/SKILL.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">kk-ecosystem</code><span class="tag">dispatched</span></div>
+      <p>Refine agent instructions, reconcile rules and check their wiring.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: skills/kk-ecosystem/SKILL.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">kk-edit</code><span class="tag">dispatched</span></div>
+      <p>The edit lane for authored or revised outward artifacts before approval or delivery, including PR text, commit messages, docs and code comments.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: skills/kk-edit/SKILL.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">patrol/fixer</code><span class="tag">dispatched</span></div>
       <p>You are one round's fixer for <code>kk-patrol</code>.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/patrol/fixer.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">patrol/scout</code><span class="tag">dispatched</span></div>
       <p>You are one round's scout for <code>kk-patrol</code>.</p>
-      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/patrol/scout.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">reduce/arbitrate</code><span class="tag">dispatched</span></div>
       <p>You are the arbiter in a campaign shrinking an ecosystem of agent instructions.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/reduce/arbitrate.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">reduce/converge</code><span class="tag">dispatched</span></div>
       <p>You are a fresh pass over one scope of an ecosystem of agent instructions, late in a campaign that has already shrunk it.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/reduce/converge.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reduce/fan-out</code><span class="tag">dispatched</span></div>
+      <p>Refine agent instructions, reconcile rules and check their wiring.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: skills/kk-ecosystem/SKILL.md, dispatched as reduce/fan-out</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">reduce/over-cut</code><span class="tag">dispatched</span></div>
       <p>You are the cutter in a campaign shrinking an ecosystem of agent instructions.</p>
-      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/reduce/over-cut.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">reduce/reconcile</code><span class="tag">dispatched</span></div>
       <p>You are one repair agent in a campaign shrinking an ecosystem of agent instructions.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/reduce/reconcile.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reduce/repair</code><span class="tag">dispatched</span></div>
+      <p>The edit lane for authored or revised outward artifacts before approval or delivery, including PR text, commit messages, docs and code comments.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: skills/kk-edit/SKILL.md, dispatched as reduce/repair</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">refactor</code><span class="tag">dispatched</span></div>
       <p>You are one quality pass.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/refactor.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">security-review</code><span class="tag">dispatched</span></div>
       <p>You are one adversarial security review.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/security-review.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">skillcraft</code><span class="tag">dispatched</span></div>
       <p>You are one shape review over the instruction tree — skills, workers, and the artifacts beside them.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/skillcraft.md</p>
     </div>
   </div>
 </section>

@@ -254,16 +254,21 @@ func renderWorkerCards(workers []worker) string {
 }
 
 // The tier is printed for both clients because the two are set independently and a reader comparing
-// cost needs the pair. A client the row assigns nothing is printed as `—` rather than omitted: a
-// missing half would read as "the same as the other one".
+// cost needs the pair. Neither can be blank: every row here came out of a parsed policy, and
+// model-policy's validateSettings refuses a client with neither a model nor an effort — so there is
+// no guard for it in this package, which would be a second answer to a question already settled.
+//
+// Where the prompt lives is printed beside it, because a reader who has just been told this row is
+// what the tree spends will want to read the contract being bought, and for most of these rows that
+// is not a file named after the row.
 func workerCard(w worker) string {
 	var out strings.Builder
 	out.WriteString("    <div class=\"lane\">\n")
 	fmt.Fprintf(&out, "      <div class=\"lane-top\"><code class=\"%s\">%s</code><span class=\"tag\">dispatched</span></div>\n",
 		familyClass[w.family], escapeText(w.name))
 	fmt.Fprintf(&out, "      <p>%s</p>\n", inlineCode(escapeText(w.summary)))
-	fmt.Fprintf(&out, "      <p class=\"hint\">tier: claude %s &middot; codex %s</p>\n",
-		escapeText(or(w.claude, "—")), escapeText(or(w.codex, "—")))
+	fmt.Fprintf(&out, "      <p class=\"hint\">tier: claude %s &middot; codex %s &middot; prompt: %s</p>\n",
+		escapeText(w.claude), escapeText(w.codex), escapeText(w.prompt))
 	out.WriteString("    </div>\n")
 	return out.String()
 }

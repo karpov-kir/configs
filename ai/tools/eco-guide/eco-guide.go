@@ -118,13 +118,9 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		return strings.TrimSpace(decision.Requested.Model + " " + decision.Requested.Effort)
 	}
 
-	workers, err := readWorkers(root, tier)
-	if err != nil {
-		return fail("cannot read the workers under %s: %v — the guide was NOT generated",
-			shell.Join(root.Flavor(), "workers"), err)
-	}
+	workers := readWorkers(root, assigned.WorkerTasks(), assigned.PromptOwners(), tier)
 	if len(workers) == 0 {
-		return fail("no worker under %s/workers reads as a brief — read this as the reader broken, never as a tree with no workers", root.Flavor())
+		return fail("the policy at %s prices no dispatch at all — read this as the reader broken, never as a tree with no workers", policyPath)
 	}
 
 	page, err := render(string(template), skills, workers)
@@ -136,7 +132,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 
 	target := shell.Join(root.Named(), outputRelative)
 	if check {
-		return compare(name, target, page, len(skills), out, errOut)
+		return compare(name, target, page, len(skills), len(workers), out, errOut)
 	}
 	if err := os.WriteFile(target, []byte(page), 0o644); err != nil {
 		return fail("cannot write %s: %v", target, err)
@@ -149,7 +145,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 // The gate's half. A page that is missing, unreadable or different is one finding with one meaning:
 // the committed guide no longer describes the tree. It names what moved rather than only that
 // something did, because "the guide is stale" sends someone to read a diff the tool already has.
-func compare(name, target, want string, skillCount int, out, errOut io.Writer) int {
+func compare(name, target, want string, skillCount, workerCount int, out, errOut io.Writer) int {
 	held, err := os.ReadFile(target)
 	if err != nil {
 		fmt.Fprintf(errOut, "%s: no committed guide at %s (%v) — regenerate it with `%s` and commit it\n",
@@ -157,7 +153,11 @@ func compare(name, target, want string, skillCount int, out, errOut io.Writer) i
 		return 1
 	}
 	if string(held) == want {
-		fmt.Fprintf(out, "%s: %s matches the %d skills in the tree\n", name, target, skillCount)
+		// "it lists", not "in the tree": the skills half leaves out the maintainer-only ones, so a
+		// count of what the page carries is not a count of what the tree holds, and saying the second
+		// would have a green line quietly under-report the tree every time one is added.
+		fmt.Fprintf(out, "%s: %s matches the %d skills and %d dispatch sites it lists\n",
+			name, target, skillCount, workerCount)
 		return 0
 	}
 	fmt.Fprintf(errOut, "%s: %s no longer matches the skills in the tree\n", name, target)

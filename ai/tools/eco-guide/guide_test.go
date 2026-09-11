@@ -37,7 +37,9 @@ const fixturePolicy = `{
   "workers": {
     "code-review": { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "idsd/audit":  { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
-    "unpriced":    { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" } }
+    "cheap":       { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" } },
+    "borrower":    { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" }, "worker": "code-review" },
+    "toolbuilt":   { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" } }
   }
 }
 `
@@ -462,22 +464,6 @@ func TestAWorkerTakesItsFamilyFromItsPath(t *testing.T) {
 	}
 }
 
-// A tier the page cannot resolve is printed as absent rather than left off. The defect itself
-// belongs to the policy's own census, which reports a worker with no row; what this tool owes is not
-// printing a blank where a model should be, which reads as "the same as the other client".
-func TestAWorkerWithNoRowPrintsNoTier(t *testing.T) {
-	root := newRoot(t, fixtureTemplate, shipped)
-	writeWorkers(t, root, fixtureWorker{"stranger", "You are dispatched by nothing.\n"})
-
-	if status, output := run(t, root); status != 0 {
-		t.Fatalf("expected exit 0, got %d\n%s", status, output)
-	}
-	page := generated(t, root)
-	if !strings.Contains(page, "tier: claude — &middot; codex —") {
-		t.Errorf("an unpriced worker did not print its tier as absent\n%s", page)
-	}
-}
-
 // The policy is an input the page cannot be generated without, so a tree with no usable one refuses
 // rather than shipping a page whose every tier reads `—`. Exit 2: a check that did not run is not a
 // clean one. Two ways to have no policy, asserted on their own messages, because they refuse from
@@ -506,49 +492,6 @@ func TestAGuideWithNoUsablePolicyRefuses(t *testing.T) {
 	}
 }
 
-// A worker tree that is there and reads as holding nothing is the reader broken, not a tree with no
-// workers — the same reasoning the skills half applies to an inventory of zero. The file left in it
-// carries no `# ` heading, so it is the skip that empties the list: a case that deleted the
-// directory would refuse from the walk error below and never reach this guard.
-func TestAWorkerTreeThatReadsAsEmptyRefuses(t *testing.T) {
-	root := newRoot(t, fixtureTemplate, shipped)
-	tree := filepath.Join(root, "kk-flavor", "workers")
-	if err := os.RemoveAll(tree); err != nil {
-		t.Fatalf("emptying the fixture workers: %v", err)
-	}
-	if err := os.MkdirAll(tree, 0o755); err != nil {
-		t.Fatalf("fixture workers: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tree, "headless.md"), []byte("You are nobody.\n"), 0o644); err != nil {
-		t.Fatalf("fixture worker: %v", err)
-	}
-
-	status, output := run(t, root)
-	if status != 2 {
-		t.Fatalf("expected exit 2 for a worker tree that reads as empty, got %d\n%s", status, output)
-	}
-	if !strings.Contains(output, "reads as a brief") {
-		t.Errorf("the refusal does not name the empty reading as the reason\n%s", output)
-	}
-}
-
-// The tree missing altogether is the other way to reach zero workers, and it refuses from the walk
-// rather than from the count.
-func TestAMissingWorkerTreeRefuses(t *testing.T) {
-	root := newRoot(t, fixtureTemplate, shipped)
-	if err := os.RemoveAll(filepath.Join(root, "kk-flavor", "workers")); err != nil {
-		t.Fatalf("removing the fixture workers: %v", err)
-	}
-
-	status, output := run(t, root)
-	if status != 2 {
-		t.Fatalf("expected exit 2 with no worker tree, got %d\n%s", status, output)
-	}
-	if !strings.Contains(output, "cannot read the workers under") {
-		t.Errorf("the refusal does not name the unreadable tree\n%s", output)
-	}
-}
-
 // Both inventories are held to appearing once, not just the skills one: a template carrying the
 // worker placeholder twice would print the whole layer twice and read as finished either way.
 func TestASecondWorkerInventoryPlaceholderIsRefused(t *testing.T) {
@@ -560,5 +503,115 @@ func TestASecondWorkerInventoryPlaceholderIsRefused(t *testing.T) {
 	}
 	if !strings.Contains(output, "more than once") {
 		t.Errorf("the refusal does not name the repetition\n%s", output)
+	}
+}
+
+// The list is keyed on the policy's rows, not on the files under workers/. Three of the four forms a
+// row resolves a prompt by own no file there, so a list built from the directory would price fewer
+// dispatch sites than the tree has — and would do it silently, since every card it did print would
+// look right.
+func TestEveryRowGetsACardEvenWithNoFileOfItsOwn(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	for _, want := range []string{
+		`<code class="k">code-review</code>`, // its own file
+		`<code class="k">borrower</code>`,    // another row's prompt
+		`<code class="k">toolbuilt</code>`,   // no prompt in the tree at all
+		`<code class="k">cheap</code>`,
+		`<code class="i">idsd/audit</code>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the dispatch site %q has no card\n%s", want, page)
+		}
+	}
+	if got := strings.Count(page, `<span class="tag">dispatched</span>`); got != 5 {
+		t.Errorf("cards printed = %d, want one per worker row (5)\n%s", got, page)
+	}
+}
+
+// A card says where the contract it buys is written, because for most rows that is not a file named
+// after the row. A reader told this list is the tree's cost needs to be able to go and read what is
+// being bought.
+func TestACardNamesWhereItsPromptLives(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	for _, want := range []string{
+		"prompt: workers/code-review.md",
+		"prompt: workers/code-review.md, dispatched as borrower",
+		"prompt: not in the tree",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("no card names the prompt home %q\n%s", want, page)
+		}
+	}
+	// A row running another's prompt describes that prompt, not itself — it has nothing of its own.
+	if got := strings.Count(page, "You are one correctness review."); got != 2 {
+		t.Errorf("the borrowed contract's summary appears %d times, want 2\n%s", got, page)
+	}
+}
+
+// A row whose prompt file has gone missing must not read like the one row that legitimately holds no
+// prompt in the tree. Both say what is observable — nothing here holds this contract — so the page
+// never asserts a reason it cannot check, and the reader can see which rows are in that state.
+func TestARowWhoseFileIsGoneSaysSoRatherThanClaimingATool(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+	if err := os.Remove(filepath.Join(root, "kk-flavor", "workers", "code-review.md")); err != nil {
+		t.Fatalf("removing the fixture worker: %v", err)
+	}
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	if strings.Contains(page, "You are one correctness review.") {
+		t.Errorf("a deleted prompt still reached the page\n%s", page)
+	}
+	// The row and the one borrowing its prompt both lose their summary; the fixture's other three
+	// rows never had a file, so every row now reads the same way — which is the point. Nothing on the
+	// page offers a reason for it, because the page cannot tell a deletion from a tool-built row.
+	if got := strings.Count(page, "No prompt in the tree holds this row's contract."); got != 5 {
+		t.Errorf("rows reading as prompt-less = %d, want all 5\n%s", got, page)
+	}
+	for _, claim := range []string{"assembled", "assembled in Go", "by the tool"} {
+		if strings.Contains(page, claim) {
+			t.Errorf("the page asserts %q about a row whose prompt it merely could not find\n%s", claim, page)
+		}
+	}
+}
+
+// A row still keyed on a skill is part-way through moving, and its card reads that skill's own
+// description rather than going blank.
+func TestARowStillPointingAtASkillReadsThatSkill(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped,
+		fixtureSkill{"kk-edit", "description: Cut outward text to what it must say. Nothing else.\n"})
+	policy := strings.Replace(fixturePolicy, `"cheap":`,
+		`"kk-edit": { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "cheap":`, 1)
+	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(policy), 0o644); err != nil {
+		t.Fatalf("fixture policy: %v", err)
+	}
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	if !strings.Contains(page, "prompt: skills/kk-edit/SKILL.md") {
+		t.Errorf("the migrating row does not name the skill holding its prompt\n%s", page)
+	}
+	card := page[strings.Index(page, "prompt: skills/kk-edit/SKILL.md")-400:]
+	card = card[:strings.Index(card, "prompt: skills/kk-edit/SKILL.md")]
+	if !strings.Contains(card, "Cut outward text to what it must say.") {
+		t.Errorf("the migrating row did not take the skill's own description\n%s", card)
+	}
+	if strings.Contains(card, "Nothing else.") {
+		t.Errorf("the card printed past the description's first sentence\n%s", card)
 	}
 }

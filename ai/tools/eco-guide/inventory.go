@@ -1,9 +1,7 @@
 package ecoguide
 
 import (
-	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -116,66 +114,46 @@ func unquoteScalar(value string) string {
 }
 
 // A worker as the page needs it. A worker carries no frontmatter, so there is no `description:` to
-// quote the way a skill's card quotes one: what identifies it to a reader is its path, the brief's
-// own first sentence, and the tier its row buys.
+// quote the way a skill's card quotes one: what identifies it to a reader is its row's name, where
+// the contract it dispatches is written, and the tier that row buys.
 type worker struct {
-	// The path under workers/ without `.md`. That string IS the key its models.json row is written
-	// on, so the name a reader sees is the name the dispatch resolves.
+	// The row's key in models.json, which for a worker holding its own prompt IS its path under
+	// workers/ without `.md`. Keyed on the row rather than on the file because three of the four
+	// forms a row resolves a prompt by own no file there, and a list built from the directory prices
+	// fewer dispatch sites than the tree actually has.
 	name string
-	// Read off the path, not the name: a worker's name carries no family prefix, so `workers/idsd/`
-	// is the workflow family's and everything else is any-repo (ecosystem.md → **Family direction**).
+	// Read off the name: a worker's own name carries no family prefix, so `idsd/` says the workflow
+	// family, as does the `idsd-` prefix a row still keyed on a skill carries (ecosystem.md →
+	// **Family direction**).
 	family string
-	// The first sentence of the brief, which every worker opens with.
+	// One sentence saying what this dispatch is for, from whichever of the prompt homes it has.
 	summary string
+	// Where the contract it runs is written, in the reader's own terms.
+	prompt string
 	// What the policy resolves for each client. Empty where the row assigns that client nothing.
 	claude string
 	codex  string
 }
 
-// Every worker in the tree, ordered workflow family first and then alphabetically, matching the way
-// the skills inventory prints.
+// Every dispatch site the policy prices, ordered workflow family first and then alphabetically,
+// matching the way the skills inventory prints.
 //
 // No audience exclusion, unlike readInventory. That filter answers "would this reader ever invoke
 // it", and for a worker the answer is always no — nothing here has a door. What the list gives a
 // reader is the tier map: what the tree spends when a skill hands a step away. A worker whose lane is
 // maintainer-only is part of that bill like any other.
-//
-// A worker with no readable first line is skipped rather than printed empty, on readInventory's
-// reasoning: eco-check reports the unreadable file, and a card saying nothing helps nobody.
-func readWorkers(root ecoroot.Root, tiers func(task, client string) string) ([]worker, error) {
-	tree := shell.Join(root.Flavor(), "workers")
-	var found []worker
-	err := filepath.WalkDir(tree, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(tree, path)
-		if relErr != nil {
-			return relErr
-		}
-		name := strings.TrimSuffix(filepath.ToSlash(rel), ".md")
-		lines, readErr := readLines(path)
-		if readErr != nil {
-			return nil
-		}
-		summary := briefSummary(lines)
-		if summary == "" {
-			return nil
-		}
+func readWorkers(root ecoroot.Root, rows []string, owners map[string]string, tiers func(task, client string) string) []worker {
+	found := make([]worker, 0, len(rows))
+	for _, name := range rows {
+		summary, prompt := promptFor(root, name, owners)
 		found = append(found, worker{
 			name:    name,
 			family:  workerFamily(name),
 			summary: summary,
+			prompt:  prompt,
 			claude:  tiers(name, "claude"),
 			codex:   tiers(name, "codex"),
 		})
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	sort.Slice(found, func(a, b int) bool {
 		if found[a].family != found[b].family {
@@ -183,14 +161,50 @@ func readWorkers(root ecoroot.Root, tiers func(task, client string) string) ([]w
 		}
 		return found[a].name < found[b].name
 	})
-	return found, nil
+	return found
 }
 
-// A worker's family is its path's first segment where that segment names the workflow family, and
-// any-repo otherwise. Keyed on the one prefix rather than on a list, so a worker added under
-// `workers/idsd/` tomorrow is placed with no edit here.
+// The four forms a row resolves its prompt by, in the order the policy's own checks take them: its
+// own file under workers/, another row's prompt named in its `worker` field, a SKILL.md of its name
+// during the migration window, and the one row whose prompt a Go tool assembles.
+//
+// The last branch is stated as what is observable — no prompt for this row is in the tree — rather
+// than as "a tool assembles it". Only one row is legitimately in that state, and which rows may be
+// is the policy census's question; a card asserting the legitimate reason would print that assertion
+// over a row whose prompt file had simply gone missing, which is the one case a reader could
+// otherwise catch here.
+func promptFor(root ecoroot.Root, name string, owners map[string]string) (summary, prompt string) {
+	file := shell.Join(shell.Join(root.Flavor(), "workers"), name+".md")
+	if lines, err := readLines(file); err == nil {
+		if brief := briefSummary(lines); brief != "" {
+			return brief, "workers/" + name + ".md"
+		}
+	}
+	if owner, named := owners[name]; named {
+		ownerSummary, ownerPrompt := promptFor(root, owner, nil)
+		return ownerSummary, ownerPrompt + ", dispatched as " + name
+	}
+	skill := shell.Join(shell.Join(root.Skills(), name), "SKILL.md")
+	if lines, err := readLines(skill); err == nil {
+		description := unquoteScalar(shell.FrontmatterDescription(lines))
+		if stop := strings.Index(description, ". "); stop >= 0 {
+			description = description[:stop+1]
+		}
+		if description != "" {
+			return description, "skills/" + name + "/SKILL.md"
+		}
+	}
+	return "No prompt in the tree holds this row's contract.", "not in the tree"
+}
+
+// A worker's family is the workflow one where its name says so — `idsd/` for a row holding its own
+// prompt, `idsd-` for one still keyed on a skill — and any-repo otherwise. Keyed on the one prefix
+// rather than on a list, so a row added under either spelling tomorrow is placed with no edit here.
 func workerFamily(name string) string {
 	if group, _, nested := strings.Cut(name, "/"); nested && group == "idsd" {
+		return "idsd"
+	}
+	if strings.HasPrefix(name, "idsd-") {
 		return "idsd"
 	}
 	return "kk"

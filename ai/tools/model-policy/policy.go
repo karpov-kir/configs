@@ -239,6 +239,18 @@ func (p *Policy) SessionTasks() []string {
 	return names
 }
 
+// WorkerTasks answers which rows are dispatched, so a reader of the policy can be built from the
+// rows themselves rather than from the files that happen to hold a prompt. Three of the four forms a
+// row resolves its prompt by own no file under workers/, so a list keyed on that directory silently
+// prices fewer dispatch sites than exist.
+func (p *Policy) WorkerTasks() []string {
+	names := make([]string, 0, len(p.content.Workers))
+	for name := range p.content.Workers {
+		names = append(names, name)
+	}
+	return names
+}
+
 // PromptOwners answers which rows dispatch another row's prompt, keyed by the row and valued by the
 // row that owns it, so a check can resolve such a site to the file holding its contract without
 // parsing the policy a second time.

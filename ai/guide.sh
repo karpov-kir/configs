@@ -9,8 +9,9 @@
 # <root> holds kk-flavor/ with skills/ inside it, and defaults to . then ./ai.
 #
 # Two halves, kept apart on purpose. The narrative is hand-written in
-# `ai/tools/eco-guide/field-guide.template.html`; the per-skill inventory is generated from each
-# skill's own frontmatter, because a hand-maintained catalogue of 27 skills drifts in silence.
+# `ai/tools/eco-guide/field-guide.template.html`; the two inventories are generated — one card per
+# skill from its own frontmatter, one per worker from its brief and its model-policy row — because a
+# hand-maintained catalogue of a tree this size drifts in silence.
 # `--check` is what stops that drift going unnoticed: ai/gate.sh's `guide` unit runs it.
 #
 # The tool is Go, in `ai/tools/eco-guide/`.
