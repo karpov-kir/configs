@@ -16,12 +16,14 @@
       retire a skill and this file goes red until the sentence naming it is edited.
     - A placeholder that is missing, or one that is misspelled, refuses the build rather than
       shipping a half-filled page. The two inventories must each appear exactly once.
-    - Worker names carry no family prefix, so nothing above checks them. Their cards are generated
-      from the tree, so write prose about the layer rather than about a particular worker.
+
+  Two things nothing checks, so they are yours to hold:
+    - Worker names carry no family prefix, so the first rule above never sees them. Their cards are
+      generated from the tree, so write prose about the layer rather than about a particular worker.
     - The three kinds, the two homes and the dispatch rule are owned by
       ai/kk-flavor/standards/ecosystem.md -> Three kinds, two homes. The section here restates them
-      for a reader who will never open a standard; nothing checks the two against each other, so
-      change that section and this prose in one edit.
+      for a reader who will never open a standard, and nothing compares the two, so change that
+      section and this prose in one edit.
 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -448,20 +450,20 @@
     <h2>Three kinds of thing, two places they live</h2>
     <p class="sec-note">The shape underneath every skill above. Written out here; the standards enforce it.</p>
   </div>
-  <p class="lede" style="margin:0 0 20px">Everything in this ecosystem is one of three kinds, and the difference is worth knowing because it decides what a request costs you.</p>
+  <p class="lede" style="margin:0 0 20px">Everything in this ecosystem is one of three kinds, and which kind it is decides what a request costs you.</p>
   <div class="std">
     <div>
       <ul>
         <li><b>A session</b> is a skill that does the work itself. It holds the thinking, and it runs at the model tier that work needs. It is a session because something about it needs you — it decides with you, or it holds context only that conversation has, or it does something with no undo.</li>
         <li><b>An orchestrator</b> is a skill that does none of the work itself. It hands every substantive step to something else and spends almost nothing of its own.</li>
-        <li><b>A worker</b> is a single file addressed to one agent: it is handed a scope, it runs once, and it returns. It has <em>no door</em> — you cannot type it and the model cannot reach for it. That is exactly what lets it carry a model of its own instead of inheriting whatever session called it.</li>
+        <li><b>A worker</b> is a single file addressed to one agent: it is handed a scope, it runs once, and it returns. It has <em>no door</em> — you cannot type it and the model cannot reach for it. That is what lets it carry a model of its own, instead of inheriting the model of whatever session called it.</li>
       </ul>
     </div>
     <div>
       <ul>
-        <li><b>Two homes.</b> Sessions and orchestrators are both <code>skills/&lt;name&gt;/SKILL.md</code> — the difference between them is one declaration, not one directory. Workers are <code>workers/&lt;path&gt;.md</code>, and a worker's name carries no family prefix, so its path is what says which family it belongs to.</li>
+        <li><b>Two homes.</b> Sessions and orchestrators are both <code>skills/&lt;name&gt;/SKILL.md</code> — what separates them is a declaration inside the file, not a different directory. Workers are <code>workers/&lt;path&gt;.md</code>, and a worker's name carries no family prefix, so its path is what says which family it belongs to.</li>
         <li><b>Dispatch is the edge that costs money</b>, and it always resolves into a worker. Three other things look the same in the text and are not dispatches: one skill reading another as its <em>delta</em>, a pipeline naming the <em>next stage</em>, and a pointer <em>placing</em> one skill beside its neighbour.</li>
-        <li><b>A door on top of a worker dispatches it</b> — it never reads it inline. Read inline, the worker runs at the calling session's tier and the model its own row names selects nothing.</li>
+        <li><b>A door on top of a worker dispatches it</b> — it never reads it inline. Read inline, the worker runs at the calling session's tier, and the row naming its own model selects nothing.</li>
       </ul>
     </div>
   </div>

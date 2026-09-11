@@ -240,8 +240,8 @@ func (p *Policy) SessionTasks() []string {
 }
 
 // WorkerTasks answers which rows are dispatched, so a reader of the policy can be built from the
-// rows themselves rather than from the files that happen to hold a prompt. Three of the four forms a
-// row resolves its prompt by own no file under workers/, so a list keyed on that directory silently
+// rows themselves rather than from the files that happen to hold a prompt. Only one of the four ways
+// a row resolves its prompt leaves a file under workers/, so a list keyed on that directory silently
 // prices fewer dispatch sites than exist.
 func (p *Policy) WorkerTasks() []string {
 	names := make([]string, 0, len(p.content.Workers))
@@ -312,7 +312,8 @@ func validateSettings(client string, settings Settings) error {
 // A task name is read as a path by everything that resolves a row to the prompt it dispatches — a
 // worker's file under workers/, a skill's SKILL.md — so what is legal here is what is legal as a
 // relative path inside the tree. `/` has to be allowed, because `patrol/scout` is a real row; that is
-// what makes the rest of this necessary. A name is refused unless every segment is a plain one.
+// what makes the rest of this necessary. So a name is refused unless every segment between the
+// slashes names something — never empty, never `.`, never `..`.
 //
 // Without the segment rule a row keyed `../../../x` resolves to a file outside the checkout, and the
 // tools that read it are not all silent about what they found: the field guide prints a worker's

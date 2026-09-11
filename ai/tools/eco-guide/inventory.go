@@ -118,12 +118,12 @@ func unquoteScalar(value string) string {
 // the contract it dispatches is written, and the tier that row buys.
 type worker struct {
 	// The row's key in models.json, which for a worker holding its own prompt IS its path under
-	// workers/ without `.md`. Keyed on the row rather than on the file because three of the four
-	// forms a row resolves a prompt by own no file there, and a list built from the directory prices
-	// fewer dispatch sites than the tree actually has.
+	// workers/ without `.md`. Keyed on the row rather than on the file: only one of the four ways a
+	// row resolves its prompt leaves a file under workers/, so a list built from the directory
+	// prices fewer dispatch sites than the tree actually has.
 	name string
 	// Read off the name: a worker's own name carries no family prefix, so `idsd/` says the workflow
-	// family, as does the `idsd-` prefix a row still keyed on a skill carries (ecosystem.md →
+	// family — as does the `idsd-` prefix on a row still keyed on a skill (ecosystem.md →
 	// **Family direction**).
 	family string
 	// One sentence saying what this dispatch is for, from whichever of the prompt homes it has.
@@ -165,7 +165,7 @@ func readWorkers(root ecoroot.Root, rows []string, owners map[string]string, tie
 	return found
 }
 
-// The four forms a row resolves its prompt by, in the order the policy's own checks take them: its
+// The four ways a row resolves its prompt, in the order the policy's own checks take them: its
 // own file under workers/, another row's prompt named in its `worker` field, a SKILL.md of its name
 // during the migration window, and the one row whose prompt a Go tool assembles.
 //
@@ -182,15 +182,15 @@ func promptFor(root ecoroot.Root, name string, owners map[string]string) (summar
 		}
 	}
 	if owner, named := owners[name]; named {
+		// No owners on the way back in, so the owner resolves by the other three branches only. That is
+		// what makes the re-entry terminate, and it costs nothing: model-policy refuses a row that names
+		// its own prompt and one whose owner borrows in turn, so an owner never has a row to borrow from.
 		ownerSummary, ownerPrompt := promptFor(root, owner, nil)
 		return ownerSummary, ownerPrompt + ", dispatched as " + name
 	}
 	skill := shell.Join(shell.Join(root.Skills(), name), "SKILL.md")
 	if lines, err := readLines(skill); err == nil {
-		description := unquoteScalar(shell.FrontmatterDescription(lines))
-		if stop := strings.Index(description, ". "); stop >= 0 {
-			description = description[:stop+1]
-		}
+		description := firstSentence(unquoteScalar(shell.FrontmatterDescription(lines)))
 		if description != "" {
 			return description, "skills/" + name + "/SKILL.md"
 		}
@@ -211,10 +211,9 @@ func workerFamily(name string) string {
 	return "kk"
 }
 
-// The first sentence of the brief's opening paragraph. Every worker opens `# <Name> brief` and then
-// addresses the agent directly, so the first sentence is the one line that says what this agent is
-// for. Taken up to the first sentence end rather than the whole paragraph, which runs to the return
-// contract and is far longer than a card.
+// The brief's opening paragraph, cut to its first sentence. Every worker opens `# <Name> brief` and
+// then addresses the agent directly, so that paragraph is what says what this agent is for — but it
+// runs on to the return contract, which is far longer than a card.
 func briefSummary(lines []string) string {
 	for i, line := range lines {
 		if !strings.HasPrefix(line, "# ") {
@@ -225,12 +224,19 @@ func briefSummary(lines []string) string {
 			if next == "" {
 				continue
 			}
-			if stop := strings.Index(next, ". "); stop >= 0 {
-				return next[:stop+1]
-			}
-			return next
+			return firstSentence(next)
 		}
 		return ""
 	}
 	return ""
+}
+
+// What a card has room for, from either prompt home: a worker's brief and a skill's description are
+// both written as a first sentence saying what the thing is, followed by sentences that qualify it.
+// Text ending without `. ` is already one sentence and comes back whole.
+func firstSentence(text string) string {
+	if stop := strings.Index(text, ". "); stop >= 0 {
+		return text[:stop+1]
+	}
+	return text
 }

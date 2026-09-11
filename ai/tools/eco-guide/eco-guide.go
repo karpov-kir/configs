@@ -7,8 +7,8 @@
 // **inventories** are generated, because a hand-maintained catalogue of a tree this size drifts in
 // silence: one card per skill from its own frontmatter — `description:`, `argument-hint:`, and
 // whether a human always types it — and one card per worker from its brief and the tier the model
-// policy resolves for it. A worker declares no frontmatter, so those two sources are the only ones
-// there are, and neither can be edited to flatter the other.
+// policy resolves for it. A worker declares no frontmatter, so those two are its only sources, and
+// neither can be edited to flatter the other.
 //
 // The frontmatter is read through `kk-flavor/tools/shell`, the same parser eco-check routes on, so the
 // page cannot describe a skill differently from the way it is actually reached. What that parser
@@ -154,8 +154,8 @@ func compare(name, target, want string, skillCount, workerCount int, out, errOut
 	}
 	if string(held) == want {
 		// "it lists", not "in the tree": the skills half leaves out the maintainer-only ones, so a
-		// count of what the page carries is not a count of what the tree holds, and saying the second
-		// would have a green line quietly under-report the tree every time one is added.
+		// count of what the page carries is not a count of what the tree holds. Saying the second
+		// would let a green line under-report the tree every time a maintainer-only skill is added.
 		fmt.Fprintf(out, "%s: %s matches the %d skills and %d dispatch sites it lists\n",
 			name, target, skillCount, workerCount)
 		return 0

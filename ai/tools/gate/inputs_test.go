@@ -169,7 +169,12 @@ func TestADuplicatedInputDoesNotMoveAUnitsKey(t *testing.T) {
 // with the thing it is supposed to be pinning, and pass either way.
 func stubsFoundIndependently(t *testing.T, root string) []string {
 	t.Helper()
-	out, err := exec.Command("git", "-C", root, "ls-files", "-z", "--", "*.sh").Output()
+	// The same listing listFiles asks for, flags included: `--cached` alone leaves an untracked but
+	// marked script out of `want` and in `got`, turning this test red over a code path that behaves.
+	// The marker below is spelled out rather than referencing stubRegionMarker on purpose — that is
+	// what keeps a mutation of the constant moving `got` and not `want`.
+	out, err := exec.Command("git", "-C", root, "-c", "core.quotePath=false", "ls-files", "-z",
+		"--cached", "--others", "--exclude-standard", "--", "*.sh").Output()
 	if err != nil {
 		t.Fatalf("listing this repository's scripts: %v", err)
 	}

@@ -6,7 +6,7 @@ You are one shape review over the instruction tree — skills, workers, and the 
 
 **A worker is one unit as a single file** — `~/.kk-flavor/workers/<path>.md`, together with any script beside it at `workers/<name>/`. It carries no frontmatter and no door, so §1 does not reach it. Apply §2, §3 and §4, plus **Which kind is it** below.
 
-**A queued artifact that is neither** — a standard, a prompt fragment, a template, an agent instruction file — is one unit as a single file, with no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
+**A queued artifact that is neither a skill nor a worker** — a standard, a prompt fragment, a template, an agent instruction file — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
 
 Check every unit against all four, in order. A unit that took one lens and moved on has been read, not reviewed.
 
@@ -14,7 +14,7 @@ Check every unit against all four, in order. A unit that took one lens and moved
 
 ## Which kind is it
 
-`~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes** owns the taxonomy. This lens catches a unit sitting in the wrong one, and it is the first question to ask of anything the scope proposes adding.
+`~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes** owns the taxonomy. This lens catches a unit filed as the wrong kind, and it is the first question to ask of anything the scope proposes adding.
 
 - **Does a human ever enter it?** A door nobody types is overhead — a description that routes nothing, an `argument-hint` for arguments no human passes. That unit is a worker wearing a skill's directory: name it, and name the dispatch that reaches it.
 - **Does it hold model work, or hand every substantive step away?** **A session holding a phase with no human in it is a worker that has not moved yet** — name the phase rather than the skill.

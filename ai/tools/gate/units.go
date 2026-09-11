@@ -317,8 +317,8 @@ func unreadLib(keyed []string, bodies ...string) string {
 	return ""
 }
 
-// Every tracked script carrying the shared stub region, read at DISCOVERY so what lands in `inputs`
-// is concrete paths — a pattern stored as an input matches nothing once git is asked with literal
+// Every tracked script carrying the shared stub region, read at DISCOVERY so that `inputs` holds
+// concrete paths — a pattern stored as an input matches nothing once git is asked with literal
 // pathspecs.
 //
 // A file that cannot be read is skipped rather than failing the run: git listed it, so it is tracked,

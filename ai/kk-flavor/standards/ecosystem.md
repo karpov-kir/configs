@@ -34,11 +34,13 @@ Owner user-scoped instructions are installed as independent copies from a discov
 
 ## Three kinds, two homes
 
-**A worker is `kk-flavor/workers/<path>.md`. It has no door, and it is only ever dispatched** — `code-review`, `conform`, `reduce/arbitrate`. Nothing the human types reaches it, which is what makes the model its row assigns the model it actually runs at.
+Three kinds — worker, orchestrator, session — live in two directories, and a **door** tells them apart: the frontmatter a human or the router types to reach a unit.
 
-**An orchestrator and a session are both `kk-flavor/skills/<name>/SKILL.md` with a door**, and the difference between them is one declaration rather than one directory. An orchestrator dispatches every substantive step. A session holds model work itself, and takes the tier of the work it holds.
+**A worker is `kk-flavor/workers/<path>.md`. It has no door, and it is only ever dispatched** — `code-review`, `conform`, `reduce/arbitrate`. Nothing the human types reaches it, so the model its row assigns is the model it actually runs at.
 
-**A dispatch resolves into `workers/`.** That is the one edge that spends money, and it is the one the families rule below and [model-policy.md](model-policy.md) both price. Three other edges are spelled the same way and are not dispatches: **extension**, one session reading a second contract as its delta; **sequencing**, a pipeline naming the stage after it; and **orientation**, a pointer placing one skill against its neighbour. Forbidding those would duplicate whole contracts rather than simplify anything.
+**An orchestrator and a session are both `kk-flavor/skills/<name>/SKILL.md` with a door**, and what separates them is a declaration inside the file, not a different directory. An orchestrator dispatches every substantive step. A session holds model work itself, and takes the tier of the work it holds.
+
+**A dispatch resolves into `workers/`.** That is the one edge that spends money, and it is the one the families rule below and [model-policy.md](model-policy.md) both price. Three other edges name a second file the same way and are not dispatches: **extension**, one session reading a second contract as its delta; **sequencing**, a pipeline naming the stage after it; and **orientation**, a pointer placing one skill against its neighbour. Forbidding those would duplicate whole contracts rather than simplify anything.
 
 **A door on top of a worker dispatches it; it never reads it inline.** Read inline, the worker runs at the calling session's tier and its own row selects nothing — the defect the layer exists to remove. The exception is a session that must stay with the human through the work: it reads the contract itself and its own row applies.
 
@@ -48,7 +50,7 @@ Owner user-scoped instructions are installed as independent copies from a discov
 
 **Inside the lane trees the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. **A worker's task name carries no family prefix, so its path says which family it is in**: `kk-flavor/workers/idsd/` is the workflow family's and every other worker is any-repo. A workflow skill invokes an any-repo one and cites it. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.
 
-**Every capability is any-repo, even where only one workflow invokes it; a workflow skill composes those and adds only its own machinery.** A capability living in the workflow family alone is one no repo outside that methodology can reach. **Which home it takes is **Three kinds, two homes** above, not this rule**: a capability nothing human enters is a worker, and one the router sends a human to is a skill. **A standard is not a substitute** — a standard is read when something routes a reader to it, where a skill is what someone invokes.
+**Every capability belongs to the any-repo family, even where only one workflow invokes it; a workflow skill composes those and adds only its own machinery.** A capability living in the workflow family alone is one no repo outside that methodology can reach. Which home it takes is settled by **Three kinds, two homes** above, not by this rule: a capability nothing human enters is a worker, and one the router sends a human to is a skill. **A standard is not a substitute** — a standard is read when something routes a reader to it, where a skill is what someone invokes.
 
 ## Conventions a new file joins
 

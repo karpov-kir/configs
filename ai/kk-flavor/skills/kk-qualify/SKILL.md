@@ -14,7 +14,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 
 ## Lanes
 
-`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills. These are what fills them, and the scanner to run for each. **A `workers/` path is a prompt you dispatch; a skill name is a door you invoke** (`~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes**):
+`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills. These are the prompts and skills filling them, and the scanner to run for each. **A `workers/` path is a prompt you dispatch; a skill name is a door you invoke** (`~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes**):
 
 | Lane | What fills it | Scanner to run | Tier |
 |---|---|---|---|

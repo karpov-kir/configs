@@ -255,8 +255,8 @@ func renderWorkerCards(workers []worker) string {
 
 // The tier is printed for both clients because the two are set independently and a reader comparing
 // cost needs the pair. Neither can be blank: every row here came out of a parsed policy, and
-// model-policy's validateSettings refuses a client with neither a model nor an effort — so there is
-// no guard for it in this package, which would be a second answer to a question already settled.
+// model-policy's validateSettings refuses a client with neither a model nor an effort. This package
+// adds no guard of its own for it; that would be a second answer to a question already settled.
 //
 // Where the prompt lives is printed beside it, because a reader who has just been told this row is
 // what the tree spends will want to read the contract being bought, and for most of these rows that
