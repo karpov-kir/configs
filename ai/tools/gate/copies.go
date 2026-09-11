@@ -1,6 +1,7 @@
-// Resolving what a suite copies into its fixture, and the git listing that answers it. A copied path
-// is the one input read out of a script's text, so only it needs the checkout's own listing to become
-// a path, and only it can name a file the gate must refuse rather than key on.
+// Resolving what a suite copies into its fixture. A copied path is the one input read out of a
+// script's text rather than named by the unit table, so it is the only one that has to be resolved
+// against the checkout at all — and the only one that can name a file the gate must refuse rather
+// than key on.
 package gate
 
 import (
@@ -97,54 +98,4 @@ func allMatching(candidates []string, holds func(string) bool) []string {
 func firstSegment(tail string) string {
 	first, _, _ := strings.Cut(tail, "/")
 	return first
-}
-
-// The repository's own files. `all` keeps the listing order the suffix scan walks, and `topLevel`
-// separates a path this repository could hold from one that exists only inside a fixture.
-type repoListing struct {
-	all      []string
-	byPath   map[string]bool
-	topLevel map[string]bool
-}
-
-func (g *gate) readRepoListing() (repoListing, int) {
-	all, err := g.listFiles(".")
-	if err != nil || len(all) == 0 {
-		return repoListing{}, g.fail("discovery could not list the repository's files, so it cannot " +
-			"say which of them a suite copies into its fixture — nothing ran")
-	}
-	repo := repoListing{all: all, byPath: map[string]bool{}, topLevel: map[string]bool{}}
-	for _, file := range all {
-		repo.byPath[file] = true
-		repo.topLevel[firstSegment(file)] = true
-	}
-	return repo, 0
-}
-
-func (r repoListing) holdsDirectory(candidate string) bool {
-	prefix := candidate + "/"
-	for _, file := range r.all {
-		if strings.HasPrefix(file, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// `-z` and `core.quotePath=false`, the rule ai/run-tests.sh lives by. Drop either and a name reaches
-// the split below newline-separated or C-quoted, leaving a token safeToken refuses — the run exits 2
-// blaming a name nothing is wrong with.
-func (g *gate) listFiles(pathspec string) ([]string, error) {
-	out, err := g.capture("git", "-c", "core.quotePath=false", "ls-files", "-z",
-		"--cached", "--others", "--exclude-standard", "--", pathspec)
-	if err != nil {
-		return nil, err
-	}
-	var listed []string
-	for _, name := range strings.Split(out, "\x00") {
-		if name != "" {
-			listed = append(listed, name)
-		}
-	}
-	return listed, nil
 }

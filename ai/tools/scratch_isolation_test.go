@@ -98,7 +98,7 @@ func sourcesAHarnessThatMktemps(t *testing.T, text string) bool {
 
 // Every suite the gate would discover, from the same command it uses — `-z` and core.quotePath=false
 // included. Split on whitespace instead, a name holding a space arrives as two names, this scan reads
-// two files that do not exist, and the suite it was about goes unchecked. gate/copies.go carries a
+// two files that do not exist, and the suite it was about goes unchecked. gate/listing.go carries a
 // mutant for that hazard, and this claim holds only while both spell the command the same way.
 func shellSuites(t *testing.T) []string {
 	t.Helper()
