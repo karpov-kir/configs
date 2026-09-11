@@ -12,41 +12,6 @@ import (
 	"time"
 )
 
-func (g *gate) printUnits() int {
-	fmt.Fprintf(g.out, "%-34s %-9s %-8s %s\n", "UNIT", "KIND", "STATE", "INPUTS")
-	for _, u := range g.units {
-		key, _ := g.keyMaterial(u)
-		state := "stale"
-		if g.hasRecord(u, key) {
-			state = "fresh"
-		}
-		fmt.Fprintf(g.out, "%-34s %-9s %-8s %s\n", u.id, u.kind, state, strings.Join(u.inputs, " "))
-	}
-	return 0
-}
-
-func (g *gate) printWhy(want string) int {
-	for _, u := range g.units {
-		if u.id != want {
-			continue
-		}
-		key, lines := g.keyMaterial(u)
-		fmt.Fprintf(g.out, "%s  (%s)\n", u.id, u.kind)
-		fmt.Fprintf(g.out, "  command: %s\n", u.cmd)
-		fmt.Fprintf(g.out, "  key:     %s\n", key)
-		fmt.Fprintln(g.out, "  inputs:")
-		for _, line := range lines {
-			fmt.Fprintf(g.out, "    %s\n", line)
-		}
-		return 0
-	}
-	return g.fail("no unit is called '%s' — run --units for the list", want)
-}
-
-func (g *gate) unitLine(state, id, detail string) {
-	fmt.Fprintf(g.out, "  %-11s %-32s %s\n", state, id, detail)
-}
-
 // Which units may never overlap. Units sharing a group run one at a time; different groups run at
 // once.
 //
@@ -119,16 +84,11 @@ type slot struct {
 // one line.
 const didNotMeasureLine = "unit(s) exited 2 without measuring"
 
-func (g *gate) runUnits(selected mode, started time.Time) int {
-	name := map[mode]string{modeFast: "fast", modeFull: "full", modeMutants: "mutants"}[selected]
-	fmt.Fprintf(g.out, "%d unit(s): %s path\n\n", len(g.units), name)
-
-	tally := runTally{}
-	var deferredIDs []string
-
-	// First pass, serial and cheap: every unit's key, and whether it settles without executing. This
-	// stays serial because keyMaterial reads the shared manifest, and because a unit that settles here
-	// costs nothing to decide.
+// Every unit's key, and whether it settles without executing anything. Serial and cheap on purpose:
+// keyMaterial reads the shared manifest, and a unit that settles here costs nothing to decide. What
+// comes back is every slot in declared order, and the ones still to run grouped into the lanes that
+// may not overlap.
+func (g *gate) planSlots(selected mode) ([]*slot, map[string][]*slot) {
 	slots := make([]*slot, len(g.units))
 	lanes := map[string][]*slot{}
 	for i, u := range g.units {
@@ -152,6 +112,17 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		group := serialGroupFor(u.id)
 		lanes[group] = append(lanes[group], sl)
 	}
+	return slots, lanes
+}
+
+func (g *gate) runUnits(selected mode, started time.Time) int {
+	name := map[mode]string{modeFast: "fast", modeFull: "full", modeMutants: "mutants"}[selected]
+	fmt.Fprintf(g.out, "%d unit(s): %s path\n\n", len(g.units), name)
+
+	tally := runTally{}
+	var deferredIDs []string
+
+	slots, lanes := g.planSlots(selected)
 
 	for _, lane := range lanes {
 		go func(lane []*slot) {
@@ -242,41 +213,6 @@ func (g *gate) recordPath(u unit, key string) string {
 func (g *gate) hasRecord(u unit, key string) bool {
 	_, err := os.Stat(g.recordPath(u, key))
 	return err == nil
-}
-
-func (g *gate) reportRun(started time.Time, deferredIDs []string, tally runTally) int {
-	if len(deferredIDs) > 0 {
-		fmt.Fprintln(g.out, "\nDEFERRED — these have inputs that moved, and the fast path did not run them:")
-		for _, id := range deferredIDs {
-			fmt.Fprintf(g.out, "    %s\n", id)
-		}
-		fmt.Fprintln(g.out, "  Mutation is a statement about whether the suites can fail, not about this change, and on this")
-		fmt.Fprintln(g.out, "  machine it costs minutes per script. CI runs the full sweep on every push. To settle them here:")
-		fmt.Fprintln(g.out, "      ai/gate.sh --mutants")
-	}
-
-	fmt.Fprintf(g.out, "\n%d unit(s): %d ran, %d fresh from cache, %d deferred, %d failed, %d that never measured, %d with no inputs, %ds wall clock\n",
-		len(g.units), tally.ran, tally.fresh, tally.deferred, tally.failed, tally.unmeasured, tally.empty,
-		int(time.Since(started).Round(time.Second).Seconds()))
-
-	if tally.empty > 0 {
-		fmt.Fprintf(g.errOut, "%d unit(s) resolved to no input file — the gate narrowed itself and cannot report on them. Exit 2, and this is not a pass.\n", tally.empty)
-		return 2
-	}
-	if tally.ran == 0 && tally.fresh == 0 {
-		fmt.Fprintln(g.errOut, "nothing was measured and nothing was answered from cache — exit 2, and this is not a pass.")
-		return 2
-	}
-	// A finding about the code outranks one about the machine. Exit 2 alone means nothing was found
-	// wrong and something never ran, which a caller may never read as a pass.
-	if tally.failed > 0 {
-		return 1
-	}
-	if tally.unmeasured > 0 {
-		fmt.Fprintf(g.errOut, "%d %s — nothing is known about them, and this is not a pass.\n", tally.unmeasured, didNotMeasureLine)
-		return 2
-	}
-	return 0
 }
 
 // One unit's command. The two built-in checks run in process; everything else goes to a shell,
@@ -409,17 +345,4 @@ func runIn(dir, name string, args ...string) (string, error) {
 	cmd.Stdout, cmd.Stderr = &buf, &buf
 	err := cmd.Run()
 	return buf.String(), err
-}
-
-func (g *gate) tail(output string, n int, indent string) {
-	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
-	if len(lines) == 1 && lines[0] == "" {
-		return
-	}
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	for _, line := range lines {
-		fmt.Fprintf(g.out, "%s%s\n", indent, line)
-	}
 }
