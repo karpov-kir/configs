@@ -119,6 +119,13 @@ func (t *tree) descend(dir string) {
 		return
 	}
 	for _, entry := range entries {
+		// Every `.git`, not only the root's. What sits under one is another checkout's own state, and
+		// no commit can carry it — `git ls-files` and `git ls-tree` are both empty for those paths. The
+		// gate's ignored-path filter cannot drop them either: contents of a nested `.git` are neither
+		// tracked nor ignored, so they pass straight through it and get scanned as committable.
+		if entry.IsDir() && entry.Name() == ".git" {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue

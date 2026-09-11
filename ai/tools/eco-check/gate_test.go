@@ -474,3 +474,42 @@ func TestAGitignoredSkillFileIsNotALaneUnderTheFlag(t *testing.T) {
 	f.assertHolds("--gate reports the name as no skill at all, as a clone does", gated, ecocheck.UnknownSkillReferenced)
 	f.assertLacks("where a bare run finds the file sitting there", bare, ecocheck.UnknownSkillReferenced)
 }
+
+// A leftover checkout inside the tree — another session's scratch, which this repository really grew
+// at ai/tools/eco-report/.git. Nothing under a `.git` can reach a commit, and the ignored-path filter
+// cannot drop it: those paths are neither tracked nor ignored, so they survive the filter and were
+// scanned as if a commit could carry them.
+//
+// Its control is the case below, which plants the same finding one directory higher and requires it
+// to be reported. Both are needed: green here alone is also what a scan that reads nothing returns.
+func TestAScratchCheckoutInsideTheTreeIsNotScanned(t *testing.T) {
+	f := newGitRoot(t)
+	scratch := f.root + "/tools/eco-report/.git/idsd"
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		t.Fatalf("planting a nested checkout: %v", err)
+	}
+	f.write(scratch+"/qualify-report.md", "# Report\n\nSee one.md → "+missingRegion+".\n")
+
+	out := f.runGated()
+	if strings.Contains(out, "qualify-report.md") {
+		t.Errorf("the gate reported a finding inside a nested .git, which no commit can carry — the "+
+			"walk is treating another checkout's state as committable content: %s", out)
+	}
+}
+
+// The control for the case above: the same file one directory higher is committable, so its dangling
+// citation has to be reported. Without this, a walk that read nothing at all would pass that case.
+func TestTheSameScratchRecordOutsideAGitDirectoryIsScanned(t *testing.T) {
+	f := newGitRoot(t)
+	visible := f.root + "/tools/eco-report/idsd"
+	if err := os.MkdirAll(visible, 0o755); err != nil {
+		t.Fatalf("planting the control: %v", err)
+	}
+	f.write(visible+"/qualify-report.md", "# Report\n\nSee one.md → "+missingRegion+".\n")
+
+	out := f.runGated()
+	if !strings.Contains(out, "qualify-report.md") {
+		t.Errorf("the gate did not report a dangling citation in committable content, so the case "+
+			"beside this one would pass over a walk that reads nothing: %s", out)
+	}
+}
