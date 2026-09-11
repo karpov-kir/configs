@@ -27,12 +27,20 @@ const (
 	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
 	extModels    = "ai/kk-flavor/models.json"
-	// The stub scripts ai/tools/tool-stub-test.sh copies into fixtures and runs. copiedRepoFiles finds
-	// only the one path that suite spells out literally; the other six live in its `stubs()` table,
-	// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
-	// a pattern stored as an input would match nothing once git is asked with literal pathspecs.
-	skillScripts = "ai/kk-flavor/skills/*/scripts/*.sh"
 )
+
+// The stub scripts ai/tools/tool-stub-test.sh copies into fixtures and runs. copiedRepoFiles finds
+// only the one path that suite spells out literally; the other six live in its `stubs()` table,
+// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
+// a pattern stored as an input would match nothing once git is asked with literal pathspecs.
+//
+// Both lane trees, because a stub follows its lane: the refactor lane's moved to workers/ with it.
+// One glob over skills/ alone would still resolve, and would quietly stop keying the suites on a
+// stub that had gone — the drift it exists to catch arriving as a green from cache.
+var laneScripts = []string{
+	"ai/kk-flavor/skills/*/scripts/*.sh",
+	"ai/kk-flavor/workers/*/*.sh",
+}
 
 // The two directories eco-report's harness copies from: scripts/ for todo-gate.sh, templates/ for the
 // report template. Directories rather than the two files, so a third thing copied in later is still
@@ -211,15 +219,18 @@ func (g *gate) discoverShellSuites() int {
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
 		// `_test.go` files — `go build` puts none of them in one.
 		viaBinary := false
-		if strings.Contains(body, "kk-flavor/skills") {
-			matches, globErr := filepath.Glob(filepath.Join(g.root, skillScripts))
-			if globErr == nil {
+		if strings.Contains(body, "kk-flavor/skills") || strings.Contains(body, "kk-flavor/workers") {
+			for _, glob := range laneScripts {
+				matches, globErr := filepath.Glob(filepath.Join(g.root, glob))
+				if globErr != nil {
+					continue
+				}
 				for _, match := range matches {
 					rel, relErr := filepath.Rel(g.root, match)
 					if relErr != nil {
 						continue
 					}
-					if err := safeToken("skill script", rel); err != nil {
+					if err := safeToken("lane script", rel); err != nil {
 						return g.fail("%s: %s", suite, err)
 					}
 					inputs = append(inputs, rel)

@@ -14,6 +14,8 @@ const (
 	placeholderFamilyCount = "{{family-count}}"
 	placeholderTypedCount  = "{{human-typed-count}}"
 	placeholderInventory   = "{{skill-inventory}}"
+	placeholderWorkerCount = "{{worker-count}}"
+	placeholderWorkers     = "{{worker-inventory}}"
 )
 
 var placeholders = []string{
@@ -21,16 +23,23 @@ var placeholders = []string{
 	placeholderFamilyCount,
 	placeholderTypedCount,
 	placeholderInventory,
+	placeholderWorkerCount,
+	placeholderWorkers,
 }
+
+// The placeholders that must appear exactly once, because each prints a whole list and a template
+// carrying one twice ships a page that reads as finished either way.
+var placeholdersPrintedOnce = []string{placeholderInventory, placeholderWorkers}
 
 // The CSS class each family's name is printed in, so the page's two colours mean the two families
 // rather than being decoration. A family with no entry here prints unclassed and still reads fine.
 var familyClass = map[string]string{"idsd": "i", "kk": "k"}
 
-// render fills the hand-written template with the generated inventory. Everything a reader reads as
-// prose comes out of the template; everything about a particular skill comes out of its frontmatter.
+// render fills the hand-written template with the two generated inventories. Everything a reader
+// reads as prose comes out of the template; everything about a particular skill comes out of its
+// frontmatter, and everything about a particular worker out of its brief and its policy row.
 // Nothing crosses that line, which is why a person editing the narrative never opens this file.
-func render(template string, skills []skill) (string, error) {
+func render(template string, skills []skill, workers []worker) (string, error) {
 	filled := stripAuthoringHeader(template)
 	if err := checkNarrativeNames(filled, skills); err != nil {
 		return "", err
@@ -40,14 +49,17 @@ func render(template string, skills []skill) (string, error) {
 			return "", fmt.Errorf("the template carries no %s, so that part of the page would silently go missing", name)
 		}
 	}
-	// One inventory, or the page lists every skill twice and reads as finished either way.
-	if first := strings.Index(filled, placeholderInventory); strings.Contains(filled[first+len(placeholderInventory):], placeholderInventory) {
-		return "", fmt.Errorf("the template carries %s more than once, so the page would list every skill twice", placeholderInventory)
+	for _, name := range placeholdersPrintedOnce {
+		if first := strings.Index(filled, name); strings.Contains(filled[first+len(name):], name) {
+			return "", fmt.Errorf("the template carries %s more than once, so the page would list every entry twice", name)
+		}
 	}
 	filled = strings.ReplaceAll(filled, placeholderSkillCount, fmt.Sprint(len(skills)))
 	filled = strings.ReplaceAll(filled, placeholderFamilyCount, fmt.Sprint(countFamilies(skills)))
 	filled = strings.ReplaceAll(filled, placeholderTypedCount, fmt.Sprint(countHumanTyped(skills)))
 	filled = strings.ReplaceAll(filled, placeholderInventory, renderCards(skills))
+	filled = strings.ReplaceAll(filled, placeholderWorkerCount, fmt.Sprint(len(workers)))
+	filled = strings.ReplaceAll(filled, placeholderWorkers, renderWorkerCards(workers))
 	if left := firstPlaceholder(filled); left != "" {
 		return "", fmt.Errorf("the template carries %s, which nothing here fills — it would reach a reader as written", left)
 	}
@@ -224,4 +236,34 @@ func skillNamesIn(template string) []string {
 
 func isNameByte(b byte) bool {
 	return b == '-' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+}
+
+// One card per worker, under a heading per family, matching the skills inventory's shape so the two
+// lists read as two halves of one tree.
+func renderWorkerCards(workers []worker) string {
+	var out strings.Builder
+	family := ""
+	for _, w := range workers {
+		if w.family != family {
+			family = w.family
+			fmt.Fprintf(&out, "    <div class=\"group-label\"><span>%s workers</span><i></i></div>\n", escapeText(family))
+		}
+		out.WriteString(workerCard(w))
+	}
+	return strings.TrimRight(out.String(), "\n")
+}
+
+// The tier is printed for both clients because the two are set independently and a reader comparing
+// cost needs the pair. A client the row assigns nothing is printed as `—` rather than omitted: a
+// missing half would read as "the same as the other one".
+func workerCard(w worker) string {
+	var out strings.Builder
+	out.WriteString("    <div class=\"lane\">\n")
+	fmt.Fprintf(&out, "      <div class=\"lane-top\"><code class=\"%s\">%s</code><span class=\"tag\">dispatched</span></div>\n",
+		familyClass[w.family], escapeText(w.name))
+	fmt.Fprintf(&out, "      <p>%s</p>\n", inlineCode(escapeText(w.summary)))
+	fmt.Fprintf(&out, "      <p class=\"hint\">tier: claude %s &middot; codex %s</p>\n",
+		escapeText(or(w.claude, "—")), escapeText(or(w.codex, "—")))
+	out.WriteString("    </div>\n")
+	return out.String()
 }

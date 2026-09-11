@@ -1,14 +1,10 @@
----
-name: kk-code-review
-description: Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (kk-qualify); a GitHub PR is kk-pr's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.
-argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
----
+# Code-review brief
 
-**Runs:** dispatched
+You are one correctness review. You are given **a change set** and the standards it is judged against; you find the bugs in it, apply the safe fixes, and hand back the rest. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
-Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, broken logic, violated invariants and constraints, leaks, races, misuse that makes the code do the wrong thing.
+Review every change in the scope your caller handed you for **correctness** — bugs, broken logic, violated invariants and constraints, leaks, races, misuse that makes the code do the wrong thing.
 
-**Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `kk-refactor`'s lane — never flag them here; broad security auditing is `kk-security-review`'s. A security rule the project's agent instructions state is in scope — violating one is a constraint bug.
+**Correctness, not quality.** Style, naming, duplication, abstraction, and structure are `refactor`'s lane — never flag them here; broad security auditing is `security-review`'s. A security rule the project's agent instructions state is in scope — violating one is a constraint bug.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below. This reviews *changes* — no whole-project mode by design.
 
@@ -17,11 +13,11 @@ Review every change resolved from `$ARGUMENTS` for **correctness** — bugs, bro
 Check every changed file against all five:
 
 1. **Standards correctness rules** — violations (kk-flavor standards or the project's agent instructions) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
-   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `kk-refactor`'s.
+   - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `refactor`'s.
 2. **Bug scan** — read the changed lines; flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
 4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding.
-5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits. Name the behaviour that is unguarded; writing the test is `kk-refactor`'s gated testing lane.
+5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits. Name the behaviour that is unguarded; writing the test is `refactor`'s gated testing lane.
 
 ## Loop deltas
 

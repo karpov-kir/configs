@@ -8,7 +8,7 @@ However that is authorised (`~/.kk-flavor/standards/skill-protocol.md` → **Cal
 
 **The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`** — read it and run it over the checked-out worktree as the pass the merge waits on; below is this mode's delta. **Run it inline**, not spawned: it needs the human continuously, and they reach only your thread (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). Its residue never reaches the author — collect the stage returns in a scratch file instead. **That file is raw material, not a draft-in-progress**: what reaches the PR is written once, at the landing. A gate that cannot run is a setup ambiguity, asked live.
 
-1. **Run the conformance gate first** — `~/.kk-flavor/skills/kk-conform/SKILL.md` over the checked-out diff, inline for the reason the pass is. The PR body, the linked issue or intent, and the commits are its requirement set. **An `undelivered` or `beyond the ask` finding stops the pass**: carry just that to the landing and stop. A `contradiction` joins the stages' findings instead.
+1. **Run the conformance gate first** — `~/.kk-flavor/workers/conform.md` over the checked-out diff, inline for the reason the pass is. The PR body, the linked issue or intent, and the commits are its requirement set. **An `undelivered` or `beyond the ask` finding stops the pass**: carry just that to the landing and stop. A `contradiction` joins the stages' findings instead.
 2. **Drive the change before any stage reads it** — `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**, its scenarios taken from the checklist step 1 derived. **An untrusted PR is never driven**: the setup bars running what the branch controls, and a drive is exactly that. Fold that skip into the unverified-gates sentence rather than asking the human to waive it — it is the fork's alone. **What the drive surfaces stops the pass**: carry just that and stop.
 3. **Run each lane's scanner with the range named** — `<base>...HEAD`. Their default scans uncommitted changes and a fresh checkout has none, so they would exit 0 over everything. `~/.kk-flavor/skills/kk-qualify/SKILL.md` → **Lanes** names them.
 4. **The stages read the project's own standards from that worktree, at the PR's version.** Judge this repo's code by the conventions of wherever you were invoked and every finding you raise is wrong.
@@ -17,7 +17,7 @@ However that is authorised (`~/.kk-flavor/standards/skill-protocol.md` → **Cal
    - **The pass does not stream** — your product is a landing, which fails `~/.kk-flavor/standards/streaming.md`'s test.
    - **A PR touching agent instructions uses the pass's one `kk-ecosystem` owner over those files.** Its findings become comments, never edits to the PR; do not dispatch a second instruction worker.
    - **`kk-edit` runs only over text you wrote yourself** — never the author's prose or comments. Their voice stays theirs, so a concision cut may become a finding but a voice rewrite never does.
-   - **`kk-refactor`'s repo-wide reach stops at the diff.** Resolve its scope to the PR's files; writing the limit into the spawn prompt is not the route, because that prompt narrows no stage's lens.
+   - **The refactor lane's repo-wide reach stops at the diff.** Resolve its scope to the PR's files; writing the limit into the spawn prompt is not the route, because that prompt narrows no stage's lens.
 
 ## A second round over an unchanged diff
 

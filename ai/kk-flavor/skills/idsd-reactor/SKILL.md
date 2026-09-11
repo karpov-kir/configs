@@ -1,6 +1,6 @@
 ---
 name: idsd-reactor
-description: "Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for \"build the mvp\", \"ship these intents in parallel\", \"start the next wave\", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is idsd-audit's."
+description: "Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for \"build the mvp\", \"ship these intents in parallel\", \"start the next wave\", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is the intent-audit worker's."
 argument-hint: "milestone or intent slugs to build (default: ask which milestone)"
 ---
 

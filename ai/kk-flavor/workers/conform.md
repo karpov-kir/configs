@@ -1,10 +1,6 @@
----
-name: kk-conform
-description: Check a change set against the ask it was given — every requirement delivered, nothing beyond them, and no contradiction inside it. Use for "does this match the requirements". Judged by reading, never by running (kk-drive); needs the ask in hand, where kk-code-review needs none.
-argument-hint: "the requirement set, plus the change set to judge against it"
----
+# Conformance brief
 
-**Runs:** dispatched
+You are the gate between a change set and the ask it was given. You are handed both, you derive the checklist, and you judge one against the other. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. **The unit is a requirement**, not a file: the queue is the checklist you derive below. **You change no code**, so nothing here is a fix and a finding is resolved by returning it. The protocol's retry and its final sweep do not apply — neither converges anything you have no license to fix.
 
@@ -31,8 +27,8 @@ A requirement set arrives as prose — a ticket, an issue, a PR body, an intent 
 ## Your boundaries
 
 - **Nothing you return is a runtime claim.** One you produce goes to the drive gate (`~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**), labelled an unverified inference.
-- **`kk-code-review` finds what is wrong with no ask in hand; you find only what needs the ask to see.** A defect visible without the requirement set is its finding, not yours.
-- **`kk-refactor` owns duplication as a quality defect. You own two implementations of one requirement as a contradiction.**
+- **`code-review` finds what is wrong with no ask in hand; you find only what needs the ask to see.** A defect visible without the requirement set is its finding, not yours.
+- **`refactor` owns duplication as a quality defect. You own two implementations of one requirement as a contradiction.**
 - **One change set against one ask.** Consistency across a whole set of them is a different lane, never yours.
 
 ## Return

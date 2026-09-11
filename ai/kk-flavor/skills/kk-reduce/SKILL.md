@@ -12,7 +12,7 @@ Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — withou
 
 **You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); read it and `~/.kk-flavor/standards/ecosystem.md`, the bar every agent judges against, before Phase 1.
 
-**This campaign uses independent workers for the phases below** — a second opinion from a context that already holds your conclusions is not a second opinion. Each one's prompt is its own file, so yours carries only that agent's scope and delta. **Hand `~/.kk-flavor/skills/kk-reduce/AGENT-BRIEF.md` verbatim to Phase 3's agents**: they run `kk-ecosystem`, whose contract does not name the brief, and the brief is where every editing agent's invariants and return contract live. Phases 4 and 5 read it from their own prompts. **Never hand it to `kk-skillcraft` or `kk-edit`**, which carry their own.
+**This campaign uses independent workers for the phases below** — a second opinion from a context that already holds your conclusions is not a second opinion. Each one's prompt is its own file, so yours carries only that agent's scope and delta. **Hand `~/.kk-flavor/skills/kk-reduce/AGENT-BRIEF.md` verbatim to Phase 3's agents**: they run `kk-ecosystem`, whose contract does not name the brief, and the brief is where every editing agent's invariants and return contract live. Phases 4 and 5 read it from their own prompts. **Never hand it to the skillcraft worker or `kk-edit`**, which carry their own.
 
 ## 0. Baseline
 
@@ -52,7 +52,7 @@ The reading and the arbitration are yours; `~/.kk-flavor/workers/reduce/reconcil
 - **Stale claims.** A wiring check proves the path and the heading a citation names; nothing proves that section still says the thing. Read every citation into a file that was heavily cut.
 - **Prefer the mechanism.** Move prose a script can assert into the script (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**).
 - **Trace the real runs.** Walk each end-to-end path as the agent would, loading files in order, and find where the instruction runs out: a step naming something no file defines, an invocation whose receiving skill no longer expects what the sender sends, a contract with one half deleted.
-- **Skill shape**, where skills were cut — invoke `kk-skillcraft`. Run it here and not in Phase 3: what to extract depends on what survived.
+- **Skill shape**, where skills were cut — dispatch `~/.kk-flavor/workers/skillcraft.md`. Run it here and not in Phase 3: what to extract depends on what survived.
 
 ## 5. Converge
 
@@ -74,7 +74,7 @@ Include comments from the campaign's own edits in that same `kk-edit` pass; do n
 
 **A gate, not a phase** (`~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**). Every judgment above was reached by reading; this is the campaign's only evidence that the tree still steers. That file orders it first; here it runs last, because the lenses above *are* the change and `kk-edit` rewrites prose after all of them.
 
-**You write the scenarios; `kk-drive` is handed those and the Phase 4 paths, never the plan or the cut list.** Each of Phase 2's rescues already names the wrong action an agent takes without its passage, so a scenario is a real task plus that action not happening — a driver told what was cut looks for it instead of using the tree.
+**You write the scenarios; `~/.kk-flavor/workers/drive.md` is handed those and the Phase 4 paths, never the plan or the cut list.** Each of Phase 2's rescues already names the wrong action an agent takes without its passage, so a scenario is a real task plus that action not happening — a driver told what was cut looks for it instead of using the tree.
 
 Its deltas: the entrypoint is a fresh agent reading the shrunk tree, and what it watches is what that agent does — the file it loads, the skill it routes to, the rule it applies.
 

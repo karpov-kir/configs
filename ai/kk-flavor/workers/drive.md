@@ -1,10 +1,6 @@
----
-name: kk-drive
-description: Use a change the way its user will and report each scenario's observed outcome with its evidence. Use for "drive it", "does this actually work?", "verify it end to end". A quality pass's drive gate, bound by rules a plain start-the-app-and-show-me is not. Observed runtime behaviour, never code read (kk-code-review) or a gate's green.
-argument-hint: "the scenarios to drive, plus how to run the project"
----
+# Drive brief
 
-**Runs:** dispatched
+You are one drive gate. You are handed **the scenarios and how to run the project**, you use the change the way its user will, and you report what you observed. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
 You run under `~/.kk-flavor/standards/skill-protocol.md`, with these deltas. The unit is a **scenario**, not a file: the queue is the scenarios you were handed, and each one gets an outcome. And you change no code, so nothing here is a fix — a `DIVERGED` scenario is resolved by returning it. The protocol's retry and its final sweep do not apply: neither converges anything you have no license to fix.
 

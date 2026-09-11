@@ -2,18 +2,22 @@
   The hand-written half of the field guide. Everything a reader reads as prose is here; nothing here
   is generated. Edit it like any HTML page, then run `ai/guide.sh` to rebuild ai/field-guide.html.
 
-  Four placeholders are filled by ai/tools/eco-guide, and all four must stay somewhere on the page:
+  Six placeholders are filled by ai/tools/eco-guide, and all six must stay somewhere on the page:
 
     {{skill-count}}         how many skills the guide lists
     {{family-count}}        how many prefixes those skills fall under
     {{human-typed-count}}   how many of them a human always types
     {{skill-inventory}}     one card per skill, grouped by family
+    {{worker-count}}        how many workers the tree dispatches
+    {{worker-inventory}}    one card per worker, with the tier its row buys
 
   Two rules the generator enforces, so this file cannot go stale on its own:
     - Every kk-* or idsd-* name written in this prose must be a skill the page lists. Rename or
       retire a skill and this file goes red until the sentence naming it is edited.
     - A placeholder that is missing, or one that is misspelled, refuses the build rather than
-      shipping a half-filled page.
+      shipping a half-filled page. The two inventories must each appear exactly once.
+    - Worker names carry no family prefix, so nothing above checks them. Their cards are generated
+      from the tree, so write prose about the layer rather than about a particular worker.
 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -357,7 +361,7 @@
     <p class="sec-note">One reactor per intent set. Return to it with new requests.</p>
   </div>
   <p class="lede" style="margin-top:0">A request without an intent goes to <code>idsd-reactor</code>. It assigns an intent number and starts a separate <code>idsd-intent</code> task to author the ICE, without building it. Answer that task's questions there. It lands the intent on the target branch and reports back to the reactor.</p>
-  <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. <code>idsd-audit</code> checks consistency and derives the build order.</p>
+  <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. The <code>idsd/audit</code> worker checks consistency and derives the build order.</p>
   <p>Keep the reactor task available throughout the run. Bring additions and coordination requests back to it; answer feature-specific questions in the task that asks them.</p>
   <figure class="workflow" aria-label="Example dependency graph: A lands, then B and C can build in parallel. D waits for both B and C to land.">
     <figcaption>Dependencies open the next work</figcaption>
@@ -432,6 +436,17 @@
   <p class="lede" style="margin:0 0 26px">The descriptions below are quoted from the skills. A <b>gate</b> is a command that must pass before work continues. A <b>chip</b> starts a follow-up session; clients with task tools create it directly. A <b>merge stamp</b> records that a quality pass ran, for later steps to check.</p>
   <div class="lanes">
 {{skill-inventory}}
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Underneath: the {{worker-count}} workers</h2>
+    <p class="sec-note">Nobody types these. Generated from the tree and the model policy, so neither the list nor the tiers can drift.</p>
+  </div>
+  <p class="lede" style="margin:0 0 26px">A skill above is a <b>door</b> — something you or the model invokes by name. Most of the work behind one door is done by a <b>worker</b>: one file, addressed to one agent, run once and returned. A worker has no door, which is what lets it carry a model of its own instead of inheriting whatever session called it — so this list is also where the tree's cost lives. Reading it tells you what a skill actually spends when it hands a step away.</p>
+  <div class="lanes">
+{{worker-inventory}}
   </div>
 </section>
 

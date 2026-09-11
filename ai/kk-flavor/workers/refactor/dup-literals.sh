@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Repeated-long-literal detector — byte-identical long strings appearing 2+ times among the diff's
-# ADDED lines: copy-pasted tokens, keys, fixtures. Run by kk-refactor's setup, and by a pipeline
+# ADDED lines: copy-pasted tokens, keys, fixtures. Run by the refactor worker's setup, and by a pipeline
 # orchestrator before the refactor stage.
 #
 #   usage: dup-literals.sh [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
@@ -31,7 +31,7 @@ set -euo pipefail
 
 tool="dup-literals"
 # How far THIS file sits above the tools directory.
-tools_offset="../../../.."
+tools_offset="../../.."
 
 # --- shared:tool-stub ---
 # Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than

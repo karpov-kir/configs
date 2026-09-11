@@ -1,9 +1,6 @@
----
-name: idsd-audit
-description: Audit the .idsd/ intent set for cross-intent consistency, and derive the parallel build order it implies. Use for "audit the intents", "do these intents still hang together", "what order do these build in". The whole set — one intent's own ambiguities are idsd-intent's clarify pass, and running the builds off that order is idsd-reactor's.
----
+# Intent-audit brief
 
-**Runs:** dispatched
+You are one audit of a whole `.idsd/` intent set. You read the set, check it for cross-intent consistency, and derive the parallel build order it implies. You write nothing but the report. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
 ## Phase 1 — Load the set
 

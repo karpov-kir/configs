@@ -22,9 +22,13 @@ const (
 
 // The line a SKILL.md declares how it runs with, and the Lanes table row the quality pass dispatches by.
 var (
-	runsMode      = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|inline — (?:human|session-context|landing)) *$`)
-	runsLine      = regexp.MustCompile(`(?m)^\*\*Runs:\*\*`)
-	lanesTableRow = regexp.MustCompile("(?m)^\\| *[a-z-]+ *\\| *`([a-z0-9-]+)` *\\|")
+	runsMode = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|inline — (?:human|session-context|landing)) *$`)
+	runsLine = regexp.MustCompile(`(?m)^\*\*Runs:\*\*`)
+	// Column two names what fills the lane, which is a worker's path for most of them and a skill's
+	// bare name for the three that kept a door. Both are reduced to the key the policy is written
+	// on: a path without its tree prefix and without `.md` IS that key, so one pattern reads both
+	// and a lane that changes home stays counted.
+	lanesTableRow = regexp.MustCompile("(?m)^\\| *[a-z-]+ *\\| *`(?:~/\\.kk-flavor/workers/)?([a-z0-9/-]+?)(?:\\.md)?` *\\|")
 )
 
 func TestCommandEmitsRequestedSettingsAndNothingObserved(t *testing.T) {
@@ -169,7 +173,7 @@ func assertSessionRowReadsAModeFile(t *testing.T, name string) {
 
 // A session row is one nothing enforces, and which rows those are is derivable rather than a
 // judgement: a model is set for the judge, for every worker file, for a row naming another worker's
-// prompt, and for the leaf skills kk-qualify's Lanes table dispatches; everything else runs in whatever
+// prompt, and for every leaf kk-qualify's Lanes table dispatches; everything else runs in whatever
 // session invoked it. The split stays hand-written so a reader of the policy can see it, and this
 // checks it against the derivation.
 func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
@@ -184,7 +188,7 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 		enforced[string(row[1])] = true
 	}
 	if len(enforced) < 5 {
-		t.Fatalf("the Lanes table yielded %d leaf skills, so this proved nothing", len(enforced)-1)
+		t.Fatalf("the Lanes table yielded %d lanes, so this proved nothing", len(enforced)-1)
 	}
 	// A skill's own **Runs:** line is authoritative where it has one: the lane table knows only the
 	// skills the quality pass dispatches, and a skill dispatched elsewhere is invisible to it.

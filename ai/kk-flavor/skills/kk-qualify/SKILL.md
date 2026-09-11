@@ -1,6 +1,6 @@
 ---
 name: kk-qualify
-description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.
+description: Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is the code-review lane's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.
 argument-hint: "[scope: a path, a diff selector, or natural language]"
 ---
 
@@ -14,24 +14,24 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 
 ## Lanes
 
-`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills. These are the skills filling them, and the scanner to run for each:
+`~/.kk-flavor/standards/quality-pipeline.md` names **lanes**, never skills. These are what fills them, and the scanner to run for each. **A `workers/` path is a prompt you dispatch; a skill name is a door you invoke** (`~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes**):
 
-| Lane | Skill | Scanner to run | Tier |
+| Lane | What fills it | Scanner to run | Tier |
 |---|---|---|---|
 | diagnosis | `kk-diagnose` | — | — |
-| conformance | `kk-conform` | — | — |
-| drive | `kk-drive` | — | — |
-| code-review | `kk-code-review` | — | `code-review` |
-| security-review | `kk-security-review` | — | `security` |
+| conformance | `~/.kk-flavor/workers/conform.md` | — | — |
+| drive | `~/.kk-flavor/workers/drive.md` | — | — |
+| code-review | `~/.kk-flavor/workers/code-review.md` | — | `code-review` |
+| security-review | `~/.kk-flavor/workers/security-review.md` | — | `security` |
 | edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh` for comments | `comments` |
 | instruction | `kk-ecosystem` | `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh` | — |
-| refactor | `kk-refactor` | `~/.kk-flavor/skills/kk-refactor/scripts/dup-literals.sh` | `refactor` |
+| refactor | `~/.kk-flavor/workers/refactor.md` | `~/.kk-flavor/workers/refactor/dup-literals.sh` | `refactor` |
 
 **Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**). **Conformance is a gate, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**). A caller holding the ask runs it before invoking you; **bare, you hold the ask and run the gate yourself, before the round**. Only a change set with no ask at all reaches the stages ungated, and that section says what your status line then owes.
 
 **Instruction work has one owner.** Dispatch `kk-ecosystem` directly over the instruction changes and affected references, unless the caller already assigned that scope. Its ordered checks replace another edit pass over those files. A retrospective is no lane and belongs to the human.
 
-**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, dispatch ready tiered leaves together within runtime capacity; `kk-refactor` and `kk-edit` may join the reviews while patch ordering protects overlapping writes. The **Tier** column is what each one's spawn prompt carries in its patch-queue slot. The instruction lane runs unstreamed; drive remains the gate before the round. File write conflicts still obey the shared pipeline ordering.
+**You are the streamed path's caller** — `~/.kk-flavor/standards/streaming.md` is the whole delta for it, and **its test, not this table, decides whether a given pass streams at all**. Where it does, dispatch ready tiered leaves together within runtime capacity; the refactor and edit lanes may join the reviews while patch ordering protects overlapping writes. The **Tier** column is what each one's spawn prompt carries in its patch-queue slot. The instruction lane runs unstreamed; drive remains the gate before the round. File write conflicts still obey the shared pipeline ordering.
 
 ## The residue
 

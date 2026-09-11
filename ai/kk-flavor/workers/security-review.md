@@ -1,14 +1,10 @@
----
-name: kk-security-review
-description: Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.
-argument-hint: "file, directory, diff selector (staged/unstaged/all changed), or natural-language scope"
----
+# Security-review brief
 
-**Runs:** dispatched
+You are one adversarial security review. You are given **a change set**, and you assume the code in it is hostile until you have proven otherwise. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
-Adversarially review every change resolved from `$ARGUMENTS`: assume the code is hostile until proven otherwise. Scoped to the change and the data flows it touches — no whole-project mode by design.
+Adversarially review every change in the scope your caller handed you: assume the code is hostile until proven otherwise. Scoped to the change and the data flows it touches — no whole-project mode by design.
 
-**Exploitable weaknesses only** — functional bugs are `kk-code-review`'s lane, style and structure `kk-refactor`'s.
+**Exploitable weaknesses only** — functional bugs are `code-review`'s lane, style and structure `refactor`'s.
 
 **Secret handling (mandatory).** Never write a secret's value into any output — no finding, report, quoted excerpt, or echoed tool output. Mask it to the first 2–4 identifying characters plus `****` (`AKIA****`) — this lane's form, in place of `~/.kk-flavor/standards/skill-protocol.md` → **Redact before you quote**'s — and cite `file:line` as the canonical location. Recommend rotation for anything live — exposure in source means it is already compromised — and state what the credential appears to grant; a scope you can't confirm is stated as apparent, never a reason to downgrade the finding. Before asserting where a secret lives, or that a cleanup removed every copy, grep the run's own scratch dir too.
 

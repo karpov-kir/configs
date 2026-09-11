@@ -38,7 +38,7 @@ Plan the change in the implementation context. Reuse an established shape; a loc
 
 **Then `~/.kk-flavor/standards/building.md` → **The loop****. Carry Phase 3's settled choice into the loop; reopen it only when implementation evidence contradicts it.
 
-**Then the conformance gate**, once the loop is green: `~/.kk-flavor/skills/kk-conform/SKILL.md`, per `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**. Its requirement set is the one your caller named. Run it **inline** — only this thread reaches the human. A requirement it finds undelivered is a red result you fix and re-run; the rest of its return goes to the checkpoint.
+**Then the conformance gate**, once the loop is green: `~/.kk-flavor/workers/conform.md`, per `~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**. Its requirement set is the one your caller named. Run it **inline** — only this thread reaches the human. A requirement it finds undelivered is a red result you fix and re-run; the rest of its return goes to the checkpoint.
 
 ## Phase 5 — Checkpoint
 

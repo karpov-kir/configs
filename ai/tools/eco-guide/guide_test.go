@@ -18,11 +18,53 @@ import (
 // others exist. The narrative line is what the stale-name scan reads.
 const fixtureTemplate = `<title>t</title>
 <p>The pipeline runs idsd-ship, and kk-flavor is the bucket underneath.</p>
-<div class="facts"><b>{{skill-count}}</b><b>{{family-count}}</b><b>{{human-typed-count}}</b></div>
+<div class="facts"><b>{{skill-count}}</b><b>{{family-count}}</b><b>{{human-typed-count}}</b><b>{{worker-count}}</b></div>
 <div class="lanes">
 {{skill-inventory}}
 </div>
+<div class="lanes">
+{{worker-inventory}}
+</div>
 `
+
+// The smallest policy the parser accepts, holding a row for every worker the fixtures write. The
+// guide resolves its tiers through that parser, so a fixture policy is not optional scaffolding —
+// without one the tool refuses, which is the behaviour TestAGuideWithNoPolicyRefuses pins.
+const fixturePolicy = `{
+  "version": 3,
+  "limits": { "intents-in-flight": 3 },
+  "sessions": { "idsd-ship": { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } } },
+  "workers": {
+    "code-review": { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "idsd/audit":  { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "unpriced":    { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" } }
+  }
+}
+`
+
+// A worker as the tree holds one: `# <Name> brief` and then the sentence the card quotes.
+type fixtureWorker struct {
+	name  string
+	brief string
+}
+
+// The worker every root carries unless a case names its own, so the common case does not restate the
+// worker layer to assert something about skills.
+var reviewer = fixtureWorker{"code-review", "You are one correctness review. The rest is the contract.\n"}
+
+func writeWorkers(t *testing.T, root string, workers ...fixtureWorker) {
+	t.Helper()
+	for _, worker := range workers {
+		file := filepath.Join(root, "kk-flavor", "workers", filepath.FromSlash(worker.name)+".md")
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatalf("fixture worker %s: %v", worker.name, err)
+		}
+		body := "# " + worker.name + " brief\n\n" + worker.brief
+		if err := os.WriteFile(file, []byte(body), 0o644); err != nil {
+			t.Fatalf("fixture worker %s: %v", worker.name, err)
+		}
+	}
+}
 
 type fixtureSkill struct {
 	name        string
@@ -50,6 +92,10 @@ func newRoot(t *testing.T, template string, skills ...fixtureSkill) string {
 	if err := os.WriteFile(filepath.Join(root, templateRelative), []byte(template), 0o644); err != nil {
 		t.Fatalf("fixture template: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(fixturePolicy), 0o644); err != nil {
+		t.Fatalf("fixture policy: %v", err)
+	}
+	writeWorkers(t, root, reviewer)
 	return root
 }
 
@@ -354,5 +400,165 @@ func TestGenerationIsDeterministic(t *testing.T) {
 			t.Fatalf("%s is out of order on the page\n%s", name, first)
 		}
 		at = next
+	}
+}
+
+// A worker has no frontmatter, so its card is built from two sources that cannot be edited together:
+// the brief's own first sentence, and the tier the model policy resolves for it. Both halves are
+// asserted here, because a card carrying the name alone would look generated and say nothing.
+func TestAWorkerCardCarriesItsBriefAndTheTierItsRowBuys(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	for _, want := range []string{
+		`<code class="k">code-review</code>`,
+		"You are one correctness review.",
+		"tier: claude opus &middot; codex gpt-6-astra high",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the worker card is missing %q\n%s", want, page)
+		}
+	}
+	// The sentence after the first one is the contract, which belongs in the brief and not on a card.
+	if strings.Contains(page, "The rest is the contract.") {
+		t.Errorf("the card printed past the brief's first sentence\n%s", page)
+	}
+}
+
+// The tier is resolved through the policy rather than read off the worker, so a row that assigns a
+// different model moves the page with no edit to the brief. Without this the card could be printing
+// a constant that happens to match.
+func TestAWorkerCardFollowsThePolicyRatherThanTheBrief(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+	writeWorkers(t, root, fixtureWorker{"unpriced", "You are the cheap one.\n"})
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	if !strings.Contains(page, "tier: claude haiku &middot; codex gpt-5.6-luna low") {
+		t.Errorf("the cheap row's own tier did not reach its card\n%s", page)
+	}
+}
+
+// A worker's name carries no family prefix, so its path is the only thing saying which family it is
+// in. Grouping on the path is what keeps `workers/idsd/` with the workflow family.
+func TestAWorkerTakesItsFamilyFromItsPath(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+	writeWorkers(t, root, fixtureWorker{"idsd/audit", "You are one audit of a whole intent set.\n"})
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	if !strings.Contains(page, `<code class="i">idsd/audit</code>`) {
+		t.Errorf("the nested worker was not placed in the workflow family\n%s", page)
+	}
+	if !strings.Contains(page, "<span>idsd workers</span>") || !strings.Contains(page, "<span>kk workers</span>") {
+		t.Errorf("the two worker families are not both labelled\n%s", page)
+	}
+}
+
+// A tier the page cannot resolve is printed as absent rather than left off. The defect itself
+// belongs to the policy's own census, which reports a worker with no row; what this tool owes is not
+// printing a blank where a model should be, which reads as "the same as the other client".
+func TestAWorkerWithNoRowPrintsNoTier(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+	writeWorkers(t, root, fixtureWorker{"stranger", "You are dispatched by nothing.\n"})
+
+	if status, output := run(t, root); status != 0 {
+		t.Fatalf("expected exit 0, got %d\n%s", status, output)
+	}
+	page := generated(t, root)
+	if !strings.Contains(page, "tier: claude — &middot; codex —") {
+		t.Errorf("an unpriced worker did not print its tier as absent\n%s", page)
+	}
+}
+
+// The policy is an input the page cannot be generated without, so a tree with no usable one refuses
+// rather than shipping a page whose every tier reads `—`. Exit 2: a check that did not run is not a
+// clean one. Two ways to have no policy, asserted on their own messages, because they refuse from
+// different branches and a single case would leave whichever branch it did not reach unproven.
+func TestAGuideWithNoUsablePolicyRefuses(t *testing.T) {
+	for name, wreck := range map[string]func(string) error{
+		"no policy at all": func(path string) error { return os.Remove(path) },
+		"a policy that does not parse": func(path string) error {
+			return os.WriteFile(path, []byte("{\"version\": 3, \"sessions\": {}}\n"), 0o644)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := newRoot(t, fixtureTemplate, shipped)
+			if err := wreck(filepath.Join(root, "kk-flavor", "models.json")); err != nil {
+				t.Fatalf("wrecking the fixture policy: %v", err)
+			}
+
+			status, output := run(t, root)
+			if status != 2 {
+				t.Fatalf("expected exit 2, got %d\n%s", status, output)
+			}
+			if !strings.Contains(output, "the model policy at") || !strings.Contains(output, "NOT generated") {
+				t.Errorf("the refusal does not name the policy as the reason\n%s", output)
+			}
+		})
+	}
+}
+
+// A worker tree that is there and reads as holding nothing is the reader broken, not a tree with no
+// workers — the same reasoning the skills half applies to an inventory of zero. The file left in it
+// carries no `# ` heading, so it is the skip that empties the list: a case that deleted the
+// directory would refuse from the walk error below and never reach this guard.
+func TestAWorkerTreeThatReadsAsEmptyRefuses(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+	tree := filepath.Join(root, "kk-flavor", "workers")
+	if err := os.RemoveAll(tree); err != nil {
+		t.Fatalf("emptying the fixture workers: %v", err)
+	}
+	if err := os.MkdirAll(tree, 0o755); err != nil {
+		t.Fatalf("fixture workers: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, "headless.md"), []byte("You are nobody.\n"), 0o644); err != nil {
+		t.Fatalf("fixture worker: %v", err)
+	}
+
+	status, output := run(t, root)
+	if status != 2 {
+		t.Fatalf("expected exit 2 for a worker tree that reads as empty, got %d\n%s", status, output)
+	}
+	if !strings.Contains(output, "reads as a brief") {
+		t.Errorf("the refusal does not name the empty reading as the reason\n%s", output)
+	}
+}
+
+// The tree missing altogether is the other way to reach zero workers, and it refuses from the walk
+// rather than from the count.
+func TestAMissingWorkerTreeRefuses(t *testing.T) {
+	root := newRoot(t, fixtureTemplate, shipped)
+	if err := os.RemoveAll(filepath.Join(root, "kk-flavor", "workers")); err != nil {
+		t.Fatalf("removing the fixture workers: %v", err)
+	}
+
+	status, output := run(t, root)
+	if status != 2 {
+		t.Fatalf("expected exit 2 with no worker tree, got %d\n%s", status, output)
+	}
+	if !strings.Contains(output, "cannot read the workers under") {
+		t.Errorf("the refusal does not name the unreadable tree\n%s", output)
+	}
+}
+
+// Both inventories are held to appearing once, not just the skills one: a template carrying the
+// worker placeholder twice would print the whole layer twice and read as finished either way.
+func TestASecondWorkerInventoryPlaceholderIsRefused(t *testing.T) {
+	root := newRoot(t, fixtureTemplate+"\n{{worker-inventory}}\n", shipped)
+
+	status, output := run(t, root)
+	if status != 1 {
+		t.Fatalf("expected exit 1 for a repeated worker placeholder, got %d\n%s", status, output)
+	}
+	if !strings.Contains(output, "more than once") {
+		t.Errorf("the refusal does not name the repetition\n%s", output)
 	}
 }

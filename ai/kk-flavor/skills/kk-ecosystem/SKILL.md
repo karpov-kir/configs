@@ -1,6 +1,6 @@
 ---
 name: kk-ecosystem
-description: Refine agent instructions, reconcile rules and check their wiring. Use for "refine the ecosystem", "de-bloat instructions", or the instruction lane. Scoped repair by default; a whole-ecosystem audit must be requested. Skill triggering and structure alone belong to kk-skillcraft; wording alone to kk-edit.
+description: Refine agent instructions, reconcile rules and check their wiring. Use for "refine the ecosystem", "de-bloat instructions", or the instruction lane. Scoped repair by default; a whole-ecosystem audit must be requested. Skill triggering and structure alone belong to the skillcraft lane; wording alone to kk-edit.
 argument-hint: "the instruction files or change set; say whole ecosystem for the full audit"
 audience: maintainer
 ---
@@ -25,7 +25,7 @@ Use `~/.kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh <root>` when searching
 
 ## 3. Shape and prose
 
-Apply `kk-skillcraft` inline to the skill directories and instruction artifacts already held. Then apply `kk-edit` inline to their settled text. Rule decisions precede structure, and structure precedes wording. A caller that explicitly owns either later check receives its handoff instead; never run it twice.
+Dispatch `~/.kk-flavor/workers/skillcraft.md` over the skill directories and instruction artifacts already held. Then apply `kk-edit` inline to their settled text. Rule decisions precede structure, and structure precedes wording. A caller that explicitly owns either later check receives its handoff instead; never run it twice.
 
 ## 4. Account for it
 

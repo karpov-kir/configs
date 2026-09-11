@@ -3,10 +3,12 @@
 //
 // The page has two halves and they are kept apart on purpose. The **narrative** — the walkthrough,
 // the "which door do I use" table, the section prose — is hand-written and lives in
-// `field-guide.template.html` beside this file; a person editing it never reads Go. The **inventory**
-// — one card per skill, its own `description:`, its `argument-hint:`, and whether a human always
-// types it — is generated from each skill's frontmatter, because 27 skills change weekly and a
-// hand-maintained catalogue drifts in silence.
+// `field-guide.template.html` beside this file; a person editing it never reads Go. The
+// **inventories** are generated, because a hand-maintained catalogue of a tree this size drifts in
+// silence: one card per skill from its own frontmatter — `description:`, `argument-hint:`, and
+// whether a human always types it — and one card per worker from its brief and the tier the model
+// policy resolves for it. A worker declares no frontmatter, so those two sources are the only ones
+// there are, and neither can be edited to flatter the other.
 //
 // The frontmatter is read through `kk-flavor/tools/shell`, the same parser eco-check routes on, so the
 // page cannot describe a skill differently from the way it is actually reached. What that parser
@@ -32,6 +34,7 @@ import (
 	"strings"
 
 	ecoroot "kk-flavor/tools/eco-root"
+	modelpolicy "kk-flavor/tools/model-policy"
 	"kk-flavor/tools/shell"
 )
 
@@ -95,7 +98,36 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		return fail("no skill under %s declares a description — read this as the reader broken, never as an empty ecosystem", root.Skills())
 	}
 
-	page, err := render(string(template), skills)
+	// The tiers come out of the same resolver a dispatch calls, so the page cannot print a model the
+	// run would not take. A row the policy refuses resolves to nothing and the card says so; the
+	// policy failing to parse at all is fatal, because then every tier on the page would say nothing.
+	policyPath := shell.Join(root.Flavor(), "models.json")
+	rawPolicy, err := os.ReadFile(policyPath)
+	if err != nil {
+		return fail("cannot read the model policy at %s: %v — the guide was NOT generated", policyPath, err)
+	}
+	assigned, err := modelpolicy.Parse(rawPolicy)
+	if err != nil {
+		return fail("the model policy at %s does not parse: %v — the guide was NOT generated", policyPath, err)
+	}
+	tier := func(task, client string) string {
+		decision, err := assigned.Resolve(modelpolicy.Request{Client: client, Task: task})
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(decision.Requested.Model + " " + decision.Requested.Effort)
+	}
+
+	workers, err := readWorkers(root, tier)
+	if err != nil {
+		return fail("cannot read the workers under %s: %v — the guide was NOT generated",
+			shell.Join(root.Flavor(), "workers"), err)
+	}
+	if len(workers) == 0 {
+		return fail("no worker under %s/workers reads as a brief — read this as the reader broken, never as a tree with no workers", root.Flavor())
+	}
+
+	page, err := render(string(template), skills, workers)
 	if err != nil {
 		fmt.Fprintf(errOut, "%s: %v\n", name, err)
 		fmt.Fprintf(errOut, "%s: nothing was written to %s\n", name, shell.Join(root.Named(), outputRelative))
@@ -109,7 +141,8 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	if err := os.WriteFile(target, []byte(page), 0o644); err != nil {
 		return fail("cannot write %s: %v", target, err)
 	}
-	fmt.Fprintf(out, "%s: wrote %s — %d skills across %d families\n", name, target, len(skills), countFamilies(skills))
+	fmt.Fprintf(out, "%s: wrote %s — %d skills across %d families, and %d workers\n",
+		name, target, len(skills), countFamilies(skills), len(workers))
 	return 0
 }
 

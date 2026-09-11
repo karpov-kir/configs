@@ -1,5 +1,5 @@
 // Repeated-long-literal detector — byte-identical long text appearing 2+ times among the diff's ADDED
-// lines: copy-pasted tokens, keys, fixtures. Run by kk-refactor's setup, and by a pipeline
+// lines: copy-pasted tokens, keys, fixtures. Run by the refactor worker's setup, and by a pipeline
 // orchestrator before the refactor stage.
 //
 // Two granularities, and the difference decides what it can see: a whole trimmed line that repeats,

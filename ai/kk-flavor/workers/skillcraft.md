@@ -1,21 +1,25 @@
----
-name: kk-skillcraft
-description: Review and refine skills as skills — triggering, how steps and reference material are split, steering strength, and what in them is a no-op. Use for "why does the agent ignore this skill", "this skill is too big". Shape, not rule economy (kk-ecosystem) or prose (kk-edit).
-argument-hint: "a skill dir, several, or the whole skills tree"
-audience: maintainer
----
+# Skillcraft brief
 
-**Runs:** dispatched
+You are one shape review over the instruction tree — skills, workers, and the artifacts beside them. You are given a scope, and you judge each unit in it on one question: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-edit`'s; neither applies this one. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
-Judge a skill as a skill: **is this thing shaped so an agent reaches it at the right moment and then does what it says?** Rule economy is `kk-ecosystem`'s lens and prose is `kk-edit`'s; neither applies this one.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — for a skill the unit is its **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one verdict for each unit; the queue, ledger and `N/M` count units. Reuse unchanged readings under the protocol's dependency rules.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Skill` — the unit is a skill **directory**, not a file. Read every file in it: reference files whole, and a script by its header, usage and call sites — the lens is how files divide, which a script's contract answers and its body does not. **This coarser unit replaces `file` throughout the protocol** — one verdict for each unit; the queue, ledger and `N/M` count units. Reuse unchanged readings under the protocol's dependency rules.
+**A worker is one unit as a single file** — `~/.kk-flavor/workers/<path>.md`, together with any script beside it at `workers/<name>/`. It carries no frontmatter and no door, so §1 does not reach it. Apply §2, §3 and §4, plus **Which kind is it** below.
 
-**A queued artifact that is not a skill** — a standard, a prompt, a template, an agent instruction file — is one unit as a single file, with no frontmatter and no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
+**A queued artifact that is neither** — a standard, a prompt fragment, a template, an agent instruction file — is one unit as a single file, with no file set of its own, so §1 and §2 do not reach it. Apply §3 and §4.
 
 Check every unit against all four, in order. A unit that took one lens and moved on has been read, not reviewed.
 
 **Apply the fixes your lenses call for.** A split into two skills is a proposal, not an edit — it changes what the human types; so is a skill that should do *more*. A finding you return as a proposal is resolved by returning it: `WARN` once and move on, because the protocol's retry cannot converge what you have no license to change. **A defect outside your lenses is named, never edited and never dropped** — `~/.kk-flavor/standards/skill-protocol.md` → **Do not** bars the edit, and silence loses what only this pass saw.
+
+## Which kind is it
+
+`~/.kk-flavor/standards/ecosystem.md` → **Three kinds, two homes** owns the taxonomy. This lens catches a unit sitting in the wrong one, and it is the first question to ask of anything the scope proposes adding.
+
+- **Does a human ever enter it?** A door nobody types is overhead — a description that routes nothing, an `argument-hint` for arguments no human passes. That unit is a worker wearing a skill's directory: name it, and name the dispatch that reaches it.
+- **Does it hold model work, or hand every substantive step away?** One that dispatches each step is an orchestrator and should be cheap; one that holds the work is a session and takes the tier of what it holds. **A session holding a phase with no human in it is a worker that has not moved yet** — name the phase rather than the skill.
+- **Does it read a worker's prompt inline?** Read inline, that worker runs at the calling session's tier and its own row selects nothing. The exception is a session that must stay with the human through the step.
+- **Does a worker's prompt address one agent doing one thing, and return once?** A worker written as a conversation, or as a menu of modes its caller chooses between, is a skill that lost its door rather than a worker.
 
 ## 1. Trigger — how it gets invoked
 
@@ -56,7 +60,7 @@ Deleting is not the only fix — try the moves in `~/.kk-flavor/standards/ecosys
 Per the protocol, plus the cause:
 
 - Pass: `Skill N/M <dir> | <SKILL.md lines>L | OK`
-- Fail: the same line with `WARN`, then one line per finding, each naming its lens — one of `trigger` / `structure` / `steering` / `pruning`, or the lens that owns a defect outside them — and what an agent does wrong today.
-- A non-skill artifact takes `Artifact` in place of `Skill`, and its own path and line count.
+- Fail: the same line with `WARN`, then one line per finding, each naming its lens — one of `kind` / `trigger` / `structure` / `steering` / `pruning`, or the lens that owns a defect outside them — and what an agent does wrong today.
+- A worker takes `Worker` in place of `Skill`, with its path and line count; any other artifact takes `Artifact` the same way.
 
-Close by stating plainly whether the skills and artifacts you reviewed are now sound, and name any you left large on purpose.
+Close by stating plainly whether the units you reviewed are now sound, and name any you left large on purpose.

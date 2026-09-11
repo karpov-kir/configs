@@ -122,7 +122,7 @@ coordinator, which dispatches bounded leaf workers and waits on completion. Inde
 and security reviews keep separate contexts; fixes reopen affected evidence.
 
 `kk-edit` combines the former concision and humanization passes for prose and comments. It preserves
-meaning and stops at an edited artifact. `kk-skillcraft` remains the focused skill-structure entry;
+meaning and stops at an edited artifact. the skillcraft worker remains the focused skill-structure lane;
 `kk-ecosystem` owns instruction semantics and applies its ordered checks within one worker. A full
 ecosystem audit requires an explicit request. The editor never deletes agent obligations.
 

@@ -213,7 +213,7 @@
       <p class="lede">These skills give coding agents a defined job, or <b>lane</b>. Start with one of the entry skills below; it chooses the lanes your task needs.</p>
     </div>
     <div class="facts">
-      <div class="fact"><b>22</b><span>skills</span></div>
+      <div class="fact"><b>16</b><span>skills</span></div>
       <div class="fact"><b>2</b><span>families</span></div>
       <div class="fact"><b>3</b><span>you always type</span></div>
     </div>
@@ -340,7 +340,7 @@
     <p class="sec-note">One reactor per intent set. Return to it with new requests.</p>
   </div>
   <p class="lede" style="margin-top:0">A request without an intent goes to <code>idsd-reactor</code>. It assigns an intent number and starts a separate <code>idsd-intent</code> task to author the ICE, without building it. Answer that task's questions there. It lands the intent on the target branch and reports back to the reactor.</p>
-  <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. <code>idsd-audit</code> checks consistency and derives the build order.</p>
+  <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. The <code>idsd/audit</code> worker checks consistency and derives the build order.</p>
   <p>Keep the reactor task available throughout the run. Bring additions and coordination requests back to it; answer feature-specific questions in the task that asks them.</p>
   <figure class="workflow" aria-label="Example dependency graph: A lands, then B and C can build in parallel. D waits for both B and C to land.">
     <figcaption>Dependencies open the next work</figcaption>
@@ -416,10 +416,6 @@
   <div class="lanes">
     <div class="group-label"><span>idsd-*</span><i></i></div>
     <div class="lane">
-      <div class="lane-top"><code class="i">idsd-audit</code></div>
-      <p>Audit the .idsd/ intent set for cross-intent consistency, and derive the parallel build order it implies. Use for "audit the intents", "do these intents still hang together", "what order do these build in". The whole set — one intent's own ambiguities are idsd-intent's clarify pass, and running the builds off that order is idsd-reactor's.</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="i">idsd-build</code></div>
       <p>Implement one ICE intent — settle the gaps it leaves, then build and checkpoint. Use for "build the intent". The ICE-shaped delta over kk-build; archiving is idsd-finalize's, and the end-to-end pipeline idsd-ship's.</p>
       <p class="hint">takes: intent file (NNN-slug), or omit to choose from the unbuilt ones</p>
@@ -445,7 +441,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-reactor</code></div>
-      <p>Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for "build the mvp", "ship these intents in parallel", "start the next wave", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is idsd-audit's.</p>
+      <p>Coordinate ICE intents through separate owning sessions, launching each as its dependencies land. Use for "build the mvp", "ship these intents in parallel", "start the next wave", and follow-up work in an existing reactor. A standalone intent shipment is idsd-ship's; the order or consistency report alone is the intent-audit worker's.</p>
       <p class="hint">takes: milestone or intent slugs to build (default: ask which milestone)</p>
     </div>
     <div class="lane">
@@ -465,24 +461,9 @@
       <p class="hint">takes: the requirement to build — a ticket, an issue, a file holding it, or the ask itself</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-code-review</code></div>
-      <p>Review the working-tree changes for correctness bugs — apply the safe fixes, surface the rest. Use for "code review". One pass, not a pipeline (kk-qualify); a GitHub PR is kk-pr's; style is kk-refactor's lane, vulnerabilities kk-security-review's. Judges against the kk-flavor standards, unlike the same-named bundled reviewer.</p>
-      <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), or natural-language scope</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">kk-conform</code></div>
-      <p>Check a change set against the ask it was given — every requirement delivered, nothing beyond them, and no contradiction inside it. Use for "does this match the requirements". Judged by reading, never by running (kk-drive); needs the ask in hand, where kk-code-review needs none.</p>
-      <p class="hint">takes: the requirement set, plus the change set to judge against it</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="k">kk-diagnose</code></div>
-      <p>Find the cause of a bug, a flake or a performance regression. Use for "diagnose", "debug this", "why is this failing", "why is this slow", or any report of something broken. Cause-finding from a running system; reading a diff for bugs is kk-code-review's, and driving a change's stated scenarios is kk-drive's.</p>
+      <p>Find the cause of a bug, a flake or a performance regression. Use for "diagnose", "debug this", "why is this failing", "why is this slow", or any report of something broken. Cause-finding from a running system; reading a diff for bugs is kk-qualify's code-review lane, and driving a change's stated scenarios its drive lane.</p>
       <p class="hint">takes: the symptom, in the words of whoever hit it</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">kk-drive</code></div>
-      <p>Use a change the way its user will and report each scenario's observed outcome with its evidence. Use for "drive it", "does this actually work?", "verify it end to end". A quality pass's drive gate, bound by rules a plain start-the-app-and-show-me is not. Observed runtime behaviour, never code read (kk-code-review) or a gate's green.</p>
-      <p class="hint">takes: the scenarios to drive, plus how to run the project</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-edit</code></div>
@@ -506,23 +487,105 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-pr</code></div>
-      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
+      <p>Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-qualify's code-review lane), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.</p>
       <p class="hint">takes: &lt;review|address-review|refine-description|review-and-address&gt; [PR number, URL, or head branch]</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">kk-qualify</code></div>
-      <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is kk-code-review's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
+      <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is the code-review lane's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
       <p class="hint">takes: [scope: a path, a diff selector, or natural language]</p>
     </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Underneath: the 16 workers</h2>
+    <p class="sec-note">Nobody types these. Generated from the tree and the model policy, so neither the list nor the tiers can drift.</p>
+  </div>
+  <p class="lede" style="margin:0 0 26px">A skill above is a <b>door</b> — something you or the model invokes by name. Most of the work behind one door is done by a <b>worker</b>: one file, addressed to one agent, run once and returned. A worker has no door, which is what lets it carry a model of its own instead of inheriting whatever session called it — so this list is also where the tree's cost lives. Reading it tells you what a skill actually spends when it hands a step away.</p>
+  <div class="lanes">
+    <div class="group-label"><span>idsd workers</span><i></i></div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-refactor</code></div>
-      <p>Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-edit).</p>
-      <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope</p>
+      <div class="lane-top"><code class="i">idsd/audit</code><span class="tag">dispatched</span></div>
+      <p>You are one audit of a whole <code>.idsd/</code> intent set.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-security-review</code></div>
-      <p>Adversarially review the working-tree changes for exploitable vulnerabilities. Use for "security review", "audit the changes for vulns". Local changes; a GitHub PR is kk-pr's, functional bugs kk-code-review's. Works this skill's own threat model, unlike the same-named bundled reviewer.</p>
-      <p class="hint">takes: file, directory, diff selector (staged/unstaged/all changed), or natural-language scope</p>
+      <div class="lane-top"><code class="i">idsd/qualify/reconcile</code><span class="tag">dispatched</span></div>
+      <p>You are the reconciliation for one completed stage of an <code>idsd-qualify</code> pass.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="group-label"><span>kk workers</span><i></i></div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">build/explore</code><span class="tag">dispatched</span></div>
+      <p>You are one bounded exploration for <code>kk-build</code>.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">code-review</code><span class="tag">dispatched</span></div>
+      <p>You are one correctness review.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">conform</code><span class="tag">dispatched</span></div>
+      <p>You are the gate between a change set and the ask it was given.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">drive</code><span class="tag">dispatched</span></div>
+      <p>You are one drive gate.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">grill/facts</code><span class="tag">dispatched</span></div>
+      <p>You are one fact-finder for <code>kk-grill</code>.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">patrol/fixer</code><span class="tag">dispatched</span></div>
+      <p>You are one round's fixer for <code>kk-patrol</code>.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">patrol/scout</code><span class="tag">dispatched</span></div>
+      <p>You are one round's scout for <code>kk-patrol</code>.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reduce/arbitrate</code><span class="tag">dispatched</span></div>
+      <p>You are the arbiter in a campaign shrinking an ecosystem of agent instructions.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reduce/converge</code><span class="tag">dispatched</span></div>
+      <p>You are a fresh pass over one scope of an ecosystem of agent instructions, late in a campaign that has already shrunk it.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reduce/over-cut</code><span class="tag">dispatched</span></div>
+      <p>You are the cutter in a campaign shrinking an ecosystem of agent instructions.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reduce/reconcile</code><span class="tag">dispatched</span></div>
+      <p>You are one repair agent in a campaign shrinking an ecosystem of agent instructions.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">refactor</code><span class="tag">dispatched</span></div>
+      <p>You are one quality pass.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">security-review</code><span class="tag">dispatched</span></div>
+      <p>You are one adversarial security review.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">skillcraft</code><span class="tag">dispatched</span></div>
+      <p>You are one shape review over the instruction tree — skills, workers, and the artifacts beside them.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high</p>
     </div>
   </div>
 </section>

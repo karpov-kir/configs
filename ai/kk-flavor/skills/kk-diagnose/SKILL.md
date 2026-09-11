@@ -1,6 +1,6 @@
 ---
 name: kk-diagnose
-description: Find the cause of a bug, a flake or a performance regression. Use for "diagnose", "debug this", "why is this failing", "why is this slow", or any report of something broken. Cause-finding from a running system; reading a diff for bugs is kk-code-review's, and driving a change's stated scenarios is kk-drive's.
+description: Find the cause of a bug, a flake or a performance regression. Use for "diagnose", "debug this", "why is this failing", "why is this slow", or any report of something broken. Cause-finding from a running system; reading a diff for bugs is kk-qualify's code-review lane, and driving a change's stated scenarios its drive lane.
 argument-hint: "the symptom, in the words of whoever hit it"
 ---
 

@@ -1,7 +1,9 @@
 package ecoguide
 
 import (
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -111,4 +113,109 @@ func unquoteScalar(value string) string {
 		return strings.ReplaceAll(value[1:len(value)-1], "''", "'")
 	}
 	return value
+}
+
+// A worker as the page needs it. A worker carries no frontmatter, so there is no `description:` to
+// quote the way a skill's card quotes one: what identifies it to a reader is its path, the brief's
+// own first sentence, and the tier its row buys.
+type worker struct {
+	// The path under workers/ without `.md`. That string IS the key its models.json row is written
+	// on, so the name a reader sees is the name the dispatch resolves.
+	name string
+	// Read off the path, not the name: a worker's name carries no family prefix, so `workers/idsd/`
+	// is the workflow family's and everything else is any-repo (ecosystem.md → **Family direction**).
+	family string
+	// The first sentence of the brief, which every worker opens with.
+	summary string
+	// What the policy resolves for each client. Empty where the row assigns that client nothing.
+	claude string
+	codex  string
+}
+
+// Every worker in the tree, ordered workflow family first and then alphabetically, matching the way
+// the skills inventory prints.
+//
+// No audience exclusion, unlike readInventory. That filter answers "would this reader ever invoke
+// it", and for a worker the answer is always no — nothing here has a door. What the list gives a
+// reader is the tier map: what the tree spends when a skill hands a step away. A worker whose lane is
+// maintainer-only is part of that bill like any other.
+//
+// A worker with no readable first line is skipped rather than printed empty, on readInventory's
+// reasoning: eco-check reports the unreadable file, and a card saying nothing helps nobody.
+func readWorkers(root ecoroot.Root, tiers func(task, client string) string) ([]worker, error) {
+	tree := shell.Join(root.Flavor(), "workers")
+	var found []worker
+	err := filepath.WalkDir(tree, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(tree, path)
+		if relErr != nil {
+			return relErr
+		}
+		name := strings.TrimSuffix(filepath.ToSlash(rel), ".md")
+		lines, readErr := readLines(path)
+		if readErr != nil {
+			return nil
+		}
+		summary := briefSummary(lines)
+		if summary == "" {
+			return nil
+		}
+		found = append(found, worker{
+			name:    name,
+			family:  workerFamily(name),
+			summary: summary,
+			claude:  tiers(name, "claude"),
+			codex:   tiers(name, "codex"),
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(found, func(a, b int) bool {
+		if found[a].family != found[b].family {
+			return found[a].family < found[b].family
+		}
+		return found[a].name < found[b].name
+	})
+	return found, nil
+}
+
+// A worker's family is its path's first segment where that segment names the workflow family, and
+// any-repo otherwise. Keyed on the one prefix rather than on a list, so a worker added under
+// `workers/idsd/` tomorrow is placed with no edit here.
+func workerFamily(name string) string {
+	if group, _, nested := strings.Cut(name, "/"); nested && group == "idsd" {
+		return "idsd"
+	}
+	return "kk"
+}
+
+// The first sentence of the brief's opening paragraph. Every worker opens `# <Name> brief` and then
+// addresses the agent directly, so the first sentence is the one line that says what this agent is
+// for. Taken up to the first sentence end rather than the whole paragraph, which runs to the return
+// contract and is far longer than a card.
+func briefSummary(lines []string) string {
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "# ") {
+			continue
+		}
+		for _, next := range lines[i+1:] {
+			next = strings.TrimSpace(next)
+			if next == "" {
+				continue
+			}
+			if stop := strings.Index(next, ". "); stop >= 0 {
+				return next[:stop+1]
+			}
+			return next
+		}
+		return ""
+	}
+	return ""
 }

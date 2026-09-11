@@ -53,7 +53,7 @@ func Run(command Command) int {
 	flags.SetOutput(command.Stderr)
 	config := flags.String("config", "", "policy JSON file; defaults to models.json beside the installed flavor scripts")
 	client := flags.String("client", "", "required: codex or claude")
-	task := flags.String("task", "", "task from the policy, such as kk-code-review or patrol/scout")
+	task := flags.String("task", "", "task from the policy, such as code-review or patrol/scout")
 	limits := flags.Bool("limits", false, "emit the policy's limits instead of a task's settings")
 	flags.Usage = func() {
 		fmt.Fprintln(command.Stderr, "Usage: model-policy.sh --client codex|claude --task <task> [--config <file>]\nEmits the requested settings and the policy digest. It never dispatches, and never reports what actually ran.")

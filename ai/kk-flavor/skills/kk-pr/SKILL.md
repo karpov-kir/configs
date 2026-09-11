@@ -1,6 +1,6 @@
 ---
 name: kk-pr
-description: Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-code-review), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.
+description: Work a GitHub PR — draft a pending review, address the review comments and push, or refine the description. Use for "review this PR", "address the review comments", "rewrite the PR description". A PR on GitHub, not local changes (kk-qualify's code-review lane), the working-tree pipeline (kk-qualify), or text you already hold (kk-edit), and it runs the kk-flavor pipeline where the bundled code-review does not.
 argument-hint: "<review|address-review|refine-description|review-and-address> [PR number, URL, or head branch]"
 ---
 
@@ -58,7 +58,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
    - **Nothing outside the diff is posted as a line comment** — a duplicated site elsewhere, a gated proposal, a pre-existing defect. What the diff owes is the verdict block's.
 2. **Edit the draft inline with `kk-edit`.** The target is text you already hold. Preserve every finding, severity and required decision; read the final draft before sending. An independent rewrite is warranted only when unresolved wording needs another judgment.
 
-3. **Scan for secrets before anything reaches GitHub.** Check every suggestion body, comment and reply for credential-shaped strings, and mask any per `~/.kk-flavor/skills/kk-security-review/SKILL.md`'s secret-handling rule, replacing the suggestion with the fix described in words. **A secret in the PR's own diff is a Critical finding and is never quoted — however that quoting is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): the comment publishes it the instant it exists and no later instruction un-publishes it. This is the last check between a credential and a network write — nothing after you catches what you sent.
+3. **Scan for secrets before anything reaches GitHub.** Check every suggestion body, comment and reply for credential-shaped strings, and mask any per `~/.kk-flavor/workers/security-review.md`'s secret-handling rule, replacing the suggestion with the fix described in words. **A secret in the PR's own diff is a Critical finding and is never quoted — however that quoting is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): the comment publishes it the instant it exists and no later instruction un-publishes it. This is the last check between a credential and a network write — nothing after you catches what you sent.
 4. **Say what goes public, then send.** One sentence naming what is about to exist. `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act** wants the human to have seen it, and an instruction is not a reading. Say it and send; you are not asking again. **Spawned, that sentence goes in your return** — the mode came from your caller and nothing here waits for a second yes.
 
 ### The verdict block

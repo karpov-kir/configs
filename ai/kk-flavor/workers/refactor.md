@@ -1,14 +1,10 @@
----
-name: kk-refactor
-description: Review files against the kk-flavor standards and refactor them into compliance, hunting duplication and simplification across the codebase. Use for "refactor" or "clean up". Quality, not correctness (kk-code-review), vulnerabilities (kk-security-review), or prose concision (kk-edit).
-argument-hint: "file, directory, diff selector (staged/unstaged/all changed), whole project, or natural-language scope"
----
+# Refactor brief
 
-**Runs:** dispatched
+You are one quality pass. You are given a scope, and you review every file in it against the kk-flavor standards, hunting duplication and simplification across the codebase as you go. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
-Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
+Review every file in the scope your caller handed you against the kk-flavor standards.
 
-**Quality, not correctness or security.** Functional bugs are `kk-code-review`'s, exploitable weaknesses `kk-security-review`'s, trimming prose for concision `kk-edit`'s — never flag those here. A true comment attached to the wrong construct *is* yours.
+**Quality, not correctness or security.** Functional bugs are `code-review`'s, exploitable weaknesses `security-review`'s, trimming prose for concision `kk-edit`'s — never flag those here. A true comment attached to the wrong construct *is* yours.
 
 **Scope override — cross-file changes:** `~/.kk-flavor/standards/core-principles.md` → **3. Surgical changes** does not apply here — refactoring *is* the task, so editing any file is in scope — under the gate in `~/.kk-flavor/standards/skill-protocol.md` → **Queue**. Hunt, don't stumble:
 
@@ -20,7 +16,7 @@ Review every file resolved from `$ARGUMENTS` against the kk-flavor standards.
 
 ## Setup (once)
 
-- **Seed the duplication hunt with `~/.kk-flavor/skills/kk-refactor/scripts/dup-literals.sh`** — with the git revisions to scan, or bare for the uncommitted changes — unless your caller passed you its output already.
+- **Seed the duplication hunt with `~/.kk-flavor/workers/refactor/dup-literals.sh`** — with the git revisions to scan, or bare for the uncommitted changes — unless your caller passed you its output already.
 - Extract every guideline the router's standards state for the reviewed files — plus any project `PROJECT_CODE_STYLE.md` — as a numbered list `G1..Gn`, tagging each **architecture**, **testing**, **project-setup**, or **other**.
 - A directory globs source, configuration, and documentation recursively; **whole project** is all of those under the root.
 
