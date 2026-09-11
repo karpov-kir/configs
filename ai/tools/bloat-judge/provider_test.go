@@ -55,7 +55,7 @@ func TestCodexCallerUsesOnlyTheFinalMessage(t *testing.T) {
 done
 printf 'progress, not a verdict\n'
 printf 'none\n' > "$answer"`)
-	got, err := CodexCaller(time.Second, testSettings())("prompt", "view")
+	got, err := CodexCaller(notTheSubject, testSettings())("prompt", "view")
 	if err != nil || got != "none\n" {
 		t.Fatalf("answer = %q, %v; want final message", got, err)
 	}
@@ -70,16 +70,22 @@ func fakeCodex(t *testing.T, script string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
+// The roll deadline for a case whose subject is NOT the deadline — every Codex case here but
+// TestCodexCallerBoundsTheRoll, which keeps its own 100ms. Generous deliberately: no case here
+// asserts on latency, and at a one-second bound spawning the fake alone can exceed it on a loaded
+// machine, so runBounded cancels the roll and the case fails on the bound rather than on its subject.
+const notTheSubject = 10 * time.Second
+
 func TestCodexCallerRefusesMissingFinalAnswer(t *testing.T) {
 	fakeCodex(t, "echo none")
-	if _, err := CodexCaller(time.Second, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "final answer") {
+	if _, err := CodexCaller(notTheSubject, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "final answer") {
 		t.Fatalf("missing answer accepted: %v", err)
 	}
 }
 
 func TestCodexCallerRefusesFailedProcess(t *testing.T) {
 	fakeCodex(t, "exit 7")
-	if _, err := CodexCaller(time.Second, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "exit status 7") {
+	if _, err := CodexCaller(notTheSubject, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "exit status 7") {
 		t.Fatalf("failed process accepted: %v", err)
 	}
 }
@@ -109,7 +115,7 @@ while [ "$#" -gt 0 ]; do
  shift
 done
 cat > "$answer"`)
-	got, err := CodexCaller(time.Second, testSettings())("judge", "résumé $() `command`")
+	got, err := CodexCaller(notTheSubject, testSettings())("judge", "résumé $() `command`")
 	if err != nil || got != "judge\n\nrésumé $() `command`" {
 		t.Fatalf("input = %q, %v", got, err)
 	}

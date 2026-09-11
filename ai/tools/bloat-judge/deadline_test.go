@@ -1,9 +1,13 @@
 package bloatjudge
 
 import (
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -216,5 +220,67 @@ func writeOverride(t *testing.T, configHome, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A roll that timed out still has its whole group killed — the branch where the child is alive.
+func TestKillingARollReachesTheGroupAndNotOnlyTheChild(t *testing.T) {
+	cmd := exec.Command("/bin/sh", "-c", "sleep 30 & echo $!; sleep 30")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout pipe: %v", err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("starting the fixture: %v", err)
+	}
+	var grandchild int
+	if _, err := fmt.Fscanln(out, &grandchild); err != nil {
+		t.Fatalf("reading the grandchild's pid: %v", err)
+	}
+
+	// The control: the grandchild has to be alive before the kill, or the assertion after it would
+	// pass over a process that was never running.
+	if err := syscall.Kill(grandchild, syscall.Signal(0)); err != nil {
+		t.Fatalf("the grandchild %d was not running before the kill: %v", grandchild, err)
+	}
+	if err := killRollGroup(cmd.Process); err != nil {
+		t.Fatalf("killing a live roll's group: %v", err)
+	}
+	cmd.Wait()
+
+	// The child is reaped by Wait; the grandchild is only reached through the group.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(grandchild, syscall.Signal(0)); err != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	syscall.Kill(grandchild, syscall.SIGKILL)
+	t.Errorf("the grandchild %d outlived the group kill, so a timed-out roll leaves work running",
+		grandchild)
+}
+
+// The branch that exists only because of the race: once the child is reaped its pid may already
+// belong to somebody else, so the group kill must not be issued at all.
+func TestKillingAReapedRollSignalsNothing(t *testing.T) {
+	cmd := exec.Command("/bin/sh", "-c", "exit 0")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("starting the fixture: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("waiting on a fixture that exits 0: %v", err)
+	}
+
+	err := killRollGroup(cmd.Process)
+	// ErrProcessDone and not ESRCH: an unguarded `kill(-pid)` on a freed pid answers ESRCH when the
+	// pid happens to be unused, and succeeds when it has been recycled. Only the guard can answer
+	// this, so this is what distinguishes the two.
+	if !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("killing a reaped roll answered %v, wanted os.ErrProcessDone. Without the guard the "+
+			"signal goes to whatever now holds that pid, and every roll sets Setpgid, so a recycled "+
+			"pid is a live group leader belonging to somebody else", err)
 	}
 }

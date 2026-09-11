@@ -25,6 +25,6 @@ Every review comment on the PR that `~/.kk-flavor/skills/kk-pr/SKILL.md` → **C
 
 The review can be re-requested with `gh pr edit <N> --add-reviewer <login>`. Follow `~/.kk-flavor/standards/git.md` → **Pull requests** before running it; otherwise print the command for the human.
 
-The verdict block goes in your closing reply, carrying every question only the author can settle.
+The verdict block goes in your closing reply.
 
 **Under `review-and-address` the close is different**: say the PR is ready, then offer the two acts that remain — re-request the review, or post the verdict block as one comment. Neither happens unasked, and the scratchpad is gone by then or its surviving entries are in that reply.

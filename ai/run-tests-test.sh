@@ -2,90 +2,25 @@
 # Tests for run-tests.sh — the runner CI calls, so a bug here is a gate that stops gating quietly.
 #   usage: run-tests-test.sh   # prints one line per case; exit 0 when all pass, 1 otherwise
 #
-# Every case builds its own root under mktemp and points the runner at it. None of them run the
-# runner over this repository, which is what keeps this file — discovered by that runner like any
-# other suite — from recursing into itself.
-#
 # The two that matter most are the cases a green run cannot otherwise be told apart from: `no suites
 # found`, where discovery silently matches nothing, and a suite that exits 0 having run no case at
 # all. Both report a clean tree that was never read.
+#
+# The concurrency cases are ai/run-tests-concurrency-test.sh; the fixtures both halves need are in
+# lib/run-tests-fixtures.sh rather than copied into each.
 set -uo pipefail
 export LC_ALL=C
-# The machine's own git config must not reach these fixtures. Both, because NOSYSTEM blocks
-# /etc/gitconfig alone and ~/.gitconfig is the one that reaches in: a global core.excludesFile holding
-# `*.conf` refuses new_greedy_checkout's `git add kept.conf`, and the whole containment family below
-# then goes red on a runner that is working perfectly.
-export GIT_CONFIG_NOSYSTEM=1
-export GIT_CONFIG_GLOBAL=/dev/null
 
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+suite_name="ai/run-tests-test.sh"
 runner="$here/run-tests.sh"
 
-pass=0
-fail=0
-# Counted, and printed as its own field. Cases below sit behind `command -v git`, and a two-field
-# summary line asserts that no case is conditional — `~/.kk-flavor/standards/testing.md` →
-# **7. What a suite reports**. Worse than untidy: `run-tests.sh` reads `skipped` BY NAME to decide
-# vacuity, so on a machine without git this suite would report only the cases that did run and the
-# runner would accept it as a clean run with the guarded ones silently gone.
-skipped=0
-
-# <count> <why>. The count is how many cases the guarded block holds. It is a literal, and the drift
-# case at the end of this file is what holds it in step.
-record_skip() {
-  skipped=$((skipped + $1))
-  echo "skip — $1 case(s) not run: $2"
-}
-# Counts lines of the last run's output, which every case below leaves in `out`.
-matching_output_lines() { # <grep pattern>
-  printf '%s' "$out" | grep -c "$1"
-}
-check() {
-  local name="$1" expected="$2" actual="$3"
-  if [ "$expected" = "$actual" ]; then
-    echo "ok   — $name"
-    pass=$((pass + 1))
-  else
-    echo "FAIL — $name"
-    printf '       expected: %s\n       actual:   %s\n' "$expected" "$actual"
-    fail=$((fail + 1))
-  fi
-}
-
-# Exit 2, not 1: a fixture root that cannot be created is this suite failing to measure, where 1
-# would claim the script under test is broken — a different statement, and a false one.
-[ -x "$runner" ] || {
-  echo "run-tests-test: $runner is not an executable file — nothing was tested" >&2
-  exit 2
-}
-tmp="$(mktemp -d)" || {
-  echo "run-tests-test: could not create a temporary directory — nothing was tested" >&2
-  exit 2
-}
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/runner-logs"
-export TMPDIR="$tmp/runner-logs"
-
-new_suite() { # <path> <summary line>
-  printf '#!/usr/bin/env bash\necho "%s"\n' "$2" > "$1"
-}
-new_failing_suite() { # <path>
-  printf '#!/usr/bin/env bash\nexit 1\n' > "$1"
-}
-new_unmeasured_suite() { # <path>
-  printf '#!/usr/bin/env bash\nexit 2\n' > "$1"
-}
-
-# A checkout seeded with one committed file, plus a suite that overwrites it — the shape that makes the
-# tree move under a run.
-new_greedy_checkout() { # <dir>
-  mkdir -p "$1"
-  ( cd "$1" && git init -q . && git config user.email t@t && git config user.name t &&
-    printf 'real config\n' > kept.conf && git add kept.conf && git commit -qm seed ) >/dev/null 2>&1
-  printf '#!/usr/bin/env bash\nprintf "clobbered\\n" > "$(dirname "$0")/kept.conf"\necho "1 passed, 0 failed"\n' \
-    > "$1/greedy-test.sh"
-}
-
+# shellcheck source=../lib/test-check.sh
+. "$here/../lib/test-check.sh" ||
+  { printf '%s: lib/test-check.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
+# shellcheck source=../lib/run-tests-fixtures.sh
+. "$here/../lib/run-tests-fixtures.sh" ||
+  { printf '%s: lib/run-tests-fixtures.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
 mkdir -p "$tmp/green/nested"
 new_suite "$tmp/green/a-test.sh" "2 passed, 0 failed"
 new_suite "$tmp/green/nested/b-test.sh" "1 passed, 0 failed"
@@ -189,6 +124,7 @@ check "a red outranks a non-measurement" "1" "$rc"
 
 # A suite can measure something real and still not have measured its whole effect: writing outside its
 # own fixtures while reporting every case green. So the run has to notice the checkout moved under it.
+# guarded-block: this machine may have no git, and discovery cannot be driven through it there.
 if command -v git >/dev/null; then
   new_greedy_checkout "$tmp/repo"
   out="$("$runner" "$tmp/repo" 2>&1)"; rc=$?
@@ -227,6 +163,7 @@ fi
 out="$("$runner" "$tmp/green" 2>&1)"
 check "outside a checkout the summary says containment went unchecked" "1" \
   "$(matching_output_lines 'unmeasured, containment unchecked')"
+# guarded-block: this machine may have no git, and discovery cannot be driven through it there.
 if command -v git >/dev/null; then
   out="$("$runner" "$tmp/repo" 2>&1)"
   check "inside one it does not, so a clean tail means the tree was checked" "0" \
@@ -262,6 +199,7 @@ check "control: and the suite beside it really was found, so this is not an empt
 # property that must survive the narrowing — a suite written five minutes ago is untracked, and this
 # runner's whole claim is that it runs without anyone registering it. The ignored suite exits 1, so
 # it is a control rather than an assertion about a name: if it ran at all, the run goes red.
+# guarded-block: this machine may have no git, and discovery cannot be driven through it there.
 if command -v git >/dev/null; then
   mkdir -p "$tmp/ignored/vendor"
   ( cd "$tmp/ignored" && git init -q . && git config user.email t@t && git config user.name t ) >/dev/null 2>&1
@@ -403,19 +341,9 @@ check "and does not run it" "0" "$(matching_output_lines '1 passed')"
 out="$("$runner" -z "$tmp/named" 2>&1)"; rc=$?
 check "an unknown flag exits 2" "2" "$rc"
 
-# The skip literals are counts nothing derives, so one drifts the moment a case joins a guarded block,
-# and it drifts where nobody looks: the only machine that prints them is the one without git. Held
-# against the source they describe instead, on every machine.
-drift="$(awk '
-  /^if command -v git >\/dev\/null; then$/ { inblock = 1; n = 0; next }
-  inblock == 1 && /^else$/                  { inblock = 2; next }
-  inblock == 1 && /^  check /               { n++; next }
-  inblock == 2 && /^  record_skip /         {
-    if ($2 != n) { printf "line %d declares %s skipped over a block holding %d case(s); ", NR, $2, n }
-    inblock = 0
-  }
-' "$0")"
-check "every record_skip count matches the cases its block holds" "" "$drift"
+# Held on every machine, not only the one a guard is for: the skip counts are literals nothing derives.
+# skip_count_drift takes the file to scan because both suites carry guarded blocks now.
+check "every record_skip count matches the cases its block holds" "" "$(skip_count_drift "$0")"
 
 echo "$pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

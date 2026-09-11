@@ -3,6 +3,11 @@
 #   usage: run-tests.sh [-s <suite>] [<root>]   # <root> defaults to the repository this script lives in
 #          -s  run just this one suite, by path, instead of discovering them all
 #
+# The suites run several at a time, half the machine's cores by default, and their output is buffered
+# and printed in discovery order — so this reads exactly as it did when they ran one after another.
+# `RUN_TESTS_JOBS=1` puts them back on one lane, which is the first thing to try when a suite fails
+# here and passes on its own.
+#
 # `-s` gives a caller that already knows which suite a change could have moved (`ai/gate.sh` is one)
 # this file's reading of the result: the exit-2 "did not measure", and the vacuity check that makes a
 # suite exiting 0 having run no case a failure. `bash <suite>` gives neither.
@@ -164,6 +169,75 @@ tree_state() {
   git -C "$root" status --porcelain 2>/dev/null
 }
 
+# How many suites are in flight. Overlapping them is safe in the one respect anything here checks:
+# none leaves a change behind in the checkout, and `tree_state` compares `git status` before against
+# after. That is narrower than it sounds. It catches a write still sitting there at the end, and misses
+# one a suite reverts before finishing, and one further edit to a file already dirty when the run
+# started; where git cannot answer, the summary says `containment unchecked` and nothing is compared at
+# all. Each suite is meant to build its own temp HOME, and none of this reaches that — `git status` over
+# the checkout is blind to a write landing anywhere else, `$HOME` included.
+#
+# So `bootstrap.sh --verify` takes one lane by default: it calls this runner right after writing
+# $HOME/.claude, $HOME/.kk-flavor and $HOME/.codex. One lane is no fix — a suite that escapes escapes
+# alone too — it only keeps that from happening beside five peers while the config is half-written.
+#
+# Bounded, not all at once. Every suite in flight at once made the slowest one take 146s where it takes
+# 80 alone — they compete for the cores the `go build` inside them already wants — and half the machine
+# leaves that room.
+resolve_jobs() {
+  # Unset is held apart from every value a caller can spell, and only unset gets the default.
+  # `${RUN_TESTS_JOBS:-0}` would collapse them, making a caller's own `0` indistinguishable from the
+  # sentinel and handing it the default in silence. Zero is refused: no run is a run on no lanes.
+  # Set-but-empty is refused with it — a variable that did not expand names no number.
+  jobs="${RUN_TESTS_JOBS-}"
+  if [ -n "${RUN_TESTS_JOBS+named}" ]; then
+    case "$jobs" in
+      "") die "RUN_TESTS_JOBS is set but empty, so it names no number of suites" ;;
+      *[!0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is not a whole number of suites" ;;
+      # Refused before the arithmetic below, which would otherwise report a number `test` could not
+      # read as one against the message about zero.
+      [0-9][0-9][0-9][0-9][0-9]*) die "RUN_TESTS_JOBS is '$jobs', which is more lanes than a machine has" ;;
+      *) [ "$jobs" -ge 1 ] || die "RUN_TESTS_JOBS is '$jobs', and a run needs at least one lane" ;;
+    esac
+  fi
+  # A default, not a ceiling: a caller who has read the note above and wants the lanes on that path
+  # asks for a count and gets it. Only the caller who named nothing is decided here.
+  if [ -z "$jobs" ] && [ -n "${BOOTSTRAP_VERIFYING:-}" ]; then
+    jobs=1
+  fi
+  if [ -z "$jobs" ]; then
+    # Validated like a caller's value, because it is read from outside: getconf answering something
+    # that is not a count would otherwise reach the arithmetic below and kill the runner with a
+    # syntax error, which callers read as a suite failing rather than as the runner not measuring.
+    cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+    case "$cores" in
+      "" | *[!0-9]*) cores=2 ;;
+    esac
+    jobs=$(( cores / 2 ))
+    [ "$jobs" -lt 1 ] && jobs=1
+  fi
+  # `wait -n` arrived in bash 4.3. Without it there is no way to free one slot at a time, so the suites
+  # run one at a time — which is what this did before, and is never wrong, only slower.
+  #
+  # Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
+  # has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
+  #
+  # `RUN_TESTS_NO_WAIT_N` is a seam: every machine that runs the suite HAS `wait -n`, so without it
+  # nothing could reach the downgrade or its notice, and a regression in either would look exactly like
+  # a pass. It forces the fallback; it never suppresses one.
+  if [ -n "${RUN_TESTS_NO_WAIT_N:-}" ] ||
+    [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
+    { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then
+    # Said, not done quietly. A caller who set RUN_TESTS_JOBS=6 and silently got one lane holds a
+    # number they believe they set and did not, and would see it only as a run six times as long.
+    if [ "$jobs" -gt 1 ]; then
+      printf '%s: bash %s has no `wait -n`, so the suites run one at a time rather than %s at a time\n' \
+        "${0##*/}" "${BASH_VERSINFO[0]:-?}.${BASH_VERSINFO[1]:-?}" "$jobs" >&2
+    fi
+    jobs=1
+  fi
+}
+
 # The sentinel preserves newlines belonging to the path, which command substitution strips.
 root_real="$(real_dir "$root" && printf .)" || exit 2
 root_real="${root_real%$'\n'.}"
@@ -179,10 +253,60 @@ checkout_moved=0
 before_tree="$(tree_state)"
 tree_readable=$?
 containment=""
-for suite in "${suites[@]}"; do
+
+resolve_jobs
+
+# Buffering is this runner's own scratch, not the caller's diagnostics, so a TMPDIR that cannot be
+# used is not a reason to refuse the run. The retained-log directory below is the caller-visible one
+# and already degrades with a warning when it cannot be made; dying here instead turned that degrade
+# into exit 2 — "did not measure" — on any platform whose mktemp honours a missing TMPDIR strictly.
+# macOS falls back on its own and Linux does not, which is why this only ever failed in CI.
+work="$(mktemp -d 2>/dev/null)" ||
+  work="$(TMPDIR=/tmp mktemp -d 2>/dev/null)" ||
+  die "no temp directory to collect the suites' output in — nothing ran"
+trap 'rm -rf "$work"' EXIT
+
+# Buffered per suite rather than streamed, because concurrent suites writing to one stream interleave
+# mid-line. The status goes to its own file: `wait` reports the status of whichever job it reaped, not
+# of the suite this index names.
+run_suite() { # <index> <suite>
+  bash "$2" >"$work/$1.out" 2>&1
+  printf '%s' "$?" >"$work/$1.status"
+}
+
+# One lane runs in the foreground, and that is the only way to hold the bound on a bash without
+# `wait -n`. Backgrounding and then calling it there does not wait for anything — bash 3.2 rejects the
+# option, the slot is freed on the spot, and every suite is launched at once while the run reports
+# having serialised. Every stock macOS ships that bash, so the downgrade this runner prints was
+# describing behaviour it did not have.
+if [ "$jobs" -le 1 ]; then
+  # In a subshell, even though nothing here runs beside it. A suite that kills its own parent is how
+  # the unmeasured case is driven, and run_suite called directly would make that parent this runner:
+  # the run would die with the suite instead of reporting it never measured.
+  for index in "${!suites[@]}"; do
+    (run_suite "$index" "${suites[$index]}")
+  done
+else
+  running=0
+  for index in "${!suites[@]}"; do
+    if [ "$running" -ge "$jobs" ]; then
+      wait -n
+      running=$((running - 1))
+    fi
+    run_suite "$index" "${suites[$index]}" &
+    running=$((running + 1))
+  done
+fi
+wait
+
+for index in "${!suites[@]}"; do
+  suite="${suites[$index]}"
   name="${suite#"$root"/}"
-  output="$(bash "$suite" 2>&1)"
-  status=$?
+  output="$(cat "$work/$index.out" 2>/dev/null)"
+  # A missing status file is a suite whose subshell died before it could write one — unmeasured, and
+  # never folded into a pass. 2 is this file's own word for that.
+  status="$(cat "$work/$index.status" 2>/dev/null)"
+  case "$status" in "" | *[!0-9]*) status=2 ;; esac
   last="$(printf '%s' "$output" | tail -1)"
 
   # Exit 2 is a suite saying it did not measure — a dependency missing, a machine too loaded to time

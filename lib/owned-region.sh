@@ -95,11 +95,25 @@ region_writable() { # <file>
   # private file copies that file into the project. The `mv` breaks the link so the original is never
   # modified, but the read has already happened, and this library has no business reading a file its
   # caller only named one name for.
-  local links
-  links="$(stat -f '%l' "$file" 2>/dev/null)" ||
-    links="$(stat -c '%h' "$file" 2>/dev/null)" ||
-    links=1
-  if [ "$links" -gt 1 ] 2>/dev/null; then
+  # `-c` is GNU's format flag, `-f` is BSD's, and asking the wrong one first is not a clean miss: on
+  # Linux `stat -f` is `--file-system`, which reads the format string as a file operand and prints a
+  # block of filesystem facts for the real one. The answer is then multi-line text, `[ -gt ]` rejects
+  # it without a word, and a hardlinked file is written through. So each answer has to be checked for
+  # being one plain integer rather than trusted for having exited 0.
+  local links=""
+  links="$(stat -c '%h' "$file" 2>/dev/null)" || links=""
+  case "$links" in "" | *[!0-9]*) links="" ;; esac
+  if [ -z "$links" ]; then
+    links="$(stat -f '%l' "$file" 2>/dev/null)" || links=""
+    case "$links" in "" | *[!0-9]*) links="" ;; esac
+  fi
+  # Unreadable refuses rather than defaulting to one. A link count nobody established is the case where
+  # writing might share someone's file, so it is the wrong place to assume the safe answer.
+  if [ -z "$links" ]; then
+    refuse "$file: no link count could be read, so whether its contents are shared is unknown — nothing was written"
+    return 1
+  fi
+  if [ "$links" -gt 1 ]; then
     refuse "$file has $links hard links, so its contents are shared with a file this never named — nothing was written"
     return 1
   fi

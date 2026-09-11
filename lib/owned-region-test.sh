@@ -150,6 +150,25 @@ grep -q "^BODY$" "$tmp/hard.md" &&
   record_pass "and the file sharing its contents is untouched" ||
   record_fail "and the file sharing its contents is untouched" "$(cat "$tmp/private.md")"
 
+# The Linux failure this shipped with, made reproducible on any machine. `stat -f` is BSD's format flag
+# and GNU's `--file-system`, so on Linux the first probe answered with a block of filesystem facts
+# rather than failing; a multi-line answer made the numeric comparison false, that read as one link,
+# and the write went through a hardlink to somebody's private file. The stub answers that way for every
+# spelling, which is the one state no real machine here can produce.
+mkdir -p "$tmp/statstub"
+cat >"$tmp/statstub/stat" <<'STUB'
+#!/usr/bin/env bash
+printf '  File: "x"\n    ID: 99 Namelen: 255\n'
+exit 0
+STUB
+chmod +x "$tmp/statstub/stat"
+printf 'secret\n' >"$tmp/unknown-links.md"
+case_dry_run=false PATH="$tmp/statstub:$PATH" drive "region_write '$tmp/unknown-links.md' '$OPEN' '$CLOSE' 'BODY'"
+expect_out "a link count that cannot be read refuses" "no link count could be read"
+grep -q "^BODY$" "$tmp/unknown-links.md" &&
+  record_fail "and nothing was written on an unreadable link count" "it wrote" ||
+  record_pass "and nothing was written on an unreadable link count"
+
 # --- dry run ---------------------------------------------------------------------------------------------
 
 printf 'Theirs.\n' >"$tmp/dry.md"

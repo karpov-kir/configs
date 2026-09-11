@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	modelpolicy "kk-flavor/tools/model-policy"
@@ -97,8 +98,10 @@ func DefaultMemo(policy string) *Memo {
 func (m *Memo) key(kind, content string) string {
 	kindName, _, _ := strings.Cut(kind, "\n")
 	specification := kinds[kindName]
-	// Bump the algorithm version when unit extraction or majority semantics change.
-	identity := "judge-v2\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
+	// Bump the algorithm version when unit extraction or majority semantics change. v3: the bound a
+	// verdict is read against became the units on offer rather than the view's line count, and the vote
+	// became quorum-first waves. Either can move a verdict over identical bytes.
+	identity := "judge-v3\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
 	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
@@ -536,33 +539,38 @@ func Apply(lines []string, units []Unit, gone []int) string {
 	return strings.Join(kept, "\n") + "\n"
 }
 
-// Voting deletes only by majority. It omits remaining calls once none can change any unit;
-// every attempted roll must still produce a valid verdict.
+// Voting wraps a Caller so a unit is deleted only when MORE THAN HALF the independent rolls name it —
+// at an even count a supermajority rather than a bare half: four rolls need three. The model is not
+// consistent from one run to the next, and precision matters more than recall here. Each roll is
+// parsed on its own, so one that explains instead of answering, or names a unit that was never
+// offered, fails the whole vote rather than being outvoted into silence.
+//
+// The rolls go out in waves, and a wave goes out together. A majority is already decided once a
+// quorum of them agrees, so the first wave IS the quorum — two of three — and the rest are rolled only
+// where those two left a unit undecided. That costs the calls a sequential vote costs and the wall
+// clock a fully concurrent one costs.
+//
+// Concurrency is what makes a wave free: a roll waits on the API rather than on this machine, so three
+// at once came back in 150 seconds against 343 in sequence, none slower for the company.
 func Voting(call Caller, rolls int) Caller {
 	return func(prompt, view string) (string, error) {
-		count := strings.Count(view, "\n") + 1
+		count := unitsInView(view)
 		tally := map[int]int{}
-		for i := 0; i < rolls; i++ {
-			reply, err := call(prompt, view)
+		// The quorum of `rolls`, which is the fewest that can carry a majority: two of three. Rolling
+		// fewer than this first could never settle anything, so it would only add a wave.
+		quorum := rolls/2 + 1
+		for rolled := 0; rolled < rolls; {
+			named, err := rollWave(call, prompt, view, count, min(quorum, rolls-rolled))
 			if err != nil {
 				return "", err
 			}
-			gone, err := ParseVerdict(reply, count)
-			if err != nil {
-				return "", err
-			}
-			for _, n := range gone {
-				tally[n]++
-			}
-			remaining := rolls - i - 1
-			settled := true
-			for n := 1; n <= count; n++ {
-				if tally[n]*2 <= rolls && (tally[n]+remaining)*2 > rolls {
-					settled = false
-					break
+			rolled += len(named)
+			for _, gone := range named {
+				for _, n := range gone {
+					tally[n]++
 				}
 			}
-			if settled {
+			if settled(tally, count, rolls, rolls-rolled) {
 				break
 			}
 		}
@@ -577,4 +585,66 @@ func Voting(call Caller, rolls int) Caller {
 		}
 		return strings.Join(agreed, ","), nil
 	}
+}
+
+func rollWave(call Caller, prompt, view string, count, wave int) ([][]int, error) {
+	named := make([][]int, wave)
+	errs := make([]error, wave)
+	var wg sync.WaitGroup
+	for i := 0; i < wave; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			reply, err := call(prompt, view)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			named[i], errs[i] = ParseVerdict(reply, count)
+		}(i)
+	}
+	wg.Wait()
+	// Read in roll order, not in the order they landed, so the same failures always report the
+	// same one and a refusal is reproducible.
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+	return named, nil
+}
+
+// settled says no unrolled roll could still change the answer: every unit is already past a majority,
+// or already past saving. Asked before a wave rather than after each roll, because a wave's rolls are
+// in flight together and there is no moment between them to ask in.
+func settled(tally map[int]int, count, rolls, remaining int) bool {
+	for n := 1; n <= count; n++ {
+		if tally[n]*2 <= rolls && (tally[n]+remaining)*2 > rolls {
+			return false
+		}
+	}
+	return true
+}
+
+// unitsInView counts what the view actually offers, which is the bound a roll's answer is read
+// against. Split is the only writer of a view and numbers a unit's first line in the margin and
+// nothing else, so the numbered margins are the units. Counted here rather than passed in, because a
+// Caller is handed the prompt and the view and nothing besides.
+//
+// Never the view's line count, which stood here before and is a different number: prose units skip
+// blank lines, a fenced block is one unit over many lines, and a source file's units are its comment
+// blocks alone. Bounded by lines, a roll naming a unit nobody offered reached a majority before Run
+// refused it, as the whole judge failing rather than as the one roll that lost the plot.
+func unitsInView(view string) int {
+	count := 0
+	for _, line := range shell.SplitLines(view) {
+		margin, _, found := strings.Cut(line, "|")
+		if !found {
+			continue
+		}
+		if _, err := strconv.Atoi(strings.TrimSpace(margin)); err == nil {
+			count++
+		}
+	}
+	return count
 }

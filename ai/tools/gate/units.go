@@ -2,9 +2,7 @@ package gate
 
 import (
 	"bufio"
-	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -34,9 +32,6 @@ const (
 	// which no text scan parses. Globbed at DISCOVERY, so what lands in `inputs` is concrete paths —
 	// a pattern stored as an input would match nothing once git is asked with literal pathspecs.
 	skillScripts = "ai/kk-flavor/skills/*/scripts/*.sh"
-	// Where the skills keep the stub scripts that reach the Go tools. ai/tools/tool-stub-test.sh copies
-	// the stubs in its own table into fixtures and executes them, so they are that suite's subject —
-	// see the keying below for why naming the tree is not enough.
 )
 
 // The two directories eco-report's harness copies from: scripts/ for todo-gate.sh, templates/ for the
@@ -58,22 +53,29 @@ var sourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*\.[ \t]+"[^"]*/lib/([^"/]+\.
 // Neither reads a source line buried mid-line, nor a library some third file sources.
 var anySourcedLibLine = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?\blib/([A-Za-z0-9._-]+\.sh)`)
 
-// Copying is the other way a suite reaches a repository file, and it has to be keyed on too: edit the
-// copied file and the unit still answers out of its cache. Only the operand right after `cp` counts,
-// which leaves a destination inside the fixture unkeyed. A file is named by the literal tail after the
-// variable, so a copy whose basename is itself a variable names nothing.
-var copiedFileLine = regexp.MustCompile(`\bcp[ \t]+(?:-[-A-Za-z]+(?:=[^ \t\n]*)?[ \t]+)*"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/([^"$*?\n]+)"`)
-
-// Anchoring the pattern above to the start of a line would be the tighter guard, but
-// ai/mcp-sync-test.sh puts a real cp after a `case` arm.
+// A line that runs nothing. Matches only a line that STARTS with `#`, so a marker after a real
+// command still counts. Read by drivesGoTool below and by copiedRepoFiles in copies.go.
 var commentedLine = regexp.MustCompile(`^[ \t]*#`)
 
 func (g *gate) add(id, kind string, inputs []string, cmd string) {
-	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
+	g.addUnit(unit{id: id, kind: kind, inputs: inputs, cmd: cmd})
 }
 
 func (g *gate) addBlindToGoTests(id, kind string, inputs []string, cmd string) {
-	g.units = append(g.units, unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
+	g.addUnit(unit{id: id, kind: kind, inputs: inputs, cmd: cmd, blindToGoTests: true})
+}
+
+// The one place a unit is built, so the one place its declared inputs are made a set. Six append
+// sites below can reach one file — a sibling script is often also the library it sources, or a file
+// the suite copies into its fixture — and a path listed twice made `--units` report a count `--why`
+// disagreed with. Guarding at the site instead is what let the other sites collide unnoticed.
+//
+// Deduping moves no key. `linesUnder` walks the manifest and takes each line at most once however
+// many times a path is declared, then sorts what it takes, so neither a duplicate nor the order this
+// leaves behind ever reached a key. Nothing indexes a unit's inputs.
+func (g *gate) addUnit(u unit) {
+	u.inputs = shell.SortUnique(u.inputs)
+	g.units = append(g.units, u)
 }
 
 func (g *gate) buildUnits() int {
@@ -168,6 +170,10 @@ func (g *gate) discoverShellSuites() int {
 		case "ai/rtk-bootstrap-test.sh":
 			sibling = "ai/bootstrap.sh"
 			inputs = append(inputs, "ai/owner-instructions.md")
+		// No ai/run-tests-concurrency.sh exists; this suite covers ai/run-tests.sh. Being an input keys
+		// the unit on that file; naming it the sibling is what gets its text SCANNED.
+		case "ai/run-tests-concurrency-test.sh":
+			sibling = "ai/run-tests.sh"
 		case "ai/install-project-test.sh", "ai/project-skills-test.sh":
 			sibling = "ai/install-project.sh"
 			inputs = append(inputs, "ai/project-skills.sh", "ai/project-dependencies.sh",
@@ -199,14 +205,11 @@ func (g *gate) discoverShellSuites() int {
 			if err := safeToken("copied path", file); err != nil {
 				return g.fail("%s: %s", suite, err)
 			}
-			if !slices.Contains(inputs, file) {
-				inputs = append(inputs, file)
-			}
+			inputs = append(inputs, file)
 		}
 		// The suites that drive a Go tool also take the tool tree, since a change there moves what they
 		// observe. What they observe is a compiled binary, though, so the key drops the module's own
-		// `_test.go` files — 66 of the 150 files these units were keyed on, none of which `go build`
-		// puts in a binary.
+		// `_test.go` files — `go build` puts none of them in one.
 		viaBinary := false
 		if strings.Contains(body, "kk-flavor/skills") {
 			matches, globErr := filepath.Glob(filepath.Join(g.root, skillScripts))
@@ -219,18 +222,17 @@ func (g *gate) discoverShellSuites() int {
 					if err := safeToken("skill script", rel); err != nil {
 						return g.fail("%s: %s", suite, err)
 					}
-					if !slices.Contains(inputs, rel) {
-						inputs = append(inputs, rel)
-					}
+					inputs = append(inputs, rel)
 				}
 			}
 		}
-		if drivesGoTool(body) {
+		// Three ways into one input: a suite inside the tool tree, one that compiles the module, one
+		// whose text names a tool. The second also decides the blindness rather than only clearing it —
+		// what it observes is the test files, not a binary built without them.
+		runsGoSuites := goSuiteRun.MatchString(body) || goSuiteRun.MatchString(siblingBody)
+		if strings.HasPrefix(suite, goTree+"/") || runsGoSuites || drivesGoTool(body, siblingBody) {
 			inputs = append(inputs, goTree)
-			viaBinary = true
-		}
-		if goSuiteRun.MatchString(body) {
-			viaBinary = false
+			viaBinary = !runsGoSuites
 		}
 		// Through run-tests.sh, never `bash $suite`: that file owns the reading of a suite's result — exit 2
 		// is "did not measure", and a suite exiting 0 having run no case is VACUOUS and a failure. Run
@@ -246,201 +248,38 @@ func (g *gate) discoverShellSuites() int {
 	return 0
 }
 
-func (g *gate) discoverGoMutants() int {
-	g.goMutateBinary = "ai/tools/go-mutate/go-mutate"
-	build := exec.Command("go", "build", "-o", "go-mutate/go-mutate", "./go-mutate")
-	build.Dir = filepath.Join(g.root, "ai", "tools")
-	if out, err := build.CombinedOutput(); err != nil {
-		fmt.Fprintln(g.errOut, "gate.sh: go-mutate does not build, so its units cannot be listed and its verdicts cannot be trusted — nothing ran")
-		g.errOut.Write(out)
-		return 2
-	}
-	listing, err := g.capture(filepath.Join(g.root, g.goMutateBinary), "-units")
-	if err != nil {
-		return g.fail("go-mutate could not list its units — nothing ran")
-	}
-	if strings.TrimSpace(listing) == "" {
-		return g.fail("go-mutate listed no units — read this as the harness broken, never as nothing to check")
-	}
-	for _, line := range strings.Split(listing, "\n") {
-		fields := strings.Split(line, "\t")
-		if len(fields) < 4 || fields[0] == "" {
-			continue
-		}
-		file, suites, resolved := fields[0], fields[1], fields[3]
-		if err := safeToken("mutant file", file); err != nil {
-			return g.fail("%s", err)
-		}
-		if resolved == "" {
-			return g.fail("the mutation harness listed %s with no resolved path, so the gate cannot say which file the unit is keyed on — nothing ran", file)
-		}
-		target := strings.TrimPrefix(strings.TrimPrefix(resolved, g.root), "/")
-		inputs := []string{target, "ai/tools/go-mutate"}
-		for _, suite := range strings.Split(suites, ",") {
-			if suite == "" {
-				continue
-			}
-			dir := "ai/tools/" + strings.TrimPrefix(suite, "./")
-			inputs = append(inputs, strings.TrimSuffix(dir, "/"))
-		}
-		// Keyed on the package-qualified path, never the basename: eco-check and eco-report both hold a
-		// shell.go, and two units under one id would share one cache record.
-		id := "mutants:go:" + strings.TrimPrefix(target, "ai/tools/")
-		g.add(id, "mutation", inputs, g.goMutateBinary+" -file "+shellQuote(file))
-	}
-	return 0
-}
+// What a suite or its script says when it reaches into the Go tool tree. `ai/tools/` and not a bare
+// `tools/`: the loose form also matches `$tmp_real/tools/mise`, a fake mise shim two suites write
+// into their own temp dir and put on PATH.
+//
+// `tools/install.sh` is spelt out because ai/bootstrap.sh reaches the installer through a variable —
+// `"$repo/tools/install.sh"` — which `ai/tools/` never matches. Without it shell:ai/rtk-bootstrap,
+// whose own suite names no tool at all, is keyed only through the diagnostic strings that quote the
+// path.
+var goToolMarkers = []string{goTree + "/", "tools/install.sh", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"}
 
-func drivesGoTool(body string) bool {
-	for _, marker := range []string{"tools/", "resolve.sh", "eco-check", "eco-report", "eco-stats", "cite-graph", "rule-echo", "ECO_TOOLS"} {
-		if strings.Contains(body, marker) {
-			return true
-		}
-	}
-	return false
-}
-
-func unreadLib(keyed []string, bodies ...string) string {
-	for _, body := range bodies {
-		for _, match := range anySourcedLibLine.FindAllStringSubmatch(body, -1) {
-			if lib := "lib/" + match[1]; !slices.Contains(keyed, lib) {
-				return lib
-			}
-		}
-	}
-	return ""
-}
-
-// The repository files a suite copies into its fixture, plus the first copy naming a file the gate
-// cannot resolve. Keyed whether the copy is run or only read: a regexp cannot tell those apart, and
-// either way the file moves what the suite measures. ai/mcp-sync-test.sh copies ai/mcp.jsonc in and
-// asserts every command it names is executable.
-func (g *gate) copiedRepoFiles(repo repoListing, suiteDir string, bodies ...string) ([]string, string) {
-	var copied []string
+// Both the suite and the script it covers, because either can be the one that runs the tool. Read one
+// and not the other and two units over the same script get opposite answers.
+//
+// Comment lines do not count: a marker in prose runs nothing, and a header sentence naming a Go suite
+// would take the whole tree on the strength of it.
+//
+// Silence here is an answer, not a scan that failed, so there is no refusal to fall back on the way
+// unreadLib has one — which is why the units where a wrong answer costs most are decided by path.
+func drivesGoTool(bodies ...string) bool {
 	for _, body := range bodies {
 		for _, line := range strings.Split(body, "\n") {
 			if commentedLine.MatchString(line) {
 				continue
 			}
-			for _, match := range copiedFileLine.FindAllStringSubmatch(line, -1) {
-				tail := match[1]
-				files, unresolved := resolveCopiedPath(repo, suiteDir, tail)
-				if unresolved == "" {
-					copied = append(copied, files...)
-					continue
+			for _, marker := range goToolMarkers {
+				if strings.Contains(line, marker) {
+					return true
 				}
-				return nil, tail + ", which " + unresolved
 			}
 		}
 	}
-	return shell.SortUnique(copied), ""
-}
-
-// Three tries, tightest first: the tail as a repository path, then under the directory the suite lives
-// in, and only then the tracked files it is a suffix of. Each try returns every path it hit, not the
-// first. Two paths matching means the gate cannot say which one the suite copies. Keying on both
-// costs one file too many, and picking one could key the unit on the wrong file altogether.
-func resolveCopiedPath(repo repoListing, suiteDir, tail string) ([]string, string) {
-	candidates := copyCandidates(suiteDir, tail)
-	if resolved := allMatching(candidates, func(c string) bool { return repo.byPath[c] }); len(resolved) > 0 {
-		return resolved, ""
-	}
-	// A directory only where the tail spells one out, never through the suffix scan below: a tail
-	// landing on some deep directory by accident would key the unit on everything under it.
-	if resolved := allMatching(candidates, repo.holdsDirectory); len(resolved) > 0 {
-		return resolved, ""
-	}
-	var matches []string
-	for _, file := range repo.all {
-		if strings.HasSuffix(file, "/"+tail) {
-			matches = append(matches, file)
-		}
-	}
-	if len(matches) > 0 {
-		return matches, ""
-	}
-	// Nothing resolved, and the tail does not start at a top-level entry this repository has. So it points
-	// inside the fixture, which the suite built itself and no edit here can move. Keyed on nothing rather
-	// than refused, because refusing would let an ordinary line like
-	// `cp "$fixture/config.json" "$other/config.json"` stop the whole gate for everyone.
-	if !repo.topLevel[firstSegment(tail)] {
-		return nil, ""
-	}
-	return nil, "names no file in this repository"
-}
-
-// Both spellings the suites use: `$checkout/ai/bootstrap-test.sh` is rooted at the repository, while
-// `$script_dir/mcp-env.sh` names a sibling of the suite.
-func copyCandidates(suiteDir, tail string) []string {
-	if suiteDir == "" || suiteDir == "." {
-		return []string{tail}
-	}
-	return []string{tail, path.Join(suiteDir, tail)}
-}
-
-func allMatching(candidates []string, holds func(string) bool) []string {
-	var resolved []string
-	for _, candidate := range candidates {
-		if holds(candidate) {
-			resolved = append(resolved, candidate)
-		}
-	}
-	return resolved
-}
-
-func firstSegment(tail string) string {
-	first, _, _ := strings.Cut(tail, "/")
-	return first
-}
-
-// The repository's own files. `all` keeps the listing order the suffix scan walks, and `topLevel`
-// separates a path this repository could hold from one that exists only inside a fixture.
-type repoListing struct {
-	all      []string
-	byPath   map[string]bool
-	topLevel map[string]bool
-}
-
-func (g *gate) readRepoListing() (repoListing, int) {
-	all, err := g.listFiles(".")
-	if err != nil || len(all) == 0 {
-		return repoListing{}, g.fail("discovery could not list the repository's files, so it cannot " +
-			"say which of them a suite copies into its fixture — nothing ran")
-	}
-	repo := repoListing{all: all, byPath: map[string]bool{}, topLevel: map[string]bool{}}
-	for _, file := range all {
-		repo.byPath[file] = true
-		repo.topLevel[firstSegment(file)] = true
-	}
-	return repo, 0
-}
-
-func (r repoListing) holdsDirectory(candidate string) bool {
-	prefix := candidate + "/"
-	for _, file := range r.all {
-		if strings.HasPrefix(file, prefix) {
-			return true
-		}
-	}
 	return false
-}
-
-// `-z` and `core.quotePath=false`, the rule ai/run-tests.sh lives by. Drop either and a name reaches
-// the split below newline-separated or C-quoted, leaving a token safeToken refuses — the run exits 2
-// blaming a name nothing is wrong with.
-func (g *gate) listFiles(pathspec string) ([]string, error) {
-	out, err := g.capture("git", "-c", "core.quotePath=false", "ls-files", "-z",
-		"--cached", "--others", "--exclude-standard", "--", pathspec)
-	if err != nil {
-		return nil, err
-	}
-	var listed []string
-	for _, name := range strings.Split(out, "\x00") {
-		if name != "" {
-			listed = append(listed, name)
-		}
-	}
-	return listed, nil
 }
 
 func sourcedLibs(bodies ...string) []string {
@@ -463,8 +302,13 @@ func fileText(path string) string {
 	return string(body)
 }
 
-// Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
-// assumed safe: safeToken and the quoting are two defences, and an injection needs both to fail.
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+func unreadLib(keyed []string, bodies ...string) string {
+	for _, body := range bodies {
+		for _, match := range anySourcedLibLine.FindAllStringSubmatch(body, -1) {
+			if lib := "lib/" + match[1]; !slices.Contains(keyed, lib) {
+				return lib
+			}
+		}
+	}
+	return ""
 }

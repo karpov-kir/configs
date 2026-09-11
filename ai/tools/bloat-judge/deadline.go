@@ -15,23 +15,19 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// defaultRollDeadline bounds one roll of the model. The vote's rolls run in sequence, so a judge run
-// is bounded at three times this and can no longer block forever.
+// defaultRollDeadline bounds one roll of the model. The vote rolls a wave at a time, so a judge run is
+// bounded at two of these rather than three, and can no longer block forever — and at one whenever the
+// quorum settles, which is the common case.
 //
-// Read from measurement, not chosen. Timed on the machine and the load that produced the stall — five
-// ship sessions and their audits at once — a `return` run took 30 to 49 seconds over a two-line text,
-// 66 to 117 over a five-line one and 36 to 52 over a forty-line one, five samples each. Three rolls to
-// a run puts the worst roll measured at about 39 seconds, so a bound of 60 would cut off work that
-// finished honestly and 120 leaves three times over. That upper sample also reproduces the run the
-// report described: slow, past a caller's 120-second patience, and not hung at all.
+// Flat, not scaled by the text or by the load: a roll is spent waiting on the API, and neither
+// predicts it. Over thirteen timed rolls, 13KB cost 104 seconds where 53KB cost 85, and a roll that
+// took 119 seconds held 7% of a CPU.
 //
-// Flat rather than scaled by the text, because the forty-line run was the *faster* one: what a roll
-// costs tracks how loaded the machine is, not how much it was given to read.
-//
-// The number is the weaker half of the fix. What matters is that a roll ends and says it did: a
-// deadline set too tight refuses loudly, at exit 2, where no deadline at all left a mandatory gate
-// skipped in silence.
-const defaultRollDeadline = 120 * time.Second
+// 420 is 2.8 times the slowest of those rolls, 150 seconds. Generous deliberately: this exists so a
+// run ends, not so it ends soon, and a bound that clips an honest roll costs the whole gate. The 120
+// it replaces sat inside the distribution and refused honest rolls at exit 2. Concurrency is what
+// makes 420 affordable: one roll at a time, it would bound a run at 21 minutes.
+const defaultRollDeadline = 420 * time.Second
 
 // The only line the override file may carry.
 const overrideKey = "roll-timeout"
@@ -128,6 +124,24 @@ type modelCommand struct {
 	dir   string
 }
 
+// The whole process group, because a roll spawns children and the point of Setpgid above is to reach
+// them. Asked of os.Process first rather than killing the pid outright: Cancel runs on the deadline
+// goroutine while Wait runs on this one, and between Wait reaping the child and receiving the
+// watchCtx result the pid is already freed. A freed pid that the kernel has recycled is, because
+// every roll sets Setpgid, immediately a live group leader belonging to somebody else — another
+// session, a dev server — and the negated pid would deliver SIGKILL to all of it.
+//
+// os.Process.Signal holds the process's own lock and answers ErrProcessDone once reaped, which
+// os/exec already reads as "finished, not a failure to cancel". This narrows the window from the
+// whole Wait-to-channel gap down to the two adjacent syscalls below; it does not close it. Closing it
+// needs pidfd or process handles, which darwin does not have.
+func killRollGroup(p *os.Process) error {
+	if err := p.Signal(syscall.Signal(0)); err != nil {
+		return err
+	}
+	return syscall.Kill(-p.Pid, syscall.SIGKILL)
+}
+
 func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
@@ -135,7 +149,7 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	cmd.Stdin = strings.NewReader(command.stdin)
 	cmd.Dir = command.dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.Cancel = func() error { return killRollGroup(cmd.Process) }
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.Output()
 	if err != nil {

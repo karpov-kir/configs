@@ -23,11 +23,11 @@ However that is authorised (`~/.kk-flavor/standards/skill-protocol.md` → **Cal
 
 **Nothing addressed since the last review → say that and stop.** But **the stop does not fire on a round you withdrew yourself** — the replacement is drafted from the diff, not from what you deleted. **In `review-and-address` it never fires at all** — still-open findings are exactly what that mode's fix loop is for.
 
-A still-open prior finding lands as one line pointing at its original thread, never as a fresh line comment. A new finding on a line a prior comment already holds says what changed since.
+A prior finding this block carries points at its original thread rather than opening a fresh line comment. A new finding on a line a prior comment already holds says what changed since.
 
 ## Leave it pending
 
-The pending review **is** the draft: only the `gh` login that created it can see it, and GitHub shows it inline on the diff, where each comment can be edited or dropped. That is where the human reads it, not in your reply. **A question only the author can answer is a line comment, not a live block**; a setup ambiguity is still asked live.
+The pending review **is** the draft: only the `gh` login that created it can see it, and GitHub shows it inline on the diff, where each comment can be edited or dropped. That is where the human reads it, not in your reply. **A question only the author can answer goes on the diff, not into a live block**; one that holds the merge is the verdict block's ask. A setup ambiguity is still asked live.
 
 - **Prove `PENDING` on a throwaway before the findings ride on it — however that skip is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). POST a review carrying a one-word body, **no comments and no `event`**; GET it and read `state`; `DELETE .../reviews/<id>`. A submitted review is public the instant it exists and no message afterwards recalls it, so the whole flow below rests on this. Verifying it by sending the real payload is the thing `~/.kk-flavor/standards/live-systems.md` → **Arrange the undo before the act** forbids — reading the state back afterwards can only make your message honest, never keep the findings private. If `state` is not `PENDING`, delete it, stop, and tell the human this route no longer works; what leaked is one bland review rather than every finding and whatever the secret scan missed.
 - **Name the `gh` login in the handover.** Under a bot or second-account token the review is real, invisible to the human, and submittable only by that token — the handover fails silently and the work is stranded.

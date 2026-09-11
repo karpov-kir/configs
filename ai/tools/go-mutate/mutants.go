@@ -853,7 +853,7 @@ var mutants = []mutant{
 	{"gate: the narrowing drops every Go file, not only tests", "../gate/keys.go", "./gate/", "TestAUnitBlindToGoTestsIsNotKeyedOnThem",
 		`return strings.HasSuffix(path, "_test.go")`, `return strings.HasSuffix(path, ".go")`},
 	{"gate: a suite that runs the module's own suites is flagged anyway", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
-		"if goSuiteRun.MatchString(body) {", "if goSuiteRun.MatchString(body) && false {"},
+		"runsGoSuites := goSuiteRun.MatchString(body) || goSuiteRun.MatchString(siblingBody)", "runsGoSuites := false"},
 	{"gate: every discovered suite is flagged, marker or not", "../gate/units.go", "./gate/", "TestOnlyASuiteThatNeverCompilesTheModuleIsBlindToGoTests",
 		"\t\tviaBinary := false\n", "\t\tviaBinary := true\n"},
 	{"gate: a suite is keyed on nothing it sources from lib/", "../gate/units.go", "./gate/", "TestEditingASourcedLibraryMovesTheBootstrapUnitsKeys",
@@ -888,9 +888,9 @@ var mutants = []mutant{
 		"return modeHelp, why, path, 0", "return selected, why, path, 0"},
 	// Suite discovery reading names whole. Split on whitespace, a name holding a space became two units
 	// keyed on files that do not exist, and the real suite was gated by nothing.
-	{"gate: suite names split on whitespace again", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
+	{"gate: suite names split on whitespace again", "../gate/listing.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
 		`for _, name := range strings.Split(out, "\x00") {`, "for _, name := range strings.Fields(out) {"},
-	{"gate: the -z flag dropped from discovery", "../gate/units.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
+	{"gate: the -z flag dropped from discovery", "../gate/listing.go", "./gate/", "TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit",
 		`"ls-files", "-z",`, `"ls-files",`},
 
 	// `wiring` is blind to the module's test files because eco-check skips them, which is a claim

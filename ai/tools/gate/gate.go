@@ -227,6 +227,12 @@ func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string
 //
 // Refused rather than escaped, and refused at discovery rather than at use, so the gate fails closed
 // the way its other refusals do and says which name it cannot handle.
+// Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
+// assumed safe: safeToken and the quoting are two defences, and an injection needs both to fail.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
 func safeToken(what, value string) error {
 	if value == "" {
 		return fmt.Errorf("an empty %s names no file, so the gate refuses to build a command from it — nothing ran", what)
@@ -329,9 +335,10 @@ func hashString(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// The record's filename, which is not the id. Ids are package-qualified — `mutants:go:eco-check/
-// shell.go` — and a `/` in one names a directory the cache does not have, so every write for a go
-// mutation unit would fail and `--mutants` would report a pass having recorded nothing.
+// The record's filename, which is not the id. An id carries bytes a path segment may not: `:` in every
+// `mutants:go:…`, `+` where a unit covers more than one suite, and possibly a `/` — which would name a
+// directory the cache does not have, so every write for that unit would fail and `--mutants` would
+// report a pass having recorded nothing. Mutation ids hold no `/` today, but a units-file table may.
 func recordStem(id string) string {
 	var b strings.Builder
 	for i := 0; i < len(id); i++ {

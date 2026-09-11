@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func all(Unit) bool { return true }
@@ -274,6 +276,40 @@ func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	}
 }
 
+func TestMemoDoesNotReuseAnotherPolicy(t *testing.T) {
+	dir := t.TempDir()
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
+	for _, policy := range []string{"first", "second", "second"} {
+		memo := &Memo{Dir: dir, Policy: policy}
+		var out, errOut strings.Builder
+		if code := Run("judge", []string{"reply"}, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
+			t.Fatalf("code=%d %s", code, errOut.String())
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("model calls=%d, want 2 distinct policies", calls)
+	}
+}
+
+func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
+	original := kinds["reply"]
+	t.Cleanup(func() { kinds["reply"] = original })
+	memo := &Memo{Dir: t.TempDir(), Policy: "same-models"}
+	calls := 0
+	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
+	for _, reader := range []string{"first reader", "new reader"} {
+		kinds["reply"] = Kind{Reader: reader}
+		var out, errOut strings.Builder
+		if code := Run("judge", []string{"reply"}, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
+			t.Fatalf("judge=%d %s", code, errOut.String())
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("reader policy changed but model calls=%d, want 2", calls)
+	}
+}
+
 // The form the lanes run. A committed file with two blocks gains a third: only the third is offered,
 // the two committed ones are shown as context and cannot be deleted whatever the model answers.
 func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
@@ -336,24 +372,54 @@ func write(t *testing.T, content string) string {
 }
 
 // rollsAnswering is a Caller giving each reply in turn, so a vote's rolls read as the list they are.
+// The rolls are concurrent, so which reply a given roll draws is not fixed. Every case below asserts
+// on the tally, which does not depend on that; the lock is what keeps the counter itself sound.
 func rollsAnswering(replies ...string) Caller {
+	var mu sync.Mutex
 	next := 0
 	return func(string, string) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
 		reply := replies[next]
 		next++
 		return reply, nil
 	}
 }
 
+// A caller that counts, safe to call from one wave's goroutines at once. The count is read after
+// Voting returns, so a bare int here would be a race the -race build reports, not a short count.
+func counting(inner Caller) (Caller, func() int) {
+	var mu sync.Mutex
+	calls := 0
+	return func(prompt, view string) (string, error) {
+			mu.Lock()
+			calls++
+			mu.Unlock()
+			return inner(prompt, view)
+		}, func() int {
+			mu.Lock()
+			defer mu.Unlock()
+			return calls
+		}
+}
+
+// A real view, so the unit numbers the cases below name are numbers the vote actually offered. A
+// hand-written string is not one: the vote bounds an answer by the units in the margin, and a string
+// carrying no margins offers nothing.
+func viewOf(lines ...string) string {
+	_, view := Split(lines, false, all)
+	return view
+}
+
 func TestVotingDeletesOnlyWhatAMajorityNames(t *testing.T) {
-	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", "a\nb\nc")
+	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", viewOf("a", "b", "c"))
 	if err != nil || reply != "1" {
 		t.Fatalf("got %q %v, want \"1\"", reply, err)
 	}
 }
 
 func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
-	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", "a\nb\nc")
+	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", viewOf("a", "b", "c"))
 	if err != nil || reply != "none" {
 		t.Fatalf("got %q %v, want none", reply, err)
 	}
@@ -361,7 +427,7 @@ func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
 
 // A roll that explains fails the vote outright rather than being outvoted into silence.
 func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
-	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", "a\nb\nc"); err == nil {
+	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", viewOf("a", "b", "c")); err == nil {
 		t.Fatal("a prose roll was outvoted instead of refused")
 	}
 }
@@ -415,45 +481,108 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	}
 }
 
+// A roll that names a unit nobody offered has lost the plot exactly as a roll that explains has, and
+// fails the vote the same way. The gap the old line-count bound left is widest in a source file, whose
+// units are its comment blocks: a 500-line file with 40 of them accepted 501.
+func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
+	view := viewOf("a", "b")
+	if _, err := Voting(rollsAnswering("1", "3", "1"), 3)("p", view); err == nil {
+		t.Fatal("a unit number past the last unit was tallied instead of refused")
+	}
+	if got := unitsInView(view); got != 2 {
+		t.Fatalf("the view offers %d units, not 2 — the bound is reading something else", got)
+	}
+}
+
+// A fenced block is one unit over four lines, and blank lines are no unit at all, so counting lines
+// would answer 7 here where the vote may only offer 2.
+func TestUnitsInViewCountsUnitsAndNotLines(t *testing.T) {
+	view := viewOf("intro", "", "```", "one", "two", "```", "")
+	if got := unitsInView(view); got != 2 {
+		t.Fatalf("got %d units, want 2\n%s", got, view)
+	}
+}
+
+// Two rolls carry a majority of three, so a vote they agree on never rolls the third.
 func TestVotingStopsWhenTwoRollsSettleEveryUnit(t *testing.T) {
-	calls := 0
-	call := func(prompt, view string) (string, error) { calls++; return "2, 1", nil }
-	got, err := Voting(call, 3)("prompt", "one\ntwo")
-	if err != nil || got != "1,2" || calls != 2 {
-		t.Fatalf("settled majority = %q, %v; calls=%d, want 2", got, err, calls)
+	call, calls := counting(func(string, string) (string, error) { return "2, 1", nil })
+	got, err := Voting(call, 3)("prompt", viewOf("one", "two"))
+	if err != nil || got != "1,2" || calls() != 2 {
+		t.Fatalf("settled majority = %q, %v; calls=%d, want 2", got, err, calls())
 	}
 }
 
-func TestMemoDoesNotReuseAnotherPolicy(t *testing.T) {
-	dir := t.TempDir()
-	calls := 0
-	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
-	for _, policy := range []string{"first", "second", "second"} {
-		memo := &Memo{Dir: dir, Policy: policy}
-		var out, errOut strings.Builder
-		if code := Run("judge", []string{"reply"}, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
-			t.Fatalf("code=%d %s", code, errOut.String())
-		}
+// The quorum goes out together, which is the half of it a call count cannot see. Both rolls block
+// until both have arrived, so a vote that rolled them one at a time never reaches the second and this
+// ends on the timeout instead of the reply. Two and not three: the third is a wave of its own, and
+// these two agree, so it is never rolled.
+func TestTheQuorumsRollsGoOutTogether(t *testing.T) {
+	var arrived sync.WaitGroup
+	arrived.Add(2)
+	call := func(string, string) (string, error) {
+		arrived.Done()
+		arrived.Wait()
+		return "1", nil
 	}
-	if calls != 2 {
-		t.Fatalf("model calls=%d, want 2 distinct policies", calls)
+	done := make(chan string, 1)
+	go func() {
+		reply, err := Voting(call, 3)("p", viewOf("a", "b"))
+		if err != nil {
+			done <- "refused: " + err.Error()
+			return
+		}
+		done <- reply
+	}()
+	select {
+	case reply := <-done:
+		if reply != "1" {
+			t.Fatalf("got %q, want 1", reply)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the quorum's rolls ran one after another — the second never started while the first waited")
 	}
 }
 
-func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
-	original := kinds["reply"]
-	t.Cleanup(func() { kinds["reply"] = original })
-	memo := &Memo{Dir: t.TempDir(), Policy: "same-models"}
-	calls := 0
-	call := func(prompt, view string) (string, error) { calls++; return "none", nil }
-	for _, reader := range []string{"first reader", "new reader"} {
-		kinds["reply"] = Kind{Reader: reader}
-		var out, errOut strings.Builder
-		if code := Run("judge", []string{"reply"}, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
-			t.Fatalf("judge=%d %s", code, errOut.String())
-		}
+// And where the quorum leaves a unit undecided, the rest are rolled. One roll each for units 1 and 2
+// leaves both one short of a majority with one roll still to come, so stopping here would answer
+// "none" over a unit the third roll could carry.
+func TestVotingRollsOnWhenTheQuorumDisagrees(t *testing.T) {
+	call, calls := counting(rollsAnswering("1", "2", "1"))
+	got, err := Voting(call, 3)("p", viewOf("a", "b"))
+	if err != nil || calls() != 3 {
+		t.Fatalf("got %q %v after %d call(s), want 3 calls", got, err, calls())
 	}
-	if calls != 2 {
-		t.Fatalf("reader policy changed but model calls=%d, want 2", calls)
+	if got != "1" {
+		t.Fatalf("got %q, want 1 — the third roll carried it", got)
+	}
+}
+
+// The count is Voting's own parameter and the wave split is derived from it, so the arithmetic has to
+// hold for counts other than the 3 production passes today. Nine because a high count is where an
+// off-by-one in a split hides, and because 3 alone would let a wrong general rule pass — at 3 the
+// quorum is 2 and almost any plausible formula gives 2.
+//
+// Nine rolls put the quorum at five. Agreeing, the vote stops there: unit 1 is past a majority at
+// five, and a unit no roll named cannot reach one with four rolls left, so nothing is undecided.
+// Disagreeing two-of-five on unit 1 leaves it reachable — 2 now, 4 to come, 6 of 9 would carry it —
+// so the second wave has to fire.
+func TestTheWaveSplitHoldsAtAHigherRollCount(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		replies []string
+		want    int
+	}{
+		{"a quorum that agrees stops at the quorum", []string{"1", "1", "1", "1", "1"}, 5},
+		{"a quorum that leaves a unit reachable rolls on", []string{"1", "1", "2", "2", "2", "1", "1", "1", "1"}, 9},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			call, calls := counting(rollsAnswering(c.replies...))
+			if _, err := Voting(call, 9)("p", viewOf("a", "b")); err != nil {
+				t.Fatalf("vote refused: %v", err)
+			}
+			if calls() != c.want {
+				t.Fatalf("%d call(s), want %d", calls(), c.want)
+			}
+		})
 	}
 }
