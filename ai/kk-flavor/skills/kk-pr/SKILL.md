@@ -53,7 +53,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 1. **Select, don't transcribe.** The bar for what earns a line and the shape of one is `~/.kk-flavor/standards/human-writing.md` → **Review comments**, or, in `refine-description`, that file's **Change descriptions (PRs)**; below is only what GitHub adds.
    - **The defect, then the fix, in two or three sentences.** A ` ```suggestion ` block replaces that prose when the fix is code on the diff's own lines. Severity and an exploit scenario stay on a security finding.
    - **A finding that fails that bar is dropped, not lost** — it reaches the human in your closing reply, who decides what becomes its own change.
-   - **Nothing outside the diff is posted** — a duplicated site elsewhere, a gated proposal, a pre-existing defect.
+   - **Nothing outside the diff is posted as a line comment** — a duplicated site elsewhere, a gated proposal, a pre-existing defect. What the diff *owes* is the other case and belongs in the verdict block, not here: a requirement it does not deliver has no line to sit on.
 2. **Edit the draft inline with `kk-edit`.** The target is text you already hold. Preserve every finding, severity and required decision; read the final draft before sending. An independent rewrite is warranted only when unresolved wording needs another judgment.
 
 3. **Scan for secrets before anything reaches GitHub.** Check every suggestion body, comment and reply for credential-shaped strings, and mask any per `~/.kk-flavor/skills/kk-security-review/SKILL.md`'s secret-handling rule, replacing the suggestion with the fix described in words. **A secret in the PR's own diff is a Critical finding and is never quoted — however that quoting is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): the comment publishes it the instant it exists and no later instruction un-publishes it. This is the last check between a credential and a network write — nothing after you catches what you sent.
@@ -61,10 +61,24 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 
 ### The verdict block
 
-**Mergeable or not, in a sentence or two**, then one line each for what stopped the pass, each still-open prior finding, each finding you could not fix, and **which gap the verdict rests on** (`~/.kk-flavor/standards/human-writing.md` → **Budget**) — an untrusted PR's unverified gates, a drive that was needed and did not run, a fix that went out undriven. Where you pushed, one line per commit saying what it addressed joins them.
+**The verdict, then only what the author has to act on or decide.**
 
-**A red or missing check is one of those gaps** — `gh pr checks <N>`, named because *mergeable* is partly a claim about it. A green board is not restated.
+**No line says what you checked and found correct.** Not the config you confirmed consistent, not the branch you traced through every call site, not the behaviour you satisfied yourself was right. The author cannot act on any of it, the verdict already carries it, and a block reciting the round's work buries the one line that asks for something. This is the rule this block loses most often, because a round that found little leaves the most to say about itself.
 
-**Nothing else goes in it**: a finding that fits no single line goes on the closest line it concerns, or to the human. No stage list.
+**Mergeable and nothing open: that one line is the block.** *Looks good to me — mergeable.* Its own words, not that sentence copied.
+
+**Not mergeable: say so, say how many findings and that they sit under Files changed, and ask for them.** The author should not be hunting for the count. The findings stay on their lines; restating one here is the recital rule again.
+
+**One line each, and only these:**
+
+- **A prior finding the author has neither answered nor changed.** One they answered and declined is settled by that answer — re-raising it is the block arguing with the author.
+- **A finding with no line to anchor to**: a requirement in the body or the linked issue the diff does not deliver, a change request about a file the PR never touches, a test that should exist and does not. There is no closest line for these, and anchoring one to the nearest code makes the author read it as being about code that is there.
+- **What stopped the pass.**
+- **Which gap the verdict rests on** (`~/.kk-flavor/standards/human-writing.md` → **Budget**) — an untrusted PR's unverified gates, a drive that was needed and did not run, a fix that went out undriven, hardware or a service this round could not reach. **A red or missing check is one of these** — `gh pr checks <N>`, named because *mergeable* is partly a claim about it. A green board is not restated. This is the one thing the author cannot derive from the diff, so it survives even under the one-line verdict above.
+- Where you pushed, one line per commit saying what it addressed.
+
+**A question only the author can answer cannot sit under *mergeable*.** Either it decides the merge — then the verdict is not mergeable and the question is the ask — or it does not, and it is a line comment. A block that says mergeable and then asks leaves nobody knowing whether to merge.
+
+**Nothing else goes in it.** No stage list.
 
 **Where the block goes is the mode's**, and `refine-description` produces none.
