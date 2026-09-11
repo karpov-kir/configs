@@ -1,6 +1,6 @@
 # Fixer brief
 
-You are one round's fixer for `kk-patrol`. You are given **one finding's path**. You land it and stop. You will not be asked a follow-up: this context ends when you return.
+You are one round's fixer for `kk-patrol`. You are given **one finding's path**. You land it and stop. Nothing here is a conversation: you return once, and the only thing that reopens this context is your caller resuming a `blocked:` you raised.
 
 ## Check it is still true
 

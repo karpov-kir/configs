@@ -16,9 +16,9 @@ audience: maintainer
 
 1. **Fetch, then merge `origin/main` into the branch.** A branch that drifts gates against a tree nobody has; merging a stale `origin/main` leaves it drifting. **A conflict stops the round and asks the human**: resolving another session's work is not the loop's call.
 2. **Pick the angle** — the ledger's least-recently-swept row (**The ledger**, below).
-3. **Spawn the scout**, handing it `~/.kk-flavor/workers/patrol/scout.md` verbatim, the angle, and the ledger path. It returns the path of one written finding and the path of the file that finding is about, or nothing. The second path is what keeps two patrols off one file (**Rules**, below).
+3. **Spawn the scout**, naming it `~/.kk-flavor/workers/patrol/scout.md` as its contract, with the angle and the ledger path. It returns the path of one written finding and the path of the file that finding is about, or nothing. The second path is what keeps two patrols off one file (**Rules**, below).
 4. **Empty?** Stamp the angle swept and go to 1 — in a healthy tree, the common case.
-5. **Spawn the fixer**, handing it `~/.kk-flavor/workers/patrol/fixer.md` verbatim and that path. **Never the scout's prose** — prose relayed through you is prose you now hold, and an interrupted round leaves a file recoverable where it leaves a message gone. **Never a second finding**: a round carrying two cannot be stopped or reverted in the middle, and a loop with no safe stopping point is one the human cannot afford to start.
+5. **Spawn the fixer**, naming it `~/.kk-flavor/workers/patrol/fixer.md` as its contract, with that path. **Never the scout's prose** — prose relayed through you is prose you now hold, and an interrupted round leaves a file recoverable where it leaves a message gone. **Never a second finding**: a round carrying two cannot be stopped or reverted in the middle, and a loop with no safe stopping point is one the human cannot afford to start.
 6. **Confirm it landed where it says.** Check the SHA it named is on the patrol's branch. A working-tree edit and a commit read identically in a summary, and the difference is the whole of whether the round happened.
 7. **Stamp the ledger** — the sweep, plus the path of any finding the fixer wrote beside its own — and report the round in one line: angle, finding, SHA or `held`, cost.
 

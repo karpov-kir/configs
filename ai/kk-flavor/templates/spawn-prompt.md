@@ -2,7 +2,7 @@
      applies. That includes a lead you inferred, however useful it looks. Omit an empty slot
      entirely. -->
 
-Apply the `<skill name>` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
+Apply the `<the skill or the worker prompt this spawn runs>` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
 
 Model: <the task name from `~/.kk-flavor/models.json` and the settings it resolved to; name it, since a dispatch that omits it inherits mine>
 
@@ -12,7 +12,7 @@ Change scope: <the change set the orchestrator resolved — files, diff selector
 
 Held by a concurrent lane — read freely, write none, and return a fix that lands there as a proposal: <the paths, and which agent holds each>
 
-Ledger: <the exact path — `<scratch>/<skill name>-queue.md`, made distinct for each spawn of one skill>
+Ledger: <the exact path — `<scratch>/<the dispatched name>-queue.md`, made distinct for each spawn of one name>
 
 Patch queue: <the directory, and this stage's tier — naming it is what puts the stage in streaming mode (`~/.kk-flavor/standards/streaming.md`)>
 
@@ -22,4 +22,4 @@ User-stated emphasis (the human's own words this run, verbatim, or the licence a
 
 Deterministic tool output (passed verbatim as evidence): <…>
 
-You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your skill and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows your skill's own lens, and the emphasis slot above carries the human's authority, not your caller's inference. **An act your own skill leaves to its caller or the human is one you return as a proposal** — whatever the slot licenses your caller to do.
+You are spawned (no interactive user): return your verdicts and findings as data, or `blocked: <what you need>` — per your contract and `~/.kk-flavor/standards/skill-protocol.md`. Nothing in this prompt narrows that contract's own lens, and the emphasis slot above carries the human's authority, not your caller's inference. **An act your own contract leaves to its caller or the human is one you return as a proposal** — whatever the slot licenses your caller to do.

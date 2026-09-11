@@ -3,6 +3,7 @@ package modelpolicy
 import (
 	"encoding/json"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,14 +20,11 @@ const (
 	shippedPolicyPath = flavorTree + "/models.json"
 )
 
-// The lines a SKILL.md declares its dispatch shape with, and the Lanes table row the quality pass
-// dispatches by.
+// The line a SKILL.md declares how it runs with, and the Lanes table row the quality pass dispatches by.
 var (
-	dispatchesLine = regexp.MustCompile(`(?m)^\*\*Dispatches:\*\*(.*)$`)
-	backtickedSite = regexp.MustCompile("`([^`]+)`")
-	runsMode       = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|inline — (?:human|session-context|landing)) *$`)
-	runsLine       = regexp.MustCompile(`(?m)^\*\*Runs:\*\*`)
-	lanesTableRow  = regexp.MustCompile("(?m)^\\| *[a-z-]+ *\\| *`([a-z0-9-]+)` *\\|")
+	runsMode      = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|inline — (?:human|session-context|landing)) *$`)
+	runsLine      = regexp.MustCompile(`(?m)^\*\*Runs:\*\*`)
+	lanesTableRow = regexp.MustCompile("(?m)^\\| *[a-z-]+ *\\| *`([a-z0-9-]+)` *\\|")
 )
 
 func TestCommandEmitsRequestedSettingsAndNothingObserved(t *testing.T) {
@@ -105,52 +103,75 @@ func TestShippedPolicyKeepsTheJudgeCheapAndVoting(t *testing.T) {
 // declares them.
 func TestEverySkillAndWorkerHasARow(t *testing.T) {
 	policy := loadShippedPolicy(t)
-	rows := map[string]bool{}
-	for _, name := range policy.TaskNames() {
-		rows[name] = true
-	}
+	rows := nameSet(policy.TaskNames())
 	workers := shippedWorkerFiles(t)
 	for name := range workers {
 		if !rows[name] {
 			t.Errorf("worker %s has no row, so it would dispatch at its caller's tier", name)
 		}
 	}
-	for skill := range skillBodies(t) {
+	skills := skillBodies(t)
+	for skill := range skills {
 		if !rows[skill] {
 			t.Errorf("skill %s has no row, so it would dispatch at its caller's tier", skill)
 		}
 	}
-	declared := declaredDispatchSites(t)
+	owners := policy.PromptOwners()
+	sessions := nameSet(policy.SessionTasks())
 	for name := range rows {
-		skill, _, isSub := strings.Cut(name, "/")
-		if !isSub {
+		if sessions[name] {
+			assertSessionRowReadsAModeFile(t, name)
 			continue
 		}
-		// A worker's own file is its evidence, and it needs nothing else.
+		// Every worker row resolves to a prompt, and asked of the bare names too rather than sub-rows
+		// alone: a top-level row claims a prompt exactly as a sub-row does, and leaving it unasked is
+		// what would let the flat worker grammar land a row whose file was never written. The forms are
+		// the ones model-policy.md → **One row per skill, one per dispatch site** names, in its order.
 		if workers[name] {
 			continue
 		}
-		// Nothing falls back to a skill's row any more, so every other sub-row stands on evidence of its
-		// own: the **Dispatches:** entry its skill carries, because a worker spawn bills separately, or,
-		// for a named path through one session that bills nothing of its own, the mode file it reads.
-		if !declared[name] {
-			mode := filepath.Join(skillsTree, skill, strings.TrimPrefix(name, skill+"/")+".md")
-			if _, err := os.Stat(mode); err != nil {
-				t.Errorf("sub-row %s has no worker file under kk-flavor/workers/, no **Dispatches:** entry in its skill, and no mode file at %s", name, mode)
+		// Parse has already refused a row naming one that is not a worker, or one that names another's
+		// prompt in turn; what is left is that the row named has a prompt to hand over.
+		if target, named := owners[name]; named {
+			if _, stillASkill := skills[target]; !workers[target] && !stillASkill {
+				t.Errorf("row %s dispatches the prompt of %s, which has neither a file under kk-flavor/workers/ nor a SKILL.md", name, target)
 			}
+			continue
 		}
+		if _, stillASkill := skills[name]; stillASkill {
+			continue
+		}
+		if name == toolBuiltWorker {
+			continue
+		}
+		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and it is not %s, the one row a Go tool assembles the prompt for", name, toolBuiltWorker)
 	}
-	for name := range declared {
-		if !rows[name] {
-			t.Errorf("dispatch site %s is declared but has no row, so it bills at its caller's tier", name)
-		}
+}
+
+// The one worker whose prompt is assembled in Go rather than read from the tree, so the census cannot
+// find a file for it and must not demand one. Named rather than sniffed out: it is the only row of its
+// kind, and a second would be a decision somebody has to write down here.
+const toolBuiltWorker = "bloat-judge"
+
+// A session sub-row prices a named path through one session rather than a spawn, so the mode file that
+// path reads is its evidence. A session's own row is a skill, already checked against the skills tree.
+func assertSessionRowReadsAModeFile(t *testing.T, name string) {
+	t.Helper()
+	skill, mode, isSub := strings.Cut(name, "/")
+	if !isSub {
+		return
+	}
+	path := filepath.Join(skillsTree, skill, mode+".md")
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		t.Errorf("session sub-row %s reads no mode file at %s, so nothing says which path through %s it prices", name, path, skill)
 	}
 }
 
 // A session row is one nothing enforces, and which rows those are is derivable rather than a
-// judgement: a model is set for the judge, for a declared dispatch site, and for the leaf skills
-// kk-qualify's Lanes table dispatches; everything else runs in whatever session invoked it. The split
-// stays hand-written so a reader of the policy can see it, and this checks it against the derivation.
+// judgement: a model is set for the judge, for every worker file, for a row naming another worker's
+// prompt, and for the leaf skills kk-qualify's Lanes table dispatches; everything else runs in whatever
+// session invoked it. The split stays hand-written so a reader of the policy can see it, and this
+// checks it against the derivation.
 func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	skills := skillBodies(t)
@@ -185,9 +206,9 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if declaredRuns == 0 {
 		t.Fatal("no skill declares how it runs, so the split rests on the lane table alone")
 	}
-	// A sub-row is a worker only when a skill declares it as one. A session sub-row is a named path
-	// through the same session, so it takes the kind of the skill it belongs to.
-	declaredSites := declaredDispatchSites(t)
+	// A sub-row is a worker when it has a prompt of its own or names another worker's. A session sub-row
+	// is a named path through the same session, so it takes the kind of the skill it belongs to.
+	owners := policy.PromptOwners()
 	for name := range shippedWorkerFiles(t) {
 		enforced[name] = true
 	}
@@ -196,16 +217,13 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 		if !isSub {
 			continue
 		}
-		if declaredSites[name] {
+		if _, named := owners[name]; named {
 			enforced[name] = true
 		} else if enforced[skill] {
 			enforced[name] = true
 		}
 	}
-	isSession := map[string]bool{}
-	for _, name := range policy.SessionTasks() {
-		isSession[name] = true
-	}
+	isSession := nameSet(policy.SessionTasks())
 	for _, name := range policy.TaskNames() {
 		if enforced[name] && isSession[name] {
 			t.Errorf("%s is dispatched, so it belongs under workers, not sessions", name)
@@ -218,19 +236,63 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 
 // A task the policy does not list is refused, including one whose path starts with a skill that has a
 // row. That ancestor fallback used to answer, which is what let a renamed worker keep resolving to a
-// session row one tier down — see Resolve. Nine more keys are renamed in the steps after this one, so
-// the refusal is the thing under test, not an edge case.
+// session row one tier down — see Resolve. A dozen live-looking names sit below, so the refusal is the
+// thing under test, not an edge case.
 func TestAnUnlistedTaskIsRefusedRatherThanInherited(t *testing.T) {
 	policy := loadShippedPolicy(t)
-	own, err := policy.Resolve(Request{Client: "claude", Task: "kk-build/explore"})
+	own, err := policy.Resolve(Request{Client: "claude", Task: "build/explore"})
 	if err != nil || own.Requested.Model != "sonnet" || own.Kind != "worker" {
 		t.Fatalf("a site with its own row = %+v, %v", own, err)
 	}
-	// Each of these has a listed ancestor and no row of its own: a phase of a real skill, and the
-	// retired names of two workers this step renamed.
-	for _, task := range []string{"kk-build/plan-the-change", "kk-patrol/scout", "kk-patrol/fixer", "kk-invented/phase"} {
+	// Each of these has a listed ancestor and no row of its own: a phase of a real skill, and the retired
+	// names of renamed workers — every one of them a skill prefix the resolver would have answered from.
+	for _, task := range []string{
+		"kk-build/plan-the-change", "kk-invented/phase",
+		"kk-patrol/scout", "kk-patrol/fixer", "kk-build/explore", "kk-grill/facts",
+		"kk-reduce/over-cut", "kk-reduce/arbitrate", "kk-reduce/fan-out",
+		"kk-reduce/reconcile", "kk-reduce/converge", "kk-reduce/repair",
+		"idsd-qualify/reconcile",
+	} {
 		if decision, err := policy.Resolve(Request{Client: "claude", Task: task}); err == nil {
 			t.Errorf("%s resolved to %+v instead of being refused", task, decision)
+		}
+	}
+}
+
+// The rows that name another worker's prompt, pinned. The field is the first mechanism that can run a
+// protected lane's contract at a cheap row's tier, and nothing in the policy orders the tiers — so a
+// downgrade added as a new row reads like an ordinary cheap site rather than an edit to the protected
+// one. Pinning the set is what makes adding one a decision somebody had to write down; the ceiling
+// that would compare the two tiers needs an order the file does not carry yet.
+var shippedPromptOwners = map[string]string{
+	"reduce/fan-out": "kk-ecosystem",
+	"reduce/repair":  "kk-edit",
+}
+
+func TestOnlyThePinnedRowsNameAnotherWorkersPrompt(t *testing.T) {
+	if named := loadShippedPolicy(t).PromptOwners(); !maps.Equal(named, shippedPromptOwners) {
+		t.Errorf("rows naming another worker's prompt = %v; want %v — add it here with its reason, or drop the field", named, shippedPromptOwners)
+	}
+}
+
+// A row naming another worker's prompt owns none itself, so what it resolves to is the whole of its
+// contract: its own tier, and the name of the worker whose prompt the spawn is handed.
+func TestARowNamingAnotherWorkersPromptResolvesToBoth(t *testing.T) {
+	policy := loadShippedPolicy(t)
+	owners := policy.PromptOwners()
+	if len(owners) == 0 {
+		t.Fatal("no row names another worker's prompt, so this proved nothing")
+	}
+	for name, target := range owners {
+		decision, err := policy.Resolve(Request{Client: "claude", Task: name})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if decision.Kind != "worker" || decision.Worker != target {
+			t.Errorf("%s resolved as %s dispatching %q; want worker dispatching %q", name, decision.Kind, decision.Worker, target)
+		}
+		if _, err := policy.Resolve(Request{Client: "claude", Task: target}); err != nil {
+			t.Errorf("%s names %s's prompt, which the policy does not assign: %v", name, target, err)
 		}
 	}
 }
@@ -269,13 +331,12 @@ func TestInstalledPolicyFollowsTheInvokedMount(t *testing.T) {
 // `.` or a placeholder is a path or a template rather than a task.
 func TestNoFileNamesATaskThePolicyDoesNotAssign(t *testing.T) {
 	policy := loadShippedPolicy(t)
-	rows := map[string]bool{}
+	rows := nameSet(policy.TaskNames())
 	// The first segment of every sub-row, which is a task family whether or not it is a row itself.
 	// `patrol/scout` and `patrol/fixer` carry no skill prefix, so keying on rows alone would leave the
 	// whole family invisible to this scan.
 	families := map[string]bool{}
-	for _, name := range policy.TaskNames() {
-		rows[name] = true
+	for name := range rows {
 		if family, _, isSub := strings.Cut(name, "/"); isSub {
 			families[family] = true
 		}
@@ -331,6 +392,16 @@ func TestNoFileNamesATaskThePolicyDoesNotAssign(t *testing.T) {
 	}
 }
 
+// The policy's names as a set: every check below asks whether one name is among them rather than
+// walking the list.
+func nameSet(names []string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
+}
+
 func loadShippedPolicy(t *testing.T) *Policy {
 	t.Helper()
 	policy, err := Load(shippedPolicyPath)
@@ -363,28 +434,6 @@ func skillBodies(t *testing.T) map[string][]byte {
 	return bodies
 }
 
-// Every dispatch site a skill declares, as the task name the policy would have to carry. Read off the
-// **Dispatches:** line rather than the prose: every SKILL.md carries a frontmatter `description:`, so
-// text-matching would make a row called "description" look declared. The line sits beside the prose
-// that spawns the worker, so it moves with it.
-func declaredDispatchSites(t *testing.T) map[string]bool {
-	t.Helper()
-	declared := map[string]bool{}
-	for skill, body := range skillBodies(t) {
-		line := dispatchesLine.FindSubmatch(body)
-		if line == nil {
-			continue
-		}
-		for _, site := range backtickedSite.FindAllSubmatch(line[1], -1) {
-			declared[skill+"/"+string(site[1])] = true
-		}
-	}
-	if len(declared) == 0 {
-		t.Fatal("no skill declares a dispatch site, so every check against them proved nothing")
-	}
-	return declared
-}
-
 // One skill's SKILL.md, and the only place these checks read one. Regular files only: os.ReadFile
 // follows a symlink, so a committed link to /dev/zero hangs the check and one pointing outside the
 // repo gets its tokens echoed into a failure line. A directory whose SKILL.md is not a regular file
@@ -399,10 +448,10 @@ func readSkillFile(skill string) ([]byte, bool) {
 	return body, err == nil
 }
 
-// The workers/ tree declares a worker: a file there is one, and its path is its task name. Not the
-// only way yet — most rows under `workers` have no file and are declared inside the skill that spawns
-// them — so this census is paired with the declared one. A directory cannot forget to mention itself,
-// which is what a **Dispatches:** line beside the prose can always do.
+// The workers/ tree declares a worker: a file there is one, and its path is its task name. A directory
+// cannot forget to mention itself, which a line beside the prose that spawns the worker always could.
+// Two row shapes still have no file here: one naming another worker's prompt, and a worker that is
+// still a mounted skill.
 func shippedWorkerFiles(t *testing.T) map[string]bool {
 	t.Helper()
 	found := map[string]bool{}

@@ -317,8 +317,10 @@ var mutants = []mutant{
 	{"families: the scan runs in the permitted direction too", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case strings.HasPrefix(name, workflowFamily):\n\t\t\tcontinue", "case strings.HasPrefix(name, workflowFamily) && false:\n\t\t\tcontinue"},
 	{"families: the router keeps a blanket pass, claim or no claim", "families.go", "./eco-check/", "TestFamilyDirectionScan", "c.assertRouterClaimsItsException(name)", "_ = name"},
 	{"families: a skill in neither family goes unreported", "families.go", "./eco-check/", "TestFamilyDirectionScan", "case !strings.HasPrefix(name, anyRepoFamily):", "case !strings.HasPrefix(name, anyRepoFamily) && false:"},
-	{"families: only SKILL.md is read, so scripts go unchecked", "families.go", "./eco-check/", "TestFamilyDirectionScan", `c.filesNamed(dir, "*.md", "*.sh")`, `c.filesNamed(dir, "*.md")`},
+	{"families: only SKILL.md is read, so scripts go unchecked", "families.go", "./eco-check/", "TestFamilyDirectionScan", `laneProseAndScripts = []string{"*.md", "*.sh"}`, `laneProseAndScripts = []string{"*.md"}`},
 	{"families: the state directory is no longer looked for", "families.go", "./eco-check/", "TestFamilyDirectionScan", "[]*regexp.Regexp{workflowName, stateDir}", "[]*regexp.Regexp{workflowName}"},
+	{"families: the worker tree goes unscanned", "families.go", "./eco-check/", "TestFamilyDirectionAcrossTheWorkerTree", "c.reportWorkerFamilyLeaks(workflowName, stateDir)", "_, _ = workflowName, stateDir"},
+	{"families: the workflow family's own workers lose their exemption", "families.go", "./eco-check/", "TestFamilyDirectionAcrossTheWorkerTree", `if file == owned || strings.HasPrefix(file, owned+"/") {`, `if (file == owned || strings.HasPrefix(file, owned+"/")) && false {`},
 
 	// These rev-parse fallbacks require a fixture that disables the filesystem layout reader.
 	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},

@@ -22,10 +22,15 @@ type Settings struct {
 
 // assignment is one entry in either map. Rolls belongs here rather than beside the models because it
 // is the same question asked in calls instead of tier: how many times this task may ask the model.
+//
+// Worker names another worker's prompt, for a row that dispatches an existing pass under its own
+// accounting rather than owning a prompt. Without this field such a row would have to invent a prompt
+// file to satisfy the directory census, which is the gate driving the tree instead of describing it.
 type assignment struct {
 	Codex  *Settings `json:"codex"`
 	Claude *Settings `json:"claude"`
 	Rolls  int       `json:"rolls,omitempty"`
+	Worker string    `json:"worker,omitempty"`
 }
 
 // Limits holds the counts that multiply a run's cost without changing any single call's price.
@@ -64,7 +69,10 @@ type Decision struct {
 	// Kind is "worker" when this row sets the model of a dispatch, and "session" when it only says what
 	// tier the invoking session should have been started at. A caller reading "session" cannot act on
 	// the settings — nothing can change the model of a session already running.
-	Kind         string   `json:"kind"`
+	Kind string `json:"kind"`
+	// Worker is the prompt this row dispatches, named only where that is another row's — so a caller
+	// resolving such a site learns which contract to hand the spawn, not only what it may spend.
+	Worker       string   `json:"worker,omitempty"`
 	Requested    Settings `json:"requested"`
 	Rolls        int      `json:"rolls,omitempty"`
 	PolicyDigest string   `json:"policy_digest"`
@@ -96,6 +104,18 @@ func (p *document) validate() error {
 	if len(p.Sessions) == 0 || len(p.Workers) == 0 {
 		return fmt.Errorf("model policy needs both sessions and workers")
 	}
+	if err := p.validateSessions(); err != nil {
+		return err
+	}
+	if err := p.validatePromptOwners(); err != nil {
+		return err
+	}
+	return p.validateAssignments()
+}
+
+// The two fields that price a dispatch are refused on a session, which is invoked rather than
+// dispatched, and no name may sit in both maps.
+func (p *document) validateSessions() error {
 	for name, session := range p.Sessions {
 		if _, both := p.Workers[name]; both {
 			return fmt.Errorf("%q is listed as both a session and a worker", name)
@@ -103,7 +123,15 @@ func (p *document) validate() error {
 		if session.Rolls != 0 {
 			return fmt.Errorf("session %q sets a roll count, but nothing dispatches it", name)
 		}
+		if session.Worker != "" {
+			return fmt.Errorf("session %q names a worker prompt, but a session is invoked rather than dispatched", name)
+		}
 	}
+	return nil
+}
+
+// What every row carries, whichever of the two maps it sits in.
+func (p *document) validateAssignments() error {
 	for name, task := range p.all() {
 		if !validName(name) {
 			return fmt.Errorf("invalid task name %q", name)
@@ -123,6 +151,30 @@ func (p *document) validate() error {
 			if err := validateSettings(client, *settings); err != nil {
 				return fmt.Errorf("task %q: %w", name, err)
 			}
+		}
+	}
+	return nil
+}
+
+// A row naming another worker's prompt has to reach a real one in one hop. Unchecked, the field is a
+// way to spell a row that names nothing — the directory census accepts it because it claims someone
+// else's file, and no check ever opens that file.
+func (p *document) validatePromptOwners() error {
+	for name, task := range p.Workers {
+		if task.Worker == "" {
+			continue
+		}
+		if task.Worker == name {
+			return fmt.Errorf("worker %q names itself as the prompt it dispatches, so it declares no prompt at all", name)
+		}
+		target, ok := p.Workers[task.Worker]
+		if !ok {
+			return fmt.Errorf("worker %q dispatches the prompt of %q, which is not a worker row", name, task.Worker)
+		}
+		// One hop, so the prompt a row names is always a row that owns one: a chain would let the file
+		// this resolves to depend on reading two other rows, and a cycle would have no file at all.
+		if target.Worker != "" {
+			return fmt.Errorf("worker %q dispatches %q, which names %q's prompt in turn; name the prompt's owner directly", name, task.Worker, target.Worker)
 		}
 	}
 	return nil
@@ -166,12 +218,16 @@ func (p *Policy) Resolve(request Request) (Decision, error) {
 			Client:       request.Client,
 			Task:         request.Task,
 			Kind:         lookup.kind,
+			Worker:       task.Worker,
 			Requested:    *requested,
 			Rolls:        task.Rolls,
 			PolicyDigest: p.digest,
 		}, nil
 	}
-	return Decision{}, fmt.Errorf("the policy assigns no model to %q; add it rather than letting the dispatch inherit its parent's", request.Task)
+	// The name, and where a right one comes from: a stale caller's first need is the live name rather than
+	// a row, since "add it" alone sends them to write a second row for a worker that already has one, which
+	// the two-way file check refuses. Conditional, because three row shapes own no file under workers/.
+	return Decision{}, fmt.Errorf("the policy assigns no model to %q; if this names a worker whose key was renamed, the live one is its path under kk-flavor/workers/ without the .md — otherwise add a row rather than letting the dispatch inherit its parent's", request.Task)
 }
 
 // SessionTasks answers which rows set no dispatch, so a check can compare them against the skills tree.
@@ -181,6 +237,19 @@ func (p *Policy) SessionTasks() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// PromptOwners answers which rows dispatch another row's prompt, keyed by the row and valued by the
+// row that owns it, so a check can resolve such a site to the file holding its contract without
+// parsing the policy a second time.
+func (p *Policy) PromptOwners() map[string]string {
+	named := map[string]string{}
+	for name, task := range p.content.Workers {
+		if task.Worker != "" {
+			named[name] = task.Worker
+		}
+	}
+	return named
 }
 
 // Limits is how a skill reads a count from here rather than parsing the file itself — the policy is

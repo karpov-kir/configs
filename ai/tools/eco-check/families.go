@@ -7,7 +7,7 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// Direction inside the skill layer. The rule's home is ecosystem.md → **Family direction**: the any-repo
+// Direction inside the lane trees. The rule's home is ecosystem.md → **Family direction**: the any-repo
 // family never names the workflow family, or anything it owns. This is its enforcement.
 //
 // What a leak costs: a description is what the model reads to choose a skill. One that discriminates
@@ -28,7 +28,7 @@ const (
 // directory name follows it.
 const (
 	skillInNeitherFamily       = "skill '"
-	anyRepoNamesWorkflowFamily = "any-repo skill names the workflow family"
+	anyRepoNamesWorkflowFamily = "any-repo lane names the workflow family"
 	familyRouterFinding        = "router "
 )
 
@@ -38,9 +38,8 @@ const (
 const familyRouter = "kk-foreman"
 
 // What the router's own file must cite to claim its exception, since ecosystem.md says the exception is
-// claimed in the skill's own file. assertRouterClaimsItsException holds what goes wrong without the
-// check. Asserted through the tree's own citation form rather than a phrase, so it survives the prose
-// around it being reworded.
+// claimed in the skill's own file. A citation rather than a phrase, so it survives the prose around it
+// being reworded.
 const routerClaimCitation = "ecosystem.md → **Family direction**"
 
 // The citation as it is really written: the canonical form ecosystem.md → **Conventions a new file
@@ -54,6 +53,16 @@ var routerClaimPattern = regexp.MustCompile("ecosystem\\.md`? → \\*\\*Family d
 
 // Derived, so a renamed family does not leave this scan looking for a directory nobody writes any more.
 func workflowStateDir() string { return "." + strings.TrimSuffix(workflowFamily, "-") }
+
+// The one directory of the worker tree the workflow family owns. Everything else under `workers/` is
+// any-repo by default, so a worker added tomorrow is scanned rather than unclassified: there is no
+// third case here for a neither-family finding to catch.
+func workflowWorkerDir() string { return strings.TrimSuffix(workflowFamily, "-") }
+
+// The files a lane steers its reader with, in either tree: prose, and the scripts whose comments steer
+// just as surely. One list rather than the pair at each call site, so the mutation that proves scripts
+// are really read has one anchor to narrow.
+var laneProseAndScripts = []string{"*.md", "*.sh"}
 
 func (c *checker) scanFamilyDirection() {
 	workflowName := regexp.MustCompile(`\b` + regexp.QuoteMeta(workflowFamily) + `[A-Za-z0-9._-]*`)
@@ -73,20 +82,44 @@ func (c *checker) scanFamilyDirection() {
 			c.assertRouterClaimsItsException(name)
 			continue
 		}
-		c.reportFamilyLeaks(name, workflowName, stateDir)
+		c.reportSkillFamilyLeaks(name, workflowName, stateDir)
 	}
+	c.reportWorkerFamilyLeaks(workflowName, stateDir)
 }
 
-// One any-repo skill's whole directory, prose and scripts alike. Not just SKILL.md: a script's comment
-// steers the agent reading it exactly as the skill file does, and a reference file is read on the same
-// trigger.
+// The same direction across the worker tree. Without it the whole layer is unscanned: a worker is
+// dispatched by whichever skill needs it, so an any-repo one naming an `idsd-*` skill or the `.idsd/`
+// directory reads as a dangling reference in every repository that mounts no workflow skill.
+//
+// No router exception here: the one skill that routes between families has a door, and a worker has
+// nothing to route.
+func (c *checker) reportWorkerFamilyLeaks(workflowName, stateDir *regexp.Regexp) {
+	var anyRepo []string
+	for _, tree := range c.workerLaneTrees() {
+		owned := shell.Join(tree, workflowWorkerDir())
+		for _, file := range c.filesNamed(tree, laneProseAndScripts...) {
+			if file == owned || strings.HasPrefix(file, owned+"/") {
+				continue
+			}
+			anyRepo = append(anyRepo, file)
+		}
+	}
+	c.reportFamilyLeaksIn(anyRepo, workflowName, stateDir)
+}
+
+func (c *checker) reportSkillFamilyLeaks(name string, workflowName, stateDir *regexp.Regexp) {
+	c.reportFamilyLeaksIn(c.filesNamed(shell.Join(c.root.Skills(), name), laneProseAndScripts...), workflowName, stateDir)
+}
+
+// One call's any-repo files, from whichever tree they came: one skill's directory, or every any-repo
+// worker at once. The bound is per call, so one leaking skill cannot exhaust the next skill's
+// allowance. The worker tree is a single call, so its prompts share one allowance between them.
 //
 // Fences are not skipped, matching scanDirection's reasoning — a name inside one steers its reader too,
 // and a description is never fenced anyway.
-func (c *checker) reportFamilyLeaks(name string, workflowName, stateDir *regexp.Regexp) {
-	dir := shell.Join(c.root.Skills(), name)
+func (c *checker) reportFamilyLeaksIn(files []string, workflowName, stateDir *regexp.Regexp) {
 	found := 0
-	for _, file := range c.filesNamed(dir, "*.md", "*.sh") {
+	for _, file := range files {
 		lines, err := c.readLines(file)
 		if err != nil {
 			continue

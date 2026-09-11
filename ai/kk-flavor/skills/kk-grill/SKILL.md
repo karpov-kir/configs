@@ -22,9 +22,7 @@ Format each question like so:
 
 Their answers reshape the tree: recompute the frontier, then ask the next round.
 
-**Dispatches:** `facts`
-
-Finding _facts_ is your job, never the user's — dispatch a subagent for any fact the environment holds, and **don't block on it**: only the questions downstream of it wait, so ask the rest of the frontier now. The _decisions_ are the user's — put each to them and wait.
+Finding _facts_ is your job, never the user's — dispatch `~/.kk-flavor/workers/grill/facts.md` as `grill/facts` for any fact the environment holds, one spawn per fact and a ledger path of its own for each (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**), since these run concurrently. **Don't block on one**: only the questions downstream of it wait, so ask the rest of the frontier now. A fact it reports it could not establish is a question for the user, never a gap to assume across. The _decisions_ are the user's — put each to them and wait.
 
 **Ask the fewest questions that settle the thing**, and prune a branch the moment the answers so far make it moot.
 

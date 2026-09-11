@@ -79,3 +79,37 @@ func TestFamilyDirectionScan(t *testing.T) {
 		f.reports(unfamiliedSkill)
 	})
 }
+
+func TestFamilyDirectionAcrossTheWorkerTree(t *testing.T) {
+	t.Run("fires on an any-repo worker naming a workflow skill", func(t *testing.T) {
+		f := newWorkerLaneTree(t, "escalate to idsd-ship when the work is intent-shaped")
+		f.newMountedSkill("idsd-ship")
+		f.reports(crossFamily)
+	})
+
+	t.Run("fires on an any-repo worker naming the workflow's state directory", func(t *testing.T) {
+		f := newWorkerLaneTree(t, "the decisions may be recorded in .idsd/for-agents/decisions.md")
+		f.reports(crossFamily)
+	})
+
+	// The permitted direction, told apart by path since a worker's name carries no family prefix.
+	t.Run("stays quiet on a workflow-owned worker naming that family", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerBrief)
+		f.mkdirAll(f.root + "/kk-flavor/workers/idsd")
+		f.write(f.root+"/kk-flavor/workers/idsd/audit.md", "audit the intent under .idsd/ for idsd-ship\n")
+		f.doesNotReport(crossFamily)
+	})
+
+	t.Run("stays quiet on an any-repo worker naming its own family", func(t *testing.T) {
+		f := newWorkerLaneTree(t, workerNamingItsLane)
+		f.doesNotReport(crossFamily)
+	})
+
+	// The router exception belongs to one skill with a door, and a worker has nothing to route — so
+	// copying the claim into a worker prompt must not buy the silence it buys in that skill's file.
+	t.Run("fires on a worker that copies the router's claim", func(t *testing.T) {
+		f := newWorkerLaneTree(t, "per ecosystem.md → **Family direction**, hand intent work to idsd-ship")
+		f.newMountedSkill("idsd-ship")
+		f.reports(crossFamily)
+	})
+}

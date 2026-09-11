@@ -5,8 +5,6 @@ description: Run the quality pipeline over the working tree with a merge stamp. 
 
 **Runs:** inline — landing
 
-**Dispatches:** `reconcile`
-
 Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. The current coordinator owns leaf dispatch under `~/.kk-flavor/standards/skill-protocol.md`; do not create another qualification coordinator.
 
 **The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`** — apply its pass **inline**, reusing the unchanged contract already held (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). That skill ends at a closing reply; this one adds the report, the stamp and the lifecycle around it. **Every heading below that it also carries is the delta over its section of that name**, and the rest is this skill's own.
@@ -18,12 +16,13 @@ Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inli
 3. **`report.sh invalidate <intent>`**, once the report is set. Retain its JSON context for this attempt; pass it to the stage workers with their candidate scope.
 4. For applicability-based skips, run `report.sh scope <base-ref> <intent>` with the review's explicit base. It records the exact candidate and worktree. Without a valid scope receipt, run every stage rather than inventing a skip. If repairs change the candidate, refresh this receipt against the same base and revalidate affected evidence before stamping.
 
-**Dispatch `reconcile` over each completed stage's return, then accept it with `report.sh stage-result
-<result.json> <intent>`.** Hand that worker the return, the report's JSON context and the stage's
-scope; it settles which findings become `items` and returns them. **Reconciling in this session is
-what would hold it at the pass's own tier** — every `report.sh` call here is deterministic and the
-stamp is a script, so the judgment is the only model work, and it is bounded enough to leave
-(`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). The stamp stays here. [stage-results.md](stage-results.md) is the complete submission and recovery procedure. The tool records completion and renders its decision items; an empty item list accounts for a stage with no residue. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): submit only after the worker's final verdict and your reconciliation of its findings.
+**Dispatch `~/.kk-flavor/workers/idsd/qualify/reconcile.md` over each completed stage's return, then
+accept it with `report.sh stage-result <result.json> <intent>`.** Hand that worker the return, the
+report's JSON context and the stage's scope; it settles which findings become `items` and returns
+them. **Reconciling in this session is what would hold it at the pass's own tier** — every
+`report.sh` call here is deterministic and the stamp is a script, so the judgment is the only model
+work, and it is bounded enough to leave
+(`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). The stamp stays here. [stage-results.md](stage-results.md) is the complete submission and recovery procedure. The tool records completion and renders its decision items. **Streamed, a patch is not a return** (`~/.kk-flavor/standards/streaming.md`): submit only after the worker's final verdict and your reconciliation of its findings.
 
 **A stale gate is a Decide item** (`~/.kk-flavor/standards/quality-pipeline.md` → **Gates**), and gate verification precedes the stamp. Under `idsd-ship`, `idsd-build`'s Phase 2 already resolved them.
 

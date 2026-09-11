@@ -12,9 +12,9 @@ For each completed stage, submit one JSON object containing that context plus:
 | `outcome` | `complete`, or a refactor partial outcome accepted by the tool's usage |
 | `items` | New unresolved decision items, or `[]` when none remain |
 
-Run `report.sh stage-result` for the accepted field values and limits. Every item carries `id`, `kind`, `severity`, `action`, `evidence` and `recommendation`. Use plain text; the renderer escapes Markdown. Choose stable IDs for items so subsequent findings can reference them. The outcome records coverage, not the absence of decisions: a completed review may still return open items.
+Run `report.sh stage-result` for the accepted field values and limits. Use plain text; the renderer escapes Markdown. The outcome records coverage, not the absence of decisions: a completed review may still return open items.
 
-Read the worker's whole return and reconcile every finding before submission. Applied fixes stay in the diff; settled decisions go to their existing record. Newly unresolved human decisions go in `items`. Prior report items remain in place and are not submitted again. The tool preserves what it receives; it cannot prove that a worker found every defect or that the caller included every decision.
+**Reconciling the return is `~/.kk-flavor/workers/idsd/qualify/reconcile.md`'s pass**, and the item list it returns is what goes in `items`. The tool preserves what it receives; it cannot prove that a worker found every defect or that the reconciliation kept every decision.
 
 Submit with `report.sh stage-result <result.json> <intent>`. A successful return means the evidence was accepted and its items were written. Stamp only after every applicable stage is accepted, using the outcomes each returned. Skips still require their existing applicability or turnaround authorization.
 

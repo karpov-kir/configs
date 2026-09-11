@@ -30,9 +30,18 @@ forget to mention itself, which is what makes this provable rather than inspecte
 elsewhere drifts from the tree, and matching a skill's prose instead would accept any row whose name
 happens to appear in that skill's frontmatter `description:`.
 
-**A site whose prompt still lives inside its skill is declared in a `**Dispatches:**` line beside the
-prose that spawns it**, checked the same both ways. That is the older form and it is being retired as
-each site gains a file; a site has one form or the other, never both.
+**Three kinds of worker row own no file there, and each resolves to its prompt another way.** One
+**names another worker's prompt in a `worker` field**, because it dispatches an existing pass under
+its own accounting — a campaign re-running one is the case, and the row exists whether or not the tier
+differs, since a site that bills separately is a site the cost surface has to show. That field must
+name a row owning a prompt, one hop and never a chain, so every site still resolves to exactly one
+file. The second is a worker **that is still a mounted skill**, running from its own `SKILL.md` until
+that move finishes. The third is one **whose prompt a Go tool assembles** rather than reading it from
+the tree; `bloat-judge` is the only one, and its row is a required input rather than a declaration
+(**What the policy can and cannot reach** below).
+
+**A site is never declared in a skill's prose.** A line beside the prose can forget to mention itself,
+and that older form kept a site's tier and its prompt in two places.
 
 **A task the policy does not list is refused, and nothing falls back to anything.** A name whose path
 starts with a listed skill is refused with the rest: that ancestor fallback is what let a renamed
@@ -41,10 +50,10 @@ unusable, the dispatch set no model and took its caller's tier, exit status 0, w
 name was dead. **So a new phase or mode that needs its own tier needs a row before it can ask**, and
 the tree may not name a task the policy does not assign; the Go suite checks the tree both ways.
 
-**Two kinds of sub-row, each checked against its own source.** A worker sub-row is a separate spawn
-that bills separately, so it is listed even where its tier matches its skill's, and the skill declares
-it. A sub-row for a named *path* through one session bills nothing of its own — it earns a row only by
-needing a different tier than the skill around it, and the mode file that path reads is its evidence.
+**A name carrying a `/` is a sub-row, and two kinds of thing take one.** A worker sub-row is a
+separate spawn, declared by whichever form above resolves its prompt. A sub-row for a named *path*
+through one session bills nothing of its own — it earns a row only by needing a different tier than
+the skill around it, and the mode file that path reads is its evidence.
 
 The decision reports which kind of row answered, so a caller that gets `session` back knows the
 settings are not its to apply.

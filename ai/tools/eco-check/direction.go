@@ -116,6 +116,20 @@ func (c *checker) laneTrees() []string {
 	return []string{c.root.Skills(), c.root.Flavor() + "/workers"}
 }
 
+// Every lane tree but the skills one, which the two scans that read a worker's path share. Derived from
+// laneTrees, so renaming a tree cannot leave either of them reading a path nothing writes to — silently,
+// in the one place no structural finding would notice.
+func (c *checker) workerLaneTrees() []string {
+	var trees []string
+	for _, lane := range c.laneTrees() {
+		if lane == c.root.Skills() {
+			continue
+		}
+		trees = append(trees, lane)
+	}
+	return trees
+}
+
 func (c *checker) underALane(file string) bool {
 	for _, lane := range c.laneTrees() {
 		if strings.HasPrefix(file, lane+"/") {
@@ -189,14 +203,12 @@ func laneCitationPattern(lanes, laneFiles string) *regexp.Regexp {
 
 // The entrance arm's alternation: every file this tree carries, by whole path — the exemption covers
 // all of them, so the entrance must too. Not a bare `workers` segment: `--gate` must read no
-// uncommitted path as a lane, and the standards name the layer by that bare directory. Read off
-// laneTrees, so no exempted tree loses its guard; skills is skipped, the arm above holding its names.
+// uncommitted path as a lane, and the standards name the layer by that bare directory. Read off the
+// worker lane trees, so no exempted tree loses its guard; the skills tree is not one of them, the arm
+// above holding its names.
 func (c *checker) laneFileAlternation() string {
 	var escaped []string
-	for _, lane := range c.laneTrees() {
-		if lane == c.root.Skills() {
-			continue
-		}
+	for _, lane := range c.workerLaneTrees() {
 		for _, path := range c.filesNamed(lane, "*") {
 			relative := strings.TrimPrefix(path, c.root.Flavor()+"/")
 			// Dropped rather than escaped: QuoteMeta passes a non-ASCII byte through untouched and
@@ -390,7 +402,6 @@ type lineMatch struct {
 	match string
 }
 
-// The `<line>:<match>` form a finding echoes.
 func (m lineMatch) String() string { return strconv.Itoa(m.line) + ":" + m.match }
 
 func grepNumbered(lines []string, pattern *regexp.Regexp) []lineMatch {

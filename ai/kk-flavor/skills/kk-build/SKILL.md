@@ -6,11 +6,9 @@ argument-hint: "the requirement to build — a ticket, an issue, a file holding 
 
 **Runs:** inline — human
 
-Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md`; do not spawn a build wrapper merely to invoke this entry. Apply `~/.kk-flavor/standards/building.md` when Phase 4 starts. Read the selected phase's additional references only when needed. Phase 3's exploration worker dispatches as `kk-build/explore`; every other phase answers `kk-build` (`~/.kk-flavor/standards/model-policy.md`).
+Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md`; do not spawn a build wrapper merely to invoke this entry. Apply `~/.kk-flavor/standards/building.md` when Phase 4 starts. Read the selected phase's additional references only when needed. Exploration dispatches `~/.kk-flavor/workers/build/explore.md` as `build/explore`; every other phase answers `kk-build` (`~/.kk-flavor/standards/model-policy.md`).
 
 **Your caller names two things** — the requirement set, and the homes that receive what this build produces: a decision it settled, a follow-up it opened, a proposal only a human can accept. **With no home named, they go to your caller** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**), never into a file you chose.
-
-**Dispatches:** `explore`
 
 **Two traps for every subagent below.** Give each spawn its own ledger path (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**) — a shared fixed name is the one two concurrent spawns both pick. And build every prompt from `~/.kk-flavor/templates/spawn-prompt.md`.
 
@@ -22,7 +20,7 @@ Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md
 
 **Only where a choice is genuinely open**, and skipped whole where none is. A requirement the repo already answers needs no round, and opening one anyway spends the human on a question their own code settled. **A caller that has already run this says so, and the phase does not run.**
 
-**Explore only the unanswered choice.** Use the context already held or a bounded read-only worker when discovery is substantial and independent. Return the existing stack facts needed for that choice; do not inventory a known or empty repository.
+**Explore only the unanswered choice.** Use the context already held, or dispatch the read-only exploration worker with that choice as its question when discovery is substantial and independent.
 
 **Decide, here, with the human.** A choice reaches this phase only because reversing it is expensive, which is exactly the class `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first** puts live to them. **A subagent has no human**: it prepares the question and never answers it. `~/.kk-flavor/skills/kk-build/technical-round.md` is the whole delta — **what earns a question at all**, what one carries, and what closes it. Everything under that bar you settle yourself; a choice the human could reasonably expect you to make is one that spends them for nothing.
 
@@ -30,10 +28,9 @@ Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md
 
 Plan the change in the implementation context. Reuse an established shape; a local edit does not require another planning agent. Where a new boundary needs substantial exploration, the coordinator may dispatch one bounded worker and carry its decision forward. Read `~/.kk-flavor/standards/architecture/core.md` only for architectural choices; compare alternatives where its module-boundary rules apply.
 
-**An exploration worker returns a shape, never a procedure** — the boundaries, what each one publishes, and what decided between them. Not the files to add, not the order to write them, not the body of anything. A plan detailed enough to follow line by line has spent the loop's judgement before the loop ran, and Phase 4 is where the body is decided against code this phase never read.
+**Say in the prompt whether this build creates a new module boundary** — the worker asks which modules should exist only where it does, and reopens a settled structure where it does not.
 
-- **Which modules should exist at all** is a further question, and only worth asking where this build creates a new module boundary. Inside an existing one it is already answered.
-- **The carve-out is narrow.** A surface another slice consumes, or one crossing a process or repo boundary — a published package, an HTTP API, a wire payload — fails the cheap-to-reverse test and is not the subagent's to settle. It returns that as a proposal, and it goes to the human on Phase 2's route.
+**A proposal it returns instead of a decision goes to the human on Phase 2's route**, not into the plan.
 
 ## Phase 4 — Build
 
