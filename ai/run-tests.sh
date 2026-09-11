@@ -8,6 +8,15 @@
 # `RUN_TESTS_JOBS=1` puts them back on one lane, which is the first thing to try when a suite fails
 # here and passes on its own.
 #
+# The lanes stay in shell, though `ai/gate.sh` moved its own scheduling to Go and says so. What
+# decides it is a caller the gate does not have: `ai/bootstrap.sh --verify` runs this file on a
+# machine that may have neither Go nor a downloaded binary. A refusal there is recorded, not fatal,
+# so an install that could build no tools still reaches here. With no `go` on PATH and
+# `ai/tools/bin` empty, this runner still reports every suite: most pass, and the rest name Go as
+# the reason they could not. A scheduler that had to be built first would exit 2 ahead of them all,
+# leaving the install saying nothing was measured. A Go scheduler with a shell fallback is worse: CI
+# has Go, so nothing would ever gate the fallback.
+#
 # `-s` gives a caller that already knows which suite a change could have moved (`ai/gate.sh` is one)
 # this file's reading of the result: the exit-2 "did not measure", and the vacuity check that makes a
 # suite exiting 0 having run no case a failure. `bash <suite>` gives neither.
