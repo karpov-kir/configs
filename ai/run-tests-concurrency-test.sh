@@ -14,6 +14,18 @@ here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 suite_name="ai/run-tests-concurrency-test.sh"
 runner="$here/run-tests.sh"
 
+# Whether `wait -n` exists is a fact about the bash the RUNNER runs under, not the one running this
+# file. They are not the same interpreter: this suite is executed by whatever invoked it, while
+# run-tests.sh resolves `#!/usr/bin/env bash` through PATH. On a machine carrying both a 3.2 at
+# /bin/bash and a 5.x earlier in PATH — every macOS CI runner — reading BASH_VERSINFO here says
+# "serial" while the runner happily runs three lanes, so the overlap cases skip themselves and the
+# one-lane cases measure a runner that never serialised.
+runner_has_wait_n=no
+if env bash -c '[ "${BASH_VERSINFO[0]:-0}" -gt 4 ] ||
+  { [ "${BASH_VERSINFO[0]:-0}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -ge 3 ]; }' 2>/dev/null; then
+  runner_has_wait_n=yes
+fi
+
 # shellcheck source=../lib/test-check.sh
 . "$here/../lib/test-check.sh" ||
   { printf '%s: lib/test-check.sh did not load to the end — nothing was measured\n' "$suite_name" >&2; exit 2; }
@@ -32,8 +44,7 @@ check "suites asked to run three at a time all pass" "0" "$rc"
 # guarded-block: `wait -n` is bash 4.3, and without it run-tests.sh runs the suites one at a time on
 # purpose — "never wrong, only slower". On such a machine this assertion would report the runner broken
 # for doing exactly what it documents, so it is skipped by name rather than left to fail there.
-if [ "${BASH_VERSINFO[0]:-0}" -gt 4 ] ||
-  { [ "${BASH_VERSINFO[0]:-0}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -ge 3 ]; }; then
+if [ "$runner_has_wait_n" = yes ]; then
   check "and they overlap" "3" "$(most_seen "$tmp/together")"
 else
   record_skip 1 "this bash has no \`wait -n\`, so the runner correctly ran the suites one at a time"
@@ -118,8 +129,7 @@ out="$(BOOTSTRAP_VERIFYING=1 RUN_TESTS_JOBS=3 "$runner" "$tmp/together" 2>&1)"; 
 check "an explicit count still wins under bootstrap --verify" "0" "$rc"
 # guarded-block: `wait -n` is bash 4.3, and without it the runner serialises on purpose — so this
 # machine cannot tell a count that was honoured from the carve-out it is meant to override.
-if [ "${BASH_VERSINFO[0]:-0}" -gt 4 ] ||
-  { [ "${BASH_VERSINFO[0]:-0}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -ge 3 ]; }; then
+if [ "$runner_has_wait_n" = yes ]; then
   check "and they overlap despite the carve-out" "3" "$(most_seen "$tmp/together")"
 else
   record_skip 1 "this bash has no \`wait -n\`, so an honoured count and the carve-out look alike"

@@ -256,7 +256,14 @@ containment=""
 
 resolve_jobs
 
-work="$(mktemp -d)" || die "no temp directory to collect the suites' output in — nothing ran"
+# Buffering is this runner's own scratch, not the caller's diagnostics, so a TMPDIR that cannot be
+# used is not a reason to refuse the run. The retained-log directory below is the caller-visible one
+# and already degrades with a warning when it cannot be made; dying here instead turned that degrade
+# into exit 2 — "did not measure" — on any platform whose mktemp honours a missing TMPDIR strictly.
+# macOS falls back on its own and Linux does not, which is why this only ever failed in CI.
+work="$(mktemp -d 2>/dev/null)" ||
+  work="$(TMPDIR=/tmp mktemp -d 2>/dev/null)" ||
+  die "no temp directory to collect the suites' output in — nothing ran"
 trap 'rm -rf "$work"' EXIT
 
 # Buffered per suite rather than streamed, because concurrent suites writing to one stream interleave
