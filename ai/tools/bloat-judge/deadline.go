@@ -124,6 +124,24 @@ type modelCommand struct {
 	dir   string
 }
 
+// The whole process group, because a roll spawns children and the point of Setpgid above is to reach
+// them. Asked of os.Process first rather than killing the pid outright: Cancel runs on the deadline
+// goroutine while Wait runs on this one, and between Wait reaping the child and receiving the
+// watchCtx result the pid is already freed. A freed pid that the kernel has recycled is, because
+// every roll sets Setpgid, immediately a live group leader belonging to somebody else — another
+// session, a dev server — and the negated pid would deliver SIGKILL to all of it.
+//
+// os.Process.Signal holds the process's own lock and answers ErrProcessDone once reaped, which
+// os/exec already reads as "finished, not a failure to cancel". This narrows the window from the
+// whole Wait-to-channel gap down to the two adjacent syscalls below; it does not close it. Closing it
+// needs pidfd or process handles, which darwin does not have.
+func killRollGroup(p *os.Process) error {
+	if err := p.Signal(syscall.Signal(0)); err != nil {
+		return err
+	}
+	return syscall.Kill(-p.Pid, syscall.SIGKILL)
+}
+
 func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
@@ -131,7 +149,7 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	cmd.Stdin = strings.NewReader(command.stdin)
 	cmd.Dir = command.dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.Cancel = func() error { return killRollGroup(cmd.Process) }
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.Output()
 	if err != nil {
