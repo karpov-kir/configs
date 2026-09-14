@@ -12,12 +12,17 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 
 ## Modes
 
-| Mode | Its file | What lands |
-|---|---|---|
-| `review` | `~/.kk-flavor/skills/kk-pr/review.md` | a **pending** review: one comment per finding, the verdict in its body |
-| `address-review` | `~/.kk-flavor/skills/kk-pr/address-review.md` | commits pushed to the PR's branch, one reply per thread |
-| `refine-description` | `~/.kk-flavor/skills/kk-pr/refine-description.md` | the PR's body, its title where the change outgrew it, and the stack map wherever it went stale |
-| `review-and-address` | both of the first two | commits pushed; none of your own findings posted |
+| Mode | Its file | Its change set | What lands |
+|---|---|---|---|
+| `review` | `~/.kk-flavor/skills/kk-pr/review.md` | the author's diff, `<base>...HEAD` | a **pending** review: one comment per finding, the verdict in its body |
+| `address-review` | `~/.kk-flavor/skills/kk-pr/address-review.md` | the fixes you just wrote | commits pushed to the PR's branch, one reply per thread |
+| `refine-description` | `~/.kk-flavor/skills/kk-pr/refine-description.md` | the PR's body | the PR's body, its title where the change outgrew it, and the stack map wherever it went stale |
+| `review-and-address` | both of the first two | each half's own | commits pushed; none of your own findings posted |
+
+**A mode sets those two columns, and its file carries only what does not follow from them.** Two things follow that no mode restates:
+
+- **A lane never reads outside the change set, and resolving that scope is yours.** Naming a limit in a spawn prompt narrows no stage's lens.
+- **The prose lane runs over the author's text too** — their comments, their docs, the body itself (`~/.kk-flavor/standards/human-writing.md` → **Edit pass**). Here its cuts land as comments rather than edits, which the landing column already says.
 
 **Read the mode's file and take it as the whole delta for that path.** `review-and-address` runs `review.md` with its landing redirected to the scratchpad below, then `address-review.md` over that file's findings alongside the threads already on the PR.
 

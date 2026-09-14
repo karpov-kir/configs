@@ -8,7 +8,9 @@ Anything a person reads as communication — a PR body, a review comment or repl
 
 ## Edit pass
 
-Run the **edit lane** over outward artifacts you author or revise before presenting them for approval, delivering them or publishing them. This includes PR titles and bodies, commit messages, tickets, docs, messages to others and code comments. Apply it inline by default; a separate worker or external judge is not required. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
+Run the **edit lane** over every outward artifact in what you present for approval, delivery or publication — PR titles and bodies, commit messages, tickets, docs, messages to others and code comments — **whoever wrote it**. **Authorship sets the landing, never whether the lane runs**: your own text it edits, another's it proposes. **Voice is theirs, volume is not** — how they say it stays theirs, how much of it there is answers to the bar.
+
+Apply it inline by default; a separate worker is not required. **The judge runs over anything this lane covers whose kind it names** — `bloat-judge.sh` lists them when asked for one it has not got — and where a measured bar also says the artifact is over it, how many go is the bar's rather than the author's. **Boilerplate is never a unit**: a repo template's own lines and any tool-generated block stay, whatever the judge makes of them. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
 
 Ordinary session replies and structured worker returns apply the writing rules directly. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
 

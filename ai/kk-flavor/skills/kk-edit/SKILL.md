@@ -1,6 +1,6 @@
 ---
 name: kk-edit
-description: The edit lane for authored or revised outward artifacts before approval or delivery, including PR text, commit messages, docs and code comments. Also use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; ordinary session replies and structured worker returns use writing rules directly. Rule and skill-structure changes belong to their own lanes.
+description: The edit lane for outward artifacts before approval or delivery, yours or another's, including PR text, commit messages, docs and code comments. Also use for "tighten", "humanize", "de-AI this", or "make this readable". Preserves meaning; ordinary session replies and structured worker returns use writing rules directly. Rule and skill-structure changes belong to their own lanes.
 argument-hint: "text, file, directory, or git scope such as staged or the changes"
 ---
 
@@ -22,7 +22,7 @@ Read `~/.kk-flavor/standards/writing.md` for clarity and density. For outward co
 
 Cut repetition and recoverable filler. Use concrete words and readable sentences. Keep deliberate repetition where a reader needs a constraint at its point of use. Preserve required facts, numbers, names, negation, exceptions, tense, conditionality, commitments, severity and unresolved questions. Keep the source's wording for unresolved status if paraphrasing would attribute knowledge, intent, a response or a decision to someone. A future commitment is not a present fact. If a cut may change meaning, keep it or return a proposal.
 
-For code comments, run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --bar` with the caller's revisions, or no revisions for uncommitted changes. Use its findings to prioritize reading; density alone never licenses deletion. Comment truth belongs to correctness review and placement to refactor.
+For code comments, run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --bar` with the caller's revisions, or no revisions for uncommitted changes. **Its overage is the cut the change set owes**, not a targeting aid; the bar is `~/.kk-flavor/standards/code-style.md` → **Comments**. **Open the cut with the judge** — `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh --changed=<the same revisions> comment <file>` over each file it named — and apply what comes back, or pass `--numbers` for the line each cut starts on where your caller bars writing; it deletes only what a majority of rolls calls worthless, so it names the floor and not the bar. Close the rest weakest-first, and return to the caller only what you kept above the bar and why. Comment truth belongs to correctness review and placement to refactor.
 
 ## Verify and return
 
