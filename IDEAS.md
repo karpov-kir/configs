@@ -2,6 +2,67 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
+## 3x | 2026-09-14 | Type every edge, then collapse the tooling that reads them
+
+`--graph` prints `reads` for 27 edges because a path citation carries no kind. `cite-graph` prints 10
+cycles and judges none, because nothing says which files are layered. Three packages — `eco-check`,
+`eco-guide`, `cite-graph` — each parse citations with their own regexes. The cost of that showed up
+the moment `**Extends:**` landed: `idsd-ship` runs three contracts inline, declared one, and billed
+1 row where it reaches 11. Nothing in the tree could have caught it.
+
+**One copy is the rule the whole design follows from.** A declaration beside prose that says the same
+thing is the form [model-policy.md](ai/kk-flavor/standards/model-policy.md) → **One row per skill, one
+per dispatch site** already refuses — *a line beside the prose can forget to mention itself*. So the
+declaration is the instruction, the sentence that used to carry it is cut
+([ecosystem.md](ai/kk-flavor/standards/ecosystem.md) → **Prefer the mechanism**), and there is nothing
+left for a validator to find false. That is what removes the "is the label true" problem rather than
+answering it with a second checker.
+
+**Declare only what cannot be derived**, measured against the tree: a `workers/` path citation is a
+dispatch because a worker prompt has no other use (58 today); a `skills/X` citation where X holds a
+`workers` row is a dispatch because the row is the declaration; a `standards/` citation is always a
+read. What nothing can know is whether X runs *inside* this session — 31 edges across 17 files.
+
+**The enforceable signal is a skill named as the object of an action verb.** Measured: 20 such sites
+outside table cells, against 130 bare skill names in prose. Banning bare names entirely was costed and
+rejected — it would bloat 27 files to satisfy a parser. The verb rule catches all three `idsd-ship`
+misses and, on its first run, five more undeclared extensions: `kk-grill` is run inline by
+`idsd-build`, `idsd-charter` and `idsd-intent`, so an opus row is missing from three bills;
+`idsd-finalize` runs `idsd-qualify`; `idsd-intent` runs `idsd-charter`. A table cell is exempt
+structurally rather than by naming skills, which covers `kk-foreman`'s Route and `kk-qualify`'s Lanes
+without an exemption list that can rot.
+
+**Standards get a layer instead of typed edges** — one declaration per file, 18 of them, not an edge
+census. Three layers read out of the citation graph: **base** (core-principles, live-systems, writing,
+human-writing, code-style), **craft** (testing, architecture/core, project, building, git, records,
+browser), **process** (skill-protocol, quality-pipeline, model-policy, ecosystem, streaming). Almost
+every current cycle is inside a layer, which is peers cross-referencing and not a defect by
+`cite-graph`'s own header. `writing → human-writing → code-style → ecosystem → writing` crosses base
+into process and is a real finding to fix. **Do not tune the layers until the cycles pass** — layers
+chosen to make today's tree legal measure nothing.
+
+The steps, each revertible alone:
+
+1. **`**Extends:**` becomes the instruction**, carrying its `— <when>`; every sentence that states an
+   extension in prose is cut. Lands the five edges the verb scan just found.
+2. **`**Layer:**` on the 18 standards**, and the one cycle that crosses.
+3. **The checks in `eco-check`**, on the citation parser it already has: the verb rule, an
+   `**Extends:**` naming a `workers` row (that is a dispatch), an extension cycle, a downward layer
+   citation.
+4. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
+   own regexes; `--graph` and `--cost` read declarations and the prose inference is deleted;
+   `cite-graph`'s CYCLES becomes a verdict rather than a list.
+5. **Audit all 22 Go packages for consolidation.** A campaign, not a pass — `eco-check` alone is 17
+   files, and `eco-stats`, `rule-echo`, `eco-report` and `eco-guide` all walk the same tree. Run it
+   after the grammar lands, so the shared reader exists to consolidate onto.
+6. **Then `workers/build/implement.md`**, written under the grammar from the start.
+
+**A receipt is the only thing that cannot be wrong, and nothing records one.** `--cost` is a ceiling
+computed before a run; what no tool reaches is which contracts a session actually loaded. That is the
+one check a wrong declaration cannot survive, and it is also the only way to answer whether the tier
+changes saved anything — the question below has been open for four steps. It needs a recording
+mechanism that does not exist, so it waits until the declarations it would audit are in the tree.
+
 ## 1x | 2026-09-10 | Two things left over from the worker layer
 
 The layer landed in four steps over 2026-09-10..14: `workers/` as a home of its own, seven skills
@@ -12,10 +73,15 @@ homes** and [model-policy.md](ai/kk-flavor/standards/model-policy.md) → **Cost
 are where the rules live now. Two things were deliberately left out of that stack.
 
 **`workers/implement.md`.** `kk-build`'s Phase 4 is the largest block of model work in the tree with no
-human in it, and it is still inline. Offloading it makes `kk-build` an orchestrator and `idsd-build`
-one too — `idsd-build` holds the top tier for `kk-build`'s reason rather than its own, which is the
-same defect counted twice. It lands alone and after the structure, because it is the only change that
-alters how building feels and it should be revertible without unpicking anything else.
+human in it, and it is still inline. Offloading it makes `kk-build` an orchestrator: its Phase 2 asks
+one message per stack choice and its Phase 5 presents for approval, and both are relays rather than a
+conversation, so `converses` stops holding once the loop leaves. The ceiling then takes its row down.
+**It does not do the same for `idsd-build`** — that skill's Phase 1 recomputes what remains open
+between rounds, which is `converses` by the letter of the rule, so after this change its opus is
+bought by its own conversation rather than by an inline build loop. Whether Phase 1 alone earns opus
+is a separate question with no evidence either way. It lands alone and after the structure, because it
+is the only change that alters how building feels and it should be revertible without unpicking
+anything else.
 
 **What the tier changes actually save is still unmeasured.** Four steps in, the saving is an argument
 from the file rather than a number: it needs a real quality pass run before and after, not an estimate.
