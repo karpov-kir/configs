@@ -175,27 +175,76 @@ func readWorkers(root ecoroot.Root, rows []string, owners map[string]string, tie
 // over a row whose prompt file had simply gone missing, which is the one case a reader could
 // otherwise catch here.
 func promptFor(root ecoroot.Root, name string, owners map[string]string) (summary, prompt string) {
+	found := resolvePrompt(root, name, owners)
+	switch found.kind {
+	case ownBrief:
+		return found.summary, "workers/" + name + ".md"
+	case borrowed:
+		// Rendered by the owner's own branch rather than from the resolution above, so a borrower
+		// whose owner holds no prompt either says that, instead of printing an empty summary beside
+		// a home that does not exist.
+		ownerSummary, ownerPrompt := promptFor(root, found.owner, nil)
+		return ownerSummary, ownerPrompt + ", dispatched as " + name
+	case skillContract:
+		return found.summary, "skills/" + found.owner + "/SKILL.md"
+	}
+	return "No prompt in the tree holds this row's contract.", "not in the tree"
+}
+
+// Which of the four ways a row resolved, so a caller can act on the branch rather than re-deriving
+// it from the sentence the page prints.
+type promptKind int
+
+const (
+	noPrompt promptKind = iota
+	ownBrief
+	borrowed
+	skillContract
+)
+
+// Where a row's contract is, resolved once for both readers of it: the page, which prints a summary
+// and a home, and the workflow map, which scans the file for what that contract goes on to dispatch.
+//
+// One resolver rather than two, because the two disagreeing is not a visible failure. The map built
+// its own single-branch version first, and the six rows whose prompts are not under `workers/` —
+// three skills that kept doors, two rows borrowing their prompts, one a Go tool assembles — printed
+// as leaves that dispatch nothing. `kk-ecosystem` dispatches `skillcraft` at opus, and that edge was
+// simply absent from a map whose whole purpose is showing what a run reaches.
+//
+// The branches are the order the policy's own checks take them, and each is accepted only where it
+// actually yields a contract: a `workers/` file with no brief and a SKILL.md with no description
+// both fall through, because a home holding nothing readable is not where the contract is.
+func resolvePrompt(root ecoroot.Root, name string, owners map[string]string) promptSource {
 	file := shell.Join(shell.Join(root.Flavor(), "workers"), name+".md")
 	if lines, err := readLines(file); err == nil {
 		if brief := briefSummary(lines); brief != "" {
-			return brief, "workers/" + name + ".md"
+			return promptSource{kind: ownBrief, file: file, summary: brief, owner: name}
 		}
 	}
 	if owner, named := owners[name]; named {
 		// No owners on the way back in, so the owner resolves by the other three branches only. That is
 		// what makes the re-entry terminate, and it costs nothing: model-policy refuses a row that names
 		// its own prompt and one whose owner borrows in turn, so an owner never has a row to borrow from.
-		ownerSummary, ownerPrompt := promptFor(root, owner, nil)
-		return ownerSummary, ownerPrompt + ", dispatched as " + name
+		found := resolvePrompt(root, owner, nil)
+		return promptSource{kind: borrowed, file: found.file, summary: found.summary, owner: owner}
 	}
 	skill := shell.Join(shell.Join(root.Skills(), name), "SKILL.md")
 	if lines, err := readLines(skill); err == nil {
 		description := firstSentence(unquoteScalar(shell.FrontmatterDescription(lines)))
 		if description != "" {
-			return description, "skills/" + name + "/SKILL.md"
+			return promptSource{kind: skillContract, file: skill, summary: description, owner: name}
 		}
 	}
-	return "No prompt in the tree holds this row's contract.", "not in the tree"
+	return promptSource{kind: noPrompt}
+}
+
+type promptSource struct {
+	kind promptKind
+	// The file holding the contract, as the root spells it, and empty for a row no file holds.
+	file    string
+	summary string
+	// The row whose prompt this one runs — itself, except where it borrows.
+	owner string
 }
 
 // A worker's family is the workflow one where its name says so — `idsd/` for a row holding its own

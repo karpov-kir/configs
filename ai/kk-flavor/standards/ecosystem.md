@@ -48,6 +48,8 @@ Three kinds — worker, orchestrator, session — live in two directories, and a
 
 **A worker's prompt is a file, never a directory.** Scripts a worker owns sit beside it at `kk-flavor/workers/<name>/`, so the lane that owns an instrument is still readable from its path.
 
+**`ai/guide.sh --graph` and `ai/guide.sh --cost <skill>` print this section's shape out of the tree**, so an edit to what counts as a dispatch changes what they emit. They separate dispatch from the other three and go no further, because nothing here declares which of the three an edge is; each states its own reading rules when it runs.
+
 ## Family direction
 
 **Inside the lane trees the dependency runs one way too: the any-repo family never names the workflow family, or anything it owns** — not a skill, not a section, not the directory that family keeps its state in. **A worker's task name carries no family prefix, so its path says which family it is in**: `kk-flavor/workers/idsd/` is the workflow family's and every other worker is any-repo. A workflow skill invokes an any-repo one and cites it. An any-repo skill saying what it is *not* names the capability, never the skill that has it. **A skill whose job is routing between the families is the one exception**, and it claims that exception in its own file.

@@ -431,9 +431,103 @@ saving that changes nothing. No shipped row has one.
 is 10, so a bare `go test ./...` cannot pass here and its red says nothing. `ai/gate.sh` runs it with
 its own timeout; it is the only reading of that package worth taking.
 
+### Step 4 — landed
+
+`guide.sh --graph` prints the workflow map and `guide.sh --cost <skill>` prints one skill's per-run
+tier profile. Both are computed from the tree and `models.json` when asked, write no file and gate
+nothing: `--check` exists because `field-guide.html` is a committed file that can rot, and these two
+cannot be stale by construction.
+
+**They live in `eco-guide`, not in `model-policy`.** Neither question is answerable from the policy
+document alone — it prices a row and cannot say which rows one run of a skill reaches — and
+`eco-guide` already joined the two sources for the page. A third reader of the same two inputs would
+be a third thing that can disagree with them.
+
+**One rule turned out to be the whole of both emitters: which map a row is in decides the kind of
+edge, not which directory its file sits in.** They agree for every worker under `workers/` and
+disagree for exactly three files — `kk-diagnose`, `kk-ecosystem` and `kk-edit` kept their doors while
+becoming lanes, so each is a `skills/` path with a `workers` row. The first version classified by
+directory and printed `kk-qualify` as dispatching five workers when it dispatches seven; the two it
+dropped are the two that cost the most after `code-review`. That is the same understatement those
+rows were moved to stop making, rebuilt in the reader that was supposed to expose it.
+
+**`--cost` follows a read and stops at a dispatch**, which is the pricing rule and not an optimisation.
+Extension runs the second contract inside the first session, so what that contract dispatches is on
+this skill's bill; a dispatch is already priced at the row on the line, so continuing through it would
+charge one run for a second run's rows. `idsd-ship` is what the asymmetry is for: its own row plus ten
+reachable rows, eight of them inherited through `idsd-qualify → kk-qualify` and `idsd-build →
+kk-build`, each printed with the chain it came through.
+
+**The plan asked for "which skills extend or sequence which" and that half is not delivered as written.**
+Nothing in the tree declares which of the three non-dispatch edges a citation is, and
+[ecosystem.md](ai/kk-flavor/standards/ecosystem.md) → **Three kinds, two homes** names all three in
+one sentence. So the map reports `reads` and stops, rather than labelling an edge in a way nothing
+could ever catch being wrong. Splitting it would need a declaration the tree does not have; that is a
+change to the files, not to the emitter.
+
+**That refusal turned out to bind twice, and the second time was the one that mattered.** Declining
+to label an edge is one act; resolving it to the dearest of the three and walking through it is
+another, and `--cost` did the second while the comment above it claimed the first. Whether to give
+the tree that declaration is now a real question rather than a hypothetical: it is what would let
+`--cost` print one number instead of two.
+
+**Edges are `~/.kk-flavor/` path citations only.** A skill named in bare prose routes a human to a
+door and costs nothing, so `kk-foreman` — which is a routing table and almost nothing else — carries
+one edge rather than the whole tree. The legend says so, because a map that silently counted prose
+would be wrong upward everywhere downstream of a router.
+
+**The `**Runs:**` grammar moved to `shell.RunsDeclaration`**, shared by the census test that enforces
+it and the emitters that price from it. Two copies would let the ceiling and the cost profile disagree
+about which skills the ceiling may ask anything. It reports a line it cannot read separately from an
+absent one, for the reason `UnknownAudience` does: `**Runs:** human` matched no form for as long as
+that word survived, and a reader asking only "which of the three" would have read every such skill as
+declaring nothing.
+
+### Step 4 — what the round found
+
+**The round found more than the build did, and the largest finding was about the build's own
+evidence.** `kk-qualify` names its three door-keeping lanes in column two of its Lanes table **by bare
+name** — the spelling that table defines as "a door you invoke" — and the scanner read path citations
+only, so it found none of the three. Two appeared anyway, off column *three*: the `scripts/*.sh` path
+beside them, cut at the first slash. Right answer, wrong reason. `kk-diagnose` owns no script and
+appeared **nowhere in the map at all**. And the case named "the classifier's whole job", with a
+killing mutant behind it, spelled that edge `~/.kk-flavor/skills/kk-edit/SKILL.md` — which occurs zero
+times in this tree. **Sixth green-for-the-wrong-reason in this plan, and the first where the fixture
+itself was the fiction.** The reader for it already existed: `model-policy`'s `lanesTableRow`, which
+is narrow by construction — column one must be a single lowercase word, which the Lanes table's rows
+are and `kk-foreman`'s routing table is not.
+
+**The obvious repair would have made that number worse.** The `skills/` branch had no counterpart to
+the `workers/` branch's script guard, so `kk-reduce`'s invocation of `check.sh` printed as an opus
+dispatch of `kk-ecosystem`; guarding it alone drops `kk-qualify` from seven dispatches to five. The
+guard and the table reader are one change.
+
+**Two phantom dispatches, from the fix that closed the first round's biggest finding.** Sharing the
+prompt resolver let a borrowed row read its owner's file — and the self-citation guard still compared
+against the *borrowing* row's name, so the owner's pointers at its own assets left the tree as edges:
+`reduce/fan-out` billed for dispatching the contract it *is*, at a second opus row. The drive gate
+proved it causally, by rewriting those citations in a scratch copy.
+
+**`--cost` was pricing a guess, and said so in its own comment.** The type comment declined to label a
+read edge because nothing declares which of extension, sequencing or orientation it is; the walk then
+treated every one as extension. `idsd-ship` read "10 rows, ceiling" when nine belong to stages it
+sequences. The profile now has two halves and two counts, and the second stays conditional.
+
+**Six of the change set's own comments asserted something the code had stopped doing**, across three
+rounds of repair — the failure this change set has had more than any other. Also: `--cost ""`, which
+is `guide.sh --cost "$skill"` with the variable unset, looked like no emit flag and fell through to
+**overwriting the committed page**, from a command whose contract says it writes no file; a mode row
+walked a directory that does not exist; the recursive walk followed symlinks and would block on a
+FIFO; and one fact had grown seven homes in six wordings.
+
+**Twenty-six negative controls across the step, every one killed, twelve of them registered.** 548
+mutants. One control killed nothing and proved a tie-break unreachable — every out-edge of a node is
+recorded in one pass, so a direct dispatch is always seen before any chain reaches it — and the dead
+branch went, the case stayed, and a realistic "last reach wins" mutant took its place.
+
 ### Migration
 
-Land it in four steps, each green on its own, with the first taken in two halves. First the sites that already had prompts, then the rest as step 1b: create `workers/`, move or author each prompt, retire that site's `**Dispatches:**` entry, and switch the Go checks to the directory. No door moves in either half, so nothing the human types changes. See **Step 1 — landed** and **Step 1b — landed** for what that cost. Second, seven of those ten become worker files — `kk-diagnose` and the two that keep doors are excepted — and their mounts are removed as the last step of that landing. See **Step 2 — landed**. Third, `**Runs:**` becomes `orchestrator` or `holds — <reason>`, and the orchestrator tier ceiling turns on; every skill it fails is either relabelled a session or has its held work dispatched. See **Step 3 — landed**. Fourth, `--graph` and `--cost`.
+Land it in four steps, each green on its own, with the first taken in two halves. First the sites that already had prompts, then the rest as step 1b: create `workers/`, move or author each prompt, retire that site's `**Dispatches:**` entry, and switch the Go checks to the directory. No door moves in either half, so nothing the human types changes. See **Step 1 — landed** and **Step 1b — landed** for what that cost. Second, seven of those ten become worker files — `kk-diagnose` and the two that keep doors are excepted — and their mounts are removed as the last step of that landing. See **Step 2 — landed**. Third, `**Runs:**` becomes `orchestrator` or `holds — <reason>`, and the orchestrator tier ceiling turns on; every skill it fails is either relabelled a session or has its held work dispatched. See **Step 3 — landed**. Fourth, `--graph` and `--cost`. See **Step 4 — landed**.
 
 The reversal risk sits in step two and nowhere else: it removes `/kk-code-review`, `/kk-refactor`, `/kk-conform`, `/kk-drive`, `/kk-security-review`, `/kk-skillcraft` and `/idsd-audit` as typed commands, leaving `kk-foreman` as their door — the three that **Decided** keeps are not in that list. Cheaper than keeping them, because each of those paths today runs a worker's contract inline at a session's tier.
 

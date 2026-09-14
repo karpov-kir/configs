@@ -17,13 +17,22 @@
 // `--check` is the gate: it regenerates into memory and compares against the committed page, so the
 // guide cannot rot unnoticed. `ai/gate.sh`'s `guide` unit runs it.
 //
+// `--graph` and `--cost` are the same two sources joined for a terminal instead of for a page, and
+// graph.go beside this file is all of both. They live in this tool rather than in model-policy
+// because neither question can be answered from the policy document alone — it prices a row and
+// cannot say which rows one run of a skill reaches — and rather than in a tool of their own because
+// this one already holds the join, and a second reader of the same two inputs is a second thing to
+// disagree with the page.
+//
 // It is a library with a thin command beside it, for the reason ecocheck and ecostats are: the suite
 // drives it once per case, and a process spawn per case is what makes a mutation run take hours.
 // Nothing here writes to os.Stdout or calls os.Exit, and nothing holds state between calls.
 //
-// Three exit codes, and never anything else. 0 — the page is written, or the committed one already
-// matches. 1 — a finding: the committed page is stale, or the template is. 2 — it could not run, and
-// a check that did not run is not a clean one.
+// Three exit codes, and never anything else. 0 — the page is written, the committed one already
+// matches, or the requested emitter wrote its answer to stdout. 1 — a finding: the committed page is
+// stale, or the template is. 2 — it could not run, which covers a request this cannot answer as well
+// as a tree it cannot read, because both leave the caller with no result and a check that did not
+// run is not a clean one.
 package ecoguide
 
 import (
@@ -45,7 +54,7 @@ const (
 	// describes. Committed, because a gate can only diff a file that is in the commit.
 	outputRelative = "field-guide.html"
 
-	usage = "usage: guide.sh [--check] [<root>]"
+	usage = "usage: guide.sh [--check | --graph | --cost <skill>] [<root>]"
 )
 
 func Run(self string, args []string, out, errOut io.Writer) int {
@@ -58,17 +67,38 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
-	check := false
+	check, graph, costGiven := false, false, false
+	costOf := ""
 	var named []string
-	for _, arg := range args {
+	for at := 0; at < len(args); at++ {
+		arg := args[at]
 		switch {
 		case arg == "--check":
 			check = true
+		case arg == "--graph":
+			graph = true
+		case arg == "--cost":
+			// The skill is the flag's own value rather than a positional, so `--cost` and a root can
+			// both be given without either having to guess which of two bare words it is.
+			at++
+			if at == len(args) {
+				return fail("--cost names no skill\n" + usage)
+			}
+			// Flagged separately from its value. Read back off the value alone, `--cost ""` — which
+			// is what `guide.sh --cost "$skill"` produces with `skill` unset — looked like no emit
+			// flag at all, and the run fell through to overwriting the committed page, from a
+			// command whose own contract says it writes no file.
+			costOf, costGiven = args[at], true
 		case strings.HasPrefix(arg, "-"):
 			return fail("unknown flag '%s'\n"+usage, arg)
 		default:
 			named = append(named, arg)
 		}
+	}
+	// Refused rather than ordered, because each of the three writes a different thing to one stdout
+	// and any order picked here would be this tool's opinion about which the caller meant.
+	if count := boolCount(check, graph, costGiven); count > 1 {
+		return fail("--check, --graph and --cost each emit something different; name one\n" + usage)
 	}
 	if len(named) > 1 {
 		return fail("more than one root named\n" + usage)
@@ -78,10 +108,47 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		rootName = named[0]
 	}
 
+	// What this run was asked to produce, named so a refusal below says which of the three did not
+	// happen. One message serving all three would have to say "the guide was NOT generated" to a
+	// caller who asked for a cost profile, which is a sentence about a file they never mentioned.
+	producing := "the guide was NOT generated"
+	switch {
+	case graph:
+		producing = "the map was NOT emitted"
+	case costGiven:
+		producing = "the cost profile was NOT emitted"
+	}
+
 	root, ok := ecoroot.Checkout(rootName)
 	if !ok {
-		return fail("no checkout holding kk-flavor/ and kk-flavor/skills/ at '%s' — the guide was NOT generated",
-			or(rootName, ". or ./ai"))
+		return fail("no checkout holding kk-flavor/ and kk-flavor/skills/ at '%s' — %s",
+			or(rootName, ". or ./ai"), producing)
+	}
+
+	// The policy first, because all three of this tool's answers rest on it: the page prints the tier
+	// each dispatch buys, and the two emitters are nothing but that joined to the tree. The tiers
+	// come out of the same resolver a dispatch calls, so nothing here can print a model the run
+	// would not take. A row the policy refuses resolves to nothing and the card says so; the policy
+	// failing to parse at all is fatal, because then every tier would say nothing.
+	policyPath := shell.Join(root.Flavor(), "models.json")
+	rawPolicy, err := os.ReadFile(policyPath)
+	if err != nil {
+		return fail("cannot read the model policy at %s: %v — %s", policyPath, err, producing)
+	}
+	assigned, err := modelpolicy.Parse(rawPolicy)
+	if err != nil {
+		return fail("the model policy at %s does not parse: %v — %s", policyPath, err, producing)
+	}
+
+	// Ahead of the template and the inventories, because neither emitter reads either. A checkout
+	// whose narrative template has been moved can still be asked what a skill costs, and that
+	// matters: the cost question is the one asked while the tree is being edited.
+	if graph {
+		emitGraph(readWorkflow(root, assigned), out)
+		return 0
+	}
+	if costGiven {
+		return emitCost(name, readWorkflow(root, assigned), costOf, out, errOut)
 	}
 
 	templatePath := shell.Join(root.Named(), templateRelative)
@@ -98,18 +165,6 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 		return fail("no skill under %s declares a description — read this as the reader broken, never as an empty ecosystem", root.Skills())
 	}
 
-	// The tiers come out of the same resolver a dispatch calls, so the page cannot print a model the
-	// run would not take. A row the policy refuses resolves to nothing and the card says so; the
-	// policy failing to parse at all is fatal, because then every tier on the page would say nothing.
-	policyPath := shell.Join(root.Flavor(), "models.json")
-	rawPolicy, err := os.ReadFile(policyPath)
-	if err != nil {
-		return fail("cannot read the model policy at %s: %v — the guide was NOT generated", policyPath, err)
-	}
-	assigned, err := modelpolicy.Parse(rawPolicy)
-	if err != nil {
-		return fail("the model policy at %s does not parse: %v — the guide was NOT generated", policyPath, err)
-	}
 	tier := func(task, client string) string {
 		decision, err := assigned.Resolve(modelpolicy.Request{Client: client, Task: task})
 		if err != nil {
@@ -265,4 +320,16 @@ func or(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// How many of the three emit flags were given. Counted rather than chained, so adding a fourth is
+// one argument here and no new pair of comparisons.
+func boolCount(flags ...bool) int {
+	given := 0
+	for _, flag := range flags {
+		if flag {
+			given++
+		}
+	}
+	return given
 }

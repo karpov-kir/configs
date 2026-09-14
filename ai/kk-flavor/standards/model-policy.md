@@ -72,6 +72,8 @@ decision from the policy and fails visibly when the policy does not answer
 ([ecosystem.md](ecosystem.md) → **Prefer the mechanism** is the same move for rules a script can
 assert).
 
+**Read a skill's bill before you argue about its tier.** `ai/guide.sh --cost <skill>` prints what one run of it can spend — its own row and the dispatches it names — and then, held apart, the rows it may inherit from each contract it cites ([ecosystem.md](ecosystem.md) → **Three kinds, two homes**). **The second half stays conditional**, because only one of the three non-dispatch edges bills here and nothing declares which one a citation is. A tier that looks wrong on its own line is often right beside what the same run already spends.
+
 **Then spend the smallest model that still does the work.** The tier is chosen per task, never once for
 a run: **cheap where a wrong answer surfaces in the next step, protected where a wrong answer looks
 exactly like a right one.** A scout's miss shows up as a round that found nothing; a review's false

@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 // The shipped tree these checks read, from its one root — and the policy beside it, which
@@ -27,14 +29,11 @@ const (
 	shippedPolicyPath = flavorTree + "/models.json"
 )
 
-// The line a SKILL.md declares how it runs with, and the Lanes table row the quality pass dispatches by.
-// Three forms, because the old two conflated a skill that keeps work with one that hands all of it
-// away: `dispatched` is a worker that still has a door, `orchestrator` a skill whose every substantive
-// step is a dispatch, and `holds` a session, naming which of the three standing reasons keeps the work
-// (ecosystem.md → **Three kinds, two homes**). The em dash is the one in the tree, not a hyphen.
+// The Lanes table row the quality pass dispatches by. How a SKILL.md declares it runs is
+// shell.RunsDeclaration, shared with the emitters in eco-guide that price a skill from the same
+// line — a second copy of that grammar here would let the census and the cost profile disagree
+// about which skills the ceiling may ask anything.
 var (
-	runsMode = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|orchestrator|holds — (?:converses|session-context|landing)) *$`)
-	runsLine = regexp.MustCompile(`(?m)^\*\*Runs:\*\*`)
 	// Column two names what fills the lane, which is a worker's path for most of them and a skill's
 	// bare name for the three that kept a door. Both are reduced to the key the policy is written
 	// on: a path without its tree prefix and without `.md` IS that key, so one pattern reads both
@@ -172,16 +171,16 @@ func declaredRunModes(t *testing.T) map[string]string {
 	t.Helper()
 	declared := map[string]string{}
 	for skill, body := range skillBodies(t) {
-		mode := runsMode.FindSubmatch(body)
-		if mode == nil {
-			if runsLine.Match(body) {
+		mode, stated := shell.RunsDeclaration(shell.SplitLines(string(body)))
+		if mode == "" {
+			if stated {
 				t.Errorf("%s declares how it runs in a form this cannot read; it is `dispatched`, `orchestrator`, or `holds — <reason>` naming one of converses, session-context, landing", skill)
 			} else {
 				t.Errorf("%s declares no **Runs:** line, so nothing says whether it holds work or hands every step away; it is `dispatched`, `orchestrator`, or `holds — <reason>` naming one of converses, session-context, landing", skill)
 			}
 			continue
 		}
-		declared[skill] = string(mode[1])
+		declared[skill] = mode
 	}
 	return declared
 }

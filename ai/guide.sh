@@ -2,11 +2,20 @@
 # Generate the field guide — the page that tells someone who just installed this what it does and
 # which skill to reach for.
 #
-#   usage: guide.sh [--check] [<root>]
-#          (no flag)  regenerate <root>/field-guide.html from the skills and the narrative template
-#          --check    regenerate into memory and compare, failing when the committed page has drifted
+#   usage: guide.sh [--check | --graph | --cost <skill>] [<root>]
+#          (no flag)      regenerate <root>/field-guide.html from the skills and the narrative template
+#          --check        regenerate into memory and compare, failing when the committed page has drifted
+#          --graph        print the workflow map — every priced row, what each dispatches, what each reads
+#          --cost <skill> print one skill's per-run tier profile: what a run of it spends, then what it
+#                         may additionally spend through each contract it names
+#
+# One of the three per run, never two: each writes something different to one stdout.
 #
 # <root> holds kk-flavor/ with skills/ inside it, and defaults to . then ./ai.
+#
+# `--graph` and `--cost` answer from the tree and models.json and write no file, so neither can go
+# stale and neither is gated. They are the cost surface in a terminal: the page says what each
+# dispatch buys, and these two say which dispatches one run actually reaches.
 #
 # Two halves, kept apart on purpose. The narrative is hand-written in
 # `ai/tools/eco-guide/field-guide.template.html`; the two inventories are generated — one card per

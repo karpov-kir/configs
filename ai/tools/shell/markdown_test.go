@@ -135,3 +135,64 @@ func TestAnAudienceNothingReadsIsRefusedRatherThanIgnored(t *testing.T) {
 		t.Error("an audience line in the body was refused, so prose can fail an install")
 	}
 }
+
+// The three forms and nothing else. The declaration is what the orchestrator tier ceiling reads, so
+// a fourth word it could not place would exempt a skill from that check by being unreadable — which
+// is why the parser reports a line it cannot read rather than passing it over.
+func TestRunsDeclarationReadsTheThreeFormsAndRefusesAFourth(t *testing.T) {
+	for _, one := range []struct {
+		line     string
+		mode     string
+		declared bool
+	}{
+		{line: "**Runs:** dispatched", mode: "dispatched", declared: true},
+		{line: "**Runs:** orchestrator", mode: "orchestrator", declared: true},
+		{line: "**Runs:** holds — converses", mode: "holds — converses", declared: true},
+		{line: "**Runs:** holds — session-context", mode: "holds — session-context", declared: true},
+		{line: "**Runs:** holds — landing", mode: "holds — landing", declared: true},
+		// `human` was retired when it turned out to conflate a skill that grills the human round by
+		// round with one that asks once. A reader answering only "which of the three is it" would
+		// have read every skill still carrying it as declaring nothing at all.
+		{line: "**Runs:** human", mode: "", declared: true},
+		{line: "**Runs:** holds — whenever", mode: "", declared: true},
+		// A hyphen is not the em dash the tree is written with, and the difference is invisible.
+		{line: "**Runs:** holds - converses", mode: "", declared: true},
+		{line: "**Runs:**", mode: "", declared: true},
+		{line: "The skill **Runs:** orchestrator inline", mode: "", declared: false},
+		{line: "Runs: orchestrator", mode: "", declared: false},
+		{line: "nothing about how it runs", mode: "", declared: false},
+	} {
+		mode, declared := RunsDeclaration([]string{"---", "name: x", "---", "", one.line, "", "body"})
+		if mode != one.mode || declared != one.declared {
+			t.Errorf("%q read as (%q, %v), wanted (%q, %v)", one.line, mode, declared, one.mode, one.declared)
+		}
+	}
+}
+
+// Every line is scanned, frontmatter included. The declaration belongs in the body — it is a contract
+// between the skill and the model policy, where frontmatter is what the harness loads into every
+// session that never invokes the skill — but a file that puts it in the block anyway has still
+// declared, and reading it as silence would exempt that skill from the tier ceiling.
+func TestARunsDeclarationInsideTheFrontmatterIsStillRead(t *testing.T) {
+	if mode, _ := RunsDeclaration([]string{"---", "**Runs:** orchestrator", "---", "", "body"}); mode != "orchestrator" {
+		t.Errorf("a declaration inside the frontmatter block went unread: %q", mode)
+	}
+}
+
+// The reason a `holds` declaration names, which is what says whether a session's tier is the work it
+// keeps or an offload nobody has done yet. Empty for every mode that names no reason, so a caller
+// printing it never prints half of `orchestrator`.
+func TestRunsHoldsReasonIsTheReasonAndNothingElse(t *testing.T) {
+	for mode, want := range map[string]string{
+		"holds — converses":       "converses",
+		"holds — session-context": "session-context",
+		"holds — landing":         "landing",
+		"orchestrator":            "",
+		"dispatched":              "",
+		"":                        "",
+	} {
+		if got := RunsHoldsReason(mode); got != want {
+			t.Errorf("%q gave reason %q, wanted %q", mode, got, want)
+		}
+	}
+}

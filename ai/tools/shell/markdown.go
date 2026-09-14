@@ -33,6 +33,18 @@ var (
 	// passing for an absent marker. Kept beside the pattern above because the two are one rule: the
 	// marker has exactly one spelling, and everything else is a mistake somebody made on purpose.
 	audienceDeclared = regexp.MustCompilePOSIX(`^audience:`)
+
+	// How a skill declares it runs, in the body rather than the frontmatter: the line is a contract
+	// between the skill and the model policy, and frontmatter is what the harness loads into every
+	// session. The three forms are the whole grammar — `dispatched`, `orchestrator`, and `holds` with
+	// one of three reasons — because the tier ceiling reads the answer and a fourth word it could not
+	// place would exempt a skill by being unreadable.
+	runsDeclaration = regexp.MustCompilePOSIX(`^\*\*Runs:\*\*[ ]*(dispatched|orchestrator|holds — (converses|session-context|landing))[ ]*$`)
+
+	// Any `**Runs:**` line at all, for the same reason audienceDeclared sits beside its marker: a
+	// declaration spelled wrong must be refused by name, never read as an absent one. A skill whose
+	// line does not parse would otherwise fall to whatever a caller's silence implies.
+	runsDeclared = regexp.MustCompilePOSIX(`^\*\*Runs:\*\*`)
 )
 
 // LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
@@ -195,4 +207,36 @@ func WithoutLeadingNumber(heading string) string {
 		return ""
 	}
 	return numberless
+}
+
+// RunsDeclaration is how a skill says it runs — `dispatched`, `orchestrator`, or `holds — <reason>`
+// — and whether the line was there at all. Body text, so the whole file is scanned rather than the
+// frontmatter block.
+//
+// Three returns rather than two, for the reason UnknownAudience has three: `**Runs:** human` matched
+// no form for a year after that word was retired, and a reader asking only "which of the three is
+// it" would have read every such skill as declaring nothing and priced it by whatever its silence
+// implied. `declared` says a line is there; `mode` empty beside it is a line nobody can read.
+func RunsDeclaration(lines []string) (mode string, declared bool) {
+	for _, line := range lines {
+		if !runsDeclared.MatchString(line) {
+			continue
+		}
+		declared = true
+		if found := runsDeclaration.FindStringSubmatch(line); found != nil {
+			return found[1], true
+		}
+	}
+	return "", declared
+}
+
+// RunsHoldsReason is the reason a `holds` declaration names, and empty for every other mode. The
+// three reasons are the standing ones in model-policy.md; which of them a skill claims is what says
+// whether its tier is the work it keeps or a hole nobody has offloaded yet.
+func RunsHoldsReason(mode string) string {
+	_, reason, found := strings.Cut(mode, " — ")
+	if !found {
+		return ""
+	}
+	return reason
 }
