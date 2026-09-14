@@ -6,6 +6,8 @@ argument-hint: "<review|address-review|refine-description|review-and-address> [P
 
 **Runs:** holds — landing
 
+**Extends:** kk-qualify
+
 `$ARGUMENTS` opens with a **required** mode — one of the four below, or an argument plainly saying the same; with neither, ask which rather than guessing from the PR. What follows names the PR; with nothing after it, the current branch's. `gh` must be authenticated.
 
 **Authorship settles no licence** — the mode is the whole licence, on your own PR and on anyone else's. Authorship changes what GitHub accepts and whether what you post has a reader; **Set up** step 1 reads it.

@@ -403,3 +403,83 @@ func shippedWorkerFiles(t *testing.T) map[string]bool {
 	}
 	return found
 }
+
+// The extension declaration, held to the tree it describes. It is the one edge a reader cannot check
+// from the citation — `ecosystem.md` → **Three kinds, two homes** says extension, sequencing and
+// orientation all name a second file the same way — so the cost surface is told rather than guessing,
+// and a declaration nothing verifies is a claim that rots into a wrong number.
+//
+// Two ways it can be wrong and both are here: naming a skill that does not exist, and naming one this
+// file never reads. The second is the one that costs money — a stale `**Extends:**` left behind after
+// the citation moved keeps billing that contract's dispatches to this row forever.
+func TestEveryDeclaredExtensionNamesASkillThisOneActuallyReads(t *testing.T) {
+	skills := skillBodies(t)
+	for skill, body := range skills {
+		declared, stated := shell.ExtendsDeclarations(shell.SplitLines(string(body)))
+		if stated && len(declared) == 0 {
+			t.Errorf("%s declares an extension in a form this cannot read; it is `**Extends:** <skill>`", skill)
+			continue
+		}
+		for _, target := range declared {
+			if _, exists := skills[target]; !exists {
+				t.Errorf("%s declares it extends %s, and no skill by that name has a SKILL.md", skill, target)
+				continue
+			}
+			// Read across the whole skill directory, not just SKILL.md: `kk-pr` declares the pass it
+			// extends and cites it from `review.md` and `address-review.md`, which are the modes that
+			// run it.
+			if !skillDirCites(t, skill, target) {
+				t.Errorf("%s declares it extends %s but no file of it cites ~/.kk-flavor/skills/%s/ — a declaration outliving its citation bills that contract's dispatches to this row for nothing", skill, target, target)
+			}
+		}
+	}
+}
+
+// True when any markdown under one skill's directory names another skill by path.
+func skillDirCites(t *testing.T, skill, target string) bool {
+	t.Helper()
+	found := false
+	dir := filepath.Join(skillsTree, skill)
+	if err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err == nil && strings.Contains(string(body), "~/.kk-flavor/skills/"+target+"/") {
+			found = true
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("reading %s: %v", dir, err)
+	}
+	return found
+}
+
+// The four that declare it, named, so the set cannot quietly grow or shrink without someone saying so
+// here. Extension is the expensive edge and the only one the tree has to be told about, so which
+// skills claim it is a fact worth pinning rather than deriving.
+func TestExactlyTheKnownSkillsDeclareAnExtension(t *testing.T) {
+	want := map[string]string{
+		"idsd-build":   "kk-build",
+		"idsd-qualify": "kk-qualify",
+		"idsd-reactor": "kk-handoff",
+		"idsd-ship":    "idsd-build, idsd-qualify, idsd-finalize",
+		"kk-pr":        "kk-qualify",
+	}
+	got := map[string]string{}
+	for skill, body := range skillBodies(t) {
+		if declared, _ := shell.ExtendsDeclarations(shell.SplitLines(string(body))); len(declared) > 0 {
+			got[skill] = strings.Join(declared, ", ")
+		}
+	}
+	for skill, target := range want {
+		if got[skill] != target {
+			t.Errorf("%s extends %q, wanted %q", skill, got[skill], target)
+		}
+	}
+	for skill, target := range got {
+		if _, known := want[skill]; !known {
+			t.Errorf("%s newly declares it extends %s; add it here, and check --cost still reads as one run's bill", skill, target)
+		}
+	}
+}

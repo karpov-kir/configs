@@ -27,18 +27,22 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// An edge is one file naming another by its `~/.kk-flavor/` path. Two kinds, because exactly one of
-// them spends a row: `ecosystem.md` → **Three kinds, two homes** makes a dispatch the money edge and
-// leaves extension, sequencing and orientation as the three that are not.
+// An edge is one file naming another by its `~/.kk-flavor/` path, or — for the Lanes table alone — by
+// bare name. Three kinds, and two of them cost something: `ecosystem.md` → **Three kinds, two homes**
+// makes a **dispatch** the edge that spends a row of its own, and **extension** the one that runs a
+// second contract inside this session, billing at this row.
 //
-// Which of those three a read edge is cannot be told from the path — nothing in the tree declares
-// it, and ecosystem.md names all three in one sentence. So this reports `reads` and stops there
-// rather than guessing a kind; a reader who needs to know which opens the citing line, and a label
-// this invented would be wrong in a way nothing could catch.
+// **`reads` is the residue, and it is free.** Sequencing names the stage after this one, which is a
+// different run; orientation merely points. Neither can be told from the other by the citation, and
+// neither costs this run anything, so neither needs telling apart. What had to be separated from them
+// was extension, and that is declared rather than guessed — `shell.ExtendsDeclarations`. An earlier
+// version guessed, by treating every read as extension, and billed `idsd-ship` for four stages it
+// sequences.
 type edgeKind string
 
 const (
 	dispatches edgeKind = "dispatches"
+	extendsOne edgeKind = "extends"
 	reads      edgeKind = "reads"
 )
 
@@ -115,6 +119,7 @@ func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
 	// correct rather than missing, so it is labelled for what it is: printing `declares nothing`
 	// beside it would report the tree's own design as a defect on every run.
 	modes := map[string]string{}
+	extended := map[string]map[string]bool{}
 	for _, name := range map_.skills {
 		if owner, _, isMode := strings.Cut(name, "/"); isMode && known[owner] {
 			modes[name] = "mode of " + owner
@@ -125,13 +130,21 @@ func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
 			continue
 		}
 		modes[name], _ = shell.RunsDeclaration(lines)
+		declared, _ := shell.ExtendsDeclarations(lines)
+		if len(declared) == 0 {
+			continue
+		}
+		extended[name] = map[string]bool{}
+		for _, target := range declared {
+			extended[name][target] = true
+		}
 	}
 
 	for _, name := range map_.skills {
 		map_.nodes[name] = node{
 			name:   name,
 			mode:   modes[name],
-			out:    edgesFrom(skillFiles(root, name), name, known, workerRows),
+			out:    edgesFrom(skillFiles(root, name), name, known, workerRows, extended[name]),
 			claude: tier(name, "claude"),
 			codex:  tier(name, "codex"),
 		}
@@ -147,12 +160,22 @@ func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
 		if found.file != "" {
 			files = []string{found.file}
 		}
+		// A worker row whose contract is a SKILL.md is one of the three lanes that kept a door, and
+		// that door is what makes "what does this cost me" a question a human can ask of it. Read the
+		// declaration off the same file, so `--cost` can tell those three from a worker nobody types.
+		mode := ""
+		if found.kind == skillContract {
+			if lines, err := readLines(found.file); err == nil {
+				mode, _ = shell.RunsDeclaration(lines)
+			}
+		}
 		map_.nodes[name] = node{
 			name:   name,
+			mode:   mode,
 			isWork: true,
 			// `found.owner`, not `name`: a borrowed prompt's pointers at its own assets are that
 			// row's self-citations, whoever is running it.
-			out:    edgesFrom(files, found.owner, known, workerRows),
+			out:    edgesFrom(files, found.owner, known, workerRows, extended[found.owner]),
 			claude: tier(name, "claude"),
 			codex:  tier(name, "codex"),
 		}
@@ -230,13 +253,15 @@ var lanesTableRow = regexp.MustCompile("(?m)^\\| *[a-z-]+ *\\| *`(?:~/\\.kk-flav
 //
 // A path naming neither map is passed over rather than reported: this is an emitter, and a citation
 // to a file the policy has never heard of is eco-check's finding to make.
-func edgesFrom(files []string, self string, skills, workers map[string]bool) []edge {
+func edgesFrom(files []string, self string, skills, workers, extends map[string]bool) []edge {
 	seen := map[edge]bool{}
 	classify := func(name string) {
 		switch {
 		case name == self:
 		case workers[name]:
 			seen[edge{to: name, kind: dispatches}] = true
+		case skills[name] && extends[name]:
+			seen[edge{to: name, kind: extendsOne}] = true
 		case skills[name]:
 			seen[edge{to: name, kind: reads}] = true
 		}
@@ -381,33 +406,32 @@ type charge struct {
 	codex  string
 }
 
-// emitCost writes one skill's per-run tier profile in two parts: what a run of it spends, and what
-// it may additionally spend through the contracts it names.
+// emitCost writes one skill's per-run tier profile: its own session at its own row, then every row a
+// run of it can reach.
 //
-// **The split is forced by what the tree does not declare.** A skill naming another by path is doing
-// one of three things (`ecosystem.md` → **Three kinds, two homes**) and nothing says which:
-// **extension** reads that contract inside this session, so its dispatches are on this bill;
-// **sequencing** names the stage after this one, which is a different run with its own bill; and
-// **orientation** merely points, and costs nothing. An earlier version walked through every read
-// edge and put all of it in one column — which billed `idsd-ship` for four downstream stages it
-// sequences, and called the total a ceiling. Refusing to label the edge and then pricing it as the
-// dearest of the three is the same guess, made silently.
+// **Extension is followed and nothing else is.** A declared extension runs the second contract inside
+// this session, so what that contract dispatches is on this bill (`ecosystem.md` → **Three kinds, two
+// homes** → **Extension is free of a row, not free**). A dispatch is already priced at the row on the
+// line, and folding in what it then dispatches would charge one run twice. A plain read is a pointer
+// or the next stage, and costs this run nothing either way.
 //
-// So the second part is reported as conditional, grouped by the chain it came through, and left out
-// of the first part's count. A reader who knows which of the three a particular citation is can add
-// it up; nothing here pretends to know for them.
+// The profile was two columns for as long as extension was a guess: an earlier version walked every
+// skill-to-skill edge and billed `idsd-ship` for four stages it sequences, so the inherited rows had
+// to be printed as conditional. With the edge declared there is one number again, and the chain a row
+// arrived through is printed beside it rather than as a hedge.
 //
-// Within the first part, reads are followed no further and dispatches are not followed at all. A
-// dispatch is already priced at the row named on the line, and what it then dispatches is that
-// worker's own bill — folding it in would charge one run twice.
+// "Can reach" rather than "does reach": no run takes every branch, so this is the ceiling a run could
+// pay. Saying so is emitCost's, because a column of tiers with no such sentence reads as a receipt.
 func emitCost(self string, map_ workflow, skill string, out, errOut io.Writer) int {
 	start, known := map_.nodes[skill]
 	switch {
-	case known && start.isWork:
-		// Refused rather than answered, because a worker's profile is one line — its own row — and
-		// what it dispatches is already on the bill of whichever skill dispatched it. Answering
-		// would invite reading that one line as this worker's share of a run, which it is not.
-		fmt.Fprintf(errOut, "%s: %s is a worker, and a worker's cost is the row --graph prints beside every skill that dispatches it\n", self, skill)
+	case known && start.isWork && start.mode != "dispatched":
+		// A worker with no door has a profile of one line — its own row — and that line is already
+		// printed beside every skill that dispatches it. Answering invites reading it as this
+		// worker's share of a run, which it is not. The three lanes that kept their doors are the
+		// exception and fall through: a human types those, so "what does this cost me" is a question
+		// they can actually ask.
+		fmt.Fprintf(errOut, "%s: %s is a worker with no door, and its cost is the row --graph prints beside every skill that dispatches it\n", self, skill)
 		return 2
 	case !known:
 		fmt.Fprintf(errOut, "%s: nothing named %q has a row in models.json; --graph lists what does\n", self, skill)
@@ -416,9 +440,9 @@ func emitCost(self string, map_ workflow, skill string, out, errOut io.Writer) i
 
 	charges := map[string]charge{}
 	seen := map[string]bool{skill: true}
-	// Breadth first, so the shortest chain of reads is the one a row is reported under. Depth first
-	// would attribute a row to whichever branch happened to be walked first, which changes with the
-	// citing file's name and not with the tree's shape.
+	// Breadth first, so the shortest chain of extensions is the one a row is reported under. Depth
+	// first would attribute a row to whichever branch happened to be walked first, which changes with
+	// the citing file's name and not with the tree's shape.
 	type step struct {
 		name string
 		via  string
@@ -431,16 +455,15 @@ func emitCost(self string, map_ workflow, skill string, out, errOut io.Writer) i
 			target := map_.nodes[to.to]
 			if to.kind == dispatches {
 				// Keep the first reach, which is always the shortest: every out-edge of a node is
-				// recorded in one pass before any read edge out of it is followed, so a worker the
+				// recorded in one pass before any extension out of it is followed, so a worker the
 				// starting skill dispatches on its own face is charged with no chain before any
-				// chain can reach it. Recording the last reach instead would move such a row into
-				// the conditional half, where it reads as something the run might not pay for.
+				// chain can reach it.
 				if _, already := charges[to.to]; !already {
 					charges[to.to] = charge{name: to.to, via: at.via, claude: target.claude, codex: target.codex}
 				}
 				continue
 			}
-			if seen[to.to] {
+			if to.kind != extendsOne || seen[to.to] {
 				continue
 			}
 			seen[to.to] = true
@@ -448,74 +471,39 @@ func emitCost(self string, map_ workflow, skill string, out, errOut io.Writer) i
 		}
 	}
 
-	var direct, inherited []charge
+	ordered := make([]charge, 0, len(charges))
 	for _, one := range charges {
-		if one.via == "" {
-			direct = append(direct, one)
-		} else {
-			inherited = append(inherited, one)
-		}
+		ordered = append(ordered, one)
 	}
-	byName := func(rows []charge) { sort.Slice(rows, func(a, b int) bool { return rows[a].name < rows[b].name }) }
-	byName(direct)
-	sort.Slice(inherited, func(a, b int) bool {
-		if inherited[a].via != inherited[b].via {
-			return inherited[a].via < inherited[b].via
-		}
-		return inherited[a].name < inherited[b].name
-	})
+	sort.Slice(ordered, func(a, b int) bool { return ordered[a].name < ordered[b].name })
 
 	// The columns are sized to what is actually in them. A pinned width reads fine until one row is
 	// `idsd/qualify/reconcile`, and then every tier steps right by the overflow and the two clients
 	// stop being columns at all — on the one profile deep enough to need reading.
 	label, claude := len("what runs"), len("claude")
-	for _, one := range append(append([]charge{}, direct...), inherited...) {
+	for _, one := range ordered {
 		label = max(label, len("dispatch ")+len(one.name))
 		claude = max(claude, len(or(one.claude, noTier)))
 	}
 	label = max(label, len("session  ")+len(skill))
 	claude = max(claude, len(or(start.claude, noTier)))
-	line := func(what, onClaude, onCodex string) {
-		fmt.Fprintf(out, "%-*s  %-*s  %s\n", label, what, claude, or(onClaude, noTier), or(onCodex, noTier))
-	}
 
 	fmt.Fprintf(out, "%s  [%s]\n", skill, or(start.mode, "declares nothing"))
 	if reason := shell.RunsHoldsReason(start.mode); reason != "" {
 		fmt.Fprintf(out, "holds its own work — %s — so its row is the work it keeps\n", reason)
 	}
-
-	fmt.Fprintf(out, "\nwhat a run of it spends\n\n")
-	fmt.Fprintf(out, "%-*s  %-*s  %s\n", label, "what runs", claude, "claude", "codex")
-	line("session  "+skill, start.claude, start.codex)
-	for _, one := range direct {
-		line("dispatch "+one.name, one.claude, one.codex)
-	}
-	fmt.Fprintf(out, "\n%d dispatch(es) of its own, each once. A run takes some branches and not others, so this is what it can spend rather than a receipt.\n", len(direct))
-
-	if len(inherited) == 0 {
-		return 0
-	}
-	fmt.Fprintf(out, "\nwhat it may spend through the contracts it names\n\n")
-	fmt.Fprintf(out, "%s\n\n", inheritedLegend)
-	fmt.Fprintf(out, "%-*s  %-*s  %s\n", label, "what runs", claude, "claude", "codex")
-	shown := ""
-	for _, one := range inherited {
-		if one.via != shown {
-			fmt.Fprintf(out, "\nthrough %s:\n", one.via)
-			shown = one.via
+	fmt.Fprintf(out, "\n%-*s  %-*s  %s\n", label, "what runs", claude, "claude", "codex")
+	fmt.Fprintf(out, "%-*s  %-*s  %s\n", label, "session  "+skill, claude, or(start.claude, noTier), or(start.codex, noTier))
+	for _, one := range ordered {
+		fmt.Fprintf(out, "%-*s  %-*s  %s", label, "dispatch "+one.name, claude, or(one.claude, noTier), or(one.codex, noTier))
+		if one.via != "" {
+			fmt.Fprintf(out, "   (through %s, which it extends)", one.via)
 		}
-		line("dispatch "+one.name, one.claude, one.codex)
+		fmt.Fprintln(out)
 	}
-	fmt.Fprintf(out, "\n%d further row(s), on this bill only where the citation is extension.\n", len(inherited))
+	fmt.Fprintf(out, "\n%d row(s) one run can reach, each once. A run takes some branches and not others, so this is what it can spend rather than a receipt.\n", len(ordered))
 	return 0
 }
-
-// Why the second half is separate, in the reader's terms. Named rather than inlined because it is
-// the whole reason the profile has two halves, and a sentence carrying that had better be edited in
-// one place.
-const inheritedLegend = "a skill naming another reads it as its own delta, names it as the next stage, or merely points at it;\n" +
-	"nothing in the tree says which, so these land here only in the first case — the other two are a\n" +
-	"different run's bill, or nothing at all"
 
 func joinVia(via, name string) string {
 	if via == "" {

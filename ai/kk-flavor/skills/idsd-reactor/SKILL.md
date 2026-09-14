@@ -6,6 +6,8 @@ argument-hint: "milestone or intent slugs to build (default: ask which milestone
 
 **Runs:** holds — session-context
 
+**Extends:** kk-handoff
+
 You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
 
 ## Session role

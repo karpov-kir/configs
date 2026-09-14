@@ -954,22 +954,20 @@ var mutants = []mutant{
 	{"graph: a skills path with a workers row priced as free", "../eco-guide/graph.go", "./eco-guide/", "TestASkillsPathWithAWorkerRowIsADispatchAndNotARead",
 		"\t\tcase workers[name]:\n\t\t\tseen[edge{to: name, kind: dispatches}] = true\n",
 		"\t\tcase workers[name] && false:\n\t\t\tseen[edge{to: name, kind: dispatches}] = true\n"},
-	{"graph: the cost walk carries on through a dispatch", "../eco-guide/graph.go", "./eco-guide/", "TestCostFollowsAReadAndStopsAtADispatch",
+	{"graph: the cost walk carries on through a dispatch", "../eco-guide/graph.go", "./eco-guide/", "TestCostFollowsAnExtensionAndStopsAtADispatch",
 		"\t\t\tif to.kind == dispatches {", "\t\t\tif to.kind == dispatches && false {"},
-	{"graph: an extension's dispatches left off the bill", "../eco-guide/graph.go", "./eco-guide/", "TestCostFollowsAReadAndStopsAtADispatch",
+	{"graph: an extension's dispatches left off the bill", "../eco-guide/graph.go", "./eco-guide/", "TestCostFollowsAnExtensionAndStopsAtADispatch",
 		"\t\t\tqueue = append(queue, step{name: to.to, via: joinVia(at.via, to.to)})", "\t\t\t_ = joinVia"},
 	// The declaration the tier ceiling reads. Collapsed this way, a skill whose line nobody can read
 	// is indistinguishable from one that never had a line, and the ceiling asks it nothing.
 	{"runs: a declaration nobody can read reported as absent", "../shell/markdown.go", "./shell/", "TestRunsDeclarationReadsTheThreeFormsAndRefusesAFourth",
-		"\t\tdeclared = true\n", "\t\tdeclared = false\n"},
-	{"graph: the last reach of a worker wins instead of the first", "../eco-guide/graph.go", "./eco-guide/", "TestARowReachedBothWaysCountsAsWhatTheRunSpends",
+		"\t\tdeclared = true\n\t\tif found := runsDeclaration", "\t\tdeclared = false\n\t\tif found := runsDeclaration"},
+	{"graph: the last reach of a worker wins instead of the first", "../eco-guide/graph.go", "./eco-guide/", "TestARowReachedBothWaysIsReportedAsTheSkillsOwn",
 		"\t\t\t\tif _, already := charges[to.to]; !already {", "\t\t\t\tif _, already := charges[to.to]; !already || true {"},
 	// Narrowed to the workers/ home rather than replaced with the old single-branch lookup, which
 	// left `owners` unread and so did not compile — a mutant that does not build proves nothing.
 	{"graph: a worker row read only under workers/", "../eco-guide/graph.go", "./eco-guide/", "TestAWorkerRowWhoseContractIsNotUnderWorkersStillShowsWhatItDispatches",
 		"\t\tif found.file != \"\" {", "\t\tif found.file != \"\" && strings.Contains(found.file, \"/workers/\") {"},
-	{"graph: an inherited row billed as this run's own spend", "../eco-guide/graph.go", "./eco-guide/", "TestAnInheritedRowIsHeldApartFromWhatARunSpends",
-		"\t\tif one.via == \"\" {", "\t\tif one.via == \"\" || true {"},
 	// The Lanes table is the one place in the tree that writes a dispatch as a bare name. Without
 	// this reader the map missed all three door-keeping lanes; two appeared anyway off the script
 	// column, which is the right answer for the wrong reason, and kk-diagnose appeared nowhere.
@@ -979,13 +977,26 @@ var mutants = []mutant{
 	{"graph: a lane's script priced as a dispatch of the lane", "../eco-guide/graph.go", "./eco-guide/", "TestASkillsScriptPathIsNoEdge",
 		"\t\t\t\tif strings.HasSuffix(ref, \".md\") {", "\t\t\t\tif strings.HasSuffix(ref, \".md\") || true {"},
 	{"graph: a borrowed prompt's self-citations left as the borrower's dispatches", "../eco-guide/graph.go", "./eco-guide/", "TestABorrowedPromptsSelfCitationsAreNotTheBorrowersDispatches",
-		"out:    edgesFrom(files, found.owner, known, workerRows),", "out:    edgesFrom(files, name, known, workerRows),"},
+		"out:    edgesFrom(files, found.owner, known, workerRows, extended[found.owner]),", "out:    edgesFrom(files, name, known, workerRows, extended[found.owner]),"},
 	{"graph: a worker row printed with no tier", "../eco-guide/graph.go", "./eco-guide/", "TestEveryPricedRowCarriesItsTier",
 		"\t\tfmt.Fprintf(out, \"\\n%s\\n\", name)\n\t\tfmt.Fprintf(out, \"    runs at  %s\\n\", clientTiers(one))",
 		"\t\tfmt.Fprintf(out, \"\\n%s\\n\", name)"},
 	// The recursive walk is what made this reachable: eco-guide opened only fixed filenames before.
 	{"graph: the skill walk following a symlink out of the tree", "../eco-guide/graph.go", "./eco-guide/", "TestASymlinkedMarkdownFileIsNotWalked",
 		"!entry.Type().IsRegular() || ", ""},
+
+	// Extension is the one edge the tree has to be told about, and the guess it replaced billed a
+	// sequenced stage's whole run to the skill that merely named it.
+	{"graph: every citation billed as extension again", "../eco-guide/graph.go", "./eco-guide/", "TestACitationWithoutTheDeclarationIsNotBilled",
+		"\t\tcase skills[name] && extends[name]:", "\t\tcase skills[name] && true:"},
+	{"graph: the cost walk following an undeclared citation", "../eco-guide/graph.go", "./eco-guide/", "TestACitationWithoutTheDeclarationIsNotBilled",
+		"\t\t\tif to.kind != extendsOne || seen[to.to] {", "\t\t\tif seen[to.to] {"},
+	{"graph: a lane that kept its door refused like any worker", "../eco-guide/graph.go", "./eco-guide/", "TestADoorKeepingLaneAnswersItsCostAndADoorlessWorkerRefuses",
+		`case known && start.isWork && start.mode != "dispatched":`, "case known && start.isWork:"},
+	// The census cannot reach this arm — every declaration in the shipped tree parses — so the case
+	// that holds it is the grammar's own, in ./shell/.
+	{"extends: a declaration nobody can read reported as absent", "../shell/markdown.go", "./shell/", "TestExtendsDeclarationReadsTheFormAndReportsALineItCannot",
+		"\t\tdeclared = true\n\t\tif found := extendsDeclaration", "\t\tdeclared = false\n\t\tif found := extendsDeclaration"},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain

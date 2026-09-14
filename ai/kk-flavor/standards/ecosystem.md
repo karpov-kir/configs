@@ -44,11 +44,13 @@ Three kinds — worker, orchestrator, session — live in two directories, and a
 
 **A dispatch resolves into `workers/`.** That is the one edge that spends money, and it is the one the families rule below and [model-policy.md](model-policy.md) both price. Three other edges name a second file the same way and are not dispatches: **extension**, one session reading a second contract as its delta; **sequencing**, a pipeline naming the stage after it; and **orientation**, a pointer placing one skill against its neighbour. Forbidding those would duplicate whole contracts rather than simplify anything. **Extension is free of a row, not free**: the second contract's work runs in the first's session and bills at the first's row, which [model-policy.md](model-policy.md) → **Cost is a design constraint** then prices.
 
+**So extension is declared and the other two are not.** A skill that reads another inline says `**Extends:** <skill>` beside its `**Runs:**` line. The three edges are identical in the text, so a reader pricing a run either guesses or is told, and guessing bills a sequenced stage's whole run to the skill that merely names it. Nothing is an extension unless it says so; a check holds each declaration to a skill the file actually cites, because one left behind after its citation moved keeps billing forever.
+
 **A door on top of a worker dispatches it; it never reads it inline.** Read inline, the worker runs at the calling session's tier and its own row selects nothing — the defect the layer exists to remove. The exception is a `converses` session, which must stay with the human through the work: it reads the contract itself and its own row applies.
 
 **A worker's prompt is a file, never a directory.** Scripts a worker owns sit beside it at `kk-flavor/workers/<name>/`, so the lane that owns an instrument is still readable from its path.
 
-**`ai/guide.sh --graph` and `ai/guide.sh --cost <skill>` print this section's shape out of the tree**, so an edit to what counts as a dispatch changes what they emit. They separate dispatch from the other three and go no further, because nothing here declares which of the three an edge is; each states its own reading rules when it runs.
+**`ai/guide.sh --graph` and `ai/guide.sh --cost <skill>` print this section's shape out of the tree**, so an edit to what counts as a dispatch changes what they emit. They read the two edges that cost something and leave sequencing and orientation as one free residue; each states its own reading rules when it runs.
 
 ## Family direction
 

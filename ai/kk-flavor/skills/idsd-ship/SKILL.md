@@ -6,6 +6,10 @@ argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promot
 
 **Runs:** holds — converses
 
+**Extends:** idsd-build
+**Extends:** idsd-qualify
+**Extends:** idsd-finalize
+
 **Check session ownership before renaming, opening a report or changing the tree.** If this is a reactor session, follow `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role** and prepare or resume the owning task instead of entering this lifecycle here.
 
 The session that owns this intent coordinates its lifecycle under `~/.kk-flavor/standards/skill-protocol.md`. Load `idsd-build` when building, `idsd-qualify` when qualifying, and `idsd-finalize` only when entering `done`; use their contracts inline. **This session is therefore priced at the dearest of them, not at its own coordination** (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**) — that is what `**Runs:** holds — converses` above declares. Load lifecycle/report guidance when its operation is needed, not every sub-skill at startup. Reuse unchanged contracts and settled gap answers. A genuine new gap still reaches the human.

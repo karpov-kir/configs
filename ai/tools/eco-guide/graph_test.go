@@ -77,6 +77,14 @@ func skillBody(mode, body string) string {
 	return "---\nname: x\ndescription: One line.\n---\n\n**Runs:** " + mode + "\n\n" + body + "\n"
 }
 
+// The same, declaring which contract this skill reads as its own delta. Separate from skillBody so a
+// case that does not care about extension cannot accidentally declare one — which is the whole point
+// of the declaration: nothing is an extension unless it says so.
+func skillExtending(mode, extends, body string) string {
+	return "---\nname: x\ndescription: One line.\n---\n\n**Runs:** " + mode +
+		"\n\n**Extends:** " + extends + "\n\n" + body + "\n"
+}
+
 // The block the graph prints for one name, from its heading to the blank line that ends it. Cut this
 // way rather than by counting lines, so a case asserting one node's edges does not also pin how many
 // edges its neighbours have.
@@ -212,9 +220,9 @@ func TestASkillNamedInBareProseIsNoEdge(t *testing.T) {
 // already priced at the row on the line, so folding in what it dispatches would charge one run
 // twice. Both halves are here, because a walk that followed everything and one that followed
 // nothing each pass half of this.
-func TestCostFollowsAReadAndStopsAtADispatch(t *testing.T) {
+func TestCostFollowsAnExtensionAndStopsAtADispatch(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
-		"skills/idsd-ship/SKILL.md": skillBody("holds — converses",
+		"skills/idsd-ship/SKILL.md": skillExtending("holds — converses", "kk-qualify",
 			"Its delta over `~/.kk-flavor/skills/kk-qualify/SKILL.md`."),
 		"skills/kk-qualify/SKILL.md": skillBody("orchestrator",
 			"Dispatch `~/.kk-flavor/workers/code-review.md`."),
@@ -243,9 +251,9 @@ func TestCostFollowsAReadAndStopsAtADispatch(t *testing.T) {
 // the extension or the tier is the thing to change.
 func TestCostNamesTheChainAnInheritedRowArrivedThrough(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
-		"skills/idsd-ship/SKILL.md": skillBody("holds — converses",
+		"skills/idsd-ship/SKILL.md": skillExtending("holds — converses", "kk-pr",
 			"Its delta over `~/.kk-flavor/skills/kk-pr/SKILL.md`."),
-		"skills/kk-pr/SKILL.md": skillBody("holds — landing",
+		"skills/kk-pr/SKILL.md": skillExtending("holds — landing", "kk-qualify",
 			"The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`."),
 		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Dispatch `~/.kk-flavor/workers/refactor.md`."),
 	})
@@ -254,7 +262,7 @@ func TestCostNamesTheChainAnInheritedRowArrivedThrough(t *testing.T) {
 	if status != 0 {
 		t.Fatalf("expected exit 0, got %d\n%s", status, output)
 	}
-	if !strings.Contains(output, "through kk-pr → kk-qualify:") {
+	if !strings.Contains(output, "(through kk-pr → kk-qualify, which it extends)") {
 		t.Errorf("the chain a row arrived through is missing, so an unexpected bill names no cause\n%s", output)
 	}
 }
@@ -262,10 +270,10 @@ func TestCostNamesTheChainAnInheritedRowArrivedThrough(t *testing.T) {
 // Two skills that read each other is an ordinary shape — a pipeline and its stage each orient the
 // reader toward the other — so the walk has to end on its own rather than on a depth limit somebody
 // tuned.
-func TestAReadCycleTerminates(t *testing.T) {
+func TestAnExtensionCycleTerminates(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
-		"skills/kk-pr/SKILL.md":      skillBody("holds — landing", "See `~/.kk-flavor/skills/kk-qualify/SKILL.md`."),
-		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Back to `~/.kk-flavor/skills/kk-pr/SKILL.md`, and dispatch `~/.kk-flavor/workers/refactor.md`."),
+		"skills/kk-pr/SKILL.md":      skillExtending("holds — landing", "kk-qualify", "See `~/.kk-flavor/skills/kk-qualify/SKILL.md`."),
+		"skills/kk-qualify/SKILL.md": skillExtending("orchestrator", "kk-pr", "Back to `~/.kk-flavor/skills/kk-pr/SKILL.md`, and dispatch `~/.kk-flavor/workers/refactor.md`."),
 	})
 
 	status, output := run(t, "--cost", "kk-pr", root)
@@ -456,12 +464,12 @@ func TestARefusalNamesWhichOfTheThreeDidNotHappen(t *testing.T) {
 	}
 }
 
-// The conformance gate's sharpest finding, kept as a case. A skill naming another is extending it,
-// sequencing it, or pointing at it, and nothing in the tree says which — so a walk that put all
-// three in one column billed `idsd-ship` for four stages it sequences and called the total a
-// ceiling. Refusing to label the edge and then pricing it as the dearest of the three is the same
-// guess, made where nobody can see it.
-func TestAnInheritedRowIsHeldApartFromWhatARunSpends(t *testing.T) {
+// The conformance gate's sharpest finding, kept as a case under the mechanism that now answers it.
+// A skill naming another is extending it, sequencing it, or pointing at it, and only the first bills
+// here. An earlier version could not tell them apart and treated all three as extension, which billed
+// `idsd-ship` for four stages it sequences and called the total a ceiling. The edge is declared now,
+// so the rule is simply that an undeclared citation is not followed.
+func TestACitationWithoutTheDeclarationIsNotBilled(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
 		"skills/idsd-ship/SKILL.md": skillBody("holds — converses",
 			"The stage after this is `~/.kk-flavor/skills/kk-qualify/SKILL.md`; dispatch `~/.kk-flavor/workers/build/explore.md` first."),
@@ -472,35 +480,60 @@ func TestAnInheritedRowIsHeldApartFromWhatARunSpends(t *testing.T) {
 	if status != 0 {
 		t.Fatalf("expected exit 0, got %d\n%s", status, output)
 	}
-	spends, through, found := strings.Cut(output, "what it may spend through the contracts it names")
-	if !found {
-		t.Fatalf("the profile has no second half, so an inherited row is priced as this run's spend\n%s", output)
+	if !strings.Contains(output, "dispatch build/explore") {
+		t.Errorf("a dispatch the skill names itself is missing from its profile\n%s", output)
 	}
-	if !strings.Contains(spends, "dispatch build/explore") {
-		t.Errorf("a dispatch the skill names itself is not in what a run of it spends\n%s", spends)
+	if strings.Contains(output, "code-review") {
+		t.Errorf("a sequenced stage's dispatches were billed to the run that merely names it\n%s", output)
 	}
-	if strings.Contains(spends, "code-review") {
-		t.Errorf("a row reached only through a cited contract was billed as this run's own spend\n%s", spends)
+	if !strings.Contains(output, "1 row(s) one run can reach") {
+		t.Errorf("the count includes rows that are not this run's\n%s", output)
 	}
-	if !strings.Contains(through, "dispatch code-review") {
-		t.Errorf("the inherited row is missing from the second half too, so it is priced nowhere\n%s", through)
-	}
-	if !strings.Contains(spends, "1 dispatch(es) of its own") {
-		t.Errorf("the count in the first half includes rows that are not this run's\n%s", spends)
-	}
-	// The second half must say why it is separate, or it reads as the same column with a gap in it.
-	if !strings.Contains(through, "only in the first case") {
-		t.Errorf("the second half does not say what makes a row land there\n%s", through)
+	// And the same tree with the declaration added bills it — so this case cannot pass by a walk
+	// that follows nothing at all.
+	declared := newGraphRoot(t, map[string]string{
+		"skills/idsd-ship/SKILL.md": skillExtending("holds — converses", "kk-qualify",
+			"Its delta over `~/.kk-flavor/skills/kk-qualify/SKILL.md`; dispatch `~/.kk-flavor/workers/build/explore.md` first."),
+		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Dispatch `~/.kk-flavor/workers/code-review.md`."),
+	})
+	if _, with := run(t, "--cost", "idsd-ship", declared); !strings.Contains(with, "dispatch code-review") {
+		t.Errorf("a declared extension's dispatches are not on the extending session's bill\n%s", with)
 	}
 }
 
-// A worker a skill dispatches directly and also reaches through a contract it names is this run's
-// spend, not a conditional one. Ordered the other way round, the shortest path loses to whichever
-// chain the walk happened to record first, and a row the skill names on its own face moves into the
-// half that says it might not be paid for.
-func TestARowReachedBothWaysCountsAsWhatTheRunSpends(t *testing.T) {
+// A door a human types answers what it costs; a worker nobody types refuses, because its one line is
+// already printed beside every skill that dispatches it. The three lanes that kept their doors sit on
+// the worker side of the policy and the door side of that question.
+func TestADoorKeepingLaneAnswersItsCostAndADoorlessWorkerRefuses(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
-		"skills/idsd-ship/SKILL.md": skillBody("holds — converses",
+		"skills/kk-edit/SKILL.md": skillBody("dispatched", "Hand structure to `~/.kk-flavor/workers/refactor.md`."),
+	})
+	// The door-keeping shape is a `workers` row whose contract is a SKILL.md, so the fixture's
+	// stand-in prompt under workers/ has to go or the row resolves to that instead.
+	if err := os.Remove(filepath.Join(root, "kk-flavor", "workers", "kk-edit.md")); err != nil {
+		t.Fatalf("removing the fixture worker file: %v", err)
+	}
+
+	status, output := run(t, "--cost", "kk-edit", root)
+	if status != 0 {
+		t.Fatalf("a lane with a door refuses to price itself: %d\n%s", status, output)
+	}
+	if !strings.Contains(output, "dispatch refactor") {
+		t.Errorf("the door-keeping lane's own dispatch is missing\n%s", output)
+	}
+	status, output = run(t, "--cost", "code-review", root)
+	if status != 2 || !strings.Contains(output, "worker with no door") {
+		t.Errorf("a worker nobody types was priced as though it had a door: %d\n%s", status, output)
+	}
+}
+
+// A worker a skill dispatches on its own face, and also reaches through a contract it extends, is
+// reported as this skill's own — with no chain beside it. Recording the last reach instead would
+// print `(through kk-qualify, which it extends)` next to a dispatch the skill names itself, sending
+// a reader to the wrong file to change it.
+func TestARowReachedBothWaysIsReportedAsTheSkillsOwn(t *testing.T) {
+	root := newGraphRoot(t, map[string]string{
+		"skills/idsd-ship/SKILL.md": skillExtending("holds — converses", "kk-qualify",
 			"Its delta over `~/.kk-flavor/skills/kk-qualify/SKILL.md`, and it dispatches `~/.kk-flavor/workers/code-review.md` itself."),
 		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Dispatch `~/.kk-flavor/workers/code-review.md`."),
 	})
@@ -509,10 +542,16 @@ func TestARowReachedBothWaysCountsAsWhatTheRunSpends(t *testing.T) {
 	if status != 0 {
 		t.Fatalf("expected exit 0, got %d\n%s", status, output)
 	}
-	spends, _, _ := strings.Cut(output, "what it may spend through the contracts it names")
-	if !strings.Contains(spends, "dispatch code-review") {
-		t.Errorf("a worker the skill dispatches on its own face was reported as merely possible\n%s", output)
+	for _, line := range strings.Split(output, "\n") {
+		if !strings.Contains(line, "dispatch code-review") {
+			continue
+		}
+		if strings.Contains(line, "through") {
+			t.Errorf("a worker the skill dispatches on its own face is attributed to a contract it extends\n%s", line)
+		}
+		return
 	}
+	t.Errorf("the profile does not price code-review at all\n%s", output)
 }
 
 // Six of this tree's worker rows hold their contract somewhere other than `workers/<name>.md` —

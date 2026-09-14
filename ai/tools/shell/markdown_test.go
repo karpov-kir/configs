@@ -196,3 +196,43 @@ func TestRunsHoldsReasonIsTheReasonAndNothingElse(t *testing.T) {
 		}
 	}
 }
+
+// The extension declaration's grammar. It carries the one edge nothing else can check — extension,
+// sequencing and orientation all name a second skill the same way — so a line nobody can read must be
+// reported as a broken declaration and never as an absent one: read as silence, the extension is
+// priced free and the bill it belongs on loses it silently.
+//
+// Its own case rather than the tree census's, because every declaration in the shipped tree parses.
+// The census cannot reach this arm at all, which is how it came to have no case.
+func TestExtendsDeclarationReadsTheFormAndReportsALineItCannot(t *testing.T) {
+	for _, one := range []struct {
+		lines    []string
+		extends  []string
+		declared bool
+	}{
+		{lines: []string{"**Extends:** kk-build"}, extends: []string{"kk-build"}, declared: true},
+		{lines: []string{"**Extends:** idsd-finalize"}, extends: []string{"idsd-finalize"}, declared: true},
+		// Two contracts read as one session's delta is a shape the tree does not have yet and the
+		// grammar does not forbid; both are returned rather than the first winning silently.
+		{lines: []string{"**Extends:** kk-build", "**Extends:** kk-qualify"}, extends: []string{"kk-build", "kk-qualify"}, declared: true},
+		{lines: []string{"**Extends:** kk-build, kk-qualify"}, declared: true},
+		{lines: []string{"**Extends:** `kk-build`"}, declared: true},
+		{lines: []string{"**Extends:** ~/.kk-flavor/skills/kk-build/SKILL.md"}, declared: true},
+		{lines: []string{"**Extends:**"}, declared: true},
+		{lines: []string{"It **Extends:** kk-build inline"}},
+		{lines: []string{"Extends: kk-build"}},
+		{lines: []string{"nothing about what it extends"}},
+	} {
+		extends, declared := ExtendsDeclarations(one.lines)
+		if declared != one.declared || len(extends) != len(one.extends) {
+			t.Errorf("%q read as (%v, %v), wanted (%v, %v)", one.lines, extends, declared, one.extends, one.declared)
+			continue
+		}
+		for at := range extends {
+			if extends[at] != one.extends[at] {
+				t.Errorf("%q read as %v, wanted %v", one.lines, extends, one.extends)
+				break
+			}
+		}
+	}
+}

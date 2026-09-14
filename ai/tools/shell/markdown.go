@@ -45,6 +45,13 @@ var (
 	// declaration spelled wrong must be refused by name, never read as an absent one. A skill whose
 	// line does not parse would otherwise fall to whatever a caller's silence implies.
 	runsDeclared = regexp.MustCompilePOSIX(`^\*\*Runs:\*\*`)
+
+	// Which contract a skill reads as its own delta and runs inside its own session. Four edges in
+	// this tree do that and roughly thirty others name a second skill without doing it — to point at
+	// it, or to name the stage after this one — and no reader can tell those apart from the citation.
+	// So the one that costs money is declared, and everything else is a pointer by default.
+	extendsDeclaration = regexp.MustCompilePOSIX(`^\*\*Extends:\*\* *([A-Za-z0-9][A-Za-z0-9._-]*) *$`)
+	extendsDeclared    = regexp.MustCompilePOSIX(`^\*\*Extends:\*\*`)
 )
 
 // LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
@@ -239,4 +246,28 @@ func RunsHoldsReason(mode string) string {
 		return ""
 	}
 	return reason
+}
+
+// ExtendsDeclarations is every skill this one reads as its own delta and runs inline, and whether any
+// `**Extends:**` line was there at all. Body text, like RunsDeclaration beside it.
+//
+// The declaration exists because the citation cannot carry it. `ecosystem.md` → **Three kinds, two
+// homes** names three ways one skill can name another without dispatching it — extension, sequencing
+// and orientation — and only extension puts the second contract's dispatches on the first's bill.
+// Read off the path alone they are identical, so a cost surface either guesses or is told; this is
+// being told.
+//
+// Declared-but-unreadable is reported the way RunsDeclaration reports it: a line nobody can parse is
+// not an absent one, and reading it as silence would price the extension as free.
+func ExtendsDeclarations(lines []string) (extends []string, declared bool) {
+	for _, line := range lines {
+		if !extendsDeclared.MatchString(line) {
+			continue
+		}
+		declared = true
+		if found := extendsDeclaration.FindStringSubmatch(line); found != nil {
+			extends = append(extends, found[1])
+		}
+	}
+	return extends, declared
 }

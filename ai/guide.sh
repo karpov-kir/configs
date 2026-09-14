@@ -6,8 +6,8 @@
 #          (no flag)      regenerate <root>/field-guide.html from the skills and the narrative template
 #          --check        regenerate into memory and compare, failing when the committed page has drifted
 #          --graph        print the workflow map — every priced row, what each dispatches, what each reads
-#          --cost <skill> print one skill's per-run tier profile: what a run of it spends, then what it
-#                         may additionally spend through each contract it names
+#          --cost <skill> print one skill's per-run tier profile: its own row, what it dispatches, and
+#                         what each contract it declares it extends dispatches in turn
 #
 # One of the three per run, never two: each writes something different to one stdout.
 #
