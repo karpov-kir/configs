@@ -1,8 +1,6 @@
 package ecoreport
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	repokey "kk-flavor/tools/repo-key"
 	"kk-flavor/tools/shell"
 )
 
@@ -29,10 +28,6 @@ import (
 // The directory name under the shared git dir. Not the git dir root, so it cannot collide with the
 // per-repository records other skills keep there — `cadence.sh`'s `idsd-audit-offer` is one.
 const sharedDirName = "idsd"
-
-// How much of the realpath digest goes into a repo key. Six hex is 16.7M values over the handful of
-// clones one machine holds, and the key is only ever compared to itself.
-const repoKeyDigestLength = 6
 
 // The in-tree location. What `repoMode` asks git about and what `promote` writes into, whatever the
 // resolved scratch root turns out to be.
@@ -324,30 +319,22 @@ func pathComponents(path string) []string {
 	return parts
 }
 
-// This clone's directory name under an override root: `<basename>-<digest>`, readable and unique.
+// This clone's directory name under an override root. The algorithm is `ai/tools/repo-key/`, shared
+// with the owner's worktree layout; what stays here is the refusal, worded in this tool's vocabulary.
 //
-// The basename comes from the shared git dir's PARENT, never from `--show-toplevel`. That answers the
-// worktree's own directory name, so a key built from it hands every worktree a different scratch dir
-// — the exact bug, wearing the shape of a fix.
-//
-// The digest is over the same realpath, which is the only sound identity available: two clones of one
-// repository share a remote URL and often a basename, and never a git-dir realpath. Realpath rather
-// than the path as given, so reaching the same clone through a symlinked parent resolves to one key.
+// This run lets GIT_DIR and its siblings relocate the whole invocation — layoutOverridden above steps
+// aside for them deliberately — so the key follows them and names the repository the rest of the run
+// is already working in. `repo-key` the command strips them instead: a caller handing it an explicit
+// path has already named the repository it means.
 func (r *run) repoKey() string {
-	shared := r.gitCommonPath("")
-	canonical := shell.CanonicalDir(shared)
-	if canonical == "" {
-		// Not a fallback to the unresolved path: that would key one clone two ways depending on how the
-		// caller reached it, and the two scratch dirs would each hold half the ship.
-		r.refuse("error: could not resolve "+shared+" to a real path — this clone cannot be named under the override root.",
+	key, err := repokey.FromSharedGitDir(r.gitCommonPath(""))
+	if err != nil {
+		// No fallback here either: a second name for one clone leaves two scratch dirs, each holding half
+		// the ship.
+		r.refuse("error: "+err.Error()+" — this clone cannot be named under the override root.",
 			"  Nothing was read or written.")
 	}
-	digest := sha256.Sum256([]byte(canonical))
-	name := shell.BaseName(shell.DirName(canonical))
-	if name == "" || name == "/" || name == "." {
-		name = "repo"
-	}
-	return name + "-" + hex.EncodeToString(digest[:])[:repoKeyDigestLength]
+	return key
 }
 
 // Decide the scratch root for this invocation. Called once, before any subcommand runs, so every
