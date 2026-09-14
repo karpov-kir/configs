@@ -153,20 +153,19 @@ func (r Root) SkillsMount() string {
 
 func (r Root) Agent() string { r.requireAgent(); return r.agent }
 
+// BudgetScope says what every always-loaded figure here leaves out. One wording for all three callers
+// and both agents, because these figures get compared: a check run against a stats run, one ledger row
+// against the next. Nothing a client loads from the user's home sits under a checkout, so no figure
+// here counts it. `owner-instructions.md` is no exception: no session reads it where it sits — the
+// owner install copies it to that home file.
+const BudgetScope = "checkout budget; excludes global instructions and their referenced files"
+
 func (r Root) InstructionFile() string {
 	r.requireAgent()
 	if r.agent == "codex" {
 		return shell.Join(r.named, "AGENTS.md")
 	}
 	return shell.Join(r.named, "CLAUDE.md")
-}
-
-func (r Root) BudgetScope() string {
-	r.requireAgent()
-	if r.agent == "codex" {
-		return " (checkout budget; excludes global instructions and their referenced files)"
-	}
-	return ""
 }
 
 func (r Root) IsInstalled() bool {

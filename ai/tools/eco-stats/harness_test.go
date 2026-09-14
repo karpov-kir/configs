@@ -99,12 +99,17 @@ func (f *fixture) prepare() {
 }
 
 // One run over this fixture, with the two streams kept apart: every case here knows which of them it
-// is asking about.
+// is asking about. `run` picks claude; a case that turns on the agent names its own through runAs.
 func (f *fixture) run(args ...string) (stdout, stderr string, status int) {
+	f.t.Helper()
+	return f.runAs("claude", args...)
+}
+
+func (f *fixture) runAs(agent string, args ...string) (stdout, stderr string, status int) {
 	f.t.Helper()
 	f.prepare()
 	var out, errOut bytes.Buffer
-	status = ecostats.Run(f.self(), append([]string{"--agent=claude"}, args...), &out, &errOut)
+	status = ecostats.Run(f.self(), append([]string{"--agent=" + agent}, args...), &out, &errOut)
 	return out.String(), errOut.String(), status
 }
 
@@ -146,6 +151,15 @@ func (f *fixture) checkOutput() string {
 	var out bytes.Buffer
 	ecocheck.Run([]string{"--agent=claude", f.root}, &out, &out)
 	return out.String()
+}
+
+func lineWith(output, needle string) string {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	return ""
 }
 
 // The rows a ledger holds, header and rule included.

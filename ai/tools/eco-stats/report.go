@@ -12,6 +12,9 @@ func (s *stats) alwaysLoaded() int { return s.alwaysLoadedWords + s.descriptionW
 // A `+` on the always-loaded figure marks it a lower bound: a figure that silently excludes an import
 // teaches a later pass the tier held still while it grew. The mark is what the row carries; the names
 // behind it go to the printed line only, where there is room for them.
+// Codex is marked whether or not an import was found — not the asymmetry ecoroot.BudgetScope closes.
+// Import resolution is Claude's alone, so every Codex figure is a floor, where a Claude one is exact
+// until `uncounted` says otherwise.
 func (s *stats) budgetMark() string {
 	if len(s.uncounted) == 0 && s.root.Agent() != "codex" {
 		return ""
@@ -45,7 +48,7 @@ func (s *stats) report(out io.Writer) {
 		s.ledgerWords)
 	s.reportMountedOutside(out)
 	fmt.Fprintf(out, "always-loaded:%6d words  = %d router + %d descriptions across %d of %d skills%s%s\n",
-		s.alwaysLoaded(), s.alwaysLoadedWords, s.descriptionWords, s.routedSkills, s.skills, s.budgetNote()+s.root.BudgetScope(), s.refusalNote())
+		s.alwaysLoaded(), s.alwaysLoadedWords, s.descriptionWords, s.routedSkills, s.skills, s.budgetNote()+" ("+ecoroot.BudgetScope+")", s.refusalNote())
 	s.reportUnreadable(out)
 }
 

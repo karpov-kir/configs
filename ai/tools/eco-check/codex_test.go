@@ -15,7 +15,8 @@ func TestCodexBudgetAndInvocationPolicy(t *testing.T) {
 	f.write(f.root+"/kk-flavor/skills/manual/SKILL.md", "---\nname: manual\ndescription: two words\ndisable-model-invocation: true\n---\n")
 	var out bytes.Buffer
 	ecocheck.Run([]string{"--agent=codex", f.root}, &out, &out)
-	for _, expected := range []string{"5 words across 2 files", "excludes global instructions and their referenced files", "2 words of skill description across 1 of 1", "Codex invocation policy mismatch"} {
+	// No longer a Codex trait: TestEveryAgentsBudgetLineSaysWhatItLeavesOut owns the scope note now.
+	for _, expected := range []string{"5 words across 2 files", "2 words of skill description across 1 of 1", "Codex invocation policy mismatch"} {
 		if !strings.Contains(out.String(), expected) {
 			t.Errorf("missing %q: %s", expected, out.String())
 		}

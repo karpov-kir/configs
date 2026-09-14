@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	ecoroot "kk-flavor/tools/eco-root"
 	ecostats "kk-flavor/tools/eco-stats"
 )
 
@@ -197,4 +198,31 @@ func wordsCount(n int) string {
 		fmt.Fprintf(&note, "word%d ", i)
 	}
 	return note.String()
+}
+
+// A row is read back later as what the tier cost on that date, so what the figure leaves out has to
+// travel with it: the printed line scrolls away, the row does not. Both agents are driven though the
+// emission carries no agent branch today — that branch is what this change removed, and a case that
+// cannot see it come back guards nothing.
+func TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut(t *testing.T) {
+	for _, agent := range []string{"claude", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f := newRoot(t)
+			ledger := f.newLedger(ledgerColumns)
+			f.write(f.root+"/CLAUDE.md", "one two\n")
+			f.write(f.root+"/AGENTS.md", "one two\n")
+
+			stdout, stderr, status := f.runAs(agent, "--append", "a pass", f.root)
+			row := readFile(t, ledger)
+			if status != 0 || rowsIn(t, ledger) != 3 {
+				t.Fatalf("status %d, rows %d (want 0 and 3 — header, rule, row)\n%s", status, rowsIn(t, ledger), stderr)
+			}
+			if !strings.Contains(row, ecoroot.BudgetScope) {
+				t.Errorf("the appended row does not say what its figure leaves out:\n%s", indent(row))
+			}
+			if !strings.Contains(lineWith(stdout, "always-loaded:"), ecoroot.BudgetScope) {
+				t.Errorf("the printed line does not say what its figure leaves out:\n%s", indent(stdout))
+			}
+		})
+	}
 }

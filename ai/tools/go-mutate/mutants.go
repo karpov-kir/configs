@@ -219,6 +219,13 @@ var mutants = []mutant{
 	{"stats: fresh ledger loses the measurement absolute", "../eco-stats/ledger.go", "./eco-stats/", "", "never edited — however that edit is authorised", "never edited"},
 	{"stats: fresh ledger loses its columns", "../eco-stats/ledger.go", "./eco-stats/", "", "| date | prose | scripts | always-loaded | skills | what ran |", "| date | prose | scripts | always-loaded | skills |"},
 
+	// The scope note, at each of the three places it reaches a reader.
+	{"ecoroot: the budget scope note emptied", "../eco-root/eco-root.go", "./eco-root/", "TestTheBudgetScopeNoteSaysWhatItHasTo", `const BudgetScope = "checkout budget; excludes global instructions and their referenced files"`, `const BudgetScope = ""`},
+	{"check: the budget line withholds its scope", "budget.go", "./eco-check/", "TestEveryAgentsBudgetLineSaysWhatItLeavesOut", `uncountedNote(uncounted)+" ("+ecoroot.BudgetScope+")")`, "uncountedNote(uncounted))"},
+	// Sliced empty, not dropped: dropping the reference takes the ecoroot import with it — mutant `broken`.
+	{"stats: the ledger row withholds its scope", "../eco-stats/ledger.go", "./eco-stats/", "TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut", "ecoroot.BudgetScope + \"]\"", "ecoroot.BudgetScope[:0] + \"]\""},
+	{"stats: the report line withholds its scope", "../eco-stats/report.go", "./eco-stats/", "TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut", `s.budgetNote()+" ("+ecoroot.BudgetScope+")"`, "s.budgetNote()"},
+
 	// Both consumer suites supply explicit roots, so only ecoroot's suite observes root discovery.
 	{"ecoroot: the ./ai candidate dropped", "../eco-root/eco-root.go", "./eco-root/", "", `var candidates = []string{".", "./ai"}`, `var candidates = []string{"."}`},
 	{"ecoroot: a root needs only one of the two directories", "../eco-root/eco-root.go", "./eco-root/", "", "&& shell.IsDir(shell.Join(flavor, skillsDir))", ""},

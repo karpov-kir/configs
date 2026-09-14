@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
 )
 
@@ -40,10 +41,7 @@ const ledgerSeed = "# Ecosystem size\n" +
 // Every write below is guarded: unguarded, an unwritable ledger still prints "appended to …" and
 // exits 0, and the next pass reads a row that never landed as what happened.
 func (s *stats) appendRow(self, note string, out, errOut io.Writer) int {
-	note += " [agent=" + s.root.Agent() + "]"
-	if s.root.Agent() == "codex" {
-		note += " [checkout budget excludes global instructions and their referenced files]"
-	}
+	note += " [agent=" + s.root.Agent() + "] [" + ecoroot.BudgetScope + "]"
 	// The row states how much of its always-loaded figure came from imports this run resolved, or a
 	// reader comparing two rows cannot tell a tier that grew from one the tool merely started seeing.
 	// Appended after the sanitising in noteFrom, and safe there: fixed text and a digit string forge
