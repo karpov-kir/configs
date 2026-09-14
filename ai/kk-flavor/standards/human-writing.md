@@ -44,6 +44,8 @@ A watch-list, not a complete set.
 
 The author's side, for a reviewer deciding approve-or-not. **Link the ticket wherever the branch carries one**: it owns the incident, the evidence and the timeline, so the description carries the change and nothing about how the problem was found.
 
+**A PR based on another open PR's branch carries the stack map**, one line beside the ticket link: `Stack, base first: #12 ← #13 ← **#14 (this one)**`. The same line stands in every PR of the stack, so a reviewer landing on any one of them sees the whole order.
+
 **Prose, never headings of your own**: a heading you add is a slot, and **Budget** rules what fills one. A repo template's headings stand.
 
 Cover three things, in this order, and only while each has content. What changes and why, led by the outcome the consumer sees. A surface that arrived, went or changed shape belongs in that outcome, not in a note of its own. Then what you chose and what it cost, where the diff does not carry it — an alternative you rejected, a duplication kept on purpose, an invariant now split across two files. Then what this leaves someone to do, such as a release to cut or a pin to drop.
