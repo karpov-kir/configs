@@ -27,4 +27,6 @@ The review can be re-requested with `gh pr edit <N> --add-reviewer <login>`. Fol
 
 The verdict block goes in your closing reply.
 
-**Under `review-and-address` the close is different**: say the PR is ready, then offer the two acts that remain — re-request the review, or post the verdict block as one comment. Neither happens unasked, and the scratchpad is gone by then or its surviving entries are in that reply.
+**Under `review-and-address` that reply carries one line more**: the PR is ready. The scratchpad is gone by then, or its surviving entries are in it.
+
+**On someone else's PR, also offer to post the block as one PR comment** — that author reads the round's conclusion nowhere else. The post never happens unasked. **On the human's own PR there is no such offer**: they authored it and have just read the block here.

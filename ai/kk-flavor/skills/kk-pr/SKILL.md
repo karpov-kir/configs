@@ -6,7 +6,7 @@ argument-hint: "<review|address-review|refine-description|review-and-address> [P
 
 `$ARGUMENTS` opens with a **required** mode — one of the four below, or an argument plainly saying the same; with neither, ask which rather than guessing from the PR. What follows names the PR; with nothing after it, the current branch's. `gh` must be authenticated.
 
-**Authorship settles nothing** — the mode is the whole licence, on your own PR and on anyone else's. It changes only what GitHub lets you write to, which **Set up** step 1 reads.
+**Authorship settles no licence** — the mode is the whole licence, on your own PR and on anyone else's. Authorship changes what GitHub accepts and whether what you post has a reader; **Set up** step 1 reads it.
 
 You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**). Everything you leave on the PR is outward text, so read `~/.kk-flavor/standards/human-writing.md` whole before you draft a line.
 
@@ -17,7 +17,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 | `review` | `~/.kk-flavor/skills/kk-pr/review.md` | the author's diff, `<base>...HEAD` | a **pending** review: one comment per finding, the verdict in its body |
 | `address-review` | `~/.kk-flavor/skills/kk-pr/address-review.md` | the fixes you just wrote | commits pushed to the PR's branch, one reply per thread |
 | `refine-description` | `~/.kk-flavor/skills/kk-pr/refine-description.md` | the PR's body | the PR's body, its title where the change outgrew it, and the stack map wherever it went stale |
-| `review-and-address` | both of the first two | each half's own | commits pushed; none of your own findings posted |
+| `review-and-address` | both of the first two | each half's own | commits pushed; no findings of your own on the diff |
 
 **A mode sets those two columns, and its file carries only what does not follow from them.** Two things follow that no mode restates:
 
