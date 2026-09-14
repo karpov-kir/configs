@@ -732,6 +732,10 @@ var mutants = []mutant{
 		`const intervalDays = 7`, `const intervalDays = 9`},
 	{"cadence: the interval boundary becomes strictly greater", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
 		`if elapsed >= intervalDays {`, `if elapsed > intervalDays {`},
+	// A row naming no model leaves the dispatch on its caller's model and the row outside the tier
+	// order, so nothing downstream can price it and no ceiling can judge it.
+	{"model-policy: a row naming no model is accepted", "../model-policy/policy.go", "./model-policy/", "TestEffortWithoutAModelIsRefusedRatherThanKeptAsALever",
+		`if settings.Model == "" {`, `if settings.Model == "" && false {`},
 	// The ceiling compares an orchestrator's row against the dearest model its client has. Reading the
 	// cheapest instead leaves it green over a tree that is entirely at the top tier, which is the one
 	// direction that costs money silently.

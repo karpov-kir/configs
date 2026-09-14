@@ -244,7 +244,7 @@ func declaredRunModes(t *testing.T) map[string]string {
 			if runsLine.Match(body) {
 				t.Errorf("%s declares how it runs in a form this cannot read; it is `dispatched`, `orchestrator`, or `holds — ` one of converses, session-context, landing", skill)
 			} else {
-				t.Errorf("%s declares no **Runs:** line, so nothing says whether it holds work or hands every step away", skill)
+				t.Errorf("%s declares no **Runs:** line, so nothing says whether it holds work or hands every step away; it is `dispatched`, `orchestrator`, or `holds — ` one of converses, session-context, landing", skill)
 			}
 			continue
 		}
@@ -268,35 +268,30 @@ func TestEverySkillDeclaresHowItRuns(t *testing.T) {
 // tree that has the defect. A gate only ever run against a tree that passes is one nobody has watched
 // fail.
 //
-// An orchestrator must name a model for every client, because a row that names none names no tier and
-// the ceiling has nothing to compare. validateSettings already requires one of every claude row; codex
-// may carry an effort alone, which is legitimate for a worker and is the one shape that would slip an
-// orchestrator past this — so it is reported rather than skipped.
-func orchestratorsAtTheCeiling(policy *Policy, declared map[string]string) (atTop, unranked []string, err error) {
+// Every row names a model for every client — validateSettings refuses one that does not — so every
+// orchestrator ranks and this needs no arm for a row it cannot judge.
+func orchestratorsAtTheCeiling(policy *Policy, declared map[string]string) ([]string, error) {
+	var atTop []string
 	for _, client := range []string{"codex", "claude"} {
 		top, ranked := policy.TopTier(client)
 		if !ranked {
-			return nil, nil, fmt.Errorf("the policy orders no %s tiers, so nothing here knows which model is the top one", client)
+			return nil, fmt.Errorf("the policy orders no %s tiers, so nothing here knows which model is the top one", client)
 		}
 		for skill, mode := range declared {
 			if mode != "orchestrator" {
 				continue
 			}
-			decision, resolveErr := policy.Resolve(Request{Client: client, Task: skill})
-			if resolveErr != nil {
-				return nil, nil, fmt.Errorf("%s declares itself an orchestrator and the policy does not price it: %w", skill, resolveErr)
+			decision, err := policy.Resolve(Request{Client: client, Task: skill})
+			if err != nil {
+				return nil, fmt.Errorf("%s declares itself an orchestrator and the policy does not price it: %w", skill, err)
 			}
-			switch decision.Requested.Model {
-			case "":
-				unranked = append(unranked, client+"/"+skill)
-			case top:
+			if decision.Requested.Model == top {
 				atTop = append(atTop, client+"/"+skill)
 			}
 		}
 	}
 	sort.Strings(atTop)
-	sort.Strings(unranked)
-	return atTop, unranked, nil
+	return atTop, nil
 }
 
 func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
@@ -310,62 +305,61 @@ func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
 	if orchestrators == 0 {
 		t.Fatal("no skill declares itself an orchestrator, so this proved nothing")
 	}
-	atTop, unranked, err := orchestratorsAtTheCeiling(loadShippedPolicy(t), declared)
+	atTop, err := orchestratorsAtTheCeiling(loadShippedPolicy(t), declared)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, at := range atTop {
 		t.Errorf("%s is declared an orchestrator and priced at the top tier — find the work that tier is paying for: either it is real and the skill is a session naming which reason holds it, or it was dispatched already and the row never came down", at)
 	}
-	for _, at := range unranked {
-		t.Errorf("%s is declared an orchestrator and its row names no model, so no tier can be read from it and the ceiling above cannot judge it", at)
-	}
 }
 
-// The ceiling against trees that have the defect, which the shipped one does not. Both clients are
-// asserted separately: the two orders share no model name, so a check that read one list and compared
-// against the other's top would report nothing and look green.
+// The ceiling against a tree that has the defect, which the shipped one does not. Both clients are
+// asserted: the two orders share no model name, so a check that read one list and compared against the
+// other's top would report nothing and look green.
 func TestTheCeilingCatchesAnOrchestratorAtTheTopTier(t *testing.T) {
-	// `sample` prices kk-build at claude's top tier and gives codex an effort with no model — one of
-	// each finding from a single call.
-	atTop, unranked := ceilingOver(t, sample, map[string]string{"kk-build": "orchestrator"})
-	if want := []string{"claude/kk-build"}; !slices.Equal(atTop, want) {
+	policy, err := Parse([]byte(sample))
+	if err != nil {
+		t.Fatal(err)
+	}
+	atTop, err := orchestratorsAtTheCeiling(policy, map[string]string{"kk-build": "orchestrator"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"claude/kk-build", "codex/kk-build"}; !slices.Equal(atTop, want) {
 		t.Fatalf("at the ceiling: %v; want %v", atTop, want)
 	}
-	if want := []string{"codex/kk-build"}; !slices.Equal(unranked, want) {
-		t.Fatalf("unranked: %v; want %v", unranked, want)
-	}
-
-	// The same row given codex's top model too, so the codex half is asserted against its own order
-	// rather than only against the absence of a model.
-	bothAtTop := strings.Replace(sample, `"kk-build":{"codex":{"effort":"high"}`, `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, 1)
-	if bothAtTop == sample {
-		t.Fatal("the fixture edit matched nothing, so this case tests the unmodified sample twice")
-	}
-	atTop, unranked = ceilingOver(t, bothAtTop, map[string]string{"kk-build": "orchestrator"})
-	if want := []string{"claude/kk-build", "codex/kk-build"}; !slices.Equal(atTop, want) || len(unranked) != 0 {
-		t.Fatalf("at the ceiling: %v, unranked %v; want %v and none", atTop, unranked, want)
-	}
-
 	// The same row declared for the work it keeps is no finding at all — the ceiling reads the
 	// declaration, never the tier alone.
-	atTop, unranked = ceilingOver(t, bothAtTop, map[string]string{"kk-build": "holds — converses"})
-	if len(atTop) != 0 || len(unranked) != 0 {
-		t.Fatalf("a session at the top tier was reported: %v, %v", atTop, unranked)
+	atTop, err = orchestratorsAtTheCeiling(policy, map[string]string{"kk-build": "holds — converses"})
+	if err != nil || len(atTop) != 0 {
+		t.Fatalf("a session at the top tier was reported: %v, %v", atTop, err)
 	}
 }
 
-func ceilingOver(t *testing.T, raw string, declared map[string]string) (atTop, unranked []string) {
-	t.Helper()
-	policy, err := Parse([]byte(raw))
-	if err != nil {
-		t.Fatal(err)
+// A row naming an effort and no model is refused at parse, for either client and in either map. On
+// claude nothing could carry the effort; on codex something can, and the spawn then runs at whatever
+// model the caller had — the silent inheritance the policy exists to remove, and the shape that would
+// otherwise leave an orchestrator outside the tier order and so outside the ceiling above.
+func TestARowNamingAnEffortAndNoModelIsRefused(t *testing.T) {
+	for _, swap := range []struct{ what, from, to string }{
+		{"a codex worker row", `"build/explore":{"codex":{"model":"middling","effort":"low"}`, `"build/explore":{"codex":{"effort":"low"}`},
+		{"a codex session row", `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, `"kk-build":{"codex":{"effort":"high"}`},
+		{"a claude worker row", `"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}`, `"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"effort":"low"}`},
+	} {
+		raw := strings.Replace(sample, swap.from, swap.to, 1)
+		if raw == sample {
+			t.Fatalf("%s: the fixture edit matched nothing, so this case tests the unmodified sample", swap.what)
+		}
+		policy, err := Parse([]byte(raw))
+		if err == nil {
+			t.Errorf("%s naming no model parsed into %v", swap.what, policy.TaskNames())
+			continue
+		}
+		if !strings.Contains(err.Error(), "names no model") {
+			t.Errorf("%s was refused for the wrong reason: %v", swap.what, err)
+		}
 	}
-	atTop, unranked, err = orchestratorsAtTheCeiling(policy, declared)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return atTop, unranked
 }
 
 // A task the policy does not list is refused, including one whose path starts with a skill that has a

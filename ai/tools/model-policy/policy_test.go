@@ -7,10 +7,10 @@ import (
 
 const sample = `{"version":4,"limits":{"intents-in-flight":10},` +
 	`"tiers":{"codex":["helper","middling","frontier"],"claude":["haiku","sonnet","opus"]},` +
-	`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"model":"opus"}}},` +
+	`"sessions":{"kk-build":{"codex":{"model":"frontier","effort":"high"},"claude":{"model":"opus"}}},` +
 	`"workers":{` +
 	`"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"},"rolls":3},` +
-	`"build/explore":{"codex":{"effort":"low"},"claude":{"model":"sonnet"}}}}`
+	`"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}}}}`
 
 func policyForTest(t *testing.T) *Policy {
 	t.Helper()
@@ -36,12 +36,18 @@ func TestEachClientGetsItsOwnSettingsAndRolls(t *testing.T) {
 	}
 }
 
-// An effort with no model is the one lever that keeps a site on the caller's model, so it must survive
-// resolution rather than being filled in with a guess.
-func TestEffortWithoutModelResolvesAndInventsNoModel(t *testing.T) {
-	got, err := policyForTest(t).Resolve(Request{Client: "codex", Task: "kk-build"})
-	if err != nil || got.Requested.Effort != "high" || got.Requested.Model != "" {
-		t.Fatalf("effort-only row = %+v, %v", got, err)
+// An effort with no model used to be a lever that kept a site on its caller's model. It is refused now,
+// and the whole of why is that the same file forbids what it does: a cheap coordinator is safe only
+// once every site under it names its own model. Nothing shipped ever used it, the tier order cannot
+// rank it, and a row outside that order is one no ceiling can judge. The case below is the refusal
+// itself; TestARowNamingAnEffortAndNoModelIsRefused covers the shapes it reaches.
+func TestEffortWithoutAModelIsRefusedRatherThanKeptAsALever(t *testing.T) {
+	raw := strings.Replace(sample, `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, `"kk-build":{"codex":{"effort":"high"}`, 1)
+	if raw == sample {
+		t.Fatal("the fixture edit matched nothing, so this case tests the unmodified sample")
+	}
+	if _, err := Parse([]byte(raw)); err == nil {
+		t.Fatal("a row carrying an effort and no model parsed, so the dispatch would take its caller's model")
 	}
 }
 
@@ -251,7 +257,7 @@ func TestTierOfRanksCheapestFirstAndSaysWhenItCannot(t *testing.T) {
 // carrying no order, because that refusal is the sentence someone has to read to know what to add.
 func TestADocumentWithNoTierOrderIsRefusedForThat(t *testing.T) {
 	const noOrder = `{"version":4,"limits":{"intents-in-flight":10},` +
-		`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"model":"opus"}}},` +
+		`"sessions":{"kk-build":{"codex":{"model":"frontier","effort":"high"},"claude":{"model":"opus"}}},` +
 		`"workers":{"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}}}}`
 
 	_, err := Parse([]byte(noOrder))

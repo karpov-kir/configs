@@ -25,6 +25,7 @@ Read a doc only when its trigger below matches what you're doing. **`project.md`
 | committing, pushing, opening a PR | [standards/git.md](standards/git.md) |
 | editing a skill, standard, prompt, template or agent instruction file | [standards/ecosystem.md](standards/ecosystem.md) |
 | invoking another skill, orchestrating a run of them, or **about to compact, clear or hand off your context** | [standards/skill-protocol.md](standards/skill-protocol.md) |
+| deciding what a step should run at, or reading what one costs | [standards/model-policy.md](standards/model-policy.md) |
 | running a multi-stage quality pass over one change set | [standards/quality-pipeline.md](standards/quality-pipeline.md) |
 | appending to a record kept across runs | [standards/records.md](standards/records.md) |
 | driving a browser | [standards/browser.md](standards/browser.md) |

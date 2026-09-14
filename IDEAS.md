@@ -270,11 +270,22 @@ distinction it lacked: **summing up is not judging**. A coordinator that holds a
 dispatching it, or reaches a verdict over findings no worker was asked to weigh, is a session at that
 tier; one that orders what its lanes already decided is not.
 
-**The ceiling needed a second guard the plan had not written.** A row that names no model names no
-tier, and nothing can be compared against a ceiling. `validateSettings` requires a model of every
-claude row, but a codex row may carry an effort alone — legitimate for a worker, and the one shape that
-would have slipped an orchestrator past the check in silence. Such a row is now reported rather than
-skipped.
+**The ceiling needed a second guard the plan had not written, and the drive gate moved it.** A row that
+names no model names no tier, so nothing can be compared against a ceiling. The first fix reported such
+an orchestrator from the ceiling itself; driving it found the same hole one layer down and worse — a
+**worker** row carrying a codex effort and no model passed the whole suite, and that dispatch takes its
+caller's model, which is the silent inheritance this file exists to remove. **The guard moved into
+`validateSettings`**, where every reader of a row inherits it, and the ceiling's arm for a row it
+cannot judge went away as unreachable.
+
+**That retired a documented lever, and it is a fork.** `TestEffortWithoutModelResolvesAndInventsNoModel`
+called an effort with no model "the one lever that keeps a site on the caller's model" and existed to
+protect it. Against it: the same standard says a cheap coordinator is safe only once **every site under
+it names its own model**, so the lever contradicted a rule its own file states; the tier order cannot
+rank such a row, and `validateTiers` already refuses a row naming a model the order does not rank, so
+refusing one naming no model at all is that guarantee rather than a new one; and **no shipped row ever
+used it** — it was a capability kept alive by one test. The losing branch is that some site genuinely
+wants its caller's model at a different effort. Reversing is a three-line patch.
 
 **`orchestrator` now means two things and the tree had to say which.**
 [skill-protocol.md](ai/kk-flavor/standards/skill-protocol.md) → **Orchestrators — interactive first**
@@ -332,6 +343,23 @@ reading and the arbitration are the campaign's own, over every `DELETED:` line e
 and Phase 5 then has to *withhold* that same accumulated state from fresh agents, because the omission
 is the phase. Hand it to a worker and Phase 5 stops working. `kk-qualify` withholds nothing from
 anything and each of its lanes judges inside its own dispatch. `holds — session-context`, at opus.
+
+**What the drive gate found that no reading had.** All seven scenarios held, and four gaps came out of
+them. `inject.md` routed to no rule about tiers at all — an agent asked to classify or price a skill
+reached [model-policy.md](ai/kk-flavor/standards/model-policy.md) only by inference through the
+editing-a-skill row, so that file now has a trigger of its own. The refusal for a skill that declares
+*nothing* did not list the three valid forms while the refusal for a skill that declares the *wrong*
+thing did, which is backwards. `kk-pr` and `idsd-ship` cited the pricing rule zero times between them,
+and they are exactly the two skills whose tier is set by something other than their declared reason —
+`idsd-ship` by what it inlines, `kk-pr` by an inline gate its `landing` reason does not name; both say
+so now. And [ecosystem.md](ai/kk-flavor/standards/ecosystem.md) called dispatch "the one edge that
+spends money" while naming extension as not a dispatch, which reads as extension being free; it now
+says extension is free of a *row*, and bills at the reading session's.
+
+**One finding is left for step 4, not fixed here.** The field guide teaches what an orchestrator is and
+that it cannot hold the top tier, but names no skill's kind and no skill's tier — per-tier detail
+exists only for the 22 dispatch sites. "What does *this* skill cost" is unanswerable from the page for
+all 16 it lists. That is `--cost`'s job.
 
 **The distribution the ceiling now acts on: 24 rows at opus, 15 at sonnet, 1 at haiku.**
 

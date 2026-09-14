@@ -10,7 +10,7 @@ argument-hint: "<review|address-review|refine-description|review-and-address> [P
 
 **Authorship settles nothing** — the mode is the whole licence, on your own PR and on anyone else's. It changes only what GitHub lets you write to, which **Set up** step 1 reads.
 
-You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**). Everything you leave on the PR is outward text, so read `~/.kk-flavor/standards/human-writing.md` whole before you draft a line.
+You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**) — the protocol role, not the kind `**Runs:**` above declares. **Your tier buys the gates you run inline and the text you send**, not the scheduling (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). Everything you leave on the PR is outward text, so read `~/.kk-flavor/standards/human-writing.md` whole before you draft a line.
 
 ## Modes
 

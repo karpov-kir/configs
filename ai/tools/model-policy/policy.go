@@ -383,13 +383,13 @@ func (p *Policy) TaskNames() []string {
 }
 
 func validateSettings(client string, settings Settings) error {
-	if settings.Model == "" && settings.Effort == "" {
-		return fmt.Errorf("%s needs a model, an effort, or both", client)
-	}
-	// Claude's transports carry a model and have nowhere to put an effort, so an effort alone would be
-	// a row that reads as a saving and changes nothing about the bill.
-	if client == "claude" && settings.Model == "" {
-		return fmt.Errorf("claude needs a model: it has no per-dispatch effort, so an effort alone would not change what runs")
+	// Every row names a model for every client. An effort alone reads as a decision and is not one: on
+	// claude there is no per-dispatch effort to carry it, and on codex — which does carry one — the
+	// spawn then takes whatever model the caller was running, which is the silent inheritance this
+	// whole file exists to remove. It also leaves the row outside the tier order, so nothing can
+	// compare it against a ceiling and an orchestrator priced that way is judged by nothing.
+	if settings.Model == "" {
+		return fmt.Errorf("%s names no model, so the run takes its caller's and no tier can be read from the row", client)
 	}
 	if settings.Model != "" && !validName(settings.Model) {
 		return fmt.Errorf("%s model holds whitespace or control characters", client)
