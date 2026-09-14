@@ -51,12 +51,14 @@ const maxIntentsInFlight = 25
 type document struct {
 	Version int    `json:"version"`
 	Limits  Limits `json:"limits"`
-	// Each client's models cheapest first. The file already decides what every row spends; this is
-	// the only thing in it that says which of two rows spends MORE, and nothing can derive that from
-	// the names — `opus` and `gpt-6-astra` order by price, not alphabetically or by length.
+	// Each client's models, cheapest first. The file already decides what every row spends; this is
+	// the only thing in it that says which of two rows spends more than the other, and nothing can
+	// derive that from the names — `opus` and `gpt-6-astra` order by price, not alphabetically or by
+	// length.
 	//
-	// Held per client and not as one list of pairs, because the two are set independently: a row may
-	// name a codex effort and no codex model at all, and the claude side has no effort to name.
+	// Held per client rather than as one list of pairs, because the two clients are set
+	// independently: a row may name a codex effort and no codex model at all, and the claude side
+	// has no effort to name.
 	Tiers    map[string][]string   `json:"tiers"`
 	Sessions map[string]assignment `json:"sessions"`
 	Workers  map[string]assignment `json:"workers"`
@@ -123,13 +125,22 @@ func (p *document) validate() error {
 	return p.validateAssignments()
 }
 
-// The ordering is only usable if it covers what the rows actually name, so a model absent from its
-// client's list is refused here rather than read as "unranked" by whoever asks later — a comparison
-// that quietly answers "not higher" is how a ceiling passes something it should have stopped.
+// The ordering is only usable if it covers what the rows actually name. So a model absent from its
+// client's list is refused here, rather than left for whoever asks later to read as "unranked": a
+// comparison that quietly answers "not higher" is how a ceiling passes what it should have stopped.
 //
 // A row naming no model for a client is not an omission: codex takes an effort alone, and the
 // ordering has nothing to say about such a row.
 func (p *document) validateTiers() error {
+	// An extra key is inert today — both required clients must still be present and valid — but a
+	// misspelling sits in the file reading as though it ranked something, and the next hand to edit
+	// the real list leaves it behind. Refusing it makes the parser report the typo, rather than
+	// someone eventually wondering why their tier never applied.
+	for client := range p.Tiers {
+		if client != "codex" && client != "claude" {
+			return fmt.Errorf("the tier order names a client %q, which nothing dispatches to", client)
+		}
+	}
 	for _, client := range []string{"codex", "claude"} {
 		ordered, listed := p.Tiers[client]
 		if !listed || len(ordered) == 0 {
@@ -139,6 +150,13 @@ func (p *document) validateTiers() error {
 		for _, model := range ordered {
 			if !validName(model) {
 				return fmt.Errorf("%s tier %q is not a usable model name", client, model)
+			}
+			// The same refusal validateSettings applies to a model a row names. Nothing selects a
+			// model out of this list today, so leaving the check out would be an asymmetry rather
+			// than a hole — but the ceiling that will select from it is the whole reason the list
+			// exists, and then an option-shaped entry becomes the argv token after `--model`.
+			if strings.HasPrefix(model, "-") {
+				return fmt.Errorf("%s tier %q starts with a dash; once something selects out of this order, it would reach the CLI as a flag rather than a model", client, model)
 			}
 			if seen[model] {
 				return fmt.Errorf("%s lists %q at two tiers, so its rank is whichever one a reader stops at", client, model)
@@ -329,8 +347,8 @@ func (p *Policy) Digest() string {
 }
 
 // TierOf ranks one client's model, cheapest at 0. The bool is not a courtesy: a caller comparing two
-// rows has to be able to tell "cheaper" from "not ranked at all", and validateTiers means the second
-// answer can only come from asking about a model no row names.
+// rows has to tell "cheaper" from "not ranked at all". validateTiers leaves one way to reach that
+// second answer — asking about a model no row names.
 func (p *Policy) TierOf(client, model string) (int, bool) {
 	for rank, name := range p.content.Tiers[client] {
 		if name == model {

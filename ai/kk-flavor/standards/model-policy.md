@@ -10,6 +10,10 @@ maps rather than one with a marker so that no row can be mistaken for the other 
 is refused, and a session row carrying a roll count is refused with it. Run `~/.kk-flavor/scripts/model-policy.sh --help` for the
 resolver's arguments.
 
+**`tiers` lists each client's models cheapest first, and the two lists are the same length** so a rank
+on one side means something on the other. A model a row names that the order does not rank is refused
+at parse, so a model new to the file joins the order in the same edit that first prices a row at it.
+
 ## One row per skill, one per dispatch site
 
 **Every skill has a row, every dispatch site has a row, and the Go suite proves both against the
@@ -67,13 +71,6 @@ a new tool decides how much model to use, it takes that
 decision from the policy and fails visibly when the policy does not answer
 ([ecosystem.md](ecosystem.md) → **Prefer the mechanism** is the same move for rules a script can
 assert).
-
-**`tiers` ranks the models, because nothing else in the file can.** Every row says what a task
-spends; only that list says which of two rows spends *more*, and no reader derives it from the names —
-`opus` and `gpt-6-astra` order by price, not alphabetically or by length. Each client is listed
-cheapest first, and the two lists are the same length so a rank on one side means something on the
-other. **A model a row names and the order does not rank is refused at parse**, because a comparison
-that answers "not higher" for an unranked model passes exactly what it was added to stop.
 
 **Then spend the smallest model that still does the work.** The tier is chosen per task, never once for
 a run: **cheap where a wrong answer surfaces in the next step, protected where a wrong answer looks

@@ -127,6 +127,9 @@ var rankTable = []struct {
 	{subcommandWithNoCallSite, 5},
 	{uncheckableCitation, 5},
 	{undelimitedSectionCitation, 5},
+	// The two kinds scanUnknownSkills emits, kept together so the pair reads as one scan's two
+	// answers: a name the tree could hold and does not, and a name it could never hold.
+	{malformedSkillName, 5},
 	{unknownSkillReferenced, 5},
 	{unresolvableCitationPath, 5},
 }

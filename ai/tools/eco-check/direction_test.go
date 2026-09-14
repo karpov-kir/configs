@@ -166,37 +166,32 @@ func TestDirectionScan(t *testing.T) {
 		newNulByteFile(t).reports(ecocheck.UnknownSkillReferenced + "kk-nonesuch")
 	})
 
-	// A name is echoed whole, the way the cited path below is. The family token used to stop at the
-	// first byte outside ASCII, so a `kk-drivé` directory came back as `kk-driv` and the finding sent
-	// its reader to `skills/kk-driv/SKILL.md` — a path nothing could ever hold. The name is the only
-	// part of that message a reader can act on, so a truncated one is a second defect invented beside
-	// the real one.
-	t.Run("echoes a skill name whole rather than cutting it at the first non-ASCII byte", func(t *testing.T) {
+	// A name the lane grammar cannot hold is reported as malformed rather than as a name. Reported
+	// as a name, the ASCII half sent a reader to `skills/kk-driv/SKILL.md` for a `kk-drivé`
+	// directory — a path nothing can hold, which is a second defect invented beside the real one.
+	t.Run("reports a name carrying a non-ASCII character as malformed", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
-		f.reports(ecocheck.UnknownSkillReferenced + "kk-drivé")
+		f.reports(ecocheck.MalformedSkillName + "kk-driv…")
 	})
 
-	// The other half, on its own fixture because the harness runs the checker once per assertion.
-	// Without it the case above is satisfied by a scan that reports the truncation AND the whole
-	// name, which would send a reader to the invented path just the same.
-	t.Run("and does not also report the truncation beside it", func(t *testing.T) {
+	// And not also as an unknown skill, on its own fixture because the harness runs the checker once
+	// per assertion. Without it, the case above passes on a scan that reports both kinds, which
+	// leaves the invented path in front of a reader exactly as before.
+	t.Run("and does not also name a path for it", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
-		f.doesNotReport(ecocheck.UnknownSkillReferenced + "kk-driv —")
-	})
-
-	// And the same name, present in the tree, is matched rather than reported. Without this the cases
-	// above are satisfied by a scan that echoes names whole and can no longer find any of them.
-	//
-	// The needle is the bare finding head, not the head plus this name: asked for the name, the case
-	// passes under the truncating scan too, which reports `kk-driv` and so does not carry the string
-	// being looked for. Two different reasons for one green is the shape that hides a broken scan.
-	t.Run("and finds that same name when the tree holds it", func(t *testing.T) {
-		f := newRoot(t)
-		f.newMountedSkill("kk-drivé")
 		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
 		f.doesNotReport(ecocheck.UnknownSkillReferenced)
+	})
+
+	// The homoglyph is why the malformed finding carries no name. `kk-cоde-review` with a Cyrillic о
+	// renders exactly like a skill this tree has, so a finding echoing it whole argues the checker is
+	// broken and takes that run's true findings down with it.
+	t.Run("and never echoes a name that renders like a real skill", func(t *testing.T) {
+		f := newRoot(t)
+		f.newMountedSkill("kk-code-review")
+		f.write(f.root+"/kk-flavor/standards/x.md", "spawn `kk-cоde-review` over the diff\n")
+		f.doesNotReport("kk-cоde-review")
 	})
 
 	// The cited path is echoed whole. One trailing segment stops it at `.../kk-humanize/scripts` and

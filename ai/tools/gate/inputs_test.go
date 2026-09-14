@@ -255,3 +255,34 @@ func TestTheStubUnitIsKeyedOnEveryScriptCarryingTheRegion(t *testing.T) {
 		t.Fatalf("%s is not among the discovered units, so nothing here was checked", stubSuite)
 	}
 }
+
+// The guide prints the tier each dispatch buys, resolved through the model policy, so the policy is
+// one of the files that decides the page's bytes. A unit not keyed on a file its command reads is
+// the one failure a check like this cannot survive: the committed page goes stale and `--check`
+// reports green from cache, which is precisely the state it exists to catch.
+//
+// Asserted over this repository because the claim is about this tree's wiring rather than about the
+// gate's machinery — a fixture would assert whatever declaration the case itself wrote.
+func TestTheGuideUnitIsKeyedOnEveryFileItsPageIsBuiltFrom(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	// The skills tree and the template decide the page too, and were keyed on from the start; the
+	// policy is the one that arrived with the second inventory. All three are asserted, so a later
+	// edit that trims the declaration is caught whichever entry it takes.
+	want := []string{"ai/kk-flavor/models.json", "ai/kk-flavor/skills", "ai/tools/eco-guide"}
+	found := false
+	for _, u := range g.units {
+		if u.id != "guide" {
+			continue
+		}
+		found = true
+		for _, input := range want {
+			if !slices.Contains(u.inputs, input) {
+				t.Errorf("the guide unit is not keyed on %s, so editing it leaves the committed page stale and the check green", input)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no guide unit among the discovered units, so nothing here was checked")
+	}
+}

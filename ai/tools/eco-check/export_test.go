@@ -64,6 +64,7 @@ const (
 	UncheckableCitation              = uncheckableCitation
 	UndelimitedSectionCitation       = undelimitedSectionCitation
 	UnknownSkillReferenced           = unknownSkillReferenced
+	MalformedSkillName               = malformedSkillName
 	UnresolvableCitationPath         = unresolvableCitationPath
 )
 

@@ -63,15 +63,15 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		// These three keep the version valid on purpose: Go's decoder matches keys case-insensitively
 		// and takes the last of a duplicate pair, so a wrong version would fail them on the version
 		// alone and prove nothing about strictness.
-		"wrong key case":   strings.Replace(sample, `"version":4`, `"Version":3`, 1),
+		"wrong key case":   strings.Replace(sample, `"version":4`, `"Version":4`, 1),
 		"unknown field":    strings.Replace(sample, `"version":4`, `"version":4,"typo":true`, 1),
-		"duplicate field":  strings.Replace(sample, `"version":4`, `"version":4,"version":3`, 1),
+		"duplicate field":  strings.Replace(sample, `"version":4`, `"version":4,"version":4`, 1),
 		"nested duplicate": strings.Replace(sample, `"model":"helper"`, `"model":"helper","model":"other"`, 1),
 		"unknown client":   strings.Replace(sample, `"codex":{"model":"helper"`, `"other":{"model":"helper"`, 1),
 		"version 1":        strings.Replace(sample, `"version":4`, `"version":1`, 1),
 		"trailing value":   sample + ` {}`,
 		"null":             `null`,
-		"no tasks":         `{"version":3,"limits":{"intents-in-flight":10},"sessions":{},"workers":{}}`,
+		"no tasks":         `{"version":4,"limits":{"intents-in-flight":10},"sessions":{},"workers":{}}`,
 		"no cap":           strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":0`, 1),
 		"one client only":  strings.Replace(sample, `"claude":{"model":"haiku"},`, ``, 1),
 		"empty settings":   strings.Replace(sample, `"claude":{"model":"haiku"}`, `"claude":{}`, 1),
@@ -86,23 +86,44 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),
 		"cap over the ceiling":        strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":999999`, 1),
 		"task name with space":        strings.Replace(sample, `"bloat-judge":`, `"bloat judge":`, 1),
-		// The tier order is what tells a later check which of two rows spends more, and every way it
-		// can fail to answer that is refused at parse rather than read as "unranked" downstream — a
+		// The tier order is what tells a later check which of two rows spends more, so every way it
+		// can fail to answer that is refused at parse rather than read as "unranked" downstream. A
 		// comparison that quietly answers "not higher" passes what it should have stopped.
-		"no tier order at all": strings.Replace(sample,
-			`"tiers":{"codex":["helper","middling","frontier"],"claude":["haiku","sonnet","opus"]},`, ``, 1),
+		//
+		// This document's rows name no model at all, so the unranked-model guard has nothing to fire
+		// on and the absent order is the only thing left to refuse. Spliced out of `sample` instead,
+		// every row's model would be unranked and that guard would answer first — a green for the
+		// wrong reason.
+		"no tier order at all": `{"version":4,"limits":{"intents-in-flight":10},` +
+			`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"effort":"high"}}},` +
+			`"workers":{"bloat-judge":{"codex":{"effort":"low"},"claude":{"effort":"high"}}}}`,
 		"a client with no tiers": strings.Replace(sample, `"claude":["haiku","sonnet","opus"]`, `"claude":[]`, 1),
 		"a model no tier ranks":  strings.Replace(sample, `"claude":{"model":"sonnet"}`, `"claude":{"model":"unranked"}`, 1),
-		// Both lists grow to four so the lengths still match and every model a row names is still
-		// ranked: shortened or lengthened on one side alone, this is caught by the length guard or the
-		// unranked guard and the duplicate guard is never reached.
+		"a client the policy does not dispatch to": strings.Replace(sample, `"tiers":{"codex"`,
+			`"tiers":{"cluade":["haiku"],"codex"`, 1),
+		// A fourth entry on each side, so every row's model is still ranked and the two lists are
+		// still the same length: the entry's shape is the only thing left to refuse it.
+		"a tier shaped like a flag": strings.NewReplacer(
+			`"codex":["helper","middling","frontier"]`, `"codex":["helper","middling","frontier","spare"]`,
+			`"claude":["haiku","sonnet","opus"]`, `"claude":["haiku","sonnet","opus","--dangerously-skip-permissions"]`,
+		).Replace(sample),
+		// Same isolation for the name guard: a fourth entry on each side, so the unranked-model,
+		// duplicate and length guards all pass and only this one can fire. With a three-entry list
+		// the unranked-model guard answers instead, and the case proves nothing about names.
+		"a tier that is not a usable name": strings.NewReplacer(
+			`"codex":["helper","middling","frontier"]`, `"codex":["helper","middling","frontier","spare"]`,
+			`"claude":["haiku","sonnet","opus"]`, `"claude":["haiku","sonnet","opus","ha iku"]`,
+		).Replace(sample),
+		// A fourth entry on each side again, so the lengths still match and every model a row names
+		// is still ranked. Shortened or lengthened on one side alone, the length guard or the
+		// unranked-model guard catches this and the duplicate guard is never reached.
 		"one model at two tiers": strings.NewReplacer(
 			`"codex":["helper","middling","frontier"]`, `"codex":["helper","middling","frontier","spare"]`,
 			`"claude":["haiku","sonnet","opus"]`, `"claude":["haiku","sonnet","sonnet","opus"]`,
 		).Replace(sample),
 		"tier lists of different lengths": strings.Replace(sample, `"codex":["helper","middling","frontier"]`,
 			`"codex":["helper","middling"]`, 1),
-		"a tier that is not a usable name": strings.Replace(sample, `"claude":["haiku"`, `"claude":["ha iku"`, 1),
+
 		// A task name is resolved as a relative path by every reader that finds the prompt a row
 		// dispatches, and `/` has to be legal because `patrol/scout` is a real key — so each way a
 		// segment can leave the tree is refused here, at the one place all of those readers share.
@@ -192,8 +213,8 @@ func TestARowNamingItselfIsToldThatRatherThanToldOfAChain(t *testing.T) {
 	}
 }
 
-// The rank is the whole point of the order: a caller comparing two rows needs "cheaper" separated
-// from "nothing ranks this", and the two answers must not collapse into one.
+// The rank is the whole point of the order: a caller comparing two rows needs "cheaper" and
+// "nothing ranks this" to be two answers, never one.
 func TestTierOfRanksCheapestFirstAndSaysWhenItCannot(t *testing.T) {
 	p := policyForTest(t)
 	for _, want := range []struct {
@@ -210,12 +231,34 @@ func TestTierOfRanksCheapestFirstAndSaysWhenItCannot(t *testing.T) {
 		}
 	}
 	// A model no list carries, and a client the policy does not price, both answer false rather than
-	// the zero rank — which is the cheapest tier, and so the one answer that would read as a pass.
+	// the zero rank — the cheapest tier, and so the one wrong answer that would read as a pass.
 	for _, absent := range []struct{ client, model string }{
 		{"claude", "nonesuch"}, {"nobody", "haiku"},
 	} {
 		if rank, ranked := p.TierOf(absent.client, absent.model); ranked {
 			t.Errorf("TierOf(%q, %q) claimed rank %d", absent.client, absent.model, rank)
 		}
+	}
+}
+
+// The absent-order guard cannot be isolated by a table that only asks whether a document was
+// refused. With no order, every model a row names is unranked, so the unranked-model guard answers
+// first; and a document whose rows name no model reaches validateAssignments, which refuses it for
+// having no claude model. Either way the document is refused, and the table stays green with this
+// guard gone.
+//
+// So this case asks which guard spoke. A policy carrying no order at all must be refused for
+// carrying no order, because that refusal is the sentence someone has to read to know what to add.
+func TestADocumentWithNoTierOrderIsRefusedForThat(t *testing.T) {
+	const noOrder = `{"version":4,"limits":{"intents-in-flight":10},` +
+		`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"model":"opus"}}},` +
+		`"workers":{"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}}}}`
+
+	_, err := Parse([]byte(noOrder))
+	if err == nil {
+		t.Fatal("a policy with no tier order was accepted")
+	}
+	if !strings.Contains(err.Error(), "orders no codex models") {
+		t.Errorf("refused for the wrong reason, so the absent order is not what this pins: %v", err)
 	}
 }

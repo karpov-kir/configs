@@ -136,9 +136,14 @@ func (g *gate) addGoChecks() {
 // the check that would catch it. Blind to the module's test files, like every other unit that
 // observes a compiled binary. ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate has to
 // measure the source in this tree, never a binary that came from somewhere else.
+// `extModels` is in here because the page prints the tier each dispatch buys, resolved through the
+// policy's own resolver. Leave it out and editing a row changes the page the generator would write
+// while this unit answers from cache — a stale committed guide reported green, which is the one
+// result this check exists to make impossible.
 func (g *gate) addGuideCheck() {
 	g.addBlindToGoTests("guide", "check",
-		[]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root", "ai/tools/shell", "ai/guide.sh"},
+		[]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root",
+			"ai/tools/shell", "ai/tools/model-policy", "ai/guide.sh", extModels},
 		"ECO_TOOLS_BUILD=1 ai/guide.sh --check")
 }
 
