@@ -229,8 +229,26 @@ func (g *gate) discoverShellSuites() int {
 		// Three ways into one input: a suite inside the tool tree, one that compiles the module, one
 		// whose text names a tool. The second also decides the blindness rather than only clearing it —
 		// what it observes is the test files, not a binary built without them.
+		//
+		// Only the third is a scan, and only the third a suite may answer for itself. The first two are
+		// facts about where the suite lives and what it runs, so a declaration beside either is a suite
+		// contradicting its own text, and the gate refuses rather than picking one.
 		runsGoSuites := goSuiteRun.MatchString(body) || goSuiteRun.MatchString(siblingBody)
-		if strings.HasPrefix(suite, goTree+"/") || runsGoSuites || drivesGoTool(body, siblingBody) {
+		inTree := strings.HasPrefix(suite, goTree+"/")
+		declaredNone, malformed := declaresNoGoTool(body)
+		switch {
+		case malformed:
+			return g.fail("%s declares `# go-tools: none` with no reason after it. The reason is what a "+
+				"later reader checks the declaration against, and without one the line narrows a key on "+
+				"nobody's word — nothing ran", suite)
+		case declaredNone && inTree:
+			return g.fail("%s declares `# go-tools: none` and lives inside %s, where every file is one "+
+				"it could read. Delete the declaration or move the suite — nothing ran", suite, goTree)
+		case declaredNone && runsGoSuites:
+			return g.fail("%s declares `# go-tools: none` and runs `go test` or `go vet`, which compiles "+
+				"the module it says it does not reach. Delete the declaration — nothing ran", suite)
+		}
+		if inTree || runsGoSuites || (!declaredNone && drivesGoTool(body, siblingBody)) {
 			inputs = append(inputs, goTree)
 			viaBinary = !runsGoSuites
 		}
@@ -280,6 +298,27 @@ func drivesGoTool(bodies ...string) bool {
 		}
 	}
 	return false
+}
+
+// A suite's own answer to the scan below: the tool paths in its text go into fixtures it builds, never
+// into the checkout's tree. `ai/bootstrap-test.sh` is the case — it writes a stub `ai/tools/install.sh`
+// into a temp repo and runs its subject from copies, so no Go source it could name is one it can
+// observe. Nothing in a suite's text separates that from a path into the real tree, which is why the
+// suite says so itself.
+//
+// Silence is the scan's answer, not this one: a suite with no declaration keys on the whole tree exactly
+// as before. The declaration only ever narrows, so it carries the reason a later reader checks it
+// against, and a line without one is refused rather than honoured.
+var goToolsNone = regexp.MustCompile(`(?m)^[ \t]*#[ \t]*go-tools:[ \t]*none[ \t]*(.*)$`)
+
+// Whether the suite declared it, and whether the line is one the gate refuses. The reason itself is
+// read by people and not by this: what the gate holds is that one was given.
+func declaresNoGoTool(body string) (declared, malformed bool) {
+	match := goToolsNone.FindStringSubmatch(body)
+	if match == nil {
+		return false, false
+	}
+	return true, strings.TrimSpace(strings.TrimLeft(match[1], " \t-\u2014:")) == ""
 }
 
 func sourcedLibs(bodies ...string) []string {

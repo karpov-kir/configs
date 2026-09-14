@@ -14,6 +14,12 @@
 // known, so skipping it asserts nothing that was not measured. A unit whose inputs moved by a byte is
 // run. Nothing here samples, times out or guesses.
 //
+// A unit's inputs are discovered, with one exception a suite may state for itself. A shell suite that
+// builds its own copies of the tools it names — a stub installer, a stub runner — reads as driving the
+// real ones, because the two are spelt the same, and takes the whole tool tree on that. `# go-tools:
+// none — <why>` in the suite is how it says otherwise; `gate/units.go` states what the gate does with
+// it, and refuses the line where the suite's own text contradicts it.
+//
 // What it may never do, and how each is prevented:
 //   - Report a pass for a unit it did not run and has no recorded verdict for. A cache miss runs.
 //   - Resolve a unit to an empty input set. That is a rename or a typo silently narrowing the gate, so

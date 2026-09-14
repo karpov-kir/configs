@@ -8,6 +8,12 @@
 # a bulk mount taking part in the count the guard reports.
 #
 # Every case runs the real script against a throwaway $HOME.
+#
+# go-tools: none — every case runs a copy of the script from a temp checkout, and the one that reaches
+# the tools step points it at a stub ai/tools/install.sh this suite writes there. No fixture copies a
+# Go source in, so the tool paths below are this suite's own and not the checkout's. Without this line
+# ai/tools/gate keys the unit on the whole tool tree, and every edit to any Go file re-runs three and a
+# half minutes that cannot observe one.
 set -u
 
 # The verify step runs run-tests.sh with BOOTSTRAP_VERIFYING=1, that runner discovers this suite, and

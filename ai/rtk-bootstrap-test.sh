@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# go-tools: none — every case here passes --skip-tools, so ai/bootstrap.sh's installer step never runs
+# and no Go binary is built or invoked. The tool paths ai/tools/gate reads are in the script this suite
+# covers, on a branch this suite never takes. Without this line the unit keys on the whole tool tree.
 set -u
 here=$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 checkout=$(CDPATH= cd -P -- "$here/.." && pwd -P)
