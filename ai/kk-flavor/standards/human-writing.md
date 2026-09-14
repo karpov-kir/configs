@@ -2,7 +2,7 @@
 
 Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too**: everything here binds them. What a comment must first clear is [code-style.md](code-style.md) → **Comments**.
 
-**In a GitHub text field — a PR body, a comment, an issue — each prose paragraph is one line.** GitHub renders a single newline there as a line break, so a wrapped paragraph comes out ragged. A Markdown file in the repository is not one of these; wrap it as usual.
+**Each prose paragraph is one line.** A field you type into — a PR or ticket body, a comment, a chat message — turns your newline into a line break, so the paragraph arrives ragged. Repository files and commit messages are not fields: wrap those as usual.
 
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**), and takes any lane it is owed before the send, never after.
 
