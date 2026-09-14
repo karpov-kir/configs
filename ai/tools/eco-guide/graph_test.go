@@ -79,10 +79,11 @@ func skillBody(mode, body string) string {
 
 // The same, declaring which contract this skill reads as its own delta. Separate from skillBody so a
 // case that does not care about extension cannot accidentally declare one — which is the whole point
-// of the declaration: nothing is an extension unless it says so.
+// of the declaration: nothing is an extension unless it says so. The `— <when>` the grammar requires
+// is supplied here rather than by every case, because no case turns on what it says.
 func skillExtending(mode, extends, body string) string {
 	return "---\nname: x\ndescription: One line.\n---\n\n**Runs:** " + mode +
-		"\n\n**Extends:** " + extends + "\n\n" + body + "\n"
+		"\n\n**Extends:** " + extends + " — the phase that reads it\n\n" + body + "\n"
 }
 
 // The block the graph prints for one name, from its heading to the blank line that ends it. Cut this
@@ -730,5 +731,53 @@ func TestEveryPricedRowCarriesItsTier(t *testing.T) {
 	}
 	if !carried {
 		t.Errorf("a dispatch line does not carry the tier it buys\n%s", output)
+	}
+}
+
+// A declaration nobody can parse is the one input both emitters must refuse rather than price. Read
+// as silence it is free: an unreadable `**Extends:**` drops its contract's whole subtree off the
+// bill, and an unreadable `**Runs:**` leaves a skill with no mode, which the graph then prints as a
+// lane that keeps nothing. Either way a reader is handed a number with no sign that a line was
+// skipped — and `--cost` is asked precisely while a tree is being edited, which is when a
+// half-written declaration exists.
+//
+// Over the shipped tree the policy suite already refuses both. This is the same guarantee for the
+// other checkouts, which is every place `--cost <skill> <root>` is actually pointed.
+func TestABrokenDeclarationRefusesRatherThanPricingItFree(t *testing.T) {
+	for _, one := range []struct {
+		name    string
+		body    string
+		wanting string
+	}{
+		{"an extension with no when", "---\nname: x\ndescription: One line.\n---\n\n**Runs:** holds — converses\n\n" +
+			"**Extends:** kk-qualify\n\nThe pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`.\n",
+			"`**Extends:** <skill> — <when>`"},
+		{"an extension whose when is only whitespace", "---\nname: x\ndescription: One line.\n---\n\n**Runs:** holds — converses\n\n" +
+			"**Extends:** kk-qualify — \t\n\nThe pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`.\n",
+			"`**Extends:** <skill> — <when>`"},
+		{"a runs line naming a fourth mode", "---\nname: x\ndescription: One line.\n---\n\n**Runs:** inline\n\n" +
+			"Dispatch `~/.kk-flavor/workers/refactor.md`.\n",
+			"declares how it runs in a form this cannot read"},
+	} {
+		t.Run(one.name, func(t *testing.T) {
+			root := newGraphRoot(t, map[string]string{
+				"skills/kk-pr/SKILL.md":      one.body,
+				"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Dispatch `~/.kk-flavor/workers/refactor.md`."),
+			})
+			// Both emitters, because they share the one reader: a refusal reaching only the map would
+			// leave the profile — the answer a human acts on — pricing the same file free.
+			for _, argv := range [][]string{{"--graph", root}, {"--cost", "kk-pr", root}} {
+				status, output := run(t, argv...)
+				if status == 0 {
+					t.Errorf("%v exited 0 over an unreadable declaration, so it priced one free\n%s", argv, output)
+				}
+				if !strings.Contains(output, one.wanting) {
+					t.Errorf("%v does not say which declaration it could not read, wanting %q\n%s", argv, one.wanting, output)
+				}
+				if !strings.Contains(output, "kk-pr") {
+					t.Errorf("%v does not name the file, so nobody can find the line\n%s", argv, output)
+				}
+			}
+		})
 	}
 }

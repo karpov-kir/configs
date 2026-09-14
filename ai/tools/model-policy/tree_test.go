@@ -417,7 +417,7 @@ func TestEveryDeclaredExtensionNamesASkillThisOneActuallyReads(t *testing.T) {
 	for skill, body := range skills {
 		declared, stated := shell.ExtendsDeclarations(shell.SplitLines(string(body)))
 		if stated && len(declared) == 0 {
-			t.Errorf("%s declares an extension in a form this cannot read; it is `**Extends:** <skill>`", skill)
+			t.Errorf("%s declares an extension in a form this cannot read; it is `**Extends:** <skill> — <when>`, and the when is required", skill)
 			continue
 		}
 		for _, target := range declared {
@@ -455,16 +455,19 @@ func skillDirCites(t *testing.T, skill, target string) bool {
 	return found
 }
 
-// The four that declare it, named, so the set cannot quietly grow or shrink without someone saying so
-// here. Extension is the expensive edge and the only one the tree has to be told about, so which
+// Every skill that declares it, named, so the set cannot quietly grow or shrink without someone saying
+// so here. Extension is the expensive edge and the only one the tree has to be told about, so which
 // skills claim it is a fact worth pinning rather than deriving.
 func TestExactlyTheKnownSkillsDeclareAnExtension(t *testing.T) {
 	want := map[string]string{
-		"idsd-build":   "kk-build",
-		"idsd-qualify": "kk-qualify",
-		"idsd-reactor": "kk-handoff",
-		"idsd-ship":    "idsd-build, idsd-qualify, idsd-finalize",
-		"kk-pr":        "kk-qualify",
+		"idsd-build":    "kk-build, kk-grill, idsd-charter, idsd-intent",
+		"idsd-charter":  "kk-grill",
+		"idsd-finalize": "idsd-qualify, idsd-charter",
+		"idsd-intent":   "kk-grill, idsd-charter",
+		"idsd-qualify":  "kk-qualify",
+		"idsd-reactor":  "kk-handoff",
+		"idsd-ship":     "idsd-build, idsd-intent, idsd-qualify, idsd-finalize",
+		"kk-pr":         "kk-qualify",
 	}
 	got := map[string]string{}
 	for skill, body := range skillBodies(t) {

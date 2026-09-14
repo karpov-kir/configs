@@ -210,17 +210,41 @@ func TestExtendsDeclarationReadsTheFormAndReportsALineItCannot(t *testing.T) {
 		extends  []string
 		declared bool
 	}{
-		{lines: []string{"**Extends:** kk-build"}, extends: []string{"kk-build"}, declared: true},
-		{lines: []string{"**Extends:** idsd-finalize"}, extends: []string{"idsd-finalize"}, declared: true},
-		// Two contracts read as one session's delta is a shape the tree does not have yet and the
-		// grammar does not forbid; both are returned rather than the first winning silently.
-		{lines: []string{"**Extends:** kk-build", "**Extends:** kk-qualify"}, extends: []string{"kk-build", "kk-qualify"}, declared: true},
-		{lines: []string{"**Extends:** kk-build, kk-qualify"}, declared: true},
-		{lines: []string{"**Extends:** `kk-build`"}, declared: true},
-		{lines: []string{"**Extends:** ~/.kk-flavor/skills/kk-build/SKILL.md"}, declared: true},
+		{lines: []string{"**Extends:** kk-build — Phase 3's loop"}, extends: []string{"kk-build"}, declared: true},
+		{lines: []string{"**Extends:** idsd-finalize — `done`, on a clean gate"}, extends: []string{"idsd-finalize"}, declared: true},
+		// Several contracts read as one session's delta is what `idsd-ship` does; all are returned
+		// rather than the first winning silently.
+		{lines: []string{"**Extends:** kk-build — the build", "**Extends:** kk-qualify — the pass"}, extends: []string{"kk-build", "kk-qualify"}, declared: true},
+		// A when carrying its own em dash: the only shape where the separator could be read in two
+		// places, and the one that would return the wrong target if it were. No shipped declaration
+		// has one, so the tree census cannot reach this either.
+		{lines: []string{"**Extends:** kk-build — Phase 3 — the loop, not Phase 2"}, extends: []string{"kk-build"}, declared: true},
+		// One character is a whole when: what it has to name is a phase of this skill, which no regex
+		// judges, so the grammar holds only that something is there.
+		{lines: []string{"**Extends:** kk-build — 3"}, extends: []string{"kk-build"}, declared: true},
+		// The `— <when>` is the half a reader acts on, so a declaration without one is a broken
+		// declaration and not an absent edge. Nothing else in the file says where the read happens.
+		{lines: []string{"**Extends:** kk-build"}, declared: true},
+		{lines: []string{"**Extends:** kk-build —"}, declared: true},
+		{lines: []string{"**Extends:** kk-build — "}, declared: true},
+		// Whitespace is not a when. A tab-only clause is the one way this line can be wrong and cost
+		// money: read as present, it prices a declaration nothing in the file locates.
+		{lines: []string{"**Extends:** kk-build — \t\t"}, declared: true},
+		// The separator is one space, an em dash, one space. A when flush against the dash is a
+		// broken declaration, not a when beginning with an em dash.
+		{lines: []string{"**Extends:** kk-build —Phase 3's loop"}, declared: true},
+		// A carriage return a CRLF checkout leaves behind is trailing space, not part of the when.
+		{lines: []string{"**Extends:** kk-build — Phase 3's loop\r"}, extends: []string{"kk-build"}, declared: true},
+		// An en dash, a hyphen or a colon where the em dash belongs: near-misses of the separator are
+		// refused rather than read past, the way the `**Runs:**` grammar refuses a fourth word.
+		{lines: []string{"**Extends:** kk-build - Phase 3's loop"}, declared: true},
+		{lines: []string{"**Extends:** kk-build – Phase 3's loop"}, declared: true},
+		{lines: []string{"**Extends:** kk-build, kk-qualify — both"}, declared: true},
+		{lines: []string{"**Extends:** `kk-build` — Phase 3's loop"}, declared: true},
+		{lines: []string{"**Extends:** ~/.kk-flavor/skills/kk-build/SKILL.md — Phase 3's loop"}, declared: true},
 		{lines: []string{"**Extends:**"}, declared: true},
-		{lines: []string{"It **Extends:** kk-build inline"}},
-		{lines: []string{"Extends: kk-build"}},
+		{lines: []string{"It **Extends:** kk-build — inline"}},
+		{lines: []string{"Extends: kk-build — Phase 3's loop"}},
 		{lines: []string{"nothing about what it extends"}},
 	} {
 		extends, declared := ExtendsDeclarations(one.lines)

@@ -6,6 +6,8 @@ argument-hint: "the vision, scope or constraint to set, or omit to seed the char
 
 **Runs:** holds — converses
 
+**Extends:** kk-grill — Phase 2, over whatever the charter template's sections and the constraints leave unclear
+
 Write `.idsd/charter.md`, including its protected `## Constraints` section. Don't list features (that's the roadmap), detail behaviour (the intents), or restate the project's agent instructions — link to them.
 
 A request naming one section touches only that section. A missing charter is missing input: obtain its content from the human rather than inventing project purpose to house a constraint.
@@ -18,7 +20,7 @@ A request naming one section touches only that section. A missing charter is mis
 
 ## Phase 2 — Grill the gaps only
 
-Invoke `kk-grill` at project scope, over the sections of `templates/charter-template.md` and over the constraints. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear.
+The round in `~/.kk-flavor/skills/kk-grill/SKILL.md` runs at project scope, over the sections of `templates/charter-template.md` and over the constraints. Its legwork here is Phase 1's inventory and the code. Cover only what's unclear.
 
 **On the Scope boundaries, the test between Out and Not yet specified is sharpness, not certainty.** Ask whether the question can be *phrased* precisely now — never whether it can be answered.
 

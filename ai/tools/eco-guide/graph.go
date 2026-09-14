@@ -88,7 +88,14 @@ const (
 // The rows are the node set, not the directories. A row with no file is still a dispatch that costs
 // money, and a file with no row is what the policy census refuses — so building from rows means this
 // map prices exactly what a run would pay, and never invents a node the policy has never heard of.
-func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
+//
+// It refuses rather than returning a map where a declaration did not parse. Both declarations report
+// unreadable apart from absent for one reason — read as silence, a `**Runs:**` nobody can parse takes
+// whatever the ceiling implies and an unreadable `**Extends:**` prices its contract's dispatches at
+// zero — and a reader who is handed a number has no way to know a line was skipped. The shipped tree
+// is held to this by the policy suite; this is the same guarantee for every other checkout, which is
+// where `--cost` is actually pointed while a tree is being edited.
+func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) (workflow, error) {
 	tier := func(task, client string) string {
 		decision, err := policy.Resolve(modelpolicy.Request{Client: client, Task: task})
 		if err != nil {
@@ -125,12 +132,22 @@ func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
 			modes[name] = "mode of " + owner
 			continue
 		}
-		lines, err := readLines(shell.Join(shell.Join(root.Skills(), name), "SKILL.md"))
+		path := shell.Join(shell.Join(root.Skills(), name), "SKILL.md")
+		lines, err := readLines(path)
 		if err != nil {
 			continue
 		}
-		modes[name], _ = shell.RunsDeclaration(lines)
-		declared, _ := shell.ExtendsDeclarations(lines)
+		mode, runsDeclared := shell.RunsDeclaration(lines)
+		if runsDeclared && mode == "" {
+			return workflow{}, fmt.Errorf("%s declares how it runs in a form this cannot read; it is "+
+				"`**Runs:** dispatched`, `**Runs:** orchestrator` or `**Runs:** holds — <reason>`", path)
+		}
+		modes[name] = mode
+		declared, extendsDeclared := shell.ExtendsDeclarations(lines)
+		if extendsDeclared && len(declared) == 0 {
+			return workflow{}, fmt.Errorf("%s declares an extension in a form this cannot read; it is "+
+				"`**Extends:** <skill> — <when>`, and the when is required", path)
+		}
 		if len(declared) == 0 {
 			continue
 		}
@@ -166,7 +183,12 @@ func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
 		mode := ""
 		if found.kind == skillContract {
 			if lines, err := readLines(found.file); err == nil {
-				mode, _ = shell.RunsDeclaration(lines)
+				declared := false
+				mode, declared = shell.RunsDeclaration(lines)
+				if declared && mode == "" {
+					return workflow{}, fmt.Errorf("%s declares how it runs in a form this cannot read; it is "+
+						"`**Runs:** dispatched`, `**Runs:** orchestrator` or `**Runs:** holds — <reason>`", found.file)
+				}
 			}
 		}
 		map_.nodes[name] = node{
@@ -180,7 +202,7 @@ func readWorkflow(root ecoroot.Root, policy *modelpolicy.Policy) workflow {
 			codex:  tier(name, "codex"),
 		}
 	}
-	return map_
+	return map_, nil
 }
 
 // Every markdown file a skill runs out of, not just its SKILL.md. `kk-pr/review.md` and

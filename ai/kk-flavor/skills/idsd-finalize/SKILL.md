@@ -7,6 +7,9 @@ argument-hint: "<NNN-slug>"
 
 **Runs:** holds — landing
 
+**Extends:** idsd-qualify — step 1, where no pass has stamped this tree or one had to be re-run
+**Extends:** idsd-charter — step 1, to rewrite a promotion candidate as a charter constraint
+
 An explicit request to finalize invokes this skill directly; the invocation marker disables automatic selection, not a human's natural-language request.
 
 The last stage of a ship: what its own records learned goes up into the project's, and the ship moves to `archive/`. You orchestrate under `~/.kk-flavor/standards/skill-protocol.md`, and step 3 is `~/.kk-flavor/standards/records.md` applied rather than restated — read it whole first.
@@ -23,7 +26,7 @@ Read the caller's landing instruction: direct merge or open a PR and wait, with 
 
 **The ICE's `## Follow-ups` are closed in `idsd-build`, before `idsd-qualify` stamps — not here.** **Resolving one here invalidates the stamp the gate below reads**, which then blocks on freshness and leaves the ship asking for an override on its own edit. One that surfaces only here is resolved and then sent back through `idsd-qualify`.
 
-**Then `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh gate <NNN-slug>`, and let a non-zero exit stop you.** It is the whole of what stands between this ship and a merge nothing qualified: it asks whether an untrimmed `idsd-qualify` stamped this tree, in this worktree, with the ICE at `status: approved` and no `- [ ]` open in either it or the report. **On first entry, no report means no pass ran: run `idsd-qualify`.** A freshness, stages or unapproved-intent block is the human's to override and you ask them here; an open `- [ ]` is nobody's.
+**Then `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh gate <NNN-slug>`, and let a non-zero exit stop you.** It is the whole of what stands between this ship and a merge nothing qualified: it asks whether an untrimmed `idsd-qualify` stamped this tree, in this worktree, with the ICE at `status: approved` and no `- [ ]` open in either it or the report. **On first entry, no report means no pass ran: run `~/.kk-flavor/skills/idsd-qualify/SKILL.md`.** A freshness, stages or unapproved-intent block is the human's to override and you ask them here; an open `- [ ]` is nobody's.
 
 **Re-run the build's gates**, resolved the way the build resolved them (`~/.kk-flavor/standards/building.md` → **Before the loop**) — no record carries the commands. The qualify pass and the follow-up work both edited this tree since the build ran them, and a fix that broke one is invisible until they run again.
 

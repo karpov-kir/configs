@@ -6,9 +6,12 @@ argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 
 **Runs:** holds — converses
 
-**Extends:** kk-build
+**Extends:** kk-build — Phase 3's loop, entered here rather than by a nested build agent
+**Extends:** kk-grill — Phase 1, for a question the two sources there leave genuinely unsettled
+**Extends:** idsd-charter — Phase 2, to resolve a contradiction against the charter; Phase 3, to propose a project-wide invariant
+**Extends:** idsd-intent — Phase 1, to fold a gap fix back into the ICE; Phase 3, for a contract change
 
-**This is the ICE-shaped contract over `~/.kk-flavor/skills/kk-build/SKILL.md`.** The session that owns this intent applies its selected build phases inline; no nested build agent is required. A reactor reaching this skill first follows `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role**. Read the build contract when entering the build and reuse it while unchanged. `~/.kk-flavor/standards/skill-protocol.md` governs delegation and model protection.
+A reactor reaching this skill first follows `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role**. `~/.kk-flavor/standards/skill-protocol.md` governs delegation and model protection.
 
 **The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
 
@@ -16,9 +19,9 @@ Input: an intent file at `.idsd/intents/NNN-<slug>/intent.md` — one folder per
 
 ## Phase 1 — Close the gaps (checkpoint 1)
 
-**Start with `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh intent-ready <NNN-slug>`.** It blocks on the mechanical gaps — an unfilled template placeholder, an empty required section, either direction of an unshipped link, and a `blocks` or `extends` edge naming an intent that exists nowhere — this intent's own `depends-on`, or a sibling declaring `blocks` on it. Fold each fix into the ICE through `idsd-intent`, or build the dependency first, and re-run until it clears.
+**Start with `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh intent-ready <NNN-slug>`.** It blocks on the mechanical gaps — an unfilled template placeholder, an empty required section, either direction of an unshipped link, and a `blocks` or `extends` edge naming an intent that exists nowhere — this intent's own `depends-on`, or a sibling declaring `blocks` on it. Fold each fix into the ICE through `~/.kk-flavor/skills/idsd-intent/SKILL.md`, or build the dependency first, and re-run until it clears.
 
-Check these two sources of gaps against the current intent and code. Run `kk-grill` only for genuinely unsettled questions, recomputing what remains between them:
+Check these two sources of gaps against the current intent and code, recomputing what remains between them. A question they leave genuinely unsettled takes the round in `~/.kk-flavor/skills/kk-grill/SKILL.md`:
 
 1. **What the intent leaves open against the code as it stands.** `idsd-intent`'s clarify pass already read the ICE for its own coherence. This round reads it beside the code, and asks only what would stop an implementer: a goal term, scenario or constraint the code leaves reading two ways; a UI or observable-behaviour intent whose **presentation** neither the ICE nor the code pins (surface form, highlighting, loading and empty states, …); an acceptance bar nothing in the repo can measure.
 2. **The stack choices this build must make and the intent cannot** — `~/.kk-flavor/skills/kk-build/technical-round.md`, run here rather than inside the build, because `status: approved` below means both rounds closed. Only where such a choice exists. Tell `kk-build` its **Phase 2** is done, or it opens the round again.
@@ -37,11 +40,11 @@ Read `.idsd/charter.md`, `.idsd/for-agents/language.md` and `.idsd/for-agents/pl
 
 **In committed repo mode, the project's own agent instructions should point at `.idsd/`** — `.idsd/charter.md` (including Constraints), `.idsd/for-agents/language.md` and `.idsd/for-agents/playbook.md`. Nothing else tells an agent working here *outside* an idsd run that any of them exist. Propose that pointer block when it is missing and add it on confirmation; never in throwaway mode, where the instruction file is tracked and the mode forbids a traceable edit.
 
-The gate resolution is `~/.kk-flavor/standards/building.md` → **Before the loop**. The ICE's constraints and the charter's **Constraints** both bind. Resolve contradictions through `idsd-charter` before building; its protected-section rules govern approval. One that cannot become a command goes to the Phase 4 checkpoint.
+The gate resolution is `~/.kk-flavor/standards/building.md` → **Before the loop**. The ICE's constraints and the charter's **Constraints** both bind. Resolve contradictions through `~/.kk-flavor/skills/idsd-charter/SKILL.md` before building; its protected-section rules govern approval. One that cannot become a command goes to the Phase 4 checkpoint.
 
 ## Phase 3 — Build
 
-Apply `kk-build` in this coordinator, supplying:
+Enter `~/.kk-flavor/skills/kk-build/SKILL.md`'s loop, supplying:
 
 - **The requirement set** — this intent's goal, scenarios and constraints.
 - **The branch** — `idsd/NNN-<slug>`.

@@ -6,6 +6,9 @@ argument-hint: "feature/project to plan, or an existing intent to refine"
 
 **Runs:** holds — converses
 
+**Extends:** kk-grill — Phase 1, over the parts of the ICE template
+**Extends:** idsd-charter — Phase 0, to seed a missing one; Phase 3, for any change to an existing one, whatever the section
+
 Capture **what** to build and **why** as an **ICE** — Intent · Context · Expectations — never **how**. You author Intent and Expectations (goal, constraints, scenarios); `idsd-build` assembles Context and owns implementation.
 
 ## Phase 0 — Detect scope
@@ -14,13 +17,13 @@ Capture **what** to build and **why** as an **ICE** — Intent · Context · Exp
 
 Pick scope from the request, not repo state: one ticket or one outcome → a **feature**, one ICE; "plan the project" / "map the MVP" / several features → a **project**, a map of linked ICEs each tagged by `milestone`.
 
-At project scope, read `.idsd/charter.md` to ground decomposition; if it is missing, offer once to run `idsd-charter` — never force it.
+At project scope, read `.idsd/charter.md` to ground decomposition; if it is missing, offer once to seed one through `~/.kk-flavor/skills/idsd-charter/SKILL.md` — never force it.
 
 If refining, read the named intent file, grill only the gaps, and preserve its `## Follow-ups` checklist.
 
 ## Phase 1 — Grill
 
-Invoke `kk-grill` over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
+The round in `~/.kk-flavor/skills/kk-grill/SKILL.md` runs over the parts of `templates/ice-template.md`, which defines each part and its format. Its legwork here is the code, the charter, and the neighbouring intents; the frontier is empty once the goal, constraints, and scenarios are concrete and no open question could still change them.
 
 Cover only what's unclear — the heuristic per part:
 

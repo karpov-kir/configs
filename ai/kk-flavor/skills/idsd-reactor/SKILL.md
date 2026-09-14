@@ -6,7 +6,7 @@ argument-hint: "milestone or intent slugs to build (default: ask which milestone
 
 **Runs:** holds — session-context
 
-**Extends:** kk-handoff
+**Extends:** kk-handoff — step 2, to draft and check every launch and return handoff
 
 You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
 
@@ -26,7 +26,7 @@ At startup, rename this session to `[<repo abbreviation>] IDSD reactor` through 
 
 Require the target client explicitly before launching and carry it into every handoff.
 
-- **Codex desktop:** the reactor prepares and launches checked prompts through `kk-handoff` inline. Track returned task IDs. Use `wait_threads` for completion, `send_message_to_thread` for authorized sibling reports, and `list_threads` for inventory. Use this task's ID from runtime context as the return address; never guess it from a title. Tasks start immediately. Ending a turn does not schedule a future check.
+- **Codex desktop:** the reactor prepares and launches checked prompts through `kk-handoff`. Track returned task IDs. Use `wait_threads` for completion, `send_message_to_thread` for authorized sibling reports, and `list_threads` for inventory. Use this task's ID from runtime context as the return address; never guess it from a title. Tasks start immediately. Ending a turn does not schedule a future check.
 - **Claude Code:** use the available chip mechanism, `get_session "self"` for the return address, and `list_sessions` for inventory. Chips wait for a click; incoming session messages wake the reactor.
 
 Without the selected client's task tools, return checked drafts instead of claiming a launch.
@@ -58,7 +58,7 @@ Drop from that set every intent whose `idsd/NNN-<slug>` branch or worktree alrea
 
 ## 2. Launch — one task per intent
 
-Prepare each confirmed intent's handoff in this coordinator through `kk-handoff` inline. Reuse verified shared facts while their inputs remain unchanged; keep each draft's slug, branch, allocation and licence specific to its task. Delegate bounded discovery only when a handoff needs substantial context not already held, within the available worker capacity. A discovery worker returns facts to this coordinator, which owns the checked draft and launch.
+Prepare each confirmed intent's handoff through `~/.kk-flavor/skills/kk-handoff/SKILL.md`. Reuse verified shared facts while their inputs remain unchanged; keep each draft's slug, branch, allocation and licence specific to its task. Delegate bounded discovery only when a handoff needs substantial context not already held, within the available worker capacity. A discovery worker returns facts to this coordinator, which owns the checked draft and launch.
 
 **Keep the handoff prompt thin.** It states one task: run `idsd-ship <NNN-slug>` in this repo through `idsd-ship done` — then archive the session, where the human agreed to that. The receiving session reads the ICE, the charter and the constraints itself. A prompt that summarises them drifts, and the summary is what gets built.
 

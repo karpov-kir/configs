@@ -143,12 +143,16 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	// Ahead of the template and the inventories, because neither emitter reads either. A checkout
 	// whose narrative template has been moved can still be asked what a skill costs, and that
 	// matters: the cost question is the one asked while the tree is being edited.
-	if graph {
-		emitGraph(readWorkflow(root, assigned), out)
-		return 0
-	}
-	if costGiven {
-		return emitCost(name, readWorkflow(root, assigned), costOf, out, errOut)
+	if graph || costGiven {
+		map_, err := readWorkflow(root, assigned)
+		if err != nil {
+			return fail("%v — %s", err, producing)
+		}
+		if graph {
+			emitGraph(map_, out)
+			return 0
+		}
+		return emitCost(name, map_, costOf, out, errOut)
 	}
 
 	templatePath := shell.Join(root.Named(), templateRelative)

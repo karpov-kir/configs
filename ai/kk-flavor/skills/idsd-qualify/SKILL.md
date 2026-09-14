@@ -5,11 +5,11 @@ description: Run the quality pipeline over the working tree with a merge stamp. 
 
 **Runs:** orchestrator
 
-**Extends:** kk-qualify
+**Extends:** kk-qualify — the whole pass
 
-Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. The current coordinator owns leaf dispatch under `~/.kk-flavor/standards/skill-protocol.md`; do not create another qualification coordinator.
+Callers: standalone, or `idsd-ship`'s quality pass. The current coordinator owns leaf dispatch under `~/.kk-flavor/standards/skill-protocol.md`; do not create another qualification coordinator.
 
-**The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`** — apply its pass **inline**, reusing the unchanged contract already held (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**). That skill ends at a closing reply; this one adds the report, the stamp and the lifecycle around it. **Every heading below that it also carries is the delta over its section of that name**, and the rest is this skill's own.
+**The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`.** That skill ends at a closing reply; this one adds the report, the stamp and the lifecycle around it. **Every heading below that it also carries is the delta over its section of that name**, and the rest is this skill's own.
 
 ## Running a pass
 

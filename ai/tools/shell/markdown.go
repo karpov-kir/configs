@@ -46,11 +46,19 @@ var (
 	// line does not parse would otherwise fall to whatever a caller's silence implies.
 	runsDeclared = regexp.MustCompilePOSIX(`^\*\*Runs:\*\*`)
 
-	// Which contract a skill reads as its own delta and runs inside its own session. Four edges in
-	// this tree do that and roughly thirty others name a second skill without doing it — to point at
-	// it, or to name the stage after this one — and no reader can tell those apart from the citation.
-	// So the one that costs money is declared, and everything else is a pointer by default.
-	extendsDeclaration = regexp.MustCompilePOSIX(`^\*\*Extends:\*\* *([A-Za-z0-9][A-Za-z0-9._-]*) *$`)
+	// Which contract a skill reads as its own delta and runs inside its own session, and when. Sixteen
+	// edges in this tree do that and roughly thirty others name a second skill without doing it — to
+	// point at it, or to name the stage after this one — and no reader can tell those apart from the
+	// citation. So the one that costs money is declared, and everything else is a pointer by default.
+	//
+	// The `— <when>` is required because the declaration is the instruction: the prose at the firing
+	// site names the contract's path and no longer says the read is inline, so a declaration with no
+	// `when` leaves nothing in the file saying where the extension happens. Its text is free-form —
+	// what it must name is a phase, a step or a mode of THIS skill, which no regex can judge. So the
+	// only thing held here is that it is there: one character that is not whitespace. `[:space:]`
+	// rather than a literal space, because a tab-only clause is an absent `when` that reads as a
+	// present one, and that is the single direction this line can be wrong in and cost money.
+	extendsDeclaration = regexp.MustCompilePOSIX(`^\*\*Extends:\*\* *([A-Za-z0-9][A-Za-z0-9._-]*) +— +([^[:space:]](.*[^[:space:]])?)[[:space:]]*$`)
 	extendsDeclared    = regexp.MustCompilePOSIX(`^\*\*Extends:\*\*`)
 )
 
@@ -258,7 +266,9 @@ func RunsHoldsReason(mode string) string {
 // being told.
 //
 // Declared-but-unreadable is reported the way RunsDeclaration reports it: a line nobody can parse is
-// not an absent one, and reading it as silence would price the extension as free.
+// not an absent one, and reading it as silence would price the extension as free. A line missing its
+// `— <when>` is one of those: the grammar is `**Extends:** <skill> — <when>`, and the when is what the
+// prose used to carry before the declaration became the only place the edge is stated.
 func ExtendsDeclarations(lines []string) (extends []string, declared bool) {
 	for _, line := range lines {
 		if !extendsDeclared.MatchString(line) {

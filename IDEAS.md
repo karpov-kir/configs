@@ -7,8 +7,8 @@ Deferred proposals, not active agent instructions. Keep at most 20 open ideas; r
 `--graph` prints `reads` for 27 edges because a path citation carries no kind. `cite-graph` prints 10
 cycles and judges none, because nothing says which files are layered. Three packages — `eco-check`,
 `eco-guide`, `cite-graph` — each parse citations with their own regexes. The cost of that showed up
-the moment `**Extends:**` landed: `idsd-ship` runs three contracts inline, declared one, and billed
-1 row where it reaches 11. Nothing in the tree could have caught it.
+the moment `**Extends:**` landed: `idsd-ship` ran four contracts inline, declared one, and billed
+1 row where it reached 12. Nothing in the tree could have caught it.
 
 **One copy is the rule the whole design follows from.** A declaration beside prose that says the same
 thing is the form [model-policy.md](ai/kk-flavor/standards/model-policy.md) → **One row per skill, one
@@ -25,12 +25,11 @@ read. What nothing can know is whether X runs *inside* this session — 31 edges
 
 **The enforceable signal is a skill named as the object of an action verb.** Measured: 20 such sites
 outside table cells, against 130 bare skill names in prose. Banning bare names entirely was costed and
-rejected — it would bloat 27 files to satisfy a parser. The verb rule catches all three `idsd-ship`
-misses and, on its first run, five more undeclared extensions: `kk-grill` is run inline by
-`idsd-build`, `idsd-charter` and `idsd-intent`, so an opus row is missing from three bills;
-`idsd-finalize` runs `idsd-qualify`; `idsd-intent` runs `idsd-charter`. A table cell is exempt
-structurally rather than by naming skills, which covers `kk-foreman`'s Route and `kk-qualify`'s Lanes
-without an exemption list that can rot.
+rejected — it would bloat 27 files to satisfy a parser. The verb rule caught every `idsd-ship` miss
+and nine more undeclared extensions, which is what took the tree from seven declarations to sixteen.
+`idsd-finalize` was the largest: it can re-run the whole qualify pass, and billed 1 row where it
+reached 11. A table cell is exempt structurally rather than by naming skills, which covers
+`kk-foreman`'s Route and `kk-qualify`'s Lanes without an exemption list that can rot.
 
 **Standards get a layer instead of typed edges** — one declaration per file, 18 of them, not an edge
 census. Three layers read out of the citation graph: **base** (core-principles, live-systems, writing,
@@ -41,21 +40,37 @@ every current cycle is inside a layer, which is peers cross-referencing and not 
 into process and is a real finding to fix. **Do not tune the layers until the cycles pass** — layers
 chosen to make today's tree legal measure nothing.
 
-The steps, each revertible alone:
+The steps, each revertible alone. The first has landed: the grammar is `**Extends:** <skill> —
+<when>`, sixteen edges across eight skills declare one, and no prose states an edge any more.
 
-1. **`**Extends:**` becomes the instruction**, carrying its `— <when>`; every sentence that states an
-   extension in prose is cut. Lands the five edges the verb scan just found.
-2. **`**Layer:**` on the 18 standards**, and the one cycle that crosses.
-3. **The checks in `eco-check`**, on the citation parser it already has: the verb rule, an
+1. **`**Layer:**` on the 18 standards**, and the one cycle that crosses.
+2. **The checks in `eco-check`**, on the citation parser it already has: the verb rule, an
    `**Extends:**` naming a `workers` row (that is a dispatch), an extension cycle, a downward layer
-   citation.
-4. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
+   citation. **The verb set has to carry `through` and `via`** — nine invocation sites in the skills
+   tree use those and no other verb, and six of the nine were undeclared extensions.
+3. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
    own regexes; `--graph` and `--cost` read declarations and the prose inference is deleted;
    `cite-graph`'s CYCLES becomes a verdict rather than a list.
-5. **Audit all 22 Go packages for consolidation.** A campaign, not a pass — `eco-check` alone is 17
+4. **Audit all 22 Go packages for consolidation.** A campaign, not a pass — `eco-check` alone is 17
    files, and `eco-stats`, `rule-echo`, `eco-report` and `eco-guide` all walk the same tree. Run it
    after the grammar lands, so the shared reader exists to consolidate onto.
-6. **Then `workers/build/implement.md`**, written under the grammar from the start.
+5. **Then `workers/build/implement.md`**, written under the grammar from the start.
+
+**Six sites read a priced lane inline, and no declaration can type them.** `idsd-qualify`,
+`idsd-finalize`, `kk-pr` and `kk-ecosystem` each apply `kk-edit` inline; `kk-pr`'s review mode and
+`kk-build` read `workers/conform.md` the same way. Each of those rows selects nothing and the work
+bills at the caller's tier, which is the defect the worker layer exists to remove, and `--graph`
+prices all six as dispatches — so the tool and the prose disagree today. They are not extensions:
+`kk-edit` is `**Runs:** dispatched` and holds a `workers` row, and a worker is not a skill, so
+`**Extends:**` cannot reach either.
+
+`kk-build` is the one [ecosystem.md](ai/kk-flavor/standards/ecosystem.md) → **Three kinds, two homes**
+already covers — it `converses`, and that is the exception's whole text. The other five give the same
+reason as each other, the target is text the session already holds, and that reason is
+`session-context`, which the exception does not admit. So either it grows that second arm or the five
+become dispatches. **Settle it before step 2's check is written**, or that check ships with five
+exemptions. Whichever way it goes, an inline worker read still has nothing declaring it, and until one
+does, `--cost` is wrong about all six in the same direction.
 
 **A receipt is the only thing that cannot be wrong, and nothing records one.** `--cost` is a ceiling
 computed before a run; what no tool reaches is which contracts a session actually loaded. That is the
