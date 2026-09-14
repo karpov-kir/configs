@@ -99,6 +99,12 @@ both sides of it billed twice. A skill that **asks once** for a fact its work ca
 single relay, and one that **presents** a result for approval at the end is a plain return needing no
 relay at all. Those two are orchestrators with a question in them, not sessions.
 
+**A coordinator that reads another skill's contract inline is priced at the dearest thing it runs that
+way.** Its own row applies ([ecosystem.md](ecosystem.md) → **Three kinds, two homes**), so a lifecycle
+skill loading a session's contract and working through it holds that session's work under its own
+name; a row below it is advice to start the run underpowered, and nothing downstream will contradict
+it.
+
 **A coordinator that needs a high tier is a coordinator holding work that belongs in a worker.** Read
 the row as a finding, not a setting: the tier is what the inline work costs, so the fix is to dispatch
 that work and then lower the row. **Lowering it first only underpowers the work** — the session still
@@ -107,7 +113,8 @@ left that a cheap tier cannot carry.
 
 **Orchestrating is cheap; running a gate is not, and a coordinator can do both.** One that schedules,
 routes, relays and sums up is light work — ordering a handful of returns for the human is not the
-judging, which each lane already did inside its own dispatch. One that **holds** a gate rather than
+judging, which each lane already did inside its own dispatch, and nor is authoring a first version a
+lane then reads, because the judgement lands in the lane. One that **holds** a gate rather than
 dispatching it, or reaches a verdict of its own over findings no worker was asked to weigh, is doing
 that gate's work at that gate's stakes: it is a session at that tier, not an orchestrator. Read what a
 coordinator does when it is invoked bare, not what it does when everything below it is dispatched.

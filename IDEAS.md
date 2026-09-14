@@ -252,7 +252,7 @@ Two things that had been recorded and left. Step 3 needs one of them. The other 
 `converses`, `session-context`, `landing`. **`human` is retired**, which is the whole of what the
 declaration gained: it used to cover a skill that grills the human round by round and a skill that
 shows them a result at the end, and only the first of those is work a worker cannot take. Twenty
-skills: six orchestrators, eleven sessions — five `converses`, four `session-context`, two `landing` —
+skills: four orchestrators, thirteen sessions — six `converses`, five `session-context`, two `landing` —
 and the three workers that still have doors.
 
 **The ceiling turned on and caught exactly one skill.** `kk-qualify` declared itself over work it
@@ -286,7 +286,10 @@ rather than leaving a reader to collide with it.
 **What the ceiling cannot reach, and no Go check can.** It reads a declaration, so a skill that says
 `holds` is exempt by saying it. `idsd-finalize` is the case **Decided** already named: its `landing`
 reason covers the archive and the merge gate, not the drafting and the stamp-check before them, and it
-sits at opus untouched by this step. `kk-pr` has the same shape. **The offload list this plan opened is
+sits at opus untouched by this step. `kk-pr` has the same shape. **Both of `idsd-ship`'s and
+`idsd-reactor`'s misdeclarations were also invisible to it** — they sat at sonnet, under the ceiling,
+so nothing asked them anything; the conformance gate found them by reading, which is the only thing
+that could have. **The offload list this plan opened is
 not closed by the ceiling** — the ceiling refuses a contradiction between two files, and a reason that
 covers part of a skill's work is a defect inside one of them. That judgement is `skillcraft`'s lens,
 which now carries it, and it will not fail a gate.
@@ -305,7 +308,32 @@ mutant, so it is enforced rather than remembered. **A seventh was written and de
 `TopTier`'s empty-order guard cannot be reached through `Parse`, which refuses an empty tier list, so
 disabling it changes no test and a mutant on it would have measured nothing.
 
-**The distribution the ceiling now acts on: 23 rows at opus, 16 at sonnet, 1 at haiku.**
+**The conformance gate found three of the six first-pass orchestrators contradicted by their own
+prose, and two of them were misdeclared.** `idsd-ship` loads `idsd-build`, `idsd-qualify` and
+`idsd-finalize` and works through all three inline — its own words — so at sonnet it was running an
+opus session's gap round and an opus session's landing under a cheap row. It is `holds — converses` at
+opus now. `idsd-reactor` owns scheduling, handoffs and reconciliation across turns and resumes, and
+inlines `kk-handoff`; that is the same hold `kk-handoff` itself declares, so it is
+`holds — session-context`, at the sonnet it already had. **The rule this exposed was missing from
+[model-policy.md](ai/kk-flavor/standards/model-policy.md) rather than misapplied**: a coordinator that
+reads another skill's contract inline is priced at the dearest thing it runs that way. Four
+orchestrators remain — `kk-foreman`, `kk-patrol`, `kk-qualify`, `idsd-qualify`.
+
+**`kk-foreman` was the third and is not a defect, but the definition was.** It drafts a PR edit or a
+ticket body from nothing, because no skill in the bucket does — read against "dispatches every
+substantive step" that is a contradiction. **Substantive means a verdict, not a keystroke**: authoring
+a first version that a lane then reads is not held judgement, because the judgement lands in the lane.
+That clause is in both files now, where a reader meets the word.
+
+**`kk-reduce` is the one reason this step changed rather than renamed, and the first draft of this
+record did not say why.** It reads like `kk-qualify` — every phase is a `reduce/*` worker, and its own
+prose calls it an orchestrator — and got the opposite answer. What separates them is Phase 4: the
+reading and the arbitration are the campaign's own, over every `DELETED:` line every agent returned,
+and Phase 5 then has to *withhold* that same accumulated state from fresh agents, because the omission
+is the phase. Hand it to a worker and Phase 5 stops working. `kk-qualify` withholds nothing from
+anything and each of its lanes judges inside its own dispatch. `holds — session-context`, at opus.
+
+**The distribution the ceiling now acts on: 24 rows at opus, 15 at sonnet, 1 at haiku.**
 
 ### Migration
 

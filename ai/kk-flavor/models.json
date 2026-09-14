@@ -14,7 +14,7 @@
     "idsd-intent":              { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "idsd-qualify":             { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
     "idsd-reactor":             { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
-    "idsd-ship":                { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "idsd-ship":                { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "kk-again":                 { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
     "kk-build":                 { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "kk-foreman":               { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },

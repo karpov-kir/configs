@@ -4,7 +4,7 @@ description: "Coordinate ICE intents through separate owning sessions, launching
 argument-hint: "milestone or intent slugs to build (default: ask which milestone)"
 ---
 
-**Runs:** orchestrator
+**Runs:** holds — session-context
 
 You orchestrate under `~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**.
 
