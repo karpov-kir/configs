@@ -15,8 +15,12 @@ import (
 // guide resolves its tiers through that parser, so a fixture policy is not optional scaffolding —
 // without one the tool refuses, which is the behaviour TestAGuideWithNoPolicyRefuses pins.
 const fixturePolicy = `{
-  "version": 3,
+  "version": 4,
   "limits": { "intents-in-flight": 3 },
+  "tiers": {
+    "codex":  ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-6-astra"],
+    "claude": ["haiku", "sonnet", "opus"]
+  },
   "sessions": { "idsd-ship": { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } } },
   "workers": {
     "code-review": { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },

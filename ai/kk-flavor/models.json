@@ -1,7 +1,11 @@
 {
-  "version": 3,
+  "version": 4,
   "limits": {
     "intents-in-flight": 10
+  },
+  "tiers": {
+    "codex":  ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-6-astra"],
+    "claude": ["haiku", "sonnet", "opus"]
   },
   "sessions": {
     "idsd-build":               { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },

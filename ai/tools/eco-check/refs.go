@@ -25,7 +25,13 @@ var (
 	// cited from. Matching it is the enforcement; dropping it from here would pass such a ref silently.
 	homeRefPattern      = regexp.MustCompilePOSIX(`~/\.(kk-flavor|claude/skills|agents/skills|codex/skills)/[A-Za-z0-9._/-]+`)
 	backtickedPathToken = regexp.MustCompilePOSIX(`^([A-Za-z0-9][A-Za-z0-9._/-]*/[A-Za-z0-9._-]+\.(sh|md)|[A-Za-z0-9][A-Za-z0-9._-]*\.sh|[A-Z][A-Z0-9]*(-[A-Z0-9]+)+\.md)$`)
-	skillFamilyToken    = regexp.MustCompile(`\b(kk|idsd)-[a-z0-9-]+`)
+	// The tail is every letter, mark and digit rather than `[a-z0-9-]`, so a name carrying one
+	// character outside ASCII comes back whole. Truncated, the finding named a path that cannot
+	// exist — a `kk-drivé` directory reported `kk-driv` and sent its reader to look for
+	// `skills/kk-driv/SKILL.md` — which reads as a second, invented defect beside the real one.
+	// Marks are in the class for a name written with a combining accent, which is the same name as
+	// far as a reader is concerned and a different byte string to the scan.
+	skillFamilyToken = regexp.MustCompile(`\b(kk|idsd)-[\p{L}\p{M}\p{N}-]+`)
 )
 
 // Relative markdown links, resolved against the linking file's own directory. A template's links

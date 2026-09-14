@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-const sample = `{"version":3,"limits":{"intents-in-flight":10},` +
+const sample = `{"version":4,"limits":{"intents-in-flight":10},` +
+	`"tiers":{"codex":["helper","middling","frontier"],"claude":["haiku","sonnet","opus"]},` +
 	`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"model":"opus"}}},` +
 	`"workers":{` +
 	`"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"},"rolls":3},` +
@@ -62,12 +63,12 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		// These three keep the version valid on purpose: Go's decoder matches keys case-insensitively
 		// and takes the last of a duplicate pair, so a wrong version would fail them on the version
 		// alone and prove nothing about strictness.
-		"wrong key case":   strings.Replace(sample, `"version":3`, `"Version":3`, 1),
-		"unknown field":    strings.Replace(sample, `"version":3`, `"version":3,"typo":true`, 1),
-		"duplicate field":  strings.Replace(sample, `"version":3`, `"version":3,"version":3`, 1),
+		"wrong key case":   strings.Replace(sample, `"version":4`, `"Version":3`, 1),
+		"unknown field":    strings.Replace(sample, `"version":4`, `"version":4,"typo":true`, 1),
+		"duplicate field":  strings.Replace(sample, `"version":4`, `"version":4,"version":3`, 1),
 		"nested duplicate": strings.Replace(sample, `"model":"helper"`, `"model":"helper","model":"other"`, 1),
 		"unknown client":   strings.Replace(sample, `"codex":{"model":"helper"`, `"other":{"model":"helper"`, 1),
-		"version 1":        strings.Replace(sample, `"version":3`, `"version":1`, 1),
+		"version 1":        strings.Replace(sample, `"version":4`, `"version":1`, 1),
 		"trailing value":   sample + ` {}`,
 		"null":             `null`,
 		"no tasks":         `{"version":3,"limits":{"intents-in-flight":10},"sessions":{},"workers":{}}`,
@@ -85,6 +86,23 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),
 		"cap over the ceiling":        strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":999999`, 1),
 		"task name with space":        strings.Replace(sample, `"bloat-judge":`, `"bloat judge":`, 1),
+		// The tier order is what tells a later check which of two rows spends more, and every way it
+		// can fail to answer that is refused at parse rather than read as "unranked" downstream — a
+		// comparison that quietly answers "not higher" passes what it should have stopped.
+		"no tier order at all": strings.Replace(sample,
+			`"tiers":{"codex":["helper","middling","frontier"],"claude":["haiku","sonnet","opus"]},`, ``, 1),
+		"a client with no tiers": strings.Replace(sample, `"claude":["haiku","sonnet","opus"]`, `"claude":[]`, 1),
+		"a model no tier ranks":  strings.Replace(sample, `"claude":{"model":"sonnet"}`, `"claude":{"model":"unranked"}`, 1),
+		// Both lists grow to four so the lengths still match and every model a row names is still
+		// ranked: shortened or lengthened on one side alone, this is caught by the length guard or the
+		// unranked guard and the duplicate guard is never reached.
+		"one model at two tiers": strings.NewReplacer(
+			`"codex":["helper","middling","frontier"]`, `"codex":["helper","middling","frontier","spare"]`,
+			`"claude":["haiku","sonnet","opus"]`, `"claude":["haiku","sonnet","sonnet","opus"]`,
+		).Replace(sample),
+		"tier lists of different lengths": strings.Replace(sample, `"codex":["helper","middling","frontier"]`,
+			`"codex":["helper","middling"]`, 1),
+		"a tier that is not a usable name": strings.Replace(sample, `"claude":["haiku"`, `"claude":["ha iku"`, 1),
 		// A task name is resolved as a relative path by every reader that finds the prompt a row
 		// dispatches, and `/` has to be legal because `patrol/scout` is a real key — so each way a
 		// segment can leave the tree is refused here, at the one place all of those readers share.
@@ -171,5 +189,33 @@ func TestARowNamingItselfIsToldThatRatherThanToldOfAChain(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "names itself") {
 		t.Fatalf("the refusal does not say the row names itself: %v", err)
+	}
+}
+
+// The rank is the whole point of the order: a caller comparing two rows needs "cheaper" separated
+// from "nothing ranks this", and the two answers must not collapse into one.
+func TestTierOfRanksCheapestFirstAndSaysWhenItCannot(t *testing.T) {
+	p := policyForTest(t)
+	for _, want := range []struct {
+		client string
+		model  string
+		rank   int
+	}{
+		{"claude", "haiku", 0}, {"claude", "sonnet", 1}, {"claude", "opus", 2},
+		{"codex", "helper", 0}, {"codex", "middling", 1}, {"codex", "frontier", 2},
+	} {
+		rank, ranked := p.TierOf(want.client, want.model)
+		if !ranked || rank != want.rank {
+			t.Errorf("TierOf(%q, %q) = %d, %v; want %d, true", want.client, want.model, rank, ranked, want.rank)
+		}
+	}
+	// A model no list carries, and a client the policy does not price, both answer false rather than
+	// the zero rank — which is the cheapest tier, and so the one answer that would read as a pass.
+	for _, absent := range []struct{ client, model string }{
+		{"claude", "nonesuch"}, {"nobody", "haiku"},
+	} {
+		if rank, ranked := p.TierOf(absent.client, absent.model); ranked {
+			t.Errorf("TierOf(%q, %q) claimed rank %d", absent.client, absent.model, rank)
+		}
 	}
 }

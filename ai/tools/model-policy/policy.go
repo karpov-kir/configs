@@ -49,8 +49,15 @@ const maxIntentsInFlight = 25
 // Two maps rather than one with a marker: a flag at the end of a long row is a distinction a reader
 // misses, and this one decides whether the settings can be acted on at all.
 type document struct {
-	Version  int                   `json:"version"`
-	Limits   Limits                `json:"limits"`
+	Version int    `json:"version"`
+	Limits  Limits `json:"limits"`
+	// Each client's models cheapest first. The file already decides what every row spends; this is
+	// the only thing in it that says which of two rows spends MORE, and nothing can derive that from
+	// the names — `opus` and `gpt-6-astra` order by price, not alphabetically or by length.
+	//
+	// Held per client and not as one list of pairs, because the two are set independently: a row may
+	// name a codex effort and no codex model at all, and the claude side has no effort to name.
+	Tiers    map[string][]string   `json:"tiers"`
 	Sessions map[string]assignment `json:"sessions"`
 	Workers  map[string]assignment `json:"workers"`
 }
@@ -95,7 +102,7 @@ func Parse(raw []byte) (*Policy, error) {
 }
 
 func (p *document) validate() error {
-	if p.Version != 3 {
+	if p.Version != 4 {
 		return fmt.Errorf("unsupported model policy version %d", p.Version)
 	}
 	if p.Limits.IntentsInFlight < 1 || p.Limits.IntentsInFlight > maxIntentsInFlight {
@@ -104,6 +111,9 @@ func (p *document) validate() error {
 	if len(p.Sessions) == 0 || len(p.Workers) == 0 {
 		return fmt.Errorf("model policy needs both sessions and workers")
 	}
+	if err := p.validateTiers(); err != nil {
+		return err
+	}
 	if err := p.validateSessions(); err != nil {
 		return err
 	}
@@ -111,6 +121,50 @@ func (p *document) validate() error {
 		return err
 	}
 	return p.validateAssignments()
+}
+
+// The ordering is only usable if it covers what the rows actually name, so a model absent from its
+// client's list is refused here rather than read as "unranked" by whoever asks later — a comparison
+// that quietly answers "not higher" is how a ceiling passes something it should have stopped.
+//
+// A row naming no model for a client is not an omission: codex takes an effort alone, and the
+// ordering has nothing to say about such a row.
+func (p *document) validateTiers() error {
+	for _, client := range []string{"codex", "claude"} {
+		ordered, listed := p.Tiers[client]
+		if !listed || len(ordered) == 0 {
+			return fmt.Errorf("the policy orders no %s models, so nothing can say which of two rows spends more", client)
+		}
+		seen := map[string]bool{}
+		for _, model := range ordered {
+			if !validName(model) {
+				return fmt.Errorf("%s tier %q is not a usable model name", client, model)
+			}
+			if seen[model] {
+				return fmt.Errorf("%s lists %q at two tiers, so its rank is whichever one a reader stops at", client, model)
+			}
+			seen[model] = true
+		}
+		for name, task := range p.all() {
+			settings := task.Codex
+			if client == "claude" {
+				settings = task.Claude
+			}
+			if settings == nil || settings.Model == "" {
+				continue
+			}
+			if !seen[settings.Model] {
+				return fmt.Errorf("task %q sets %s model %q, which the tier order does not rank", name, client, settings.Model)
+			}
+		}
+	}
+	// The clients are ranked separately and compared by rank, so two lists of different lengths make
+	// one client's tier three mean something the other's cannot answer.
+	if len(p.Tiers["codex"]) != len(p.Tiers["claude"]) {
+		return fmt.Errorf("codex orders %d tiers and claude %d; a rank means nothing across two lists of different lengths",
+			len(p.Tiers["codex"]), len(p.Tiers["claude"]))
+	}
+	return nil
 }
 
 // The two fields that price a dispatch are refused on a session, which is invoked rather than
@@ -272,6 +326,18 @@ func (p *Policy) Limits() Limits {
 
 func (p *Policy) Digest() string {
 	return p.digest
+}
+
+// TierOf ranks one client's model, cheapest at 0. The bool is not a courtesy: a caller comparing two
+// rows has to be able to tell "cheaper" from "not ranked at all", and validateTiers means the second
+// answer can only come from asking about a model no row names.
+func (p *Policy) TierOf(client, model string) (int, bool) {
+	for rank, name := range p.content.Tiers[client] {
+		if name == model {
+			return rank, true
+		}
+	}
+	return 0, false
 }
 
 // TaskNames answers what the policy covers, so a check can compare it against the dispatch sites that

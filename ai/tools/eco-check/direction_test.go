@@ -166,6 +166,39 @@ func TestDirectionScan(t *testing.T) {
 		newNulByteFile(t).reports(ecocheck.UnknownSkillReferenced + "kk-nonesuch")
 	})
 
+	// A name is echoed whole, the way the cited path below is. The family token used to stop at the
+	// first byte outside ASCII, so a `kk-drivé` directory came back as `kk-driv` and the finding sent
+	// its reader to `skills/kk-driv/SKILL.md` — a path nothing could ever hold. The name is the only
+	// part of that message a reader can act on, so a truncated one is a second defect invented beside
+	// the real one.
+	t.Run("echoes a skill name whole rather than cutting it at the first non-ASCII byte", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
+		f.reports(ecocheck.UnknownSkillReferenced + "kk-drivé")
+	})
+
+	// The other half, on its own fixture because the harness runs the checker once per assertion.
+	// Without it the case above is satisfied by a scan that reports the truncation AND the whole
+	// name, which would send a reader to the invented path just the same.
+	t.Run("and does not also report the truncation beside it", func(t *testing.T) {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
+		f.doesNotReport(ecocheck.UnknownSkillReferenced + "kk-driv —")
+	})
+
+	// And the same name, present in the tree, is matched rather than reported. Without this the cases
+	// above are satisfied by a scan that echoes names whole and can no longer find any of them.
+	//
+	// The needle is the bare finding head, not the head plus this name: asked for the name, the case
+	// passes under the truncating scan too, which reports `kk-driv` and so does not carry the string
+	// being looked for. Two different reasons for one green is the shape that hides a broken scan.
+	t.Run("and finds that same name when the tree holds it", func(t *testing.T) {
+		f := newRoot(t)
+		f.newMountedSkill("kk-drivé")
+		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
+		f.doesNotReport(ecocheck.UnknownSkillReferenced)
+	})
+
 	// The cited path is echoed whole. One trailing segment stops it at `.../kk-humanize/scripts` and
 	// drops the file the citation was about, which is the half that says what to go and move.
 	t.Run("echoes a cited path whole, not truncated at one segment", func(t *testing.T) {
