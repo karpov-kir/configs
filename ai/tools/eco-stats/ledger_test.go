@@ -87,7 +87,8 @@ func TestAMissingLedgerIsOpenedWithAHeaderAReaderCanUse(t *testing.T) {
 		rows := rowsIn(t, fresh)
 		if rows != 3 ||
 			!strings.Contains(content, "| date | prose | scripts | always-loaded | skills | what ran |") ||
-			!strings.Contains(content, "lower bound") {
+			!strings.Contains(content, "lower bound") ||
+			!strings.Contains(content, "is the checkout's") {
 			t.Errorf("lines starting '|': %d (want 3 — header, rule, row)\n%s", rows, indent(content))
 		}
 	})
@@ -200,11 +201,11 @@ func wordsCount(n int) string {
 	return note.String()
 }
 
-// A row is read back later as what the tier cost on that date, so what the figure leaves out has to
-// travel with it: the printed line scrolls away, the row does not. Both agents are driven though the
-// emission carries no agent branch today — that branch is what this change removed, and a case that
-// cannot see it come back guards nothing.
-func TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut(t *testing.T) {
+// The header states what every row's figure leaves out, so rows do not: a per-row copy opens a seam at
+// the first row carrying it, in a file read as deltas. The printed line keeps it, having no header
+// beside it. Both agents run because neither emission branches on one — a case that cannot see such a
+// branch come back guards nothing.
+func TestTheScopeNoteRidesTheLineNotEveryLedgerRow(t *testing.T) {
 	for _, agent := range []string{"claude", "codex"} {
 		t.Run(agent, func(t *testing.T) {
 			f := newRoot(t)
@@ -217,8 +218,8 @@ func TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut(t *testing.T) {
 			if status != 0 || rowsIn(t, ledger) != 3 {
 				t.Fatalf("status %d, rows %d (want 0 and 3 — header, rule, row)\n%s", status, rowsIn(t, ledger), stderr)
 			}
-			if !strings.Contains(row, ecoroot.BudgetScope) {
-				t.Errorf("the appended row does not say what its figure leaves out:\n%s", indent(row))
+			if strings.Contains(row, ecoroot.BudgetScope) {
+				t.Errorf("the row restates what the header already says, on every row forever:\n%s", indent(row))
 			}
 			if !strings.Contains(lineWith(stdout, "always-loaded:"), ecoroot.BudgetScope) {
 				t.Errorf("the printed line does not say what its figure leaves out:\n%s", indent(stdout))
