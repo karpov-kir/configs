@@ -9,6 +9,10 @@ never edited — however that edit is authorised**
 (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): every delta is read off the rows below it,
 so one corrected figure silently restates every campaign since.
 
+**Every always-loaded figure here is the checkout's**: no row counts either client's user-scoped
+instruction file, nor anything that file loads. It has held for every row, so no delta between two
+of them turns on it.
+
 **A `+` on a row's always-loaded figure makes it a lower bound**: referenced or externally loaded
 instructions were left uncounted. Read the delta between two marked rows as "at least this
 much". From a marked row to an unmarked one, part of the rise is `stats.sh` resolving more rather

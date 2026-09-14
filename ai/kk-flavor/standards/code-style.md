@@ -16,11 +16,11 @@
 
 ## Comments
 
-Comment form is [human-writing.md](human-writing.md). **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it.
+Comment form is [human-writing.md](human-writing.md). **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it. **A warning against a wrong edit names that edit and what it breaks**, or any rationale becomes one by rewording; where a test fails on that edit, the test is the warning's home and the comment a pointer to it at most.
 
-**A change set's comment share stays at or under the host repo's.** Where it is over, rank every comment in the set and delete upward from the weakest until it is not, never by a fixed fraction of what is there.
+**A change set's comment share and its block-length profile stay at or under the host repo's.** Where it is over, the weakest comments go until it is not, never a fixed fraction of what is there.
 
-**Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when a sibling covers it. **True, unique content goes too — anecdotes, alternatives considered, provenance a reader can get from `git log`.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
+**Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when any other site in the change set covers it — **an invariant is stated once, at the construct that enforces it**, and referenced from everywhere else. **True, unique content goes too — anecdotes, alternatives considered, provenance a reader can get from `git log`.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
 
 **A published surface is the exception, and it runs the other way** — state the contract the types don't carry: call order, lifecycle, error modes, units, ranges, caller invariants. **That list is the whole of the exception**, and a file declaring itself published buys its members nothing beyond it.
 

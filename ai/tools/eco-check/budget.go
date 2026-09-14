@@ -32,7 +32,7 @@ func (c *checker) reportBudget(out io.Writer) {
 		budgetWords += words
 	}
 	writeLinef(out, "always-loaded: %d lines, %d words across %d files%s",
-		budgetLines, budgetWords, len(counted), uncountedNote(uncounted)+c.root.BudgetScope())
+		budgetLines, budgetWords, len(counted), uncountedNote(uncounted)+" ("+ecoroot.BudgetScope+")")
 }
 
 // How a doc inject.md lists under Read always is named when it is refused. One spelling for the three

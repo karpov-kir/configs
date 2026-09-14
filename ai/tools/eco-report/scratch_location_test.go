@@ -61,7 +61,9 @@ func TestTheScratchDirectorySurvivesABranchSwitch(t *testing.T) {
 	f.newIntentFile("001-branching")
 	before := f.runReportStdout("root")
 	f.mustGit("checkout", "-q", "-b", "elsewhere")
-	f.record("the location is unchanged by a branch switch", f.runReportStdout("root") == before, before)
+	// `before != ""` because two refusals both print nothing, and empty is unchanged from empty: without
+	// it the case passes for a tool that resolved nothing.
+	f.record("the location is unchanged by a branch switch", f.runReportStdout("root") == before && before != "", before)
 	f.runReport("list")
 	f.record("and the ship is still there after it", strings.Contains(f.out, "001-branching"), f.evidence())
 }
@@ -158,6 +160,10 @@ func TestAnOverrideKeyIsTheCloneNotTheWorktree(t *testing.T) {
 	}
 	fromRoot := f.runReportStdout("root")
 	fromWorktree := f.runReportStdoutIn(second, "root")
+	// Checked before comparing them: two refusals both print nothing, and empty equals empty, so without
+	// this the case reports success for a tool that resolved no location at all.
+	f.record("both invocations resolved a location at all",
+		fromRoot != "" && fromWorktree != "", "main: "+fromRoot+"\nworktree: "+fromWorktree)
 	f.record("a worktree with a different directory name resolves the same key",
 		fromRoot == fromWorktree, "main: "+fromRoot+"\nworktree: "+fromWorktree)
 	f.record("and the key does not carry the worktree's name",

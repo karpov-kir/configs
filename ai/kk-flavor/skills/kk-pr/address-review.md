@@ -10,8 +10,8 @@ Every review comment on the PR that `~/.kk-flavor/skills/kk-pr/SKILL.md` → **C
 ## Fix, gate, push
 
 1. **Fix in the checked-out worktree, one comment at a time**, keeping each change to what that comment asked for. Work beyond it reads as `beyond the ask` on the next round.
-2. **Your fixes are unreviewed code** — a behaviour-changing one lands a test per branch it introduces.
-3. **Run the repo's gates over the result** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**): nothing is pushed on red. An untrusted fork's gates do not run, and the landing then says the push went out unverified.
+2. **Your fixes are unreviewed code, so run the pass over them** — `~/.kk-flavor/skills/kk-qualify/SKILL.md` inline, keeping the one scheduling authority, **scoped to what you just wrote and never to the PR's diff**, which the review round already read. `~/.kk-flavor/standards/quality-pipeline.md` → **The round** is why: fixes made after a review invalidate it over the changed files and their dependencies. A behaviour-changing fix also lands a test per branch it introduces.
+3. **Run the repo's gates over the result**: nothing is pushed on red. An untrusted fork's gates do not run, and the landing then says the push went out unverified.
 4. **Commit and push per `~/.kk-flavor/standards/git.md`** — your fixes are commits on top of what a reviewer has already read, never a rewrite of it. **The mode is your licence, and it lifts that file's approval before a push** — print what you pushed rather than asking to.
 
 ## Answer every thread
@@ -27,4 +27,6 @@ The review can be re-requested with `gh pr edit <N> --add-reviewer <login>`. Fol
 
 The verdict block goes in your closing reply.
 
-**Under `review-and-address` the close is different**: say the PR is ready, then offer the two acts that remain — re-request the review, or post the verdict block as one comment. Neither happens unasked, and the scratchpad is gone by then or its surviving entries are in that reply.
+**Under `review-and-address` that reply carries one line more**: the PR is ready. The scratchpad is gone by then, or its surviving entries are in it.
+
+**On someone else's PR, also offer to post the block as one PR comment** — that author reads the round's conclusion nowhere else. The post never happens unasked. **On the human's own PR there is no such offer**: they authored it and have just read the block here.

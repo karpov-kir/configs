@@ -2,6 +2,7 @@ package ecoroot_test
 
 import (
 	ecoroot "kk-flavor/tools/eco-root"
+	"strings"
 	"testing"
 )
 
@@ -44,7 +45,6 @@ func TestStructuralRootCannotChooseAProviderImplicitly(t *testing.T) {
 	for name, call := range map[string]func(){
 		"mount":        func() { root.SkillsMount() },
 		"instructions": func() { root.InstructionFile() },
-		"budget":       func() { root.BudgetScope() },
 		"agent":        func() { root.Agent() },
 		"imports":      func() { root.ResolveImports(ecoroot.ImportScan{}) },
 	} {
@@ -56,5 +56,16 @@ func TestStructuralRootCannotChooseAProviderImplicitly(t *testing.T) {
 			}()
 			call()
 		})
+	}
+}
+
+// Every case asserting a report line carries this note does so by containment, and
+// `strings.Contains(line, "")` is true of every line ever printed. So the note is pinned non-empty
+// here, in its own package, rather than at containment sites an empty note would satisfy.
+func TestTheBudgetScopeNoteSaysWhatItHasTo(t *testing.T) {
+	for _, must := range []string{"checkout", "global instructions"} {
+		if !strings.Contains(ecoroot.BudgetScope, must) {
+			t.Errorf("the budget scope note does not name %q: %q", must, ecoroot.BudgetScope)
+		}
 	}
 }

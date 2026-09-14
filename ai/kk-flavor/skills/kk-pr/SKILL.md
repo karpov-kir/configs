@@ -8,18 +8,23 @@ argument-hint: "<review|address-review|refine-description|review-and-address> [P
 
 `$ARGUMENTS` opens with a **required** mode — one of the four below, or an argument plainly saying the same; with neither, ask which rather than guessing from the PR. What follows names the PR; with nothing after it, the current branch's. `gh` must be authenticated.
 
-**Authorship settles nothing** — the mode is the whole licence, on your own PR and on anyone else's. It changes only what GitHub lets you write to, which **Set up** step 1 reads.
+**Authorship settles no licence** — the mode is the whole licence, on your own PR and on anyone else's. Authorship changes what GitHub accepts and whether what you post has a reader; **Set up** step 1 reads it.
 
 You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**) — the protocol role, not the kind `**Runs:**` above declares. **Your tier buys the gates you run inline and the text you send**, not the scheduling (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). Everything you leave on the PR is outward text, so read `~/.kk-flavor/standards/human-writing.md` whole before you draft a line.
 
 ## Modes
 
-| Mode | Its file | What lands |
-|---|---|---|
-| `review` | `~/.kk-flavor/skills/kk-pr/review.md` | a **pending** review: one comment per finding, the verdict in its body |
-| `address-review` | `~/.kk-flavor/skills/kk-pr/address-review.md` | commits pushed to the PR's branch, one reply per thread |
-| `refine-description` | `~/.kk-flavor/skills/kk-pr/refine-description.md` | the PR's body, and its title where the change outgrew it |
-| `review-and-address` | both of the first two | commits pushed; none of your own findings posted |
+| Mode | Its file | Its change set | What lands |
+|---|---|---|---|
+| `review` | `~/.kk-flavor/skills/kk-pr/review.md` | the author's diff, `<base>...HEAD` | a **pending** review: one comment per finding, the verdict in its body |
+| `address-review` | `~/.kk-flavor/skills/kk-pr/address-review.md` | the fixes you just wrote | commits pushed to the PR's branch, one reply per thread |
+| `refine-description` | `~/.kk-flavor/skills/kk-pr/refine-description.md` | the PR's body | the PR's body, its title where the change outgrew it, and the stack map wherever it went stale |
+| `review-and-address` | both of the first two | each half's own | commits pushed; no findings of your own on the diff |
+
+**A mode sets those two columns, and its file carries only what does not follow from them.** Two things follow that no mode restates:
+
+- **A lane never reads outside the change set, and resolving that scope is yours.** Naming a limit in a spawn prompt narrows no stage's lens.
+- **The prose lane runs over the author's text too** — their comments, their docs, the body itself (`~/.kk-flavor/standards/human-writing.md` → **Edit pass**). Here its cuts land as comments rather than edits, which the landing column already says.
 
 **Read the mode's file and take it as the whole delta for that path.** `review-and-address` runs `review.md` with its landing redirected to the scratchpad below, then `address-review.md` over that file's findings alongside the threads already on the PR.
 

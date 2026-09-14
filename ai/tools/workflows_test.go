@@ -517,3 +517,51 @@ func quotedAfter(body, marker string) string {
 	}
 	return quoted
 }
+
+// The `mutants` job sweeps every mutation unit cold on each push, so an unbounded one is the job that
+// hangs for GitHub's six-hour default over a harness that stopped making progress in the first minute.
+// The runs the bound is read off are named in the workflow, beside the bound itself.
+//
+// Only the presence of a bound is held here, never its value. A bound set under the real figure
+// cancels a legitimate sweep and reddens every push, which announces itself on the next push; a bound
+// deleted announces nothing at all until a runner burns six hours, so that is the one worth a case.
+func TestTheMutantsJobCarriesABound(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(workflowsDir, "gates.yml"))
+	if err != nil {
+		t.Fatalf("reading gates.yml: %v", err)
+	}
+	job, found := jobBlock(string(body), "mutants")
+	// Found or this fails outright: a case scanning a block it could not locate scans nothing and
+	// reports green, which is the same defect as a case that cannot fail.
+	if !found {
+		t.Fatalf("gates.yml declares no `mutants:` job, so this case has nothing to read a bound off " +
+			"and would pass over a workflow carrying none. Restore the job, or retire this case " +
+			"deliberately — do not leave it green over nothing.")
+	}
+	if !strings.Contains(job, "timeout-minutes:") {
+		t.Errorf("gates.yml's mutants job declares no timeout-minutes, so a sweep that stops making " +
+			"progress runs to GitHub's six-hour default before anyone is told. Give the job a bound " +
+			"above the slowest run it has had.")
+	}
+}
+
+// One job's lines, from its own two-space key down to the next one. Empty and not found where the job
+// is absent, so a caller cannot read a missing job as one declaring nothing.
+func jobBlock(body, name string) (string, bool) {
+	var held []string
+	inJob := false
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, "  "+name+":") {
+			inJob = true
+			continue
+		}
+		if inJob {
+			indented := strings.HasPrefix(line, "   ") || strings.TrimSpace(line) == ""
+			if !indented {
+				break
+			}
+			held = append(held, line)
+		}
+	}
+	return strings.Join(held, "\n"), inJob
+}

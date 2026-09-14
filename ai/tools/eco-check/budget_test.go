@@ -1,12 +1,14 @@
 package ecocheck_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	ecocheck "kk-flavor/tools/eco-check"
+	ecoroot "kk-flavor/tools/eco-root"
 	"kk-flavor/tools/shell"
 )
 
@@ -360,4 +362,34 @@ func newCappedImportSpread(t *testing.T) *fixture {
 	f.write(f.root+"/CLAUDE.md", claudeMd.String())
 	f.write(f.home+"/.claude/d01.md", "one\n")
 	return f
+}
+
+// The whole figure is asserted, not just the note on it: a case matching only the note passes over a
+// run that counted a different set of files. `owner-instructions.md` sits in the fixture root and is
+// not one of the two counted — the figure pins that rather than proving it, and turns red if a later
+// edit starts counting a root `.md` the router does not list.
+func TestEveryAgentsBudgetLineSaysWhatItLeavesOut(t *testing.T) {
+	const wantFigure = "always-loaded: 6 lines, 11 words across 2 files"
+
+	printed := map[string]string{}
+	for _, agent := range []string{"claude", "codex"} {
+		f := newRoot(t)
+		f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [standards/one.md](standards/one.md)\n")
+		f.write(f.root+"/kk-flavor/standards/one.md", "four words of standard\n")
+		f.write(f.root+"/owner-instructions.md", "a template no session reads from where it sits\n")
+
+		var out bytes.Buffer
+		ecocheck.Run([]string{"--agent=" + agent, f.root}, &out, &out)
+		line := lineWith(out.String(), "always-loaded: ")
+		if !strings.HasPrefix(line, wantFigure) {
+			t.Errorf("%s: the budget counted a set this case did not build\n got %q\nwant %q...", agent, line, wantFigure)
+		}
+		if !strings.Contains(line, ecoroot.BudgetScope) {
+			t.Errorf("%s: the budget line does not say what its figure leaves out: %q", agent, line)
+		}
+		printed[agent] = line
+	}
+	if printed["claude"] != printed["codex"] {
+		t.Errorf("one tree, two budget lines:\n claude %q\n codex  %q", printed["claude"], printed["codex"])
+	}
 }

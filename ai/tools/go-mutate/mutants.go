@@ -219,6 +219,13 @@ var mutants = []mutant{
 	{"stats: fresh ledger loses the measurement absolute", "../eco-stats/ledger.go", "./eco-stats/", "", "never edited — however that edit is authorised", "never edited"},
 	{"stats: fresh ledger loses its columns", "../eco-stats/ledger.go", "./eco-stats/", "", "| date | prose | scripts | always-loaded | skills | what ran |", "| date | prose | scripts | always-loaded | skills |"},
 
+	// The scope note, at each of the three places it reaches a reader.
+	{"ecoroot: the budget scope note emptied", "../eco-root/eco-root.go", "./eco-root/", "TestTheBudgetScopeNoteSaysWhatItHasTo", `const BudgetScope = "checkout budget; excludes global instructions and their referenced files"`, `const BudgetScope = ""`},
+	{"check: the budget line withholds its scope", "budget.go", "./eco-check/", "TestEveryAgentsBudgetLineSaysWhatItLeavesOut", `uncountedNote(uncounted)+" ("+ecoroot.BudgetScope+")")`, "uncountedNote(uncounted))"},
+	{"stats: fresh ledger loses the checkout-scope statement", "../eco-stats/ledger.go", "./eco-stats/", "", "**Every always-loaded figure here is the checkout's**", "**Every always-loaded figure here is the tree's**"},
+	{"stats: the ledger row restates the header's scope on every row", "../eco-stats/ledger.go", "./eco-stats/", "TestTheScopeNoteRidesTheLineNotEveryLedgerRow", `note += " [agent=" + s.root.Agent() + "]"`, `note += " [agent=" + s.root.Agent() + "] [checkout budget; excludes global instructions and their referenced files]"`},
+	{"stats: the report line withholds its scope", "../eco-stats/report.go", "./eco-stats/", "TestTheScopeNoteRidesTheLineNotEveryLedgerRow", `s.budgetNote()+" ("+ecoroot.BudgetScope+")"`, "s.budgetNote()"},
+
 	// Both consumer suites supply explicit roots, so only ecoroot's suite observes root discovery.
 	{"ecoroot: the ./ai candidate dropped", "../eco-root/eco-root.go", "./eco-root/", "", `var candidates = []string{".", "./ai"}`, `var candidates = []string{"."}`},
 	{"ecoroot: a root needs only one of the two directories", "../eco-root/eco-root.go", "./eco-root/", "", "&& shell.IsDir(shell.Join(flavor, skillsDir))", ""},
@@ -322,10 +329,19 @@ var mutants = []mutant{
 	{"families: the worker tree goes unscanned", "families.go", "./eco-check/", "TestFamilyDirectionAcrossTheWorkerTree", "c.reportWorkerFamilyLeaks(workflowName, stateDir)", "_, _ = workflowName, stateDir"},
 	{"families: the workflow family's own workers lose their exemption", "families.go", "./eco-check/", "TestFamilyDirectionAcrossTheWorkerTree", `if file == owned || strings.HasPrefix(file, owned+"/") {`, `if (file == owned || strings.HasPrefix(file, owned+"/")) && false {`},
 
+	{"repo-key: the unresolvable-path refusal echoes the path raw", "../repo-key/repokey.go", "./repo-key/", "TestARefusalCarriesNoControlBytesFromThePathItEchoes", `"could not resolve " + shell.Oneline(shared) + " to a real path"`, `"could not resolve " + shared + " to a real path"`},
+	{"repo-key: the not-a-git-dir refusal echoes the path raw", "../repo-key/repokey.go", "./repo-key/", "TestARefusalCarriesNoControlBytesFromThePathItEchoes", `errors.New(shell.Oneline(shared) + " is not a git directory`, `errors.New(shared + " is not a git directory`},
+	{"repo-key: the git-would-not-answer refusal echoes the path raw", "../repo-key/repokey.go", "./repo-key/", "TestARefusalCarriesNoControlBytesFromThePathItEchoes", `"could not ask git for the shared git dir of " + shell.Oneline(root)`, `"could not ask git for the shared git dir of " + root`},
+	{"repo-key: an inherited GIT_DIR chooses the repository", "../repo-key/repokey.go", "./repo-key/", "TestNoInheritedVariableChoosesTheRepository", "command.Env = withoutGitLocation(os.Environ())", "command.Env = os.Environ()"},
+	{"repo-key: the readable half is spliced in raw", "../repo-key/repokey.go", "./repo-key/", "TestAKeyIsSafeToSpliceIntoAPathOrACommand", "safeName(shell.BaseName(shell.DirName(canonical)))", "shell.BaseName(shell.DirName(canonical))"},
+	{"repo-key: a path that is not a git dir answers a key", "../repo-key/repokey.go", "./repo-key/", "TestAPathThatIsNotAGitDirRefuses", `if !shell.IsRegularFile(canonical + "/HEAD") {`, "if false {"},
+	{"repo-key: the key follows the worktree, not the clone", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneKeysTheSame", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--show-toplevel"`},
+	{"repo-key: two clones of one remote collapse onto one name", "../repo-key/repokey.go", "./repo-key/", "TestTwoClonesOfOneRemoteKeyApart", `"-" + hex.EncodeToString(digest[:])[:digestLength]`, `"-" + hex.EncodeToString(digest[:])[:0]`},
+
 	// These rev-parse fallbacks require a fixture that disables the filesystem layout reader.
 	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
 	{"root: the shared git dir is left relative to the caller", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", "if !filepath.IsAbs(path) {\n\t\tpath = r.root + \"/\" + path\n\t}", "if false {\n\t\tpath = r.root + \"/\" + path\n\t}"},
-	{"root: the override key is built from the worktree's own name", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "name := shell.BaseName(shell.DirName(canonical))", "name := shell.BaseName(r.root)"},
+	{"root: the override key is built from the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestAnOverrideKeyIsTheCloneNotTheWorktree", "repokey.FromSharedGitDir(r.gitCommonPath(\"\"))", "repokey.FromSharedGitDir(r.root)"},
 	{"root: a broken override falls back to the default in silence", "../eco-report/root.go", "./eco-report/", "TestABrokenOverrideRefusesRatherThanFallingBack", "if root == \"\" {\n\t\tr.refuse(\"error: \"+path+\" sets no", "if false {\n\t\tr.refuse(\"error: \"+path+\" sets no"},
 	{"root: an override inside the working tree is accepted", "../eco-report/root.go", "./eco-report/", "TestAnOverrideInsideTheWorkingTreeIsRefused", `if scratch != root && !strings.HasPrefix(scratch, root+"/") {`, "if true {"},
 	{"root: an empty directory skeleton read as content", "../eco-report/shell.go", "./eco-report/", "TestAnInTreeScratchDirectoryIsNeverMigratedSilently", "if entry.IsDir() {\n\t\t\treturn nil\n\t\t}", "if entry.IsDir() {\n\t\t\tcount++\n\t\t\treturn nil\n\t\t}"},

@@ -477,6 +477,15 @@ func (f *fixture) countLinesStartingWith(prefix string) (int, string) {
 	return count, output
 }
 
+func lineWith(output, needle string) string {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	return ""
+}
+
 func firstLineWith(output, needle string) int {
 	for i, line := range strings.Split(output, "\n") {
 		if strings.Contains(line, needle) {

@@ -20,7 +20,8 @@ func TestStatsRequiresAgentAndMeasuresCodexBudget(t *testing.T) {
 	if code := ecostats.Run("stats.sh", []string{"--agent=codex", f.root}, &out, &out); code != 0 {
 		t.Fatalf("%d: %s", code, out.String())
 	}
-	for _, expected := range []string{"= 5 router", "excludes global instructions and their referenced files"} {
+	// The scope note is not asserted here: TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut owns it.
+	for _, expected := range []string{"= 5 router"} {
 		if !strings.Contains(out.String(), expected) {
 			t.Errorf("missing %q: %s", expected, out.String())
 		}

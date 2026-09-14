@@ -1,26 +1,15 @@
 #!/usr/bin/env bash
-# Print a fingerprint of the working tree (tracked and untracked content, ignored paths excluded) so a
-# ledger can name the tree it was written against (`~/.kk-flavor/standards/skill-protocol.md` →
-# **Queue**).
+# Print a stable name for this clone — `<basename>-<digest>` — so the idsd scratch dir under a
+# machine-local override root and the owner's worktree directory key one repository the same way.
 #
-# usage: tree-fingerprint.sh [<repo path>]. Prints the tree hash, or exits 2 with a reason.
+# usage: repo-key.sh [<repo path>]. Prints the key, or exits 2 with a reason.
 #
-# The recipe is Go, in `ai/tools/tree-fingerprint/`, and the Go callers import it rather than coming
-# through here.
+# The recipe is Go, in `ai/tools/repo-key/`; Go callers import it rather than coming through here.
 #
-# Don't reimplement it. Untracked content goes to a THROWAWAY object store, because `add -A` would
-# otherwise leave the caller's working files recoverable from `.git/objects` for good. And the
-# throwaway index is seeded from HEAD, because git applies ignore rules only to paths the index does
-# not hold, so an unseeded walk drops a tracked file matching an ignore rule and a rewrite of it
-# becomes invisible to every ledger.
-#
-# tested by: the Go suite beside the tool, `ai/tools/tree-fingerprint/`; the shared stub region below
-# by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
-
+# tested by: the Go suite in ai/tools/repo-key/; shared stub by tool-stub-test.sh.
 set -euo pipefail
 
-tool="tree-fingerprint"
-# How far THIS file sits above the tools directory.
+tool="repo-key"
 tools_offset="../.."
 
 # --- shared:tool-stub ---

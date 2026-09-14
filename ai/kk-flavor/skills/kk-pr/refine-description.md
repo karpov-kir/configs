@@ -3,6 +3,9 @@
 1. **Read the change, not the body you are replacing.** The diff, the commits, and the ticket or intent the branch links. A description rewritten from the old description keeps whatever was wrong with it.
 2. **Rewrite the body** to the standard `~/.kk-flavor/skills/kk-pr/SKILL.md` → **Land it** step 1 names for this mode.
 3. **Leave the title alone unless it no longer names the change**, and leave a body alone that still fits. A rewrite for taste is a change a reviewer has to re-read for nothing.
-4. **`gh pr edit <N> --body-file <file>`**, plus `--title` where step 3 changed it. Pass the body as a file: inline it is a shell argument, and a backtick in it runs as a command.
+4. **Where the PR is stacked, rebuild the map and repair the stack's copies.** `gh pr list --state open --json number,headRefName,baseRefName` returns the graph: walk down from this PR's base while an open PR's head carries it, and up through the open PRs based on this PR's head. Write the line `~/.kk-flavor/standards/human-writing.md` → **Change descriptions (PRs)** defines, and rewrite it in every sibling whose copy is missing or no longer matches — a PR added or merged leaves every other copy naming an order that is gone. Leave a sibling whose line already matches, and change nothing but the map in one you edit.
+5. **`gh pr edit <N> --body-file <file>`**, plus `--title` where step 3 changed it, and once more for each sibling step 4 found stale. Pass the body as a file: inline it is a shell argument, and a backtick in it runs as a command.
+
+**Name every PR you are about to edit** in the sentence `~/.kk-flavor/skills/kk-pr/SKILL.md` → **Land it** step 4 requires — the mode was given one PR, and a sibling's body is a write past it.
 
 **A body someone has already reviewed is replaced openly** — say in your closing reply what you took out, because a reviewer who read the old one has no diff to read.

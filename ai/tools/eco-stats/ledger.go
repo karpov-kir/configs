@@ -29,6 +29,10 @@ const ledgerSeed = "# Ecosystem size\n" +
 	"(`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): every delta is read off the rows below it,\n" +
 	"so one corrected figure silently restates every campaign since.\n" +
 	"\n" +
+	"**Every always-loaded figure here is the checkout's**: no row counts either client's user-scoped\n" +
+	"instruction file, nor anything that file loads. It has held for every row, so no delta between two\n" +
+	"of them turns on it.\n" +
+	"\n" +
 	"**A `+` on a row's always-loaded figure makes it a lower bound**: referenced or externally loaded\n" +
 	"instructions were left uncounted. Read the delta between two marked rows as \"at least this\n" +
 	"much\". From a marked row to an unmarked one, part of the rise is `stats.sh` resolving more rather\n" +
@@ -41,9 +45,6 @@ const ledgerSeed = "# Ecosystem size\n" +
 // exits 0, and the next pass reads a row that never landed as what happened.
 func (s *stats) appendRow(self, note string, out, errOut io.Writer) int {
 	note += " [agent=" + s.root.Agent() + "]"
-	if s.root.Agent() == "codex" {
-		note += " [checkout budget excludes global instructions and their referenced files]"
-	}
 	// The row states how much of its always-loaded figure came from imports this run resolved, or a
 	// reader comparing two rows cannot tell a tier that grew from one the tool merely started seeing.
 	// Appended after the sanitising in noteFrom, and safe there: fixed text and a digit string forge

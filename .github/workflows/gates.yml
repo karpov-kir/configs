@@ -98,6 +98,13 @@ jobs:
   # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.
   mutants:
     runs-on: ubuntu-latest
+    # Read off twenty consecutive runs of this job, which swept all 526 mutants cold in 297s to 614s.
+    # The bound is three times the slowest of those, so a loaded runner still finishes inside it and a
+    # sweep that stops making progress is reported in half an hour rather than at GitHub's six-hour
+    # default. Raise it from another run's duration, never from a guess: a bound under the real figure
+    # cancels a legitimate sweep and reddens every push. TestTheMutantsJobCarriesABound holds the
+    # presence of a bound, not this number.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -119,12 +126,6 @@ jobs:
       # The warning also goes to the step summary, because an annotation alone lives inside a log fold.
       # Nothing here catches a runner that never measures at all: no count crosses runs, so such a job
       # warns every time and never escalates.
-      #
-      # No `timeout-minutes` yet, and nobody decided against one. This runs every mutation unit cold on
-      # each push with no cache between runs, and twelve units alone took the better part of an hour on
-      # a developer machine, so a smaller runner could want hours. A bound guessed under the real figure
-      # cancels a legitimate sweep and reddens every push. GitHub's six-hour default holds until someone
-      # reads the duration off a real run; set one from that number.
       - name: Prove the guards can fail
         run: |
           log="$RUNNER_TEMP/mutants.log"

@@ -2,11 +2,15 @@
 
 Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too**: everything here binds them. What a comment must first clear is [code-style.md](code-style.md) → **Comments**.
 
+**Each prose paragraph is one line.** A field you type into — a PR or ticket body, a comment, a chat message — turns your newline into a line break, so the paragraph arrives ragged. Repository files and commit messages are not fields: wrap those as usual.
+
 **A send you cannot recall goes to the human first** ([live-systems.md](live-systems.md) → **Arrange the undo before the act**), and takes any lane it is owed before the send, never after.
 
 ## Edit pass
 
-Run the **edit lane** over outward artifacts you author or revise before presenting them for approval, delivering them or publishing them. This includes PR titles and bodies, commit messages, tickets, docs, messages to others and code comments. Apply it inline by default; a separate worker or external judge is not required. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
+Run the **edit lane** over every outward artifact in what you present for approval, delivery or publication — PR titles and bodies, commit messages, tickets, docs, messages to others and code comments — **whoever wrote it**. **Authorship sets the landing, never whether the lane runs**: your own text it edits, another's it proposes. **Voice is theirs, volume is not** — how they say it stays theirs, how much of it there is answers to the bar.
+
+Apply it inline by default; a separate worker is not required. **The judge runs over anything this lane covers whose kind it names** — `bloat-judge.sh` lists them when asked for one it has not got — and where a measured bar also says the artifact is over it, how many go is the bar's rather than the author's. **Boilerplate is never a unit**: a repo template's own lines and any tool-generated block stay, whatever the judge makes of them. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
 
 Ordinary session replies and structured worker returns apply the writing rules directly. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
 
@@ -41,6 +45,8 @@ A watch-list, not a complete set.
 ## Change descriptions (PRs)
 
 The author's side, for a reviewer deciding approve-or-not. **Link the ticket wherever the branch carries one**: it owns the incident, the evidence and the timeline, so the description carries the change and nothing about how the problem was found.
+
+**A PR based on another open PR's branch carries the stack map**, one line beside the ticket link: `Stack, base first: #12 ← #13 ← **#14 (this one)**`. The same line stands in every PR of the stack, so a reviewer landing on any one of them sees the whole order.
 
 **Prose, never headings of your own**: a heading you add is a slot, and **Budget** rules what fills one. A repo template's headings stand.
 
