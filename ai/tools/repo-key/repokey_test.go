@@ -35,6 +35,35 @@ func newRepo(t *testing.T, name string) string {
 	return dir
 }
 
+// A fixture that is a git directory and nothing more: `.git/HEAD`, the one file FromSharedGitDir
+// probes for. It costs no subprocess where newRepo costs seven, and the cases that use it turn on what
+// a key is MADE of rather than on git finding the clone. What keeps that from being a coverage loss is
+// TestBothEntryPointsAgree, which holds Resolve and FromSharedGitDir to one answer over a real
+// repository — so the git-discovery half stays exercised where it belongs, once, instead of in every
+// case that only needed a name to key.
+func newBareRepo(t *testing.T, name string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), name)
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", gitDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatalf("write HEAD in %s: %v", gitDir, err)
+	}
+	return dir
+}
+
+// The key of a bare fixture, through the entry point that asks git nothing.
+func bareKey(t *testing.T, dir string) string {
+	t.Helper()
+	k, err := FromSharedGitDir(filepath.Join(dir, ".git"))
+	if err != nil {
+		t.Fatalf("keying %s: %v", dir, err)
+	}
+	return k
+}
+
 func run(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
@@ -57,6 +86,7 @@ func key(t *testing.T, dir string) string {
 // A worktree's own directory is NOT the clone, and `--show-toplevel` cannot tell the difference; only
 // the shared git dir can.
 func TestEveryWorktreeOfOneCloneKeysTheSame(t *testing.T) {
+	t.Parallel()
 	main := newRepo(t, "project")
 	first := filepath.Join(filepath.Dir(main), "wt-one")
 	second := filepath.Join(filepath.Dir(main), "wt-two")
@@ -78,6 +108,7 @@ func TestEveryWorktreeOfOneCloneKeysTheSame(t *testing.T) {
 // What rules out the remote URL. These two share a remote and differ only in where they sit, which is
 // exactly the pair a URL-derived key collapses into one directory.
 func TestTwoClonesOfOneRemoteKeyApart(t *testing.T) {
+	t.Parallel()
 	origin := newRepo(t, "origin")
 	// Same basename, different parents: remote URL and directory name both identical, so only the
 	// realpath can tell them apart.
@@ -101,6 +132,7 @@ func TestTwoClonesOfOneRemoteKeyApart(t *testing.T) {
 // Reaching one clone by a path that goes through a symlink is still that clone. Without the realpath,
 // the same repository answers to two keys depending on how the caller happened to walk in.
 func TestASymlinkedRouteToOneCloneKeysOnce(t *testing.T) {
+	t.Parallel()
 	direct := newRepo(t, "project")
 	link := filepath.Join(t.TempDir(), "via-link")
 	if err := os.Symlink(filepath.Dir(direct), link); err != nil {
@@ -114,6 +146,7 @@ func TestASymlinkedRouteToOneCloneKeysOnce(t *testing.T) {
 // A path that resolves to nothing refuses. Falling back to the unresolved string would key one clone
 // two ways, which is the failure the realpath is here to prevent.
 func TestAnUnresolvablePathRefusesRatherThanFallingBack(t *testing.T) {
+	t.Parallel()
 	missing := filepath.Join(t.TempDir(), "gone", ".git")
 	got, err := FromSharedGitDir(missing)
 	if err == nil {
@@ -126,6 +159,7 @@ func TestAnUnresolvablePathRefusesRatherThanFallingBack(t *testing.T) {
 
 // A directory inside no repository refuses, rather than keying whatever git said on the way out.
 func TestOutsideARepositoryItRefuses(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if _, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output(); err == nil {
 		t.Skip("the temp dir sits inside a repository, so this case would prove nothing")
@@ -138,6 +172,7 @@ func TestOutsideARepositoryItRefuses(t *testing.T) {
 // The two entry points are one algorithm: the command resolves git itself, a Go caller hands over the
 // path it already holds. A drift between them is a clone with two names no single consumer can see.
 func TestBothEntryPointsAgree(t *testing.T) {
+	t.Parallel()
 	dir := newRepo(t, "project")
 	shared := run(t, dir, "rev-parse", "--git-common-dir")
 	if !filepath.IsAbs(shared) {
@@ -162,6 +197,11 @@ func cloneInto(t *testing.T, origin, target string) {
 	run(t, target, "config", "user.name", "t")
 }
 
+// The one case that is not parallel: its subtests call t.Setenv, which Go bars under a parallel
+// parent, and the fixtures here are built with the ambient environment that those subtests then
+// change. Sequential, its body runs before any parallel case resumes, so nothing else is live while
+// GIT_DIR points elsewhere.
+//
 // git reads its location from the environment before it looks at the directory it was run in, so an
 // inherited variable answers for a clone the caller never named — a hook in a linked worktree runs with
 // one set, and that is how a key for clone A ends up naming clone B's directories.
@@ -191,9 +231,10 @@ func TestNoInheritedVariableChoosesTheRepository(t *testing.T) {
 var safeKey = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 func TestAKeyIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {
-		dir := newRepo(t, name)
-		got := key(t, dir)
+		dir := newBareRepo(t, name)
+		got := bareKey(t, dir)
 		if !safeKey.MatchString(got) {
 			t.Errorf("directory %q keyed %q, which is not confined to characters that survive a path or a command line", name, got)
 		}
@@ -209,23 +250,26 @@ func TestAKeyIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 // Two clones whose names differ only in characters the safe half flattens still key apart: the digest
 // carries the uniqueness, so nothing is lost by reducing the readable half.
 func TestFlatteningTheNameNeverCollidesTwoClones(t *testing.T) {
-	first, second := newRepo(t, "a b"), newRepo(t, "a-b")
-	if key(t, first) == key(t, second) {
-		t.Fatalf("both clones keyed %s — flattening the readable half lost the distinction the digest should have kept", key(t, first))
+	t.Parallel()
+	first, second := newBareRepo(t, "a b"), newBareRepo(t, "a-b")
+	if bareKey(t, first) == bareKey(t, second) {
+		t.Fatalf("both clones keyed %s — flattening the readable half lost the distinction the digest should have kept", bareKey(t, first))
 	}
 }
 
 // An ordinary name passes through untouched. Without this, tightening the safe half could silently
 // rename every existing directory that a consumer has already created on disk.
 func TestAnOrdinaryNameIsUnchanged(t *testing.T) {
-	dir := newRepo(t, "player-testing")
-	if got := key(t, dir); !strings.HasPrefix(got, "player-testing-") {
+	t.Parallel()
+	dir := newBareRepo(t, "player-testing")
+	if got := bareKey(t, dir); !strings.HasPrefix(got, "player-testing-") {
 		t.Fatalf("keyed %s — an ordinary directory name must survive verbatim, or existing directories are renamed under their users", got)
 	}
 }
 
 func TestAPathThatIsNotAGitDirRefuses(t *testing.T) {
-	dir := newRepo(t, "project")
+	t.Parallel()
+	dir := newBareRepo(t, "project")
 	if got, err := FromSharedGitDir(dir); err == nil {
 		t.Fatalf("the worktree root keyed as %q instead of refusing — a caller passing the wrong path gets a plausible answer", got)
 	}
@@ -243,6 +287,7 @@ func TestAPathThatIsNotAGitDirRefuses(t *testing.T) {
 // Every refusal that echoes a path is exercised, not just the first one reached. Each is a separate
 // interpolation, so a case hitting one leaves the others free to be unwrapped with nothing turning red.
 func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
+	t.Parallel()
 	hostile := []string{"evil\x1b[2K\rALL CLEAR", "two\nlines", "bell\a", "csi\u009bm"}
 	for _, name := range hostile {
 		parent := t.TempDir()
