@@ -6,7 +6,7 @@ disable-model-invocation: true
 audience: maintainer
 ---
 
-**Runs:** inline — landing
+**Runs:** orchestrator
 
 **You orchestrate and you never read the work.** Your context grows by a line a round: each round's two agents are thrown away with everything they read, and that is what buys the hours. Read a diff to check it and the loop's budget is gone. **Verify from the ref, never from the report.**
 

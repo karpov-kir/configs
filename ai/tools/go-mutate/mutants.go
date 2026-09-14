@@ -732,6 +732,11 @@ var mutants = []mutant{
 		`const intervalDays = 7`, `const intervalDays = 9`},
 	{"cadence: the interval boundary becomes strictly greater", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
 		`if elapsed >= intervalDays {`, `if elapsed > intervalDays {`},
+	// The ceiling compares an orchestrator's row against the dearest model its client has. Reading the
+	// cheapest instead leaves it green over a tree that is entirely at the top tier, which is the one
+	// direction that costs money silently.
+	{"model-policy: the tier ceiling read off the cheapest model", "../model-policy/policy.go", "./model-policy/", "TestTheCeilingCatchesAnOrchestratorAtTheTopTier",
+		`return ordered[len(ordered)-1], true`, `return ordered[0], true`},
 	{"cadence: a stamp later than today reads as a not-due", "../cadence/cadence.go", "./cadence/", "TestAFutureStampIsUndetermined",
 		`if elapsed < 0 {`, `if elapsed < 0 && false {`},
 	{"cadence: the date's shape goes unchecked", "../cadence/cadence.go", "./cadence/", "TestARecordThatIsNoDate",

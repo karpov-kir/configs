@@ -3,7 +3,7 @@ name: idsd-qualify
 description: Run the quality pipeline over the working tree with a merge stamp. Use for "qualify the changes" inside an IDSD project. The `.idsd` report layer over kk-qualify — the same pass without a report is that skill's.
 ---
 
-**Runs:** inline — landing
+**Runs:** orchestrator
 
 Callers: standalone, or `idsd-ship`'s quality pass, which runs this skill **inline**. The current coordinator owns leaf dispatch under `~/.kk-flavor/standards/skill-protocol.md`; do not create another qualification coordinator.
 

@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: "<NNN-slug>"
 ---
 
-**Runs:** inline — landing
+**Runs:** holds — landing
 
 An explicit request to finalize invokes this skill directly; the invocation marker disables automatic selection, not a human's natural-language request.
 

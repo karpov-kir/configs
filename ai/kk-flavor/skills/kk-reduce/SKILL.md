@@ -6,7 +6,7 @@ disable-model-invocation: true
 audience: maintainer
 ---
 
-**Runs:** inline — human
+**Runs:** holds — session-context
 
 Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — without losing what steers an agent.
 

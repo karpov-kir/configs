@@ -4,7 +4,7 @@ description: Work a GitHub PR — draft a pending review, address the review com
 argument-hint: "<review|address-review|refine-description|review-and-address> [PR number, URL, or head branch]"
 ---
 
-**Runs:** inline — landing
+**Runs:** holds — landing
 
 `$ARGUMENTS` opens with a **required** mode — one of the four below, or an argument plainly saying the same; with neither, ask which rather than guessing from the PR. What follows names the PR; with nothing after it, the current branch's. `gh` must be authenticated.
 

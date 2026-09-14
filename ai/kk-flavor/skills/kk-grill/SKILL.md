@@ -4,7 +4,7 @@ description: Grill the user relentlessly about a plan, decision or idea — roun
 argument-hint: "the plan, decision or idea to stress-test"
 ---
 
-**Runs:** inline — human
+**Runs:** holds — converses
 
 Interview the user relentlessly until you reach a shared understanding. Map the topic as a **design tree**: every decision branches into the decisions that hang off it.
 

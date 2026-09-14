@@ -2,11 +2,14 @@ package modelpolicy
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -21,8 +24,12 @@ const (
 )
 
 // The line a SKILL.md declares how it runs with, and the Lanes table row the quality pass dispatches by.
+// Three forms, because the old two conflated a skill that keeps work with one that hands all of it
+// away: `dispatched` is a worker that still has a door, `orchestrator` a skill whose every substantive
+// step is a dispatch, and `holds` a session, naming which of the three standing reasons keeps the work
+// (ecosystem.md → **Three kinds, two homes**). The em dash is the one in the tree, not a hyphen.
 var (
-	runsMode = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|inline — (?:human|session-context|landing)) *$`)
+	runsMode = regexp.MustCompile(`(?m)^\*\*Runs:\*\* *(dispatched|orchestrator|holds — (?:converses|session-context|landing)) *$`)
 	runsLine = regexp.MustCompile(`(?m)^\*\*Runs:\*\*`)
 	// Column two names what fills the lane, which is a worker's path for most of them and a skill's
 	// bare name for the three that kept a door. Both are reduced to the key the policy is written
@@ -190,25 +197,11 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if len(enforced) < 5 {
 		t.Fatalf("the Lanes table yielded %d lanes, so this proved nothing", len(enforced)-1)
 	}
-	// A skill's own **Runs:** line is authoritative where it has one: the lane table knows only the
-	// skills the quality pass dispatches, and a skill dispatched elsewhere is invisible to it.
-	declaredRuns := 0
-	for skill, body := range skills {
-		// `inline` must name which of the three reasons it is legitimate for, so that the claim is
-		// arguable from the file rather than only by a human reading the skill. Dispatched needs no
-		// reason: it is the default.
-		mode := runsMode.FindSubmatch(body)
-		if mode == nil {
-			if runsLine.Match(body) {
-				t.Errorf("%s declares how it runs in a form this cannot read; inline needs one of human, session-context or landing", skill)
-			}
-			continue
-		}
-		declaredRuns++
-		enforced[skill] = string(mode[1]) == "dispatched"
-	}
-	if declaredRuns == 0 {
-		t.Fatal("no skill declares how it runs, so the split rests on the lane table alone")
+	// A skill's own **Runs:** line is authoritative: the lane table knows only the skills the quality
+	// pass dispatches, and a skill dispatched elsewhere is invisible to it. Only `dispatched` puts a
+	// row under workers — an orchestrator and a session both run in whatever session invoked them.
+	for skill, mode := range declaredRunModes(t) {
+		enforced[skill] = mode == "dispatched"
 	}
 	// A sub-row is a worker when it has a prompt of its own or names another worker's. A session sub-row
 	// is a named path through the same session, so it takes the kind of the skill it belongs to.
@@ -236,6 +229,143 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 			t.Errorf("%s runs in its caller's session, so it belongs under sessions, not workers", name)
 		}
 	}
+}
+
+// Every skill declares how it runs, in a form this file can read. Missing, the derivation below falls
+// back to the lane table, which sees only the skills the quality pass dispatches — so a skill that
+// forgot the line lands in whichever map its silence happens to imply, and the ceiling never asks it
+// anything. The declarations, by skill.
+func declaredRunModes(t *testing.T) map[string]string {
+	t.Helper()
+	declared := map[string]string{}
+	for skill, body := range skillBodies(t) {
+		mode := runsMode.FindSubmatch(body)
+		if mode == nil {
+			if runsLine.Match(body) {
+				t.Errorf("%s declares how it runs in a form this cannot read; it is `dispatched`, `orchestrator`, or `holds — ` one of converses, session-context, landing", skill)
+			} else {
+				t.Errorf("%s declares no **Runs:** line, so nothing says whether it holds work or hands every step away", skill)
+			}
+			continue
+		}
+		declared[skill] = string(mode[1])
+	}
+	return declared
+}
+
+func TestEverySkillDeclaresHowItRuns(t *testing.T) {
+	declared := declaredRunModes(t)
+	if len(declared) != len(skillBodies(t)) {
+		t.Fatalf("%d skills declare how they run out of %d", len(declared), len(skillBodies(t)))
+	}
+}
+
+// The ceiling. An orchestrator claims every substantive step is dispatched; the most expensive row is
+// what the work a session keeps costs, so a skill holding both says two things that cannot both be
+// true and neither file says which one to believe.
+//
+// Given the policy and the declarations rather than reading either, so the case below can hand it a
+// tree that has the defect. A gate only ever run against a tree that passes is one nobody has watched
+// fail.
+//
+// An orchestrator must name a model for every client, because a row that names none names no tier and
+// the ceiling has nothing to compare. validateSettings already requires one of every claude row; codex
+// may carry an effort alone, which is legitimate for a worker and is the one shape that would slip an
+// orchestrator past this — so it is reported rather than skipped.
+func orchestratorsAtTheCeiling(policy *Policy, declared map[string]string) (atTop, unranked []string, err error) {
+	for _, client := range []string{"codex", "claude"} {
+		top, ranked := policy.TopTier(client)
+		if !ranked {
+			return nil, nil, fmt.Errorf("the policy orders no %s tiers, so nothing here knows which model is the top one", client)
+		}
+		for skill, mode := range declared {
+			if mode != "orchestrator" {
+				continue
+			}
+			decision, resolveErr := policy.Resolve(Request{Client: client, Task: skill})
+			if resolveErr != nil {
+				return nil, nil, fmt.Errorf("%s declares itself an orchestrator and the policy does not price it: %w", skill, resolveErr)
+			}
+			switch decision.Requested.Model {
+			case "":
+				unranked = append(unranked, client+"/"+skill)
+			case top:
+				atTop = append(atTop, client+"/"+skill)
+			}
+		}
+	}
+	sort.Strings(atTop)
+	sort.Strings(unranked)
+	return atTop, unranked, nil
+}
+
+func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
+	declared := declaredRunModes(t)
+	orchestrators := 0
+	for _, mode := range declared {
+		if mode == "orchestrator" {
+			orchestrators++
+		}
+	}
+	if orchestrators == 0 {
+		t.Fatal("no skill declares itself an orchestrator, so this proved nothing")
+	}
+	atTop, unranked, err := orchestratorsAtTheCeiling(loadShippedPolicy(t), declared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range atTop {
+		t.Errorf("%s is declared an orchestrator and priced at the top tier — find the work that tier is paying for: either it is real and the skill is a session naming which reason holds it, or it was dispatched already and the row never came down", at)
+	}
+	for _, at := range unranked {
+		t.Errorf("%s is declared an orchestrator and its row names no model, so no tier can be read from it and the ceiling above cannot judge it", at)
+	}
+}
+
+// The ceiling against trees that have the defect, which the shipped one does not. Both clients are
+// asserted separately: the two orders share no model name, so a check that read one list and compared
+// against the other's top would report nothing and look green.
+func TestTheCeilingCatchesAnOrchestratorAtTheTopTier(t *testing.T) {
+	// `sample` prices kk-build at claude's top tier and gives codex an effort with no model — one of
+	// each finding from a single call.
+	atTop, unranked := ceilingOver(t, sample, map[string]string{"kk-build": "orchestrator"})
+	if want := []string{"claude/kk-build"}; !slices.Equal(atTop, want) {
+		t.Fatalf("at the ceiling: %v; want %v", atTop, want)
+	}
+	if want := []string{"codex/kk-build"}; !slices.Equal(unranked, want) {
+		t.Fatalf("unranked: %v; want %v", unranked, want)
+	}
+
+	// The same row given codex's top model too, so the codex half is asserted against its own order
+	// rather than only against the absence of a model.
+	bothAtTop := strings.Replace(sample, `"kk-build":{"codex":{"effort":"high"}`, `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, 1)
+	if bothAtTop == sample {
+		t.Fatal("the fixture edit matched nothing, so this case tests the unmodified sample twice")
+	}
+	atTop, unranked = ceilingOver(t, bothAtTop, map[string]string{"kk-build": "orchestrator"})
+	if want := []string{"claude/kk-build", "codex/kk-build"}; !slices.Equal(atTop, want) || len(unranked) != 0 {
+		t.Fatalf("at the ceiling: %v, unranked %v; want %v and none", atTop, unranked, want)
+	}
+
+	// The same row declared for the work it keeps is no finding at all — the ceiling reads the
+	// declaration, never the tier alone.
+	atTop, unranked = ceilingOver(t, bothAtTop, map[string]string{"kk-build": "holds — converses"})
+	if len(atTop) != 0 || len(unranked) != 0 {
+		t.Fatalf("a session at the top tier was reported: %v, %v", atTop, unranked)
+	}
+}
+
+func ceilingOver(t *testing.T, raw string, declared map[string]string) (atTop, unranked []string) {
+	t.Helper()
+	policy, err := Parse([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	atTop, unranked, err = orchestratorsAtTheCeiling(policy, declared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return atTop, unranked
 }
 
 // A task the policy does not list is refused, including one whose path starts with a skill that has a

@@ -358,6 +358,19 @@ func (p *Policy) TierOf(client, model string) (int, bool) {
 	return 0, false
 }
 
+// TopTier names the most expensive model one client has, which is the ceiling an orchestrator may not
+// reach. Derived from the order rather than pinned anywhere, so adding a tier above the current one
+// moves the ceiling with it instead of leaving a gate guarding a rank that is no longer the top. The
+// bool distinguishes an unknown client from a client whose list is empty, which validateTiers refuses
+// for the two real ones but which a policy built in a test can still hold.
+func (p *Policy) TopTier(client string) (string, bool) {
+	ordered := p.content.Tiers[client]
+	if len(ordered) == 0 {
+		return "", false
+	}
+	return ordered[len(ordered)-1], true
+}
+
 // TaskNames answers what the policy covers, so a check can compare it against the dispatch sites that
 // exist rather than trusting a hand-kept list.
 func (p *Policy) TaskNames() []string {

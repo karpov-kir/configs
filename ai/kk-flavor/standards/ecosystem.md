@@ -38,7 +38,9 @@ Three kinds — worker, orchestrator, session — live in two directories, and a
 
 **A worker is `kk-flavor/workers/<path>.md`. It has no door, and it is only ever dispatched** — `code-review`, `conform`, `reduce/arbitrate`. Nothing the human types reaches it, so the model its row assigns is the model it actually runs at.
 
-**An orchestrator and a session are both `kk-flavor/skills/<name>/SKILL.md` with a door**, and what separates them is a declaration inside the file, not a different directory. An orchestrator dispatches every substantive step. A session holds model work itself, and takes the tier of the work it holds.
+**An orchestrator and a session are both `kk-flavor/skills/<name>/SKILL.md` with a door**, and what separates them is a declaration inside the file, not a different directory. It is the `**Runs:**` line beside the frontmatter: `orchestrator` dispatches every substantive step, and `holds — <reason>` keeps model work for one of the three reasons [model-policy.md](model-policy.md) → **Cost is a design constraint** admits — `converses`, `session-context` or `landing`. A session takes the tier of the work it holds; **an orchestrator may not hold the top tier**, because the claim and the row would contradict each other and the Go suite refuses that.
+
+**`orchestrator` there is a kind, not the protocol role.** [skill-protocol.md](skill-protocol.md) → **Orchestrators — interactive first** binds anything that dispatches and relays, which most sessions do too. The declaration answers a narrower question: is there substantive work this file keeps for itself?
 
 **A dispatch resolves into `workers/`.** That is the one edge that spends money, and it is the one the families rule below and [model-policy.md](model-policy.md) both price. Three other edges name a second file the same way and are not dispatches: **extension**, one session reading a second contract as its delta; **sequencing**, a pipeline naming the stage after it; and **orientation**, a pointer placing one skill against its neighbour. Forbidding those would duplicate whole contracts rather than simplify anything.
 

@@ -12,7 +12,7 @@ A **worker** is `workers/<name>.md`, `workers/<group>/<name>.md`, or one segment
 
 `models.json`'s two maps then line up with the two homes exactly: `workers` is the `workers/` tree, `sessions` is the `skills/` tree. Today the maps cut across one directory, which is why a name in the file cannot be read for what it is.
 
-**A worker's row becomes true, which today it is not.** Ten skills declare `**Runs:** dispatched` while remaining mounted and `/`-invocable, so whenever the human types one it runs inline in their own session at their own tier and its row selects nothing. Moving them removes that path rather than documenting it.
+**A worker's row becomes true, which at the time it was not.** Ten skills declared `**Runs:** dispatched` while remaining mounted and `/`-invocable, so whenever the human typed one it ran inline in their own session at their own tier and its row selected nothing. Moving them removes that path rather than documenting it; seven moved in **Step 2 — landed** and the three that kept doors still declare it.
 
 ### Possible with no install change
 
@@ -70,7 +70,7 @@ Moving the files is mechanical: the seven that lose their doors are cited by pat
 
 **Seven of the ten lose their door; `kk-edit`, `kk-ecosystem` and `kk-diagnose` keep theirs.** Those three are the only ones the router sends a human to; the other seven are reached only by a dispatch, so nothing anyone types goes away. Keeping `kk-ecosystem` a skill keeps `check.sh`, `cite-graph.sh` and `ruleecho.sh` where they are. It does **not** settle the scripts question, as this first claimed: three of the ten ship scripts, `kk-refactor` is one of the three, and it loses its door (**Step 2 — landed**). The rule that holds is narrower — **a worker's prompt is always a file, and any script it owns sits beside it** at `workers/<name>/`.
 
-**A door on top of a worker dispatches it; it never reads it inline.** Inline runs the worker at the calling session's tier, which is the exact falsehood those ten `dispatched` rows tell today, so an inline door would rebuild the hole one skill at a time. The single exception is the `converses` reason — a session that must stay with the human mid-work reads the contract itself and its own row applies, as `kk-build` does with conform. This keeps the escape hatch open: any door can come back later as a two-line skill that dispatches.
+**A door on top of a worker dispatches it; it never reads it inline.** Inline runs the worker at the calling session's tier, which is the exact falsehood those ten `dispatched` rows told, so an inline door would rebuild the hole one skill at a time. The single exception is the `converses` reason — a session that must stay with the human mid-work reads the contract itself and its own row applies, as `kk-build` does with conform. This keeps the escape hatch open: any door can come back later as a two-line skill that dispatches.
 
 **`workers/implement.md` lands alone, after the structure.** It is the only change that alters how building feels, and it should be revertible without unpicking anything else.
 
@@ -246,9 +246,70 @@ Two things that had been recorded and left. Step 3 needs one of them. The other 
 
 **Two controls passed on the first attempt and were the finding, again.** A case meant to prove the widened scan still matches a real directory passed under the truncating scan too — it asked for the whole name, which that scan does not emit, so both readings were green for different reasons. And the duplicate-tier case made the two lists unequal, so the length guard caught it and the duplicate guard was never reached. Both were rewritten to discriminate. **The count that then went into this section was itself wrong.** "Five mutants fail on the policy" was written from the number of guards rather than from a run. Two of them survived: the absent-order guard and the tier-name guard were each answered by the *unranked-model* guard instead — the same wrong-reason green this paragraph opened by claiming to have fixed. Every guard is now disabled one at a time and seven of seven fail. The absent-order case asks **which** guard spoke, because no whole-document parse can isolate that one.
 
+### Step 3 — landed
+
+`**Runs:**` now reads `orchestrator`, `holds — <reason>` or `dispatched`, and the reason vocabulary is
+`converses`, `session-context`, `landing`. **`human` is retired**, which is the whole of what the
+declaration gained: it used to cover a skill that grills the human round by round and a skill that
+shows them a result at the end, and only the first of those is work a worker cannot take. Twenty
+skills: six orchestrators, eleven sessions — five `converses`, four `session-context`, two `landing` —
+and the three workers that still have doors.
+
+**The ceiling turned on and caught exactly one skill.** `kk-qualify` declared itself over work it
+entirely dispatches: every lane is a worker, the conformance and drive gates are dispatches, and each
+lane judges its own findings inside its own spawn. What it keeps is ordering a handful of returns for
+the human, which the plan classes as **presents** — a plain return, not a reason to hold a tier. It is
+`orchestrator` at sonnet now. `idsd-qualify` is the argument: it does strictly more — the same pass
+plus a report, a decision log and a merge stamp — and has been at sonnet all along without anyone
+filing a complaint.
+
+**That contradicted [model-policy.md](ai/kk-flavor/standards/model-policy.md) and the file had to give.**
+It said a coordinator that "reconciles its workers' findings into the only record of them" takes that
+record's tier, which is `kk-qualify` exactly, so the ceiling and the prose could not both stand. The
+distinction it lacked: **summing up is not judging**. A coordinator that holds a gate rather than
+dispatching it, or reaches a verdict over findings no worker was asked to weigh, is a session at that
+tier; one that orders what its lanes already decided is not.
+
+**The ceiling needed a second guard the plan had not written.** A row that names no model names no
+tier, and nothing can be compared against a ceiling. `validateSettings` requires a model of every
+claude row, but a codex row may carry an effort alone — legitimate for a worker, and the one shape that
+would have slipped an orchestrator past the check in silence. Such a row is now reported rather than
+skipped.
+
+**`orchestrator` now means two things and the tree had to say which.**
+[skill-protocol.md](ai/kk-flavor/standards/skill-protocol.md) → **Orchestrators — interactive first**
+binds anything that dispatches and relays, which most of the sessions do too — `kk-pr`, `kk-reduce` and
+`kk-qualify` each call themselves one in their own prose. The declaration asks something narrower, and
+[ecosystem.md](ai/kk-flavor/standards/ecosystem.md) now separates the kind from the role in a sentence
+rather than leaving a reader to collide with it.
+
+**What the ceiling cannot reach, and no Go check can.** It reads a declaration, so a skill that says
+`holds` is exempt by saying it. `idsd-finalize` is the case **Decided** already named: its `landing`
+reason covers the archive and the merge gate, not the drafting and the stamp-check before them, and it
+sits at opus untouched by this step. `kk-pr` has the same shape. **The offload list this plan opened is
+not closed by the ceiling** — the ceiling refuses a contradiction between two files, and a reason that
+covers part of a skill's work is a defect inside one of them. That judgement is `skillcraft`'s lens,
+which now carries it, and it will not fail a gate.
+
+**One of step 2's claims was false and the moment it promised never came.** "Step 3 rewrites every
+prompt's `**Runs:**` line anyway and is the cheap moment to settle it" — a worker prompt carries no
+`**Runs:**` line, and never did; the declaration is a skill's. So the fork about sixteen worker prompts
+each ending their opening with the same sentence was not reopened, and it stands on step 2's own
+reasoning: duplication across contexts that never meet is not what **One home** is about.
+
+**Six controls, each failing on exactly its own change**: `kk-qualify` put back at the top tier,
+`kk-foreman`'s codex row stripped of its model, `kk-foreman` stripped of its declaration, `kk-foreman`
+given the retired `inline — human`, `kk-edit` declared an orchestrator while its row sits under
+`workers`, and `TopTier` reading the cheapest model instead of the dearest. The last is registered as a
+mutant, so it is enforced rather than remembered. **A seventh was written and deleted as unkillable**:
+`TopTier`'s empty-order guard cannot be reached through `Parse`, which refuses an empty tier list, so
+disabling it changes no test and a mutant on it would have measured nothing.
+
+**The distribution the ceiling now acts on: 23 rows at opus, 16 at sonnet, 1 at haiku.**
+
 ### Migration
 
-Land it in four steps, each green on its own, with the first taken in two halves. First the sites that already had prompts, then the rest as step 1b: create `workers/`, move or author each prompt, retire that site's `**Dispatches:**` entry, and switch the Go checks to the directory. No door moves in either half, so nothing the human types changes. See **Step 1 — landed** and **Step 1b — landed** for what that cost. Second, seven of those ten become worker files — `kk-diagnose` and the two that keep doors are excepted — and their mounts are removed as the last step of that landing. See **Step 2 — landed**. Third, `**Runs:**` becomes `orchestrator` or `holds — <reason>`, and the orchestrator tier ceiling turns on; every skill it fails is either relabelled a session or has its held work dispatched. Fourth, `--graph` and `--cost`.
+Land it in four steps, each green on its own, with the first taken in two halves. First the sites that already had prompts, then the rest as step 1b: create `workers/`, move or author each prompt, retire that site's `**Dispatches:**` entry, and switch the Go checks to the directory. No door moves in either half, so nothing the human types changes. See **Step 1 — landed** and **Step 1b — landed** for what that cost. Second, seven of those ten become worker files — `kk-diagnose` and the two that keep doors are excepted — and their mounts are removed as the last step of that landing. See **Step 2 — landed**. Third, `**Runs:**` becomes `orchestrator` or `holds — <reason>`, and the orchestrator tier ceiling turns on; every skill it fails is either relabelled a session or has its held work dispatched. See **Step 3 — landed**. Fourth, `--graph` and `--cost`.
 
 The reversal risk sits in step two and nowhere else: it removes `/kk-code-review`, `/kk-refactor`, `/kk-conform`, `/kk-drive`, `/kk-security-review`, `/kk-skillcraft` and `/idsd-audit` as typed commands, leaving `kk-foreman` as their door — the three that **Decided** keeps are not in that list. Cheaper than keeping them, because each of those paths today runs a worker's contract inline at a session's tier.
 

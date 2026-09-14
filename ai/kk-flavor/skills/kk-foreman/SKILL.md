@@ -5,7 +5,7 @@ argument-hint: "what you want done, plus \"unattended\" to hand the run over (de
 disable-model-invocation: true
 ---
 
-**Runs:** inline — human
+**Runs:** orchestrator
 
 You select the smallest workflow and keep its coordination in this session. Dispatch its leaf workers directly per `~/.kk-flavor/standards/skill-protocol.md`. **Authoring is the exception**: no skill here drafts a PR edit or a ticket body from nothing, so you write the first version and route it.
 

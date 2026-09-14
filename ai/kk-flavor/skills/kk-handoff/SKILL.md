@@ -4,7 +4,7 @@ description: Write the prompt that hands a piece of work to a fresh session, the
 argument-hint: "the work to hand off"
 ---
 
-**Runs:** inline — session-context
+**Runs:** holds — session-context
 
 Hand the work over as one prompt that stands alone, plus the task that starts a session on it.
 

@@ -82,13 +82,22 @@ are structurally invisible** — the return reads as complete whatever it left o
 was counted against came from the same pass. Such a task stays protected however mechanical the
 grading half looks.
 
-**Inline is a claim that needs a reason, and there are only three.** The work decides *with* the
-human, so a worker that has none cannot do it; it needs context only that session holds; or it
-performs the act with no undo. A skill declares which, and anything else is dispatched. **The reason
-is what makes the classification arguable** — agreement between a skill and the policy proves only
-that they say the same thing, and a wrong `inline` passes every consistency check ever written for it.
-**A reason that covers part of what the skill does is the offload signal**: the landing is inline, the
-pass that precedes it need not be.
+**Holding work is a claim that needs a reason, and there are only three.** The work decides *with* the
+human round by round, so a worker that has none cannot do it — `converses`; it needs context only that
+session holds — `session-context`; or it performs the act with no undo — `landing`. A skill declares
+which, and one that can declare none dispatches every substantive step and is an `orchestrator`. **The
+reason is what makes the classification arguable** — agreement between a skill and the policy proves
+only that they say the same thing, and a wrong `holds` passes every consistency check ever written for
+it. **A reason that covers part of what the skill does is the offload signal**: the landing is held,
+the pass that precedes it need not be.
+
+**Needing the human is not one reason but three, and only one of them holds work.** A skill that
+**converses** — each question shaped by the last answer — cannot hand that away: a worker reaches the
+human only by returning `blocked:` and being resumed ([skill-protocol.md](skill-protocol.md) →
+**Orchestrators — interactive first**), so a dialogue costs a block-and-resume cycle per round with
+both sides of it billed twice. A skill that **asks once** for a fact its work cannot supply is that
+single relay, and one that **presents** a result for approval at the end is a plain return needing no
+relay at all. Those two are orchestrators with a question in them, not sessions.
 
 **A coordinator that needs a high tier is a coordinator holding work that belongs in a worker.** Read
 the row as a finding, not a setting: the tier is what the inline work costs, so the fix is to dispatch
@@ -96,11 +105,18 @@ that work and then lower the row. **Lowering it first only underpowers the work*
 does it, and now does it worse. A coordinator whose every substantive step is dispatched has nothing
 left that a cheap tier cannot carry.
 
-**Orchestrating is cheap; running a gate is not, and a coordinator can do both.** One that only
-schedules, routes and relays reports is light work. One that also holds a gate itself, or reconciles
-its workers' findings into the only record of them, is doing that gate's work at that gate's stakes —
-and takes its tier. Read what a coordinator does when it is invoked bare, not what it does when
-everything below it is dispatched.
+**Orchestrating is cheap; running a gate is not, and a coordinator can do both.** One that schedules,
+routes, relays and sums up is light work — ordering a handful of returns for the human is not the
+judging, which each lane already did inside its own dispatch. One that **holds** a gate rather than
+dispatching it, or reaches a verdict of its own over findings no worker was asked to weigh, is doing
+that gate's work at that gate's stakes: it is a session at that tier, not an orchestrator. Read what a
+coordinator does when it is invoked bare, not what it does when everything below it is dispatched.
+
+**An orchestrator may not hold the top tier, and the Go suite refuses one that does.** The declaration
+claims every substantive step is dispatched; the most expensive row contradicts the claim, and nothing
+in either file says which half is wrong. Do not settle it by editing whichever is cheaper to edit —
+find the work the tier is paying for. Either it is real, and the skill is a session naming which of
+the three reasons holds it, or it was dispatched already and the row never came down.
 
 **A cheap coordinator is safe only once every site under it names its own model**, and no worker is
 lowered to compensate for its parent. Its own session is charged on every turn, so a long-lived
@@ -121,8 +137,9 @@ Two kinds of control, and the difference decides where effort is worth spending:
   these rows are a convention the agent keeps rather than a gate — but a model *is* selected.
 - **A session** — everything under `sessions`. The skill runs in whatever session invoked it, so
   nothing sets its model and the value is advice about how that session should have been started.
-  Which rows belong there is derived rather than judged: **each skill declares `**Runs:** dispatched`
-  or `**Runs:** inline — <reason>`** beside its frontmatter, and the Go suite checks the two maps
+  Which rows belong there is derived rather than judged: **each skill declares `**Runs:** dispatched`,
+  `**Runs:** orchestrator` or `**Runs:** holds — <reason>`** beside its frontmatter — the first puts
+  its row under `workers`, the other two under `sessions` — and the Go suite checks the two maps
   against those declarations both ways.
 
 **A client's own model setting beats the policy, and no flag reaches past it.** A `model` pin in the

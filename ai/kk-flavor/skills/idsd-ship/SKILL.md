@@ -4,7 +4,7 @@ description: "Coordinate an ICE intent through build, qualification and authoriz
 argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote"
 ---
 
-**Runs:** inline — landing
+**Runs:** orchestrator
 
 **Check session ownership before renaming, opening a report or changing the tree.** If this is a reactor session, follow `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role** and prepare or resume the owning task instead of entering this lifecycle here.
 

@@ -4,7 +4,7 @@ description: Take a settled requirement to a green tree — place the work, plan
 argument-hint: "the requirement to build — a ticket, an issue, a file holding it, or the ask itself"
 ---
 
-**Runs:** inline — human
+**Runs:** holds — converses
 
 Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md`; do not spawn a build wrapper merely to invoke this entry. Apply `~/.kk-flavor/standards/building.md` when Phase 4 starts. Read the selected phase's additional references only when needed. Exploration dispatches `~/.kk-flavor/workers/build/explore.md` as `build/explore`; every other phase answers `kk-build` (`~/.kk-flavor/standards/model-policy.md`).
 

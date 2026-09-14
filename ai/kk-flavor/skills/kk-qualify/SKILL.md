@@ -4,7 +4,7 @@ description: Run the multi-stage quality pipeline over a change set, in any repo
 argument-hint: "[scope: a path, a diff selector, or natural language]"
 ---
 
-**Runs:** inline — human
+**Runs:** orchestrator
 
 **The round, the stages and the gate check are `~/.kk-flavor/standards/quality-pipeline.md`** — read it; everything below is this skill's delta. The target is the working tree unless your caller names another. **Nothing waits on your pass unless your caller says it does**: a request for a full or complete pass runs every applicable lane. Trim for turnaround only when the caller explicitly requests it, and state what was trimmed.
 
