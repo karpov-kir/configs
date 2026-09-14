@@ -14,6 +14,23 @@
 // a file, a search string and its replacement, and preflight refuses any that no longer matches
 // exactly once.
 //
+// # What this costs, and what it has caught
+//
+// Asked whenever the harness looks like ceremony, and answered from measurement rather than from the
+// figures in IDEAS.md, which are a local `ai/gate.sh --full` and not what a push pays. The gate's fast
+// path defers every mutation unit, so the daily local loop pays nothing at all. Twenty consecutive
+// `mutants` jobs swept all 526 mutants cold in 297s to 614s, beside a macOS suite job of about 200s, so
+// the sweep adds two to seven minutes to a push and nothing to anything else. `mutants.go` has appeared
+// in 73 of this repo's commits and in only 5 of them substantially alone: an anchor moves inside the
+// change that moved the code.
+//
+// The standing value is the case testing.md's rule 10 cannot reach. Writing a test first proves it
+// could fail once; nothing but a mutant proves it still can. Both of this repo's mutation findings are
+// that case and not the first one — a guard arm no case reached, whose hole predated the branch that
+// found it, and a collision guard that could never fire because identical ids always flattened to one
+// stem. Neither was visible in a diff, and coverage counts the second as covered: the line runs on
+// every call and the condition it tests can never hold.
+//
 // # Repointing a mutant
 //
 // An edit that moves a mutant's anchor text reddens preflight, and the obvious repair is to point the
