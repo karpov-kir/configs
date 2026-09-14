@@ -1,10 +1,8 @@
-// The tree fingerprint as a command.
+// The tree fingerprint as a command, behind `ai/kk-flavor/scripts/tree-fingerprint.sh`, which states
+// the usage and what a caller gets back.
 //
-//	usage: tree-fingerprint.sh [<repo path>]
-//
-// Prints the tree hash, or exits 2 naming which way it could not be answered. There is no exit 1: a
-// fingerprint either is the tree's hash or it is nothing, and a caller that read a refusal as a hash
-// would write a ledger head no later run can match.
+// There is no exit 1 here: a fingerprint either is the tree's hash or it is nothing, and a caller that
+// read a refusal as a hash would write a ledger head no later run can match.
 package main
 
 import (

@@ -4,9 +4,6 @@
 #
 # usage: repo-key.sh [<repo path>]. Prints the key, or exits 2 with a reason.
 #
-# There is no exit 1: a key either names this clone or it is nothing, and a caller that read a refusal
-# as a key would write into a directory belonging to no repository.
-#
 # The recipe is Go, in `ai/tools/repo-key/`; Go callers import it rather than coming through here.
 #
 # tested by: the Go suite in ai/tools/repo-key/; shared stub by tool-stub-test.sh.

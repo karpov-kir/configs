@@ -1,10 +1,8 @@
-// The repo key as a command.
+// The repo key as a command, behind `ai/kk-flavor/scripts/repo-key.sh`, which states the usage and
+// what a caller gets back.
 //
-//	usage: repo-key.sh [<repo path>]
-//
-// Prints the key, or exits 2 naming which way it could not be answered. There is no exit 1: a key
-// either names this clone or it is nothing, and a caller that read a refusal as a key would write into
-// a directory belonging to no repository.
+// There is no exit 1 here: a key either names this clone or it is nothing, and a caller that read a
+// refusal as a key would write into a directory belonging to no repository.
 package main
 
 import (
