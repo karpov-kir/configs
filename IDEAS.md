@@ -334,7 +334,8 @@ orchestrators remain — `kk-foreman`, `kk-patrol`, `kk-qualify`, `idsd-qualify`
 ticket body from nothing, because no skill in the bucket does — read against "dispatches every
 substantive step" that is a contradiction. **Substantive means a verdict, not a keystroke**: authoring
 a first version that a lane then reads is not held judgement, because the judgement lands in the lane.
-That clause is in both files now, where a reader meets the word.
+[model-policy.md](ai/kk-flavor/standards/model-policy.md) owns that clause, and
+[ecosystem.md](ai/kk-flavor/standards/ecosystem.md) routes to it at the word rather than restating it.
 
 **`kk-reduce` is the one reason this step changed rather than renamed, and the first draft of this
 record did not say why.** It reads like `kk-qualify` — every phase is a `reduce/*` worker, and its own
@@ -362,6 +363,73 @@ exists only for the 22 dispatch sites. "What does *this* skill cost" is unanswer
 all 16 it lists. That is `--cost`'s job.
 
 **The distribution the ceiling now acts on: 24 rows at opus, 15 at sonnet, 1 at haiku.**
+
+### Step 3 — what the gates found
+
+**The conformance gate read the declarations against the files carrying them, and two of the six
+orchestrators were misdeclared.** `idsd-ship` says outright that it loads `idsd-build`, `idsd-qualify`
+and `idsd-finalize` and works through all three inline; at sonnet it was running an opus session's gap
+round with the human and an opus session's landing under a cheap row. `idsd-reactor` owns scheduling,
+handoffs and reconciliation across turns and resumes and inlines `kk-handoff`, which is the hold
+`kk-handoff` declares for itself. **Neither was reachable by the ceiling** — both sat at sonnet, under
+it — and the gate found them by reading, which is the only thing that could have. The rule they broke
+was missing rather than misapplied: [ecosystem.md](ai/kk-flavor/standards/ecosystem.md) already said a
+session reading a contract inline runs it at its own row, and nothing drew the conclusion that the row
+must then cover it.
+
+**`kk-foreman` was the third contradiction and was not a defect.** It drafts a PR edit or a ticket body
+from nothing because nothing in the bucket does, which read against "dispatches every substantive step"
+is a contradiction. The definition was the thing to cut: **substantive means a verdict, not a
+keystroke**, and authoring a first version a lane then reads is not held judgement.
+
+**The drive gate ran seven scenarios, none diverged, and it found the unranked-row hole one layer below
+where the ceiling reports it.** A **worker** row carrying a codex effort and no model passed the entire
+suite, and that dispatch takes its caller's model. The guard moved into `validateSettings`. Four more
+gaps came out of the same run and are recorded above.
+
+### Step 3 — what the round found
+
+**Every false comment in the change set was one this change had created.** Four of them, all in
+`model-policy`: the `Tiers` field still describing a row that may name a codex effort and no model, the
+same claim inside `validateTiers`, and `TopTier`'s doc asserting its bool "distinguishes an unknown
+client from a client whose list is empty" when both paths return the same thing. **The sharpest was a
+fixture**: `"no tier order at all"` had every row naming no model, so after this change the no-model
+guard answered before the absent-order guard the case exists for — a green for the wrong reason, in a
+case written to prevent exactly that.
+
+**A correct refactor broke a mutant, and the harness caught it.** `validateSettings`' `settings.Model
+!= ""` half was dead after the new early return and the refactor lane dropped it — right. But with the
+no-model guard then disabled, `validName` refuses the empty model instead, so the mutant died to a
+different guard and reported `KILLED NOTHING`. The case asserted only that an error came back; it names
+the sentence now. **This is the fourth green-for-the-wrong-reason in this plan and the first a machine
+found rather than a person** — the three before it were caught by control runs done by hand.
+
+**The refactor lane made the ceiling's unreachable arm unreachable by construction.** `{"codex",
+"claude"}` was written at five sites; it is one `dispatchClients` now, read by `validateTiers`, by
+`Resolve` and by the ceiling's own walk, so the arm that refuses a client with no order behind it can
+only fire on a client added to that list without one. It also found `models.json`'s `workers` block was
+never sorted — six rows still sat where their old `kk-`-prefixed names sorted — and `command_test.go`
+over the size ceiling holding three concerns, now split into it and `tree_test.go`.
+
+**The instruction lane's findings were all duplication I had written.** [ecosystem.md](ai/kk-flavor/standards/ecosystem.md)
+restating two of [model-policy.md](ai/kk-flavor/standards/model-policy.md)'s answers instead of routing
+to them, `skillcraft.md` restating both halves of the paragraph it cites, and a new paragraph opening
+"not one reason but three" three lines below a different triad of three. It also closed the gap the
+change left: `kk-reduce` was the one of the three self-described orchestrators that never got the
+kind-versus-role disambiguation.
+
+**The security lane returned no findings and proved it rather than read it.** It ran twelve documents
+through copies of the base and the changed `validateSettings` and established the refusal set grew by
+exactly the codex no-model row and lost nothing, with identical guard attribution for the other eleven,
+then killed both mutants by hand rather than trust the caller's report of them.
+
+**One pre-existing defect surfaced and not fixed**, per the rule for those: a claude row may carry an
+`effort` beside its model and nothing refuses it, though the same reasoning says such a field is a
+saving that changes nothing. No shipped row has one.
+
+**A machine fact worth keeping.** `eco-report`'s suite takes about 21 minutes and Go's default timeout
+is 10, so a bare `go test ./...` cannot pass here and its red says nothing. `ai/gate.sh` runs it with
+its own timeout; it is the only reading of that package worth taking.
 
 ### Migration
 

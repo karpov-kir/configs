@@ -10,7 +10,7 @@ audience: maintainer
 
 Cut an ecosystem of agent instructions hard — Phase 0 sets how hard — without losing what steers an agent.
 
-**You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**); read it and `~/.kk-flavor/standards/ecosystem.md`, the bar every agent judges against, before Phase 1.
+**You orchestrate and do not edit.** The scoped agents apply their own cuts; you set scopes, arbitrate what crosses them, and own the accounting. You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→ **Orchestrators — interactive first**) — the protocol role, not the kind `**Runs:**` above declares: Phase 4's reading and arbitration are yours, and Phase 5 works only because you hold what it withholds. Read it and `~/.kk-flavor/standards/ecosystem.md`, the bar every agent judges against, before Phase 1.
 
 **This campaign uses independent workers for the phases below** — a second opinion from a context that already holds your conclusions is not a second opinion. Each one's prompt is its own file, so yours carries only that agent's scope and delta. **Hand `~/.kk-flavor/skills/kk-reduce/AGENT-BRIEF.md` verbatim to Phase 3's agents**: they run `kk-ecosystem`, whose contract does not name the brief, and the brief is where every editing agent's invariants and return contract live. Phases 4 and 5 read it from their own prompts. **Never hand it to the skillcraft worker or `kk-edit`**, which carry their own.
 

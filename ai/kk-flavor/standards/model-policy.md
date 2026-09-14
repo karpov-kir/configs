@@ -91,13 +91,13 @@ only that they say the same thing, and a wrong `holds` passes every consistency 
 it. **A reason that covers part of what the skill does is the offload signal**: the landing is held,
 the pass that precedes it need not be.
 
-**Needing the human is not one reason but three, and only one of them holds work.** A skill that
-**converses** — each question shaped by the last answer — cannot hand that away: a worker reaches the
-human only by returning `blocked:` and being resumed ([skill-protocol.md](skill-protocol.md) →
-**Orchestrators — interactive first**), so a dialogue costs a block-and-resume cycle per round with
-both sides of it billed twice. A skill that **asks once** for a fact its work cannot supply is that
-single relay, and one that **presents** a result for approval at the end is a plain return needing no
-relay at all. Those two are orchestrators with a question in them, not sessions.
+**Needing the human is not by itself one of them.** A skill that **converses** — each question shaped
+by the last answer — cannot hand that away: a worker reaches the human only by returning `blocked:`
+and being resumed ([skill-protocol.md](skill-protocol.md) → **Orchestrators — interactive first**), so
+a dialogue costs a block-and-resume cycle per round with both sides of it billed twice. A skill that
+**asks once** for a fact its work cannot supply is that single relay, and one that **presents** a
+result for approval at the end is a plain return needing no relay at all. Those two are orchestrators
+with a question in them, not sessions.
 
 **A coordinator that reads another skill's contract inline is priced at the dearest thing it runs that
 way.** Its own row applies ([ecosystem.md](ecosystem.md) → **Three kinds, two homes**), so a lifecycle
@@ -176,9 +176,12 @@ Which fields a transport carries differs, and a field it cannot carry is dropped
 | Claude subagent dispatch | yes, from a fixed set of aliases | no |
 | Codex CLI | yes | yes |
 
-**So a Claude row states a model** — the policy refuses one carrying an effort alone, because it reads
-as a saving and changes nothing. Keep Claude models as the client's aliases (`haiku`, `sonnet`,
-`opus`), which both Claude transports accept where a dated API id is rejected by subagent dispatch.
+**So every row states a model, for both clients** — an effort alone is refused at parse. On Claude
+nothing carries it, so it reads as a saving and changes nothing; on Codex, which does carry one, the
+spawn would run at whatever model its caller had, which is the inheritance this file exists to remove.
+It also leaves the row outside the tier order, where no ceiling can judge it. Keep Claude models as the
+client's aliases (`haiku`, `sonnet`, `opus`), which both Claude transports accept where a dated API id
+is rejected by subagent dispatch.
 
 Unknown tasks and unsupported selections fail visibly. Do not substitute a cheaper model or another
 provider. An explicit user model change updates the relevant run; a background config edit affects new

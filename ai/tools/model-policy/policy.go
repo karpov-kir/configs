@@ -13,8 +13,8 @@ import (
 	"unicode"
 )
 
-// Settings is what a dispatch may set. Which half a transport carries differs, and one it cannot
-// carry it drops in silence — model-policy.md holds the table.
+// Settings is what a dispatch may set. Which half a transport carries differs, and a half it cannot
+// carry drops in silence — model-policy.md holds the table.
 type Settings struct {
 	Model  string `json:"model,omitempty"`
 	Effort string `json:"effort,omitempty"`
@@ -57,8 +57,8 @@ type document struct {
 	// length.
 	//
 	// Held per client rather than as one list of pairs, because the two clients are set
-	// independently: a row may name a codex effort and no codex model at all, and the claude side
-	// has no effort to name.
+	// independently: a row names each client's model on its own, and the codex side carries an
+	// effort beside it that the claude side has nowhere to put.
 	Tiers    map[string][]string   `json:"tiers"`
 	Sessions map[string]assignment `json:"sessions"`
 	Workers  map[string]assignment `json:"workers"`
@@ -129,19 +129,20 @@ func (p *document) validate() error {
 // client's list is refused here, rather than left for whoever asks later to read as "unranked": a
 // comparison that quietly answers "not higher" is how a ceiling passes what it should have stopped.
 //
-// A row naming no model for a client is not an omission: codex takes an effort alone, and the
-// ordering has nothing to say about such a row.
+// A row naming no model is skipped here rather than refused, because validateAssignments refuses it
+// a moment later with the sentence that says why — and this check has nothing to say about a row the
+// ordering cannot rank in the first place.
 func (p *document) validateTiers() error {
 	// An extra key is inert today — both required clients must still be present and valid — but a
 	// misspelling sits in the file reading as though it ranked something, and the next hand to edit
 	// the real list leaves it behind. Refusing it makes the parser report the typo, rather than
 	// someone eventually wondering why their tier never applied.
 	for client := range p.Tiers {
-		if client != "codex" && client != "claude" {
+		if !slices.Contains(dispatchClients, client) {
 			return fmt.Errorf("the tier order names a client %q, which nothing dispatches to", client)
 		}
 	}
-	for _, client := range []string{"codex", "claude"} {
+	for _, client := range dispatchClients {
 		ordered, listed := p.Tiers[client]
 		if !listed || len(ordered) == 0 {
 			return fmt.Errorf("the policy orders no %s models, so nothing can say which of two rows spends more", client)
@@ -266,7 +267,7 @@ func (p *document) all() map[string]assignment {
 // An unknown task is refused rather than resolved to anything: a dispatch that omits its model takes
 // the orchestrator's, so an unlisted task would bill at its parent's tier with nothing to say so.
 func (p *Policy) Resolve(request Request) (Decision, error) {
-	if request.Client != "codex" && request.Client != "claude" {
+	if !slices.Contains(dispatchClients, request.Client) {
 		return Decision{}, fmt.Errorf("unknown client %q", request.Client)
 	}
 	// One exact lookup, and no fallback to the row of the skill a task's path starts with: that
@@ -360,9 +361,12 @@ func (p *Policy) TierOf(client, model string) (int, bool) {
 
 // TopTier names the most expensive model one client has, which is the ceiling an orchestrator may not
 // reach. Derived from the order rather than pinned anywhere, so adding a tier above the current one
-// moves the ceiling with it instead of leaving a gate guarding a rank that is no longer the top. The
-// bool distinguishes an unknown client from a client whose list is empty, which validateTiers refuses
-// for the two real ones but which a policy built in a test can still hold.
+// moves the ceiling with it instead of leaving a gate guarding a rank that is no longer the top.
+//
+// The bool is the same answer TierOf's is: a caller comparing a row against the top has to tell "not
+// at the top" from "there is no top here". validateTiers leaves one way to reach that second answer —
+// asking about a client dispatchClients does not name. An empty string in its place would compare
+// equal to nothing and report a clean ceiling over a tree nothing had measured.
 func (p *Policy) TopTier(client string) (string, bool) {
 	ordered := p.content.Tiers[client]
 	if len(ordered) == 0 {
@@ -391,7 +395,7 @@ func validateSettings(client string, settings Settings) error {
 	if settings.Model == "" {
 		return fmt.Errorf("%s names no model, so the run takes its caller's and no tier can be read from the row", client)
 	}
-	if settings.Model != "" && !validName(settings.Model) {
+	if !validName(settings.Model) {
 		return fmt.Errorf("%s model holds whitespace or control characters", client)
 	}
 	// A model becomes the argv token straight after `--model`, where a `--` separator cannot shield it
@@ -430,6 +434,11 @@ func validName(value string) bool {
 	}
 	return true
 }
+
+// The two CLIs a row is written for. Named once because the same list decides three separate
+// things — which tier orders must exist, which clients Resolve answers for, and which clients a
+// ceiling check walks — and those only stay in step while they read the same list.
+var dispatchClients = []string{"codex", "claude"}
 
 // The efforts both CLIs answer to, and the three codex carries on its own.
 var (

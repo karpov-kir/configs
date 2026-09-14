@@ -5,12 +5,25 @@ import (
 	"testing"
 )
 
+// Spliced out of `sample` below by the one case that needs a document without it, so `sample` is
+// assembled from this rather than repeating it — the splice then cannot miss.
+const tierOrder = `"tiers":{"codex":["helper","middling","frontier"],"claude":["haiku","sonnet","opus"]},`
+
 const sample = `{"version":4,"limits":{"intents-in-flight":10},` +
-	`"tiers":{"codex":["helper","middling","frontier"],"claude":["haiku","sonnet","opus"]},` +
+	tierOrder +
 	`"sessions":{"kk-build":{"codex":{"model":"frontier","effort":"high"},"claude":{"model":"opus"}}},` +
 	`"workers":{` +
 	`"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"},"rolls":3},` +
 	`"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}}}}`
+
+// `sample` with the order removed and nothing else touched, so the missing order is the only thing
+// left to refuse: validateTiers asks whether an order exists before it asks whether any model is
+// ranked. Derived rather than written out a second time, so a field added to the schema reaches both
+// documents at once.
+//
+// Two cases read it. TestPolicyRejectsMalformedDocuments asks only that it is refused;
+// TestADocumentWithNoTierOrderIsRefusedForThat asks which guard spoke.
+var noTierOrder = strings.Replace(sample, tierOrder, ``, 1)
 
 func policyForTest(t *testing.T) *Policy {
 	t.Helper()
@@ -36,18 +49,44 @@ func TestEachClientGetsItsOwnSettingsAndRolls(t *testing.T) {
 	}
 }
 
+// TopTier is where the ceiling reads "the dearest model", and only the command-level gate pins that
+// today — at a level where a cheapest-first answer still needs a whole tree to expose it. Here it is
+// one call. The false arm is the unknown client, the same shape TierOf's own case covers: Parse is the
+// only constructor and it refuses an empty order for every client the policy dispatches to, so an
+// unranked name is the one way left to ask about a client with no order behind it.
+func TestTopTierNamesTheDearestModelAndRefusesAnUnknownClient(t *testing.T) {
+	policy := policyForTest(t)
+	for client, want := range map[string]string{"codex": "frontier", "claude": "opus"} {
+		if got, ranked := policy.TopTier(client); !ranked || got != want {
+			t.Errorf("%s top tier = %q, %v; want %q", client, got, ranked, want)
+		}
+	}
+	if got, ranked := policy.TopTier("nobody"); ranked || got != "" {
+		t.Errorf("an unranked client answered %q, %v; want no top tier at all", got, ranked)
+	}
+}
+
 // An effort with no model used to be a lever that kept a site on its caller's model. It is refused now,
 // and the whole of why is that the same file forbids what it does: a cheap coordinator is safe only
 // once every site under it names its own model. Nothing shipped ever used it, the tier order cannot
 // rank it, and a row outside that order is one no ceiling can judge. The case below is the refusal
-// itself; TestARowNamingAnEffortAndNoModelIsRefused covers the shapes it reaches.
+// itself; TestARowNamingAnEffortAndNoModelIsRefused covers the shapes it reaches. Both read the
+// sentence rather than the error, because validName refuses an empty model too and would otherwise
+// answer for this guard while it is disabled.
 func TestEffortWithoutAModelIsRefusedRatherThanKeptAsALever(t *testing.T) {
 	raw := strings.Replace(sample, `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, `"kk-build":{"codex":{"effort":"high"}`, 1)
 	if raw == sample {
 		t.Fatal("the fixture edit matched nothing, so this case tests the unmodified sample")
 	}
-	if _, err := Parse([]byte(raw)); err == nil {
+	_, err := Parse([]byte(raw))
+	if err == nil {
 		t.Fatal("a row carrying an effort and no model parsed, so the dispatch would take its caller's model")
+	}
+	// Which guard spoke, not merely that one did. validName refuses an empty segment too, so with this
+	// refusal disabled the document is still refused — by a sentence about whitespace and control
+	// characters, over a row that holds neither. Asserting the error alone would be green either way.
+	if !strings.Contains(err.Error(), "names no model") {
+		t.Fatalf("refused for the wrong reason, so this case cannot tell the guard from its neighbour: %v", err)
 	}
 }
 
@@ -95,14 +134,7 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		// The tier order is what tells a later check which of two rows spends more, so every way it
 		// can fail to answer that is refused at parse rather than read as "unranked" downstream. A
 		// comparison that quietly answers "not higher" passes what it should have stopped.
-		//
-		// This document's rows name no model at all, so the unranked-model guard has nothing to fire
-		// on and the absent order is the only thing left to refuse. Spliced out of `sample` instead,
-		// every row's model would be unranked and that guard would answer first — a green for the
-		// wrong reason.
-		"no tier order at all": `{"version":4,"limits":{"intents-in-flight":10},` +
-			`"sessions":{"kk-build":{"codex":{"effort":"high"},"claude":{"effort":"high"}}},` +
-			`"workers":{"bloat-judge":{"codex":{"effort":"low"},"claude":{"effort":"high"}}}}`,
+		"no tier order at all":   noTierOrder,
 		"a client with no tiers": strings.Replace(sample, `"claude":["haiku","sonnet","opus"]`, `"claude":[]`, 1),
 		"a model no tier ranks":  strings.Replace(sample, `"claude":{"model":"sonnet"}`, `"claude":{"model":"unranked"}`, 1),
 		"a client the policy does not dispatch to": strings.Replace(sample, `"tiers":{"codex"`,
@@ -248,19 +280,13 @@ func TestTierOfRanksCheapestFirstAndSaysWhenItCannot(t *testing.T) {
 }
 
 // The absent-order guard cannot be isolated by a table that only asks whether a document was
-// refused. With no order, every model a row names is unranked, so the unranked-model guard answers
-// first; and a document whose rows name no model reaches validateAssignments, which refuses it for
-// having no claude model. Either way the document is refused, and the table stays green with this
-// guard gone.
+// refused. Delete the guard and this document is still refused: with no order, every model its rows
+// name is unranked, so the unranked-model guard picks the question up and the table stays green.
 //
 // So this case asks which guard spoke. A policy carrying no order at all must be refused for
 // carrying no order, because that refusal is the sentence someone has to read to know what to add.
 func TestADocumentWithNoTierOrderIsRefusedForThat(t *testing.T) {
-	const noOrder = `{"version":4,"limits":{"intents-in-flight":10},` +
-		`"sessions":{"kk-build":{"codex":{"model":"frontier","effort":"high"},"claude":{"model":"opus"}}},` +
-		`"workers":{"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}}}}`
-
-	_, err := Parse([]byte(noOrder))
+	_, err := Parse([]byte(noTierOrder))
 	if err == nil {
 		t.Fatal("a policy with no tier order was accepted")
 	}

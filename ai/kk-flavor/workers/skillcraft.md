@@ -18,7 +18,7 @@ Check every unit against all four, in order. A unit that took one lens and moved
 
 - **Does a human ever enter it?** A door nobody types is overhead — a description that routes nothing, an `argument-hint` for arguments no human passes. That unit is a worker wearing a skill's directory: name it, and name the dispatch that reaches it.
 - **Does it hold model work, or hand every substantive step away?** **A session holding a phase with no human in it is a worker that has not moved yet** — name the phase rather than the skill.
-- **Does its `Runs:` declaration still describe the file?** The tier ceiling is the Go suite's, but the reason is not checkable and is where the drift shows: a `holds — <reason>` whose reason covers only part of what the skill does is the offload signal (`~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint**). Only `converses` holds work for the human — asking once for a fact, or presenting a result at the end, is an orchestrator with a question in it.
+- **Does its `Runs:` declaration still describe the file?** The Go suite holds the tier ceiling; nothing checks the reason, so that is where the drift shows. Judge it against `~/.kk-flavor/standards/model-policy.md` → **Cost is a design constraint** — which reasons hold work, and what a reason covering only part of the skill signals.
 - **Does it read a worker's prompt inline where a dispatch would do?** Name the read site and the worker it flattens.
 - **Does a worker's prompt address one agent doing one thing, and return once?** A worker written as a conversation, or as a menu of modes its caller chooses between, is a skill that lost its door rather than a worker.
 

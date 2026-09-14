@@ -732,15 +732,6 @@ var mutants = []mutant{
 		`const intervalDays = 7`, `const intervalDays = 9`},
 	{"cadence: the interval boundary becomes strictly greater", "../cadence/cadence.go", "./cadence/", "TestTheInterval",
 		`if elapsed >= intervalDays {`, `if elapsed > intervalDays {`},
-	// A row naming no model leaves the dispatch on its caller's model and the row outside the tier
-	// order, so nothing downstream can price it and no ceiling can judge it.
-	{"model-policy: a row naming no model is accepted", "../model-policy/policy.go", "./model-policy/", "TestEffortWithoutAModelIsRefusedRatherThanKeptAsALever",
-		`if settings.Model == "" {`, `if settings.Model == "" && false {`},
-	// The ceiling compares an orchestrator's row against the dearest model its client has. Reading the
-	// cheapest instead leaves it green over a tree that is entirely at the top tier, which is the one
-	// direction that costs money silently.
-	{"model-policy: the tier ceiling read off the cheapest model", "../model-policy/policy.go", "./model-policy/", "TestTheCeilingCatchesAnOrchestratorAtTheTopTier",
-		`return ordered[len(ordered)-1], true`, `return ordered[0], true`},
 	{"cadence: a stamp later than today reads as a not-due", "../cadence/cadence.go", "./cadence/", "TestAFutureStampIsUndetermined",
 		`if elapsed < 0 {`, `if elapsed < 0 && false {`},
 	{"cadence: the date's shape goes unchecked", "../cadence/cadence.go", "./cadence/", "TestARecordThatIsNoDate",
@@ -757,6 +748,23 @@ var mutants = []mutant{
 		`strings.Cut(string(body), "\n")`, `strings.Cut(string(body), "\x00")`},
 	{"cadence: a carriage return survives into the stamp", "../cadence/cadence.go", "./cadence/", "TestATrailingLineStillResolves",
 		`strings.TrimRight(first, "\r")`, `first`},
+
+	// A row naming no model leaves the dispatch on its caller's model and the row outside the tier
+	// order, so nothing downstream can price it and no ceiling can judge it.
+	{"model-policy: a row naming no model is accepted", "../model-policy/policy.go", "./model-policy/", "TestEffortWithoutAModelIsRefusedRatherThanKeptAsALever",
+		`if settings.Model == "" {`, `if settings.Model == "" && false {`},
+	// Without the guard, an unknown client's absent order is indexed rather than refused.
+	{"model-policy: an absent tier order is indexed instead of refused", "../model-policy/policy.go", "./model-policy/", "TestTopTierNamesTheDearestModelAndRefusesAnUnknownClient",
+		`	if len(ordered) == 0 {
+		return "", false
+	}`, `	if len(ordered) == 0 && false {
+		return "", false
+	}`},
+	// The ceiling compares an orchestrator's row against the dearest model its client has. Reading the
+	// cheapest instead leaves it green over a tree that is entirely at the top tier, which is the one
+	// direction that costs money silently.
+	{"model-policy: the tier ceiling read off the cheapest model", "../model-policy/policy.go", "./model-policy/", "TestTheCeilingCatchesAnOrchestratorAtTheTopTier",
+		`return ordered[len(ordered)-1], true`, `return ordered[0], true`},
 
 	{"density: the ratio bar becomes strictly greater", "../comment-density/density.go", "./comment-density/", "TestTheRatioAndItsFloors",
 		`ratio <= s.cfg.MaxRatio`, `ratio < s.cfg.MaxRatio`},

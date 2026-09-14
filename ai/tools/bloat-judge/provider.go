@@ -89,8 +89,6 @@ func CodexCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 	}
 }
 
-// An effort-only row means "keep the model, lower the effort", so the flag is omitted rather than
-// passed empty — `--model ""` asks the CLI for a model with no name instead of asking for none.
 func codexArgs(answer string, settings modelpolicy.Settings) []string {
 	args := []string{
 		"exec", "--ignore-user-config", "--ignore-rules", "--ephemeral",
@@ -100,6 +98,8 @@ func codexArgs(answer string, settings modelpolicy.Settings) []string {
 		"-c", "web_search=\"disabled\"", "-c", "tools.update_plan.enabled=false",
 		"-c", "suppress_unstable_features_warning=true",
 	}
+	// Omitted rather than passed empty: `--model ""` asks the CLI for a model with no name instead of
+	// asking for none. A parsed policy names one on every row, so this guards a Settings built here.
 	if settings.Model != "" {
 		args = append(args, "--model", settings.Model)
 	}
