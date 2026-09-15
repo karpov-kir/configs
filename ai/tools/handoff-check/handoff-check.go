@@ -278,6 +278,13 @@ func (s *scan) readTitle(raw string) {
 	// title, and refusing it sends the agent off to reword a sound line.
 	if title == "" || (strings.HasPrefix(title, "<") && strings.HasSuffix(title, ">")) {
 		s.flag("the title line is still the template placeholder")
+		return
+	}
+	// The repository prefix is a second slot on the same line. A filled-in title hides it, because the
+	// line reads as done. Anchored at both ends of the bracketed prefix, for the same reason as the
+	// check above.
+	if prefix, _, found := strings.Cut(title, "] "); found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">") {
+		s.flag("the title's repository prefix is still the template placeholder — fill it from the tool the template names")
 	}
 }
 

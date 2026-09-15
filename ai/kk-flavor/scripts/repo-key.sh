@@ -2,7 +2,12 @@
 # Print a stable name for this clone — `<basename>-<digest>` — so the idsd scratch dir under a
 # machine-local override root and the owner's worktree directory key one repository the same way.
 #
-# usage: repo-key.sh [<repo path>]. Prints the key, or exits 2 with a reason.
+#   usage: repo-key.sh [--name] [<repo path>]   # <repo path> defaults to .
+#
+# `--name` prints the clone's own directory name — the key without its digest, and the same from
+# every worktree of the clone. That is what a session title's prefix takes.
+#
+# Exits 2 with a reason where it cannot name the clone.
 #
 # The recipe is Go, in `ai/tools/repo-key/`; Go callers import it rather than coming through here.
 #

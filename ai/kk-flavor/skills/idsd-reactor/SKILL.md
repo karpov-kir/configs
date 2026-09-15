@@ -16,7 +16,7 @@ Before selecting a skill on a resumed turn, reload this section. Carry the role,
 
 ## Client mechanics
 
-At startup, rename this session to `[<repo abbreviation>] IDSD reactor` through the client's session-title control. Use the abbreviation rule in `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md`. If renaming is unavailable, give the human the intended title.
+At startup, rename this session to `[<repo name>] IDSD reactor` through the client's session-title control. Use the naming rule in `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md`. If renaming is unavailable, give the human the intended title.
 
 Require the target client explicitly before launching and carry it into every handoff.
 
