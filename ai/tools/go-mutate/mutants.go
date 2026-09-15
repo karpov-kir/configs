@@ -924,6 +924,35 @@ var mutants = []mutant{
 	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.add("gotest", "check", gotestInputs, "@gotest")`, `g.addBlindToGoTests("gotest", "check", gotestInputs, "@gotest")`},
 
+	// The store is the clone's, so every worktree writes it. Both mutants below are that sharing going
+	// wrong in one of the two directions: a key that carries where the run happened gates every new
+	// worktree from cold, and a sidecar written onto its own path lets a peer read the middle of a
+	// write and call moved content unchanged.
+	{"gate: a verdict keyed on the worktree it was earned in", "../gate/keys.go", "./gate/", "TestAVerdictRecordedInOneWorktreeIsFreshInAnother",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp)", "\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, g.root)"},
+	{"gate: the sidecar written onto its own path rather than renamed onto it", "../gate/keys.go", "./gate/", "TestASidecarIsPublishedWholeOrNotAtAll",
+		"\tif err == nil {\n\t\terr = os.Rename(temp.Name(), path)\n\t}",
+		"\tif err == nil {\n\t\tos.Remove(temp.Name())\n\t\terr = os.WriteFile(path, []byte(body), 0o644)\n\t}"},
+	// The other half of that sharing: nothing a key is built from may name the checkout it was built
+	// in. Both places a root could reach one — the harness's resolved paths, and a suite's command.
+	{"gate: a mutant's resolved path kept as the absolute one the harness printed", "../gate/mutants.go", "./gate/", "TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn",
+		`strings.TrimPrefix(strings.TrimPrefix(resolved, root), "/")`, "resolved"},
+	{"gate: a suite's command spelling out the checkout it runs in", "../gate/units.go", "./gate/", "TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn",
+		`addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))`,
+		`addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(filepath.Join(g.root, suite)))`},
+	// Sweeping the temps rename leaks. Not sweeping only lets the store fill up, but either guard
+	// dropped deletes a file some run still needs: the age bound protects a sibling worktree's
+	// in-flight temp, and the tail length keeps a verdict record that happens to be spelt like one.
+	{"gate: the leaked temps never swept at all", "../gate/gate.go", "./gate/", "TestAKilledRunsLeftoverSidecarIsSweptAndALiveOneIsNot",
+		"\tg.sweepLeakedSidecars()\n", ""},
+	{"gate: a temp deleted however recently it was written", "../gate/gate.go", "./gate/", "TestAKilledRunsLeftoverSidecarIsSweptAndALiveOneIsNot",
+		"if err != nil || time.Since(info.ModTime()) < leakedSidecarAge {",
+		"if err != nil || time.Since(info.ModTime()) < leakedSidecarAge && false {"},
+	{"gate: a leaked temp told from a verdict record by spelling alone", "../gate/gate.go", "./gate/", "TestAKilledRunsLeftoverSidecarIsSweptAndALiveOneIsNot",
+		`return tail != "" && len(tail) < verdictKeyLength`, `return tail != ""`},
+	{"gate: the sweep given a key length no key has", "../gate/gate.go", "./gate/", "TestAVerdictKeyIsAsLongAsTheSweepThinks",
+		"const verdictKeyLength = 64", "const verdictKeyLength = 32"},
+
 	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
