@@ -16,6 +16,7 @@ func TestAnUnchangedTree(t *testing.T) {
 	r.expectNoStdout()
 	r.expectStderrHas("0 file(s) reached the scan")
 	r.expectStderrHas("says nothing about the change set")
+	r.expectStderrLacks("not a bar")
 
 	r.run()
 	r.expectCode(0)
@@ -142,6 +143,11 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r.expectCode(0)
 	r.expectNoStdout()
 	r.expectStderrHas("7 file(s) reached the scan, 0 with countable added lines")
+	// Files were reached, so the empty-scan note stays silent; nothing was ranked, so the note that
+	// disowns the bar must stay silent too rather than claim a ranking this run never made.
+	r.expectStderrHas("ranks nothing")
+	r.expectStderrLacks("nothing reached the scan")
+	r.expectStderrLacks("not a bar")
 }
 
 func TestATwoRevisionRangeIsScanned(t *testing.T) {
@@ -307,5 +313,41 @@ func TestAThresholdOverrideTakesEffect(t *testing.T) {
 		r.expectCode(0)
 		r.expectStdoutLacks("big.go")
 		r.expectStderrHas("1 untracked file(s) skipped unread")
+	})
+}
+
+// The clean run needs the note most: no outlier otherwise reads as nothing to cut.
+func TestTheDefaultReportDisownsTheBar(t *testing.T) {
+	t.Run("an outlier report says it is not the bar", func(t *testing.T) {
+		r := newRepo(t)
+		r.write("dense.go", "package fixture\n")
+		r.commit("base")
+		r.write("dense.go", heavy(8, 2))
+		r.run("HEAD")
+		r.expectCode(1)
+		r.expectStderrHas("not a bar")
+		r.expectStderrHas("ADDED lines")
+		r.expectStderrHas("--bar")
+	})
+
+	t.Run("a clean run says it too", func(t *testing.T) {
+		r := newRepo(t)
+		r.write("lean.go", "package fixture\n")
+		r.commit("base")
+		r.write("lean.go", heavy(0, 9))
+		r.run("HEAD")
+		r.expectCode(0)
+		r.expectStderrHas("not a bar")
+	})
+
+	// Asserting the absence alone passes over a --bar run that reported nothing at all, so the exit
+	// code and the report's first line prove the bar ran before the absence means anything.
+	t.Run("the bar's own report does not disown itself", func(t *testing.T) {
+		r := newRepoWithLeanBaseline(t)
+		r.write("dense.go", heavy(8, 2))
+		r.runBar()
+		r.expectCode(exitFound)
+		r.expectStdoutHas("host repo:")
+		r.expectStderrLacks("not a bar")
 	})
 }

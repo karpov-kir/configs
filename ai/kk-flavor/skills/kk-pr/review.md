@@ -16,6 +16,8 @@ However that is authorised (`~/.kk-flavor/standards/skill-protocol.md` → **Cal
    - **Each stage proposes rather than applies**, whatever its own contract permits.
    - **The pass does not stream** — your product is a landing, which fails `~/.kk-flavor/standards/streaming.md`'s test.
 
+**The cut the change set owes is the same in both modes; how many threads it costs the author is not.** In `review` the overage is one verdict-block line naming the lines owed, and a thread of its own goes only to a substantial block the diff added — the rest reaches the human in your closing reply. **In `review-and-address` nothing is itemised for the author** — the whole cut goes to the scratchpad, and the fix loop takes it there. **A comment that is false, stale or misplaced is not bloat**: it is a correctness or refactor finding, and it lands on its line in either mode.
+
 ## A second round over an unchanged diff
 
 **Nothing addressed since the last review → say that and stop.** But **the stop does not fire on a round you withdrew yourself** — the replacement is drafted from the diff, not from what you deleted. **In `review-and-address` it never fires at all** — still-open findings are exactly what that mode's fix loop is for.

@@ -795,6 +795,12 @@ var mutants = []mutant{
 		`sort.Strings(names)`, `sort.Sort(sort.Reverse(sort.StringSlice(names)))`},
 	{"density: the display cap is removed", "../comment-density/density.go", "./comment-density/", "TestPastTheDisplayCap",
 		`if shown < maxShown {`, `if shown < maxShown || true {`},
+	{"density: a report that read something stops disowning the bar", "../comment-density/density.go", "./comment-density/", "TestTheDefaultReportDisownsTheBar",
+		`if s.result.Reached == 0 {`, `if s.result.Reached == 0 || true {`},
+	{"density: a report that read nothing disowns the bar anyway", "../comment-density/density.go", "./comment-density/", "TestAnUnchangedTree",
+		`if s.result.Reached == 0 {`, `if s.result.Reached == 0 && false {`},
+	{"density: a report that ranked nothing claims a ranking", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
+		`} else if s.countable == 0 {`, `} else if s.countable < 0 {`},
 	// These mutants need a successfully parsed override; refusal-only cases cannot observe them.
 	// Keep `+ value*0` so value remains read and the mutant compiles.
 	{"density: COMMENT_MAX_RATIO parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
