@@ -18,7 +18,7 @@
 
 Comment form is [human-writing.md](human-writing.md). **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it. **A warning against a wrong edit names that edit and what it breaks**, or any rationale becomes one by rewording; where a test fails on that edit, the test is the warning's home and the comment a pointer to it at most.
 
-**A change set's comment share and its block-length profile stay at or under the host repo's.** Where it is over, the weakest comments go until it is not, never a fixed fraction of what is there.
+**A change set's comment share and its block-length profile stay at or under the host repo's.** Where it is over, the weakest comments go until it is not, never a fixed fraction of what is there. **The host repo is the comparison, and a second one beside it discharges nothing** — not the rate at the change's own base, not the directory it lands in, not its sibling branches. Those files are often the same unlanded work, so the change measures itself and reads as house style at any multiple of the repo's rate.
 
 **Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when any other site in the change set covers it — **an invariant is stated once, at the construct that enforces it**, and referenced from everywhere else. **True, unique content goes too — anecdotes, alternatives considered, provenance a reader can get from `git log`.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
 
