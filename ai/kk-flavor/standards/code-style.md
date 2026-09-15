@@ -1,6 +1,6 @@
-# Code Style
+**Layer:** base
 
-**A script under a skill or `kk-flavor/` is also something agents read**, so [ecosystem.md](ecosystem.md) → **Prefer the mechanism** binds it on top of the rules below.
+# Code Style
 
 ## Naming
 

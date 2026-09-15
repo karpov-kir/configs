@@ -1,3 +1,5 @@
+**Layer:** craft
+
 # How We Structure Code
 
 ## Three axes
@@ -66,7 +68,7 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 ## Logging & events
 
-**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level; level set once from config ([project.md](../project.md) → **Logging**). Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
+**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level; level set once from config. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
 
 **Events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
 

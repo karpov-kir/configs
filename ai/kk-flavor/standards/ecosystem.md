@@ -1,3 +1,5 @@
+**Layer:** process
+
 # Changing the Ecosystem
 
 Rules for editing what agents read: skills, standards, prompts, templates, agent instructions. Every line here is context each future run pays for. The bar is never "is this true" — it is "does this change what an agent does".
@@ -28,6 +30,10 @@ Owner user-scoped instructions are installed as independent copies from a discov
 
 **A rule's home is the file whose reader would otherwise get it wrong** — not the file that proves it, and not the file that happens to depend on it.
 
+**Among themselves the standards are layered, and each one declares which layer it is in**: `**Layer:** base|craft|process` on the first line, above any heading. The criterion is standalone comprehensibility — a **base** rule makes sense to a reader who has read no craft or process file, **craft** is making software, **process** is running the agent machine. **No standard abstains**, because an unlayered file is a hole the next citation falls through in silence. It is not the always-read set, and not the shared-layer division below. What a run loads, and which tree owns a file, are separate questions; no answer here is derived from another.
+
+**The defect is a citation cycle that crosses layers, not an upward citation.** A lower file may say that a higher one also binds here, and a rule that departs from another has to name the one it departs from; both are upward and neither knots anything. A cycle is what leaves a reader no file to start from, and one crossing layers says two files are each other's foundation.
+
 **The shared layer — a standard, a template under `kk-flavor/`, agent instruction file — never names a skill, and never cites anything inside one**: not a section, not a file it owns, not a script it ships. A standard names the **lane**; the skill filling that lane binds itself to the name and cites the standard, never the reverse. Move the rule up and let the skill cite it there. Skill to skill, the citation is normal.
 
 **`kk-flavor/skills/` and `kk-flavor/workers/` are the lane trees, and neither is the shared layer.** A worker's prompt is one skill's work addressed to one agent, so it names and cites that skill the way a skill does. Every other directory under `kk-flavor/` is shared by default, so one added tomorrow is held to the paragraph above with nothing to opt it in.
@@ -48,7 +54,7 @@ Three kinds — worker, orchestrator, session — live in two directories, and a
 
 **The declaration is the instruction, so nothing else states the edge.** Its `— <when>` names the phase, step or mode that reads the contract; the prose there cites that contract's path, because the reader must open it, and says nothing about the read being inline. A sentence beside the declaration carrying the same fact is the second copy [model-policy.md](model-policy.md) → **One row per skill, one per dispatch site** already refuses — and prose can be complete while the declaration is not, so the copy that survives is the one nothing prices.
 
-**A door on top of a worker dispatches it; it never reads it inline.** Read inline, the worker runs at the calling session's tier and its own row selects nothing — the defect the layer exists to remove. The exception is a `converses` session, which must stay with the human through the work: it reads the contract itself and its own row applies.
+**A door on top of a worker dispatches it; it never reads it inline.** Read inline, the worker runs at the calling session's tier and its own row selects nothing — the defect the worker layer exists to remove. The exception is a `converses` session, which must stay with the human through the work: it reads the contract itself and its own row applies.
 
 **A worker's prompt is a file, never a directory.** Scripts a worker owns sit beside it at `kk-flavor/workers/<name>/`, so the lane that owns an instrument is still readable from its path.
 
@@ -87,6 +93,7 @@ A move away from the common path is only a win when that path genuinely never ne
 
 ## Prefer the mechanism
 
+- **A script under a skill or `kk-flavor/` is also something agents read**, so this section binds it on top of [code-style.md](code-style.md).
 - A rule a script can enforce belongs in the script; prose duplicating what a script already enforces is a deletion.
 - **A number that multiplies what a run costs belongs in `~/.kk-flavor/models.json`, not in prose or a literal** ([model-policy.md](model-policy.md) → **Cost is a design constraint**).
 - **A change to a shared script lands its call site in the same edit.**

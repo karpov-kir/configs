@@ -1,3 +1,5 @@
+**Layer:** craft
+
 # Driving a Browser
 
 - **`playwright` unless the browser the human is using is the point.** It drives a Chrome of its own, which may already be signed in from an earlier run.

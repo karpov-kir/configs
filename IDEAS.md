@@ -53,7 +53,7 @@ in [ecosystem.md](ai/kk-flavor/standards/ecosystem.md) and a per-file reason wou
 this section refuses. **No standard abstains** — an unlayered file is a hole the next citation falls
 through in silence.
 
-**The criterion is standalone comprehensibility**, and it has to be written down, because step 2 asks
+**The criterion is standalone comprehensibility**, and it has to be written down, because step 1 asks
 a check to enforce a rule nothing states the ground truth for. A **base** rule makes sense to a reader
 who has read no craft or process file; **craft** is making software; **process** is running the agent
 machine. Of the criteria considered it is the only one that makes an upward citation a defect *by
@@ -79,43 +79,60 @@ ecosystem, streaming. Two corrections to what this section first claimed — it 
 `code-style.md` stays in base though the criterion argues craft, and the rule separating those two
 cases is the one to keep: **a criterion-driven move applies now only if it cannot change today's
 verdict.** `live-systems.md` is in no cycle, so moving it is provably not tuning; moving `code-style.md`
-would turn `code-style → architecture/core → project → code-style` from a defect into an inside-layer
-cross-reference, which is laundering a cycle by relabelling. Re-examine it once the tree is clean.
+would have turned `code-style → architecture/core → project → code-style` from a defect into an
+inside-layer cross-reference, which is laundering a cycle by relabelling. **Edit 4 cut that cycle
+instead, so the move now passes the test** — `code-style.md` sits in no cycle either way, and moving
+it changes no verdict. It stays in base until a human weighs it, because a move that changes nothing
+is not one a run should make on its own.
 
 **This section's own cycle measurement was wrong.** It claimed one crossing cycle. Of the ten
 `cite-graph` prints, one is skill-to-skill and **six of the remaining nine cross**, over seven upward
-citations at nine sites. Three prose edits clear them, and **the order is load-bearing**:
+citations at nine sites. **Four prose edits clear them, not three**, and **the order is
+load-bearing**:
 
-1. `testing.md:11` — drop the `→ **Queue**` pointer; the sentence is complete without it. Chosen over
+1. `testing.md` — drop the `→ **Queue**` pointer; the sentence is complete without it. Chosen over
    cutting `code-style → architecture/core`, which carries real information at two sites.
-2. `code-style.md:3` — invert into `ecosystem.md`, which already states that scripts under
+2. `code-style.md` — invert into `ecosystem.md`, which already states that scripts under
    `kk-flavor/` are agent-read. Kills three cycles at once. **Done before edit 1 it creates a new
    crossing cycle**, `ecosystem → code-style → architecture/core → testing → skill-protocol →
    model-policy → ecosystem`.
-3. `writing.md:33` — the one needing editorial judgement. Cutting the `→ **Verdict**` pointer loses
+3. `writing.md` — the one needing editorial judgement. Cutting the `→ **Verdict**` pointer loses
    the definition of *verdict*: either state the spawned-agent close whole in `writing.md`, or move
-   that clause into `skill-protocol.md` and leave `writing.md` the human-facing close.
+   that clause into `skill-protocol.md` and leave `writing.md` the human-facing close. Done the
+   second way: the clause moved, and `skill-protocol.md` → **Verdict** now says a spawned return
+   closes on its verdict and not on the `Next:` line, citing `writing.md` where it already did.
+4. `architecture/core.md` — drop the `→ **Logging**` pointer into `project.md`. **The first three
+   leave `code-style → architecture/core → project → code-style` standing, and it crosses**; this
+   section claimed otherwise. The cycle is one topic split across three files, each pointing at the
+   next: the levels and what a line says (base), how a logger is obtained (craft), what config sets
+   it from (craft). Three readers, three homes, so no merge is owed — only the weakest pointer, and
+   it is this one, since *level set once from config* is complete without opening `project.md`. The
+   two `code-style → architecture/core` sites the first edit protected stay.
 
-Afterwards the three remaining cycles are all inside a layer.
+Afterwards: four cycles, of which the three between standards are each inside one layer, and the
+fourth is `idsd-reactor ↔ idsd-intent`, which carries no layer to cross. Seven upward citations
+remain, all acyclic and all legal: `building.md` at three sites, `records.md`, `code-style.md` at
+two, and `human-writing.md:9` → `live-systems.md`, which became upward only when `live-systems.md`
+moved to craft.
 
-The steps, each revertible alone. The first has landed: the grammar is `**Extends:** <skill> —
-<when>`, sixteen edges across eight skills declare one, and no prose states an edge any more.
+The steps, each revertible alone. Two have landed. The grammar is `**Extends:** <skill> — <when>`,
+sixteen edges across eight skills declare one, and no prose states an edge any more. And all 18
+standards now declare a `**Layer:**`, the criterion and the cross-layer-cycle rule are stated in
+`ecosystem.md` → **One home**, and the four edits above have run.
 
-1. **`**Layer:**` on all 18 standards**, plus the three ordered prose edits above. Settled in full —
-   grammar, criterion, rule and assignment are above; nothing here is still open.
-2. **The checks in `eco-check`**, on the citation parser it already has: both nets above, an
+1. **The checks in `eco-check`**, on the citation parser it already has: both nets above, an
    extension cycle, a cross-layer cycle, and every `**Extends:**` held to a `**Runs:**` reason that
    licenses holding the work. Lands the inline worker read, the four `kk-edit` dispatches and the
    exception inventory below, and **rewrites the reason itself** in
    [model-policy.md](ai/kk-flavor/standards/model-policy.md) → **Cost is a design constraint** from
    the cost argument to the boundary test. **Neither net decides the edge** — each only says a human
    must have answered here, and the declaration is the answer.
-3. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
+2. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
    own regexes; `--graph` and `--cost` read declarations and the prose inference is deleted;
    `cite-graph`'s CYCLES becomes a verdict. **Only for standards** — skills carry no layer, so
    `idsd-reactor ↔ idsd-intent` and any later skill cycle stay unjudged, and the block reads as a
    verdict for standards and a list for everything else.
-4. **`--cost` shows what runs, not only what is billed.** It prints the dispatches a run reaches and
+3. **`--cost` shows what runs, not only what is billed.** It prints the dispatches a run reaches and
    hides the contracts it loads, so `--cost idsd-build` never names `kk-build` — the row is there
    only as *(through kk-build, which it extends)* on something else. Add a row per contract, at the
    session's own tier, carrying its chain the way the dispatch rows do:
@@ -129,10 +146,10 @@ The steps, each revertible alone. The first has landed: the grammar is `**Extend
    under-priced sites below. **Inline rows do not raise the closing count**: they are not separate
    spends, they are already inside the session's row. The walk has the chain today, so this is a
    display change, not a new traversal.
-5. **Audit all 22 Go packages for consolidation.** A campaign, not a pass — `eco-check` alone is 17
+4. **Audit all 22 Go packages for consolidation.** A campaign, not a pass — `eco-check` alone is 17
    files, and `eco-stats`, `rule-echo`, `eco-report` and `eco-guide` all walk the same tree. Run it
    after the grammar lands, so the shared reader exists to consolidate onto.
-6. **Then `workers/build/implement.md`**, written under the grammar from the start.
+5. **Then `workers/build/implement.md`**, written under the grammar from the start.
 
 **Six sites read a priced lane inline, and nothing declares it.** `idsd-qualify`, `idsd-finalize`,
 `kk-pr` and `kk-ecosystem` each apply `kk-edit` inline; `kk-pr`'s review mode and `kk-build` read
@@ -171,7 +188,7 @@ config mid-task. **The test is who acts on it** — tooling only, and it belongs
 the reading agent, and it belongs in the file. What the central file is for is review, and that is
 met by generating it: `guide.sh` emits `ai/declarations.md`, one line per declaration and per
 exception, committed and held by the `--check` that already guards `field-guide.html`. Enforcement
-comes from the check, unification from the single parser step 3 leaves, visibility from a file nobody
+comes from the check, unification from the single parser step 2 leaves, visibility from a file nobody
 writes by hand.
 
 **The reason a session may hold work is stated as cost, and the cost argument does not survive.**
@@ -180,7 +197,7 @@ writes by hand.
 undercut it. A spawned agent can be resumed with its context intact rather than restarted, so nothing
 is re-read; and with prompt caching the re-sent prefix is cheap, against a relayed question and answer
 of a few hundred words. **Tested once and it held**: a full `kk-grill` round on this section's own
-step 1 ran dispatched, returned four self-contained questions, took a five-word answer relayed
+layer step ran dispatched, returned four self-contained questions, took a five-word answer relayed
 verbatim, and settled — the questions and the answer above are its output. What the test does *not*
 cover is a multi-round grill, where each question is shaped by the last answer, and it has one visible
 cost: batching forces a wall of four questions at once where inline would have been a conversation.

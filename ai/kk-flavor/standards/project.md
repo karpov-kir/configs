@@ -1,3 +1,5 @@
+**Layer:** craft
+
 # How We Set Up a Project
 
 Starter configs: [`templates/`](../templates/) — match them closely; diverge only on what no template covers.

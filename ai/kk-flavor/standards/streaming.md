@@ -1,3 +1,5 @@
+**Layer:** process
+
 # Streaming a Multi-Stage Pass
 
 The whole delta for a pass whose stages queue patches as they find them instead of returning proposals at the end. A stage streams **exactly where its spawn prompt names a patch queue and that stage's tier** in the apply order below ([skill-protocol.md](skill-protocol.md) → **Caller**). Every other rule in that file still binds.

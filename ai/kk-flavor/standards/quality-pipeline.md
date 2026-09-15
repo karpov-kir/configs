@@ -1,3 +1,5 @@
+**Layer:** process
+
 # Quality Pipeline
 
 The stages a quality pass runs over one change set. **Binding on whoever runs a pass, any single stage of one, or one of its lanes on its own** — the rules here that bind a standalone lane say so.

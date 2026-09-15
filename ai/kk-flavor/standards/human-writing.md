@@ -1,3 +1,5 @@
+**Layer:** base
+
 # Human Writing (outward text)
 
 Anything a person reads as communication — a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too**: everything here binds them. What a comment must first clear is [code-style.md](code-style.md) → **Comments**.

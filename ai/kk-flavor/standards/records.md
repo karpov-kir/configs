@@ -1,3 +1,5 @@
+**Layer:** craft
+
 # Project Records
 
 A record agents **append to** across many runs rather than rewrite: a decision log, a playbook of how a repo is operated, a project's vocabulary. **This binds any skill that writes one.** The skill names three things: the file, the writer that stops two runs clobbering each other, and **the one point at which the record is pruned**. Two pruning points put two agents on the same cap with different readings of what it can afford to lose. That point owns the routine sweep of the whole record. An append into a full record still forces one move where it happened (**Reaching the cap**).
