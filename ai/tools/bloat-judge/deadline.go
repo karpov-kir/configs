@@ -117,11 +117,14 @@ func rollDeadline(configHome, home string) (time.Duration, string, error) {
 		deadline, path, defaultRollDeadline), nil
 }
 
+// `name` is both the binary and the client, since each CLI is named after its client. `model`
+// duplicates a string already inside `args`, so a failure can name it without parsing argv back.
 type modelCommand struct {
 	name  string
 	args  []string
 	stdin string
 	dir   string
+	model string
 }
 
 // The whole process group, because a roll spawns children and the point of Setpgid above is to reach
@@ -157,6 +160,11 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 		// reported as the answer it is.
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("the model did not answer within %s", deadline)
+		}
+		// Ahead of the catch-all below, which is what used to swallow this: a name the provider will
+		// not run came back as "did not answer".
+		if refusedTheModel(command.name, command.stdin, out, err) {
+			return "", &ModelRefused{Client: command.name, Model: command.model}
 		}
 		return "", fmt.Errorf("the model did not answer (%v)", err)
 	}

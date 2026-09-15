@@ -135,9 +135,29 @@ func (g *gate) addGuideCheck() {
 		"ECO_TOOLS_BUILD=1 ai/guide.sh --check")
 }
 
+// Asks each provider about every model name models.json holds, once per distinct name; modelcheck's
+// package doc carries why that question needs asking at all.
+//
+// Keyed on the file it checks, the stub that runs it, and each package the check is built from —
+// bloat-judge among them, because the probe goes through its caller. Not on `ai/tools`: this is the
+// one unit whose command spends money, and keying it on the whole module would buy a model call per
+// name out of any Go edit at all. Direct imports rather than the transitive closure, as addGuideCheck
+// above does: `go list -deps` also reaches diffscan, through a bloat-judge file no probe calls. So a
+// new import has to be added to this list by hand.
+//
+// Blind to the module's test files, like every other unit that observes a compiled binary, and
+// ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate measures the source in this tree.
+func (g *gate) addModelCheck() {
+	g.addBlindToGoTests("models", "check",
+		[]string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
+			"ai/tools/bloat-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
+		"ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh")
+}
+
 func (g *gate) discoverUnits() int {
 	g.addGoChecks()
 	g.addGuideCheck()
+	g.addModelCheck()
 
 	if code := g.discoverShellSuites(); code != 0 {
 		return code

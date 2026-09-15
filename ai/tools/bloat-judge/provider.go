@@ -1,6 +1,7 @@
 package bloatjudge
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,7 +42,22 @@ func Configure(configuration Configuration) (Configured, error) {
 	if provider == "codex" {
 		call = CodexCaller(configuration.Deadline, decision.Requested)
 	}
+	call = namingWhatChoseTheModel(call, configuration.PolicyPath)
 	return Configured{Call: call, Decision: decision, CacheIdentity: decision.PolicyDigest + "/" + decision.Client + "/" + decision.Requested.Model + "/" + decision.Requested.Effort}, nil
+}
+
+// namingWhatChoseTheModel puts the policy file into a refusal, since that is the one roll failure
+// whose repair is an edit to a file. A wrapper and not the caller constructors: they are handed a
+// model and never its source, and --config means the path is no constant to hard-code either.
+func namingWhatChoseTheModel(call Caller, policyPath string) Caller {
+	return func(prompt, view string) (string, error) {
+		reply, err := call(prompt, view)
+		var refused *ModelRefused
+		if errors.As(err, &refused) {
+			return "", fmt.Errorf("%w, which the judge profile in %s names", err, policyPath)
+		}
+		return reply, err
+	}
 }
 
 func resolveProvider() (string, error) {
@@ -58,6 +74,30 @@ func resolveProvider() (string, error) {
 	return provider, nil
 }
 
+// ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally. Each
+// roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
+func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
+	return func(prompt, view string) (string, error) {
+		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view, model: settings.Model})
+	}
+}
+
+// claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from the
+// repository it runs in. The view is whatever the judged text says, and `-p` skips the workspace trust
+// dialog. Without these flags a checked-out branch's `.claude/settings.json` would apply, allow rules
+// and hooks and all, and a comment telling the model to run a command would be obeyed before the
+// numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
+func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
+	args := []string{
+		"-p", "--model", settings.Model, "--output-format", "text",
+		"--tools", "", "--strict-mcp-config", "--setting-sources", "user",
+	}
+	if settings.Effort != "" {
+		args = append(args, "--effort", settings.Effort)
+	}
+	return append(args, prompt)
+}
+
 func CodexCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 	return func(prompt, view string) (string, error) {
 		dir, err := os.MkdirTemp("", "bloat-judge-")
@@ -71,7 +111,7 @@ func CodexCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 		answer := filepath.Join(dir, "answer")
 		_, err = runBounded(deadline, modelCommand{
 			name: "codex", args: codexArgs(answer, settings), dir: dir,
-			stdin: prompt + "\n\n" + view,
+			stdin: prompt + "\n\n" + view, model: settings.Model,
 		})
 		if err != nil {
 			return "", err

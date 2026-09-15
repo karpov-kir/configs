@@ -4,6 +4,8 @@
 //
 // JUDGE_PROVIDER is required. Missing, unknown or unavailable providers fail with exit 2.
 // Model assignments come from kk-flavor/models.json. JUDGE_MODEL is retired and refused.
+// A provider refusing that name fails as a refusal naming the policy file that chose it, not as a roll
+// that did not answer. model-check asks the same question of every name in that file, as a gate unit.
 // Calls use the selected CLI's existing login and the deadline configured in deadline.go.
 // Codex ignores config, rules and workspace instructions, disables external tools, and uses
 // a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.
@@ -28,9 +30,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
-
-	modelpolicy "kk-flavor/tools/model-policy"
 
 	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
@@ -146,30 +145,6 @@ func (m *Memo) record(kind, content string, gone []int) {
 	_ = os.WriteFile(m.key(kind, content), []byte(body+"\n"), 0o600)
 }
 
-// ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally. Each
-// roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
-func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
-	return func(prompt, view string) (string, error) {
-		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view})
-	}
-}
-
-// claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from the
-// repository it runs in. The view is whatever the judged text says, and `-p` skips the workspace trust
-// dialog. Without these flags a checked-out branch's `.claude/settings.json` would apply, allow rules
-// and hooks and all, and a comment telling the model to run a command would be obeyed before the
-// numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
-func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
-	args := []string{
-		"-p", "--model", settings.Model, "--output-format", "text",
-		"--tools", "", "--strict-mcp-config", "--setting-sources", "user",
-	}
-	if settings.Effort != "" {
-		args = append(args, "--effort", settings.Effort)
-	}
-	return append(args, prompt)
-}
-
 func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
 	return RunIn(self, args, ".", stdin, stdout, stderr, call, memo)
 }
@@ -194,7 +169,7 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		args = args[1:]
 	}
 	if len(args) == 0 || len(args) > 2 {
-		fmt.Fprintf(stderr, "%s: usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]\n", self)
+		fmt.Fprintf(stderr, "%s: usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]\n", self)
 		return exitDidNotRun
 	}
 	if changed && len(args) != 2 {

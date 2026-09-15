@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -125,6 +126,53 @@ func (p *document) validate() error {
 		}
 	}
 	return nil
+}
+
+// One selection the file holds, and not a bare model name: the same string means different things to
+// the two CLIs, and codex does not offer the same efforts on every model. Measured 2026-09-15 —
+// gpt-5.6-terra takes `ultra` and gpt-5.6-luna does not, so what a provider runs or refuses is the
+// whole selection.
+type ClientModel struct {
+	Profile string
+	Client  string
+	Model   string
+	Effort  string
+}
+
+// Every model name this file asserts, for a check that resolves each one against its provider.
+// Walking the profiles suffices: validate leaves a profile either `task-origin` alone, which names no
+// model and takes the invoking task's, or explicit settings for both clients. So a name reaches a CLI
+// from here or from an Origin passed in at run time, and an Origin is not this file's to vouch for.
+//
+// Ordered by profile then client so a report reads the same way twice, and deduplicated on the whole
+// selection, since two profiles naming one model at one effort are one question to ask.
+func (p *Policy) ProfileModels() []ClientModel {
+	var found []ClientModel
+	seen := map[string]bool{}
+	names := make([]string, 0, len(p.content.Profiles))
+	for name := range p.content.Profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		profile := p.content.Profiles[name]
+		for _, pair := range []struct {
+			client   string
+			settings *Settings
+		}{{"codex", profile.Codex}, {"claude", profile.Claude}} {
+			if pair.settings == nil || pair.settings.Model == "" {
+				continue
+			}
+			key := pair.client + "/" + pair.settings.Model + "/" + pair.settings.Effort
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			found = append(found, ClientModel{Profile: name, Client: pair.client,
+				Model: pair.settings.Model, Effort: pair.settings.Effort})
+		}
+	}
+	return found
 }
 
 func (p *Policy) Resolve(request Request) (Decision, error) {

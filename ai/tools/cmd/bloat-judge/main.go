@@ -1,6 +1,6 @@
 // The judge as a command.
 //
-//	usage: bloat-judge.sh [--numbers] [--changed[=<revisions>]] <kind> [<path>]
+//	usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]
 package main
 
 import (

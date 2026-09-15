@@ -67,7 +67,7 @@ func TestEveryProductionRoleKeepsItsAssignment(t *testing.T) {
 			if name == "judge" {
 				model, effort = "haiku", ""
 				if client == "codex" {
-					model, effort = "gpt-5.4-mini", "low"
+					model, effort = "gpt-5.6-luna", "low"
 				}
 			}
 			if decision.Requested.Model != model || decision.Requested.Effort != effort {

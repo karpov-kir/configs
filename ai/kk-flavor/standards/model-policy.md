@@ -2,6 +2,8 @@
 
 Resolve model-bearing work from `~/.kk-flavor/models.json`. Its profiles, roles and usage map are the single place to assign or upgrade models. Skills name roles; they do not embed model IDs.
 
+Every model name a profile holds is asked of its provider by `ai/gate.sh`'s `models` unit. A name no account can run then fails at this file, not at the next judge run. A client whose CLI the machine lacks leaves its names unresolved and named on stderr, while the names that did resolve decide the verdict. Read a pass as no reachable provider refusing a name here, never as every name running. A machine with neither CLI resolved nothing, so the unit exits 2 there and the gate reads that as a check that did not run.
+
 ## Original task
 
 Capture the original task's client, actual model and effort before any override. Keep that origin and the policy digest in the run's scratch record. The immediate parent and the client's current global defaults are not substitutes for the original selection.

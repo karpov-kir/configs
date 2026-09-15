@@ -87,3 +87,61 @@ func TestUnknownOriginEffortRequiresOriginalNativeParent(t *testing.T) {
 		t.Fatalf("native fallback: %+v %v", got, err)
 	}
 }
+
+// Two things at once: it lists what the file asserts, and it lists nothing else. A `task-origin`
+// profile names no model — its selection arrives at run time from the invoking task — so a name
+// invented for it here would send the check asking a provider about a string this file never chose.
+func TestProfileModelsListsWhatTheFileAssertsAndNothingElse(t *testing.T) {
+	p := policyForTest(t)
+	var got []string
+	for _, named := range p.ProfileModels() {
+		got = append(got, named.Profile+"/"+named.Client+"/"+named.Model+"/"+named.Effort)
+	}
+	want := "judge/codex/helper/low judge/claude/haiku/"
+	if strings.Join(got, " ") != want {
+		t.Fatalf("ProfileModels = %v; want %q", got, want)
+	}
+}
+
+// sample plus a twin profile at the codex effort given, and a role using it. The two cases below
+// differ only in that effort: at "low" the twin repeats judge's selection exactly, at "high" it is a
+// second question about one model.
+func policyWithTwinProfile(t *testing.T, twinCodexEffort string) *Policy {
+	t.Helper()
+	raw := strings.Replace(sample,
+		`"judge":{"profile":"judge","uses":["judge"]}`,
+		`"judge":{"profile":"judge","uses":["judge"]},"edit":{"profile":"twin","uses":["edit"]}`, 1)
+	raw = strings.Replace(raw,
+		`"judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}}`,
+		`"judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}},`+
+			`"twin":{"codex":{"model":"helper","effort":"`+twinCodexEffort+`"},"claude":{"model":"haiku"}}`, 1)
+	p, err := Parse([]byte(raw))
+	if err != nil {
+		t.Fatalf("fixture did not parse, so this case measures nothing: %v", err)
+	}
+	return p
+}
+
+// One model named by two profiles at one effort is one question, so the second mention is dropped
+// rather than probed again — a duplicate costs a provider call every run of the check and settles
+// nothing.
+func TestAModelTwoProfilesShareIsListedOnce(t *testing.T) {
+	if named := policyWithTwinProfile(t, "low").ProfileModels(); len(named) != 2 {
+		t.Errorf("ProfileModels = %v; want the two distinct pairs once each", named)
+	}
+}
+
+// One model at two efforts is two questions, not a duplicate: a model can refuse an effort it does not
+// offer, as ClientModel's measurement shows. A pair collapsed here would have the check ask about one
+// of them and report a verdict for both.
+func TestOneModelAtTwoEffortsIsTwoQuestions(t *testing.T) {
+	efforts := map[string]bool{}
+	for _, named := range policyWithTwinProfile(t, "high").ProfileModels() {
+		if named.Client == "codex" && named.Model == "helper" {
+			efforts[named.Effort] = true
+		}
+	}
+	if !efforts["low"] || !efforts["high"] {
+		t.Errorf("helper was asked about at %v; want both low and high", efforts)
+	}
+}
