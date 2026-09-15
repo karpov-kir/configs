@@ -110,7 +110,11 @@ func resolveKey(root string) (string, error) {
 	return FromSharedGitDir(shared)
 }
 
-func resolveName(root string) (string, error) {
+// ResolveName is the readable half for the clone containing `root`, asking git where the shared git
+// dir is. It is what `repo-key.sh --name` prints, and what a caller holding a repository path — the
+// handoff gate holds one — compares a written-down name against. A root that is not inside a clone
+// this process can read comes back as an error and never as a name.
+func ResolveName(root string) (string, error) {
 	shared, err := sharedGitDir(root)
 	if err != nil {
 		return "", err
@@ -177,7 +181,7 @@ const usage = "usage: " + stubName + " [--name] [<repo path>]"
 func Run(args []string, out, errOut io.Writer) int {
 	resolve := resolveKey
 	if len(args) > 0 && args[0] == "--name" {
-		resolve, args = resolveName, args[1:]
+		resolve, args = ResolveName, args[1:]
 	}
 	// A second argument is a caller who does not know which clone they are asking about. Whatever is
 	// left once the flag is taken is a path even when it starts with a dash: a directory may

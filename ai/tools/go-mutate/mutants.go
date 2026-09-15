@@ -706,12 +706,49 @@ var mutants = []mutant{
 	{"handoff: the hex scan unbounded again", "../handoff-check/handoff-check.go", "./handoff-check/", "TestBaseAndRepository", "`(^|[^0-9A-Za-z])([0-9a-f]{7,})([^0-9A-Za-z]|$)`", "`()([0-9a-f]{7,})()`"},
 	{"handoff: the reachback scan silenced", "../handoff-check/handoff-check.go", "./handoff-check/", "TestReachback", "if hit := matcher.FindString(low); hit != \"\" {", "if hit := matcher.FindString(low); false {"},
 	{"handoff: an empty slot read as filled", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !s.filled[name]:", "case !s.filled[name] && false:"},
-	{"handoff: the unfilled repository prefix goes unread", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">")`, `found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">") && false`},
-	{"handoff: the prefix scan's closing anchor removed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">")`, `found && strings.HasPrefix(prefix, "[<")`},
+	{"handoff: the unfilled repository prefix goes unread", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "if isPlaceholder(prefix) {", "if isPlaceholder(prefix) && false {"},
+	{"handoff: the unfilled work half goes unread", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case isPlaceholder(work):", "case isPlaceholder(work) && false:"},
+	// Which half the finding names is its whole content once the two are read apart, so both directions
+	// are broken: either message standing in for the other still reads as a working gate.
+	{"handoff: the unfilled work half named as the whole line", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case isPlaceholder(work) && prefixed:", "case isPlaceholder(work) && false:"},
+	{"handoff: the whole line named as a work half", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `s.flag("the title line is still the template placeholder")`, `s.flag("the title's work half is still the template placeholder")`},
+	// The split is what makes the two halves separable at all. Collapsed, a filled prefix in front of an
+	// unfilled work half reads as one filled line and neither slot is measured.
+	{"handoff: the title read as one slot rather than two", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `prefix, work, prefixed = strings.Cut(title, "]")`, `prefix, work, prefixed = "", title, false`},
+	// The bracket has to OPEN the line. Without that, a title holding one further along is refused for
+	// naming a repository its author never wrote down.
+	{"handoff: a bracket anywhere in the title read as a repository prefix", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if !strings.HasPrefix(title, "[") {`, "if false {"},
 	{"handoff: an eighth heading accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !isRequired(name):", "case !isRequired(name) && false:"},
 	{"handoff: a second title line accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "if s.titles > 1 {", "if s.titles > 1 && false {"},
-	// The anchor on the placeholder, which is what lets a real title hold an angle bracket.
-	{"handoff: the placeholder title matched anywhere in the line", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if title == "" || (strings.HasPrefix(title, "<") && strings.HasSuffix(title, ">")) {`, `if title == "" || strings.Contains(title, "<") {`},
+	// The anchors on the placeholder, which are what let a real half hold an angle bracket: a work half
+	// reading "to <10 minutes" and a prefix reading "[<10min]" are both sound.
+	{"handoff: the placeholder test matched anywhere in the half", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))`, `return half == "" || strings.Contains(half, "<")`},
+	{"handoff: the placeholder test's closing anchor removed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))`, `return half == "" || strings.HasPrefix(half, "<")`},
+	{"handoff: the repository prefix goes unheld against the clone's name", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if s.prefix != s.repoName {`, `if s.prefix != s.repoName && false {`},
+	// Silence where there is no name is the other half of that check, and the only case that can observe
+	// it is the one whose repository `repo-key` cannot name.
+	{"handoff: a prefix refused where the repository has no name", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixIsUnreadWhereTheRepositoryHasNoName", `if s.prefix == "" || s.repoName == "" {`, `if s.prefix == "" {`},
+	// The other half of that guard: with no word in the slot there is nothing to weigh, and a draft
+	// carrying no prefix at all would otherwise be told its empty slot is the wrong repository.
+	{"handoff: a title with no opening bracketed word weighed anyway", "../handoff-check/handoff-check.go", "./handoff-check/", "TestCompleteDraftPasses", `if s.prefix == "" || s.repoName == "" {`, `if s.repoName == "" {`},
+	// The name in hand is this process's repository, not the draft's, until the draft says so.
+	{"handoff: a prefix weighed against a repository the draft never named", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository", "if !s.named {", "if false {"},
+	// The drafting session and the repository the draft points at are two different checkouts, which is
+	// why the repository is a slot in the template at all.
+	{"handoff: the prefix held against the working directory, not the target repository", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "repokey.ResolveName(repo)", `repokey.ResolveName(".")`},
+	// The draft's own bytes and the path this process was handed both reach a finding, and a raw escape
+	// in either is re-interpreted by the terminal the human reads it in.
+	// The escaping and the line bound belong to the printer, so they are broken there. Held at each
+	// message instead, a mutant on any one site would survive the others and be reported as a finding.
+	{"handoff: every line leaves the gate unescaped", "../handoff-check/handoff-check.go", "./handoff-check/", "TestNoLineLeavesTheGateCarryingAControlByte", "shell.CutBytesMarked(shell.Oneline(text), lineWidthCap)", "shell.CutBytesMarked(text, lineWidthCap)"},
+	{"handoff: every line leaves the gate unbounded", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(shell.Oneline(text), lineWidthCap)", "shell.Oneline(text)"},
+	// The two fields standing before the repair. Cut only at the line, a long one takes `use [X]` with it.
+	{"handoff: the opening bracketed word quoted unbounded", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.prefix, findingNameCap)", "s.prefix"},
+	{"handoff: the repository path quoted unbounded beside it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.repoPath, pathCap), s.repoName, s.repoName", "s.repoPath, s.repoName, s.repoName"},
+	// The title line is the one line reader that has to trim BOTH ends: `\r` is a space byte, so a CRLF
+	// draft left every half ending in one and no half ever matched its closing `>`.
+	{"handoff: the title line right-trimmed no longer", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "title := strings.Trim(raw[2:], shell.SpaceBytes)", "title := strings.TrimLeft(raw[2:], shell.SpaceBytes)"},
+	{"handoff: the work half keeps the space the bracket left it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "strings.TrimPrefix(prefix, \"[\"), strings.TrimLeft(work, shell.SpaceBytes), true", "strings.TrimPrefix(prefix, \"[\"), work, true"},
 	{"handoff: a leftover template comment ignored", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `s.flag(fmt.Sprintf("template comment left at line %d — that slot is unfilled", lineNo))`, `_ = lineNo`},
 	{"handoff: None accepted in the slots that refuse it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestNone", "case refuseNone[name]:", "case refuseNone[name] && false:"},
 	// The word boundary after `None`, without which a slot opening "Nonetheless" is read as empty and
