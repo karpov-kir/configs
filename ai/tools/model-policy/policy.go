@@ -58,7 +58,7 @@ type document struct {
 	//
 	// Held per client rather than as one list of pairs, because the two clients are set
 	// independently: a row names each client's model on its own, and the codex side carries an
-	// effort beside it that the claude side has nowhere to put.
+	// effort beside it that buys the claude side nothing.
 	Tiers    map[string][]string   `json:"tiers"`
 	Sessions map[string]assignment `json:"sessions"`
 	Workers  map[string]assignment `json:"workers"`
@@ -388,7 +388,8 @@ func (p *Policy) TaskNames() []string {
 
 func validateSettings(client string, settings Settings) error {
 	// Every row names a model for every client. An effort alone reads as a decision and is not one: on
-	// claude there is no per-dispatch effort to carry it, and on codex — which does carry one — the
+	// claude it changes nothing the caller can rely on — subagent dispatch drops it, and the CLI takes
+	// one without the model spending differently — and on codex, which does carry one, the
 	// spawn then takes whatever model the caller was running, which is the silent inheritance this
 	// whole file exists to remove. It also leaves the row outside the tier order, so nothing can
 	// compare it against a ceiling and an orchestrator priced that way is judged by nothing.
