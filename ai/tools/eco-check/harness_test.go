@@ -46,6 +46,11 @@ const (
 	unclaimedRouter = "claims no exception"
 )
 
+// What a file under `standards/` opens with when its case is not about the layering. Every such file
+// is judged for a `**Layer:**` line, so one written without it raises a finding of a kind the case
+// never asked about — which the counting cases next door then count.
+const layerLine = "**Layer:** base\n\n"
+
 // The lane fixture the citation and basename cases share cites its script by this path. It is a
 // constant because those two case files have to state the same path. Written inline in a file the
 // checker scans, a cited path that does not resolve in the real checkout becomes a finding against the
@@ -172,6 +177,7 @@ func (f *fixture) newFileWithNewlineName(path, content, what string) {
 func (f *fixture) floodWithLinks(target string, count int, format string) {
 	f.t.Helper()
 	var flood strings.Builder
+	flood.WriteString(layerLine)
 	for i := 1; i <= count; i++ {
 		fmt.Fprintf(&flood, format+"\n", i)
 	}
@@ -183,6 +189,7 @@ func (f *fixture) floodWithLinks(target string, count int, format string) {
 func (f *fixture) floodWithHomeRefs(target string, count int) {
 	f.t.Helper()
 	var flood strings.Builder
+	flood.WriteString(layerLine)
 	for i := 1; i <= count; i++ {
 		fmt.Fprintf(&flood, "- ~/.kk-flavor/nope%03d.md\n", i)
 	}
@@ -393,6 +400,21 @@ func (f *fixture) doesNotReportWithRootNamed(dir, root string, needles ...string
 	f.mountHome()
 	f.t.Chdir(dir)
 	f.absent(f.checkWith(root), needles...)
+}
+
+// One run a case expects to REFUSE, and its output. `run` and everything built on it fail a case that
+// exits 2, because there it means the tree went unchecked and the case cannot be trusted; a case about
+// a refusal wants exactly that exit, so it drives Run itself. Returned rather than asserted on here,
+// because a refusal case also has to show the scan did not ALSO report what it skipped.
+func (f *fixture) refuses(needles ...string) string {
+	f.t.Helper()
+	f.isolate()
+	var output bytes.Buffer
+	if status := ecocheck.Run([]string{"--agent=claude", f.root}, &output, &output); status != 2 {
+		f.t.Fatalf("expected exit 2, got %d\n%s", status, indent(output.String()))
+	}
+	f.found(output.String(), needles...)
+	return output.String()
 }
 
 func (f *fixture) found(output string, needles ...string) {

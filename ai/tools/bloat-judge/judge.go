@@ -1,4 +1,4 @@
-// Package bloatjudge deletes prose by majority vote, stopping when remaining rolls cannot change it.
+// Package bloatjudge deletes prose by majority vote over independent rolls of the model.
 // --changed offers only blocks touched by the diff, while showing the model the whole file.
 // The model returns unit numbers; it cannot rewrite text or delete source code.
 //
@@ -98,9 +98,9 @@ func DefaultMemo(policy string) *Memo {
 func (m *Memo) key(kind, content string) string {
 	kindName, _, _ := strings.Cut(kind, "\n")
 	specification := kinds[kindName]
-	// Bump the algorithm version when unit extraction or majority semantics change. v3: the bound a
-	// verdict is read against became the units on offer rather than the view's line count, and the vote
-	// became quorum-first waves. Either can move a verdict over identical bytes.
+	// Bump the algorithm version when unit extraction or majority semantics change, either of which
+	// can move a verdict over identical bytes. v3: the bound a verdict is read against became the
+	// units on offer rather than the view's line count.
 	identity := "judge-v3\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
 	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
@@ -545,33 +545,21 @@ func Apply(lines []string, units []Unit, gone []int) string {
 // parsed on its own, so one that explains instead of answering, or names a unit that was never
 // offered, fails the whole vote rather than being outvoted into silence.
 //
-// The rolls go out in waves, and a wave goes out together. A majority is already decided once a
-// quorum of them agrees, so the first wave IS the quorum — two of three — and the rest are rolled only
-// where those two left a unit undecided. That costs the calls a sequential vote costs and the wall
-// clock a fully concurrent one costs.
-//
-// Concurrency is what makes a wave free: a roll waits on the API rather than on this machine, so three
-// at once came back in 150 seconds against 343 in sequence, none slower for the company.
+// Every roll goes out at once, so a vote costs the slowest single roll. Do not split them into waves
+// to skip the rolls a majority has already made redundant: a roll's wall clock is dominated by the
+// model's thinking, which varies several-fold over byte-identical input, so a second wave pays
+// another draw from that tail and the saved calls are not the resource under pressure.
 func Voting(call Caller, rolls int) Caller {
 	return func(prompt, view string) (string, error) {
 		count := unitsInView(view)
+		named, err := rollAll(call, prompt, view, count, rolls)
+		if err != nil {
+			return "", err
+		}
 		tally := map[int]int{}
-		// The quorum of `rolls`, which is the fewest that can carry a majority: two of three. Rolling
-		// fewer than this first could never settle anything, so it would only add a wave.
-		quorum := rolls/2 + 1
-		for rolled := 0; rolled < rolls; {
-			named, err := rollWave(call, prompt, view, count, min(quorum, rolls-rolled))
-			if err != nil {
-				return "", err
-			}
-			rolled += len(named)
-			for _, gone := range named {
-				for _, n := range gone {
-					tally[n]++
-				}
-			}
-			if settled(tally, count, rolls, rolls-rolled) {
-				break
+		for _, gone := range named {
+			for _, n := range gone {
+				tally[n]++
 			}
 		}
 		var agreed []string
@@ -587,11 +575,11 @@ func Voting(call Caller, rolls int) Caller {
 	}
 }
 
-func rollWave(call Caller, prompt, view string, count, wave int) ([][]int, error) {
-	named := make([][]int, wave)
-	errs := make([]error, wave)
+func rollAll(call Caller, prompt, view string, count, rolls int) ([][]int, error) {
+	named := make([][]int, rolls)
+	errs := make([]error, rolls)
 	var wg sync.WaitGroup
-	for i := 0; i < wave; i++ {
+	for i := 0; i < rolls; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -612,18 +600,6 @@ func rollWave(call Caller, prompt, view string, count, wave int) ([][]int, error
 		}
 	}
 	return named, nil
-}
-
-// settled says no unrolled roll could still change the answer: every unit is already past a majority,
-// or already past saving. Asked before a wave rather than after each roll, because a wave's rolls are
-// in flight together and there is no moment between them to ask in.
-func settled(tally map[int]int, count, rolls, remaining int) bool {
-	for n := 1; n <= count; n++ {
-		if tally[n]*2 <= rolls && (tally[n]+remaining)*2 > rolls {
-			return false
-		}
-	}
-	return true
 }
 
 // unitsInView counts what the view actually offers, which is the bound a roll's answer is read

@@ -55,15 +55,12 @@ func TestParseVerdictAcceptsNumbersAndNone(t *testing.T) {
 	}
 }
 
-// An empty answer is not `none`. Read as one, a model that produced nothing came back as a clean pass
-// over text nobody judged.
 func TestParseVerdictRefusesAnAnswerThatIsEmpty(t *testing.T) {
 	if _, err := ParseVerdict("   \n", 3); err == nil {
 		t.Fatal("an empty answer was accepted as none")
 	}
 }
 
-// Prose is refused whole rather than mined for digits: a model that explains has stopped judging.
 func TestParseVerdictRefusesProseAndOutOfRange(t *testing.T) {
 	if _, err := ParseVerdict("I would delete 2 because it restates the code", 3); err == nil {
 		t.Fatal("prose with a number in it was accepted")
@@ -113,8 +110,6 @@ func TestRunNumbersPrintsFileLines(t *testing.T) {
 	}
 }
 
-// Judged twice, the second run must delete nothing: a lane re-running the judge over text it already
-// judged has to converge, not shave another share off each pass.
 func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
 	path := write(t, source)
 	call := func(_, view string) (string, error) {
@@ -159,8 +154,6 @@ func TestRunRefusesAModelThatDoesNotAnswer(t *testing.T) {
 	}
 }
 
-// The view is untrusted text, so the real run reaches the model with nothing it could be talked into
-// using: no tools, no MCP servers, and none of the repository's own settings.
 func TestClaudeArgsGrantNoToolsServersOrRepoSettings(t *testing.T) {
 	args := claudeArgs("You are", testSettings())
 	at := func(flag string) int {
@@ -235,9 +228,6 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 	}
 }
 
-// The memo is what makes the judge idempotent whatever the model does. Judged once, the text's verdict
-// is recorded and its pruned form is recorded clean, so a resend calls no model and deletes nothing —
-// even under a model that would delete something new every time it was asked.
 func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 	path := write(t, source)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
@@ -264,8 +254,6 @@ func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 	}
 }
 
-// A memo the process cannot write is not a reason to refuse: the verdict is still applied, and only the
-// next run pays for the model again.
 func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	path := write(t, source)
 	memo := &Memo{Dir: filepath.Join(write(t, "not a dir"), "judged")}
@@ -310,8 +298,6 @@ func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
 	}
 }
 
-// The form the lanes run. A committed file with two blocks gains a third: only the third is offered,
-// the two committed ones are shown as context and cannot be deleted whatever the model answers.
 func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 	repo := t.TempDir()
 	git := func(args ...string) {
@@ -371,9 +357,6 @@ func write(t *testing.T, content string) string {
 	return path
 }
 
-// rollsAnswering is a Caller giving each reply in turn, so a vote's rolls read as the list they are.
-// The rolls are concurrent, so which reply a given roll draws is not fixed. Every case below asserts
-// on the tally, which does not depend on that; the lock is what keeps the counter itself sound.
 func rollsAnswering(replies ...string) Caller {
 	var mu sync.Mutex
 	next := 0
@@ -386,7 +369,7 @@ func rollsAnswering(replies ...string) Caller {
 	}
 }
 
-// A caller that counts, safe to call from one wave's goroutines at once. The count is read after
+// A caller that counts, safe to call from a vote's goroutines at once. The count is read after
 // Voting returns, so a bare int here would be a race the -race build reports, not a short count.
 func counting(inner Caller) (Caller, func() int) {
 	var mu sync.Mutex
@@ -425,15 +408,12 @@ func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
 	}
 }
 
-// A roll that explains fails the vote outright rather than being outvoted into silence.
 func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
 	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", viewOf("a", "b", "c")); err == nil {
 		t.Fatal("a prose roll was outvoted instead of refused")
 	}
 }
 
-// The lanes name these kinds in their instructions; one missing here fails their call at run time with
-// "no kind", which no test of theirs would catch.
 func TestEveryLaneKindExists(t *testing.T) {
 	for _, name := range []string{"comment", "instruction", "pr-body", "review", "commit", "report", "return", "reply", "ticket", "slack", "record-entry"} {
 		if _, ok := kinds[name]; !ok {
@@ -503,22 +483,23 @@ func TestUnitsInViewCountsUnitsAndNotLines(t *testing.T) {
 	}
 }
 
-// Two rolls carry a majority of three, so a vote they agree on never rolls the third.
-func TestVotingStopsWhenTwoRollsSettleEveryUnit(t *testing.T) {
+func TestEveryRollGoesOutEvenWhenTheyAgree(t *testing.T) {
 	call, calls := counting(func(string, string) (string, error) { return "2, 1", nil })
 	got, err := Voting(call, 3)("prompt", viewOf("one", "two"))
-	if err != nil || got != "1,2" || calls() != 2 {
-		t.Fatalf("settled majority = %q, %v; calls=%d, want 2", got, err, calls())
+	if err != nil || got != "1,2" {
+		t.Fatalf("majority = %q, %v, want \"1,2\"", got, err)
+	}
+	if calls() != 3 {
+		t.Fatalf("%d call(s), want 3 — a roll was held back", calls())
 	}
 }
 
-// The quorum goes out together, which is the half of it a call count cannot see. Both rolls block
-// until both have arrived, so a vote that rolled them one at a time never reaches the second and this
-// ends on the timeout instead of the reply. Two and not three: the third is a wave of its own, and
-// these two agree, so it is never rolled.
-func TestTheQuorumsRollsGoOutTogether(t *testing.T) {
+// The rolls go out together, which is the half of it a call count cannot see. Each one blocks until
+// all three have arrived, so a vote that rolled any of them in a later wave never reaches the third
+// and this ends on the timeout instead of the reply.
+func TestTheRollsGoOutTogether(t *testing.T) {
 	var arrived sync.WaitGroup
-	arrived.Add(2)
+	arrived.Add(3)
 	call := func(string, string) (string, error) {
 		arrived.Done()
 		arrived.Wait()
@@ -539,50 +520,56 @@ func TestTheQuorumsRollsGoOutTogether(t *testing.T) {
 			t.Fatalf("got %q, want 1", reply)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("the quorum's rolls ran one after another — the second never started while the first waited")
+		t.Fatal("the rolls went out in more than one wave — the last never started while the others waited")
 	}
 }
 
-// And where the quorum leaves a unit undecided, the rest are rolled. One roll each for units 1 and 2
-// leaves both one short of a majority with one roll still to come, so stopping here would answer
-// "none" over a unit the third roll could carry.
-func TestVotingRollsOnWhenTheQuorumDisagrees(t *testing.T) {
-	call, calls := counting(rollsAnswering("1", "2", "1"))
-	got, err := Voting(call, 3)("p", viewOf("a", "b"))
-	if err != nil || calls() != 3 {
-		t.Fatalf("got %q %v after %d call(s), want 3 calls", got, err, calls())
-	}
-	if got != "1" {
-		t.Fatalf("got %q, want 1 — the third roll carried it", got)
-	}
-}
-
-// The count is Voting's own parameter and the wave split is derived from it, so the arithmetic has to
-// hold for counts other than the 3 production passes today. Nine because a high count is where an
-// off-by-one in a split hides, and because 3 alone would let a wrong general rule pass — at 3 the
-// quorum is 2 and almost any plausible formula gives 2.
-//
-// Nine rolls put the quorum at five. Agreeing, the vote stops there: unit 1 is past a majority at
-// five, and a unit no roll named cannot reach one with four rolls left, so nothing is undecided.
-// Disagreeing two-of-five on unit 1 leaves it reachable — 2 now, 4 to come, 6 of 9 would carry it —
-// so the second wave has to fire.
-func TestTheWaveSplitHoldsAtAHigherRollCount(t *testing.T) {
+// The count is Voting's own parameter and the majority is arithmetic over it, so the rule has to hold
+// for counts other than the 3 production passes today. Nine because a high count is where an
+// off-by-one hides, and because 3 alone would let a wrong general rule pass — at 3 a bare half and
+// more than half name the same number of rolls.
+func TestTheMajorityRuleHoldsAtAHigherRollCount(t *testing.T) {
 	for _, c := range []struct {
 		name    string
 		replies []string
-		want    int
+		want    string
 	}{
-		{"a quorum that agrees stops at the quorum", []string{"1", "1", "1", "1", "1"}, 5},
-		{"a quorum that leaves a unit reachable rolls on", []string{"1", "1", "2", "2", "2", "1", "1", "1", "1"}, 9},
+		{"five of nine carries a unit", []string{"1", "1", "1", "1", "1", "2", "2", "2", "2"}, "1"},
+		{"four of nine does not", []string{"1", "1", "1", "1", "2", "2", "3", "3", "none"}, "none"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			call, calls := counting(rollsAnswering(c.replies...))
-			if _, err := Voting(call, 9)("p", viewOf("a", "b")); err != nil {
+			got, err := Voting(call, 9)("p", viewOf("a", "b", "c"))
+			if err != nil {
 				t.Fatalf("vote refused: %v", err)
 			}
-			if calls() != c.want {
-				t.Fatalf("%d call(s), want %d", calls(), c.want)
+			if got != c.want {
+				t.Fatalf("got %q, want %q", got, c.want)
+			}
+			if calls() != 9 {
+				t.Fatalf("%d call(s), want 9 — a roll was held back", calls())
 			}
 		})
+	}
+}
+
+// A roll that never answered fails the whole vote, exactly as a roll that explains does. The rolls
+// that did answer are a majority of a smaller vote than the one the caller asked for, and reading a
+// verdict out of them reports the deadline the model hit as a judgement it made.
+func TestVotingRefusesWhenARollFails(t *testing.T) {
+	var mu sync.Mutex
+	rolled := 0
+	call := func(string, string) (string, error) {
+		mu.Lock()
+		rolled++
+		first := rolled == 1
+		mu.Unlock()
+		if first {
+			return "", errors.New("the model did not answer within 420s")
+		}
+		return "1", nil
+	}
+	if _, err := Voting(call, 3)("p", viewOf("a", "b")); err == nil {
+		t.Fatal("a roll that never answered was outvoted instead of failing the vote")
 	}
 }

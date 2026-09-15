@@ -260,3 +260,44 @@ func TestExtendsDeclarationReadsTheFormAndReportsALineItCannot(t *testing.T) {
 		}
 	}
 }
+
+// The layer grammar: three names, and a line nobody can read reported as one rather than as an absent
+// declaration. The cycle check next door reads this answer, so a fourth word passed over as silence
+// would exempt that standard from the check by being unreadable — and it would arrive under the
+// finding for a file that declares nothing, sending its author to write a line the file already has.
+func TestLayerDeclarationReadsTheThreeAndRefusesAFourth(t *testing.T) {
+	for _, one := range []struct {
+		line     string
+		layer    string
+		declared bool
+	}{
+		{line: "**Layer:** base", layer: "base", declared: true},
+		{line: "**Layer:** craft", layer: "craft", declared: true},
+		{line: "**Layer:** process", layer: "process", declared: true},
+		{line: "**Layer:** process\r", layer: "process", declared: true},
+		{line: "**Layer:** foundation", layer: "", declared: true},
+		{line: "**Layer:** basement", layer: "", declared: true},
+		{line: "**Layer:** Base", layer: "", declared: true},
+		{line: "**Layer:**", layer: "", declared: true},
+		{line: "The file **Layer:** base declares", layer: "", declared: false},
+		{line: "Layer: base", layer: "", declared: false},
+		{line: "nothing about a layer", layer: "", declared: false},
+	} {
+		layer, declared := LayerDeclaration([]string{one.line, "", "# Heading", "", "body"})
+		if layer != one.layer || declared != one.declared {
+			t.Errorf("%q read as (%q, %v), wanted (%q, %v)", one.line, layer, declared, one.layer, one.declared)
+		}
+	}
+}
+
+func TestUnknownLayerIsTheWordAsItWasTyped(t *testing.T) {
+	written, found := UnknownLayer([]string{"**Layer:**   Crafts  ", "", "body"})
+	if !found || written != "Crafts" {
+		t.Errorf("unknown layer read as (%q, %v), wanted (\"Crafts\", true)", written, found)
+	}
+	for _, lines := range [][]string{{"**Layer:** craft"}, {"# Heading"}, nil} {
+		if written, found := UnknownLayer(lines); found || written != "" {
+			t.Errorf("%v read as an unknown layer (%q, %v)", lines, written, found)
+		}
+	}
+}

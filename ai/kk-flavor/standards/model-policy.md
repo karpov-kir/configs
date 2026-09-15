@@ -176,16 +176,16 @@ Which fields a transport carries differs, and a field it cannot carry is dropped
 
 | Transport | Model | Effort |
 | --- | --- | --- |
-| Claude CLI (`claude -p --model`) | yes | no |
+| Claude CLI (`claude -p --model`) | yes | yes |
 | Claude subagent dispatch | yes, from a fixed set of aliases | no |
 | Codex CLI | yes | yes |
 
-**So every row states a model, for both clients** — an effort alone is refused at parse. On Claude
-nothing carries it, so it reads as a saving and changes nothing; on Codex, which does carry one, the
-spawn would run at whatever model its caller had, which is the inheritance this file exists to remove.
-It also leaves the row outside the tier order, where no ceiling can judge it. Keep Claude models as the
-client's aliases (`haiku`, `sonnet`, `opus`), which both Claude transports accept where a dated API id
-is rejected by subagent dispatch.
+**So every row states a model, for both clients** — an effort alone is refused at parse. Such a row
+chooses no model, so the spawn takes the caller's or the client's default, which is the inheritance
+this file exists to remove. It also sits outside the tier order, where no ceiling can judge it. On
+Claude subagent dispatch the effort is dropped as well, so the row would select nothing. Keep Claude
+models as the client's aliases (`haiku`, `sonnet`, `opus`), which both Claude transports accept where
+a dated API id is rejected by subagent dispatch.
 
 Unknown tasks and unsupported selections fail visibly. Do not substitute a cheaper model or another
 provider. An explicit user model change updates the relevant run; a background config edit affects new

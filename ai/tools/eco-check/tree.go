@@ -22,6 +22,11 @@ type fsEntry struct {
 
 func (e fsEntry) isRegular() bool { return e.mode.IsRegular() }
 
+// The mode is the one lstat gave the directory entry, so this is the link itself and never what it
+// points at. descend reads the same type and does not follow one, which is why a scan that must not
+// go quiet over unread files asks.
+func (e fsEntry) isSymlink() bool { return e.mode&fs.ModeSymlink != 0 }
+
 // tree is one `find <start>` answered once, plus the index that answers "does this cited token name
 // a file in here". That question is asked once per cited token.
 type tree struct {
@@ -258,7 +263,6 @@ func (c *checker) existingOrEmpty(path string) string {
 	return ""
 }
 
-// True when a cited path names at least one real file, an ambiguous bare name included.
 func (c *checker) refExists(dir, ref string) bool {
 	if c.resolveRef(dir, ref) != "" {
 		return true
@@ -266,8 +270,6 @@ func (c *checker) refExists(dir, ref string) bool {
 	return len(c.walkTree(c.root.Named()).matchPath(ref)) > 0
 }
 
-// One skill's SKILL.md. Named rather than joined at each of the four call sites: the layout is one
-// fact, and four copies of it are four places a rename has to reach.
 func (c *checker) skillFilePath(name string) string {
 	return shell.Join(shell.Join(c.root.Skills(), name), "SKILL.md")
 }

@@ -41,9 +41,6 @@ var (
 	// place would exempt a skill by being unreadable.
 	runsDeclaration = regexp.MustCompilePOSIX(`^\*\*Runs:\*\*[ ]*(dispatched|orchestrator|holds — (converses|session-context|landing))[ ]*$`)
 
-	// Any `**Runs:**` line at all, for the same reason audienceDeclared sits beside its marker: a
-	// declaration spelled wrong must be refused by name, never read as an absent one. A skill whose
-	// line does not parse would otherwise fall to whatever a caller's silence implies.
 	runsDeclared = regexp.MustCompilePOSIX(`^\*\*Runs:\*\*`)
 
 	// Which contract a skill reads as its own delta and runs inside its own session, and when. Sixteen
@@ -60,7 +57,28 @@ var (
 	// present one, and that is the single direction this line can be wrong in and cost money.
 	extendsDeclaration = regexp.MustCompilePOSIX(`^\*\*Extends:\*\* *([A-Za-z0-9][A-Za-z0-9._-]*) +— +([^[:space:]](.*[^[:space:]])?)[[:space:]]*$`)
 	extendsDeclared    = regexp.MustCompilePOSIX(`^\*\*Extends:\*\*`)
+
+	// Which layer a standard puts itself in. The three names are the whole grammar, for the reason
+	// runsDeclaration's three forms are: the cycle check reads the answer, and a fourth word it could
+	// not place would exempt a standard by being unreadable.
+	//
+	// Anchored and whole-word, because only one direction of a wrong regex is silent. Too tight — a
+	// line ending in `\r` refused — reports a standard that declared as one nobody can read, which is
+	// loud and fixed in seconds. Too loose, `**Layer:** basement` taken for `base`, files the standard
+	// in a layer nobody wrote and the cycle check then judges it against the wrong neighbours without
+	// a word.
+	layerDeclaration = regexp.MustCompilePOSIX(`^\*\*Layer:\*\* *(` + strings.Join(Layers, "|") + `)[[:space:]]*$`)
+
+	layerDeclared = regexp.MustCompilePOSIX(`^\*\*Layer:\*\*`)
 )
+
+// Layers are the three the standards divide into, ordered as ecosystem.md → **One home** writes them:
+// base makes sense to a reader who has read no other layer, craft is making software, process is
+// running the agent machine.
+//
+// Exported because the finding that refuses a fourth word names them, and a list written out at that
+// finding is one a layer added here would never reach.
+var Layers = []string{"base", "craft", "process"}
 
 // LinkTargets is every `](target)` on one line, the parentheses stripped. Which *block* of a file it
 // is applied to is the caller's — `ecoroot.ReadAlwaysTargets` is where the ecosystem's always-loaded
@@ -139,10 +157,6 @@ func IsOptedOutOfModelInvocation(lines []string) bool {
 // mount loop discovery: a maintainer-only skill added tomorrow is excluded without anyone editing
 // either reader. Read through the pattern above, so this and ai/bootstrap.sh's awk agree about what
 // the marker line looks like.
-//
-// Named for the marker it reads rather than for what a caller does with the answer: two builds
-// arrived here at once and wrote this function twice under both names, and the marker is the half
-// that cannot drift.
 func IsMaintainerAudience(lines []string) bool {
 	return scanFrontmatter(lines, func(line string) bool {
 		return maintainerAudience.MatchString(AsciiLower(line))
@@ -280,4 +294,36 @@ func ExtendsDeclarations(lines []string) (extends []string, declared bool) {
 		}
 	}
 	return extends, declared
+}
+
+// LayerDeclaration is the layer a standard puts itself in — one of Layers — and whether a
+// `**Layer:**` line was there at all. Body text, like RunsDeclaration beside it: the rule puts the
+// line first in the file, and anchoring the scan there would report a standard that declared one line
+// lower as one that abstains. Where the line sits is not what either reader wants from it.
+//
+// Two returns for RunsDeclaration's reason. `**Layer:** core` matches no name, and a reader asking
+// only "which of the three is it" would answer that the standard declares nothing — which is what the
+// tree's one unlayered-file finding already means, so the mistake would arrive under the wrong name
+// and the fix under the wrong instruction.
+func LayerDeclaration(lines []string) (layer string, declared bool) {
+	for _, line := range lines {
+		if !layerDeclared.MatchString(line) {
+			continue
+		}
+		declared = true
+		if found := layerDeclaration.FindStringSubmatch(line); found != nil {
+			return found[1], true
+		}
+	}
+	return "", declared
+}
+
+func UnknownLayer(lines []string) (string, bool) {
+	for _, line := range lines {
+		if !layerDeclared.MatchString(line) || layerDeclaration.MatchString(line) {
+			continue
+		}
+		return strings.Trim(line[len("**Layer:**"):], SpaceBytes), true
+	}
+	return "", false
 }

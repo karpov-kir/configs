@@ -128,8 +128,6 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		newOversizeUnderAFlood(t).reports(ecocheck.FileTooLargeToScan)
 	})
 
-	// Presence alone would pass again the day the rank is dropped and the flood happens to be one
-	// line short of the cap, so the ordering is what this pins.
 	t.Run("and ranks it above that flood rather than inside it", func(t *testing.T) {
 		newOversizeUnderAFlood(t).ranksAbove(ecocheck.FileTooLargeToScan, ecocheck.DanglingLink)
 	})
@@ -145,9 +143,6 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		f.ranksAbove(ecocheck.MountWithoutASkill, ecocheck.DanglingLink)
 	})
 
-	// The same tally, on the tree that does carry notes — two of them, one per class the floor left
-	// short. The rank-5 tree above cannot show this: it prints no note at all, so nothing there says
-	// whether a note is still kept out of the count of findings shown.
 	t.Run("and counts neither of a two-note tree's notes as a finding", func(t *testing.T) {
 		newDriftUnderAFloodOfItsRank(t).reports("… 8 " + ecocheck.UnshownMarker)
 	})
@@ -295,10 +290,10 @@ func newFloodedRankFive(t *testing.T) *fixture {
 	f.floodWithHomeRefs(f.root+"/kk-flavor/standards/flood.md", ecocheck.FindingCap+5)
 	// Two dangling links rather than one, so a second class in the rank is left with something to
 	// withhold and its note has a count of its own to get wrong.
-	f.write(f.root+"/kk-flavor/standards/link.md", "[x](nowhere.md)\n")
-	f.write(f.root+"/kk-flavor/standards/target.md", "# Target\n\n## Here\n")
+	f.write(f.root+"/kk-flavor/standards/link.md", layerLine+"[x](nowhere.md)\n")
+	f.write(f.root+"/kk-flavor/standards/target.md", layerLine+"# Target\n\n## Here\n")
 	f.write(f.root+"/kk-flavor/standards/citer.md",
-		"see [target.md](target.md) → **Nowhere** and [gone.md](gone.md) → **X**\n")
+		layerLine+"see [target.md](target.md) → **Nowhere** and [gone.md](gone.md) → **X**\n")
 	f.newMountedSkill("zzz-outsider")
 	f.newScript("kk-drive/scripts/one.sh", "true")
 	return f

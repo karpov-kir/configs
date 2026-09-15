@@ -31,7 +31,7 @@ func TestTheReportCountsDoorsDeepDoorsPrecisionCitersAndUnenteredSections(t *tes
 
 	defined, edges, _ := graph(t, root)
 	var out, errOut bytes.Buffer
-	report(&out, &errOut, defined, edges, map[string]bool{})
+	report(&out, &errOut, defined, edges, map[string]string{}, map[string]bool{})
 	got := out.String()
 
 	if want := "4 file(s), 3 citation edge(s)"; !strings.Contains(got, want) {
@@ -120,7 +120,7 @@ func TestARouterLoadedFileContributesNoUnenteredSection(t *testing.T) {
 
 	defined, edges, _ := graph(t, root)
 	var out, errOut bytes.Buffer
-	report(&out, &errOut, defined, edges, map[string]bool{"std/proto.md": true})
+	report(&out, &errOut, defined, edges, map[string]string{}, map[string]bool{"std/proto.md": true})
 	got := out.String()
 
 	if strings.Contains(got, "shared  std/proto.md") {
@@ -128,5 +128,33 @@ func TestARouterLoadedFileContributesNoUnenteredSection(t *testing.T) {
 	}
 	if want := "1 unentered section(s) of which 0 are in the shared layer\n"; !strings.HasSuffix(got, want) {
 		t.Errorf("report does not end with %q:\n%s", want, got)
+	}
+}
+
+func TestEveryCycleIsClassifiedByTheLayersOfItsOwnFiles(t *testing.T) {
+	root := t.TempDir()
+	cycle := func(one, two, layerOne, layerTwo string) {
+		write(t, root, one+".md", layerOne+"# "+one+"\n\n## Rule\n\nSee `"+two+".md` → **Rule**.\n")
+		write(t, root, two+".md", layerTwo+"# "+two+"\n\n## Rule\n\nSee `"+one+".md` → **Rule**.\n")
+	}
+	cycle("peer-one", "peer-two", "**Layer:** craft\n\n", "**Layer:** craft\n\n")
+	cycle("under", "over", "**Layer:** base\n\n", "**Layer:** process\n\n")
+	// A skill carries no layer and is not getting one, so a cycle touching one is nothing this tool
+	// can judge. `**Layer:** everything` is the same answer by the other road: a word outside the
+	// three is unreadable here too, and read as a fourth layer it would turn this into a defect.
+	cycle("laneish", "typo", "", "**Layer:** everything\n\n")
+
+	code, out, errOut := runOver(t, root)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q — want a report", code, errOut)
+	}
+	for _, want := range []string{
+		"cross-reference (all craft)            peer-one.md → peer-two.md → peer-one.md",
+		"DEFECT (base + process)                over.md → under.md → over.md",
+		"unjudged (2 file(s) declare no layer)  laneish.md → typo.md → laneish.md",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the report is missing %q:\n%s", want, out)
+		}
 	}
 }

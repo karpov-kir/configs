@@ -14,7 +14,7 @@ Run the **edit lane** over every outward artifact in what you present for approv
 
 Apply it inline by default; a separate worker is not required. **The judge runs over anything this lane covers whose kind it names** — `bloat-judge.sh` lists them when asked for one it has not got — and where a measured bar also says the artifact is over it, how many go is the bar's rather than the author's. **Boilerplate is never a unit**: a repo template's own lines and any tool-generated block stay, whatever the judge makes of them. Recheck changed text after substantive revisions; an unchanged artifact already covered by the lane needs no repeat pass.
 
-Ordinary session replies and structured worker returns apply the writing rules directly. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
+**The judge does not run over a reply, a worker's structured return or a report, though it names a kind for all three.** A reply and a return take no lane either: apply the writing rules directly. A report takes the lane inline, never a separate worker. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
 
 ## Budget — the keep test
 

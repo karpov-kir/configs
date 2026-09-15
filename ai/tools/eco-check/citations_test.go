@@ -33,13 +33,15 @@ func TestDelimitedSectionCitations(t *testing.T) {
 // reviewed tree pointed it at. `evil.md -> /dev/zero`, or a committed FIFO, made the read of it never
 // return — the shell version hangs on the same fixture, both killed at 12s.
 func TestCitationTargetMustBeARegularFile(t *testing.T) {
-	// /dev/null stands in for /dev/zero: the same class of target, and the one that cannot hang this
-	// suite on the day someone takes the guard back out.
+	// The link sits beside `standards/` rather than inside it. A symlink under the standards takes the
+	// whole run to exit 2 — layers.go refuses a tree whose standards it cannot see past — and this case
+	// is about the citation, not about that refusal, so a fixture that triggered both would assert this
+	// finding through a run the harness declines to trust.
 	newDeviceTarget := func(t *testing.T) *fixture {
 		f := newRoot(t)
-		f.symlink("/dev/null", f.root+"/kk-flavor/standards/evil.md")
+		f.symlink("/dev/null", f.root+"/kk-flavor/evil.md")
 		f.write(f.root+"/kk-flavor/standards/citer.md",
-			"see [evil.md](evil.md) → **X** for the rule\n")
+			layerLine+"see [../evil.md](../evil.md) → **X** for the rule\n")
 		return f
 	}
 
@@ -85,9 +87,6 @@ func TestUnresolvableCitationPaths(t *testing.T) {
 	})
 }
 
-// The section every case cites unless it says otherwise, and the cited document it sits in. Both are
-// written once because six builders and cases below reach for them: two copies of a heading, one of
-// them edited, is a case that goes on passing while citing something the target no longer carries.
 const (
 	targetSection     = "One home"
 	targetSectionBody = "## " + targetSection + "\n"

@@ -1,5 +1,6 @@
 // Package ecocheck is the mechanical half of kk-ecosystem: every reference an agent could follow
-// resolves to something that exists, and every script still parses.
+// resolves to something that exists, every script still parses, and the standards stay layered — each
+// declaring its layer, and no cycle of citations crossing one.
 //
 // It is a library with a thin command beside it, because the suite that proves it drives it once
 // per case and a process spawn per case is the cost that makes a mutation run take hours. Nothing
@@ -114,6 +115,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	c.scanFamilyDirection()
 	c.scanPathRefs()
 	c.scanCitations()
+	c.scanStandardLayers()
 	c.scanBareRuleIDs()
 	c.scanUnknownSkills()
 	c.scanSkillDirectories()

@@ -15,9 +15,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// defaultRollDeadline bounds one roll of the model. The vote rolls a wave at a time, so a judge run is
-// bounded at two of these rather than three, and can no longer block forever — and at one whenever the
-// quorum settles, which is the common case.
+// defaultRollDeadline bounds one roll of the model. A vote rolls every roll at once, so a judge run is
+// bounded at one of these whatever its roll count, and can no longer block forever.
 //
 // Flat, not scaled by the text or by the load: a roll is spent waiting on the API, and neither
 // predicts it. Over thirteen timed rolls, 13KB cost 104 seconds where 53KB cost 85, and a roll that
@@ -29,7 +28,6 @@ import (
 // makes 420 affordable: one roll at a time, it would bound a run at 21 minutes.
 const defaultRollDeadline = 420 * time.Second
 
-// The only line the override file may carry.
 const overrideKey = "roll-timeout"
 
 // overridePath is where this machine tunes the deadline — the one place ecosystem.md → **Conventions
@@ -51,9 +49,6 @@ func overridePath(configHome, home string) string {
 	return filepath.Join(configHome, "kk-flavor", "bloat-judge.conf")
 }
 
-// ResolveRollDeadline is how a command asks: it reports the deadline and says whether the judge may
-// run at all, having already put the announcement or the refusal on stderr. A refusal is worded like
-// every other way this tool declines to run, so a caller reading stderr meets one vocabulary.
 func ResolveRollDeadline(self, configHome, home string, stderr io.Writer) (time.Duration, bool) {
 	deadline, announcement, err := rollDeadline(configHome, home)
 	if err != nil {

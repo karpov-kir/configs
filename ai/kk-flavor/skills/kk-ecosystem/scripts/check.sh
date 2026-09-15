@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Ecosystem wiring check, the mechanical half of kk-ecosystem. It checks that every reference an
-# agent could follow resolves to something that exists, and that every script still parses.
+# agent could follow resolves to something that exists, that every script still parses, and that the
+# standards stay layered — each declaring its layer, and no cycle of citations crossing one.
 #
 #   usage: check.sh --agent=claude|codex [--gate] [<root>]   # <root> holds kk-flavor/ and skills/; defaults to . then ./ai
 #

@@ -117,18 +117,23 @@ type scan struct {
 	skipped int
 	// The headings each file defines, keyed by the file's path relative to the root.
 	defined map[string]map[string]bool
+	// The layer each file declares itself in, same keys, and no entry for a file that declares none.
+	// A word outside the three arrives here as no entry too: this tool cannot read it either, and
+	// check.sh is what names it. Reading it as a fourth layer would let a typo turn a cross-reference
+	// into a cycle that looks like it crosses one.
+	layers map[string]string
 	// The `<file> → **Section**` citations, in the order they were written.
 	cites []rawCite
 	// The bare `<file>` mentions: a citer naming a file outside a citation holds that file whole.
 	mentions []rawCite
 }
 
-// The tree's headings and citations, plus how many paths under the root went unread. The third return
-// is what the exit code is owed to: without it a caller can only tell a tree with no citations from a
-// tree this never reached by reading prose on stderr, and nothing does.
-func read(root string, errOut io.Writer) (map[string]map[string]bool, []edge, int) {
+// The tree's headings, citations and layer declarations, plus how many paths under the root went
+// unread. That last one is what the exit code is owed to: without it a caller can only tell a tree
+// with no citations from a tree this never reached by reading prose on stderr, and nothing does.
+func read(root string, errOut io.Writer) (map[string]map[string]bool, []edge, map[string]string, int) {
 	found := scanTree(root, errOut)
-	return found.defined, found.edges(), found.skipped
+	return found.defined, found.edges(), found.layers, found.skipped
 }
 
 // A path this scan was pointed at and did not read. Every figure this tool prints is a count over the
@@ -166,7 +171,7 @@ func (s *scan) linkNotFollowed(p string) {
 
 // One pass over the tree, reading every markdown file it can.
 func scanTree(root string, errOut io.Writer) scan {
-	found := scan{root: root, errOut: errOut, defined: map[string]map[string]bool{}}
+	found := scan{root: root, errOut: errOut, defined: map[string]map[string]bool{}, layers: map[string]string{}}
 	// The callback answers every path with nil, so the walk itself has nothing left to report.
 	_ = filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -203,6 +208,10 @@ func (s *scan) readFile(path string, body []byte) {
 	self := relOf(s.root, path)
 	if s.defined[self] == nil {
 		s.defined[self] = map[string]bool{}
+	}
+	lines := shell.SplitLines(string(body))
+	if layer, _ := shell.LayerDeclaration(lines); layer != "" {
+		s.layers[self] = layer
 	}
 	// One block of adjacent lines, read as the citation the writer wrote rather than as the lines a
 	// formatter left. Headings stay per line, because a heading is a line.
@@ -245,7 +254,7 @@ func (s *scan) readFile(path string, body []byte) {
 			block = nil
 		}
 	}
-	for _, line := range shell.SplitLines(string(body)) {
+	for _, line := range lines {
 		if shell.IsFenceDelimiter(line) {
 			inFence = !inFence
 			closeBlock()

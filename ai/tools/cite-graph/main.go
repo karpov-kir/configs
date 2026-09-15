@@ -96,13 +96,13 @@ func summarize(edges []edge) (adj map[string][]string, targets map[string]*targe
 
 func reportDepth(out, errOut io.Writer, adj map[string][]string, nodes []string) int {
 	deepest := []string{}
-	budget := &walkBudget{left: walkSteps}
+	budget := shell.NewWalkBudget(shell.WalkSteps)
 	for _, n := range nodes {
 		if got := longest(adj, n, budget); len(got) > len(deepest) {
 			deepest = got
 		}
 	}
-	if budget.exhausted() {
+	if budget.Exhausted() {
 		fmt.Fprintf(errOut, "graph too densely connected to walk exhaustively — the depth below is a LOWER BOUND, not the longest chain\n")
 	}
 	fmt.Fprintf(out, "DEPTH  longest path through the graph is %d hop(s) — a coupling measure, not\n"+
@@ -180,24 +180,59 @@ func reportUnentered(out io.Writer, defined map[string]map[string]bool, targets 
 	return unentered, shared
 }
 
-func reportCycles(out, errOut io.Writer, adj map[string][]string, nodes []string) {
-	budget := &walkBudget{left: walkSteps}
-	loops := cycles(adj, nodes, budget)
-	if budget.exhausted() {
+// How one cycle reads against the layer its files declare, and the whole of what this tool says about
+// it: the tree answers the question the CYCLES block used to leave open.
+//
+// Unjudged comes first, because one unlayered file in the loop settles it whatever the others say.
+// Every skill is such a file — skills carry no layer — so a skill-to-skill cycle lands here rather
+// than being measured against a division it is not part of.
+func classifyCycle(loop []string, layers map[string]string) string {
+	inLoop := map[string]bool{}
+	unlayered := 0
+	var named []string
+	// The repeated endpoint is dropped: counted twice it changes no verdict, but it would make the
+	// count of unlayered files one too many on the cycle it closes.
+	for _, file := range loop[:len(loop)-1] {
+		layer, hasLayer := layers[file]
+		if !hasLayer {
+			unlayered++
+			continue
+		}
+		if !inLoop[layer] {
+			inLoop[layer] = true
+			named = append(named, layer)
+		}
+	}
+	if unlayered > 0 {
+		return fmt.Sprintf("unjudged (%d file(s) declare no layer)", unlayered)
+	}
+	if len(named) == 1 {
+		return "cross-reference (all " + named[0] + ")"
+	}
+	sort.Strings(named)
+	return "DEFECT (" + strings.Join(named, " + ") + ")"
+}
+
+func reportCycles(out, errOut io.Writer, adj map[string][]string, nodes []string, layers map[string]string) {
+	budget := shell.NewWalkBudget(shell.WalkSteps)
+	loops := shell.Cycles(adj, nodes, budget)
+	if budget.Exhausted() {
 		fmt.Fprintf(errOut, "graph too densely connected to walk exhaustively — the cycle count below is a LOWER BOUND\n")
 	}
 	if len(loops) == 0 {
 		return
 	}
-	fmt.Fprintf(out, "\nCYCLES  %d. Between peers this is a cross-reference, not a defect —\n"+
-		"        two standards may each be useful at the other's point of use. It is a defect\n"+
-		"        only where the two are meant to be layered.\n", len(loops))
+	fmt.Fprintf(out, "\nCYCLES  %d, each read against the layer its files declare. Inside one layer a cycle is a\n"+
+		"        cross-reference: two files may each be useful at the other's point of use. Across\n"+
+		"        layers it is a defect — the two are each other's foundation, so neither can be read\n"+
+		"        first, and check.sh fails the tree on it. Touching a file that declares no layer it\n"+
+		"        is unjudged, which is every cycle among skills.\n", len(loops))
 	for _, l := range loops {
-		fmt.Fprintf(out, "  %s\n", strings.Join(printable(l), " → "))
+		fmt.Fprintf(out, "  %-38s %s\n", classifyCycle(l, layers), strings.Join(printable(l), " → "))
 	}
 }
 
-func report(out, errOut io.Writer, defined map[string]map[string]bool, edges []edge, routed map[string]bool) {
+func report(out, errOut io.Writer, defined map[string]map[string]bool, edges []edge, layers map[string]string, routed map[string]bool) {
 	adj, targets, distinct := summarize(edges)
 	var nodes []string
 	for f := range defined {
@@ -209,22 +244,18 @@ func report(out, errOut io.Writer, defined map[string]map[string]bool, edges []e
 	depth := reportDepth(out, errOut, adj, nodes)
 	widest := reportFanOut(out, targets)
 	unentered, shared := reportUnentered(out, defined, targets, routed, nodes)
-	reportCycles(out, errOut, adj, nodes)
+	reportCycles(out, errOut, adj, nodes, layers)
 	fmt.Fprintf(out, "\ndepth %d, widest door surface %d section(s), %d unentered section(s) of which %d are in the shared layer\n",
 		depth, widest, unentered, shared)
 }
 
-// The whole command, taking its writers and returning the code rather than reaching for either — the
-// convention `eco-stats.go` states and the reason it holds: the suite drives this once per case, in
-// process, which is what lets a case prove the exit code callers branch on. Spawn a process per case
-// instead and the exit code is the one thing never covered, because covering it costs the most.
 func run(args []string, out, errOut io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprintln(errOut, "usage: cite-graph <root>")
 		return 2
 	}
 	root := args[0]
-	defined, edges, skipped := read(root, errOut)
+	defined, edges, layers, skipped := read(root, errOut)
 	// Before the report rather than after it. Every figure below counts over the files that were read,
 	// so a scan that missed part of the tree measures a different tree — and it prints at full
 	// confidence, shaped exactly like a measurement of this one. A reader who takes the depth off
@@ -240,7 +271,7 @@ func run(args []string, out, errOut io.Writer) int {
 	}
 	// The router's own view, for the unentered report: a file it loads is entered whole.
 	_, routed := routerSets(root, defined)
-	report(out, errOut, defined, edges, routed)
+	report(out, errOut, defined, edges, layers, routed)
 	return 0
 }
 

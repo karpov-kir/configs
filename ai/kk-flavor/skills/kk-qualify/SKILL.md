@@ -43,7 +43,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 - **A blocking question is asked live and never recorded**, except the unanswered one (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). **A drive step the human dropped is neither** — it is one line in the closing reply (**After the pass**); asking before dropping is `~/.kk-flavor/standards/quality-pipeline.md` → **Drive it before you review it**.
 - **Each item stands alone** — someone who never saw the run understands what it is, why it matters, and can act. Cut run-narration and command strings, never the stakes.
 - **Roughly 60 words an item, and the recommendation closes it on its own line** — this skill's bound on the exception `~/.kk-flavor/standards/writing.md` → **Density** licenses. Over the bound the surplus is the case restated for a reader who has just read it. **Having no recommendation is itself an opening**: "nothing — this is a product call" beats a hedge dressed as advice.
-- Edit the residue inline, preserving every item and its stakes. Reports and structured stage returns do not require an external judge.
+- Apply the edit lane inline to the residue (`~/.kk-flavor/standards/human-writing.md` → **Edit pass**), preserving every item and its stakes.
 
 
 ## After the pass

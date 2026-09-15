@@ -2,8 +2,6 @@ package ecocheck
 
 import "kk-flavor/tools/shell"
 
-// What the suite next door needs from inside this package. Bind a value here rather than retyping it
-// in a case: a copy goes stale the next time the original is reworded, and the case stays green.
 const (
 	FindingCap       = findingCap
 	FindingNameCap   = findingNameCap
@@ -14,8 +12,6 @@ const (
 	SharedRegionBodyCap = sharedRegionBodyCap
 )
 
-// The finding heads, which are also rankTable's rows: a case matching on one is asserting about the
-// kind that row names.
 const (
 	SyntaxError = syntaxError
 
@@ -58,6 +54,11 @@ const (
 	SkillDirWithoutSkillFile         = skillDirWithoutSkillFile
 	SkillNameDirMismatch             = skillNameDirMismatch
 	SkillWithoutDescription          = skillWithoutDescription
+	StandardWithoutLayer             = standardWithoutLayer
+	UnreadableLayer                  = unreadableLayer
+	LayerCrossingCycle               = layerCrossingCycle
+	StandardsNotADirectory           = standardsNotADirectory
+	StandardsPathHidden              = standardsPathHidden
 	SubcommandDispatchDoesNotAccept  = subcommandDispatchDoesNotAccept
 	SubcommandUsageDoesNotName       = subcommandUsageDoesNotName
 	SubcommandWithNoCallSite         = subcommandWithNoCallSite
@@ -68,13 +69,8 @@ const (
 	UnresolvableCitationPath         = unresolvableCitationPath
 )
 
-// The note a citation finding against a test harness ends on. A case spelling a fragment of it out
-// asserts nothing once the note is reworded around that fragment, and the case asserting the note is
-// ABSENT is the one that goes green saying so.
 const HarnessCitationNote = harnessCitationNote
 
-// One row of the rank table, exported so a case can hold the properties a row needs without copying
-// the table into the suite.
 type RankTableRow struct {
 	Prefix string
 	Rank   int

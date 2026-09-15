@@ -64,7 +64,7 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 
 **The caller counts the verdict lines against the file list** — a return that verdicts one file and carries findings for the rest reads as complete, with nothing in it marking the omission. Resume that subagent and point it at **Queue**.
 
-**A spawned return closes on its verdict**, never on the `Next:` line [writing.md](writing.md) → **Replying to a human** ends a reply with — there is no human here to act on it. **It carries these, plus what your own skill's return section names, and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Preserve every finding and decision field; structured returns do not run an external prose judge.
+**A spawned return closes on its verdict**, never on the `Next:` line [writing.md](writing.md) → **Replying to a human** ends a reply with — there is no human here to act on it. **It carries these, plus what your own skill's return section names, and nothing else**: the verdict lines, plus the tree-moved line **Loop** requires; each proposal your licence gates (**Caller**); each handoff, one line; each `blocked:`, one line; each decision you settled, as `<what> — <what determined it>`. Preserve every finding and decision field.
 
 ## Redact before you quote
 

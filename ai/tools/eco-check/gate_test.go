@@ -232,9 +232,6 @@ func TestTheFlagRunsOnATreeWithNothingIgnored(t *testing.T) {
 	f.assertHolds("and says it filtered nothing", gated, "0 "+gateLine)
 }
 
-// Outside a repository the question has no answer, and a filter that quietly kept everything would
-// hand the gate back exactly the verdict the flag removes. Driven through Run rather than through the
-// fixture helpers, which refuse to hand a case an exit 2.
 func TestTheFlagRefusesWhereGitCannotAnswer(t *testing.T) {
 	f := newRoot(t)
 	f.isolate()
@@ -374,14 +371,14 @@ func newSpellingTree(t *testing.T, base string) {
 	write(root+"/kk-flavor/inject.md", "# Flavor\n")
 	// Cited by a bare name sitting in neither the citing file's directory nor the root, so the only
 	// thing that can resolve it is the suffix index.
-	write(root+"/kk-flavor/standards/deep.md", "# Deep\n\n## A Real Section\n")
+	write(root+"/kk-flavor/standards/deep.md", layerLine+"# Deep\n\n## A Real Section\n")
 	write(root+"/kk-flavor/skills/kk-one/SKILL.md",
 		"---\nname: kk-one\ndescription: cites a file only the index can reach\n---\n\nSee deep.md → "+citedSection+".\n")
 	// A path ref naming the tree from its ROOT, which only the whole-path index can resolve. Spelled
 	// `r/...`, it is the entire walked path when the root is named `r` with nothing before it, so `*/`
 	// has no leading component to consume. Every other ref in this fixture resolves some other way.
 	write(root+"/kk-flavor/standards/rooted.md",
-		"# Rooted\n\nThe router is `r/kk-flavor/inject.md`.\n")
+		layerLine+"# Rooted\n\nThe router is `r/kk-flavor/inject.md`.\n")
 	write(root+"/local.txt", "scratch\n")
 	write(base+"/.gitignore", "r/local.txt\n")
 

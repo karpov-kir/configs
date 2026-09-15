@@ -34,7 +34,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 **A human's "don't re-qualify" binds the tree it was said about, not the session** — once `report.sh state <intent>` prints `re-qualify`, the refusal has expired and you ask again rather than infer consent.
 
-**Report wording settles before submission.** Apply `kk-edit` inline to authored items, preserving every decision, its evidence and stakes. Generated finding blocks preserve the accepted wording: resolve their checkboxes only on positive evidence, and put explanations outside the blocks. Surrounding authored prose remains editable. Do not spawn another worker or run an external judge for the structured report.
+**Report wording settles before submission.** Apply `kk-edit` inline to authored items (`~/.kk-flavor/standards/human-writing.md` → **Edit pass**), preserving every decision, its evidence and stakes. Generated finding blocks preserve the accepted wording: resolve their checkboxes only on positive evidence, and put explanations outside the blocks. Surrounding authored prose remains editable.
 
 ## Report
 
