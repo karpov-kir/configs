@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # Sync the MCP servers declared in ai/mcp.jsonc — and ai/mcp.private.jsonc (gitignored, same shape),
-# when present — into the selected client's user scope. An explicit --agent=claude|codex is required.
+# when present — into the selected client's user scope. The client is never inferred.
 # Edit either file, then re-run. It adds and updates but does not prune servers removed from a file.
 # Codex accepts stdio command/args/env and streamable HTTP URLs; unsupported fields are refused.
+#   usage: mcp-sync.sh --agent=claude|codex
 # tested by: mcp-sync-test.sh, including an isolated Codex registry when its CLI is available.
 
 # The sed is anchored at the line start: blanking from any `//` onwards truncates a URL.
@@ -80,8 +81,16 @@ for arg in "$@"; do
   case "$arg" in
     --agent=claude | --agent=codex) agent="${arg#*=}" ;;
     -h | --help)
-      sed -n '3,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-      printf 'usage: mcp-sync.sh --agent=claude|codex\n'
+      # The header read by content and not by line number. A `3,6p` window is a claim about this file
+      # held by two integers: a line added to the header pushes the last fact out of --help and a
+      # paragraph moved into it prints a note that was never meant to be help, and neither shows up
+      # anywhere. Both ends are anchored on what they are — the first prose line, and the `tested by:`
+      # marker that ends every header in this repo. `q` rather than a plain range end, because the
+      # range would otherwise restart on the next `# ` comment further down the file.
+      #
+      # `sed` only: this arm runs on the stripped PATH mcp-sync-test.sh drives it under, and the usage
+      # line it prints is the one in the header, so there is no second copy here to drift from it.
+      sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     *)

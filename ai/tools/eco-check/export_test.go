@@ -12,6 +12,7 @@ const (
 	UnnamedClassRank = unnamedClassRank
 
 	SharedRegionBodyCap = sharedRegionBodyCap
+	FlagCallSiteCap     = flagCallSiteCap
 )
 
 // The finding heads, which are also rankTable's rows: a case matching on one is asserting about the
@@ -37,6 +38,8 @@ const (
 	BasenameNotChecked            = basenameNotChecked
 	SubcommandCallSitesNotChecked = subcommandCallSitesNotChecked
 	UnreadDispatch                = unreadDispatch
+	FlagCallSitesNotChecked       = flagCallSitesNotChecked
+	FlagScanAtItsBound            = flagScanAtItsBound
 
 	ScriptNotExecutable = scriptNotExecutable
 
@@ -50,6 +53,7 @@ const (
 	DanglingLink                     = danglingLink
 	DanglingPathRef                  = danglingPathRef
 	DanglingSectionRef               = danglingSectionRef
+	FlagUsageDoesNotName             = flagUsageDoesNotName
 	InjectListsMissingDoc            = injectListsMissingDoc
 	ScriptDeclaresNoTestPosition     = scriptDeclaresNoTestPosition
 	SharedLayerCitesLane             = sharedLayerCitesLane

@@ -119,6 +119,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	c.scanSkillDirectories()
 	c.scanScriptsParse()
 	c.scanSubcommandCallSites()
+	c.scanFlagCallSites()
 	c.scanTestPositions()
 	c.scanSharedRegions()
 

@@ -125,33 +125,52 @@ check "--help exits 0" "0" "$status"
 check "and prints usage rather than performing the sync" "held" "$(held 'usage: mcp-sync.sh' "$out")"
 check "and names the required agent selector" "held" "$(held '--agent=claude|codex' "$out")"
 
-# The two lines above come from a `printf`. The rest of that arm is a line range out of the script's
-# own header — a claim about a file's content held by two line numbers, which a line added above the
-# range or a paragraph moved inside it turns into the wrong lines, or into none, with nothing here
-# failing. Repeating the numbers here would move the rot rather than remove it, so both ends are
-# pinned by content: the header line the range has to start at, and the note past it that has to stay
-# out.
+# What follows holds --help to the whole of that header, not to a window of it.
 #
 # Both needles are read out of mcp-sync.sh, never written out here. A needle spelled literally is a
 # claim about that file's prose, and prose gets reworded: rename the `tested by:` marker and the
 # literal matches nothing, "the help lacks it" becomes true of every possible output, and the case
 # passes forever without reaching its subject — no failure, and nothing saying it stopped measuring.
 # Read from the file, a needle follows the rewording, and the controls below fail when it reads empty.
-header_prose() { # <n> — the nth non-blank comment line of mcp-sync.sh's header, empty when there is none
-  sed -n '2,$p' "$script_dir/mcp-sync.sh" | sed -n 's/^# \{0,1\}\(..*\)$/\1/p' | sed -n "${1}p"
+#
+# Read by content, and never by position. The version this replaces asked for "the nth prose line",
+# which is a needle an insertion slides down uniformly: every one of them kept matching, the case kept
+# passing, and what an inserted line had pushed out of --help was exactly the line it demanded be
+# absent. An assertion an insertion cannot disturb is an assertion about nothing.
+header_lines() { # the lines --help has to state: mcp-sync.sh's header, less the `tested by:` note
+  sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;s/^# \{0,1\}//;p;}' "$script_dir/mcp-sync.sh"
 }
 
-help_first="$(header_prose 1)"
-check "control: the header's opening line was found, so the case below compares something" "found" \
-  "$([ -n "$help_first" ] && printf 'found' || printf 'empty')"
-check "and prints the header's opening line, so the range still starts where it should" "held" "$(held "$help_first" "$out")"
+header_count="$(header_lines | grep -c .)"
+check "control: the header was read, so the case below compares something" "several" \
+  "$([ "${header_count:-0}" -ge 4 ] && printf 'several' || printf 'only %s' "${header_count:-0}")"
 
-# The help prints four of those lines, so the fifth is the first one it must not reach.
-help_past="$(header_prose 5)"
-check "control: the line past the printed range was found, so the case below compares something" "found" \
-  "$([ -n "$help_past" ] && printf 'found' || printf 'empty')"
-check "and stops before the notes under it" "lacked" \
-  "$(lacked "$help_past" "$out")"
+unstated=""
+while IFS= read -r header_line; do
+  case "$out" in
+    *"$header_line"*) ;;
+    *) unstated="$header_line" ;;
+  esac
+done <<HEADER
+$(header_lines)
+HEADER
+check "--help states every line of the header, including any line added to it" "all" \
+  "$([ -z "$unstated" ] && printf 'all' || printf '%s' "$unstated")"
+
+# The far end of the range: the one line of the header that is a note to a maintainer and not help.
+tested_by="$(sed -n 's/^# \(tested by:..*\)$/\1/p' "$script_dir/mcp-sync.sh" | sed -n 1p)"
+check "control: the note past the header was found, so the case below compares something" "found" \
+  "$([ -n "$tested_by" ] && printf 'found' || printf 'empty')"
+check "and stops before the note under it" "lacked" "$(lacked "$tested_by" "$out")"
+
+# Once. The arm used to print the header and then a `printf` of the usage line beside it, which put the
+# line out twice the moment the header grew one of its own — and a second copy drifts from the grammar
+# as soon as either is edited.
+usage_line="$(header_lines | sed -n 's/^ *\(usage: ..*\)$/\1/p' | sed -n 1p)"
+check "control: the header states a usage line, so the count below counts something" "found" \
+  "$([ -n "$usage_line" ] && printf 'found' || printf 'empty')"
+check "and prints it exactly once, not once from the header and once beside it" "1" \
+  "$(printf '%s\n' "$out" | grep -c -F -- "$usage_line" | tr -d ' ')"
 
 check "the repo's own mcp.jsonc parses after stripping" "parses" \
   "$(strip_comments "$script_dir/mcp.jsonc" | jq -e . >/dev/null 2>&1 && echo parses || echo broken)"
