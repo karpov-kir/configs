@@ -59,7 +59,7 @@ func Run(command Command) int {
 	fromOriginal := flags.Bool("from-original-task", false, "attest this dispatch runs directly in the original task; only native inheritance can use it")
 	digest := flags.String("policy-digest", "", "expected policy digest; refuse a changed policy")
 	flags.Usage = func() {
-		fmt.Fprintln(command.Stderr, "Usage: model-policy.sh --client codex|claude --role <role> [options]\nEmits requested settings and policy digest, never observed settings or an availability claim.")
+		fmt.Fprintln(command.Stderr, "usage: model-policy.sh --client codex|claude --role <role> [--config <file>] [--origin <file>]\nEmits requested settings and policy digest, never observed settings or an availability claim.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(command.Args); err != nil {
