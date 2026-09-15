@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Restore installed project skills after checkout. Never installs dependencies or instructions.
-# Usage: bash ai/project-skills.sh --sync <worktree>
+# usage: bash ai/project-skills.sh --sync <worktree>
 # tested by: project-skills-test.sh
 
 project_git_paths() {
