@@ -23,13 +23,28 @@ dispatch because a worker prompt has no other use (58 today); a `skills/X` citat
 `workers` row is a dispatch because the row is the declaration; a `standards/` citation is always a
 read. What nothing can know is whether X runs *inside* this session — 31 edges across 17 files.
 
-**The enforceable signal is a skill named as the object of an action verb.** Measured: 20 such sites
+**Two nets find the sites a declaration is owed at, and the first needs no word list.** A citation of
+another skill's *whole* `SKILL.md` is an instruction to open and run that contract; a citation of a
+section of it is a pointer at one passage. That is [ecosystem.md](ai/kk-flavor/standards/ecosystem.md)
+→ **One home**'s own reading of what a citation costs, applied to the one question the text cannot
+answer. Measured against the sixteen declarations: fifteen cite a whole contract; one whole-contract
+citation is not an extension — `kk-reduce`'s brief, which tells *other* agents to run `kk-ecosystem`;
+and two declarations cite only sections. **Citation shape cannot rot**, because there is no list to
+forget to extend, which is the whole failing of the net below. Part of the fit is convention this
+section created rather than discovered — the first step converted bare names to paths — and that is a
+reason to hold it with a check, not to trust it.
+
+**The verb rule is the second net, for a bare name carrying no path at all.** Measured: 20 such sites
 outside table cells, against 130 bare skill names in prose. Banning bare names entirely was costed and
-rejected — it would bloat 27 files to satisfy a parser. The verb rule caught every `idsd-ship` miss
-and nine more undeclared extensions, which is what took the tree from seven declarations to sixteen.
-`idsd-finalize` was the largest: it can re-run the whole qualify pass, and billed 1 row where it
-reached 11. A table cell is exempt structurally rather than by naming skills, which covers
-`kk-foreman`'s Route and `kk-qualify`'s Lanes without an exemption list that can rot.
+rejected — it would bloat 27 files to satisfy a parser, and would bill every skill for every neighbour
+it names. The verb rule caught every `idsd-ship` miss and nine more undeclared extensions, which is
+what took the tree from seven declarations to sixteen; `idsd-finalize` was the largest, able to re-run
+the whole qualify pass and billing 1 row where it reached 11. **It has to carry `through` and `via`** —
+nine sites use those and no listed verb, six of them undeclared extensions — and it will still never
+be complete, because no closed set of English verbs is. A missed verb fails silently, which is exactly
+how those six sat in plain sight, and is why this is the narrower net rather than the only one. A
+table cell is exempt structurally rather than by naming skills, which covers `kk-foreman`'s Route and
+`kk-qualify`'s Lanes without an exemption list that can rot.
 
 **Standards get a layer instead of typed edges** — one declaration per file, 18 of them, not an edge
 census. Three layers read out of the citation graph: **base** (core-principles, live-systems, writing,
@@ -44,11 +59,11 @@ The steps, each revertible alone. The first has landed: the grammar is `**Extend
 <when>`, sixteen edges across eight skills declare one, and no prose states an edge any more.
 
 1. **`**Layer:**` on the 18 standards**, and the one cycle that crosses.
-2. **The checks in `eco-check`**, on the citation parser it already has: the verb rule, an extension
-   cycle, a downward layer citation, and every `**Extends:**` held to a `**Runs:**` reason that
-   licenses holding the work. **The verb set has to carry `through` and `via`** — nine invocation
-   sites in the skills tree use those and no other verb, and six of the nine were undeclared
-   extensions. Lands the inline worker read and the exception inventory below.
+2. **The checks in `eco-check`**, on the citation parser it already has: both nets above, an
+   extension cycle, a downward layer citation, and every `**Extends:**` held to a `**Runs:**` reason
+   that licenses holding the work. Lands the inline worker read and the exception inventory below.
+   **Neither net decides the edge** — each only says a human must have answered here, and the
+   declaration is the answer.
 3. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
    own regexes; `--graph` and `--cost` read declarations and the prose inference is deleted;
    `cite-graph`'s CYCLES becomes a verdict rather than a list.
