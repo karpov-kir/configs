@@ -342,7 +342,7 @@ func TestEveryWorktreeOfOneCloneNamesTheSame(t *testing.T) {
 	run(t, main, "worktree", "add", "-q", "-b", "one", worktree)
 
 	for _, where := range []string{main, worktree} {
-		got, err := resolveName(where)
+		got, err := ResolveName(where)
 		if err != nil {
 			t.Fatalf("naming %s: %v", where, err)
 		}
@@ -417,8 +417,8 @@ func TestTheCommandsArgumentTable(t *testing.T) {
 	}
 }
 
-// The invocation with no path at all — the one `handoff-prompt.md` tells every session to run, and
-// the one branch the argument table cannot reach, since every row of it supplies a path.
+// The invocation with no path at all — the one branch the argument table cannot reach, since every
+// row of it supplies a path.
 //
 // Not parallel: t.Chdir is barred under a parallel test, and a process-wide chdir would be live under
 // any case running beside it. Sequential, its body runs before any parallel case resumes, exactly as

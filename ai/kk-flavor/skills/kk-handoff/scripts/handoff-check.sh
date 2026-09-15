@@ -9,6 +9,12 @@
 # names, a licence that was paraphrased instead of quoted, or a sentence pointing back at the
 # conversation the receiver was never in.
 #
+# The title line is two slots — `[<repo name>] <one imperative line: the work>` — and each is read on
+# its own. Either one still holding its `<…>` placeholder is refused, and so is a bracketed opening
+# word that is not what `repo-key.sh --name` prints for <repo>. The prefix itself is optional: a title
+# that does not open with a bracketed word passes, because the gate checks which name stands in that
+# slot, not whether one stands there at all.
+#
 # Findings print one per line. Two other kinds print alongside them, and neither fails the draft: a
 # `declared None:` line per slot the draft empties on purpose, and a `note:` when the repository is
 # dirty. Exits 1 with findings, 0 when clean, and 2 when it could not run and said why on stderr. A 2

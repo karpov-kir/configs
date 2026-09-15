@@ -9,10 +9,12 @@
 // code the command exits on, and every counter lives on the scan Run builds, so two runs in one
 // process cannot see each other's.
 //
-// The two things that reach outside the draft are git calls against the repository the caller names:
-// whether the base commit resolves, and whether the tree is dirty. Both are read-only, and the SHA
-// handed to git is re-checked for its hex-only shape at the call, because that shape is the whole
-// reason a token lifted out of a draft is safe to pass.
+// Three things reach outside the draft, all read-only and all against the repository the caller names:
+// whether the base commit resolves, whether the tree is dirty, and what `repo-key` calls that clone.
+// The first two are git calls; the SHA handed to git is re-checked for its hex-only shape at the call,
+// because that shape is the whole reason a token lifted out of a draft is safe to pass. The third goes
+// through repokey rather than git, so the name the title is held against is the same string
+// `repo-key.sh --name` prints.
 //
 // `handoff-check.sh` in kk-handoff's scripts/ is the stub that reaches this binary.
 package handoffcheck
@@ -25,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	repokey "kk-flavor/tools/repo-key"
 	"kk-flavor/tools/shell"
 )
 
@@ -103,6 +106,8 @@ func runGit(dir string, args ...string) (string, error) {
 // each other's counts.
 type scan struct {
 	repoPath string // the resolved absolute path the draft has to name
+	repoName string // what `repo-key` calls that clone, or "" where it could not say
+	prefix   string // the title's opening bracketed word, "" where it holds none worth weighing
 
 	findings []string
 	declared []string // `declared None:` lines, which pass and are printed so the human sees them
@@ -118,9 +123,10 @@ type scan struct {
 	named  bool // "Where it starts" holds the repository's absolute path
 }
 
-func newScan(repoPath string) *scan {
+func newScan(repoPath, repoName string) *scan {
 	return &scan{
 		repoPath: repoPath,
+		repoName: repoName,
 		seen:     map[string]bool{},
 		filled:   map[string]bool{},
 		first:    map[string]string{},
@@ -129,6 +135,30 @@ func newScan(repoPath string) *scan {
 }
 
 func (s *scan) flag(text string) { s.findings = append(s.findings, text) }
+
+// The bounds on what a message quotes and on the line it becomes. A name sits at the head of its
+// message and a path in its middle, so each is cut where it stands: uncut, the words after it — which
+// carry the repair — are what the line bound would drop instead. The line bound is eco-check's, at the
+// width `report.go` holds, and it backstops the sites no per-field cut reaches.
+const (
+	findingNameCap = 80
+	pathCap        = 120
+	lineWidthCap   = 500
+)
+
+// printLine is the one place anything leaves this gate, and so the one place the escaping can be held.
+// Every line is composed out of the draft's own bytes or out of a path the caller named, and a raw
+// `ESC [ 2 K` with a carriage return erases the line it is printed on while `ESC [ n A` first moves up
+// over the lines above it. `base commit does not resolve` is the LAST line printed, so an escape
+// carried in it reaches every real finding already on screen — and kk-handoff tells the drafting agent
+// to fix what a finding names and never to argue with one, which makes a forged finding an
+// instruction rather than a smudge.
+//
+// Held here and nowhere else. A site added later cannot opt out of a printer, and a second guard at
+// the message would be one this one makes unobservable — an unkillable mutant, reported as a survivor.
+func printLine(w io.Writer, text string) {
+	fmt.Fprintln(w, shell.CutBytesMarked(shell.Oneline(text), lineWidthCap))
+}
 
 // Run reads the draft, reports through out and errOut, and returns the exit code. prog names this
 // program in a refusal, so a stub invoked under its own name says that name back. Findings print one
@@ -142,7 +172,7 @@ func Run(prog, draft, repo string, out, errOut io.Writer) int {
 
 func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
 	die := func(format string, args ...any) int {
-		fmt.Fprintf(errOut, "%s: %s\n", prog, fmt.Sprintf(format, args...))
+		printLine(errOut, prog+": "+fmt.Sprintf(format, args...))
 		return 2
 	}
 
@@ -170,22 +200,26 @@ func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
 		return die("could not resolve: %s", repo)
 	}
 
-	s := newScan(repoPath)
+	// `repo` and not the working directory: the drafting session is often standing in another checkout.
+	// An error is no name and no finding — reportTitlePrefix says why.
+	repoName, _ := repokey.ResolveName(repo)
+
+	s := newScan(repoPath, repoName)
 	s.read(shell.SplitLines(body))
 	s.report()
 	s.resolveBase(repo, git)
 
 	for _, line := range s.declared {
-		fmt.Fprintln(out, line)
+		printLine(out, line)
 	}
 	if note := dirtyNote(repo, git); note != "" {
-		fmt.Fprintln(out, note)
+		printLine(out, note)
 	}
 	if len(s.findings) == 0 {
 		return 0
 	}
 	for _, finding := range s.findings {
-		fmt.Fprintln(out, finding)
+		printLine(out, finding)
 	}
 	return 1
 }
@@ -271,20 +305,87 @@ func (s *scan) read(lines []string) {
 	}
 }
 
+// readTitle reads the `# ` line as the two slots it is — `[<repo name>] <one imperative line>` — and
+// each of them on its own. Read as a single string, a filled half in front of an unfilled one made the
+// line look done: a real repository prefix hid a work half nobody had written.
 func (s *scan) readTitle(raw string) {
-	title := strings.TrimLeft(raw[2:], shell.SpaceBytes)
+	// Trimmed at BOTH ends, unlike every other line reader here until it was the only one that was not:
+	// `\r` is in SpaceBytes, so a CRLF draft left it on the end of the work half and no half ever
+	// matched its closing `>`. The whole title check passed a draft in which nothing was filled in.
+	title := strings.Trim(raw[2:], shell.SpaceBytes)
 	s.titles++
-	// Anchored, because a real title may hold an angle bracket. "Cut the run to <10 minutes" is a fine
-	// title, and refusing it sends the agent off to reword a sound line.
-	if title == "" || (strings.HasPrefix(title, "<") && strings.HasSuffix(title, ">")) {
+	prefix, work, prefixed := titleHalves(title)
+	// With no prefix the line IS the work half, and naming a slot the author never wrote would send
+	// them looking for one.
+	switch {
+	case isPlaceholder(work) && prefixed:
+		s.flag("the title's work half is still the template placeholder")
+	case isPlaceholder(work):
 		s.flag("the title line is still the template placeholder")
+	}
+	// A title carrying no prefix passes. The slot's correctness is held here, its presence is not, and
+	// that asymmetry is the ask rather than a gap: the words this was built to are "a consistent prefix
+	// where we have it". Refusing a title for not having one goes past them.
+	if prefixed {
+		s.readTitlePrefix(prefix)
+	}
+}
+
+// titleHalves splits the title into the repository name inside its leading brackets and the work half
+// after them: `[configs] Cut the run` is "configs" and "Cut the run". The bracket has to open the
+// line, and a line without one is all work half — a title reading "Cut the [flaky] resolver test out"
+// would otherwise hand its own first words over to be refused as a repository name.
+//
+// Cut on `]` and not on `] `, so the space after it is the work half's to lose. `# [configs]` alone
+// was read as one unsplit line, which is neither half filled in and was the shape this whole check
+// exists to refuse; `[configs]Cut the run` skipped the name check for want of that space.
+func titleHalves(title string) (prefix, work string, prefixed bool) {
+	if !strings.HasPrefix(title, "[") {
+		return "", title, false
+	}
+	prefix, work, prefixed = strings.Cut(title, "]")
+	if !prefixed {
+		return "", title, false
+	}
+	return strings.TrimPrefix(prefix, "["), strings.TrimLeft(work, shell.SpaceBytes), true
+}
+
+// readTitlePrefix reads the bracketed word the title opens with. Unfilled is answered here, because
+// one look at the line settles it; which name stands there takes a second slot to judge and is
+// reportTitlePrefix's, once the whole draft has been walked.
+func (s *scan) readTitlePrefix(prefix string) {
+	if isPlaceholder(prefix) {
+		s.flag("the title's repository prefix is still the template placeholder — fill it from the tool the template names")
 		return
 	}
-	// The repository prefix is a second slot on the same line. A filled-in title hides it, because the
-	// line reads as done. Anchored at both ends of the bracketed prefix, for the same reason as the
-	// check above.
-	if prefix, _, found := strings.Cut(title, "] "); found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">") {
-		s.flag("the title's repository prefix is still the template placeholder — fill it from the tool the template names")
+	s.prefix = prefix
+}
+
+// reportTitlePrefix holds the opening bracketed word against the repository the draft points at. That
+// position is the repository slot, so whatever stands there has to be what `repo-key.sh --name` prints
+// — nothing can tell `[flaky]` from `[INV]`, and a name each session invents for itself puts two of
+// them on one repository's sessions.
+//
+// The finding says what was seen and never what was meant. An author who wrote `[flaky]` as prose was
+// not filling a slot, and telling them their repository prefix is wrong names a mistake they did not
+// make; the line is still refused, and the reason given is the one that is observably true.
+func (s *scan) reportTitlePrefix() {
+	// No word in the slot, or no name to weigh it against: a repository this machine cannot name yields
+	// nothing to compare, and a sound draft must not be refused for the gate's own blind spot.
+	if s.prefix == "" || s.repoName == "" {
+		return
+	}
+	// The name in hand belongs to whatever repository this process was pointed at, which is only the
+	// draft's repository once the draft has named it. Run from `alpha` with no second argument over a
+	// correct draft about `beta`, the comparison would tell a correct author to write `[alpha]` — the
+	// mistake-nobody-made this function's own words are against. `no repository named` refuses that
+	// draft anyway, so nothing passes quietly.
+	if !s.named {
+		return
+	}
+	if s.prefix != s.repoName {
+		s.flag(fmt.Sprintf("the title opens with [%s], which is the repository slot, and %s is named %s — use [%s], or move a bracketed word that is not the repository off the start of the line",
+			shell.CutBytesMarked(s.prefix, findingNameCap), shell.CutBytesMarked(s.repoPath, pathCap), s.repoName, s.repoName))
 	}
 }
 
@@ -347,6 +448,7 @@ func (s *scan) report() {
 	if s.titles > 1 {
 		s.flag("more than one title line")
 	}
+	s.reportTitlePrefix()
 	for _, name := range sections {
 		switch {
 		case !s.seen[name]:
@@ -381,7 +483,7 @@ func (s *scan) reportSubstance(name string) {
 		s.flag("the licence is not quoted: Licence carries no `>` blockquote, so it was paraphrased")
 	}
 	if name == "Where it starts" && !s.named {
-		s.flag("no repository named in: Where it starts — a pasted prompt carries no working directory, so write " + s.repoPath)
+		s.flag("no repository named in: Where it starts — a pasted prompt carries no working directory, so write " + shell.CutBytesMarked(s.repoPath, pathCap))
 	}
 }
 
@@ -419,6 +521,14 @@ func dirtyNote(repo string, git runner) string {
 		return ""
 	}
 	return fmt.Sprintf("note: %s has %d uncommitted file(s) — work not in the base commit does not travel", repo, dirty)
+}
+
+// isPlaceholder is a title half still holding its template `<…>`, anchored at both ends. A real half
+// may carry an angle bracket — "Cut the run to <10 minutes" is a sound work half and "[<10min]" a
+// plausible prefix — so an unanchored test sends the agent off to reword lines that were never wrong.
+// An empty half is unwritten in the same way a placeholder is.
+func isPlaceholder(half string) bool {
+	return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))
 }
 
 func isRequired(name string) bool {

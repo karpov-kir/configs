@@ -18,7 +18,7 @@ Fill every slot of `~/.kk-flavor/skills/kk-handoff/handoff-prompt.md`, into a fi
 
 ## 2. Check it
 
-Run `~/.kk-flavor/skills/kk-handoff/scripts/handoff-check.sh <draft> <repo>`.
+Run `~/.kk-flavor/skills/kk-handoff/scripts/handoff-check.sh <draft> <repo>`. `<repo>` is the repository you named under **Where it starts** — the one the work is in, not the checkout you are standing in.
 
 **A non-zero exit blocks launching.** Exit 1 is the draft: fix what each finding names and re-run until it exits 0, never arguing with one. Exit 2 is your invocation — the check never ran, so the draft is unmeasured and editing it fixes nothing. Read every `declared None:` line back. Each is a slot you chose to send as nothing, and the check cannot tell a deliberate one from a lazy one.
 
