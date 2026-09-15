@@ -81,7 +81,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 **One line each, and only these:**
 
 - **A prior finding the author has neither answered nor changed**, pointing at its original thread. One they answered and declined is settled by that answer unless it still holds the merge — then it is the ask, not a re-argument.
-- **A finding with no line to anchor to**: a requirement in the body or the linked issue the diff does not deliver, a change the diff owes in a file it never touches.
+- **A finding with no single line to anchor to**: a requirement in the body or the linked issue the diff does not deliver, a change the diff owes in a file it never touches, a total the change set owes that no single thread can be the home for.
 - **A question only the author can answer, where it decides the merge** — the verdict is then not mergeable and the question is the ask. One that does not decide it goes where the mode's file says.
 - **What stopped the pass.**
 - **Which gap the verdict rests on** (`~/.kk-flavor/standards/human-writing.md` → **Budget**) — an untrusted PR's unverified gates, a drive that was needed and did not run, a fix that went out undriven. **A red or missing check is one of these** — `gh pr checks <N>`, named because *mergeable* is partly a claim about it. A green board is not restated, and a mergeable verdict still carries the gap.

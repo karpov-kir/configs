@@ -23,7 +23,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | drive | `~/.kk-flavor/workers/drive.md` | — | — |
 | code-review | `~/.kk-flavor/workers/code-review.md` | — | `code-review` |
 | security-review | `~/.kk-flavor/workers/security-review.md` | — | `security` |
-| edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh` for comments | `comments` |
+| edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --bar` for comments | `comments` |
 | instruction | `kk-ecosystem` | `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh` | — |
 | refactor | `~/.kk-flavor/workers/refactor.md` | `~/.kk-flavor/workers/refactor/dup-literals.sh` | `refactor` |
 

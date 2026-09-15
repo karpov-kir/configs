@@ -14,12 +14,11 @@
 # json, lockfiles) don't count. With no diff args, untracked text files are scanned too; the index is
 # never touched.
 #
-# The default mode prints each outlier with its counts and ends with its denominator on stderr — files
-# reached, files with countable added lines, outliers, untracked files skipped unread. Read it: an empty
-# report at exit 0 means "nothing was comment-heavy" only when that first number is above zero, and
-# "nothing was read" when it is not. It is a targeting aid, not a bar. It counts ADDED lines, so
-# rewording a comment the base already carried moves it into the added set, and the ratio can rise
-# across a pass that cut comments.
+# The default mode prints each outlier with its counts, then on stderr its denominator — files reached,
+# files with countable added lines, outliers, untracked files skipped unread — and one line saying which
+# run this was: nothing reached, nothing countable, or a targeting aid and not a bar. It counts ADDED
+# lines, so rewording a comment the base already carried moves it into the added set, and the ratio can
+# rise across a pass that cut comments.
 #
 # `--bar` counts each changed file as it will land, against the rate the repo's untouched files run at,
 # and says how far over it sits and which files carry it. Two runs over one tree print one report. How

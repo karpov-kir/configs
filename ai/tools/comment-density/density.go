@@ -3,9 +3,7 @@
 // (bar.go). The command-line contract (arguments, environment, exit codes) is the stub's:
 // ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh.
 //
-// The default mode is a targeting aid, not a bar: it counts ADDED lines, so rewording a comment the
-// base already carried moves it into the added set, and the ratio can rise across a pass that cut
-// comments. `--bar` reads whole files instead.
+// The default mode states its own standing in its report: a targeting aid, not a bar.
 package density
 
 import (
@@ -263,6 +261,10 @@ func (s *scan) report(out console) int {
 		s.result.Reached, s.countable, s.outliers, s.result.SkippedUnread)
 	if s.result.Reached == 0 {
 		out.note("nothing reached the scan, so this run says nothing about the change set.")
+	} else if s.countable == 0 {
+		out.note("no file reached carried a countable added line, so this run ranks nothing.")
+	} else {
+		out.note("a targeting aid, not a bar: this ranks files to read. It counts ADDED lines only, so rewording an old comment raises a ratio. --bar holds the change set to the repo's own rate.")
 	}
 	if s.outliers > 0 {
 		return exitFound
