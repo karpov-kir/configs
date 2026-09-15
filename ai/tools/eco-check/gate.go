@@ -169,11 +169,16 @@ func newIgnoredPaths(root string, walked []string) ([]string, error) {
 	command.Stdout = &out
 	command.Stderr = &failure
 	if err := command.Run(); !isAnswered(err) {
-		// git's own wording, bounded because it is printed: a `fatal:` line names paths this process
-		// did not choose the length of.
+		// The root is bounded because git's reason follows it on the one line refuseToRun prints, and a
+		// root long enough to spend that line takes the reason with it —
+		// TestTheGateRefusalStillNamesGitsReasonUnderALongRoot is that bound. Nothing follows git's own
+		// words, so the bound on them only saves carrying the rest.
+		//
+		// Neither is escaped here, deliberately: the case proving the printer escapes anything observes
+		// that guard only in a tree where this site has none, so putting one back blinds the arm it owns.
 		return nil, fmt.Errorf("git check-ignore could not answer for %s, so %s filtered nothing and no scan ran: %s",
-			shell.CutBytesMarked(shell.Oneline(root), 120), gateFlag,
-			shell.CutBytesMarked(shell.Oneline(strings.TrimSpace(failure.String())), 200))
+			shell.CutBytesMarked(root, 120), gateFlag,
+			shell.CutBytesMarked(strings.TrimSpace(failure.String()), 200))
 	}
 	var ignored []string
 	for _, rel := range strings.Split(out.String(), "\x00") {
