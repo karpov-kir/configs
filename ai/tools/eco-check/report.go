@@ -12,6 +12,10 @@ import (
 // The width and the count a finding is bounded to before anything is printed. A finding quotes text
 // this checker did not choose, into output an agent drafts a PR comment from; bounding here, on the
 // one path every finding takes, keeps a scan added later from reopening it.
+//
+// The width is also what eco-check.go holds a refusal line to, for the same reason and off the same
+// number: a reader meeting two widths in one stream has to learn which line is which before knowing
+// how much of it to trust.
 const (
 	lineWidthCap    = 500
 	printedLinesCap = 200

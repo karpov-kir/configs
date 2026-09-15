@@ -63,6 +63,9 @@ var mutants = []mutant{
 	// a recommended delimited citation while preserving the three finding cases.
 	{"refs: bare rule-ID scan never fires", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
 	{"refs: bare rule-ID scan reports the form it recommends", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
+	// The one funnel every stderr line leaves through, so this is the whole package's refusal
+	// wording at once — the root off argv and git's own stderr among them.
+	{"refusal: the reason echoed to the terminal unescaped", "eco-check.go", "./eco-check/", "TestARefusalCarriesNoControlBytesFromTheRootItEchoes", `shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap)`, `shell.CutBytesMarked("check.sh: "+reason, lineWidthCap)`},
 	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `syntaxError+shell.Oneline(line)`, `syntaxError+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", "shell.Oneline(mountHave)", "mountHave"},
 	// Name and path sanitisation are separate calls; a path-only assertion misses the name mutation.
@@ -167,6 +170,10 @@ var mutants = []mutant{
 	{"scripts: the region-name bound removed", "scripts.go", "./eco-check/", "TestALongSharedRegionNameIsCutBeforeItsDetail", "named := shell.CutBytesMarked(name, findingNameCap)", "named := shell.CutBytesMarked(name, 100000)"},
 	// The printer must retain a cut marker when applying its final width bound.
 	{"report: a finding line cut without a mark", "report.go", "./eco-check/", "TestACutFindingLineSaysThatItWasCut", "shell.CutBytesMarked(line.text, lineWidthCap)", "shell.CutBytes(line.text, lineWidthCap)"},
+	// A root is argv: never opened, so no filesystem length bounds it, and ARG_MAX runs to a
+	// megabyte. The second mutant shares this anchor and removes only the marker.
+	{"refusal: the reason's width bound removed", "eco-check.go", "./eco-check/", "TestARefusalIsBoundedHoweverLongTheRootItEchoes", `shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap)`, `shell.Oneline("check.sh: "+reason)`},
+	{"refusal: a cut reason left unmarked", "eco-check.go", "./eco-check/", "TestARefusalIsBoundedHoweverLongTheRootItEchoes", `shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap)`, `shell.CutBytes(shell.Oneline("check.sh: "+reason), lineWidthCap)`},
 	// Include WriteString to distinguish this call from the matching calls above.
 	{"imports: uncounted name cut without a mark", "../eco-root/imports.go", "./eco-check/", "TestACutUncountedNameSaysThatItWasCut", "joined.WriteString(shell.CutBytesMarked(shell.Oneline(name), 60))", "joined.WriteString(shell.CutBytes(shell.Oneline(name), 60))"},
 	// This shares the byte-cap mutant's anchor but removes only the cut marker.
@@ -651,6 +658,10 @@ var mutants = []mutant{
 	// as written rather than cleaned, `./notes.md` misses an ignored set keyed on `notes.md` while
 	// naming the same file — the run lists that file as skipped and then resolves a reference through
 	// it.
+	// The refusal names the root first and git's reason last, so an unbounded root spends the
+	// printer's line and the reason goes with it. No mutant for the bound on git's own words:
+	// nothing follows them, so the printer's cut does that job — widened to 100000 the suite stays green.
+	{"gate: the root's bound in the refusal removed", "gate.go", "./eco-check/", "TestTheGateRefusalStillNamesGitsReasonUnderALongRoot", "shell.CutBytesMarked(root, 120)", "shell.CutBytesMarked(root, 100000)"},
 	{"gate: the skip compared as spelled instead of cleaned", "gate.go", "./eco-check/", "TestACitationSpelledNonCanonicallyStillHitsTheGate", "return g.ignored[filepath.Clean(path)]", "return g.ignored[path]"},
 	// The filtered tree is copied from the walk rather than declared fresh, so a field the walk gains
 	// is carried into it. Unobservable while `tree` holds only the two fields the copy resets by hand,

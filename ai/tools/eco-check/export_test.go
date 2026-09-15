@@ -7,6 +7,7 @@ import "kk-flavor/tools/shell"
 const (
 	FindingCap       = findingCap
 	FindingNameCap   = findingNameCap
+	LineWidthCap     = lineWidthCap
 	SuppressedMarker = suppressedMarker
 	UnshownMarker    = unshownMarker
 	UnnamedClassRank = unnamedClassRank
