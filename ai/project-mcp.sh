@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Configure public MCP servers in one project's client files; never user settings.
-# Usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
+# usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
 # tested by: project-mcp-test.sh
 set -euo pipefail
 here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
