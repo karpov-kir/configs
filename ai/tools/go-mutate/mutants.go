@@ -948,6 +948,17 @@ var mutants = []mutant{
 		"if len(near) == 0 {", "if len(near) >= 0 {"},
 	{"scope: the unit listing spelled as the registry spells it", "../go-mutate/main.go", "./go-mutate/", "TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant",
 		"canonicalFile(file, pkgDir), strings.Join", "file, strings.Join"},
+
+	// This harness deciding whether it is the build of itself that the caller edited.
+	{"self: a binary built from other source runs anyway", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"if built != current {", "if built != current && false {"},
+	{"self: the source hashed by its bytes and not its file names", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"\t\tfmt.Fprintf(sum, \"%s %d\\n\", name, len(body))\n", ""},
+	{"self: a binary with no source beside it read as one whose source moved on", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"if len(names) == 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")",
+		"if len(names) < 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")"},
+	{"self: the registry left outside what the binary carries", "../go-mutate/main.go", "./go-mutate/", "TestTheRegistryIsInsideWhatTheStalenessCheckHashes",
+		"//go:embed *.go", "//go:embed main.go"},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain

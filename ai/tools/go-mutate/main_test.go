@@ -11,11 +11,15 @@ package main
 
 import (
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 )
 
@@ -603,6 +607,90 @@ func TestOnlyADeclaredMutantIsExcused(t *testing.T) {
 	}
 	if _, ok := declaredUnreachable("a label no mutant and no declaration carries"); ok {
 		t.Error("an undeclared label was excused")
+	}
+}
+
+// A binary built before the caller's edit prints the registry as it was. This happened: an entry was
+// added to mutants.go, the harness was run without rebuilding, and preflight reported the pre-edit
+// count — the run was green over a list that no longer existed, and nothing in the output told the two
+// apart. Only the builder noticing the number caught it.
+//
+// Compared by content and never by modification time. A fresh clone writes every file at checkout, in
+// no order relative to a binary built earlier, so an mtime comparison refuses on a tree that is
+// perfectly current — and a refusal that fires when nothing is wrong is one readers learn to pass over.
+func TestABinaryBuiltFromOtherSourceRefusesToRun(t *testing.T) {
+	built := fstest.MapFS{
+		"main.go":    {Data: []byte("package main\n")},
+		"mutants.go": {Data: []byte("var mutants = []mutant{a, b}\n")},
+	}
+	for _, c := range []struct {
+		name   string
+		onDisk fstest.MapFS
+		says   string
+	}{
+		{"a mutant added since the build", fstest.MapFS{
+			"main.go":    {Data: []byte("package main\n")},
+			"mutants.go": {Data: []byte("var mutants = []mutant{a, b, c}\n")},
+		}, "different source"},
+		{"a source file added since the build", fstest.MapFS{
+			"main.go":    {Data: []byte("package main\n")},
+			"mutants.go": {Data: []byte("var mutants = []mutant{a, b}\n")},
+			"scope.go":   {Data: []byte("package main\n")},
+		}, "different source"},
+		{"a source file gone since the build", fstest.MapFS{
+			"mutants.go": {Data: []byte("var mutants = []mutant{a, b}\n")},
+		}, "different source"},
+		// The bytes alone cannot see this: the same two contents in the same order under two new names
+		// concatenate identically, so the names have to be hashed beside them.
+		{"a file renamed with its content kept", fstest.MapFS{
+			"main.go":     {Data: []byte("package main\n")},
+			"registry.go": {Data: []byte("var mutants = []mutant{a, b}\n")},
+		}, "different source"},
+		// A binary carried away from the package it was built in is not one whose source moved on, and
+		// saying so would send the reader hunting an edit nobody made.
+		{"no source beside the binary at all", fstest.MapFS{}, "cannot be read"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			why := staleSource(built, c.onDisk)
+			if why == "" {
+				t.Fatal("the run was allowed, so the harness would report a registry that is not the one on disk")
+			}
+			if !strings.Contains(why, c.says) {
+				t.Errorf("it refused with %q, which does not say %q", why, c.says)
+			}
+		})
+	}
+
+	// The control. Without it, a check that refused unconditionally would satisfy every case above while
+	// making the harness unrunnable.
+	if why := staleSource(built, fstest.MapFS{
+		"main.go":    {Data: []byte("package main\n")},
+		"mutants.go": {Data: []byte("var mutants = []mutant{a, b}\n")},
+	}); why != "" {
+		t.Errorf("a binary built from exactly this source was refused: %s", why)
+	}
+}
+
+// What the staleness check hashes has to include the registry, or the check is a no-op against the one
+// edit that caused the incident. Asked of the embedded copy rather than of the pattern that filled it,
+// since a pattern that matched nothing would still compile.
+func TestTheRegistryIsInsideWhatTheStalenessCheckHashes(t *testing.T) {
+	embedded, err := fs.Glob(sourceAtBuild, "*.go")
+	if err != nil {
+		t.Fatalf("the embedded source did not list: %v", err)
+	}
+	beside, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("the source beside this test did not list: %v", err)
+	}
+	sort.Strings(embedded)
+	sort.Strings(beside)
+	if !slices.Equal(embedded, beside) {
+		t.Fatalf("the binary carries %v and the package holds %v — a file outside the first is one an "+
+			"edit to can go unnoticed", embedded, beside)
+	}
+	if !slices.Contains(embedded, "mutants.go") {
+		t.Error("mutants.go is not hashed, so adding a mutant would not make a binary stale")
 	}
 }
 

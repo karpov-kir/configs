@@ -19,6 +19,10 @@
 // a file, a search string and its replacement, and preflight refuses any that no longer matches
 // exactly once.
 //
+// The binary carries a copy of this package's source and refuses to run beside a different one, so
+// editing mutants.go and forgetting the rebuild is a refusal naming the command rather than a run that
+// reports the registry as it was. The gate builds the harness before every listing and never meets it.
+//
 // # What this costs, and what it has caught
 //
 // Asked whenever the harness looks like ceremony, and answered from measurement rather than from the
@@ -57,9 +61,13 @@
 package main
 
 import (
+	"crypto/sha256"
+	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,6 +99,70 @@ const (
 	staleClaim    = "STALE CLAIM"
 	unreachable   = "unreachable"
 )
+
+// This package's source as it stood when this binary was built. Every `.go` file and not a named few:
+// the disk side has to be enumerated anyway to notice a file that was added, and a pattern naming
+// files by hand is one a new file silently falls outside of. A `_test.go` edit therefore costs a
+// rebuild it did not strictly need, which is the cheap side of that trade.
+//
+//go:embed *.go
+var sourceAtBuild embed.FS
+
+// The digest of every Go file a tree holds. Names go in beside the bytes, so a file that was added or
+// removed is a difference even when nothing inside the others changed.
+func sourceDigest(tree fs.FS) (string, error) {
+	names, err := fs.Glob(tree, "*.go")
+	if err != nil {
+		return "", err
+	}
+	if len(names) == 0 {
+		return "", fmt.Errorf("it holds no Go source at all")
+	}
+	sort.Strings(names)
+	sum := sha256.New()
+	for _, name := range names {
+		body, err := fs.ReadFile(tree, name)
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(sum, "%s %d\n", name, len(body))
+		sum.Write(body)
+	}
+	return hex.EncodeToString(sum.Sum(nil)), nil
+}
+
+// Why this binary may not be trusted to report on the source beside it, or empty when it may.
+//
+// The harness says which mutants it ran as a count — "8 of 534" — and a binary built before the
+// caller's edit prints that count as it was. A mutant added in that edit is simply absent, so the run
+// is green over a registry that no longer exists and reads exactly like a run over the current one.
+// That happened here: an entry was added, the harness was run from `ai/tools` without rebuilding, and
+// only the builder noticing the number caught it.
+//
+// Compared by content, never by modification time. A fresh clone writes every file at checkout in no
+// particular order relative to a binary someone built earlier, so an mtime comparison refuses over a
+// tree that is perfectly current — and a refusal that fires when nothing is wrong is one readers learn
+// to step past. `ai/tools/gate/gate.go`'s SelfDigest block is the same argument from the other end: it
+// hashes the running binary into every verdict key and refuses rather than defaulting, because a key
+// component that never changes lets every verdict outlive the code that decided it.
+//
+// The gate needs none of this. `discoverGoMutants` in `ai/tools/gate/mutants.go` runs `go build` before
+// it lists a single unit, so the two digests already agree on that path. The by-hand path had nothing
+// at all, and this is it.
+func staleSource(builtFrom, onDisk fs.FS) string {
+	built, err := sourceDigest(builtFrom)
+	if err != nil {
+		return "this binary carries no readable copy of the source it was built from: " + err.Error()
+	}
+	current, err := sourceDigest(onDisk)
+	if err != nil {
+		return "the source beside this binary cannot be read: " + err.Error()
+	}
+	if built != current {
+		return "this binary was built from different source than the files beside it"
+	}
+	return ""
+}
 
 // A mutant that never reached a suite, carrying why. The error is the evidence: without it the reader
 // sees a mutant that measured nothing and no way to tell a full disk from a moved source file.
@@ -642,6 +714,13 @@ func main() {
 	here, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gomutate: cannot locate myself")
+		os.Exit(2)
+	}
+	// Before anything is listed or run, because every line below reports on the registry compiled into
+	// this binary and says nothing about the one on disk.
+	if why := staleSource(sourceAtBuild, os.DirFS(filepath.Dir(here))); why != "" {
+		fmt.Fprintf(os.Stderr, "gomutate: %s — rebuild with `go build -o go-mutate/go-mutate ./go-mutate` "+
+			"from ai/tools; exit 2, nothing ran.\n", why)
 		os.Exit(2)
 	}
 	pkgDir := filepath.Join(filepath.Dir(filepath.Dir(here)), "eco-check")
