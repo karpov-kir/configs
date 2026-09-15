@@ -1,6 +1,7 @@
 package bloatjudge
 
 import (
+	"errors"
 	modelpolicy "kk-flavor/tools/model-policy"
 	"os"
 	"path/filepath"
@@ -189,5 +190,113 @@ func TestJudgeCacheSeparatesClientSelections(t *testing.T) {
 			t.Fatalf("judge cache did not distinguish %s selection: %q", client, configured.CacheIdentity)
 		}
 		identities[configured.CacheIdentity] = true
+	}
+}
+
+// The two refusals below used to reach the caller as "the model did not answer", the sentence a broken
+// CLI and a slow API also produce — which is why ModelRefused exists. Their scripts print what the real
+// CLIs were measured saying on 2026-09-15; refusal.go holds both sentences in full.
+func TestClaudeRefusingTheModelNameIsToldApartFromNotAnswering(t *testing.T) {
+	fakeClaude(t, `printf "There's an issue with the selected model (fixture-model). It may not exist or you may not have access to it.\n"
+printf '[claude-code:unrecognized_model] {"model":"fixture-model"}\n' >&2
+exit 1`)
+	_, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
+	var refused *ModelRefused
+	if !errors.As(err, &refused) {
+		t.Fatalf("error = %v; want a ModelRefused", err)
+	}
+	if refused.Client != "claude" || refused.Model != "fixture-model" {
+		t.Errorf("refusal names %s/%s; want claude/fixture-model", refused.Client, refused.Model)
+	}
+}
+
+func TestCodexRefusingTheModelNameIsToldApartFromNotAnswering(t *testing.T) {
+	fakeCodex(t, `printf 'ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The '"'"'fixture-model'"'"' model is not supported when using Codex with a ChatGPT account."}}\n' >&2
+exit 1`)
+	_, err := CodexCaller(notTheSubject, testSettings())("prompt", "view")
+	var refused *ModelRefused
+	if !errors.As(err, &refused) {
+		t.Fatalf("error = %v; want a ModelRefused", err)
+	}
+	if refused.Client != "codex" || refused.Model != "fixture-model" {
+		t.Errorf("refusal names %s/%s; want codex/fixture-model", refused.Client, refused.Model)
+	}
+}
+
+// The negative control the two above are read against: a CLI failing for any other reason must still
+// come back as "did not answer", or every broken judge would be reported as a bad model name.
+func TestAFailureThatIsNotAboutTheModelNameStaysTheOldSentence(t *testing.T) {
+	fakeClaude(t, `printf 'segfault\n' >&2; exit 7`)
+	_, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
+	var refused *ModelRefused
+	if errors.As(err, &refused) {
+		t.Fatalf("a plain failure was read as a refused model: %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "did not answer") {
+		t.Fatalf("error = %v; want the did-not-answer sentence", err)
+	}
+}
+
+// Driven through the wrapper rather than through Configure, which would need a provider on PATH and a
+// policy on disk to reach the same line.
+func TestARefusalNamesThePolicyFileThatChoseTheModel(t *testing.T) {
+	refuse := func(string, string) (string, error) {
+		return "", &ModelRefused{Client: "codex", Model: "gpt-5.4-mini"}
+	}
+	_, err := namingWhatChoseTheModel(refuse, "/somewhere/models.json")("prompt", "view")
+	if err == nil {
+		t.Fatal("the wrapper dropped the refusal")
+	}
+	for _, want := range []string{"codex refused the model gpt-5.4-mini", "judge profile", "/somewhere/models.json"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal %q does not say %q", err.Error(), want)
+		}
+	}
+}
+
+// The wrapper sits on every roll, so it must be invisible to the ones that succeed and to the ones
+// that fail some other way.
+func TestNamingThePolicyLeavesEveryOtherAnswerAlone(t *testing.T) {
+	answered := func(string, string) (string, error) { return "none", nil }
+	if reply, err := namingWhatChoseTheModel(answered, "/somewhere/models.json")("prompt", "view"); reply != "none" || err != nil {
+		t.Errorf("a good roll came back %q, %v; want none, nil", reply, err)
+	}
+	broke := func(string, string) (string, error) {
+		return "", errors.New("the model did not answer (exit status 7)")
+	}
+	_, err := namingWhatChoseTheModel(broke, "/somewhere/models.json")("prompt", "view")
+	if err == nil || strings.Contains(err.Error(), "models.json") {
+		t.Errorf("an unrelated failure was blamed on the policy: %v", err)
+	}
+}
+
+// The false positive the subtraction exists to stop, and why it is not hypothetical: judge this very
+// file and every marker string refusal.go lists is inside the view.
+func TestAMarkerInsideTheJudgedTextIsNotAProviderRefusal(t *testing.T) {
+	fakeCodex(t, `cat >&2; exit 9`)
+	view := "1 the model is not supported when using Codex with a ChatGPT account\n2 a second line"
+	_, err := CodexCaller(notTheSubject, testSettings())("prompt", view)
+	var refused *ModelRefused
+	if errors.As(err, &refused) {
+		t.Fatalf("the judged text was read as the provider refusing a model: %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "did not answer") {
+		t.Fatalf("error = %v; want the did-not-answer sentence", err)
+	}
+}
+
+// The other half of that subtraction: a CLI that echoes its input and then refuses the model must
+// still read as a refusal — the echo goes, the CLI's own line stays.
+func TestARefusalSurvivesACliThatEchoesItsInput(t *testing.T) {
+	fakeCodex(t, `cat >&2
+printf 'ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The '"'"'fixture-model'"'"' model is not supported when using Codex with a ChatGPT account."}}\n' >&2
+exit 1`)
+	_, err := CodexCaller(notTheSubject, testSettings())("prompt", "1 a line of judged text\n2 another")
+	var refused *ModelRefused
+	if !errors.As(err, &refused) {
+		t.Fatalf("error = %v; want a ModelRefused", err)
+	}
+	if refused.Model != "fixture-model" {
+		t.Errorf("refusal names %q; want fixture-model", refused.Model)
 	}
 }

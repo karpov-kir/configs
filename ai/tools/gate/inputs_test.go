@@ -43,6 +43,7 @@ func discoveredOverThisRepo(t *testing.T) (*gate, int, int) {
 	suites := len(shell.SortUnique(listed))
 	g.addGoChecks()
 	g.addGuideCheck()
+	g.addModelCheck()
 	checks := len(g.units)
 	if code := g.discoverShellSuites(); code != 0 {
 		t.Fatalf("discovery over this repository exited %d: %s", code, said.String())

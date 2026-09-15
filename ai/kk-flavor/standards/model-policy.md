@@ -5,6 +5,8 @@
 `~/.kk-flavor/models.json` assigns a model to every skill and every dispatch site, and is the only
 place to change one. Skills name a task; they never embed a model.
 
+Every model name this file holds is asked of its provider by `ai/gate.sh`'s `models` unit. A name no account can run then fails at this file, not at the next judge run. A client whose CLI the machine lacks leaves its names unresolved and named on stderr, while the names that did resolve decide the verdict. Read a pass as no reachable provider refusing a name here, never as every name running. A machine with neither CLI resolved nothing, so the unit exits 2 there and the gate reads that as a check that did not run.
+
 **Two of its maps assign models, because there are two kinds of assignment.** `workers` is the model a dispatch
 actually sets. `sessions` is the tier a human should start that session at, since nothing can change
 the model of a session already running — **editing a session row changes no dispatch.** They are two

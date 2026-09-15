@@ -18,6 +18,7 @@ dist/
 /cmd/handoff-check/handoff-check
 /cmd/nomeasure/nomeasure
 /cmd/model-policy/model-policy
+/cmd/model-check/model-check
 /cmd/repo-key/repo-key
 /cite-graph/cite-graph
 /go-mutate/go-mutate

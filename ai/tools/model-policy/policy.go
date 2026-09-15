@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -384,6 +385,82 @@ func (p *Policy) TaskNames() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// Selection is one thing this file asserts a provider will run, and not a bare model name: the same
+// string means different things to the two CLIs, and codex does not offer the same effort on every
+// model. Measured 2026-09-15 — gpt-5.6-terra takes `ultra` and gpt-5.6-luna does not, so what a
+// provider runs or refuses is the whole selection.
+type Selection struct {
+	// Which part of the file asserts it: the task the row belongs to, or tierOrigin where only the
+	// order holds it. A row wins where both do, because the row is the side that can carry an effort.
+	Origin string
+	Client string
+	Model  string
+	Effort string
+}
+
+// tierOrigin stands where a task name would, and cannot be mistaken for one: validName bars
+// whitespace, so no row is keyed like this.
+const tierOrigin = "tier order"
+
+// selectionKey is a selection minus where it came from — one question to a provider, however many
+// places in the file ask it.
+type selectionKey struct{ client, model, effort string }
+
+// rowModel is a model one client's rows name, at whatever effort they name it.
+type rowModel struct{ client, model string }
+
+// Selections lists every model selection this file asserts, for a check that resolves each one
+// against the provider that would run it.
+//
+// Two sources, and either one alone is incomplete. The rows are the only place an effort exists, so
+// nothing else says what a dispatch actually sends. The order is checked one way only — validateTiers
+// refuses a row naming a model the order does not rank, never the reverse — so the order may rank a
+// model no row names yet. That is still a name this file asserts, and still the one a ceiling compares
+// a row against, so walking the rows alone would leave it unasked.
+//
+// The two are not concatenated, though. A tier name whose model some row already names for that
+// client is left out: every dispatch of that model carries the effort its row sets, so asking about
+// the bare name would probe a selection this file never sends. Where no row reaches the name, the
+// bare model is the whole of what the file says about it, and it stays.
+//
+// Deduplicated on client, model and effort together: two rows naming one model at one effort are one
+// question to ask, and one model at two efforts is two. Ordered rows first by task name, then the
+// order's own cheapest-first names, so a report reads the same way twice.
+func (p *Policy) Selections() []Selection {
+	var found []Selection
+	seen := map[selectionKey]bool{}
+	keep := func(candidate Selection) {
+		key := selectionKey{client: candidate.Client, model: candidate.Model, effort: candidate.Effort}
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		found = append(found, candidate)
+	}
+	dispatched := map[rowModel]bool{}
+	rows := p.content.all()
+	for _, name := range slices.Sorted(maps.Keys(rows)) {
+		row := rows[name]
+		for _, client := range dispatchClients {
+			settings := row.Codex
+			if client == "claude" {
+				settings = row.Claude
+			}
+			dispatched[rowModel{client: client, model: settings.Model}] = true
+			keep(Selection{Origin: name, Client: client, Model: settings.Model, Effort: settings.Effort})
+		}
+	}
+	for _, client := range dispatchClients {
+		for _, model := range p.content.Tiers[client] {
+			if dispatched[rowModel{client: client, model: model}] {
+				continue
+			}
+			keep(Selection{Origin: tierOrigin, Client: client, Model: model})
+		}
+	}
+	return found
 }
 
 func validateSettings(client string, settings Settings) error {

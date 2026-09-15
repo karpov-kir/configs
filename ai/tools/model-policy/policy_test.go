@@ -1,6 +1,7 @@
 package modelpolicy
 
 import (
+	"maps"
 	"strings"
 	"testing"
 )
@@ -292,5 +293,110 @@ func TestADocumentWithNoTierOrderIsRefusedForThat(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "orders no codex models") {
 		t.Errorf("refused for the wrong reason, so the absent order is not what this pins: %v", err)
+	}
+}
+
+// The whole enumeration in one case: which rows are walked, which client each half belongs to, the
+// effort a row carries, and the order the two sources are read in. Every model `sample` ranks is one
+// a row already names, so nothing from the order reaches this list. The two cases at the end of this
+// file pin that rule from both sides.
+func TestSelectionsListEveryRowOfBothMaps(t *testing.T) {
+	var got []string
+	for _, selection := range policyForTest(t).Selections() {
+		got = append(got, selection.Origin+"/"+selection.Client+"/"+selection.Model+"/"+selection.Effort)
+	}
+	want := []string{
+		"bloat-judge/codex/helper/low", "bloat-judge/claude/haiku/",
+		"build/explore/codex/middling/low", "build/explore/claude/sonnet/",
+		"kk-build/codex/frontier/high", "kk-build/claude/opus/",
+	}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("Selections = %v;\nwant %v", got, want)
+	}
+}
+
+// `sample` with one more tier at the top of each client's order and no row moved onto it, which is
+// what promoting a model looks like before anything is repriced.
+func policyWithAnUnusedTopTier(t *testing.T) *Policy {
+	t.Helper()
+	raw := strings.Replace(sample, tierOrder,
+		`"tiers":{"codex":["helper","middling","frontier","frontier-next"],`+
+			`"claude":["haiku","sonnet","opus","opus-next"]},`, 1)
+	if raw == sample {
+		t.Fatal("the fixture edit matched nothing, so this case measures the unmodified sample")
+	}
+	p, err := Parse([]byte(raw))
+	if err != nil {
+		t.Fatalf("fixture did not parse, so this case measures nothing: %v", err)
+	}
+	return p
+}
+
+// A model only the order ranks is a name this file asserts too, and the one a ceiling reads as the
+// top. Walking the rows alone would never ask a provider about it, and the first thing to find out
+// would be the run that was repriced onto it.
+func TestAModelOnlyTheOrderRanksIsStillListed(t *testing.T) {
+	var got []string
+	for _, selection := range policyWithAnUnusedTopTier(t).Selections() {
+		if selection.Model == "frontier-next" || selection.Model == "opus-next" {
+			got = append(got, selection.Origin+"/"+selection.Client+"/"+selection.Model)
+		}
+	}
+	want := "tier order/codex/frontier-next tier order/claude/opus-next"
+	if strings.Join(got, " ") != want {
+		t.Errorf("the names no row holds were listed as %v; want %q", got, want)
+	}
+}
+
+// `sample` plus two rows on helper: one repeating the judge's codex selection exactly, one naming the
+// same model at another effort.
+func policyWithARepeatedAndAReEffortedModel(t *testing.T) *Policy {
+	t.Helper()
+	raw := strings.Replace(sample,
+		`"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}}`,
+		`"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}},`+
+			`"edit":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"}},`+
+			`"skim":{"codex":{"model":"helper","effort":"high"},"claude":{"model":"haiku"}}`, 1)
+	if raw == sample {
+		t.Fatal("the fixture edit matched nothing, so this case measures the unmodified sample")
+	}
+	p, err := Parse([]byte(raw))
+	if err != nil {
+		t.Fatalf("fixture did not parse, so this case measures nothing: %v", err)
+	}
+	return p
+}
+
+// Both halves of the dedupe key at once, because collapsing either way is a bill or a wrong verdict.
+// Two rows naming one model at one effort are one question, and probing it twice pays a provider
+// every run to settle nothing. One model at two efforts is two questions — a model can refuse an
+// effort it does not offer, as Selection's measurement shows — and collapsing those has the check ask
+// about one of them and report the answer for both.
+func TestOneModelIsOneQuestionPerEffortAndNoMore(t *testing.T) {
+	asked := map[string]int{}
+	for _, selection := range policyWithARepeatedAndAReEffortedModel(t).Selections() {
+		if selection.Client == "codex" && selection.Model == "helper" {
+			asked[selection.Effort]++
+		}
+	}
+	want := map[string]int{"low": 1, "high": 1}
+	if !maps.Equal(asked, want) {
+		t.Errorf("helper was asked about as %v; want %v — low once for the two rows sharing it, and "+
+			"high for the row at that effort", asked, want)
+	}
+}
+
+// The other side of the same walk: the order ranks helper too, and that is not a seventh question.
+// Every dispatch of helper carries the effort its row sets, so the bare name is a selection this file
+// never sends — probing it would have the check assert something models.json does not say.
+func TestATierNameARowHoldsIsNotAskedAboutBare(t *testing.T) {
+	for _, selection := range policyWithAnUnusedTopTier(t).Selections() {
+		if selection.Origin != tierOrigin {
+			continue
+		}
+		if selection.Model != "frontier-next" && selection.Model != "opus-next" {
+			t.Errorf("%s %q was listed from the order as well as from a row, at no effort any row sets",
+				selection.Client, selection.Model)
+		}
 	}
 }

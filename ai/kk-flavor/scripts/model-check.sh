@@ -1,31 +1,10 @@
 #!/usr/bin/env bash
-# The judge: what a named reader would delete from an outward text, decided by a model that sees only
-# what that reader sees.
-#
-#   usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
-#
-# Set JUDGE_PROVIDER=codex or JUDGE_PROVIDER=claude explicitly. Missing, unknown or unavailable
-# providers fail with exit 2; no auto-selection or fallback. models.json selects the judge model.
-# A legacy JUDGE_MODEL setting is refused.
-#
-# Prints the artifact with the judged units deleted, or with --numbers the 1-based line each deleted
-# unit starts on. Exit 0 when nothing went, 1 when something did, 2 when it did not run — an unknown
-# kind, an unreadable path, a provider that refused that model name, a model that did not answer
-# inside its deadline, or an answer that was not numbers.
-#
-# Every attempted roll is bounded. Cancellation supplies no verdict.
-# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/bloat-judge.conf` retunes the bound on this machine
-# with a `roll-timeout <seconds>` line; `ai/tools/bloat-judge/deadline.go` holds the figure it replaces.
-#
-# What the model may do, and why it is safe, is the package doc in `ai/tools/bloat-judge/judge.go`.
-#
-# tested by: the Go suite beside the tool, `ai/tools/bloat-judge/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
-
+# Ask each provider whether it will run the model names models.json holds. Judges no text.
+# usage: model-check.sh [--config <policy.json>]
+# tested by: the Go suite in ai/tools/model-check/; shared stub by tool-stub-test.sh.
 set -euo pipefail
 
-tool="bloat-judge"
-# How far THIS file sits above the tools directory.
+tool="model-check"
 tools_offset="../.."
 
 # --- shared:tool-stub ---
