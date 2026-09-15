@@ -44,10 +44,11 @@ The steps, each revertible alone. The first has landed: the grammar is `**Extend
 <when>`, sixteen edges across eight skills declare one, and no prose states an edge any more.
 
 1. **`**Layer:**` on the 18 standards**, and the one cycle that crosses.
-2. **The checks in `eco-check`**, on the citation parser it already has: the verb rule, an
-   `**Extends:**` naming a `workers` row (that is a dispatch), an extension cycle, a downward layer
-   citation. **The verb set has to carry `through` and `via`** — nine invocation sites in the skills
-   tree use those and no other verb, and six of the nine were undeclared extensions.
+2. **The checks in `eco-check`**, on the citation parser it already has: the verb rule, an extension
+   cycle, a downward layer citation, and every `**Extends:**` held to a `**Runs:**` reason that
+   licenses holding the work. **The verb set has to carry `through` and `via`** — nine invocation
+   sites in the skills tree use those and no other verb, and six of the nine were undeclared
+   extensions. Lands the inline worker read and the exception inventory below.
 3. **Collapse the three citation parsers.** `eco-guide/graph.go` and `cite-graph/read.go` drop their
    own regexes; `--graph` and `--cost` read declarations and the prose inference is deleted;
    `cite-graph`'s CYCLES becomes a verdict rather than a list.
@@ -56,21 +57,43 @@ The steps, each revertible alone. The first has landed: the grammar is `**Extend
    after the grammar lands, so the shared reader exists to consolidate onto.
 5. **Then `workers/build/implement.md`**, written under the grammar from the start.
 
-**Six sites read a priced lane inline, and no declaration can type them.** `idsd-qualify`,
-`idsd-finalize`, `kk-pr` and `kk-ecosystem` each apply `kk-edit` inline; `kk-pr`'s review mode and
-`kk-build` read `workers/conform.md` the same way. Each of those rows selects nothing and the work
-bills at the caller's tier, which is the defect the worker layer exists to remove, and `--graph`
-prices all six as dispatches — so the tool and the prose disagree today. They are not extensions:
-`kk-edit` is `**Runs:** dispatched` and holds a `workers` row, and a worker is not a skill, so
-`**Extends:**` cannot reach either.
+**Six sites read a priced lane inline, and nothing declares it.** `idsd-qualify`, `idsd-finalize`,
+`kk-pr` and `kk-ecosystem` each apply `kk-edit` inline; `kk-pr`'s review mode and `kk-build` read
+`workers/conform.md` the same way. Each of those rows selects nothing and the work bills at the
+caller's tier — the defect the worker layer exists to remove — while `--graph` prices all six as
+dispatches, so the tool and the prose disagree today. `**Extends:**` cannot reach them: `kk-edit`
+holds a `workers` row and a worker is not a skill.
 
-`kk-build` is the one [ecosystem.md](ai/kk-flavor/standards/ecosystem.md) → **Three kinds, two homes**
-already covers — it `converses`, and that is the exception's whole text. The other five give the same
-reason as each other, the target is text the session already holds, and that reason is
-`session-context`, which the exception does not admit. So either it grows that second arm or the five
-become dispatches. **Settle it before step 2's check is written**, or that check ships with five
-exemptions. Whichever way it goes, an inline worker read still has nothing declaring it, and until one
-does, `--cost` is wrong about all six in the same direction.
+**It is the same relation, so it takes the same declaration.** Reading `workers/conform.md` inline is
+one session reading a second contract and running it in its own — `**Extends:**`'s definition
+exactly — and only the target's shape differs. So the grammar's target widens to a worker path, and
+`--cost` stops pricing a declared read as a dispatch: the row it shows is the caller's, which is what
+the run actually pays. The check then holds each declaration to the declaring skill's own `**Runs:**`
+reason, so a claim is never better than the reason beside it.
+
+**Measured against that reason, not one of the five is licensed today.** `idsd-qualify` declares
+`orchestrator`, `idsd-finalize` and `kk-pr` declare `landing`, `kk-ecosystem` declares `dispatched`.
+The reason they all *give in prose* is that the text is already in the session, which is
+`session-context` — a reason [model-policy.md](ai/kk-flavor/standards/model-policy.md) → **Cost is a
+design constraint** defines and none of them claims. So each is a `**Runs:**` reason to correct or,
+by that same section's *a reason that covers part of what the skill does is the offload signal*, work
+that should be dispatched after all — and `kk-ecosystem`, being `dispatched` itself, is almost
+certainly the latter. **Write the check first and resolve the five against it, one at a time.**
+Growing the exception in [ecosystem.md](ai/kk-flavor/standards/ecosystem.md) → **Three kinds, two
+homes** to admit `session-context` may then turn out to be unnecessary: it admits `converses` today,
+which already covers `kk-build`, the only site that was ever legal.
+
+**An exception lives in the file that takes it, and the inventory of them is generated.** A
+hand-maintained list of which skills may read a lane inline is a second copy of what the skill already
+says, and nothing can catch it going stale — the failure this whole section exists to remove.
+`models.json` is central precisely because it is the *only* copy: a skill never names its model. An
+edge kind cannot move that way, because the agent reading that phase acts on it and will not open a
+config mid-task. **The test is who acts on it** — tooling only, and it belongs in a config file;
+the reading agent, and it belongs in the file. What the central file is for is review, and that is
+met by generating it: `guide.sh` emits `ai/declarations.md`, one line per declaration and per
+exception, committed and held by the `--check` that already guards `field-guide.html`. Enforcement
+comes from the check, unification from the single parser step 3 leaves, visibility from a file nobody
+writes by hand.
 
 **A receipt is the only thing that cannot be wrong, and nothing records one.** `--cost` is a ceiling
 computed before a run; what no tool reaches is which contracts a session actually loaded. That is the
