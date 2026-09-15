@@ -1,4 +1,4 @@
-// Cases for the tree fingerprint. Two must not be weakened, and each one's own comment says what it
+// Cases for the tree fingerprint. Three must not be weakened, and each one's own comment says what it
 // rests on.
 //
 // "an untracked file's content never reaches the repository's object store" is the security property
@@ -8,6 +8,10 @@
 // "a tracked file matching an ignore rule still changes the fingerprint" is the seed. Weakened, it
 // lets a stale ledger pass as a valid resume point, which is the failure this whole recipe exists to
 // prevent.
+//
+// "commits in a nested repository do not move the fingerprint" is determinism. Weakened, the hash
+// moves while nothing here changes, and a stamp can no longer tell a tree that was rewritten under a
+// stage from one that was not — so a whole round's staleness reading says nothing.
 package treefingerprint
 
 import (
@@ -168,6 +172,148 @@ func TestATrackedFileMatchingAnIgnoreRuleStillMoves(t *testing.T) {
 	if after := r.fingerprint(); after == before {
 		t.Errorf("a tracked file matching an ignore rule did not move the fingerprint: still %q — "+
 			"the index was not seeded from HEAD, and a rewrite of that file is now invisible to every ledger", before)
+	}
+}
+
+// nestedRepo builds a repository with one commit inside r, at path. It is what an agent session's
+// worktree is to the checkout it was opened inside — another repository, sharing nothing with this
+// tree but the directory it sits in.
+func (r *repo) nestedRepo(path string) *repo {
+	r.t.Helper()
+	full := filepath.Join(r.dir, path)
+	if err := os.MkdirAll(full, 0o755); err != nil {
+		r.t.Fatalf("mkdir %s: %v", path, err)
+	}
+	nested := &repo{t: r.t, dir: full}
+	nested.git("init", "-q")
+	nested.git("config", "user.email", "t@t")
+	nested.git("config", "user.name", "t")
+	nested.git("config", "commit.gpgsign", "false")
+	nested.write("inside.txt", "one\n")
+	nested.git("add", "inside.txt")
+	nested.git("commit", "-qm", "inside")
+	return nested
+}
+
+// The determinism this whole recipe is stamped for. `add -A` records a nested repository as a gitlink
+// holding that repository's HEAD, so every commit made in there moved this fingerprint while no file
+// here changed — and a ledger stamped with it could not tell that apart from the tree it named having
+// actually been rewritten.
+func TestCommitsInANestedRepositoryDoNotMoveTheFingerprint(t *testing.T) {
+	r := newRepo(t)
+	nested := r.nestedRepo("session-worktree")
+	before := r.fingerprint()
+
+	nested.git("commit", "-q", "--allow-empty", "-m", "a session next door commits")
+	if after := r.fingerprint(); after != before {
+		t.Errorf("a commit in a nested repository moved the fingerprint: %q became %q — the hash names "+
+			"that repository's HEAD, so a ledger stamped with it invalidates over work that is not this tree's", before, after)
+	}
+	nested.git("commit", "-q", "--allow-empty", "-m", "and again")
+	if after := r.fingerprint(); after != before {
+		t.Errorf("a second commit in a nested repository moved the fingerprint again: %q became %q", before, after)
+	}
+}
+
+// A nested repository's own files are no more part of this tree than its HEAD is. Asserted separately
+// from the case above, which a recipe recording those files instead of the gitlink would otherwise
+// satisfy — and that recipe hands every path in a sibling session's worktree to this ledger.
+func TestANestedRepositorysFilesAreNotThisTree(t *testing.T) {
+	r := newRepo(t)
+	nested := r.nestedRepo("session-worktree")
+	before := r.fingerprint()
+
+	nested.write("inside.txt", "rewritten\n")
+	if after := r.fingerprint(); after != before {
+		t.Errorf("an edit inside a nested repository moved the fingerprint: %q became %q", before, after)
+	}
+	nested.write("fresh.txt", "new\n")
+	if after := r.fingerprint(); after != before {
+		t.Errorf("a new file inside a nested repository moved the fingerprint: %q became %q", before, after)
+	}
+}
+
+// The other half: a gitlink HEAD already holds is a declared submodule, and its pointer is part of
+// what this repository tracks. A recipe that dropped every gitlink would pass the two cases above and
+// go blind on a submodule bump. The entry is written into the index directly rather than through
+// `git submodule add`, which wants a URL it can clone and a protocol allowance to clone it over.
+func TestADeclaredSubmodulesPointerStillMoves(t *testing.T) {
+	r := newRepo(t)
+	nested := r.nestedRepo("declared")
+	r.git("update-index", "--add", "--cacheinfo", "160000,"+nested.git("rev-parse", "HEAD")+",declared")
+	r.git("commit", "-qm", "declare the submodule")
+	if !strings.Contains(r.git("ls-tree", "HEAD", "--", "declared"), "commit") {
+		t.Fatal("the fixture committed no gitlink, so this case would prove nothing")
+	}
+
+	before := r.fingerprint()
+	nested.git("commit", "-q", "--allow-empty", "-m", "the submodule moves on")
+	if after := r.fingerprint(); after == before {
+		t.Errorf("a declared submodule's pointer moved and the fingerprint did not: still %q — a bump "+
+			"is a change to this repository, and every ledger stamped with this hash now reads as fresh over it", before)
+	}
+}
+
+// A nested repository with no commit yet aborts `add -A` outright ("does not have a commit checked
+// out"). While a sibling session was setting its worktree up, no fingerprint could be taken here at
+// all, and every lane that needed one refused.
+func TestANestedRepositoryWithNoCommitStillFingerprints(t *testing.T) {
+	r := newRepo(t)
+	empty := filepath.Join(r.dir, "half-built-worktree")
+	if err := os.MkdirAll(empty, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if out, err := exec.Command("git", "-C", empty, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	r.write("half-built-worktree/staged.txt", "content\n")
+
+	tree, err := Fingerprint(r.dir)
+	if err != nil {
+		t.Fatalf("a nested repository with no commit made the tree unfingerprintable: %v", err)
+	}
+	if len(tree) != 40 {
+		t.Errorf("fingerprinting past an uncommitted nested repository produced %q, not a tree hash", tree)
+	}
+}
+
+// A nested repository is held out by its name and not by a pattern read out of it. The `*` below is a
+// wildcard to git unless the exclusion says otherwise, and `wt*` then covers the sibling directory
+// too — untracked content dropped out of the hash by a name that only looked like its own.
+func TestANestedRepositoryNamedWithAGlobHoldsOutOnlyItself(t *testing.T) {
+	r := newRepo(t)
+	nested := r.nestedRepo("wt*")
+	r.write("wtKEEP/sibling.txt", "one\n")
+	before := r.fingerprint()
+
+	nested.git("commit", "-q", "--allow-empty", "-m", "commit next door")
+	if after := r.fingerprint(); after != before {
+		t.Errorf("a nested repository named with a wildcard moved the fingerprint: %q became %q", before, after)
+	}
+	r.write("wtKEEP/sibling.txt", "two\n")
+	if after := r.fingerprint(); after == before {
+		t.Errorf("a sibling directory the nested repository's name globs over went missing from the "+
+			"fingerprint: still %q, so an edit under it is invisible to every ledger", before)
+	}
+}
+
+// A root inside the repository still names the whole repository, and a nested repository elsewhere in
+// it is still held out. The scope is what the exclusion above is written against: pathspecs read from
+// the caller's own directory rather than the repository root would hold out a path that is not there,
+// and the nested repository's HEAD is back in the hash with nothing saying so.
+func TestASubdirectoryRootStillNamesTheWholeRepository(t *testing.T) {
+	r := newRepo(t)
+	nested := r.nestedRepo("session-worktree")
+	r.write("sub/deep.txt", "deep\n")
+	sub := &repo{t: t, dir: filepath.Join(r.dir, "sub")}
+
+	if fromSub, fromRoot := sub.fingerprint(), r.fingerprint(); fromSub != fromRoot {
+		t.Errorf("fingerprinting from a subdirectory named a different tree: %q against %q from the root", fromSub, fromRoot)
+	}
+	before := sub.fingerprint()
+	nested.git("commit", "-q", "--allow-empty", "-m", "commit in the sibling directory")
+	if after := sub.fingerprint(); after != before {
+		t.Errorf("read from a subdirectory, a commit in a nested repository elsewhere moved the fingerprint: %q became %q", before, after)
 	}
 }
 
