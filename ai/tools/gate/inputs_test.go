@@ -41,13 +41,68 @@ func discoveredOverThisRepo(t *testing.T) (*gate, int, int) {
 	// and the control below would blame a table that is correct.
 	suites := len(shell.SortUnique(listed))
 	g.addGoChecks()
-	g.addGuideCheck()
+	if code := g.addGuideCheck(thisModulesImports(t, g)); code != 0 {
+		t.Fatalf("the guide unit did not register: %s", said.String())
+	}
 	g.addModelCheck()
 	checks := len(g.units)
 	if code := g.discoverShellSuites(); code != 0 {
 		t.Fatalf("discovery over this repository exited %d: %s", code, said.String())
 	}
 	return g, suites, checks
+}
+
+// The guide unit has to be keyed on the main package its command builds. Hand-listed, it named the
+// library packages and not `cmd/eco-guide`, so editing main.go left the verdict fresh.
+func TestTheGuideUnitIsKeyedOnTheCommandItRuns(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	var guide *unit
+	for i := range g.units {
+		if g.units[i].id == "guide" {
+			guide = &g.units[i]
+		}
+	}
+	if guide == nil {
+		t.Fatal("no unit called guide, so this case would pass against any key at all")
+	}
+	for _, want := range []string{ecoGuideCommand, "ai/tools/eco-guide", "ai/tools/eco-root", "ai/tools/shell"} {
+		if !slices.Contains(guide.inputs, want) {
+			t.Errorf("guide is not keyed on %s, which its command is built from, so an edit there leaves "+
+				"the verdict fresh over a binary nothing rebuilt", want)
+		}
+	}
+	// The narrowness half: this check builds one command, not the module.
+	if slices.Contains(guide.inputs, goTree) {
+		t.Error("guide is keyed on the whole tool tree, so any Go edit at all re-runs it")
+	}
+}
+
+// A graph that cannot answer for that command refuses, rather than keying on the three paths left.
+func TestAGuideUnitTheGraphCannotAnswerForRefuses(t *testing.T) {
+	said := &strings.Builder{}
+	g := &gate{errOut: said}
+	if code := g.addGuideCheck(map[string][]string{}); code != 2 {
+		t.Fatalf("addGuideCheck exited %d over a graph naming no package, want 2", code)
+	}
+	if len(g.units) != 0 {
+		t.Errorf("it registered %d unit(s) anyway, keyed on less than the command builds", len(g.units))
+	}
+}
+
+// This repository's own graph, read as discovery reads it. `go list` writes nothing, so a case may
+// take this where it may not call discoverGoMutants.
+func thisModulesImports(t *testing.T, g *gate) map[string][]string {
+	t.Helper()
+	listing, err := g.listModulePackages()
+	if err != nil {
+		t.Fatalf("listing this module's packages: %v", err)
+	}
+	reached, err := moduleImports(listing, g.root)
+	if err != nil {
+		t.Fatalf("reading this module's import graph: %v", err)
+	}
+	return reached
 }
 
 func TestNoUnitDeclaresAnInputTwice(t *testing.T) {
@@ -88,7 +143,7 @@ func TestNoUnitDeclaresAnInputTwice(t *testing.T) {
 // the harness emits rather than run through `go build`.
 func TestAMutantGroupReachesAUnitWithNoInputTwice(t *testing.T) {
 	const line = "eco-report/records.go\t./eco-report/\tTestSomething\tai/tools/eco-report/records.go\n"
-	groups, err := groupMutants(line+line+line, "")
+	groups, err := groupMutants(line+line+line, "", suiteCompiles)
 	if err != nil {
 		t.Fatalf("grouping three mutants over one file: %v", err)
 	}
@@ -192,5 +247,24 @@ func TestTheGotestUnitIsKeyedOnTheStubsItsSuiteReads(t *testing.T) {
 			t.Errorf("gotest is not keyed on %s, so an edit to that stub's header leaves this unit fresh "+
 				"and stub_usage_test.go compares a line nothing re-read", stub)
 		}
+	}
+}
+
+// `go list`'s answer over the real module, which is what every unit's key now rests on. Two directions,
+// and only one is the cheap mistake: eco-report's suite compiles repo-key, so that pair must be there,
+// while cadence compiles nothing but itself, so a graph answering "the whole module" fails here.
+func TestThisModulesGraphSaysWhatASuiteCompiles(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatalf("resolving the repository root: %v", err)
+	}
+	reached := thisModulesImports(t, &gate{root: root})
+	if !slices.Contains(reached["ai/tools/eco-report"], "ai/tools/repo-key") {
+		t.Errorf("the graph does not say eco-report's suite compiles repo-key, so editing repokey.go "+
+			"leaves mutants:go:eco-report fresh: %v", reached["ai/tools/eco-report"])
+	}
+	if got := reached["ai/tools/cadence"]; len(got) != 1 || got[0] != "ai/tools/cadence" {
+		t.Errorf("cadence's suite compiles nothing else in this module, and the graph answers %v — a "+
+			"unit keyed on that re-runs on edits that cannot move its verdict", got)
 	}
 }

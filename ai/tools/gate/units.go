@@ -17,8 +17,10 @@ import (
 // keys on them itself. Named file by file, from the suites' own `../../` constants: keying on all of
 // kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package that cannot read it.
 const (
-	goTree    = "ai/tools"
-	extFlavor = "ai/kk-flavor/scripts/tree-fingerprint.sh"
+	goTree = "ai/tools"
+	// The main package `ai/guide.sh --check` builds and runs — resolve.sh picks `./cmd/<tool>/` first.
+	ecoGuideCommand = goTree + "/cmd/eco-guide"
+	extFlavor       = "ai/kk-flavor/scripts/tree-fingerprint.sh"
 	// The audience marker is read twice — as a Go regexp in shell/markdown.go, and as awk in this
 	// library, which both installers source and which runs before the machine has a Go binary at all.
 	// shell's suite holds the two spellings to each other, so it is keyed on the file it reads them
@@ -154,15 +156,28 @@ func (g *gate) addGoChecks() {
 // touching it — a skill added, renamed or retired is enough. This unit regenerates into memory and
 // diffs, which is the only thing that notices.
 //
-// Keyed on the skills because their frontmatter IS the inventory, on the tool and the two packages it
-// reads that frontmatter through, and on the page itself so hand-editing the committed file re-runs
-// the check that would catch it. Blind to the module's test files, like every other unit that
-// observes a compiled binary. ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate has to
-// measure the source in this tree, never a binary that came from somewhere else.
-func (g *gate) addGuideCheck() {
-	g.addBlindToGoTests("guide", "check",
-		[]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root", "ai/tools/shell", "ai/guide.sh"},
-		"ECO_TOOLS_BUILD=1 ai/guide.sh --check")
+// Keyed on the skills because their frontmatter IS the inventory, on the page itself so hand-editing
+// the committed file re-runs the check that would catch it, on the stub, and on every package the
+// command is built from. Those packages come out of the import graph rather than a list written here:
+// hand-listed, this unit named eco-guide, eco-root and shell but not `cmd/eco-guide` — the main
+// package the binary is built from — so editing main.go left the verdict fresh over a tool nothing
+// rebuilt.
+//
+// The graph answers what a `go test` compiles, a superset for a binary: a test-only import would key
+// this on a package the build never reads. Wide is the safe direction; narrow is the defect.
+//
+// Blind to the module's test files, like every other unit that observes a compiled binary.
+// ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate has to measure the source in this
+// tree, never a binary that came from somewhere else.
+func (g *gate) addGuideCheck(imports map[string][]string) int {
+	compiles, known := imports[ecoGuideCommand]
+	if !known {
+		return g.fail("the gate cannot say which packages %s imports, so the guide unit would be keyed "+
+			"on less than `ai/guide.sh --check` builds — nothing ran", ecoGuideCommand)
+	}
+	inputs := append([]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/guide.sh"}, compiles...)
+	g.addBlindToGoTests("guide", "check", inputs, "ECO_TOOLS_BUILD=1 ai/guide.sh --check")
+	return 0
 }
 
 // Asks each provider about every model name models.json holds, once per distinct name; modelcheck's
@@ -184,15 +199,26 @@ func (g *gate) addModelCheck() {
 		"ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh")
 }
 
+// The import graph is read once here, for `guide` and for the mutation units that key on it.
 func (g *gate) discoverUnits() int {
+	packages, err := g.listModulePackages()
+	if err != nil {
+		return g.fail("%s", err)
+	}
+	imports, err := moduleImports(packages, g.root)
+	if err != nil {
+		return g.fail("%s", err)
+	}
 	g.addGoChecks()
-	g.addGuideCheck()
+	if code := g.addGuideCheck(imports); code != 0 {
+		return code
+	}
 	g.addModelCheck()
 
 	if code := g.discoverShellSuites(); code != 0 {
 		return code
 	}
-	return g.discoverGoMutants()
+	return g.discoverGoMutants(imports)
 }
 
 func (g *gate) discoverShellSuites() int {
