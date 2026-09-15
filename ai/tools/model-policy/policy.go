@@ -34,6 +34,13 @@ type assignment struct {
 	Worker string    `json:"worker,omitempty"`
 }
 
+func (a assignment) settingsFor(client string) *Settings {
+	if client == "claude" {
+		return a.Claude
+	}
+	return a.Codex
+}
+
 // Limits holds the counts that multiply a run's cost without changing any single call's price.
 type Limits struct {
 	IntentsInFlight int `json:"intents-in-flight"`
@@ -166,10 +173,7 @@ func (p *document) validateTiers() error {
 			seen[model] = true
 		}
 		for name, task := range p.all() {
-			settings := task.Codex
-			if client == "claude" {
-				settings = task.Claude
-			}
+			settings := task.settingsFor(client)
 			if settings == nil || settings.Model == "" {
 				continue
 			}
@@ -221,8 +225,10 @@ func (p *document) validateAssignments() error {
 		if task.Rolls%2 == 0 && task.Rolls != 0 {
 			return fmt.Errorf("task %q asks for %d rolls; an even count cannot break a tie, so use an odd one", name, task.Rolls)
 		}
-		for client, settings := range map[string]*Settings{"codex": task.Codex, "claude": task.Claude} {
-			if err := validateSettings(client, *settings); err != nil {
+		// In dispatchClients' order rather than a map's, so a row invalid for both clients always
+		// reports the same half first.
+		for _, client := range dispatchClients {
+			if err := validateSettings(client, *task.settingsFor(client)); err != nil {
 				return fmt.Errorf("task %q: %w", name, err)
 			}
 		}
@@ -284,10 +290,7 @@ func (p *Policy) Resolve(request Request) (Decision, error) {
 		if !ok {
 			continue
 		}
-		requested := task.Codex
-		if request.Client == "claude" {
-			requested = task.Claude
-		}
+		requested := task.settingsFor(request.Client)
 		return Decision{
 			Client:       request.Client,
 			Task:         request.Task,
@@ -444,10 +447,7 @@ func (p *Policy) Selections() []Selection {
 	for _, name := range slices.Sorted(maps.Keys(rows)) {
 		row := rows[name]
 		for _, client := range dispatchClients {
-			settings := row.Codex
-			if client == "claude" {
-				settings = row.Claude
-			}
+			settings := row.settingsFor(client)
 			dispatched[rowModel{client: client, model: settings.Model}] = true
 			keep(Selection{Origin: name, Client: client, Model: settings.Model, Effort: settings.Effort})
 		}
@@ -513,9 +513,9 @@ func validName(value string) bool {
 	return true
 }
 
-// The two CLIs a row is written for. Named once because the same list decides three separate
-// things — which tier orders must exist, which clients Resolve answers for, and which clients a
-// ceiling check walks — and those only stay in step while they read the same list.
+// The two CLIs a row is written for. Named once because everything that walks both clients reads it —
+// the tier orders that must exist, the halves of a row validated, Resolve, Selections, a ceiling
+// check — and those only stay in step while they read the same list.
 var dispatchClients = []string{"codex", "claude"}
 
 // The efforts both CLIs answer to, and the three codex carries on its own.

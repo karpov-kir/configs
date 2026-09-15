@@ -247,7 +247,10 @@ func TestARefusalNamesThePolicyFileThatChoseTheModel(t *testing.T) {
 	if err == nil {
 		t.Fatal("the wrapper dropped the refusal")
 	}
-	for _, want := range []string{"codex refused the model gpt-5.4-mini", "judge profile", "/somewhere/models.json"} {
+	// "bloat-judge task" and not "judge profile": a refusal sends the reader to a key to edit, and
+	// v4 deleted `profiles`. A message naming a construct the file no longer has costs the reader the
+	// one thing this wrapper exists to give them.
+	for _, want := range []string{"codex refused the model gpt-5.4-mini", "bloat-judge task", "/somewhere/models.json"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("refusal %q does not say %q", err.Error(), want)
 		}

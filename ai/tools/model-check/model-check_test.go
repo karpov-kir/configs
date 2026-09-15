@@ -201,8 +201,8 @@ done
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Fields(string(got)) == nil || strings.Join(strings.Fields(string(got)), " ") != "claude codex" {
-		t.Errorf("the binaries run were %q; want claude then codex", strings.Fields(string(got)))
+	if order := strings.Fields(string(got)); strings.Join(order, " ") != "claude codex" {
+		t.Errorf("the binaries run were %q; want claude then codex", order)
 	}
 }
 

@@ -24,7 +24,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | code-review | `~/.kk-flavor/workers/code-review.md` | — | `code-review` |
 | security-review | `~/.kk-flavor/workers/security-review.md` | — | `security` |
 | edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --bar` for comments | `comments` |
-| instruction | `kk-ecosystem` | `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh` | — |
+| instruction | `kk-ecosystem` | `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=<claude or codex>` | — |
 | refactor | `~/.kk-flavor/workers/refactor.md` | `~/.kk-flavor/workers/refactor/dup-literals.sh` | `refactor` |
 
 **Diagnosis is a destination, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **The round**). **Conformance is a gate, never a stage of the round** (`~/.kk-flavor/standards/quality-pipeline.md` → **Conform it before you review it**). A caller holding the ask runs it before invoking you; **bare, you hold the ask and dispatch the gate yourself, before the round**. Only a change set with no ask at all reaches the stages ungated, and that section says what your status line then owes.

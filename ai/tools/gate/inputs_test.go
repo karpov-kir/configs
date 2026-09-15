@@ -41,9 +41,7 @@ func discoveredOverThisRepo(t *testing.T) (*gate, int, int) {
 	// names a path once per stage, so during an unmerged suite the raw count runs ahead of the table
 	// and the control below would blame a table that is correct.
 	suites := len(shell.SortUnique(listed))
-	g.addGoChecks()
-	g.addGuideCheck()
-	g.addModelCheck()
+	g.addChecks()
 	checks := len(g.units)
 	if code := g.discoverShellSuites(); code != 0 {
 		t.Fatalf("discovery over this repository exited %d: %s", code, said.String())
@@ -285,5 +283,43 @@ func TestTheGuideUnitIsKeyedOnEveryFileItsPageIsBuiltFrom(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no guide unit among the discovered units, so nothing here was checked")
+	}
+}
+
+// The same claim as the guide case above, over the one unit whose command spends money. `addModelCheck`
+// keys on direct imports by hand rather than on `ai/tools`, so that a Go edit anywhere does not buy a
+// model call per name — which means the list is the only thing standing between an edit and a stale
+// green.
+//
+// `ai/tools/model-policy` is the entry that shows why this is worth a case: `Selections()` lives there
+// and decides which names the probe asks about. Drop that one and repricing a row changes the question
+// while the unit answers from the last run's record — a provider never asked about the new name, and a
+// green saying it was. `bloat-judge` is here for the same reason one step out: the probe runs through
+// its callers, so the argv a name is proven against is built there.
+//
+// What this catches is an entry TRIMMED from the declaration, and only that — hence "stays keyed".
+// `want` is a hand-copy, so a package newly imported and left out passes silently. The stub case below
+// derives its oracle instead; that is not available here, because the only mechanical derivation is
+// `go list -deps`, which over-reaches to diffscan for the reason `addModelCheck` gives.
+func TestTheModelsUnitStaysKeyedOnThePackagesItsProbeIsBuiltFrom(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	want := []string{"ai/kk-flavor/models.json", "ai/kk-flavor/scripts/model-check.sh",
+		"ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
+		"ai/tools/bloat-judge", "ai/tools/shell"}
+	found := false
+	for _, u := range g.units {
+		if u.id != "models" {
+			continue
+		}
+		found = true
+		for _, input := range want {
+			if !slices.Contains(u.inputs, input) {
+				t.Errorf("the models unit is not keyed on %s, so editing it leaves the provider unasked and the check green from cache", input)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no models unit among the discovered units, so nothing here was checked")
 	}
 }

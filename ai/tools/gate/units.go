@@ -166,10 +166,17 @@ func (g *gate) addModelCheck() {
 		"ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh")
 }
 
-func (g *gate) discoverUnits() int {
+// The units that are not discovered from the tree. One list, because the suite counting units has to
+// register the same set before it counts the discovered ones, and a check added to only one of two
+// places leaves that control measuring a total it cannot attribute.
+func (g *gate) addChecks() {
 	g.addGoChecks()
 	g.addGuideCheck()
 	g.addModelCheck()
+}
+
+func (g *gate) discoverUnits() int {
+	g.addChecks()
 
 	if code := g.discoverShellSuites(); code != 0 {
 		return code

@@ -92,14 +92,15 @@ func Run(command Command) int {
 	if flags.NArg() != 0 {
 		return refuse(command.Stderr, "unexpected positional arguments")
 	}
-	if *config == "" {
-		path, err := modelpolicy.InstalledPath(command.Invocation)
+	configPath := *config
+	if configPath == "" {
+		installed, err := modelpolicy.InstalledPath(command.Invocation)
 		if err != nil {
 			return refuse(command.Stderr, err)
 		}
-		*config = path
+		configPath = installed
 	}
-	policy, err := modelpolicy.Load(*config)
+	policy, err := modelpolicy.Load(configPath)
 	if err != nil {
 		return refuse(command.Stderr, err)
 	}
@@ -111,9 +112,9 @@ func Run(command Command) int {
 	if len(named) > maxSelections {
 		return refuse(command.Stderr, fmt.Sprintf(
 			"%s holds %d distinct model selections, past the %d this may probe — each one costs a call to a provider, so a file this size is a mistake to refuse rather than a bill to pay",
-			*config, len(named), maxSelections))
+			configPath, len(named), maxSelections))
 	}
-	return report(command.Stdout, command.Stderr, *config, resolveAll(named, probe))
+	return report(command.Stdout, command.Stderr, configPath, resolveAll(named, probe))
 }
 
 // Three and not two: a name nothing could ask about is neither good nor bad, and calling it either is
@@ -166,15 +167,7 @@ func isRefusal(err error) bool {
 func report(stdout, stderr io.Writer, config string, verdicts []verdict) int {
 	refused, resolved := 0, 0
 	for _, v := range verdicts {
-		where := v.named.Origin + " " + v.named.Client + " " + v.named.Model
-		if v.named.Effort != "" {
-			where += " at " + v.named.Effort
-		}
-		// Shaped the way every other policy-derived string these tools echo is shaped. Nothing in a
-		// parsed policy can carry a newline today — validName bars whitespace and control characters —
-		// so this forges no line now. It stops a message an orchestrator reads from resting on a
-		// validator two packages away that nothing here tests.
-		where = shell.CutBytesMarked(shell.Oneline(where), maxReportedSelectionBytes)
+		where := reportedName(v.named)
 		switch v.outcome {
 		case refusedTheName:
 			refused++
@@ -196,6 +189,18 @@ func report(stdout, stderr io.Writer, config string, verdicts []verdict) int {
 		return refuse(stderr, fmt.Sprintf("no provider could be reached, so no name in %s was resolved — this is unchecked, not clean", config))
 	}
 	return 0
+}
+
+// Shaped the way every other policy-derived string these tools echo is shaped. Nothing in a parsed
+// policy can carry a newline today — validName bars whitespace and control characters — so this forges
+// no line now. It stops a message an orchestrator reads from resting on a validator two packages away
+// that nothing here tests.
+func reportedName(named modelpolicy.Selection) string {
+	where := named.Origin + " " + named.Client + " " + named.Model
+	if named.Effort != "" {
+		where += " at " + named.Effort
+	}
+	return shell.CutBytesMarked(shell.Oneline(where), maxReportedSelectionBytes)
 }
 
 // The real question: run the CLI the judge would run, with the model and effort the selection holds and

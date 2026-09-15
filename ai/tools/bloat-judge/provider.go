@@ -59,7 +59,7 @@ func namingWhatChoseTheModel(call Caller, policyPath string) Caller {
 		reply, err := call(prompt, view)
 		var refused *ModelRefused
 		if errors.As(err, &refused) {
-			return "", fmt.Errorf("%w, which the judge profile in %s names", err, policyPath)
+			return "", fmt.Errorf("%w, which the bloat-judge task in %s names", err, policyPath)
 		}
 		return reply, err
 	}

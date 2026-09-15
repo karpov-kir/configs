@@ -400,3 +400,31 @@ func TestATierNameARowHoldsIsNotAskedAboutBare(t *testing.T) {
 		}
 	}
 }
+
+// A row invalid for both clients refuses on codex, every time. The assertion is the determinism, not
+// the choice of client: `validateAssignments` used to range a `map[string]*Settings`, so which half of
+// a doubly-invalid row got named was Go's map order, and the same file refused with a different
+// sentence run to run. Every other case here breaks exactly one client's half, so all of them passed
+// under the old map too and none of them would notice a revert.
+//
+// Reading `dispatchClients` is the point: that list is what five separate walks now key on to stay in
+// step, so a reorder of it is a real change and this case is where it shows up.
+func TestARowInvalidForBothClientsAlwaysNamesTheSameOne(t *testing.T) {
+	broken := strings.Replace(sample,
+		`"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}}`,
+		`"build/explore":{"codex":{"effort":"low"},"claude":{"effort":"low"}}`, 1)
+	if broken == sample {
+		t.Fatal("the fixture edit matched nothing, so this case measures the unmodified sample")
+	}
+	// Repeated because one parse of a map-ranging validator can agree with the expected client by luck;
+	// what is being measured is that it never disagrees.
+	for attempt := range 24 {
+		_, err := Parse([]byte(broken))
+		if err == nil {
+			t.Fatalf("attempt %d: a row naming no model for either client parsed", attempt)
+		}
+		if !strings.Contains(err.Error(), "codex names no model") {
+			t.Fatalf("attempt %d: refused with %q; want the codex half named, since dispatchClients puts it first", attempt, err)
+		}
+	}
+}

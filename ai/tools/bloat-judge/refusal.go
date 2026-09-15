@@ -50,9 +50,11 @@ var modelRefusalMarkers = map[string][]string{
 // sit verbatim in this file and in provider_test.go. Judging those and hitting an unrelated failure
 // would otherwise report a refused model and send someone to edit a correct config.
 //
-// Line by line rather than by substring, so an echoed line the CLI indented or prefixed is still
-// subtracted, and a marker on the CLI's own line survives however the input was framed. A CLI that
-// reflows a line mid-sentence defeats it; what it removes is the echo both were measured producing.
+// Line by line rather than by substring, so an echoed line the CLI indented is still subtracted — both
+// sides are trimmed — and a marker on the CLI's own line survives however the input was framed. It
+// keys on the trimmed line entire, so a CLI that prefixes or reflows one defeats it. Keep it narrow
+// anyway: subtracting too much only loses a refusal to the roll's own error, where subtracting too
+// little is the false refusal above.
 func refusedTheModel(client, echoed string, stdout []byte, err error) bool {
 	markers, known := modelRefusalMarkers[client]
 	if !known {
