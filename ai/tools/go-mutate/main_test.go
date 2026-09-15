@@ -172,6 +172,10 @@ func TestAnUnlistableSuiteDoesNotCondemnItsMutants(t *testing.T) {
 	}
 }
 
+// The package the registry's `file` column is written relative to, as the cases below spell it. Only
+// its last element is read, so an absolute path nothing on this machine holds is enough.
+const scopePkgDir = "/tools/eco-check"
+
 // A scope selects whole files and nothing else, and the suites the baseline runs shrink with it —
 // otherwise a scoped run pays for compiling and listing suites no selected mutant can redden.
 func TestAScopeSelectsItsFileAndNarrowsTheBaseline(t *testing.T) {
@@ -180,9 +184,9 @@ func TestAScopeSelectsItsFileAndNarrowsTheBaseline(t *testing.T) {
 		{label: "b", file: "two.go", suite: "./two/"},
 		{label: "c", file: "one.go", suite: "./one/"},
 	}
-	selected, unmatched := selectByFile(list, "one.go")
-	if len(unmatched) != 0 {
-		t.Fatalf("one.go is in the list, yet it came back unmatched: %v", unmatched)
+	selected, refused := selectByFile(list, "one.go", scopePkgDir)
+	if len(refused) != 0 {
+		t.Fatalf("one.go is in the list, yet it was refused: %v", refused)
 	}
 	if len(selected) != 2 {
 		t.Fatalf("selecting one.go took %d mutant(s), want the 2 that name it", len(selected))
@@ -192,17 +196,106 @@ func TestAScopeSelectsItsFileAndNarrowsTheBaseline(t *testing.T) {
 	}
 }
 
-// The refusal that keeps a typo from reading as a clean run. A name no mutant carries has to come
-// back unmatched, because main exits 2 on that: silently selecting nothing would print a green over
-// zero mutants, which is the one verdict this harness must never produce.
-func TestAScopeNamingNoMutantIsRefusedRatherThanEmptied(t *testing.T) {
-	list := []mutant{{label: "a", file: "one.go", suite: "./one/"}}
-	selected, unmatched := selectByFile(list, "typo.go")
-	if len(unmatched) != 1 || unmatched[0] != "typo.go" {
-		t.Fatalf("unmatched is %v, want typo.go named so the caller can be refused", unmatched)
+// This tree spells one file two ways: eco-check's entries are bare file names and every other tool's
+// are `../<tool>/<file>.go`. Compared as written, `-file gate.go` ran eco-check's eight mutants and
+// exited 0 for a caller editing `ai/tools/gate/gate.go` — a clean mutation run over code nobody
+// tested, and the only output that said which file it ran is a count. Three files answer to that name
+// here, so the harness has no way to know which was meant and must say so instead of picking.
+func TestASpellingThatNamesSeveralFilesIsRefusedRatherThanGuessed(t *testing.T) {
+	list := []mutant{
+		{label: "a", file: "gate.go", suite: "./eco-check/"},
+		{label: "b", file: "../gate/gate.go", suite: "./gate/"},
+		{label: "c", file: "../eco-report/gate.go", suite: "./eco-report/"},
 	}
+	selected, refused := selectByFile(list, "gate.go", scopePkgDir)
 	if len(selected) != 0 {
-		t.Fatalf("a name no mutant carries selected %d mutant(s), want none", len(selected))
+		t.Fatalf("an ambiguous spelling selected %d mutant(s), want none — running one of three files and exiting 0 is the defect", len(selected))
+	}
+	if len(refused) != 1 {
+		t.Fatalf("refusals are %v, want exactly one, about gate.go", refused)
+	}
+	for _, candidate := range []string{"eco-check/gate.go", "gate/gate.go", "eco-report/gate.go"} {
+		if !strings.Contains(refused[0], candidate) {
+			t.Errorf("the refusal %q does not name %s, so the caller cannot tell which spellings to choose between", refused[0], candidate)
+		}
+	}
+}
+
+// Every spelling of one file selects that file, and the registry's own column is one spelling rather
+// than the privileged one. `-file ../eco-check/tree.go` — how every tool but eco-check writes its
+// entries — used to match nothing and exit 2, a refusal arriving at the tail of a pipeline full of
+// kill counts, where it reads like a run that found nothing wrong.
+func TestOneFileIsSelectedByEverySpellingOfIt(t *testing.T) {
+	list := []mutant{
+		{label: "bare in the registry", file: "tree.go", suite: "./eco-check/"},
+		{label: "pathed in the registry", file: "../gate/units.go", suite: "./gate/"},
+	}
+	for label, spellings := range map[string][]string{
+		"bare in the registry":   {"tree.go", "eco-check/tree.go", "../eco-check/tree.go"},
+		"pathed in the registry": {"units.go", "gate/units.go", "../gate/units.go"},
+	} {
+		for _, spelling := range spellings {
+			selected, refused := selectByFile(list, spelling, scopePkgDir)
+			if len(refused) != 0 {
+				t.Errorf("-file %s was refused with %v", spelling, refused)
+				continue
+			}
+			if len(selected) != 1 || selected[0].label != label {
+				t.Errorf("-file %s selected %+v, want the one mutant labelled %q", spelling, selected, label)
+			}
+		}
+	}
+}
+
+// A spelling no mutant answers stays a refusal, because silently selecting nothing prints a green over
+// zero mutants — the one verdict this harness must never produce. It carries the registered spellings
+// of the file name it holds, since a caller who reaches a dead end here has usually got the directory
+// wrong and not the name.
+func TestARefusalCarriesTheNearestRegisteredSpelling(t *testing.T) {
+	list := []mutant{{label: "a", file: "tree.go", suite: "./eco-check/"}}
+
+	selected, refused := selectByFile(list, "../eco-report/tree.go", scopePkgDir)
+	if len(selected) != 0 {
+		t.Fatalf("a spelling no mutant answers selected %d mutant(s), want none", len(selected))
+	}
+	if len(refused) != 1 || !strings.Contains(refused[0], "eco-check/tree.go") {
+		t.Fatalf("the refusal is %v, want it to name eco-check/tree.go as the spelling that exists", refused)
+	}
+
+	// A name nothing registers has no correction to offer, and the refusal says so rather than
+	// inventing one: a wrong suggestion costs the reader a second dead end.
+	_, refused = selectByFile(list, "typo.go", scopePkgDir)
+	if len(refused) != 1 || !strings.Contains(refused[0], "typo.go") {
+		t.Fatalf("the refusal is %v, want typo.go named so the caller can see what was rejected", refused)
+	}
+	if strings.Contains(refused[0], "tree.go") {
+		t.Errorf("the refusal %q offers tree.go, which shares nothing with typo.go", refused[0])
+	}
+}
+
+// Over the shipped list, because which file names collide is a property of this tree and a fixture
+// cannot notice a new collision arriving. Every bare file name either selects exactly the file it
+// spells or is refused; what it may never do is select some other tool's mutants and let the run exit
+// 0.
+func TestNoFileNameInTheShippedListSelectsAnotherFilesMutants(t *testing.T) {
+	selecting := 0
+	for _, line := range unitLines(mutants, scopePkgDir) {
+		file := strings.SplitN(line, "\t", 2)[0]
+		selected, refused := selectByFile(mutants, filepath.Base(file), scopePkgDir)
+		if len(refused) > 0 {
+			continue
+		}
+		selecting++
+		for _, m := range selected {
+			if got := canonicalFile(m.file, scopePkgDir); got != file {
+				t.Errorf("-file %s ran %s's mutants, and the caller asked about %s", filepath.Base(file), got, file)
+			}
+		}
+	}
+	// The control. Without it a selector that refused every bare name at all would satisfy the loop
+	// above while making the flag useless.
+	if selecting == 0 {
+		t.Fatal("no bare file name selected anything, so the loop above asserted nothing")
 	}
 }
 
@@ -210,13 +303,15 @@ func TestAScopeNamingNoMutantIsRefusedRatherThanEmptied(t *testing.T) {
 // a run over nothing.
 func TestAnEmptyScopeSelectsEverything(t *testing.T) {
 	list := []mutant{{label: "a", file: "one.go"}, {label: "b", file: "two.go"}}
-	if selected, _ := selectByFile(list, ""); len(selected) != 2 {
+	if selected, _ := selectByFile(list, "", scopePkgDir); len(selected) != 2 {
 		t.Fatalf("an empty scope took %d of 2 mutant(s), want all of them", len(selected))
 	}
 }
 
 // The unit listing is what `ai/tools/gate/mutants.go` builds its mutation units from, one per line, so a
-// file missing from it is a whole unit that stops existing with nothing saying so.
+// file missing from it is a whole unit that stops existing with nothing saying so. Its first column is
+// the canonical spelling and not the registry's own, because the gate hands that column straight back
+// to `-file`, where a bare name the registry happens to carry may be one of several files.
 func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
 	list := []mutant{
 		{label: "a", file: "one.go", suite: "./one/"},
@@ -228,24 +323,26 @@ func TestTheUnitListingNamesEveryFileOnceWithItsOwnCount(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("the listing is %d line(s) over 2 distinct files: %v", len(lines), lines)
 	}
-	if lines[0] != "one.go\t./one/,./other/\t3\t/base/one.go" {
+	if lines[0] != "base/one.go\t./one/,./other/\t3\t/base/one.go" {
 		t.Errorf("one.go's line is %q, want its 3 mutants and both suites it names, first-named first", lines[0])
 	}
-	if lines[1] != "two.go\t./two/\t1\t/base/two.go" {
+	if lines[1] != "base/two.go\t./two/\t1\t/base/two.go" {
 		t.Errorf("two.go's line is %q", lines[1])
 	}
 }
 
 // The listing and the scope have to agree, or the gate builds a unit it cannot run. Every file the
 // listing names must select at least one mutant, and the union of those selections must be the whole
-// list — otherwise some mutant belongs to no unit and nothing ever runs it.
+// list — otherwise some mutant belongs to no unit and nothing ever runs it. This is also what holds the
+// listing's spelling to one the selector accepts unambiguously: a column the selector refuses is every
+// mutation unit in this repo failing at once.
 func TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant(t *testing.T) {
 	seen := 0
-	for _, line := range unitLines(mutants, "/base") {
+	for _, line := range unitLines(mutants, scopePkgDir) {
 		file := strings.SplitN(line, "\t", 2)[0]
-		selected, unmatched := selectByFile(mutants, file)
-		if len(unmatched) != 0 {
-			t.Errorf("the listing names %s, which selects nothing", file)
+		selected, refused := selectByFile(mutants, file, scopePkgDir)
+		if len(refused) != 0 {
+			t.Errorf("the listing names %s, which the scope refuses: %v", file, refused)
 		}
 		if len(selected) == 0 {
 			t.Errorf("%s is listed and selects no mutant", file)

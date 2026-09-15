@@ -934,6 +934,20 @@ var mutants = []mutant{
 		`if !strings.HasPrefix(template, "<!--") {`, `if !strings.HasPrefix(template, "<!--") || true {`},
 	{"guide: the check passes whatever the committed page holds", "../eco-guide/eco-guide.go", "./eco-guide/", "TestCheckPassesOnlyWhenTheCommittedPageMatches",
 		"if string(held) == want {", "if string(held) == want || true {"},
+
+	// This harness's own scope selector — the code that decides which mutants a run is about, which
+	// until now could answer confidently about a file nobody asked for.
+	{"scope: an ambiguous spelling resolved to the first candidate", "../go-mutate/main.go", "./go-mutate/", "TestASpellingThatNamesSeveralFilesIsRefusedRatherThanGuessed",
+		"\t\tcase 1:\n", "\t\tcase 1, 2, 3:\n"},
+	{"scope: a bare file name matched against the registry's column", "../go-mutate/main.go", "./go-mutate/", "TestOneFileIsSelectedByEverySpellingOfIt",
+		"hit := filepath.Base(file) == spelling", "hit := file == spelling"},
+	{"scope: a path read only from the module root", "../go-mutate/main.go", "./go-mutate/", "TestOneFileIsSelectedByEverySpellingOfIt",
+		"hit = file == filepath.Clean(spelling) || file == filepath.Clean(filepath.Join(pkgBase, spelling))",
+		"hit = file == filepath.Clean(spelling)"},
+	{"scope: a dead end left without the spellings that exist", "../go-mutate/main.go", "./go-mutate/", "TestARefusalCarriesTheNearestRegisteredSpelling",
+		"if len(near) == 0 {", "if len(near) >= 0 {"},
+	{"scope: the unit listing spelled as the registry spells it", "../go-mutate/main.go", "./go-mutate/", "TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant",
+		"canonicalFile(file, pkgDir), strings.Join", "file, strings.Join"},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain
