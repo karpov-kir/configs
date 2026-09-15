@@ -35,6 +35,8 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectCode(2)
 		r.expectStderrHas("is a path, not a git-diff revision")
 		r.expectStderrHas("the scan did NOT run")
+		// The grammar goes with an argument refusal, so the caller is told what this tool does take.
+		r.expectStderrHas(usage)
 		r.expectNoStdout()
 	})
 
@@ -43,6 +45,7 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.run("--output=/dev/null")
 		r.expectCode(2)
 		r.expectStderrHas("is an option, not a git-diff revision")
+		r.expectStderrHas(usage)
 		r.expectNoStdout()
 	})
 
@@ -52,6 +55,9 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectCode(2)
 		r.expectStderrHas("git rejected these arguments")
 		r.expectStderrHas("Not a clean result")
+		// A revision this repository does not carry is a sound invocation. Answering it with the grammar
+		// would send the caller to fix an argument that was already the right shape.
+		r.expectStderrLacks(usage)
 		r.expectNoStdout()
 	})
 }

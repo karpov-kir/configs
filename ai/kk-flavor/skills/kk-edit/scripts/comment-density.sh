@@ -2,8 +2,9 @@
 # Comment-density detector. By default it flags changed source files whose ADDED lines are
 # comment-heavy; with `--bar` it holds the whole change set to the host repo's own comment rate.
 #
-#   usage: comment-density.sh [--bar] [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
-#          a path argument is refused with exit 2, never scanned
+#   usage: comment-density.sh [--bar] [<git-diff revisions>] [-- <paths>]   # revisions default to HEAD
+#          (all uncommitted changes); a bare path argument is refused with exit 2, never scanned, and
+#          paths after `--` narrow the scan to them
 #   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines (default 0.3)
 #          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this (default 5)
 #          DENSITY_MAX_FILE_BYTES — skip a file larger than this unread: only untracked files in the

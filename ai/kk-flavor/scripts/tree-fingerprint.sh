@@ -3,7 +3,10 @@
 # ledger can name the tree it was written against (`~/.kk-flavor/standards/skill-protocol.md` →
 # **Queue**).
 #
-# usage: tree-fingerprint.sh [<repo path>]. Prints the tree hash, or exits 2 with a reason.
+#   usage: tree-fingerprint.sh [<repo path>]   # <repo path> defaults to .
+#
+# Prints the tree hash, or exits 2 with a reason. A second path is refused rather than dropped: the
+# hash of the first one reads exactly like an answer about the pair.
 #
 # The recipe is Go, in `ai/tools/tree-fingerprint/`, and the Go callers import it rather than coming
 # through here.
