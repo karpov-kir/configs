@@ -934,6 +934,16 @@ var mutants = []mutant{
 		`if !strings.HasPrefix(template, "<!--") {`, `if !strings.HasPrefix(template, "<!--") || true {`},
 	{"guide: the check passes whatever the committed page holds", "../eco-guide/eco-guide.go", "./eco-guide/", "TestCheckPassesOnlyWhenTheCommittedPageMatches",
 		"if string(held) == want {", "if string(held) == want || true {"},
+
+	// The rule that stops a loaded machine reddening this package: a case bounds a roll either at the
+	// shared out-of-reach constant or at a sub-second figure it is actually asking about. A guard that
+	// exempted everything would read exactly like this one and observe nothing.
+	{"judge: the shared roll deadline stops exempting", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`if spelled == "notTheSubject" {`, `if spelled == "notTheSubject" && false {`},
+	{"judge: every deadline counts as sub-second", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`[]string{"time.Millisecond", "time.Microsecond", "time.Nanosecond"}`, `[]string{""}`},
+	{"judge: the scan stops caring which call bounds a roll", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`if !isName || (callee.Name != "ClaudeCaller" && callee.Name != "CodexCaller") {`, `if !isName || callee.Name == "" {`},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain
