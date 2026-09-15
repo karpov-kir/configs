@@ -188,3 +188,127 @@ func TestMergeSlotRefusesEveryFormThatNamesNoSlotToAct(t *testing.T) {
 	f.runReport("finalize", "001-usage")
 	f.record("and no refused call left a slot standing", f.status == 0, f.evidence())
 }
+
+// The records have to reach the index, not merely the disk: nothing under the archive path is tracked
+// or ignored, so without staging the pathspec of whatever the ship commits next decides all three.
+func TestFinalizeStagesTheArchivedRecordsInCommittedMode(t *testing.T) {
+	t.Parallel()
+	f := newCommittedShip(t, "001-shipping")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-decisions", "settled here")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-playbook", "run it like this")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-language", "a term")
+
+	f.runReport("finalize", "001-shipping")
+	f.record("finalize succeeds", f.status == 0, f.evidence())
+
+	staged, _ := f.git("diff", "--name-only", "--cached")
+	for _, kept := range []string{"decisions.md", "playbook.md", "language.md"} {
+		path := ".idsd/archive/001-shipping/for-agents/" + kept
+		f.record("the archived "+kept+" is staged, so no later pathspec can drop it",
+			containsLine(staged, path), "staged:\n"+staged)
+	}
+}
+
+// The other mode, where the same staging would be wrong: a throwaway's .idsd/ lives under the git dir,
+// outside any tree git could add. A `git add` there fails, and a finalize that refused on it would
+// break every repo that never promoted its scratch.
+func TestFinalizeStagesNothingInThrowawayMode(t *testing.T) {
+	t.Parallel()
+	f := newShip(t, "001-shipping")
+	f.newIntentFile("001-shipping")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-decisions", "settled here")
+
+	f.runReport("finalize", "001-shipping")
+	f.record("finalize succeeds", f.status == 0, f.evidence())
+
+	staged, _ := f.git("diff", "--name-only", "--cached")
+	f.record("and staged nothing, the scratch being outside the tree", staged == "", "staged:\n"+staged)
+}
+
+// The move has two halves and only one is a new file: intent.md is tracked under intents/ while the ship
+// is active, so the rename leaves it deleted on disk and still in the index there. Staging the archive
+// alone writes a tree holding the intent at both paths, which every later checkout then restores.
+func TestFinalizeStagesTheMoveRatherThanACopy(t *testing.T) {
+	t.Parallel()
+	f := newCommittedShip(t, "001-shipping")
+	f.mustGit("add", ".idsd/intents/001-shipping/intent.md")
+	f.commit("the active intent")
+
+	f.runReport("finalize", "001-shipping")
+	f.record("finalize succeeds", f.status == 0, f.evidence())
+
+	staged, _ := f.git("diff", "--name-status", "--cached", "--no-renames")
+	f.record("the vacated path is staged as deleted, so the commit is a move",
+		containsLine(staged, "D\t.idsd/intents/001-shipping/intent.md"), "staged:\n"+staged)
+	f.record("and the archived intent is staged as added",
+		containsLine(staged, "A\t.idsd/archive/001-shipping/intent.md"), "staged:\n"+staged)
+}
+
+// Only the ship's own files are named, so nothing else that reached the folder rides into the index.
+func TestFinalizeStagesNoStrayFileFoundInTheShipFolder(t *testing.T) {
+	t.Parallel()
+	f := newCommittedShip(t, "001-shipping")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-decisions", "settled here")
+	f.write(f.shipDir("001-shipping")+"/for-agents/captured.log", "whatever an agent dropped here\n")
+
+	f.runReport("finalize", "001-shipping")
+	f.record("finalize succeeds", f.status == 0, f.evidence())
+
+	staged, _ := f.git("diff", "--name-only", "--cached")
+	f.record("the record is staged",
+		containsLine(staged, ".idsd/archive/001-shipping/for-agents/decisions.md"), "staged:\n"+staged)
+	f.record("and the stray file beside it is not",
+		!containsLine(staged, ".idsd/archive/001-shipping/for-agents/captured.log"), "staged:\n"+staged)
+}
+
+// The silent half of the same loss: an ignore rule reaching the archive path would lose the records again
+// while the tool printed that it staged them. Named explicitly, the add refuses and so does finalize.
+func TestFinalizeRefusesWhenAnArchivedRecordIsIgnored(t *testing.T) {
+	t.Parallel()
+	f := newCommittedShip(t, "001-shipping")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-decisions", "settled here")
+	f.write(f.repo+"/.gitignore", ignoreBlock()+".idsd/archive/*/for-agents/*.md\n")
+
+	f.runReport("finalize", "001-shipping")
+	f.assertRefused("a record git will not stage refuses rather than passing silently")
+	f.assertReports("git said:", "and quotes git's own account of why")
+	f.record("and the refusal stays on one line per message, so nothing in a path forges another",
+		countLines(f.out, func(line string) bool { return strings.HasPrefix(line, "  git said: ") }) == 1, f.out)
+}
+
+// The branch where staging fails outright. The archive is already on disk by then, which is why the
+// refusal says nothing needs re-running: a re-run would only meet "already exists".
+func TestFinalizeRefusesWhenTheArchiveCannotBeStaged(t *testing.T) {
+	t.Parallel()
+	f := newCommittedShip(t, "001-shipping")
+	f.runReport("record", "--intent", "001-shipping", "append", "local-decisions", "settled here")
+	// What a concurrent `git add` in this worktree leaves behind. Reads still answer, so the repo mode
+	// still resolves and the staging branch is the one that fails.
+	f.write(f.repo+"/.git/index.lock", "")
+
+	f.runReport("finalize", "001-shipping")
+	f.assertRefused("a failed staging refuses")
+	f.assertReports("stage "+f.archiveDir("001-shipping")+" yourself", "and says what to do by hand")
+	f.record("the archive is on disk regardless, so the refusal is not a re-run instruction",
+		f.isFile(f.archiveDir("001-shipping")+"/for-agents/decisions.md"), f.evidence())
+}
+
+// The removal is staged as a directory pathspec, so it covers every tracked file under the ship folder.
+// `for-agents/supporting/` is where an intent's handoffs and evidence go, and nothing ignores them — a
+// named add list that misses one stages its deletion with no addition, and the commit drops the file.
+func TestFinalizeStagesASupportingFileTheShipHadCommitted(t *testing.T) {
+	t.Parallel()
+	f := newCommittedShip(t, "001-shipping")
+	f.write(f.shipDir("001-shipping")+"/for-agents/supporting/handoff.md", "evidence the ship committed\n")
+	f.mustGit("add", ".idsd/intents/001-shipping/intent.md", ".idsd/intents/001-shipping/for-agents/supporting/handoff.md")
+	f.commit("the active intent and its evidence")
+
+	f.runReport("finalize", "001-shipping")
+	f.record("finalize succeeds", f.status == 0, f.evidence())
+
+	staged, _ := f.git("diff", "--name-status", "--cached", "--no-renames")
+	f.record("the vacated supporting file is staged as deleted",
+		containsLine(staged, "D\t.idsd/intents/001-shipping/for-agents/supporting/handoff.md"), "staged:\n"+staged)
+	f.record("and its archived copy is staged as added, so the commit moves it rather than dropping it",
+		containsLine(staged, "A\t.idsd/archive/001-shipping/for-agents/supporting/handoff.md"), "staged:\n"+staged)
+}

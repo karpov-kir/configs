@@ -237,6 +237,17 @@ func newShip(t *testing.T, intent string) *fixture {
 	return f
 }
 
+// A ship in the other repo mode, scaffolded through the two commands every pass runs plus the intent
+// file. Unlike newShip it writes that file itself: every case built on this one archives the ship, and
+// the archived intent.md is half of what the move has to stage.
+func newCommittedShip(t *testing.T, intent string) *fixture {
+	t.Helper()
+	f := newCommittedRepo(t)
+	f.runReport("init", intent)
+	f.newIntentFile(intent)
+	return f
+}
+
 // The other repo mode: .idsd/ tracked through a durable charter, with each ship's scratch gitignored
 // the way a shared idsd setup does it. Every plain newRepo fixture is a throwaway. No ship folder is
 // made here, since `init` is what creates one.
