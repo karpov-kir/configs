@@ -934,6 +934,31 @@ var mutants = []mutant{
 		`if !strings.HasPrefix(template, "<!--") {`, `if !strings.HasPrefix(template, "<!--") || true {`},
 	{"guide: the check passes whatever the committed page holds", "../eco-guide/eco-guide.go", "./eco-guide/", "TestCheckPassesOnlyWhenTheCommittedPageMatches",
 		"if string(held) == want {", "if string(held) == want || true {"},
+
+	// This harness's own scope selector — the code that decides which mutants a run is about, which
+	// until now could answer confidently about a file nobody asked for.
+	{"scope: an ambiguous spelling resolved to the first candidate", "../go-mutate/main.go", "./go-mutate/", "TestASpellingThatNamesSeveralFilesIsRefusedRatherThanGuessed",
+		"\t\tcase 1:\n", "\t\tcase 1, 2, 3:\n"},
+	{"scope: a bare file name matched against the registry's column", "../go-mutate/main.go", "./go-mutate/", "TestOneFileIsSelectedByEverySpellingOfIt",
+		"hit := filepath.Base(file) == spelling", "hit := file == spelling"},
+	{"scope: a path read only from the module root", "../go-mutate/main.go", "./go-mutate/", "TestOneFileIsSelectedByEverySpellingOfIt",
+		"hit = file == filepath.Clean(spelling) || file == filepath.Clean(filepath.Join(pkgBase, spelling))",
+		"hit = file == filepath.Clean(spelling)"},
+	{"scope: a dead end left without the spellings that exist", "../go-mutate/main.go", "./go-mutate/", "TestARefusalCarriesTheNearestRegisteredSpelling",
+		"if len(near) == 0 {", "if len(near) >= 0 {"},
+	{"scope: the unit listing spelled as the registry spells it", "../go-mutate/main.go", "./go-mutate/", "TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant",
+		"canonicalFile(file, pkgDir), strings.Join", "file, strings.Join"},
+
+	// This harness deciding whether it is the build of itself that the caller edited.
+	{"self: a binary built from other source runs anyway", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"if built != current {", "if built != current && false {"},
+	{"self: the source hashed by its bytes and not its file names", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"\t\tfmt.Fprintf(sum, \"%s %d\\n\", name, len(body))\n", ""},
+	{"self: a binary with no source beside it read as one whose source moved on", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"if len(names) == 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")",
+		"if len(names) < 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")"},
+	{"self: the registry left outside what the binary carries", "../go-mutate/main.go", "./go-mutate/", "TestTheRegistryIsInsideWhatTheStalenessCheckHashes",
+		"//go:embed *.go", "//go:embed main.go"},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain

@@ -13,16 +13,18 @@ import (
 
 // The listing the harness prints for `-units`: file, suites, mutant count, resolved path. The three
 // eco-root rows are the real tree's, and they are why the key is the suite set — each of them is
-// mutated against a different package's suite.
+// mutated against a different package's suite. The first column is spelled from `ai/tools`, which is
+// what the harness prints and what it takes back on `-file`: two of this tree's files are called
+// shell.go, and a bare name would name both.
 const unitsListing = "" +
-	"shell.go\t./eco-check/\t2\t/repo/ai/tools/eco-check/shell.go\n" +
-	"../eco-report/shell.go\t./eco-report/\t3\t/repo/ai/tools/eco-report/shell.go\n" +
-	"tree.go\t./eco-check/\t7\t/repo/ai/tools/eco-check/tree.go\n" +
-	"../eco-root/imports.go\t./eco-check/\t4\t/repo/ai/tools/eco-root/imports.go\n" +
-	"../eco-root/contained.go\t./eco-stats/\t1\t/repo/ai/tools/eco-root/contained.go\n" +
-	"../eco-root/eco-root.go\t./eco-root/\t2\t/repo/ai/tools/eco-root/eco-root.go\n" +
-	"../shell/text.go\t./shell/,./eco-stats/\t5\t/repo/ai/tools/shell/text.go\n" +
-	"../scratch_isolation_test.go\t./\t1\t/repo/ai/tools/scratch_isolation_test.go\n"
+	"eco-check/shell.go\t./eco-check/\t2\t/repo/ai/tools/eco-check/shell.go\n" +
+	"eco-report/shell.go\t./eco-report/\t3\t/repo/ai/tools/eco-report/shell.go\n" +
+	"eco-check/tree.go\t./eco-check/\t7\t/repo/ai/tools/eco-check/tree.go\n" +
+	"eco-root/imports.go\t./eco-check/\t4\t/repo/ai/tools/eco-root/imports.go\n" +
+	"eco-root/contained.go\t./eco-stats/\t1\t/repo/ai/tools/eco-root/contained.go\n" +
+	"eco-root/eco-root.go\t./eco-root/\t2\t/repo/ai/tools/eco-root/eco-root.go\n" +
+	"shell/text.go\t./shell/,./eco-stats/\t5\t/repo/ai/tools/shell/text.go\n" +
+	"scratch_isolation_test.go\t./\t1\t/repo/ai/tools/scratch_isolation_test.go\n"
 
 func grouped(t *testing.T) []mutantGroup {
 	t.Helper()
@@ -66,7 +68,7 @@ func TestMutantsGroupIntoOneUnitPerSuiteSet(t *testing.T) {
 // the only comma in the argument.
 func TestAGroupHandsTheHarnessEveryFileAtOnce(t *testing.T) {
 	argument := strings.Join(groupNamed(t, "mutants:go:eco-check").files, ",")
-	for _, want := range []string{"shell.go", "tree.go", "../eco-root/imports.go"} {
+	for _, want := range []string{"eco-check/shell.go", "eco-check/tree.go", "eco-root/imports.go"} {
 		if !strings.Contains(argument, want) {
 			t.Fatalf("-file %s does not name %s", argument, want)
 		}
@@ -81,9 +83,9 @@ func TestAGroupHandsTheHarnessEveryFileAtOnce(t *testing.T) {
 // and a baseline that does not cover the suite a mutant is judged by makes its verdict meaningless.
 func TestFilesInOneDirectorySplitWhenTheirSuitesDiffer(t *testing.T) {
 	for id, suite := range map[string]string{
-		"mutants:go:eco-check": "../eco-root/imports.go",
-		"mutants:go:eco-stats": "../eco-root/contained.go",
-		"mutants:go:eco-root":  "../eco-root/eco-root.go",
+		"mutants:go:eco-check": "eco-root/imports.go",
+		"mutants:go:eco-stats": "eco-root/contained.go",
+		"mutants:go:eco-root":  "eco-root/eco-root.go",
 	} {
 		if group := groupNamed(t, id); !slices.Contains(group.files, suite) {
 			t.Errorf("%s is not in %s, whose suite is the one it is mutated against", suite, id)
