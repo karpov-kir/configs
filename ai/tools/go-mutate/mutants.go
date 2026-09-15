@@ -956,6 +956,33 @@ var mutants = []mutant{
 		`if !strings.HasPrefix(template, "<!--") {`, `if !strings.HasPrefix(template, "<!--") || true {`},
 	{"guide: the check passes whatever the committed page holds", "../eco-guide/eco-guide.go", "./eco-guide/", "TestCheckPassesOnlyWhenTheCommittedPageMatches",
 		"if string(held) == want {", "if string(held) == want || true {"},
+
+	// Three tools grew a usage line so `stub_usage_test.go` has something to hold their stub headers
+	// against. Each is broken both ways: the grammar going missing from a refusal of an argument the
+	// tool will not take, and the grammar spreading to an exit 2 that was a sound invocation the tool
+	// could not carry out — a tree it could not read, a revision git would not resolve — where it sends
+	// the caller to fix what was already right.
+	{"tree-fingerprint: a second root accepted", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestTheCommandsArgumentTable",
+		"if len(args) > 1 {\n\t\treturn refuse(errOut, usage)", "if len(args) > 1 && false {\n\t\treturn refuse(errOut, usage)"},
+	{"tree-fingerprint: a refused invocation names no grammar", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestTheCommandsArgumentTable",
+		"return refuse(errOut, usage)", `return refuse(errOut, "")`},
+	{"tree-fingerprint: a tree it could not read answered with the grammar", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestTheCommandsArgumentTable",
+		"return refuse(errOut, err.Error())", `return refuse(errOut, err.Error()+"\n"+usage)`},
+
+	{"density: an argument refusal names no grammar", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"return out.refuseArguments(err)", "return out.refuse(err)"},
+	{"density: the bar arm refuses an argument without the grammar", "../comment-density/bar.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"return out.refuseArguments(err)", "return out.refuse(err)"},
+	{"density: a tree it could not read answered with the grammar", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"func (c console) refuse(err error) int {\n\tc.note(\"%v\", err)\n",
+		"func (c console) refuse(err error) int {\n\tc.note(\"%v\", err)\n\tc.note(\"%s\", usage)\n"},
+
+	{"dup: an argument refusal names no grammar", "../dup-literals/dup.go", "./dup-literals/", "TestARevisionIsNotAPath",
+		`fmt.Fprintf(stderr, "%s: %s\n%s: %s\n", self, err, self, usage)`,
+		`fmt.Fprintf(stderr, "%s: %s\n", self, err)`},
+	{"dup: a diff git refused answered with the grammar", "../dup-literals/dup.go", "./dup-literals/", "TestARevisionIsNotAPath",
+		"\tdiff, err := diffscan.Diff(cwd, args)\n\tif err != nil {\n\t\tfmt.Fprintf(stderr, \"%s: %s\\n\", self, err)\n",
+		"\tdiff, err := diffscan.Diff(cwd, args)\n\tif err != nil {\n\t\tfmt.Fprintf(stderr, \"%s: %s\\n%s: %s\\n\", self, err, self, usage)\n"},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain

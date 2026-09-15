@@ -11,6 +11,7 @@
 package treefingerprint
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -335,5 +336,70 @@ func TestAFailureCarriesGitsOwnReason(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "error") && !strings.Contains(err.Error(), "object") {
 		t.Errorf("the refusal carries none of git's own account: %v", err)
+	}
+}
+
+// --- the command ----------------------------------------------------------------------------------
+
+// The grammar the stub's header documents, driven through Run. `stub_usage_test.go` holds the two
+// against each other; this says what each shape does once the line is what it should be.
+func TestTheCommandsArgumentTable(t *testing.T) {
+	r := newRepo(t)
+	tree := r.fingerprint()
+
+	for _, c := range []struct {
+		what   string
+		args   []string
+		status int
+		want   string
+	}{
+		{"a path alone prints the hash", []string{r.dir}, 0, tree},
+		// A second root is a caller who does not know which tree they are asking about, and the hash of
+		// the first one reads exactly like an answer about the pair.
+		{"two paths are refused with the grammar", []string{r.dir, r.dir}, 2, usage},
+		{"a flag after the path is refused with the grammar", []string{r.dir, "--nope"}, 2, usage},
+		// A directory may legitimately be named `-rf`, so a lone dash-leading argument is a path and its
+		// refusal is about the tree, not about the grammar.
+		{"a dash-leading argument is a path, not a flag", []string{"-rf"}, 2, ""},
+		{"a directory in no repository refuses without the grammar", []string{newBareDir(t)}, 2, ""},
+	} {
+		var out, errOut bytes.Buffer
+		if status := Run(c.args, &out, &errOut); status != c.status {
+			t.Errorf("%s: exited %d, want %d\nstdout: %s\nstderr: %s", c.what, status, c.status, out.String(), errOut.String())
+			continue
+		}
+		if c.status == 0 {
+			if got := strings.TrimRight(out.String(), "\n"); got != c.want {
+				t.Errorf("%s: printed %q, want %q", c.what, got, c.want)
+			}
+			continue
+		}
+		if out.Len() != 0 {
+			t.Errorf("%s: refused and still wrote %q to stdout, which a caller reads as a hash", c.what, out.String())
+		}
+		if errOut.Len() == 0 {
+			t.Errorf("%s: refused in silence, and a caller with no reason cannot tell a refusal from an empty tree", c.what)
+		}
+		if c.want != "" && !strings.Contains(errOut.String(), c.want) {
+			t.Errorf("%s: refused with %q, which does not carry %q", c.what, errOut.String(), c.want)
+		}
+		if c.want == "" && strings.Contains(errOut.String(), usage) {
+			t.Errorf("%s: answered a tree it could not read with the grammar, which sends the caller to fix a sound invocation", c.what)
+		}
+	}
+}
+
+// The invocation with no path at all — the default every caller of the stub takes, and the one branch
+// the table above cannot reach, since every row of it supplies a path. t.Chdir bars this case from
+// running in parallel, so no case in this package may take t.Parallel while it stands.
+func TestWithNoPathItAnswersForTheWorkingDirectory(t *testing.T) {
+	r := newRepo(t)
+	t.Chdir(r.dir)
+	var out, errOut bytes.Buffer
+	if status := Run(nil, &out, &errOut); status != 0 {
+		t.Fatalf("exited %d for the working directory\nstderr: %s", status, errOut.String())
+	}
+	if got, want := strings.TrimRight(out.String(), "\n"), r.fingerprint(); got != want {
+		t.Errorf("printed %q for the working directory, want %q", got, want)
 	}
 }

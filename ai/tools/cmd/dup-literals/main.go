@@ -1,6 +1,6 @@
 // The repeated-literal detector as a command.
 //
-//	usage: dup-literals.sh [<git-diff revisions>]
+//	usage: dup-literals.sh [<git-diff revisions>] [-- <paths>]
 package main
 
 import (
