@@ -294,6 +294,29 @@ func TestStructure(t *testing.T) {
 			want:   0,
 		},
 		{
+			name:     "the template's repository prefix left unfilled",
+			mutate:   func(d *draft) { d.title = "[<repo name>] Cut the mutation run down" },
+			want:     1,
+			contains: []string{"repository prefix is still the template placeholder"},
+		},
+		{
+			name:   "a filled repository prefix",
+			mutate: func(d *draft) { d.title = "[configs] Cut the mutation run down" },
+			want:   0,
+		},
+		{
+			// The control for the prefix scan's closing anchor: a real prefix may open with `[<`, and
+			// refusing one would send the agent to reword a sound line.
+			name:   "a real prefix that opens with an angle bracket",
+			mutate: func(d *draft) { d.title = "[<10min] Cut the mutation run down" },
+			want:   0,
+		},
+		{
+			name:   "a filled prefix on a title holding an angle bracket",
+			mutate: func(d *draft) { d.title = "[invest-tasks] Cut the mutation run to <10 minutes" },
+			want:   0,
+		},
+		{
 			name:     "two title lines",
 			mutate:   func(d *draft) { d.extra = "\n# A second title" },
 			want:     1,
