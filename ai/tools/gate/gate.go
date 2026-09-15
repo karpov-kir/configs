@@ -127,8 +127,19 @@ func Run(args []string, env Env, out, errOut io.Writer) int {
 
 const usageLine = "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]"
 
+// A refusal raised while parsing the arguments, the one class a caller can fix from the flag list — so
+// it carries that list. One raised after parsing is not one the flag list answers.
+func refuseInvocation(errOut io.Writer, reason string) int {
+	refuse(errOut, reason)
+	return refuse(errOut, usageLine)
+}
+
 func (g *gate) fail(format string, a ...any) int {
-	fmt.Fprintf(g.errOut, "gate.sh: %s\n", fmt.Sprintf(format, a...))
+	return refuse(g.errOut, fmt.Sprintf(format, a...))
+}
+
+func refuse(errOut io.Writer, reason string) int {
+	fmt.Fprintf(errOut, "gate.sh: %s\n", shell.Oneline(reason))
 	return 2
 }
 
@@ -201,15 +212,13 @@ func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string
 		case "--check-path":
 			i++
 			if i >= len(args) {
-				fmt.Fprintln(errOut, "gate.sh: --check-path needs a path")
-				return selected, why, path, 2
+				return selected, why, path, refuseInvocation(errOut, "--check-path needs a path")
 			}
 			path, selected = args[i], modeCheckPath
 		case "--why":
 			i++
 			if i >= len(args) {
-				fmt.Fprintln(errOut, "gate.sh: --why needs a unit id — run --units for the list")
-				return selected, why, path, 2
+				return selected, why, path, refuseInvocation(errOut, "--why needs a unit id — run --units for the list")
 			}
 			why, selected = args[i], modeWhy
 		case "-h", "--help":
@@ -218,8 +227,7 @@ func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string
 			// records for a caller who asked what the flags were.
 			return modeHelp, why, path, 0
 		default:
-			fmt.Fprintf(errOut, "gate.sh: unknown argument '%s'\n", args[i])
-			return selected, why, path, 2
+			return selected, why, path, refuseInvocation(errOut, fmt.Sprintf("unknown argument '%s'", args[i]))
 		}
 	}
 	return selected, why, path, 0

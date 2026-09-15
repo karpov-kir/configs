@@ -5,6 +5,7 @@ package gate
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -159,5 +160,36 @@ func TestADuplicatedInputDoesNotMoveAUnitsKey(t *testing.T) {
 	if narrowKey, _ := g.keyMaterial(narrower); narrowKey == onceKey {
 		t.Error("a unit keyed on one of the two files hashes the same as one keyed on both, so the key " +
 			"is not built from the inputs at all and the comparisons above prove nothing")
+	}
+}
+
+// The gotest unit has to be keyed on the stubs its suite opens. `stub_usage_test.go` reads three files
+// that live outside this module, and Go's test cache cannot see any of them: without the key, editing
+// a stub's header leaves the unit fresh and the drift check answers out of a cache over a file it
+// never re-read — a check that cannot fire, reported as a pass.
+//
+// Asserted against the built unit rather than against the source text. `gate_script_test.go` holds the
+// two halves of the wiring to each other by parsing this file; what that cannot say is whether a
+// particular path ended up in the list, which is the fact a reader of `--why gotest` relies on.
+func TestTheGotestUnitIsKeyedOnTheStubsItsSuiteReads(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	var gotest *unit
+	for i := range g.units {
+		if g.units[i].id == "gotest" {
+			gotest = &g.units[i]
+		}
+	}
+	if gotest == nil {
+		t.Fatal("no unit called gotest, so this case would pass against any key at all")
+	}
+	if len(extStubs) == 0 {
+		t.Fatal("extStubs is empty, so the loop below asserts nothing")
+	}
+	for _, stub := range extStubs {
+		if !slices.Contains(gotest.inputs, stub) {
+			t.Errorf("gotest is not keyed on %s, so an edit to that stub's header leaves this unit fresh "+
+				"and stub_usage_test.go compares a line nothing re-read", stub)
+		}
 	}
 }
