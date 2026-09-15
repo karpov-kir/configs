@@ -919,6 +919,8 @@ var mutants = []mutant{
 	// still behaves the way the flag assumes.
 	{"gate: wiring keyed on the module's test files again", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.addBlindToGoTests("wiring"`, `g.add("wiring"`},
+	{"gate: the stubs stop keying the suite that reads them", "../gate/units.go", "./gate/", "TestTheGotestUnitIsKeyedOnTheStubsItsSuiteReads",
+		"\tgotestInputs = append(gotestInputs, extStubs...)\n", ""},
 	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.add("gotest", "check", gotestInputs, "@gotest")`, `g.addBlindToGoTests("gotest", "check", gotestInputs, "@gotest")`},
 
@@ -926,6 +928,10 @@ var mutants = []mutant{
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
 		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
+	{"gate: a refused invocation names no flags", "../gate/gate.go", "./gate/", "TestAnUnknownArgumentRefuses",
+		"\treturn refuse(errOut, usageLine)\n", "\treturn 2\n"},
+	{"gate: a refusal echoes its argument raw", "../gate/gate.go", "./gate/", "TestARefusalCarriesNoControlBytesFromTheArgumentItEchoes",
+		"shell.Oneline(reason)", "reason"},
 
 	{"guide: the maintainer marker stops excluding", "../eco-guide/inventory.go", "./eco-guide/", "TestTheMaintainerOnlySkillsAreLeftOut",
 		"if err != nil || shell.IsMaintainerAudience(lines) {", "if err != nil || shell.IsMaintainerAudience(lines) && false {"},

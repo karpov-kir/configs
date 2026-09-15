@@ -284,6 +284,9 @@ func (g *gate) runGotest() (string, string, int) {
 	if g.changedSinceGreen([]string{extWorkflows}) {
 		groups = append(groups, ".")
 	}
+	if g.changedSinceGreen(extStubs) {
+		groups = append(groups, ".")
+	}
 	tools := filepath.Join(g.root, "ai", "tools")
 	if len(groups) == 0 {
 		out, err := runIn(tools, "go", "test", "-timeout", goSuiteTimeout, "./...")

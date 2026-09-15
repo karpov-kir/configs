@@ -39,6 +39,13 @@ const (
 // keyed on — and not the whole skill, whose SKILL.md is prose no fixture reads.
 var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-flavor/skills/idsd-qualify/templates"}
 
+// The stubs `stub_usage_test.go` opens, to hold each one's documented usage line against the line its
+// binary prints. The three paths rather than the directories holding them: that suite reads these
+// files and nothing else out of those trees. Without them the drift check is a check that cannot fire
+// — a stub-header edit leaves this unit fresh, and Go's own cache answers over a file outside the
+// module — which is the shape the block above exists to close.
+var extStubs = []string{"ai/gate.sh", "ai/kk-flavor/scripts/repo-key.sh", "ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh"}
+
 // A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and
 // `go vet` both compile `_test.go`, so a suite reaching for either sees those files and must stay
 // keyed on them.
@@ -108,6 +115,7 @@ func (g *gate) addGoChecks() {
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
 	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels)
+	gotestInputs = append(gotestInputs, extStubs...)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit

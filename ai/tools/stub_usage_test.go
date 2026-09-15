@@ -17,12 +17,13 @@ import (
 	"testing"
 
 	ecocheck "kk-flavor/tools/eco-check"
+	"kk-flavor/tools/gate"
 	repokey "kk-flavor/tools/repo-key"
 )
 
-// A stub whose binary prints a usage line, with the invocation that makes it print one. Two roots is
-// the cheapest refusal that is not also a resolution failure, so the line under test is the usage one
-// rather than a message about the tree.
+// A stub whose binary prints a usage line, with the invocation that makes it print one. Each row
+// passes the cheapest refusal that is not a complaint about the tree, so what comes back is the usage
+// line. Two roots where the tool takes a path; an unknown flag where it takes none.
 type usagePrinter struct {
 	stub        string
 	run         func(args []string, out, errOut io.Writer) int
@@ -36,6 +37,14 @@ func (p usagePrinter) base() string {
 var usagePrinters = []usagePrinter{
 	{"../kk-flavor/skills/kk-ecosystem/scripts/check.sh", ecocheck.Run, []string{"--agent=claude", "one", "two"}},
 	{"../kk-flavor/scripts/repo-key.sh", repokey.Run, []string{"one", "two"}},
+	{"../gate.sh", runGate, []string{"--nope"}},
+}
+
+// This row refuses in argument parsing, before anything reads Env. The Root is a path that cannot
+// resolve, so that holds even if `--nope` ever starts parsing: the fall-through would then refuse at
+// machine resolution, never run the real gate over this checkout and write its cache.
+func runGate(args []string, out, errOut io.Writer) int {
+	return gate.Run(args, gate.Env{Root: filepath.Join(os.TempDir(), "no-such-root-for-the-usage-row")}, out, errOut)
 }
 
 func TestEveryStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {

@@ -1,8 +1,8 @@
 package gate
 
 import (
+	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -44,6 +44,20 @@ func TestAnUnknownArgumentRefuses(t *testing.T) {
 	f.run("--nope")
 	f.expectCode(2)
 	f.expectOut("unknown argument")
+	f.expectOut("usage: gate.sh")
+}
+
+func TestAFlagMissingItsValueRefuses(t *testing.T) {
+	for _, c := range []struct{ flag, reason string }{
+		{"--why", "--why needs a unit id"},
+		{"--check-path", "--check-path needs a path"},
+	} {
+		f := newFixture(t)
+		f.run(c.flag)
+		f.expectCode(2)
+		f.expectOut(c.reason)
+		f.expectOut("usage: gate.sh")
+	}
 }
 
 func TestTheNameGuardRefusesWhatWouldBecomeSyntax(t *testing.T) {
@@ -130,14 +144,40 @@ func TestHelpAnswersWithoutRunningTheGate(t *testing.T) {
 	}
 }
 
-func TestTheGateStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join("..", "..", "gate.sh"))
-	if err != nil {
-		t.Fatalf("reading the stub: %v", err)
+// A refusal echoes text the caller chose — an argument, a path, a unit id. Control bytes in it drive
+// the terminal an agent reads the result on: CSI 2 K and a carriage return erase the line, leaving
+// whatever follows standing where the refusal was.
+func TestARefusalCarriesNoControlBytesFromTheArgumentItEchoes(t *testing.T) {
+	for _, hostile := range []string{"evil\x1b[2K\rALL CLEAR", "two\nlines", "bell\a", "csi\u009bm"} {
+		for _, c := range []struct {
+			what string
+			args []string
+		}{
+			{"an unknown argument", []string{hostile}},
+			{"a name no command can be built from", []string{"--check-path", hostile}},
+		} {
+			f := newFixture(t)
+			f.run(c.args...)
+			f.expectCode(2)
+			expectPrintableRefusal(t, f.out(), fmt.Sprintf("%s %q", c.what, hostile))
+		}
 	}
-	if !strings.Contains(string(body), usageLine) {
-		t.Errorf("ai/gate.sh's header does not carry the line its binary prints.\n binary: %q\n"+
-			"The header is what a reader opens first; a flag missing there is a flag nobody finds.",
-			usageLine)
+}
+
+func expectPrintableRefusal(t *testing.T, output, what string) {
+	t.Helper()
+	for _, line := range strings.Split(strings.TrimRight(output, "\n"), "\n") {
+		if !strings.HasPrefix(line, "gate.sh: ") {
+			t.Errorf("%s: the line %q does not open with the tool's own name, so the echo broke out of its line", what, line)
+		}
+	}
+	for _, b := range []byte(output) {
+		if (b < 0x20 && b != '\n') || b == 0x7f {
+			t.Errorf("%s: byte %#x reached the output, and it drives the terminal rather than printing", what, b)
+			break
+		}
+	}
+	if strings.Contains(output, "\u009b") {
+		t.Errorf("%s: the C1 control survived, and an 8-bit terminal reads it as CSI", what)
 	}
 }
