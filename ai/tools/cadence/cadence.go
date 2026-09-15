@@ -1,8 +1,9 @@
 // Offer cadence — idsd-ship offers a periodic pass at most once per interval; this package owns the
 // interval and where its date is kept.
 //
-//	usage: cadence.sh audit due     0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
-//	       cadence.sh audit asked   record that the offer was made today, whatever the human answered
+//	usage: cadence.sh audit {due|asked}
+//	       due    0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
+//	       asked  record that the offer was made today, whatever the human answered
 //
 // The audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway
 // `.idsd/`, and a cadence the ship itself deletes can never come due.

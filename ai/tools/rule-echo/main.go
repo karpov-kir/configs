@@ -1,6 +1,6 @@
 // Finds a rule stated in more than one file, so a pass scoped to one of them can see the other.
 //
-//	usage: ruleecho <root> [file ...]        # scope defaults to every .md under root
+//	usage: ruleecho.sh <root> [file ...]        # scope defaults to every .md under root
 //
 // Four real contradictions in this tree survived every pass that could have caught them, for one
 // reason: the file pairs were never in a single pass's scope together. A pass reads what it was
@@ -292,7 +292,7 @@ func (r report) writeTo(w io.Writer) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: ruleecho <root> [file ...]")
+		fmt.Fprintln(os.Stderr, "usage: ruleecho.sh <root> [file ...]")
 		os.Exit(2)
 	}
 	root := os.Args[1]

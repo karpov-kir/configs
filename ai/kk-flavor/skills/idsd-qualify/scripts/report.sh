@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Qualify report tool — the deterministic gates the skills must not execute by hand. idsd-ship calls
 # it too. What the gates do, and what each subcommand means, is `ai/tools/eco-report/`.
-#   usage: report.sh {init <intent>|root|repo-mode|invalidate|scope <base-ref>|result-context|stage-result <json-file>|
-#                     decisions-reviewed|stamp "<stages>"|gate|intent-ready <NNN-slug>|carry|
-#                     check-ignore|promote|discard|finalize|merge-slot|close|state|list|layout <operation>|
-#                     record <op> <record-name> "<text>"}
-#                     [<intent>]
-# Layout operations: check, migrate --dry-run, migrate --apply.
+#   usage: report.sh {init <intent>|root|layout check|layout migrate --dry-run|layout migrate --apply|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp "<stages>"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> "<text>"} [<intent>]
+# One line because the tool refuses with this one, byte for byte, and ai/tools/stub_usage_test.go holds
+# the two against each other. Every subcommand that reads a report takes the intent last; omit it when
+# only one is open.
 #
 # Two sibling files are found from argv[0] and one from $HOME, so this must stay in the skill's
 # scripts/ directory: ./todo-gate.sh, ../templates/qualify-report-template.md, and

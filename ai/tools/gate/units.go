@@ -40,11 +40,33 @@ const (
 var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-flavor/skills/idsd-qualify/templates"}
 
 // The stubs `stub_usage_test.go` opens, to hold each one's documented usage line against the line its
-// binary prints. The three paths rather than the directories holding them: that suite reads these
-// files and nothing else out of those trees. Without them the drift check is a check that cannot fire
-// — a stub-header edit leaves this unit fresh, and Go's own cache answers over a file outside the
-// module — which is the shape the block above exists to close.
-var extStubs = []string{"ai/gate.sh", "ai/kk-flavor/scripts/repo-key.sh", "ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh"}
+// binary prints. Every stub, because that suite discovers them rather than naming three. The paths
+// rather than the directories holding them: it reads these files and nothing else out of those trees.
+// Without them the drift check is a check that cannot fire — a stub-header edit leaves this unit fresh,
+// and Go's own cache answers over a file outside the module — which is the shape the block above exists
+// to close.
+//
+// The cost is real and deliberate: gotest is the slowest unit here, and a comment-only edit in any of
+// these sixteen files now re-runs the whole Go suite. The alternative is a key narrower than what the
+// suite reads, and that one answers green over a stub nothing looked at.
+var extStubs = []string{
+	"ai/gate.sh",
+	"ai/guide.sh",
+	"ai/kk-flavor/scripts/bloat-judge.sh",
+	"ai/kk-flavor/scripts/model-check.sh",
+	"ai/kk-flavor/scripts/model-policy.sh",
+	"ai/kk-flavor/scripts/repo-key.sh",
+	"ai/kk-flavor/scripts/tree-fingerprint.sh",
+	"ai/kk-flavor/skills/idsd-qualify/scripts/report.sh",
+	"ai/kk-flavor/skills/idsd-ship/scripts/cadence.sh",
+	"ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh",
+	"ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph.sh",
+	"ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh",
+	"ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh",
+	"ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh",
+	"ai/kk-flavor/skills/kk-reduce/scripts/stats.sh",
+	"ai/kk-flavor/skills/kk-refactor/scripts/dup-literals.sh",
+}
 
 // A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and
 // `go vet` both compile `_test.go`, so a suite reaching for either sees those files and must stay

@@ -163,10 +163,11 @@ func TestADuplicatedInputDoesNotMoveAUnitsKey(t *testing.T) {
 	}
 }
 
-// The gotest unit has to be keyed on the stubs its suite opens. `stub_usage_test.go` reads three files
-// that live outside this module, and Go's test cache cannot see any of them: without the key, editing
-// a stub's header leaves the unit fresh and the drift check answers out of a cache over a file it
-// never re-read — a check that cannot fire, reported as a pass.
+// The gotest unit has to be keyed on the stubs its suite opens. `stub_usage_test.go` discovers every
+// stub in the repository and reads each one, all of them outside this module, and Go's test cache
+// cannot see any of them: without the key, editing a stub's header leaves the unit fresh and the drift
+// check answers out of a cache over a file it never re-read — a check that cannot fire, reported as a
+// pass.
 //
 // Asserted against the built unit rather than against the source text. `gate_script_test.go` holds the
 // two halves of the wiring to each other by parsing this file; what that cannot say is whether a
