@@ -28,6 +28,7 @@ const (
 	scriptDeclaresNoTestPosition   = "script declares no test position: "
 	scriptNamesMissingTest         = "script names a missing test"
 	scriptNamesAmbiguousTest       = "script names an ambiguous test"
+	scriptUsageSpellingUnread      = "script states its usage in a spelling no scan reads: "
 	sharedRegionNotChecked         = "shared region not checked for drift: "
 	sharedRegionWithoutCounterpart = "shared region without a counterpart: "
 	sharedRegionHasDrifted         = "shared region has drifted: "
@@ -276,6 +277,64 @@ func suiteIsAmbiguous(script, suite string, carriers []string) bool {
 func isTestHarness(path string) bool {
 	base := shell.BaseName(path)
 	return strings.HasSuffix(base, "-test.sh") || strings.HasSuffix(base, "-mutate.sh")
+}
+
+// Every scan that reads a usage line anchors on a lowercase `usage:` — flags.go's usageFlags,
+// subcommands.go's usageSubcommands, and ai/tools/stub_usage_test.go. So a header stating `Usage:` or
+// `USAGE:` and nothing lowercase is in none of them: it reads to a human as documentation while
+// holding nothing against anything. The flags its call sites pass are checked against nothing, the
+// subcommands its dispatch accepts go unnamed, and no finding says so — because to those scans the
+// file simply has no usage line at all.
+//
+// Widening them to take both spellings is the drift rather than the fix: it splits the anchor from
+// subcommands.go and stub_usage_test.go, and leaves the tree with two spellings of one thing. The
+// spelling is reported here instead, and the scans stay lowercase-only.
+//
+// Every `*.sh`, the harness included. A `-test.sh` header is as invisible to those scans as any
+// other, and tool-stub-test.sh's own refusal of a capitalised `Usage:` reaches only the files
+// carrying the tool-stub shared region.
+func (c *checker) scanUsageSpelling() {
+	for script, lines := range c.filesWithLines(c.root.Named(), "*.sh") {
+		spelling := unreadUsageSpelling(lines)
+		if spelling == "" {
+			continue
+		}
+		c.add(scriptUsageSpellingUnread + shell.Oneline(script) + " writes '" + shell.Oneline(spelling) +
+			"' and no lowercase 'usage:', so every scan that reads a usage line passes it by")
+	}
+}
+
+// The spelling a header states its usage line in, when that spelling is one no scan reads — a header
+// line opening on `usage: ` in some other case, and no header line opening on the lowercase one.
+//
+// The lowercase line wins wherever it sits, even below the capitalised one: those scans take the
+// first lowercase `usage:` of the header and are satisfied by it, so a header carrying both is
+// documented to them and there is nothing here to report.
+//
+// Read out of leadingCommentBlock and matched against the same trimmed text usageFlags matches, so
+// what this reports is exactly the line that scan would have read had it been lowercase. The anchor
+// is written here rather than shared: subcommands.go and ai/tools/stub_usage_test.go each hold their
+// own too, and the comment above is what binds the four.
+func unreadUsageSpelling(lines []string) string {
+	const anchor = "usage: "
+	spelling := ""
+	for _, line := range leadingCommentBlock(lines) {
+		trimmed := strings.TrimLeft(strings.TrimPrefix(line, "#"), " \t")
+		if len(trimmed) < len(anchor) {
+			continue
+		}
+		head := trimmed[:len(anchor)]
+		if head == anchor {
+			return ""
+		}
+		// The first capitalised line is the one reported, and the loop runs on: a lowercase line
+		// under it still clears the check, which is what makes this a spelling finding rather than a
+		// second way to say the header is missing one.
+		if spelling == "" && strings.EqualFold(head, anchor) {
+			spelling = strings.TrimSuffix(head, " ")
+		}
+	}
+	return spelling
 }
 
 // Reading past the leading comment block would let a `-test.sh` named anywhere in the body clear the

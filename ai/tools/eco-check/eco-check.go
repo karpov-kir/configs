@@ -124,6 +124,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	c.scanSubcommandCallSites()
 	c.scanFlagCallSites()
 	c.scanTestPositions()
+	c.scanUsageSpelling()
 	c.scanSharedRegions()
 
 	c.reportGate(out)

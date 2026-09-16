@@ -37,6 +37,7 @@ const (
 	UnreadDispatch                = unreadDispatch
 	FlagCallSitesNotChecked       = flagCallSitesNotChecked
 	FlagScanAtItsBound            = flagScanAtItsBound
+	ScriptUsageSpellingUnread     = scriptUsageSpellingUnread
 
 	ScriptNotExecutable = scriptNotExecutable
 

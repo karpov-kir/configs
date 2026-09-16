@@ -98,6 +98,12 @@ var rankTable = []struct {
 	// buries them.
 	{flagCallSitesNotChecked, 2},
 	{flagScanAtItsBound, 2},
+	// A header stating `Usage:` and no lowercase `usage:`. Here rather than at rank 5 with the
+	// contents-are-wrong kinds: nothing inside the file is wrong, and the three scans that read a
+	// usage line cannot see this one at all — flagCallSitesNotChecked's defect one step earlier, and
+	// reached without needing a call site. One finding per script at most, the ceiling the rows above
+	// it carry too, so it sits inside this rank's budget the same way they do.
+	{scriptUsageSpellingUnread, 2},
 
 	{scriptNotExecutable, 3},
 	{skillNameDirMismatch, 3},
