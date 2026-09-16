@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -596,22 +597,24 @@ func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 		t.Fatalf("could not lock the record: %v", err)
 	}
 
+	// The competing write announces which goroutine it is before starting, so the dump below can name
+	// THIS write. The package runs its cases in parallel and several of them have a write in flight.
+	writer := make(chan string)
 	landed := make(chan struct{})
 	go func() {
+		writer <- ownGoroutineID()
 		f.invoke(f.repo, io.Discard, io.Discard, []string{"record", "append", "project-decisions", "waited for the lock"})
 		close(landed)
 	}()
-	// A second, against the milliseconds the same invocation takes with nothing holding the file. A
-	// machine slow enough to spend a second here would report a pass it has not earned, so this case
-	// belongs with a mutation run rather than standing alone.
-	select {
-	case <-landed:
-		f.record("a write waits while another holds the record", false,
-			"it appended while a lock was held:\n"+f.read(path))
-	case <-time.After(time.Second):
-		f.record("a write waits while another holds the record",
-			!strings.Contains(f.read(path), "waited for the lock"), f.read(path))
+
+	parked, blocked := awaitTheWriteParkedOnTheLock(<-writer, landed)
+	held := f.read(path)
+	evidence := "the write ran to completion instead of waiting:\n" + held
+	if blocked {
+		evidence = parked + "\n" + held
 	}
+	f.record("a write waits while another holds the record",
+		blocked && !strings.Contains(held, "waited for the lock"), evidence)
 
 	if err := syscall.Flock(int(handle.Fd()), syscall.LOCK_UN); err != nil {
 		t.Fatalf("could not release the lock: %v", err)
@@ -624,6 +627,74 @@ func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 	}
 	f.record("and lands as soon as the lock is released",
 		strings.Contains(f.read(path), "| waited for the lock\n"), f.read(path))
+}
+
+// The competing write, seen parked inside flock(2) on the record. This is the event the case above
+// waits for, and nothing earlier will do: a write that has not been scheduled yet has appended nothing
+// either, and from outside that is the same file as one the lock is holding back. The old case read
+// that silence after a second as proof the lock held, and under a reproduction of concurrent-gate load
+// it read it that way over a lock deliberately broken to exclude nothing.
+//
+// Parked on two separate dumps, not one. A flock that is about to return is also momentarily inside
+// flock, and a single snapshot cannot tell it from one that will never return while this case holds the
+// record. A busy machine spreads the two dumps further apart, so it makes a returning call harder to
+// catch, not easier: the gap here erodes towards a red and never towards a pass.
+//
+// Reports false the moment the write finishes instead — which is what a lock excluding nothing does,
+// and the only other end this loop has. Nothing here is bounded by the clock. A starved machine merely
+// sends the loop round more times, and `go test -timeout 30m` (gate/run.go, goSuiteTimeout) is what
+// ends a run whose write never arrives at all.
+func awaitTheWriteParkedOnTheLock(id string, landed <-chan struct{}) (string, bool) {
+	confirmed := false
+	for {
+		select {
+		case <-landed:
+			return "", false
+		default:
+		}
+		stack, parked := goroutineParkedInFlock(id)
+		if parked && confirmed {
+			return stack, true
+		}
+		confirmed = parked
+		// A poll interval, not a bound: no assertion reads it, and every value reaches the same verdict.
+		// It decides how promptly the loop notices, and nothing else.
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// The dump of one goroutine, when that goroutine is inside flock(2). Blocks are separated by a blank
+// line and each opens with `goroutine <id> [<state>]:`, so the id picks out exactly one of them.
+func goroutineParkedInFlock(id string) (string, bool) {
+	for _, block := range strings.Split(allGoroutines(), "\n\n") {
+		if strings.HasPrefix(block, "goroutine "+id+" [") && strings.Contains(block, "syscall.Flock") {
+			return block, true
+		}
+	}
+	return "", false
+}
+
+func allGoroutines() string {
+	buf := make([]byte, 1<<16)
+	for {
+		if n := runtime.Stack(buf, true); n < len(buf) {
+			return string(buf[:n])
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+}
+
+// The calling goroutine's id, read off the header line runtime.Stack opens with: `goroutine 35
+// [running]:`. Panics rather than returning nothing on a header it cannot read, because an empty id
+// matches no block and the case waiting on one would hang until the suite timeout instead.
+func ownGoroutineID() string {
+	var buf [64]byte
+	header := string(buf[:runtime.Stack(buf[:], false)])
+	fields := strings.Fields(header)
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		panic("runtime.Stack no longer opens with a goroutine id: " + header)
+	}
+	return fields[1]
 }
 
 func TestOnlyAnAppendCreatesARecord(t *testing.T) {

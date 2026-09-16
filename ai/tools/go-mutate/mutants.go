@@ -398,6 +398,15 @@ var mutants = []mutant{
 	{"gate: the intent's own follow-ups never scanned", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", `if intent := r.intentFilePath(); intent != "" {`, `if intent := r.intentFilePath(); intent != "" && false {`},
 
 	{"records: a shared lock where the write needs an exclusive one", "../eco-report/records.go", "./eco-report/", "TestARecordWriteWaitsForTheLockRatherThanRacingIt", "syscall.LOCK_EX", "syscall.LOCK_SH"},
+	// The rule keeping the case above out of the shape it spent its life in: a select arm bounded by the
+	// clock may end the run and may never reach an assertion. A scan that exempted everything would read
+	// exactly like this one and observe nothing, so each anchor here is a way of exempting everything.
+	{"records: the clock scan stops caring which package feeds an arm", "../eco-report/wall_clock_test.go", "./eco-report/", "TestWhatCountsAsAClockArmThatConcludes",
+		`pkg.Name == "time"`, `pkg.Name != ""`},
+	{"records: any call at all counts as ending the run", "../eco-report/wall_clock_test.go", "./eco-report/", "TestWhatCountsAsAClockArmThatConcludes",
+		`selector.Sel.Name == "Fatal" || selector.Sel.Name == "Fatalf"`, `selector.Sel.Name != ""`},
+	{"records: the clock scan stops counting what it looked at", "../eco-report/wall_clock_test.go", "./eco-report/", "TestWhatCountsAsAClockArmThatConcludes",
+		"found++", "found += 0"},
 	{"records: a restatement appended as a second entry", "../eco-report/records.go", "./eco-report/", "TestBumpRaisesTheCountAndRedatesWithoutAddingALine", "if entry.text == text {\n\t\t\tfound := r.oneMatchingEntry", "if entry.text == text && false {\n\t\t\tfound := r.oneMatchingEntry"},
 	{"records: a multi-line entry written as one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if strings.ContainsAny(text, "\n\r") {`, "if false {"},
 	{"records: an ambiguous match resolved to the first entry", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "case 1:", "case 1, 2:"},
