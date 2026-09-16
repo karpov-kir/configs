@@ -258,12 +258,12 @@ framing around them. Seven of the eight cases are right every time. No lane send
 through the judge today, so this is a bound on where the judge may be pointed rather than a defect to
 fix — and it is the closest thing the corpus has to the close call it cannot yet decide.
 
-**No scanner names the build that answered it.** A peer session got two opposite `--bar` verdicts on
-identical inputs an hour apart, because `comment-density/bar.go` moved between the runs and nothing in
-either report said so. That is [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)'s
-"names the commit you measured" one level up: there the unnamed thing is the tree, here it is the
-instrument. A build stamp in the report line would make the pair self-explaining. The file is another
-session's; this is the note, not the change.
+**A scanner now names the build that answered it, and the rest of the tree does not.**
+`comment-density --bar` leads with `measured by: comment-density build <id>`, after two opposite
+verdicts an hour apart on identical inputs with nothing saying the tool had been rebuilt between
+them. That is [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)'s "names the commit
+you measured" one level up — there the unnamed thing is the tree, here the instrument — and the rule
+is stated for neither. Every other scanner this pipeline runs still answers anonymously.
 
 **A positive thinking cap is not a lever on this path.** `MAX_THINKING_TOKENS=256` over a real view
 still drew 542 and 434 output tokens, and 1024, 2048 and 4096 each measured the same roll time and

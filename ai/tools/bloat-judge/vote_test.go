@@ -1,0 +1,170 @@
+// Cases for the majority rule, and for reading one roll's answer.
+package bloatjudge
+
+import (
+	"errors"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestParseVerdictAcceptsNumbersAndNone(t *testing.T) {
+	gone, err := ParseVerdict(" 3, 1,3\n", 3)
+	if err != nil || len(gone) != 2 || gone[0] != 1 || gone[1] != 3 {
+		t.Fatalf("got %v %v, want [1 3]", gone, err)
+	}
+	if gone, err := ParseVerdict("None\n", 3); err != nil || gone != nil {
+		t.Fatalf("none parsed as %v %v", gone, err)
+	}
+}
+
+func TestParseVerdictRefusesAnAnswerThatIsEmpty(t *testing.T) {
+	if _, err := ParseVerdict("   \n", 3); err == nil {
+		t.Fatal("an empty answer was accepted as none")
+	}
+}
+
+func TestParseVerdictRefusesProseAndOutOfRange(t *testing.T) {
+	if _, err := ParseVerdict("I would delete 2 because it restates the code", 3); err == nil {
+		t.Fatal("prose with a number in it was accepted")
+	}
+	if _, err := ParseVerdict("4", 3); err == nil {
+		t.Fatal("a unit past the end was accepted")
+	}
+	if _, err := ParseVerdict("0", 3); err == nil {
+		t.Fatal("unit 0 was accepted")
+	}
+}
+
+func TestVotingDeletesOnlyWhatAMajorityNames(t *testing.T) {
+	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", viewOf("a", "b", "c"))
+	if err != nil || reply != "1" {
+		t.Fatalf("got %q %v, want \"1\"", reply, err)
+	}
+}
+
+func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
+	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", viewOf("a", "b", "c"))
+	if err != nil || reply != "none" {
+		t.Fatalf("got %q %v, want none", reply, err)
+	}
+}
+
+func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
+	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", viewOf("a", "b", "c")); err == nil {
+		t.Fatal("a prose roll was outvoted instead of refused")
+	}
+}
+
+// A roll that names a unit nobody offered has lost the plot exactly as a roll that explains has, and
+// fails the vote the same way. The gap the old line-count bound left is widest in a source file, whose
+// units are its comment blocks: a 500-line file with 40 of them accepted 501.
+func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
+	view := viewOf("a", "b")
+	if _, err := Voting(rollsAnswering("1", "3", "1"), 3)("p", view); err == nil {
+		t.Fatal("a unit number past the last unit was tallied instead of refused")
+	}
+	if got := unitsInView(view); got != 2 {
+		t.Fatalf("the view offers %d units, not 2 — the bound is reading something else", got)
+	}
+}
+
+func TestEveryRollGoesOutEvenWhenTheyAgree(t *testing.T) {
+	call, calls := counting(func(string, string) (string, error) { return "2, 1", nil })
+	got, err := Voting(call, 3)("prompt", viewOf("one", "two"))
+	if err != nil || got != "1,2" {
+		t.Fatalf("majority = %q, %v, want \"1,2\"", got, err)
+	}
+	if calls() != 3 {
+		t.Fatalf("%d call(s), want 3 — a roll was held back", calls())
+	}
+}
+
+// The count is Voting's own parameter and the majority is arithmetic over it, so the rule has to hold
+// for counts other than the 3 production passes today. Nine because a high count is where an
+// off-by-one hides, and because 3 alone would let a wrong general rule pass — at 3 a bare half and
+// more than half name the same number of rolls.
+func TestTheMajorityRuleHoldsAtAHigherRollCount(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		replies []string
+		want    string
+	}{
+		{"five of nine carries a unit", []string{"1", "1", "1", "1", "1", "2", "2", "2", "2"}, "1"},
+		{"four of nine does not", []string{"1", "1", "1", "1", "2", "2", "3", "3", "none"}, "none"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			call, calls := counting(rollsAnswering(c.replies...))
+			got, err := Voting(call, 9)("p", viewOf("a", "b", "c"))
+			if err != nil {
+				t.Fatalf("vote refused: %v", err)
+			}
+			if got != c.want {
+				t.Fatalf("got %q, want %q", got, c.want)
+			}
+			if calls() != 9 {
+				t.Fatalf("%d call(s), want 9 — a roll was held back", calls())
+			}
+		})
+	}
+}
+
+// A roll that never answered fails the whole vote, exactly as a roll that explains does. The rolls
+// that did answer are a majority of a smaller vote than the one the caller asked for, and reading a
+// verdict out of them reports the deadline the model hit as a judgement it made.
+func TestVotingRefusesWhenARollFails(t *testing.T) {
+	var mu sync.Mutex
+	rolled := 0
+	call := func(string, string) (string, error) {
+		mu.Lock()
+		rolled++
+		first := rolled == 1
+		mu.Unlock()
+		if first {
+			return "", errors.New("the model did not answer within 420s")
+		}
+		return "1", nil
+	}
+	if _, err := Voting(call, 3)("p", viewOf("a", "b")); err == nil {
+		t.Fatal("a roll that never answered was outvoted instead of failing the vote")
+	}
+}
+
+// A fenced block is one unit over four lines, and blank lines are no unit at all, so counting lines
+// would answer 7 here where the vote may only offer 2.
+func TestUnitsInViewCountsUnitsAndNotLines(t *testing.T) {
+	view := viewOf("intro", "", "```", "one", "two", "```", "")
+	if got := unitsInView(view); got != 2 {
+		t.Fatalf("got %d units, want 2\n%s", got, view)
+	}
+}
+
+// The rolls go out together, which is the half of it a call count cannot see. Each one blocks until
+// all three have arrived, so a vote that rolled any of them in a later wave never reaches the third
+// and this ends on the timeout instead of the reply.
+func TestTheRollsGoOutTogether(t *testing.T) {
+	var arrived sync.WaitGroup
+	arrived.Add(3)
+	call := func(string, string) (string, error) {
+		arrived.Done()
+		arrived.Wait()
+		return "1", nil
+	}
+	done := make(chan string, 1)
+	go func() {
+		reply, err := Voting(call, 3)("p", viewOf("a", "b"))
+		if err != nil {
+			done <- "refused: " + err.Error()
+			return
+		}
+		done <- reply
+	}()
+	select {
+	case reply := <-done:
+		if reply != "1" {
+			t.Fatalf("got %q, want 1", reply)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the rolls went out in more than one wave — the last never started while the others waited")
+	}
+}

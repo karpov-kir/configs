@@ -104,7 +104,7 @@ func unitNumbers(value, label string) ([]int, error) {
 func (c evalCase) split() ([]Unit, string) {
 	lines := shell.SplitLines(c.text)
 	kind := kinds[c.kind]
-	return Split(lines, kind.Source, offerFor(lines, kind))
+	return Split(lines, kind.candidates(lines), offerFor(lines, kind))
 }
 
 // score reads one verdict against the labels, and the two counts are not symmetric. A FALSE CUT is a
