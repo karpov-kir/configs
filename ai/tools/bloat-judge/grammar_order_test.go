@@ -6,7 +6,15 @@
 // TestEveryStubDocumentsTheUsageItsBinaryPrints passed on a developer's laptop carrying `claude` and
 // failed in CI, which carries neither — and the reader of the refusal was sent to install a provider
 // rather than to fix the command they had typed.
-package tools_test
+// No go-mutate entry stands behind this case, and the reason is a property of the harness rather than
+// a judgement about the guard. go-mutate swaps a file through `go build -overlay` and runs the suite
+// in process, without touching the tree; this case builds `../cmd/bloat-judge` as a subprocess, which
+// compiles the file on disk. A mutant of the ordering is therefore invisible to the very case that
+// would catch it, and reports "proved nothing" rather than surviving. Declaring it unreachable would
+// be false — it is observable, just not through this harness — so it is left unregistered and named
+// here instead.
+
+package bloatjudge_test
 
 import (
 	"os"
@@ -18,7 +26,7 @@ import (
 
 func TestBloatJudgeNamesItsGrammarWithNoProviderReachable(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "bloat-judge")
-	build := exec.Command("go", "build", "-o", binary, "./cmd/bloat-judge")
+	build := exec.Command("go", "build", "-o", binary, "../cmd/bloat-judge")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("building bloat-judge: %v\n%s", err, out)
 	}
