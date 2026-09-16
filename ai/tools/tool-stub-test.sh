@@ -118,7 +118,10 @@ judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
 name="bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
 if [ -x "$judge_stub" ]; then
   judge_err="$base/judge-probe.err"
-  (CDPATH= cd "$base" && env -u JUDGE_PROVIDER "$judge_stub" >/dev/null 2>"$judge_err")
+  # A well-formed invocation, so what refuses is the missing provider and not the grammar. Bare, the
+  # binary now answers an argument error before it resolves anything — which is the point of that
+  # change — and this probe would then be reading the grammar rather than the provider path it names.
+  (CDPATH= cd "$base" && env -u JUDGE_PROVIDER "$judge_stub" report </dev/null >/dev/null 2>"$judge_err")
   status=$?
   if [ "$status" -eq 2 ] && grep -q "JUDGE_PROVIDER is required" "$judge_err"; then
     record_pass "$name"
