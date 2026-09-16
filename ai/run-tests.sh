@@ -231,9 +231,11 @@ resolve_jobs() {
   # Asked of the version and not by trying it: `(wait -n)` with no children exits 127 on every bash that
   # has it, so a probe reads as "missing" everywhere and silently leaves the whole run sequential.
   #
-  # `RUN_TESTS_NO_WAIT_N` is a seam: every machine that runs the suite HAS `wait -n`, so without it
-  # nothing could reach the downgrade or its notice, and a regression in either would look exactly like
-  # a pass. It forces the fallback; it never suppresses one.
+  # `RUN_TESTS_NO_WAIT_N` is a seam: it forces the fallback so a regression in the downgrade or its
+  # notice cannot look like a pass. It never suppresses one. Do not read it as the only way here —
+  # macOS ships /bin/bash 3.2, and a caller reaching this script through `sh -c` with an inherited PATH
+  # takes the real fallback. The notice is then genuine output, which is why the suite's bounded-console
+  # case filters this script's notices rather than counting them.
   if [ -n "${RUN_TESTS_NO_WAIT_N:-}" ] ||
     [ "${BASH_VERSINFO[0]:-0}" -lt 4 ] ||
     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 3 ]; }; then

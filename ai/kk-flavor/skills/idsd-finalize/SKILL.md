@@ -67,7 +67,7 @@ Before retiring the report, preserve the report, stage evidence and active inten
 
 In **committed** mode, apply step 3 and archive on the feature branch before its final commit, so the archive, project records and roadmap land with the implementation. In **throwaway** mode, defer step 3 and archiving until the implementation's merge into the target is verified. Keep the active intent and report while it waits; include no `.idsd/` files in the commit or PR.
 
-To archive, set `status: built`, then run `report.sh finalize <NNN-slug>`. It deletes the report and stage markers and moves the intent with its three records to `.idsd/archive/NNN-<slug>/`. Regenerate `.idsd/roadmap.md` if present, using `idsd-intent`'s format. Review the resulting record/archive delta against step 1's settled operations before committing.
+To archive, set `status: built`, then run `report.sh finalize <NNN-slug>`. It deletes the report and stage markers and moves the intent with its three records to `.idsd/archive/NNN-<slug>/`. **Commit from the index** — a `git commit` naming paths leaves the archived records behind. Regenerate `.idsd/roadmap.md` if present, using `idsd-intent`'s format. Review the resulting record/archive delta against step 1's settled operations before committing.
 
 **Direct merge:** commit the prepared change set under the settled authorization, then merge the branch into the agreed target. Perform any authorized target push and verify the resulting target ref. A feature-branch commit alone is not completion. In throwaway mode, apply step 3 and archive now, under the slot. Release the slot after verifying both landing and archiving.
 

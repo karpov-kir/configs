@@ -59,7 +59,7 @@ If `.idsd/roadmap.md` exists, or scope is project, (re)generate it from every in
 
 **Keep `.idsd/for-agents/language.md` current** — the project's ubiquitous language. One entry per domain term: the term, its meaning in a sentence, and the near-term it must not be confused with. Add every term this ICE coins or uses in a narrowed sense; never invent an entry for a term no artifact uses. **Write it only through `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-language "<text>"`** — this ship's own, which finalize merges upward — the same hazard as the decision log (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **The decision log**). `~/.kk-flavor/standards/records.md` is the whole delta. **It is pruned here and nowhere else**: a term no artifact uses any longer is deleted here, not left for the audit to find.
 
-**A session that stops at authoring writes each term into this ICE's own `## Follow-ups` as well, verbatim.** The `local-language` file is check-ignored and never commits, and only a ship reaches the `idsd-finalize` that merges it up. The intent file is tracked, so that line rides the commit instead, and the build that closes it carries the term from there.
+**A session that stops at authoring writes each term into this ICE's own `## Follow-ups` as well, verbatim.** The `local-language` file is check-ignored while the intent is active, so nothing commits it here; only a ship reaches the `idsd-finalize` that merges it up and archives it. The intent file is tracked, so that line rides the commit instead, and the build that closes it carries the term from there.
 
 ## Rules
 

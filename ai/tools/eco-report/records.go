@@ -126,7 +126,7 @@ func fullAtLine(bound int) string {
 // says its own, by the moment rather than by the skill that arrives at it.
 const (
 	prunedAtFinalize = "Pruned only when a ship is finalized, where this record and the finishing ship's are in hand together.\n"
-	prunedInShip     = "Pruned by the ship that owns it, when that ship reads it. Merged upward and deleted at finalize.\n"
+	prunedInShip     = "Pruned by the ship that owns it, when that ship reads it. Merged upward at finalize, and archived with the ship whether or not that merge lands.\n"
 )
 
 const decisionHeadings = "\n## Promotion candidates\n\n## Decisions\n\n"
