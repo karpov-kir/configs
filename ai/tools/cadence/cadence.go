@@ -5,8 +5,8 @@
 //	       due    0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
 //	       asked  record that the offer was made today, whatever the human answered
 //
-// The audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` wipes a throwaway
-// `.idsd/`, and a cadence the ship itself deletes can never come due.
+// The audit date goes under `.git/`, never in `.idsd/` — `report.sh discard` can take an external
+// `.idsd/` down to nothing, and a cadence `discard` deletes can never come due.
 //
 // Every message names the caller by the `self` Run is given rather than by a constant, because the
 // stub execs this binary with `-a "$0"`. It is a parameter and not a read of os.Args[0] so the suite

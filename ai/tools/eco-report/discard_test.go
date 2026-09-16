@@ -28,7 +28,7 @@ func TestDiscardRemovesNothingItCouldNotRead(t *testing.T) {
 
 // The reports directory decides what survives. `survivingContent` keeps .idsd/ standing when another
 // ship's report is in flight, and it learns that by listing this directory — so a listing that failed
-// reads as "no other ship", and `discard` goes on to take the whole .idsd/, which in throwaway mode is
+// reads as "no other ship", and `discard` goes on to take the whole .idsd/, which in external mode is
 // the only copy anyone has. An empty directory and one this cannot open are the same shape and not the
 // same fact.
 func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
@@ -46,7 +46,7 @@ func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
 	f.chmod(f.scratch()+"/intents", 0o755)
 
 	f.assertRefused("discard refuses a report listing it could not read")
-	// The one thing throwaway mode keeps no copy of. This ship's own files are already gone by here,
+	// The one thing external mode keeps no copy of. This ship's own files are already gone by here,
 	// and that is what discard is for; the refusal stands between the listing and `os.RemoveAll(.idsd)`.
 	f.record("and left the other ship's report where it was",
 		f.isFile(f.reportPath("002-yours")), f.evidence())
@@ -55,7 +55,7 @@ func TestDiscardWillNotClearIdsdOnAReportListingItCouldNotRead(t *testing.T) {
 func TestDiscardReconcilesTheTwoNamesBeforeDeletingAnything(t *testing.T) {
 	t.Parallel()
 	// discard is addressed by the filename, and deletes the intent file the frontmatter names.
-	// Disagreeing, it deletes another ship's in-flight intent, which throwaway mode keeps no copy of
+	// Disagreeing, it deletes another ship's in-flight intent, which external mode keeps no copy of
 	// anywhere.
 	f := newShip(t, "001-mine")
 	f.newIntentFile("002-yours")
@@ -126,7 +126,7 @@ func TestDiscardDestructivePath(t *testing.T) {
 	committed.record("and deleted nothing",
 		committed.isFile(committed.scratch()+"/charter.md") && committed.isFile(committed.reportPath("001-committed")), "")
 
-	// `discard` runs after `close`, the order `idsd-ship done` uses; reversed, `close` finds no report
+	// `discard` runs after `close`; reversed, `close` finds no report
 	// and refuses. `close` deletes the report `discard` reads, and a `discard` that refuses on that
 	// leaves the .idsd/ it was to clear standing.
 	closed := newShip(t, "001-closed-then-discarded")
@@ -161,15 +161,16 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 			f.exists(f.scratch()+"/intents") && f.isFile(f.shipDir("001-real")+"/intent.md"), "")
 	f.assertReports("Looked for", "and names every path it looked in")
 
-	// A typo must not tear down a directory. `decisions.md` alone does not keep .idsd/ alive by design,
-	// so without the guard this reports "zero traces" for a ship that never existed.
+	// A typo must not tear down a directory. `roadmap.md` alone does not keep .idsd/ alive by design,
+	// so without the guard this reports a removal for a ship that never existed. A durable file here
+	// would keep .idsd/ standing on its own and prove nothing about the guard.
 	typo := newRepo(t)
 	typo.runReport("check-ignore")
 	typo.mkdirAll(typo.scratch())
-	typo.write(typo.scratch()+"/for-agents/decisions.md", "# decisions\n")
+	typo.write(typo.scratch()+"/roadmap.md", "# roadmap\n")
 	typo.runReport("discard", "999-typo")
 	typo.assertRefused("discard refuses a typo rather than removing the directory around it")
-	typo.record("and the decision log survives", typo.isFile(typo.scratch()+"/for-agents/decisions.md"), "")
+	typo.record("and the roadmap survives", typo.isFile(typo.scratch()+"/roadmap.md"), "")
 
 	// A repo that never used idsd has nothing to lose; the guard is what stops discard tearing down a
 	// scratch dir it never created.
@@ -191,7 +192,7 @@ func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
 func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	t.Parallel()
 	// An unreadable index fails the index read, which reads as "nothing tracked", so a committed repo
-	// reports throwaway and discard's committed-mode refusal never fires.
+	// reports external and discard's committed-mode refusal never fires.
 	f := newRepo(t)
 	// Both files in the tree, because this fixture is COMMITTED: git can only track what the tree holds,
 	// and the scratch-side helpers write outside it.
@@ -209,8 +210,8 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 		t.Skip("this process reads a mode-0 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable index cannot be built here")
 	}
 	f.runReport("discard", "002-tracked")
-	f.assertRefused("discard refuses when the repo mode cannot be read, rather than assuming throwaway")
-	// The REASON, not just the exit. Without the mode assertion the run reads throwaway, walks on, and is
+	f.assertRefused("discard refuses when the repo mode cannot be read, rather than assuming external")
+	// The REASON, not just the exit. Without the mode assertion the run reads external, walks on, and is
 	// refused a few lines later for having no ship at the resolved location — also exit 2, from a guard
 	// that says nothing about the unreadable index. Asserting the code alone observes neither.
 	f.assertReports("could not read the index", "and names the unreadable index as why")
@@ -242,8 +243,7 @@ func TestAStandaloneReviewCanStillBeTornDownAfterItIsClosed(t *testing.T) {
 	t.Parallel()
 	// `review` is the one stem with no intent file, and idsd-qualify's SKILL.md tells the agent to run
 	// `close review`, so this sequence is the documented one. Without the `review` exception it ends in
-	// a permanent refusal, leaving an empty scratch directory standing in the mode whose whole contract
-	// is zero traces.
+	// a permanent refusal, leaving an empty directory standing where the human asked for it to go.
 	f := newShip(t, "review: a standalone pass")
 	f.runReport("close", "review")
 	f.runReport("discard", "review")
@@ -260,10 +260,10 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	t.Parallel()
 	// The durable files are a table in the source, and what a row buys is that .idsd/ survives this
 	// ship's discard: those files are the human's own, never the ship's scratch. A row dropped from
-	// that list deletes the file it names and reports zero traces, so every row gets a fixture. The
-	// list is spelled out again rather than read from the source: a test looping the real one would
-	// follow a dropped row instead of catching it.
-	for _, durable := range []string{"charter.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting/reference.txt"} {
+	// that list deletes the file it names and reports the whole record gone, so every row gets a
+	// fixture. The list is spelled out again rather than read from the source: a test looping the real
+	// one would follow a dropped row instead of catching it.
+	for _, durable := range []string{"charter.md", "for-agents/decisions.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting/reference.txt"} {
 		f := newShip(t, "001-durable")
 		f.write(f.scratch()+"/"+durable, "# the human's own\n")
 		f.runReport("discard", "001-durable")
@@ -274,7 +274,7 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	}
 
 	// Another ship's intent file is the only thing under .idsd/ that identifies that ship once its own
-	// report is closed, and throwaway mode keeps no copy of it anywhere. Nothing else here survives
+	// report is closed, and external mode keeps no copy of it anywhere. Nothing else here survives
 	// this discard, so the intents/-and-archive/ arm is the only thing standing between the two.
 	sibling := newShip(t, "001-going")
 	sibling.newIntentFile("001-going")

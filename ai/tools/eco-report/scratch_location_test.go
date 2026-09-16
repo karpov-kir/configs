@@ -1,6 +1,6 @@
 package ecoreport_test
 
-// Where throwaway scratch lives, which is the whole of what this change moved. The defect: the
+// Where an external idsd lives, which is the whole of what this change moved. The defect: the
 // `.idsd/` exclusion was shared across every worktree of a clone while the directory it excluded was
 // not, so a ship authored from the main checkout was invisible in every worktree and vice versa.
 //
@@ -239,7 +239,7 @@ func TestAnOverrideInsideTheWorkingTreeIsRefused(t *testing.T) {
 
 func TestAnInTreeScratchDirectoryIsNeverMigratedSilently(t *testing.T) {
 	t.Parallel()
-	// The upgrade path. A repo whose throwaway scratch still sits in the tree holds the only copy of
+	// The upgrade path. A repo whose external idsd still sits in the tree holds the only copy of
 	// those intents, so nothing here moves or merges them — it refuses and says what to do. Moving
 	// them silently is the one action with no undo.
 	f := newRepo(t)
@@ -293,7 +293,7 @@ func TestAnInTreeScratchDirectoryIsNeverMigratedSilently(t *testing.T) {
 func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 	t.Parallel()
 	// The old layout wrote `.idsd/` into .git/info/exclude to hide in-tree scratch from `git add -A`.
-	// Nothing writes it now, so every repo that ever ran a throwaway ship carries a rule for a directory
+	// Nothing writes it now, so every repo that ever ran an external ship carries a rule for a directory
 	// that is not there. Left alone it is not merely untidy: it makes git ignore untracked files under
 	// .idsd/, which is exactly what promotion needs staged.
 	t.Run("check-ignore removes it and says so", func(t *testing.T) {

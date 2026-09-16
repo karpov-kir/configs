@@ -4,10 +4,10 @@ package ecoreport_test
 // ignoring nothing on anybody else's clone, and the report carries a pass's security findings, so it
 // is exactly the file that must not reach a commit.
 //
-// Every case here is COMMITTED mode, and that is the change: throwaway scratch no longer lives in the
+// Every case here is COMMITTED mode, and that is the change: an external idsd no longer lives in the
 // tree, so there is nothing there to ignore and `init` asks no ignore question at all. The rules below
 // still govern the one mode where `.idsd/` is tracked and each ship's scratch has to be kept out of it.
-// The throwaway mode's replacement property — the scratch is somewhere `git add -A` cannot reach — is
+// External mode's replacement property — the scratch is somewhere `git add -A` cannot reach — is
 // pinned in scratch_location_test.go.
 
 import (

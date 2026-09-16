@@ -124,7 +124,24 @@ func TestLayoutCheckRejectsArchivedReportsAndMissingIntentFiles(t *testing.T) {
 	}
 	f := newShip(t, "review: standalone")
 	f.runReport("layout", "check")
-	f.record("a standalone review needs no intent or charter", f.status == 0, f.evidence())
+	f.record("a standalone review needs no intent file", f.status == 0, f.evidence())
+}
+
+// Whether a project has a charter at all is the human's own call, so its absence is not drift to
+// report. It used to be, and every caller downstream turned that finding into a question nobody
+// asked: the audit worker reports it, and idsd-reactor stops a launch on a Blocker.
+//
+// The negative control is the second half: this is a project with intents, in the exact shape that
+// used to fail, and the misplaced artifact proves `layout check` still has teeth over the same tree.
+func TestLayoutCheckDoesNotReportAnAbsentCharter(t *testing.T) {
+	f := newRepo(t)
+	f.write(f.scratch()+"/intents/001-one/intent.md", "intent bytes\n")
+	f.runReport("layout", "check")
+	f.record("intents without a charter pass layout check", f.status == 0, f.evidence())
+
+	f.write(f.scratch()+"/stray.txt", "stray bytes\n")
+	f.runReport("layout", "check")
+	f.record("and the same tree still fails on a misplaced artifact", f.status == 1, f.evidence())
 }
 
 func TestDiscardPreservesUnexpectedRootArtifacts(t *testing.T) {

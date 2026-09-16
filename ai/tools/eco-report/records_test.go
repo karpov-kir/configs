@@ -551,12 +551,12 @@ func TestAMutationNeverLosesALineItDidNotTarget(t *testing.T) {
 
 func TestRecordsLandWhereTheRepoModePutsThem(t *testing.T) {
 	t.Parallel()
-	throwaway := newRepo(t)
-	throwaway.runReport("record", "append", "project-decisions", "throwaway")
-	throwaway.record("in throwaway mode the record is outside the working tree",
-		throwaway.isFile(throwaway.sharedIdsd()+"/for-agents/decisions.md") && !throwaway.exists(throwaway.treeIdsd()+"/for-agents/decisions.md"),
-		throwaway.evidence())
-	throwaway.record("and the tree stays clean", throwaway.treeIsFreeOfScratch(), throwaway.indexState())
+	external := newRepo(t)
+	external.runReport("record", "append", "project-decisions", "kept outside")
+	external.record("in external mode the record is outside the working tree",
+		external.isFile(external.sharedIdsd()+"/for-agents/decisions.md") && !external.exists(external.treeIdsd()+"/for-agents/decisions.md"),
+		external.evidence())
+	external.record("and the tree stays clean", external.treeIsFreeOfScratch(), external.indexState())
 
 	committed := newCommittedRepo(t)
 	committed.runReport("record", "append", "project-decisions", "committed")
@@ -705,8 +705,8 @@ func TestOnlyAnAppendCreatesARecord(t *testing.T) {
 		f.assertRefused(op + " on a record that is not there is refused")
 		f.assertReports("there is no", op+" says the record is not there")
 		// Not tidiness. `playbook.md` is on survivingContent's durable list, so a nought-byte one left
-		// by a typo keeps a throwaway `.idsd/` standing for good — the mode's zero-traces contract
-		// broken by a command that refused.
+		// by a typo reads as the human's own work for good, and a `discard` they ask for then leaves
+		// the whole directory standing on a file a refusal created.
 		f.record("and "+op+" leaves no empty record behind",
 			!f.exists(recordFile(f, "project-playbook")), joinLines(f.find(f.scratch())))
 	}

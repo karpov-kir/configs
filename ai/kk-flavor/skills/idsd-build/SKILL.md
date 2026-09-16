@@ -13,7 +13,7 @@ argument-hint: "intent file (NNN-slug), or omit to choose from the unbuilt ones"
 
 A reactor reaching this skill first follows `~/.kk-flavor/skills/idsd-reactor/SKILL.md` → **Session role**. `~/.kk-flavor/standards/skill-protocol.md` governs delegation and model protection.
 
-**The intent path below, and every `.idsd/` path in this file, hangs off the resolved scratch root rather than the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
+**The intent path below, and every `.idsd/` path in this file, hangs off the resolved idsd root rather than the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
 
 Input: an intent file at `.idsd/intents/NNN-<slug>/intent.md` — one folder per ship, holding `intent.md` and the report and records under `for-agents/` — its parts defined in `~/.kk-flavor/skills/idsd-intent/templates/ice-template.md`. If unspecified, list the not-yet-built ones (`status: draft` or `approved`) and ask which.
 
@@ -38,7 +38,7 @@ A prior closed round remains closed while its requirements, code assumptions and
 
 Read `.idsd/charter.md`, `.idsd/for-agents/language.md` and `.idsd/for-agents/playbook.md`, plus the project's own agent instructions. If the charter is absent, verify the resolved root and report it as missing input; do not invent its content or infer that no inherited constraints exist. The language file fixes the names this build uses. **This ship's playbook is pruned here and nowhere else** — an entry you reach for and find wrong is deleted in the same breath, through `report.sh record --intent <NNN-slug> evict local-playbook`. The project's own is pruned at finalize. Append it again, corrected, where it is worth keeping.
 
-**In committed repo mode, the project's own agent instructions should point at `.idsd/`** — `.idsd/charter.md` (including Constraints), `.idsd/for-agents/language.md` and `.idsd/for-agents/playbook.md`. Nothing else tells an agent working here *outside* an idsd run that any of them exist. Propose that pointer block when it is missing and add it on confirmation; never in throwaway mode, where the instruction file is tracked and the mode forbids a traceable edit.
+**In committed repo mode, the project's own agent instructions should point at `.idsd/`** — `.idsd/charter.md` (including Constraints), `.idsd/for-agents/language.md` and `.idsd/for-agents/playbook.md`. Nothing else tells an agent working here *outside* an idsd run that any of them exist. Propose that pointer block when it is missing and add it on confirmation; never in external mode, where the instruction file is tracked but the path it would name exists on this machine alone.
 
 The gate resolution is `~/.kk-flavor/standards/building.md` → **Before the loop**. The ICE's constraints and the charter's **Constraints** both bind. Resolve contradictions through `~/.kk-flavor/skills/idsd-charter/SKILL.md` before building; its protected-section rules govern approval. One that cannot become a command goes to the Phase 4 checkpoint.
 

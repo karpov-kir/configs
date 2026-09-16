@@ -249,7 +249,7 @@ func newCommittedShip(t *testing.T, intent string) *fixture {
 }
 
 // The other repo mode: .idsd/ tracked through a durable charter, with each ship's scratch gitignored
-// the way a shared idsd setup does it. Every plain newRepo fixture is a throwaway. No ship folder is
+// the way a committed idsd setup does it. Every plain newRepo fixture is external. No ship folder is
 // made here, since `init` is what creates one.
 func newCommittedRepo(t *testing.T) *fixture {
 	t.Helper()
@@ -262,7 +262,7 @@ func newCommittedRepo(t *testing.T) *fixture {
 	return f
 }
 
-// Checked at the one place the state is built. A fixture whose commit did not land is a throwaway,
+// Checked at the one place the state is built. A fixture whose commit did not land is external,
 // and the committed-mode branches its cases test (discard's refusal, check-ignore's warning, init's
 // acceptance) answer the same way in both modes. So every case above such a fixture passes while
 // testing nothing, all at once.
@@ -366,7 +366,7 @@ func (f *fixture) canonicalRepo() string {
 	return f.repo
 }
 
-// The default throwaway location, as a literal. A case asserting WHERE the scratch landed wants this
+// The default external location, as a literal. A case asserting WHERE the scratch landed wants this
 // rather than f.scratch(), which derives from the same rule the tool does and would agree with it by
 // construction.
 func (f *fixture) sharedIdsd() string {
@@ -415,7 +415,7 @@ func (f *fixture) assertNoReportWritten(name string) {
 }
 
 // Discard succeeded and took the whole scratch dir with it. Both locations are asserted: the shared
-// one because that is what discard removes, and the in-tree one because a throwaway run that left a
+// one because that is what discard removes, and the in-tree one because an external run that left a
 // directory there has broken the mode's contract just as thoroughly.
 func (f *fixture) assertIdsdRemoved(name string) {
 	f.t.Helper()
@@ -433,7 +433,7 @@ func (f *fixture) writeOverride(content string) {
 	f.write(f.configHome+"/kk-flavor/idsd.conf", content)
 }
 
-// The invariant that replaced the local exclusion: throwaway scratch sits where `git add -A` cannot
+// The invariant that replaced the local exclusion: an external idsd sits where `git add -A` cannot
 // reach it, so there is nothing to hide and no exclusion to keep in step across worktrees. Stronger
 // than what it replaced — an exclude entry can be edited away, a path outside the tree cannot — and
 // asked of `git status` rather than of the layout, so it fails if git can see the scratch by any route.
@@ -504,7 +504,7 @@ func (f *fixture) newDurableCharterInScratch() {
 func (f *fixture) newDurableCharter() {
 	f.t.Helper()
 	// Always in-tree, never f.scratch(): this helper exists to CREATE committed mode, and at the moment
-	// it runs the repo is still throwaway, so scratch() would answer the shared dir and the `git add`
+	// it runs the repo is still external, so scratch() would answer the shared dir and the `git add`
 	// that follows would have nothing to stage.
 	f.mkdirAll(f.treeIdsd())
 	f.write(f.treeIdsd()+"/charter.md", "# durable\n")

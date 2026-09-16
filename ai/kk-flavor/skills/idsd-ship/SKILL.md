@@ -1,7 +1,7 @@
 ---
 name: idsd-ship
 description: "Coordinate an ICE intent through build, qualification and authorized landing. Use for \"ship it\", \"merge this\", or \"continue the ship\". For one checkpoint use idsd-build, idsd-qualify or idsd-finalize; several intents at once belong to idsd-reactor."
-argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote"
+argument-hint: "<arg> | done [<intent>] | qualify | continue [<intent>] | promote | discard [<intent>]"
 ---
 
 **Runs:** holds — converses
@@ -25,15 +25,20 @@ Once the intent is resolved, rename this session to `[<repo name>] IDSD ship <NN
 | `idsd-ship done [<intent>]` | Land through a direct merge or PR, gated on review freshness and the stage record. **Names the intent whenever more than one ship is open** — `report.sh gate` refuses to guess between them. |
 | `idsd-ship qualify` | `idsd-qualify` over the working tree; trim only on an explicit caller request for turnaround. No build or merge. |
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
-| `idsd-ship promote` | Turn a throwaway `.idsd/` into a durable idsd project. |
+| `idsd-ship promote` | Move an external `.idsd/` into the repo, so it travels in the history. |
+| `idsd-ship discard [<intent>]` | Tear down a ship's records, and the external `.idsd/` when nothing else is left. |
 
 With no `<arg>` and no subcommand, list the not-yet-built intents and ask which. Where more than one has every `depends-on` already shipped, offer `idsd-reactor` instead.
 
 ## Report & .idsd lifecycle
 
-The report contract — the **committed vs throwaway** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote** and its counterpart **discard**, the latter owned by `done` below.
+The report contract — the **committed vs external** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote** and its counterpart **discard**.
 
-**Promote** — `report.sh promote` stages `.idsd/`; the human commits. A standalone qualify with no intents has nothing durable to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the project-instruction pointer at `.idsd/` per `~/.kk-flavor/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context (progressive)**.
+**Both run on an explicit human request and nowhere else.** Neither is a step in a lifecycle, so no phase below reaches one. **An external `.idsd/` is never offered for deletion** — it is where that project is kept, not scratch a ship cleans up after itself.
+
+**Discard** — `report.sh discard <intent>` removes that ship's intent, records, report and stage markers, and takes the whole `.idsd/` only when nothing else remains in it. It refuses in committed mode, where `.idsd/` is the repo's own. Name the intent whenever more than one ship is open.
+
+**Promote** — `report.sh promote` moves `.idsd/` into the tree and stages it; the human commits. A standalone qualify with no intents has nothing to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the project-instruction pointer at `.idsd/` per `~/.kk-flavor/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context (progressive)**.
 
 ## Build, then qualify
 
@@ -46,7 +51,7 @@ The report contract — the **committed vs throwaway** repo modes included — p
 
 ## `continue` — resume from current state
 
-First reconcile any pending landing through `idsd-finalize`, using the task's resume evidence and the branch or PR state. A branch-local archive or a missing report does not prove landing. While landing is pending, return its waiting state; after it completes, finish `done`'s cleanup and audit steps. Otherwise read where the change set stands with `report.sh state <intent>` (never hand-parse the report); it prints one token. With several ships open, take the intent from `<arg>`; `report.sh list` names them with their states:
+First reconcile any pending landing through `idsd-finalize`, using the task's resume evidence and the branch or PR state. A branch-local archive or a missing report does not prove landing. While landing is pending, return its waiting state; after it completes, finish `done`'s audit step. Otherwise read where the change set stands with `report.sh state <intent>` (never hand-parse the report); it prints one token. With several ships open, take the intent from `<arg>`; `report.sh list` names them with their states:
 
 | Token | `continue` does |
 |---|---|
@@ -65,6 +70,5 @@ First reconcile any pending landing through `idsd-finalize`, using the task's re
 Resume a pending landing through `idsd-finalize` before requiring a report; committed-mode PR preparation may already have retired it. When that resume completes, proceed to step 3. On first entry, read the intent from the report's frontmatter; refuse a missing report or one from standalone qualify.
 
 1. **Gate.** Run `report.sh gate <intent>`; the human clears an open `- [ ]` first, by resolving it or routing it out of the report — a backlog, an `idsd-charter` or project-instruction proposal. **Routing it into the ICE `## Follow-ups` clears nothing**: the gate reads both, so the item stays open, and the edit lands after the stamp and adds a freshness block on top of it. Beyond the gate: the review is stale if the target branch advanced past this branch's base since `reviewed-tree` was stamped. Integrate the target and re-run `qualify` as the pass the merge waits on (which re-stamps) before landing.
-2. On a clean gate — or an overridable block the human waived, with no open `- [ ]` — invoke `~/.kk-flavor/skills/idsd-finalize/SKILL.md`, carrying the landing process, target, authorization and any scoped gate override. It owns the final choice when none was supplied, the mode-specific archive timing and verified landing. A waiting PR leaves `done` unfinished; resume it before cleanup, audit or a reactor completion message. Its `report.sh finalize` retires the report.
-3. **Throwaway cleanup.** In throwaway repo mode (`report.sh repo-mode`) the local `.idsd/` outlives the ship and breaks the mode's zero-traces contract. **After** finalize verifies the merge and archive — never before, or the intent is lost while the work is unlanded — **ask** whether to clear it (default yes). On yes, `report.sh discard <intent>`. Keeping a throwaway `.idsd/` instead is what `promote` (before `done`) is for.
-4. **Offer an audit** — committed repo mode only, when `~/.kk-flavor/skills/idsd-ship/scripts/cadence.sh audit due` says one is due; its usage line carries the exit codes. On exit 2 offer anyway and say the cadence could not be read. Dispatch `~/.kk-flavor/workers/idsd/audit.md` on a yes. Then `cadence.sh audit asked` once the answer is settled — on no immediately, on yes only after that worker returns.
+2. On a clean gate — or an overridable block the human waived, with no open `- [ ]` — invoke `~/.kk-flavor/skills/idsd-finalize/SKILL.md`, carrying the landing process, target, authorization and any scoped gate override. It owns the final choice when none was supplied, the mode-specific archive timing and verified landing. A waiting PR leaves `done` unfinished; resume it before the audit offer or a reactor completion message. Its `report.sh finalize` retires the report.
+3. **Offer an audit** — in either repo mode, when `~/.kk-flavor/skills/idsd-ship/scripts/cadence.sh audit due` says one is due; its usage line carries the exit codes. On exit 2 offer anyway and say the cadence could not be read. Dispatch `~/.kk-flavor/workers/idsd/audit.md` on a yes. Then `cadence.sh audit asked` once the answer is settled — on no immediately, on yes only after that worker returns.

@@ -6,7 +6,7 @@ You are one audit of a whole `.idsd/` intent set. You read the set, check it for
 
 ## Phase 1 — Load the set
 
-**Every `.idsd/` path here hangs off the resolved scratch root, not the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
+**Every `.idsd/` path here hangs off the resolved idsd root, not the repo root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
 
 Run `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh layout check` and retain its findings. Read active intents (`intents/*/intent.md`), archived intents (`archive/*/intent.md`), `charter.md`, `roadmap.md`, and project records under `for-agents/`. No `.idsd/` → say so and stop. An absent charter is missing input, never permission to invent its content.
 

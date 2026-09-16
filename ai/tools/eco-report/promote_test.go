@@ -27,12 +27,12 @@ func TestPromoteReportsTheModeNotTheAdd(t *testing.T) {
 	t.Parallel()
 	// Each ship's scratch is ignored by the entries promote itself writes, and `git add` on a directory
 	// whose every file is ignored stages nothing and exits 0. With nothing else under .idsd/, reading
-	// success off that add leaves repo-mode still saying throwaway, and the next check-ignore
+	// success off that add leaves repo-mode still saying external, and the next check-ignore
 	// re-excludes .idsd/, silently undoing the promotion.
 	f := newShip(t, "001-nothing-durable")
 	f.runReport("promote")
 	f.assertRefused("promote refuses when everything under .idsd/ is ignored")
-	f.record("and the repo is still a throwaway, as the refusal says", f.runReportStdout("repo-mode") == "throwaway", "")
+	f.record("and the idsd is still external, as the refusal says", f.runReportStdout("repo-mode") == "external", "")
 	// The refusal's real obligation now that promote MOVES the scratch: it must not have moved it. A
 	// half-done promotion leaves the intents in the tree, untracked and unignored, with the tool saying
 	// it refused.
@@ -92,7 +92,7 @@ func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 	if f.madeUnreadable(f.repo+"/.git/index", "the unreadable-index cases") {
 		// Again the message rather than the exit: without the assertion both subcommands still exit 2,
 		// because a later git call fails on the same unreadable index. Only the message tells the two
-		// apart, and only the assertion stops the mode being read as "throwaway", the answer that deletes.
+		// apart, and only the assertion stops the mode being read as "external", the answer that deletes.
 		f.runReport("promote")
 		f.assertRefused("promote refuses when the repo mode cannot be read")
 		f.assertReports("repo mode is unknown", "and names the unreadable mode as the reason")

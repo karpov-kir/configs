@@ -209,10 +209,10 @@ func TestFinalizeStagesTheArchivedRecordsInCommittedMode(t *testing.T) {
 	}
 }
 
-// The other mode, where the same staging would be wrong: a throwaway's .idsd/ lives under the git dir,
+// The other mode, where the same staging would be wrong: an external .idsd/ lives under the git dir,
 // outside any tree git could add. A `git add` there fails, and a finalize that refused on it would
-// break every repo that never promoted its scratch.
-func TestFinalizeStagesNothingInThrowawayMode(t *testing.T) {
+// break every repo that never promoted its idsd.
+func TestFinalizeStagesNothingInExternalMode(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "001-shipping")
 	f.newIntentFile("001-shipping")

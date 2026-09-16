@@ -25,10 +25,10 @@
 //	layout check     report misplaced artifacts and charter constraints requiring curation
 //	layout migrate --dry-run|--apply
 //	                 explicitly relocate inactive legacy artifacts; refuse live reports, links and collisions
-//	root             print the resolved scratch directory — the in-tree .idsd/ in committed mode, and
-//	                 outside the working tree in throwaway mode. The only way a skill learns it;
+//	root             print the resolved idsd directory — the in-tree .idsd/ in committed mode, and
+//	                 outside the working tree in external mode. The only way a skill learns it;
 //	                 joining `.idsd/` onto the repo root is what made the location per-worktree
-//	repo-mode        print committed|throwaway — is .idsd/ tracked in git?
+//	repo-mode        print committed|external — is .idsd/ tracked in git?
 //	invalidate       clear reviewed-tree/reviewed-worktree/reviewed-stages and drop the stage markers at
 //	                 pass start, so no stamp outlives its tree; stamp refuses until this pass has run it
 //	stage-result <json-file>  durably accept one typed stage result and render its findings; exact pending
@@ -55,14 +55,15 @@
 //	                 last is existence only, since those two relations do not require a built target.
 //	                 Judgement is the grill's, not this
 //	carry            print prior open `- [ ]` (with their section) so re-qualify loses none
-//	check-ignore     keep each ship's scratch out of the fingerprint, by the mechanism that fits the repo mode
-//	promote          throwaway → committed: ignore each ship's scratch via .gitignore, MOVE the scratch
-//	                 directory into the tree as .idsd/, stage it. Every refusal after the move puts the
-//	                 directory back where it came from
-//	discard          throwaway only: remove this ship's scratch (report, intent file, stage markers),
-//	                 and the whole scratch directory when nothing else remains. Another intent, or an
-//	                 authored charter/constraints/language/playbook, is "something" — those are the
-//	                 human's, not this ship's scratch
+//	check-ignore     keep each ship's working files out of the fingerprint, by the mechanism that fits
+//	                 the repo mode
+//	promote          external → committed, on an explicit human request: ignore each ship's working files
+//	                 via .gitignore, MOVE the idsd directory into the tree as .idsd/, stage it. Every
+//	                 refusal after the move puts the directory back where it came from
+//	discard          external only, on an explicit human request: remove this ship's own files (report,
+//	                 intent file, stage markers), and the whole idsd directory when nothing else remains.
+//	                 Another intent, or an authored charter/decisions/constraints/language/playbook, is
+//	                 "something" — those are the project's, not this ship's
 //	state            print the `continue` routing token:
 //	                 no-report|resume|re-qualify|decide|finalize|ready|done
 //	list             one line per open ship, `<intent><TAB><state>`, for routing with several in flight
@@ -180,14 +181,14 @@ type run struct {
 	fingerprintBin        string
 
 	root string
-	// The scratch directory this invocation acts on, resolved once by resolveIdsdDir. In committed mode
-	// it is inside the tree; in throwaway mode it never is. Read it rather than rebuilding `.idsd` from
+	// The idsd directory this invocation acts on, resolved once by resolveIdsdDir. In committed mode
+	// it is inside the tree; in external mode it never is. Read it rather than rebuilding `.idsd` from
 	// the root — that is what made the location per-worktree.
 	idsdDir string
 	// Where every ship's folder lives. One folder per ship, holding its intent, its three
 	// intent-local records and its report, so a ship is torn down by removing one directory.
 	intentsDir string
-	// Set when a machine-local override moved the scratch root, and printed by every command it affects.
+	// Set when a machine-local override moved the idsd root, and printed by every command it affects.
 	overrideNote string
 
 	// Set by setReportPaths once the intent is known. Empty until then, so a subcommand that reads a

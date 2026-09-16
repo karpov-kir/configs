@@ -6,8 +6,8 @@
 #          due    0 = offer one, 1 = not yet, 2 = undetermined (never "not due")
 #          asked  record that the offer was made today, whatever the human answered
 #
-# The audit date goes under `.git/`, never in `.idsd/`: `report.sh discard` wipes a throwaway
-# `.idsd/`, and a cadence the ship itself deletes can never come due.
+# The audit date goes under `.git/`, never in `.idsd/`: `report.sh discard` can take an external
+# `.idsd/` down to nothing, and a cadence one discard deletes can never come due.
 #
 # Exit 2 is "nothing was determined" and is never a "not due": both end in "no offer made", so a
 # caller that reads one as the other suppresses the pass for as long as the bad record sits there.
