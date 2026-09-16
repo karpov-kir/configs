@@ -298,6 +298,10 @@ func (r *run) cmdRecord(args []string) {
 		r.refuse("error: classify takes project-decisions or local-decisions and candidate or decision — nothing was written.")
 	}
 	text = r.entryText(kind, text)
+	// After every spelling refusal above, so a misspelled command is told what it got wrong rather than
+	// told to wait and then told again. Before recordPath, which resolves a path and creates the
+	// directory under it, so a command that waits its turn leaves nothing behind while it waits.
+	r.refuseSharedRecordUnderAForeignSlot(kind)
 	path := r.recordPath(kind)
 	switch op {
 	case "classify":

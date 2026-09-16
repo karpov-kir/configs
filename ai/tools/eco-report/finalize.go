@@ -114,6 +114,49 @@ func (r *run) takeMergeSlot(intent string, isForced bool) bool {
 
 func (r *run) releaseMergeSlot() { _ = rmFile(r.mergeSlotPath()) }
 
+// The slot asked on the write it was built for. Until this, only `finalize` and an explicit
+// `merge-slot take` consulted it, so a lane that appended to a project record without taking it passed
+// no check at all and the ship holding the slot learned nothing.
+//
+// Observed on 2026-09-16 on a clone where eleven changes landed at once, then reproduced in a probe
+// clone of two worktrees. With the slot held, a second worktree's `git merge` and its
+// `record append project-decisions` both went through at exit 0, and the holder's slot file came back
+// byte-identical. The merge half is not fixable here and never was: `git merge` is the session's own
+// command and this tool is not in its path. So what the slot promises is narrowed to the records, and
+// on those it is now kept.
+//
+// Only the project records. A local one belongs to one ship and no other lane can reach it, so
+// refusing there would stall a build for a slot it has no business waiting on.
+//
+// Ownership is the worktree, not the intent. A project record belongs to no single ship, so
+// `record project-*` carries no slug to compare against the slot's — and a worktree is what a session
+// owns for its whole life (mergeSlot above), which makes it the one name both sides can state. The
+// holder's own judging half runs from the worktree it took the slot in, so it writes freely; any other
+// worktree is the collision.
+//
+// No slot, no refusal: a clone where nobody brackets a merge behaves exactly as it did. An unreadable
+// slot refuses, for the reason readMergeSlot treats one as held — absent is the answer that lets a
+// second writer in, and a corrupt slot is when that must not happen.
+func (r *run) refuseSharedRecordUnderAForeignSlot(kind *recordKind) {
+	if kind.isLocal {
+		return
+	}
+	held := r.readMergeSlot()
+	if held == nil || held.worktree == r.root {
+		return
+	}
+	age := ""
+	if !held.taken.IsZero() {
+		age = ", taken " + strconv.Itoa(int(time.Since(held.taken).Round(time.Minute)/time.Minute)) + " minute(s) ago"
+	}
+	// Both quoted halves collapsed, as takeMergeSlot collapses them: neither is text this tool chose,
+	// and what reads this refusal is another agent waiting its turn.
+	r.errLines("error: another ship holds the merge slot — '"+shell.Oneline(held.intent)+"' in "+shell.Oneline(held.worktree)+age+". "+kind.file+" is unchanged.",
+		"  "+kind.name+" is the project's own record, and merging entries into it is what the slot makes serial.",
+		"  Wait for that ship, or take the slot yourself once you have established its holder is gone.")
+	r.exit(exitMergeSlotHeld)
+}
+
 // The ship's own scratch, deleted before the folder moves: the report, which outlived the pass it
 // recorded and which any later pass reproduces.
 //

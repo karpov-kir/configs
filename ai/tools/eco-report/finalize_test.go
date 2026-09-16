@@ -83,10 +83,83 @@ func TestAMergeSlotIsReclaimableOnceItsHolderIsKnownGone(t *testing.T) {
 	f.record("and the ship is archived", f.isFile(f.archiveDir("001-only")+"/intent.md"), f.evidence())
 }
 
+// The write the slot was built for, asked of the slot at last. Until 2026-09-16 only `finalize` and an
+// explicit `merge-slot take` consulted it, so a lane that appended to a project record bypassed the
+// exclusion in silence and the ship holding the slot never learned. finalize.go carries where that was
+// observed and where it was reproduced.
+func TestASharedRecordWriteWaitsForTheSlotItsHolderTook(t *testing.T) {
+	t.Parallel()
+
+	// The holder is another worktree of this clone, which is the whole shape of the collision: one slot
+	// per clone, and the lane that would overwrite is a sibling checkout, not this one.
+	newForeignHolder := func(t *testing.T) *fixture {
+		t.Helper()
+		f := newShip(t, "001-writing")
+		f.takeMergeSlotFrom("002-landing", f.base+"/sibling-worktree")
+		return f
+	}
+
+	t.Run("refuses a project record while another worktree holds the slot", func(t *testing.T) {
+		f := newForeignHolder(t)
+		f.runReport("record", "append", "project-decisions", "settled while someone else was landing")
+
+		// The slot's own code, so a caller already handling `merge-slot take`'s exit 4 handles this
+		// without learning a second vocabulary for the same wait.
+		f.record("and says so with the slot's exit code", f.status == 4, "exit "+strconv.Itoa(f.status)+"\n"+f.out)
+		f.record("and names the holder and its worktree, so the waiter can check rather than trust",
+			strings.Contains(f.out, "002-landing") && strings.Contains(f.out, "sibling-worktree"), f.out)
+		f.record("and the record is untouched, so nothing half-wrote while it waited",
+			!strings.Contains(f.read(recordFile(f, "project-decisions")), "settled while someone else"),
+			f.read(recordFile(f, "project-decisions")))
+	})
+
+	// The control that makes the refusal above mean something: same clone, same slot, same write, held
+	// by this worktree. Without it a tool that refused every project write would pass the case above.
+	t.Run("writes freely under a slot this worktree holds", func(t *testing.T) {
+		f := newShip(t, "001-writing")
+		f.runReport("merge-slot", "take", "001-writing")
+		f.runReport("record", "append", "project-decisions", "the holder's own judging half")
+
+		f.record("the holder's own write succeeds", f.status == 0, f.evidence())
+		f.record("and lands in the record",
+			strings.Contains(f.read(recordFile(f, "project-decisions")), "the holder's own judging half"),
+			f.read(recordFile(f, "project-decisions")))
+	})
+
+	// The second control: no slot at all. A clone where nobody brackets a merge is every single-ship
+	// repository, and this fix must not make one of those wait on a file that is never written.
+	t.Run("writes freely when no slot is held", func(t *testing.T) {
+		f := newShip(t, "001-writing")
+		f.runReport("record", "append", "project-decisions", "nobody is landing")
+
+		f.record("a write with no slot standing succeeds", f.status == 0, f.evidence())
+	})
+
+	// A local record belongs to one ship and no other lane can reach it, so the slot has no business
+	// stopping it. Refusing here would stall a build behind a landing it shares nothing with.
+	t.Run("leaves a ship's own local record alone", func(t *testing.T) {
+		f := newForeignHolder(t)
+		f.runReport("record", "--intent", "001-writing", "append", "local-decisions", "this ship's own")
+
+		f.record("a local write is not held back by another ship's slot", f.status == 0, f.evidence())
+		f.record("and lands in the ship's own record",
+			strings.Contains(f.read(localRecordFile(f, "001-writing", "local-decisions")), "this ship's own"),
+			f.read(localRecordFile(f, "001-writing", "local-decisions")))
+	})
+}
+
 func (f *fixture) takeMergeSlot(intent string) {
 	f.t.Helper()
+	f.takeMergeSlotFrom(intent, f.repo)
+}
+
+// The slot as a sibling worktree of this clone wrote it. takeMergeSlot above records this fixture's own
+// repo, which every record write then reads as its own — so a case about the collision has to name a
+// worktree that is not this one.
+func (f *fixture) takeMergeSlotFrom(intent, worktree string) {
+	f.t.Helper()
 	f.write(f.mergeSlotPath(),
-		intent+"\n"+f.repo+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
+		intent+"\n"+worktree+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
 }
 
 func (f *fixture) mergeSlotPath() string {

@@ -18,6 +18,8 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Finalizing is serial across the whole clone**, because it writes records every ship shares. Use `report.sh merge-slot` for record mutation and landing. Settle human decisions outside the slot; release it before a new question or a PR wait. Step 2 covers requalification while holding it.
 
+**The tool enforces that on the project records, not on `git merge`.** A `report.sh record project-*` write exits 4 while another worktree of this clone holds the slot, so the entries you merge upward cannot land beside another ship's. The merge itself is your own command and no slot reaches it — verify the target again before landing, as step 2 says.
+
 ## 1. Clear what can still refuse or ask
 
 On resume, reconcile the recorded branch or PR with the target before rerunning preparation. Follow [pr.md](pr.md) for a pending PR. If a direct merge already landed, finish only the remaining archive work. Missing qualification evidence requires a fresh pass; a prepared archive alone never supplies it.
