@@ -162,7 +162,22 @@ type fileOverCeiling struct {
 type changeSet struct {
 	stats
 	over []fileOverCeiling
-	read int
+	// mass is every changed file's comment count, so the report can say where the overage sits. A file
+	// the change did not create is marked carried: its comments are counted here because the file lands
+	// with them, but they are the repo's and `code-style.md` reports them rather than charging them.
+	mass []fileMass
+	// chargeable is the change set less the files it did not write. Carried mass is reported and never
+	// charged, so the overage — which counts every changed file whole — is the workings and this is the
+	// figure a reader acts on. They differ by more than the overage itself on a change that brushes a
+	// comment-heavy file.
+	chargeable stats
+	read       int
+}
+
+type fileMass struct {
+	rel      string
+	comments int
+	carried  bool
 }
 
 func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) changeSet {
@@ -171,8 +186,35 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) chang
 		if ceiling.isOver(rel, file) {
 			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.ratio()})
 		}
+		carried := !ceiling.isNew[rel]
+		if !carried {
+			set.chargeable.add(file)
+		}
+		if file.comments > 0 {
+			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, carried: carried})
+		}
 	})
 	return set
+}
+
+// carriers names the files holding the first half of the change set's comment mass, heaviest first. Half
+// rather than a chosen count: it answers "where is this" without a number invented to make a report fit.
+func (c changeSet) carriers() []fileMass {
+	ranked := append([]fileMass(nil), c.mass...)
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].comments != ranked[j].comments {
+			return ranked[i].comments > ranked[j].comments
+		}
+		return ranked[i].rel < ranked[j].rel
+	})
+	running := 0
+	for i, file := range ranked {
+		running += file.comments
+		if running*2 >= c.comments || i+1 == maxShown {
+			return ranked[:i+1]
+		}
+	}
+	return ranked
 }
 
 func bar(out console, args []string, cwd string, cfg Config) int {
@@ -237,6 +279,21 @@ func (c console) reportBar(base baseline, set changeSet) int {
 	if cut := cutToRatio(set.stats, base.stats); cut > 0 {
 		findings++
 		fmt.Fprintf(c.stdout, "over on lines: cut %d comment line(s) to reach %.1f%%\n", cut, base.stats.ratio()*100)
+	}
+	if cutToRatio(set.stats, base.stats) > 0 {
+		if owed := cutToRatio(set.chargeable, base.stats); owed > 0 {
+			fmt.Fprintf(c.stdout, "chargeable: %d comment line(s), in the files this change wrote\n", owed)
+		} else {
+			fmt.Fprintf(c.stdout, "chargeable: nothing chargeable — the overage is in files this change did not write\n")
+		}
+		for _, file := range set.carriers() {
+			carried := ""
+			if file.carried {
+				carried = ", carried — the repo's up to this change, so report it rather than charge it"
+			}
+			fmt.Fprintf(c.stdout, "%s: %d comment line(s)%s\n",
+				shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.comments, carried)
+		}
 	}
 	if allowed := (rate{numerator: base.stats.longBlocks, denominator: base.stats.blocks}).allowance(set.blocks); set.longBlocks > allowed {
 		findings++
