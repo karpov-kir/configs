@@ -675,3 +675,28 @@ func TestContentRevisionPinsOnlyClosedRanges(t *testing.T) {
 		}
 	}
 }
+
+// The report names the checkout as well as the binary. They are different facts: a stamp hashes source,
+// so a tree can hash identically to its own source and still be a commit nobody else has — which is what
+// makes two readings taken apart incomparable when the mount moved between them.
+func TestBarNamesTheTreeItMeasuredOn(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
+	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
+	t.Setenv("ECO_TOOL_TREE", "feedfacedead")
+
+	r.runBar()
+	r.expectStdoutHas("measured by: comment-density build deadbeefcafe, tree feedfacedead")
+}
+
+// An unnamed checkout is reported, never omitted — the same reason the build is. A line that drops the
+// tree when nothing named it leaves its absence meaning either no git or an older binary.
+func TestBarNamesAnUnknownTreeRatherThanOmittingIt(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
+	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
+	t.Setenv("ECO_TOOL_TREE", "")
+
+	r.runBar()
+	r.expectStdoutHas("build deadbeefcafe, tree unknown")
+}
