@@ -188,6 +188,14 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			// This repo's "it did not run" — a mutation suite the watchdog killed on a loaded machine, a
 			// fixture that could not be built. Held apart from a failure: calling it one names the code
 			// for something the machine did.
+			//
+			// For a unit with a prerequisite, that "something the machine did" reaches every key, not just
+			// this one. `prerequisite` is PATH presence, so a client that is installed and has stopped
+			// answering leaves the key where it was: the record another tree recorded while it still
+			// answered stays fresh, and the next warm run serves a check that cannot currently run at all
+			// as a pass. Forget the unit's verdicts outright — the cheap half of the truth, since probing
+			// whether a client answers costs the model call the cache exists to avoid.
+			g.forgetVerdictsIfMachineDependent(u)
 			g.unitLine("NO MEASURE", u.id, fmt.Sprintf("%ds  it exited 2 — it did not run, so nothing is known", took))
 			g.tail(output, 10, "                  ")
 			tally.unmeasured++
@@ -204,6 +212,26 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		}
 	}
 	return g.reportRun(started, deferredIDs, tally)
+}
+
+// What a unit keeps after an unmeasured run. A unit with no prerequisite keeps every verdict but the
+// one just retired: a key IS its whole question, so dropping a sibling tree's verdict would make it
+// re-run for something that never concerned it. One WITH a prerequisite keeps none, because what could
+// not be measured was the machine, and no key it was ever taken under speaks for the machine now.
+func (g *gate) forgetVerdictsIfMachineDependent(u unit) {
+	if u.prerequisite == "" {
+		return
+	}
+	entries, err := os.ReadDir(g.cache)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, u.stem+".") && !strings.HasSuffix(name, sidecarSuffix) {
+			os.Remove(filepath.Join(g.cache, name))
+		}
+	}
 }
 
 func (g *gate) recordPath(u unit, key string) string {
