@@ -158,6 +158,65 @@ func TestScriptTestPosition(t *testing.T) {
 	})
 }
 
+// Every scan that reads a usage line anchors on a lowercase `usage:`, so a header writing `Usage:`
+// and nothing lowercase is in none of them. Today the flag scan notices such a line only by accident
+// — only where some instruction file happens to pass that script a flag — so the rule is remembered
+// rather than enforced. These cases are what enforces it.
+func TestAUsageLineNoScanCanRead(t *testing.T) {
+	unread := ecocheck.ScriptUsageSpellingUnread
+
+	t.Run("fires on a header stating Usage: and nothing lowercase", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("shout.sh", "#!/usr/bin/env bash\n# Usage: shout.sh [--gate]\n# untested: a fixture.\ntrue")
+		f.reports(unread + f.root + "/kk-flavor/skills/shout.sh writes 'Usage:'")
+	})
+
+	t.Run("and on USAGE: as well", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("louder.sh", "#!/usr/bin/env bash\n# USAGE: louder.sh [--gate]\n# untested: a fixture.\ntrue")
+		f.reports(unread + f.root + "/kk-flavor/skills/louder.sh writes 'USAGE:'")
+	})
+
+	// Without this the cases above pass against a scan that reports every script it walks.
+	t.Run("stays silent on a header stating the lowercase line (control for the cases above)", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("quiet.sh", "#!/usr/bin/env bash\n# usage: quiet.sh [--gate]\n# untested: a fixture.\ntrue")
+		f.doesNotReport(unread)
+	})
+
+	// The lowercase line is what those scans read, so a header carrying both is documented to them
+	// and there is nothing here to report — whichever of the two is written first.
+	t.Run("and on a header carrying both spellings", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("both.sh", "#!/usr/bin/env bash\n# Usage: both.sh [--gate]\n# usage: both.sh [--gate]\n# untested: a fixture.\ntrue")
+		f.doesNotReport(unread)
+	})
+
+	// A script documenting nothing at all is the other finding, not this one. Saying "its spelling is
+	// wrong" of a header with no usage line in it names a defect that is not the one there is.
+	t.Run("asks nothing of a header stating no usage line at all", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("bare.sh", "#!/usr/bin/env bash\n# Does a thing.\n# untested: a fixture.\ntrue")
+		f.doesNotReport(unread)
+	})
+
+	// Header-scoped, the way every other reader of a usage line is: a `Usage:` in the body is not a
+	// header the scans were ever going to read.
+	t.Run("does not read a Usage: below the header", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("body.sh", "#!/usr/bin/env bash\n# usage: body.sh\n# untested: a fixture.\nset -u\n# Usage: body.sh --wrong\ntrue")
+		f.doesNotReport(unread)
+	})
+
+	// The test-position scan exempts the harness; this one does not. A -test.sh header is as invisible
+	// to those scans as any other file's.
+	t.Run("holds a -test.sh to the same spelling", func(t *testing.T) {
+		f := newRoot(t)
+		f.newScript("harness-test.sh", "#!/usr/bin/env bash\n# Usage: harness-test.sh\ntrue")
+		f.reports(unread + f.root + "/kk-flavor/skills/harness-test.sh")
+	})
+}
+
 // A header writes its suite as a basename, and the scan has to reach a file from it. Two lanes
 // carrying one `-test.sh` name weld into a name that answers for both, and a header naming it was
 // then satisfied by a suite in the other lane that never sees this script — the same defect as naming

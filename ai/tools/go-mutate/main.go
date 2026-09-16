@@ -2,9 +2,14 @@
 //
 //	usage: gomutate [-jobs N] [-preflight] [-run <go test -run pattern>] [-file a.go,b.go] [-units]
 //
-// `-file` is what selects mutants. `-run` is not: it goes through to `go test -run` and narrows which
-// cases each mutant is asked, so `-run <a mutant label>` names no test at all, and preflight refuses
-// the run rather than starting it.
+// `-file` is what selects mutants, and it takes any spelling of a registered file: `tree.go`,
+// `eco-check/tree.go` and `../eco-check/tree.go` all select the same entries. A spelling this tree
+// holds more than one of — `gate.go` names three files — is refused with the candidates named, never
+// resolved to whichever one the registry happened to spell that way.
+//
+// `-run` is not a selector: it goes through to `go test -run` and narrows which cases each mutant is
+// asked, so `-run <a mutant label>` names no test at all, and preflight refuses the run rather than
+// starting it.
 //
 // A mutant costs one package compile and one in-process test run, never a checkout: `go build
 // -overlay` swaps a file's content without copying the module or touching the tree, and `-failfast`
@@ -13,6 +18,10 @@
 // The mutants live in mutants.go beside this file rather than beside the code they break: each names
 // a file, a search string and its replacement, and preflight refuses any that no longer matches
 // exactly once.
+//
+// The binary carries a copy of this package's source and refuses to run beside a different one, so
+// editing mutants.go and forgetting the rebuild is a refusal naming the command rather than a run that
+// reports the registry as it was. The gate builds the harness before every listing and never meets it.
 //
 // # What this costs, and what it has caught
 //
@@ -52,9 +61,13 @@
 package main
 
 import (
+	"crypto/sha256"
+	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,6 +99,70 @@ const (
 	staleClaim    = "STALE CLAIM"
 	unreachable   = "unreachable"
 )
+
+// This package's source as it stood when this binary was built. Every `.go` file and not a named few:
+// the disk side has to be enumerated anyway to notice a file that was added, and a pattern naming
+// files by hand is one a new file silently falls outside of. A `_test.go` edit therefore costs a
+// rebuild it did not strictly need, which is the cheap side of that trade.
+//
+//go:embed *.go
+var sourceAtBuild embed.FS
+
+// The digest of every Go file a tree holds. Names go in beside the bytes, so a file that was added or
+// removed is a difference even when nothing inside the others changed.
+func sourceDigest(tree fs.FS) (string, error) {
+	names, err := fs.Glob(tree, "*.go")
+	if err != nil {
+		return "", err
+	}
+	if len(names) == 0 {
+		return "", fmt.Errorf("it holds no Go source at all")
+	}
+	sort.Strings(names)
+	sum := sha256.New()
+	for _, name := range names {
+		body, err := fs.ReadFile(tree, name)
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(sum, "%s %d\n", name, len(body))
+		sum.Write(body)
+	}
+	return hex.EncodeToString(sum.Sum(nil)), nil
+}
+
+// Why this binary may not be trusted to report on the source beside it, or empty when it may.
+//
+// The harness says which mutants it ran as a count — "8 of 534" — and a binary built before the
+// caller's edit prints that count as it was. A mutant added in that edit is simply absent, so the run
+// is green over a registry that no longer exists and reads exactly like a run over the current one.
+// That happened here: an entry was added, the harness was run from `ai/tools` without rebuilding, and
+// only the builder noticing the number caught it.
+//
+// Compared by content, never by modification time. A fresh clone writes every file at checkout in no
+// particular order relative to a binary someone built earlier, so an mtime comparison refuses over a
+// tree that is perfectly current — and a refusal that fires when nothing is wrong is one readers learn
+// to step past. `ai/tools/gate/gate.go`'s SelfDigest block is the same argument from the other end: it
+// hashes the running binary into every verdict key and refuses rather than defaulting, because a key
+// component that never changes lets every verdict outlive the code that decided it.
+//
+// The gate needs none of this. `discoverGoMutants` in `ai/tools/gate/mutants.go` runs `go build` before
+// it lists a single unit, so the two digests already agree on that path. The by-hand path had nothing
+// at all, and this is it.
+func staleSource(builtFrom, onDisk fs.FS) string {
+	built, err := sourceDigest(builtFrom)
+	if err != nil {
+		return "this binary carries no readable copy of the source it was built from: " + err.Error()
+	}
+	current, err := sourceDigest(onDisk)
+	if err != nil {
+		return "the source beside this binary cannot be read: " + err.Error()
+	}
+	if built != current {
+		return "this binary was built from different source than the files beside it"
+	}
+	return ""
+}
 
 // A mutant that never reached a suite, carrying why. The error is the evidence: without it the reader
 // sees a mutant that measured nothing and no way to tell a full disk from a moved source file.
@@ -342,34 +419,98 @@ func verdictWithEvidence(suiteFailed bool, output string) (verdict, evidence str
 	return verdict, evidence
 }
 
-// The mutants whose file one of `names` names. Empty selects everything: a scope nobody asked for
-// is not a scope. A name matching no mutant is the caller's typo and is refused by the caller, never
-// silently narrowed to nothing here — which is the one way a scoped run reports a pass over no work.
-func selectByFile(list []mutant, names string) (selected []mutant, unmatched []string) {
+// Where a mutant's file sits, spelled from the directory every `go test` here runs in — the module root
+// beside the checker package. The registry's own `file` column is relative to that package instead, and
+// it is written two ways: eco-check's entries are bare file names, every other tool's are
+// `../<tool>/<file>.go`. One spelling per file is what makes a selection answerable.
+func canonicalFile(file, pkgDir string) string {
+	return filepath.Clean(filepath.Join(filepath.Base(pkgDir), file))
+}
+
+// Which canonical files one `-file` spelling names. A spelling holding no `/` is a bare file name and
+// names every registered file called that — which is how `gate.go` reaches all three of this tree's
+// gate.go rather than whichever one the registry happened to spell bare. Anything else is a path, and
+// is read both ways the registry's entries are: from the module root, and from the checker package.
+func filesNamed(canonical []string, spelling, pkgBase string) []string {
+	var named []string
+	for _, file := range canonical {
+		hit := filepath.Base(file) == spelling
+		if strings.Contains(spelling, "/") {
+			hit = file == filepath.Clean(spelling) || file == filepath.Clean(filepath.Join(pkgBase, spelling))
+		}
+		if hit {
+			named = append(named, file)
+		}
+	}
+	// Sorted, because this list is printed in a refusal a reader scans for the spelling they meant, and
+	// the registry's own order puts eco-check's entries wherever they were written.
+	sort.Strings(named)
+	return named
+}
+
+// The refusal for a spelling no registered file answers, carrying the registered spellings of the file
+// name it holds. Whoever reaches this has usually got the directory wrong rather than the name, and the
+// refusal arrives at the tail of a pipeline full of kill counts — where a bare "no mutant names X"
+// reads like a run that found nothing wrong. A name nothing registers is left without a suggestion:
+// a wrong correction costs the reader a second dead end.
+func noFileNamed(canonical []string, spelling string) string {
+	var near []string
+	for _, file := range canonical {
+		if filepath.Base(file) == filepath.Base(spelling) {
+			near = append(near, file)
+		}
+	}
+	if len(near) == 0 {
+		return "no mutant names " + spelling
+	}
+	sort.Strings(near)
+	return fmt.Sprintf("no mutant names %s; this tree registers %s", spelling, strings.Join(near, ", "))
+}
+
+// The mutants whose file one of `names` names, and one sentence per spelling that could not select.
+// Empty selects everything: a scope nobody asked for is not a scope.
+//
+// Resolved rather than compared to the registry's column as written, because that column spells one
+// file two ways. `-file gate.go` used to run eco-check's eight mutants and exit 0 for a caller editing
+// `ai/tools/gate/gate.go` — a clean mutation run over code nobody tested — and `-file
+// ../eco-check/tree.go` used to match nothing at all.
+//
+// Neither a spelling that names nothing nor one that names several ever narrows the run: the first is a
+// typo and would print a green over zero mutants, and the second is the harness picking one of several
+// files and reporting on it as though it had been asked. `main` refuses on both.
+func selectByFile(list []mutant, names, pkgDir string) (selected []mutant, refused []string) {
 	if strings.TrimSpace(names) == "" {
 		return list, nil
 	}
 	held := map[string]bool{}
+	var canonical []string
 	for _, m := range list {
-		held[m.file] = true
+		if file := canonicalFile(m.file, pkgDir); !held[file] {
+			held[file] = true
+			canonical = append(canonical, file)
+		}
 	}
 	want := map[string]bool{}
 	for _, name := range strings.Split(names, ",") {
 		if name = strings.TrimSpace(name); name == "" {
 			continue
 		}
-		if !held[name] {
-			unmatched = append(unmatched, name)
-			continue
+		switch named := filesNamed(canonical, name, filepath.Base(pkgDir)); len(named) {
+		case 0:
+			refused = append(refused, noFileNamed(canonical, name))
+		case 1:
+			want[named[0]] = true
+		default:
+			refused = append(refused, fmt.Sprintf("%s names %d registered files (%s), so name one of them",
+				name, len(named), strings.Join(named, ", ")))
 		}
-		want[name] = true
 	}
 	for _, m := range list {
-		if want[m.file] {
+		if want[canonicalFile(m.file, pkgDir)] {
 			selected = append(selected, m)
 		}
 	}
-	return selected, unmatched
+	return selected, refused
 }
 
 // One line per mutated file: the file, the suites its mutants name, and how many there are. Built
@@ -392,12 +533,16 @@ func unitLines(list []mutant, pkgDir string) []string {
 	}
 	lines := make([]string, 0, len(files))
 	for _, file := range files {
+		// The canonical spelling in the first column and not the registry's own, because the gate hands
+		// that column straight back to `-file`: a bare name that the registry happens to carry may be
+		// one of several files there, and every eco-check mutation unit would be refused as ambiguous.
+		//
 		// The resolved path of the mutated file is the fourth column, because the caller cannot derive
 		// it: `file` is relative to the package this harness is pointed at, and that base lives here.
 		// A gate holding its own copy of that base is the same mapping in two homes, and a rename away
 		// from a gate that resolves nothing.
 		lines = append(lines, fmt.Sprintf("%s\t%s\t%d\t%s",
-			file, strings.Join(suites[file], ","), counts[file], filepath.Join(pkgDir, file)))
+			canonicalFile(file, pkgDir), strings.Join(suites[file], ","), counts[file], filepath.Join(pkgDir, file)))
 	}
 	return lines
 }
@@ -557,7 +702,7 @@ func main() {
 	jobs := flag.Int("jobs", 0, "mutants in flight at once (default: cores - 2)")
 	preflightOnly := flag.Bool("preflight", false, "check every anchor matches exactly once, then stop — never that a mutant still dies")
 	runFilter := flag.String("run", "", "pass through to `go test -run`")
-	fileFilter := flag.String("file", "", "run only the mutants whose file is one of these (comma-separated)")
+	fileFilter := flag.String("file", "", "run only the mutants whose file is one of these (comma-separated; any spelling of a registered file, and an ambiguous one is refused)")
 	listUnits := flag.Bool("units", false, "print one line per mutated file — file, suites, mutant count — and stop")
 	flag.Parse()
 
@@ -569,6 +714,13 @@ func main() {
 	here, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gomutate: cannot locate myself")
+		os.Exit(2)
+	}
+	// Before anything is listed or run, because every line below reports on the registry compiled into
+	// this binary and says nothing about the one on disk.
+	if why := staleSource(sourceAtBuild, os.DirFS(filepath.Dir(here))); why != "" {
+		fmt.Fprintf(os.Stderr, "gomutate: %s — rebuild with `go build -o go-mutate/go-mutate ./go-mutate` "+
+			"from ai/tools; exit 2, nothing ran.\n", why)
 		os.Exit(2)
 	}
 	pkgDir := filepath.Join(filepath.Dir(filepath.Dir(here)), "eco-check")
@@ -586,12 +738,14 @@ func main() {
 		return
 	}
 
-	// The scope, resolved before anything is compiled. A name matching no mutant exits 2 rather than
-	// narrowing the run: a caller that misspells a file would otherwise get a green over zero mutants,
-	// which is the one verdict this harness must never produce.
-	selected, unmatched := selectByFile(mutants, *fileFilter)
-	if len(unmatched) > 0 {
-		fmt.Fprintf(os.Stderr, "gomutate: no mutant names %s — exit 2, nothing ran.\n", strings.Join(unmatched, ", "))
+	// The scope, resolved before anything is compiled. A spelling that names no mutant exits 2 rather
+	// than narrowing the run, and so does one that names several: misspelling a file would otherwise
+	// give a green over zero mutants, and naming a file this tree holds three of would give a green over
+	// whichever of the three the registry happened to spell that way. Both are the verdict this harness
+	// must never produce.
+	selected, unselectable := selectByFile(mutants, *fileFilter, pkgDir)
+	if len(unselectable) > 0 {
+		fmt.Fprintf(os.Stderr, "gomutate: %s — exit 2, nothing ran.\n", strings.Join(unselectable, "; "))
 		os.Exit(2)
 	}
 	if len(selected) == 0 {

@@ -3,12 +3,14 @@ package gate
 import (
 	"bufio"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	modelpolicy "kk-flavor/tools/model-policy"
 	"kk-flavor/tools/shell"
 )
 
@@ -17,8 +19,10 @@ import (
 // keys on them itself. Named file by file, from the suites' own `../../` constants: keying on all of
 // kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package that cannot read it.
 const (
-	goTree    = "ai/tools"
-	extFlavor = "ai/kk-flavor/scripts/tree-fingerprint.sh"
+	goTree = "ai/tools"
+	// The main package `ai/guide.sh --check` builds and runs — resolve.sh picks `./cmd/<tool>/` first.
+	ecoGuideCommand = goTree + "/cmd/eco-guide"
+	extFlavor       = "ai/kk-flavor/scripts/tree-fingerprint.sh"
 	// The audience marker is read twice — as a Go regexp in shell/markdown.go, and as awk in this
 	// library, which both installers source and which runs before the machine has a Go binary at all.
 	// shell's suite holds the two spellings to each other, so it is keyed on the file it reads them
@@ -45,6 +49,35 @@ const stubRegionMarker = "# --- shared:tool-stub ---"
 // report template. Directories rather than the two files, so a third thing copied in later is still
 // keyed on — and not the whole skill, whose SKILL.md is prose no fixture reads.
 var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-flavor/skills/idsd-qualify/templates"}
+
+// The stubs `stub_usage_test.go` opens, to hold each one's documented usage line against the line its
+// binary prints. Every stub, because that suite discovers them rather than naming three. The paths
+// rather than the directories holding them: it reads these files and nothing else out of those trees.
+// Without them the drift check is a check that cannot fire — a stub-header edit leaves this unit fresh,
+// and Go's own cache answers over a file outside the module — which is the shape the block above exists
+// to close.
+//
+// The cost is real and deliberate: gotest is the slowest unit here, and a comment-only edit in any of
+// these sixteen files now re-runs the whole Go suite. The alternative is a key narrower than what the
+// suite reads, and that one answers green over a stub nothing looked at.
+var extStubs = []string{
+	"ai/gate.sh",
+	"ai/guide.sh",
+	"ai/kk-flavor/scripts/bloat-judge.sh",
+	"ai/kk-flavor/scripts/model-check.sh",
+	"ai/kk-flavor/scripts/model-policy.sh",
+	"ai/kk-flavor/scripts/repo-key.sh",
+	"ai/kk-flavor/scripts/tree-fingerprint.sh",
+	"ai/kk-flavor/skills/idsd-qualify/scripts/report.sh",
+	"ai/kk-flavor/skills/idsd-ship/scripts/cadence.sh",
+	"ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh",
+	"ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph.sh",
+	"ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh",
+	"ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh",
+	"ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh",
+	"ai/kk-flavor/skills/kk-reduce/scripts/stats.sh",
+	"ai/kk-flavor/skills/kk-refactor/scripts/dup-literals.sh",
+}
 
 // A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and
 // `go vet` both compile `_test.go`, so a suite reaching for either sees those files and must stay
@@ -115,6 +148,7 @@ func (g *gate) addGoChecks() {
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
 	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels)
+	gotestInputs = append(gotestInputs, extStubs...)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
 	// check walks whatever sits on disk, gitignored files included, and two checkouts of one commit
@@ -131,20 +165,33 @@ func (g *gate) addGoChecks() {
 // touching it — a skill added, renamed or retired is enough. This unit regenerates into memory and
 // diffs, which is the only thing that notices.
 //
-// Keyed on the skills because their frontmatter IS the inventory, on the tool and the two packages it
-// reads that frontmatter through, and on the page itself so hand-editing the committed file re-runs
-// the check that would catch it. Blind to the module's test files, like every other unit that
-// observes a compiled binary. ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate has to
-// measure the source in this tree, never a binary that came from somewhere else.
-// `extModels` is in here because the page prints the tier each dispatch buys, resolved through the
-// policy's own resolver. Leave it out and editing a row changes the page the generator would write
-// while this unit answers from cache — a stale committed guide reported green, which is the one
-// result this check exists to make impossible.
-func (g *gate) addGuideCheck() {
-	g.addBlindToGoTests("guide", "check",
-		[]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/tools/eco-guide", "ai/tools/eco-root",
-			"ai/tools/shell", "ai/tools/model-policy", "ai/guide.sh", extModels},
-		"ECO_TOOLS_BUILD=1 ai/guide.sh --check")
+// Keyed on the skills because their frontmatter IS the inventory, on the page itself so hand-editing
+// the committed file re-runs the check that would catch it, on the stub, and on every package the
+// command is built from. Those packages come out of the import graph rather than a list written here:
+// hand-listed, this unit named eco-guide, eco-root and shell but not `cmd/eco-guide` — the main
+// package the binary is built from — so editing main.go left the verdict fresh over a tool nothing
+// rebuilt.
+//
+// The graph answers what a `go test` compiles, a superset for a binary: a test-only import would key
+// this on a package the build never reads. Wide is the safe direction; narrow is the defect.
+//
+// `extModels` is seeded by hand because no import graph reaches it: the page prints the tier each
+// dispatch buys, resolved through the policy's own resolver, so the file is read at run time and
+// imported by nothing. Leave it out and editing a row changes the page the generator would write
+// while this unit answers from cache.
+//
+// Blind to the module's test files, like every other unit that observes a compiled binary.
+// ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate has to measure the source in this
+// tree, never a binary that came from somewhere else.
+func (g *gate) addGuideCheck(imports map[string][]string) int {
+	compiles, known := imports[ecoGuideCommand]
+	if !known {
+		return g.fail("the gate cannot say which packages %s imports, so the guide unit would be keyed "+
+			"on less than `ai/guide.sh --check` builds — nothing ran", ecoGuideCommand)
+	}
+	inputs := append([]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/guide.sh", extModels}, compiles...)
+	g.addBlindToGoTests("guide", "check", inputs, "ECO_TOOLS_BUILD=1 ai/guide.sh --check")
+	return 0
 }
 
 // Asks each provider about every model name models.json holds, once per distinct name; modelcheck's
@@ -159,29 +206,94 @@ func (g *gate) addGuideCheck() {
 //
 // Blind to the module's test files, like every other unit that observes a compiled binary, and
 // ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate measures the source in this tree.
-func (g *gate) addModelCheck() {
-	g.addBlindToGoTests("models", "check",
-		[]string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
+//
+// Keyed on the reachable providers too, which no file says: a client off PATH goes unasked and
+// model-check still exits 0, so a green keyed without that set answers for a machine holding another.
+func (g *gate) addModelCheck() int {
+	reachable, unreachable, err := g.probedClients()
+	if err != nil {
+		return g.fail("%s, so the models unit could not be keyed on which providers this machine can "+
+			"reach — nothing ran", err)
+	}
+	g.addUnit(unit{id: "models", kind: "check", blindToGoTests: true,
+		inputs: []string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
 			"ai/tools/bloat-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
-		"ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh")
+		cmd:                   "ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh",
+		prerequisite:          reachable,
+		prerequisiteShortfall: unaskedProviderNote(unreachable)})
+	return 0
+}
+
+// What the unit's line says about the providers nothing could ask; empty when all are reachable. The
+// clients come last so one spelling covers any number: "no codex, gemini on PATH" needs no verb.
+func unaskedProviderNote(unreachable []string) string {
+	if len(unreachable) == 0 {
+		return ""
+	}
+	return "some model names went unasked — no " + strings.Join(unreachable, ", ") + " on PATH"
+}
+
+// Which clients the policy dispatches to, each marked present or unavailable here, plus the absent
+// ones for whoever has to say so out loud. Both states are named, so `--why` shows which SET a verdict
+// is keyed to rather than which half of it answered.
+//
+// The clients come from models.json through model-policy's `Selections()`, never a list written here:
+// a third client added to that file must be probed without the gate being edited. Presence rather than
+// a version — `exec.LookPath` decides whether a name gets asked, and it is a lookup where two CLI
+// spawns per gate run are not.
+//
+// No guard for a policy naming no client: `validate` demands a non-empty tier order per client, so a
+// parsed one always yields some — modelcheck's `report` declines the same guard for the same reason.
+func (g *gate) probedClients() (reachable string, unreachable []string, err error) {
+	policy, err := modelpolicy.Load(filepath.Join(g.root, extModels))
+	if err != nil {
+		return "", nil, err
+	}
+	var clients []string
+	for _, selection := range policy.Selections() {
+		clients = append(clients, selection.Client)
+	}
+	clients = shell.SortUnique(clients)
+	var marks []string
+	for _, client := range clients {
+		if _, err := exec.LookPath(client); err != nil {
+			marks = append(marks, client+" unavailable")
+			unreachable = append(unreachable, client)
+			continue
+		}
+		marks = append(marks, client+" present")
+	}
+	return strings.Join(marks, " "), unreachable, nil
+}
+
+// The import graph is read once here, for `guide` and for the mutation units that key on it.
+func (g *gate) discoverUnits() int {
+	packages, err := g.listModulePackages()
+	if err != nil {
+		return g.fail("%s", err)
+	}
+	imports, err := moduleImports(packages, g.root)
+	if err != nil {
+		return g.fail("%s", err)
+	}
+	if code := g.addChecks(imports); code != 0 {
+		return code
+	}
+	if code := g.discoverShellSuites(); code != 0 {
+		return code
+	}
+	return g.discoverGoMutants(imports)
 }
 
 // The units that are not discovered from the tree. One list, because the suite counting units has to
 // register the same set before it counts the discovered ones, and a check added to only one of two
 // places leaves that control measuring a total it cannot attribute.
-func (g *gate) addChecks() {
+func (g *gate) addChecks(imports map[string][]string) int {
 	g.addGoChecks()
-	g.addGuideCheck()
-	g.addModelCheck()
-}
-
-func (g *gate) discoverUnits() int {
-	g.addChecks()
-
-	if code := g.discoverShellSuites(); code != 0 {
+	if code := g.addGuideCheck(imports); code != 0 {
 		return code
 	}
-	return g.discoverGoMutants()
+	return g.addModelCheck()
 }
 
 func (g *gate) discoverShellSuites() int {

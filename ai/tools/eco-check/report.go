@@ -12,6 +12,10 @@ import (
 // The width and the count a finding is bounded to before anything is printed. A finding quotes text
 // this checker did not choose, into output an agent drafts a PR comment from; bounding here, on the
 // one path every finding takes, keeps a scan added later from reopening it.
+//
+// The width is also what eco-check.go holds a refusal line to, for the same reason and off the same
+// number: a reader meeting two widths in one stream has to learn which line is which before knowing
+// how much of it to trust.
 const (
 	lineWidthCap    = 500
 	printedLinesCap = 200
@@ -88,6 +92,18 @@ var rankTable = []struct {
 	// The bound this scan withheld subcommands under. Without an entry it sorts by byte order
 	// against the basenames its own findings lead with, so a stub named `alpha.sh` buries it.
 	{subcommandScanAtItsBound, 2},
+	// Both ways flags.go can hold a call site and check the flag in it against nothing: the script
+	// states no usage line, or the bound withheld the call site. Each leads with a path or a number the
+	// reviewed tree chose, so without a row here they land at rank 5 and a flood of `dangling link:`
+	// buries them.
+	{flagCallSitesNotChecked, 2},
+	{flagScanAtItsBound, 2},
+	// A header stating `Usage:` and no lowercase `usage:`. Here rather than at rank 5 with the
+	// contents-are-wrong kinds: nothing inside the file is wrong, and the three scans that read a
+	// usage line cannot see this one at all — flagCallSitesNotChecked's defect one step earlier, and
+	// reached without needing a call site. One finding per script at most, the ceiling the rows above
+	// it carry too, so it sits inside this rank's budget the same way they do.
+	{scriptUsageSpellingUnread, 2},
 
 	{scriptNotExecutable, 3},
 	{skillNameDirMismatch, 3},
@@ -103,6 +119,7 @@ var rankTable = []struct {
 	{danglingLink, 5},
 	{danglingPathRef, 5},
 	{danglingSectionRef, 5},
+	{flagUsageDoesNotName, 5},
 	{budgetRefusalsSuppressed, 5},
 	{injectListsMissingDoc, 5},
 	{citationPathIsPattern, 5},
@@ -128,6 +145,7 @@ var rankTable = []struct {
 	{subcommandDispatchDoesNotAccept, 5},
 	{subcommandUsageDoesNotName, 5},
 	{subcommandWithNoCallSite, 5},
+	{dispatchNamesFewerFlags, 5},
 	{uncheckableCitation, 5},
 	{undelimitedSectionCitation, 5},
 	// The two kinds scanUnknownSkills emits, kept together so the pair reads as one scan's two

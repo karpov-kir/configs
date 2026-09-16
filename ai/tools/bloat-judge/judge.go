@@ -161,9 +161,18 @@ func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, 
 }
 
 // RunIn is Run with the working directory named, which --changed needs to find the repository.
-func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
-	numbersOnly, changed := false, false
-	var revisions []string
+// The grammar, in one place, because two copies of it drift and `ai/tools/stub_usage_test.go` holds
+// this one against the stub's header byte for byte.
+const usageLine = "usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]"
+
+// What the option grammar says about these arguments, resolving nothing and reaching no provider.
+// Returns the refusal to print, or "" when the arguments are the grammar.
+//
+// Separated from the run so it can be asked BEFORE a provider is configured. Asked after, a mistyped
+// invocation on a machine carrying no CLI refused with "no provider" and never printed the grammar —
+// a different fault, pointing the reader at something that was never wrong, and invisible on any
+// machine that happens to have a provider installed.
+func grammarRefusal(self string, args []string) (numbersOnly, changed bool, revisions, rest []string, refusal string) {
 	for len(args) > 0 && strings.HasPrefix(args[0], "--") {
 		switch {
 		case args[0] == "--numbers":
@@ -174,19 +183,38 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 			changed = true
 			revisions = strings.Fields(strings.TrimPrefix(args[0], "--changed="))
 		default:
-			fmt.Fprintf(stderr, "%s: unknown option %s — the judge did NOT run\n", self, echoable(args[0]))
-			return exitDidNotRun
+			return numbersOnly, changed, revisions, nil,
+				fmt.Sprintf("%s: unknown option %s — the judge did NOT run", self, echoable(args[0]))
 		}
 		args = args[1:]
 	}
 	if len(args) == 0 || len(args) > 2 {
-		fmt.Fprintf(stderr, "%s: usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]\n", self)
-		return exitDidNotRun
+		return numbersOnly, changed, revisions, nil, fmt.Sprintf("%s: %s", self, usageLine)
 	}
 	if changed && len(args) != 2 {
-		fmt.Fprintf(stderr, "%s: --changed needs a path, since only a file has a diff — the judge did NOT run\n", self)
+		return numbersOnly, changed, revisions, nil,
+			fmt.Sprintf("%s: --changed needs a path, since only a file has a diff — the judge did NOT run", self)
+	}
+	return numbersOnly, changed, revisions, args, ""
+}
+
+// RefuseIfNotTheGrammar prints the refusal and reports whether the caller should stop. The command
+// calls it before resolving a provider, so an invocation error is always answered with the grammar.
+func RefuseIfNotTheGrammar(self string, args []string, stderr io.Writer) bool {
+	if _, _, _, _, refusal := grammarRefusal(self, args); refusal != "" {
+		fmt.Fprintln(stderr, refusal)
+		return true
+	}
+	return false
+}
+
+func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
+	numbersOnly, changed, revisions, rest, refusal := grammarRefusal(self, args)
+	if refusal != "" {
+		fmt.Fprintln(stderr, refusal)
 		return exitDidNotRun
 	}
+	args = rest
 	kindName := args[0]
 	kind, known := kinds[kindName]
 	if !known {

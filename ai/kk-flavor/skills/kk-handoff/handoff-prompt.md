@@ -1,10 +1,15 @@
 <!-- Fill every slot and delete its comment. Everything you know that the base commit does not show
      belongs in a slot, or it is lost; `handoff-check.sh` refuses what falls short of that. -->
 
-# [<repo abbreviation>] <one imperative line: the work>
+# [<repo name>] <one imperative line: the work>
 
-<!-- Infer a recognizable abbreviation of 1–5 letters from the repository name. Reuse it for
-     handoffs from the same repo. Keep the square brackets and use this full line as the session title. -->
+<!-- The name is what `~/.kk-flavor/scripts/repo-key.sh --name <repo path>` prints, never one you
+     infer — every session infers a different one. Pass the repository you name under **Where it
+     starts**, not the checkout you are standing in: those are often not the same. The gate holds this
+     prefix against that repository. Where the tool refuses, run `git -C <repo path> rev-parse
+     --path-format=absolute --git-common-dir` and name the directory that path sits in; never name a
+     worktree's own directory, which differs per worktree. Keep the square brackets and use this full
+     line as the session title. -->
 
 ## The task
 

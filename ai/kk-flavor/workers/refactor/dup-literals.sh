@@ -3,8 +3,9 @@
 # ADDED lines: copy-pasted tokens, keys, fixtures. Run by the refactor worker's setup, and by a pipeline
 # orchestrator before the refactor stage.
 #
-#   usage: dup-literals.sh [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
-#          a path argument is refused with exit 2, never scanned
+#   usage: dup-literals.sh [<git-diff revisions>] [-- <paths>]   # revisions default to HEAD (all
+#          uncommitted changes); a bare path argument is refused with exit 2, never scanned, and paths
+#          after `--` narrow the scan to them
 #   env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
 #          DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
 #

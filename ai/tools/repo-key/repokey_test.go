@@ -1,6 +1,7 @@
 package repokey
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,7 +39,7 @@ func newRepo(t *testing.T, name string) string {
 // A fixture that is a git directory and nothing more: `.git/HEAD`, the one file FromSharedGitDir
 // probes for. It costs no subprocess where newRepo costs seven, and the cases that use it turn on what
 // a key is MADE of rather than on git finding the clone. What keeps that from being a coverage loss is
-// TestBothEntryPointsAgree, which holds Resolve and FromSharedGitDir to one answer over a real
+// TestBothEntryPointsAgree, which holds resolveKey and FromSharedGitDir to one answer over a real
 // repository — so the git-discovery half stays exercised where it belongs, once, instead of in every
 // case that only needed a name to key.
 func newBareRepo(t *testing.T, name string) string {
@@ -76,7 +77,7 @@ func run(t *testing.T, dir string, args ...string) string {
 
 func key(t *testing.T, dir string) string {
 	t.Helper()
-	k, err := Resolve(dir)
+	k, err := resolveKey(dir)
 	if err != nil {
 		t.Fatalf("keying %s: %v", dir, err)
 	}
@@ -164,7 +165,7 @@ func TestOutsideARepositoryItRefuses(t *testing.T) {
 	if _, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output(); err == nil {
 		t.Skip("the temp dir sits inside a repository, so this case would prove nothing")
 	}
-	if got, err := Resolve(dir); err == nil {
+	if got, err := resolveKey(dir); err == nil {
 		t.Fatalf("keyed a directory in no repository as %q", got)
 	}
 }
@@ -183,7 +184,7 @@ func TestBothEntryPointsAgree(t *testing.T) {
 		t.Fatalf("keying the shared git dir: %v", err)
 	}
 	if got := key(t, dir); got != direct {
-		t.Fatalf("Resolve keyed %s and FromSharedGitDir %s — one clone, two names", got, direct)
+		t.Fatalf("resolveKey keyed %s and FromSharedGitDir %s — one clone, two names", got, direct)
 	}
 }
 
@@ -197,7 +198,7 @@ func cloneInto(t *testing.T, origin, target string) {
 	run(t, target, "config", "user.name", "t")
 }
 
-// The one case that is not parallel: its subtests call t.Setenv, which Go bars under a parallel
+// Not parallel: its subtests call t.Setenv, which Go bars under a parallel
 // parent, and the fixtures here are built with the ambient environment that those subtests then
 // change. Sequential, its body runs before any parallel case resumes, so nothing else is live while
 // GIT_DIR points elsewhere.
@@ -226,16 +227,16 @@ func TestNoInheritedVariableChoosesTheRepository(t *testing.T) {
 	}
 }
 
-// What a key is allowed to contain. A key is spliced into a path and a command line, and not every
-// character a directory name can carry survives that.
-var safeKey = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+// What a key and a name are allowed to contain. Both are spliced into a path and a command line,
+// and not every character a directory name can carry survives that.
+var safeCharacters = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 func TestAKeyIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {
 		dir := newBareRepo(t, name)
 		got := bareKey(t, dir)
-		if !safeKey.MatchString(got) {
+		if !safeCharacters.MatchString(got) {
 			t.Errorf("directory %q keyed %q, which is not confined to characters that survive a path or a command line", name, got)
 		}
 		if strings.HasPrefix(got, "-") {
@@ -299,7 +300,7 @@ func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
 		refusals := map[string]error{}
 		_, refusals["a path that resolves to nothing"] = FromSharedGitDir(absent)
 		_, refusals["a directory that is not a git dir"] = FromSharedGitDir(notGit)
-		_, refusals["a directory git will not answer for"] = Resolve(notGit)
+		_, refusals["a directory git will not answer for"] = resolveKey(notGit)
 
 		for where, err := range refusals {
 			if err == nil {
@@ -311,6 +312,160 @@ func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
 					break
 				}
 			}
+		}
+	}
+}
+
+// The name is the key with its digest cut off, not a second reading of the same directory. Two
+// derivations of one clone's readable name drift the moment either is touched. Sessions titled from
+// the drifted one stop grouping with their siblings.
+func TestTheNameIsTheKeyWithoutItsDigest(t *testing.T) {
+	t.Parallel()
+	dir := newBareRepo(t, "project")
+	name, err := nameFromSharedGitDir(filepath.Join(dir, ".git"))
+	if err != nil {
+		t.Fatalf("naming %s: %v", dir, err)
+	}
+	key := bareKey(t, dir)
+	if head := name + "-"; !strings.HasPrefix(key, head) || len(key) != len(head)+digestLength {
+		t.Fatalf("the clone names %q and keys %q — the name is not the key's readable half", name, key)
+	}
+}
+
+// What the name is for: every session in one clone titles itself the same word, whichever worktree it
+// stands in. `--show-toplevel` hands each worktree a name of its own, which is the inconsistency the
+// tool exists to remove.
+func TestEveryWorktreeOfOneCloneNamesTheSame(t *testing.T) {
+	t.Parallel()
+	main := newRepo(t, "invest-tasks")
+	worktree := filepath.Join(filepath.Dir(main), "wt-one")
+	run(t, main, "worktree", "add", "-q", "-b", "one", worktree)
+
+	for _, where := range []string{main, worktree} {
+		got, err := ResolveName(where)
+		if err != nil {
+			t.Fatalf("naming %s: %v", where, err)
+		}
+		if got != "invest-tasks" {
+			t.Errorf("%s names %q, not the clone's own directory name", where, got)
+		}
+	}
+}
+
+// A name refuses wherever a key does. A prefix is read by a human and spliced into a title, so a
+// plausible name for a directory nobody meant is worse than no name at all.
+func TestANameRefusesWhereAKeyWould(t *testing.T) {
+	t.Parallel()
+	dir := newBareRepo(t, "project")
+	got, err := nameFromSharedGitDir(dir)
+	if err == nil {
+		t.Fatalf("the worktree root named %q instead of refusing — a caller passing the wrong path gets a plausible answer", got)
+	}
+	if got != "" {
+		t.Fatalf("refused and still returned %q — a caller reading the value would use it", got)
+	}
+}
+
+// The command's argument table: which answer each invocation selects, and which are refused. A
+// refusal carries the usage line only where the invocation itself was malformed — a path that will not
+// resolve came from a caller with nothing to fix in their command line.
+func TestTheCommandsArgumentTable(t *testing.T) {
+	t.Parallel()
+	dir := newRepo(t, "project")
+	key, err := resolveKey(dir)
+	if err != nil {
+		t.Fatalf("keying %s: %v", dir, err)
+	}
+
+	for _, c := range []struct {
+		what   string
+		args   []string
+		status int
+		want   string
+	}{
+		{"a path alone prints the key", []string{dir}, 0, key},
+		{"--name before the path prints the name", []string{"--name", dir}, 0, "project"},
+		{"two paths are refused", []string{dir, dir}, 2, usage},
+		{"--name with two paths is refused", []string{"--name", dir, dir}, 2, usage},
+		{"a flag after the path is refused", []string{dir, "--name"}, 2, usage},
+		{"an unreadable path refuses without the usage line", []string{filepath.Join(dir, "nowhere")}, 2, ""},
+		{"a dash-leading argument is a path, not a flag", []string{"-rf"}, 2, ""},
+	} {
+		var out, errOut bytes.Buffer
+		if status := Run(c.args, &out, &errOut); status != c.status {
+			t.Errorf("%s: exited %d, want %d\nstdout: %s\nstderr: %s", c.what, status, c.status, out.String(), errOut.String())
+			continue
+		}
+		if c.status == 0 {
+			if got := strings.TrimRight(out.String(), "\n"); got != c.want {
+				t.Errorf("%s: printed %q, want %q", c.what, got, c.want)
+			}
+			continue
+		}
+		if out.Len() != 0 {
+			t.Errorf("%s: refused and still wrote %q to stdout, which a caller reads as an answer", c.what, out.String())
+		}
+		if c.want != "" && !strings.Contains(errOut.String(), c.want) {
+			t.Errorf("%s: refused with %q, which does not carry %q", c.what, errOut.String(), c.want)
+		}
+		if errOut.Len() == 0 {
+			t.Errorf("%s: refused in silence, and a tool whose contract is to refuse loudly must say why", c.what)
+		}
+		if c.want == "" && strings.Contains(errOut.String(), usage) {
+			t.Errorf("%s: answered a resolution failure with the usage line, which sends the caller to fix a sound invocation", c.what)
+		}
+	}
+}
+
+// The invocation with no path at all — the one branch the argument table cannot reach, since every
+// row of it supplies a path.
+//
+// Not parallel: t.Chdir is barred under a parallel test, and a process-wide chdir would be live under
+// any case running beside it. Sequential, its body runs before any parallel case resumes, exactly as
+// TestNoInheritedVariableChoosesTheRepository relies on for the environment.
+func TestWithNoPathItAnswersForTheWorkingDirectory(t *testing.T) {
+	dir := newRepo(t, "project")
+	key, err := resolveKey(dir)
+	if err != nil {
+		t.Fatalf("keying %s: %v", dir, err)
+	}
+	t.Chdir(dir)
+
+	for _, c := range []struct {
+		what string
+		args []string
+		want string
+	}{
+		{"no argument at all", nil, key},
+		{"--name and nothing else", []string{"--name"}, "project"},
+	} {
+		var out, errOut bytes.Buffer
+		if status := Run(c.args, &out, &errOut); status != 0 {
+			t.Errorf("%s: exited %d\n%s", c.what, status, errOut.String())
+			continue
+		}
+		if got := strings.TrimRight(out.String(), "\n"); got != c.want {
+			t.Errorf("%s: printed %q, want %q", c.what, got, c.want)
+		}
+	}
+}
+
+// The name is spliced into a session title and, through the stub, into whatever command line a caller
+// builds around it. Asserted through the name's own entry point rather than through the key: a name
+// re-derived on its own stops being covered by the key's table, and nothing turns red when it does.
+func TestANameIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {
+		dir := newBareRepo(t, name)
+		got, err := nameFromSharedGitDir(filepath.Join(dir, ".git"))
+		if err != nil {
+			t.Fatalf("naming %s: %v", dir, err)
+		}
+		if !safeCharacters.MatchString(got) {
+			t.Errorf("directory %q named %q, which is not confined to characters that survive a path or a command line", name, got)
+		}
+		if strings.HasPrefix(got, "-") {
+			t.Errorf("directory %q named %q, which reads as an option wherever the name reaches a command", name, got)
 		}
 	}
 }

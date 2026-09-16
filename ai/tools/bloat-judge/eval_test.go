@@ -255,10 +255,11 @@ var variants = []variant{
 }
 
 // caller builds the variant's roll out of the shipped one, so a row differs from production by the
-// field it names and nothing else.
-func (v variant) caller(deadline time.Duration) Caller {
+// field it names and nothing else. Bounded at notTheSubject by the rule deadline_test.go's scan
+// holds — nothing here asks what a roll's bound should be, and an hour still ends a hung one.
+func (v variant) caller() Caller {
 	if v.client == "codex" {
-		return CodexCaller(deadline, v.settings)
+		return CodexCaller(notTheSubject, v.settings)
 	}
 	return func(prompt, view string) (string, error) {
 		args := claudeArgs(prompt, v.settings)
@@ -272,7 +273,7 @@ func (v variant) caller(deadline time.Duration) Caller {
 		if v.thinking != "" {
 			environment = append(environment, "MAX_THINKING_TOKENS="+v.thinking)
 		}
-		return runBounded(deadline, modelCommand{
+		return runBounded(notTheSubject, modelCommand{
 			name: "claude", args: args, stdin: view, model: v.settings.Model, env: environment,
 		})
 	}
@@ -319,10 +320,10 @@ type trial struct {
 // configurations against each other, and a roll count that moved under it would move every row.
 const evalRolls = 3
 
-func (v variant) run(c evalCase, deadline time.Duration) trial {
+func (v variant) run(c evalCase) trial {
 	units, view := c.split()
 	started := time.Now()
-	reply, err := Voting(v.caller(deadline), evalRolls)(Prompt(kinds[c.kind]), view)
+	reply, err := Voting(v.caller(), evalRolls)(Prompt(kinds[c.kind]), view)
 	result := trial{name: c.name, elapsed: time.Since(started)}
 	if err != nil {
 		result.err = err
@@ -381,7 +382,7 @@ func runAll(v variant, corpus []evalCase, at int) []trial {
 			defer wg.Done()
 			slots <- struct{}{}
 			defer func() { <-slots }()
-			trials[i] = v.run(c, defaultRollDeadline)
+			trials[i] = v.run(c)
 		}(i, c)
 	}
 	wg.Wait()

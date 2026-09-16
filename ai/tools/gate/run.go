@@ -139,7 +139,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		<-sl.done
 		u, key, lines := sl.unit, sl.key, sl.lines
 		record := g.recordPath(u, key)
-		inputsFile := filepath.Join(g.cache, u.stem+".inputs")
+		inputsFile := filepath.Join(g.cache, u.stem+sidecarSuffix)
 
 		switch sl.settled {
 		case settledEmpty:
@@ -151,9 +151,9 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			// forcing reads. Without this, one failed run deletes the sidecar and every later run
 			// over-forces.
 			if _, err := os.Stat(inputsFile); err != nil {
-				os.WriteFile(inputsFile, []byte(renderLines(lines)), 0o644)
+				writeSidecar(inputsFile, renderLines(lines))
 			}
-			g.unitLine("fresh", u.id, key[:12]+" — inputs unchanged since it last passed")
+			g.unitLine("fresh", u.id, withShortfall(key[:12]+" — inputs unchanged since it last passed", u))
 			tally.fresh++
 			continue
 		case settledDeferred:
@@ -175,8 +175,8 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		tally.ran++
 		if status == 0 {
 			os.WriteFile(record, nil, 0o644)
-			os.WriteFile(inputsFile, []byte(renderLines(lines)), 0o644)
-			g.unitLine("ran ok", u.id, fmt.Sprintf("%ds", took))
+			writeSidecar(inputsFile, renderLines(lines))
+			g.unitLine("ran ok", u.id, withShortfall(fmt.Sprintf("%ds", took), u))
 			continue
 		}
 		// Neither a record nor a pass, whichever way it went: a verdict recorded before someone broke
@@ -282,6 +282,9 @@ func (g *gate) runGotest() (string, string, int) {
 		groups = append(groups, "model-policy", "bloat-judge")
 	}
 	if g.changedSinceGreen([]string{extWorkflows}) {
+		groups = append(groups, ".")
+	}
+	if g.changedSinceGreen(extStubs) {
 		groups = append(groups, ".")
 	}
 	tools := filepath.Join(g.root, "ai", "tools")

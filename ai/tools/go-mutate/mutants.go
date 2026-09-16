@@ -21,6 +21,8 @@ var mutants = []mutant{
 	// This condition skips a finding, so `|| true` disables the floor.
 	{"report: the per-class floor removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) {", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) || true {"},
 	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestASuppressionNoteCountsOnlyItsOwnClass", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	{"invocations: a dispatch missing the lane's flag passes", "invocations.go", "./eco-check/", "TestInvocationSpellingScan",
+		`if len(missing) == 0 {`, `if len(missing) >= 0 {`},
 	// Remove both rows: one remaining catch-all kind prints unchanged.
 	// With two kinds in that class, the floor hides whichever sorts second.
 	{"report: two rank-5 kinds put back in one class", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{skillDirWithoutSkillFile, 5},\n\t{skillWithoutDescription, 5},\n", ""},
@@ -63,6 +65,9 @@ var mutants = []mutant{
 	// a recommended delimited citation while preserving the three finding cases.
 	{"refs: bare rule-ID scan never fires", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Zz]ore [Pp]rinciples? +#?[0-9]+`},
 	{"refs: bare rule-ID scan reports the form it recommends", "rule-ids.go", "./eco-check/", "TestBareRuleIDCitations", `[Cc]ore [Pp]rinciples? +#?[0-9]+`, `[Cc]ore[ -][Pp]rinciples?[^0-9]*[0-9]+`},
+	// The one funnel every stderr line leaves through, so this is the whole package's refusal
+	// wording at once — the root off argv and git's own stderr among them.
+	{"refusal: the reason echoed to the terminal unescaped", "eco-check.go", "./eco-check/", "TestARefusalCarriesNoControlBytesFromTheRootItEchoes", `shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap)`, `shell.CutBytesMarked("check.sh: "+reason, lineWidthCap)`},
 	{"scripts: parse-error text left unsanitised", "scripts.go", "./eco-check/", "TestParseErrorsCarryNoControlByte", `syntaxError+shell.Oneline(line)`, `syntaxError+line`},
 	{"mounts: resolved mount path left unsanitised", "mounts.go", "./eco-check/", "TestMountFindingCarriesNoControlByte", "shell.Oneline(mountHave)", "mountHave"},
 	// Name and path sanitisation are separate calls; a path-only assertion misses the name mutation.
@@ -103,6 +108,7 @@ var mutants = []mutant{
 	{"test position: a script declaring nothing unreported", "scripts.go", "./eco-check/", "TestScriptTestPosition", "if !anyMatch(header, untestedDeclared) {", "if false {"},
 	{"test position: a bare untested: clears the check", "scripts.go", "./eco-check/", "TestScriptTestPosition", `untested:[[:space:]]*[^[:space:]]`, `untested:[[:space:]]*`},
 	{"test position: a dash-led suite name goes unread", "scripts.go", "./eco-check/", "TestScriptTestPosition", `[A-Za-z0-9_.-]+-test\.sh`, `[A-Za-z0-9_.]+-test\.sh`},
+	{"scripts: a usage line no scan can read goes unreported", "scripts.go", "./eco-check/", "TestAUsageLineNoScanCanRead", `if spelling == "" {`, `if spelling == "" || true {`},
 
 	{"subcommands: the Go dispatch never consulted", "subcommands.go", "./eco-check/", "TestGoDispatchSubcommandCallSites", "want(base, c.toolSubcommands(base, lines, opened))", "want(base, nil)"},
 	{"subcommands: a missing tool source goes quiet", "subcommands.go", "./eco-check/", "TestADispatchThatCannotBeReadIsReported", `return nil, "no source directory at " + named`, `return nil, ""`},
@@ -167,6 +173,10 @@ var mutants = []mutant{
 	{"scripts: the region-name bound removed", "scripts.go", "./eco-check/", "TestALongSharedRegionNameIsCutBeforeItsDetail", "named := shell.CutBytesMarked(name, findingNameCap)", "named := shell.CutBytesMarked(name, 100000)"},
 	// The printer must retain a cut marker when applying its final width bound.
 	{"report: a finding line cut without a mark", "report.go", "./eco-check/", "TestACutFindingLineSaysThatItWasCut", "shell.CutBytesMarked(line.text, lineWidthCap)", "shell.CutBytes(line.text, lineWidthCap)"},
+	// A root is argv: never opened, so no filesystem length bounds it, and ARG_MAX runs to a
+	// megabyte. The second mutant shares this anchor and removes only the marker.
+	{"refusal: the reason's width bound removed", "eco-check.go", "./eco-check/", "TestARefusalIsBoundedHoweverLongTheRootItEchoes", `shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap)`, `shell.Oneline("check.sh: "+reason)`},
+	{"refusal: a cut reason left unmarked", "eco-check.go", "./eco-check/", "TestARefusalIsBoundedHoweverLongTheRootItEchoes", `shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap)`, `shell.CutBytes(shell.Oneline("check.sh: "+reason), lineWidthCap)`},
 	// Include WriteString to distinguish this call from the matching calls above.
 	{"imports: uncounted name cut without a mark", "../eco-root/imports.go", "./eco-check/", "TestACutUncountedNameSaysThatItWasCut", "joined.WriteString(shell.CutBytesMarked(shell.Oneline(name), 60))", "joined.WriteString(shell.CutBytes(shell.Oneline(name), 60))"},
 	// This shares the byte-cap mutant's anchor but removes only the cut marker.
@@ -291,6 +301,15 @@ var mutants = []mutant{
 
 	{"ignore source: a machine-local info/exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, false", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, true"},
 
+	{"fingerprint: a nested repository walked, so its HEAD is the hash", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestCommitsInANestedRepositoryDoNotMoveTheFingerprint", "for _, path := range nested {", "for _, path := range []string(nil) {"},
+	// The other half of the trailing-slash rule: every untracked path held out, not only the directories
+	// git refused to walk into. What that costs is the untracked content the fingerprint exists to name.
+	{"fingerprint: every untracked path held out, not the nested repositories", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestWhatMovesTheFingerprint", "if strings.HasSuffix(path, \"/\") {", "if path != \"\" {"},
+	{"fingerprint: a nested repository's name read as a glob", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestANestedRepositoryNamedWithAGlobHoldsOutOnlyItself", "\":(exclude,top,literal)\"", "\":(exclude,top)\""},
+	{"fingerprint: the excluded path read from the caller's directory", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestASubdirectoryRootStillNamesTheWholeRepository", "\":(exclude,top,literal)\"", "\":(exclude,literal)\""},
+	{"fingerprint: the walk narrowed to the caller's own directory", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestASubdirectoryRootStillNamesTheWholeRepository", "args := []string{\"add\", \"-A\", \"--\", \":/\"}", "args := []string{\"add\", \"-A\", \"--\", \".\"}"},
+	{"fingerprint: nested repositories looked for under the caller's directory alone", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestASubdirectoryRootStillNamesTheWholeRepository", "\"--full-name\", \"-z\", \"--\", \":/\"", "\"--full-name\", \"-z\""},
+
 	{"gate: a sibling worktree's stamp gates clean", "../eco-report/worktree.go", "./eco-report/", "TestASiblingWorktreeCannotReadAStampItNeverEarned", "case recorded != mine:", "case recorded != mine \u0026\u0026 false:"},
 	{"gate: an unstamped block never names an unestablishable identity", "../eco-report/gate.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "if _, established := r.worktreeToken(); !established {", "if _, established := r.worktreeToken(); !established \u0026\u0026 false {"},
 	{"gate: an unestablished identity reads as a match", "../eco-report/worktree.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "case !established:", "case !established \u0026\u0026 false:"},
@@ -337,6 +356,11 @@ var mutants = []mutant{
 	{"repo-key: a path that is not a git dir answers a key", "../repo-key/repokey.go", "./repo-key/", "TestAPathThatIsNotAGitDirRefuses", `if !shell.IsRegularFile(canonical + "/HEAD") {`, "if false {"},
 	{"repo-key: the key follows the worktree, not the clone", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneKeysTheSame", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--show-toplevel"`},
 	{"repo-key: two clones of one remote collapse onto one name", "../repo-key/repokey.go", "./repo-key/", "TestTwoClonesOfOneRemoteKeyApart", `"-" + hex.EncodeToString(digest[:])[:digestLength]`, `"-" + hex.EncodeToString(digest[:])[:0]`},
+	{"repo-key: the name answers the whole key", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneNamesTheSame", "return nameFromSharedGitDir(shared)", "return FromSharedGitDir(shared)"},
+	{"repo-key: --name selects nothing", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", `if len(args) > 0 && args[0] == "--name" {`, `if len(args) > 0 && args[0] == "--name" && false {`},
+	{"repo-key: the name skips the safe half", "../repo-key/repokey.go", "./repo-key/", "TestANameIsSafeToSpliceIntoAPathOrACommand", "return nameOf(canonical), nil", "return shell.BaseName(shell.DirName(canonical)), nil"},
+	{"repo-key: the default root is not the working directory", "../repo-key/repokey.go", "./repo-key/", "TestWithNoPathItAnswersForTheWorkingDirectory", `root := "."`, `root := "/"`},
+	{"repo-key: a second root accepted", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", "if len(args) > 1 {\n\t\treturn refuse(errOut, usage)", "if len(args) > 1 && false {\n\t\treturn refuse(errOut, usage)"},
 
 	// These rev-parse fallbacks require a fixture that disables the filesystem layout reader.
 	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
@@ -389,6 +413,15 @@ var mutants = []mutant{
 	{"gate: the intent's own follow-ups never scanned", "../eco-report/gate.go", "./eco-report/", "TestGateScansTheShipsIntentFileAsWellAsItsReport", `if intent := r.intentFilePath(); intent != "" {`, `if intent := r.intentFilePath(); intent != "" && false {`},
 
 	{"records: a shared lock where the write needs an exclusive one", "../eco-report/records.go", "./eco-report/", "TestARecordWriteWaitsForTheLockRatherThanRacingIt", "syscall.LOCK_EX", "syscall.LOCK_SH"},
+	// The rule keeping the case above out of the shape it spent its life in: a select arm bounded by the
+	// clock may end the run and may never reach an assertion. A scan that exempted everything would read
+	// exactly like this one and observe nothing, so each anchor here is a way of exempting everything.
+	{"records: the clock scan stops caring which package feeds an arm", "../eco-report/wall_clock_test.go", "./eco-report/", "TestWhatCountsAsAClockArmThatConcludes",
+		`pkg.Name == "time"`, `pkg.Name != ""`},
+	{"records: any call at all counts as ending the run", "../eco-report/wall_clock_test.go", "./eco-report/", "TestWhatCountsAsAClockArmThatConcludes",
+		`selector.Sel.Name == "Fatal" || selector.Sel.Name == "Fatalf"`, `selector.Sel.Name != ""`},
+	{"records: the clock scan stops counting what it looked at", "../eco-report/wall_clock_test.go", "./eco-report/", "TestWhatCountsAsAClockArmThatConcludes",
+		"found++", "found += 0"},
 	{"records: a restatement appended as a second entry", "../eco-report/records.go", "./eco-report/", "TestBumpRaisesTheCountAndRedatesWithoutAddingALine", "if entry.text == text {\n\t\t\tfound := r.oneMatchingEntry", "if entry.text == text && false {\n\t\t\tfound := r.oneMatchingEntry"},
 	{"records: a multi-line entry written as one", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", `if strings.ContainsAny(text, "\n\r") {`, "if false {"},
 	{"records: an ambiguous match resolved to the first entry", "../eco-report/records.go", "./eco-report/", "TestRecordRefusesEveryWriteItCannotResolve", "case 1:", "case 1, 2:"},
@@ -575,6 +608,52 @@ var mutants = []mutant{
 	}`, ``},
 	{"call sites: the whole-file read unbounded again", "subcommands.go", "./eco-check/", "TestOversizeFileIsNotReadByTheCallSiteScan", `		if info.Size() > maxFileBytes {`, `		if info.Size() > (1 << 62) {`},
 
+	// The flag scan. Its silent form is the one that matters: a scan that looks at nothing reports
+	// nothing, which every caller reads as a pass.
+	{"flags: a flag no usage line names goes unreported", "flags.go", "./eco-check/", "TestFlagCallSites", "case !usage.flags[site.flag]:", "case !usage.flags[site.flag] && false:"},
+	{"flags: a script with no usage line reported as one that merely omits the flag", "flags.go", "./eco-check/", "TestFlagCallSites", "case !usage.stated:", "case !usage.stated && false:"},
+	// Without the indent test the whole leading comment block is the usage line, so a flag the header
+	// mentions in passing documents itself.
+	{"flags: the usage block read past its own indent", "flags.go", "./eco-check/", "TestFlagCallSites", "} else if at <= indent {", "} else if at <= indent && false {"},
+	{"flags: a usage line taken from anywhere in the script", "flags.go", "./eco-check/", "TestFlagCallSites", "for _, line := range leadingCommentBlock(lines) {", "for _, line := range lines {"},
+	{"flags: the commentary after the usage line read as part of it", "flags.go", "./eco-check/", "TestFlagCallSites", `if cut := strings.Index(trimmed, "   #"); cut >= 0 {`, `if cut := strings.Index(trimmed, "   #"); cut >= 0 && false {`},
+	{"flags: prose read as a command", "flags.go", "./eco-check/", "TestWhereAFlagCallSiteIsRead", "\t\tfor _, span := range delimitedSpans(line, \"`\") {\n\t\t\tspans = append(spans, commandSpan{text: span, line: at + 1})\n\t\t}", "\t\tspans = append(spans, commandSpan{text: line, line: at + 1})"},
+	{"flags: the command not ended at the separator that starts the next", "flags.go", "./eco-check/", "TestWhereAFlagCallSiteIsRead", "if isCommandSeparator(token) {", "if isCommandSeparator(token) && false {"},
+	{"flags: the call-site bound removed", "flags.go", "./eco-check/", "TestTheFlagScanStaysWithinItsBounds", "if len(sites) >= flagCallSiteCap {", "if len(sites) >= 100000 {"},
+	{"flags: a cut flag name left unmarked", "flags.go", "./eco-check/", "TestTheFlagScanStaysWithinItsBounds", `shell.CutBytesMarked("--"+site.flag, findingNameCap)`, `shell.CutBytes("--"+site.flag, findingNameCap)`},
+	{"flags: the script path in a finding left unsanitised", "flags.go", "./eco-check/", "TestAFlagFindingCarriesNoControlByte", `" is passed to " + shell.Oneline(paths[0])`, `" is passed to " + paths[0]`},
+
+	// The located half. A finding that names only the script leaves its reader grepping every
+	// instruction file for the call, so each way the location can go missing or go wrong is its own
+	// mutant — including the off-by-one, which reads as a real line and sends them to the wrong one.
+	{"flags: the finding never says which file the call site is in", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", `c.add(flagUsageDoesNotName + at + " — " + shell.CutBytesMarked(`, `c.add(flagUsageDoesNotName + shell.CutBytesMarked(`},
+	{"flags: the located line is the one above the call site", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "commandSpan{text: span, line: at + 1}", "commandSpan{text: span, line: at}"},
+	{"flags: the located path left unsanitised", "flags.go", "./eco-check/", "TestAFlagFindingCarriesNoControlByte", `at := shell.Oneline(site.file) + ":"`, `at := site.file + ":"`},
+	// Both halves of the call the dedupe makes. Keyed on the place as well as the pair, one flag named
+	// in every skill becomes one finding per skill; reported once per flag instead of once per script,
+	// a script with no usage line at all floods its rank on its own.
+	{"flags: one pair reported once per file that names it", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "return flagPair{script: s.script, flag: s.flag}", "return flagPair{script: s.script + s.file, flag: s.flag}"},
+	{"flags: a script stating no usage line reported once per flag", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "if !unstated[paths[0]] {", "if true {"},
+	// The fenced branch carries most of this tree's call sites, so its locator earns the same mutant
+	// the backticked one has rather than riding on it.
+	{"flags: the located line of a fenced call site is the one above it", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "commandSpan{text: line, line: at + 1}", "commandSpan{text: line, line: at}"},
+	// What a scan says about a file it never opened. readLines declines twice over, and the arm for
+	// each is here: the nil error a file past the read bound comes back with, and the error every
+	// other refusal carries.
+	{"flags: a script past the read bound described as stating no usage line", "flags.go", "./eco-check/", "TestAScriptTheFlagScanCouldNotRead", "if err != nil || lines == nil {", "if err != nil {"},
+	{"flags: the unread arm removed, so an unread script is described anyway", "flags.go", "./eco-check/", "TestAScriptTheFlagScanCouldNotRead", "case usage.unread:", "case usage.unread && false:"},
+	// The insert put back in front of the bound, which is the form that bounds the slice and lets the
+	// map grow with the tree.
+	{"flags: the dedupe map filled past the call-site bound", "flags.go", "./eco-check/", "TestTheFlagScanStaysWithinItsBounds", `				if len(sites) >= flagCallSiteCap {
+					capped++
+					continue
+				}
+				seen[site.pair()] = true`, `				seen[site.pair()] = true
+				if len(sites) >= flagCallSiteCap {
+					capped++
+					continue
+				}`},
+
 	// Test each route for uncommitted files separately: the walk, explicit citation paths,
 	// and the skill directories listed by the mount scan.
 	{"gate: a gitignored file left in the walk", "gate.go", "./eco-check/", "TestAGitignoredFileIsJudgedWithoutTheFlagAndNotWithIt", "if g.holds(entry.path) {", "if g.holds(entry.path) && false {"},
@@ -607,6 +686,10 @@ var mutants = []mutant{
 	// as written rather than cleaned, `./notes.md` misses an ignored set keyed on `notes.md` while
 	// naming the same file — the run lists that file as skipped and then resolves a reference through
 	// it.
+	// The refusal names the root first and git's reason last, so an unbounded root spends the
+	// printer's line and the reason goes with it. No mutant for the bound on git's own words:
+	// nothing follows them, so the printer's cut does that job — widened to 100000 the suite stays green.
+	{"gate: the root's bound in the refusal removed", "gate.go", "./eco-check/", "TestTheGateRefusalStillNamesGitsReasonUnderALongRoot", "shell.CutBytesMarked(root, 120)", "shell.CutBytesMarked(root, 100000)"},
 	{"gate: the skip compared as spelled instead of cleaned", "gate.go", "./eco-check/", "TestACitationSpelledNonCanonicallyStillHitsTheGate", "return g.ignored[filepath.Clean(path)]", "return g.ignored[path]"},
 	// The filtered tree is copied from the walk rather than declared fresh, so a field the walk gains
 	// is carried into it. Unobservable while `tree` holds only the two fields the copy resets by hand,
@@ -703,10 +786,49 @@ var mutants = []mutant{
 	{"handoff: the hex scan unbounded again", "../handoff-check/handoff-check.go", "./handoff-check/", "TestBaseAndRepository", "`(^|[^0-9A-Za-z])([0-9a-f]{7,})([^0-9A-Za-z]|$)`", "`()([0-9a-f]{7,})()`"},
 	{"handoff: the reachback scan silenced", "../handoff-check/handoff-check.go", "./handoff-check/", "TestReachback", "if hit := matcher.FindString(low); hit != \"\" {", "if hit := matcher.FindString(low); false {"},
 	{"handoff: an empty slot read as filled", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !s.filled[name]:", "case !s.filled[name] && false:"},
+	{"handoff: the unfilled repository prefix goes unread", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "if isPlaceholder(prefix) {", "if isPlaceholder(prefix) && false {"},
+	{"handoff: the unfilled work half goes unread", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case isPlaceholder(work):", "case isPlaceholder(work) && false:"},
+	// Which half the finding names is its whole content once the two are read apart, so both directions
+	// are broken: either message standing in for the other still reads as a working gate.
+	{"handoff: the unfilled work half named as the whole line", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case isPlaceholder(work) && prefixed:", "case isPlaceholder(work) && false:"},
+	{"handoff: the whole line named as a work half", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `s.flag("the title line is still the template placeholder")`, `s.flag("the title's work half is still the template placeholder")`},
+	// The split is what makes the two halves separable at all. Collapsed, a filled prefix in front of an
+	// unfilled work half reads as one filled line and neither slot is measured.
+	{"handoff: the title read as one slot rather than two", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `prefix, work, prefixed = strings.Cut(title, "]")`, `prefix, work, prefixed = "", title, false`},
+	// The bracket has to OPEN the line. Without that, a title holding one further along is refused for
+	// naming a repository its author never wrote down.
+	{"handoff: a bracket anywhere in the title read as a repository prefix", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if !strings.HasPrefix(title, "[") {`, "if false {"},
 	{"handoff: an eighth heading accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !isRequired(name):", "case !isRequired(name) && false:"},
 	{"handoff: a second title line accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "if s.titles > 1 {", "if s.titles > 1 && false {"},
-	// The anchor on the placeholder, which is what lets a real title hold an angle bracket.
-	{"handoff: the placeholder title matched anywhere in the line", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if title == "" || (strings.HasPrefix(title, "<") && strings.HasSuffix(title, ">")) {`, `if title == "" || strings.Contains(title, "<") {`},
+	// The anchors on the placeholder, which are what let a real half hold an angle bracket: a work half
+	// reading "to <10 minutes" and a prefix reading "[<10min]" are both sound.
+	{"handoff: the placeholder test matched anywhere in the half", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))`, `return half == "" || strings.Contains(half, "<")`},
+	{"handoff: the placeholder test's closing anchor removed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))`, `return half == "" || strings.HasPrefix(half, "<")`},
+	{"handoff: the repository prefix goes unheld against the clone's name", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if s.prefix != s.repoName {`, `if s.prefix != s.repoName && false {`},
+	// Silence where there is no name is the other half of that check, and the only case that can observe
+	// it is the one whose repository `repo-key` cannot name.
+	{"handoff: a prefix refused where the repository has no name", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixIsUnreadWhereTheRepositoryHasNoName", `if s.prefix == "" || s.repoName == "" {`, `if s.prefix == "" {`},
+	// The other half of that guard: with no word in the slot there is nothing to weigh, and a draft
+	// carrying no prefix at all would otherwise be told its empty slot is the wrong repository.
+	{"handoff: a title with no opening bracketed word weighed anyway", "../handoff-check/handoff-check.go", "./handoff-check/", "TestCompleteDraftPasses", `if s.prefix == "" || s.repoName == "" {`, `if s.repoName == "" {`},
+	// The name in hand is this process's repository, not the draft's, until the draft says so.
+	{"handoff: a prefix weighed against a repository the draft never named", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository", "if !s.named {", "if false {"},
+	// The drafting session and the repository the draft points at are two different checkouts, which is
+	// why the repository is a slot in the template at all.
+	{"handoff: the prefix held against the working directory, not the target repository", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "repokey.ResolveName(repo)", `repokey.ResolveName(".")`},
+	// The draft's own bytes and the path this process was handed both reach a finding, and a raw escape
+	// in either is re-interpreted by the terminal the human reads it in.
+	// The escaping and the line bound belong to the printer, so they are broken there. Held at each
+	// message instead, a mutant on any one site would survive the others and be reported as a finding.
+	{"handoff: every line leaves the gate unescaped", "../handoff-check/handoff-check.go", "./handoff-check/", "TestNoLineLeavesTheGateCarryingAControlByte", "shell.CutBytesMarked(shell.Oneline(text), lineWidthCap)", "shell.CutBytesMarked(text, lineWidthCap)"},
+	{"handoff: every line leaves the gate unbounded", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(shell.Oneline(text), lineWidthCap)", "shell.Oneline(text)"},
+	// The two fields standing before the repair. Cut only at the line, a long one takes `use [X]` with it.
+	{"handoff: the opening bracketed word quoted unbounded", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.prefix, findingNameCap)", "s.prefix"},
+	{"handoff: the repository path quoted unbounded beside it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.repoPath, pathCap), s.repoName, s.repoName", "s.repoPath, s.repoName, s.repoName"},
+	// The title line is the one line reader that has to trim BOTH ends: `\r` is a space byte, so a CRLF
+	// draft left every half ending in one and no half ever matched its closing `>`.
+	{"handoff: the title line right-trimmed no longer", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "title := strings.Trim(raw[2:], shell.SpaceBytes)", "title := strings.TrimLeft(raw[2:], shell.SpaceBytes)"},
+	{"handoff: the work half keeps the space the bracket left it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "strings.TrimPrefix(prefix, \"[\"), strings.TrimLeft(work, shell.SpaceBytes), true", "strings.TrimPrefix(prefix, \"[\"), work, true"},
 	{"handoff: a leftover template comment ignored", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `s.flag(fmt.Sprintf("template comment left at line %d — that slot is unfilled", lineNo))`, `_ = lineNo`},
 	{"handoff: None accepted in the slots that refuse it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestNone", "case refuseNone[name]:", "case refuseNone[name] && false:"},
 	// The word boundary after `None`, without which a slot opening "Nonetheless" is read as empty and
@@ -820,6 +942,10 @@ var mutants = []mutant{
 		`if s.result.Reached == 0 {`, `if s.result.Reached == 0 && false {`},
 	{"density: a report that ranked nothing claims a ranking", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
 		`} else if s.countable == 0 {`, `} else if s.countable < 0 {`},
+	{"density: a touched file is dropped from the baseline again", "../comment-density/bar.go", "./comment-density/", "TestATouchedFileStaysInTheBaselineAtItsOldContent",
+		`if !isNew[rel] {`, `if !isNew[rel] && false {`},
+	{"density: comment authorship is assumed rather than measured", "../comment-density/bar.go", "./comment-density/", "TestTheReportMeasuresCommentAuthorshipPerFile",
+		`if file.comments > 0 && !ceiling.isNew[rel] {`, `if file.comments > 0 && !ceiling.isNew[rel] && false {`},
 	// These mutants need a successfully parsed override; refusal-only cases cannot observe them.
 	// Keep `+ value*0` so value remains read and the mutant compiles.
 	{"density: COMMENT_MAX_RATIO parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
@@ -937,13 +1063,110 @@ var mutants = []mutant{
 	// still behaves the way the flag assumes.
 	{"gate: wiring keyed on the module's test files again", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.addBlindToGoTests("wiring"`, `g.add("wiring"`},
+	{"gate: the stubs stop keying the suite that reads them", "../gate/units.go", "./gate/", "TestTheGotestUnitIsKeyedOnTheStubsItsSuiteReads",
+		"\tgotestInputs = append(gotestInputs, extStubs...)\n", ""},
 	{"gate: gotest goes blind to the tests it runs", "../gate/units.go", "./gate/", "TestWiringIsBlindToGoTestsAndEcoCheckStillSkipsThem",
 		`g.add("gotest", "check", gotestInputs, "@gotest")`, `g.addBlindToGoTests("gotest", "check", gotestInputs, "@gotest")`},
 
+	// The store is the clone's, so every worktree writes it. Both mutants below are that sharing going
+	// wrong in one of the two directions: a key that carries where the run happened gates every new
+	// worktree from cold, and a sidecar written onto its own path lets a peer read the middle of a
+	// write and call moved content unchanged.
+	{"gate: a verdict keyed on the worktree it was earned in", "../gate/keys.go", "./gate/", "TestAVerdictRecordedInOneWorktreeIsFreshInAnother",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, u.prerequisite)",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, u.prerequisite, g.root)"},
+	{"gate: the sidecar written onto its own path rather than renamed onto it", "../gate/keys.go", "./gate/", "TestASidecarIsPublishedWholeOrNotAtAll",
+		"\tif err == nil {\n\t\terr = os.Rename(temp.Name(), path)\n\t}",
+		"\tif err == nil {\n\t\tos.Remove(temp.Name())\n\t\terr = os.WriteFile(path, []byte(body), 0o644)\n\t}"},
+	// The other half of that sharing: nothing a key is built from may name the checkout it was built
+	// in. Both places a root could reach one — the harness's resolved paths, and a suite's command.
+	{"gate: a mutant's resolved path kept as the absolute one the harness printed", "../gate/mutants.go", "./gate/", "TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn",
+		`strings.TrimPrefix(strings.TrimPrefix(resolved, root), "/")`, "resolved"},
+	{"gate: a suite's command spelling out the checkout it runs in", "../gate/units.go", "./gate/", "TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn",
+		`addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(suite))`,
+		`addUnit("shell:"+name, "check", inputs, "ai/run-tests.sh -s "+shellQuote(filepath.Join(g.root, suite)))`},
+	// Sweeping the temps rename leaks. Not sweeping only lets the store fill up, but either guard
+	// dropped deletes a file some run still needs: the age bound protects a sibling worktree's
+	// in-flight temp, and the tail length keeps a verdict record that happens to be spelt like one.
+	{"gate: the leaked temps never swept at all", "../gate/gate.go", "./gate/", "TestAKilledRunsLeftoverSidecarIsSweptAndALiveOneIsNot",
+		"\tg.sweepLeakedSidecars()\n", ""},
+	{"gate: a temp deleted however recently it was written", "../gate/gate.go", "./gate/", "TestAKilledRunsLeftoverSidecarIsSweptAndALiveOneIsNot",
+		"if err != nil || time.Since(info.ModTime()) < leakedSidecarAge {",
+		"if err != nil || time.Since(info.ModTime()) < leakedSidecarAge && false {"},
+	{"gate: a leaked temp told from a verdict record by spelling alone", "../gate/gate.go", "./gate/", "TestAKilledRunsLeftoverSidecarIsSweptAndALiveOneIsNot",
+		`return tail != "" && len(tail) < verdictKeyLength`, `return tail != ""`},
+	{"gate: the sweep given a key length no key has", "../gate/gate.go", "./gate/", "TestAVerdictKeyIsAsLongAsTheSweepThinks",
+		"const verdictKeyLength = 64", "const verdictKeyLength = 32"},
+
+	// A mutation unit keyed on the packages its suite compiles. Every arm narrows the key back towards
+	// the suite's own directory, the direction that reports a verdict fresh over code nothing re-applied
+	// it against. The graph half gets two: `Deps` says nothing about what a test file pulls in.
+	{"gate: a mutation unit keyed on its suite directory alone", "../gate/mutants.go", "./gate/", "TestAUnitIsKeyedOnThePackagesItsSuiteCompiles",
+		"inputs = append(inputs, compiles...)", "_ = compiles"},
+	{"gate: a suite the import graph cannot name is keyed anyway", "../gate/mutants.go", "./gate/", "TestASuiteTheImportGraphDoesNotNameRefuses",
+		"if !known {", "if !known && false {"},
+	{"gate: what a suite's test files import goes unkeyed", "../gate/mutants.go", "./gate/", "TestWhatASuiteCompilesCoversItsTestImportsTransitively",
+		"for _, imported := range fromTests[pkg] {", "for _, imported := range []string(nil) {"},
+	{"gate: a test import is keyed on without what it reaches", "../gate/mutants.go", "./gate/", "TestWhatASuiteCompilesCoversItsTestImportsTransitively",
+		"\t\t\tcompiled = append(compiled, deps[imported]...)\n", ""},
+
+	// The guide unit reads the same graph, for the one binary its command builds. The replacement is the
+	// hand-written list it replaced, so the mutant is the defect verbatim rather than an invented one.
+	{"gate: the guide unit back on a hand-written package list", "../gate/units.go", "./gate/", "TestTheGuideUnitIsKeyedOnTheCommandItRuns",
+		`inputs := append([]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/guide.sh", extModels}, compiles...)`,
+		"inputs := []string{\"ai/kk-flavor/skills\", \"ai/field-guide.html\", \"ai/guide.sh\", extModels, \"ai/tools/eco-guide\", \"ai/tools/eco-root\", \"ai/tools/shell\"}\n\t_ = compiles"},
+	{"gate: a graph that cannot answer for the guide's command is keyed anyway", "../gate/units.go", "./gate/", "TestAGuideUnitTheGraphCannotAnswerForRefuses",
+		"if !known {", "if !known && false {"},
+
+	// The models unit's prerequisite: which providers this machine can reach, the one thing a verdict
+	// here depends on that no file says. Each arm is that going wrong in one of three directions — the
+	// key stops carrying the provider set, the set stops being read off the policy, or the narrowed
+	// green stops saying so on the line someone reads.
+	{"gate: the prerequisite left out of a unit's key", "../gate/keys.go", "./gate/", "TestTheReachableProvidersChangeTheModelsUnitsKeyAndNoOthers",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, u.prerequisite)",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp)"},
+	{"gate: the probed clients back on a list written into the gate", "../gate/units.go", "./gate/", "TestTheReachableProvidersChangeTheModelsUnitsKeyAndNoOthers",
+		"\tfor _, selection := range policy.Selections() {\n\t\tclients = append(clients, selection.Client)\n\t}",
+		"\tclients = []string{\"claude\"}\n\t_ = policy"},
+	{"gate: every client the policy names counted as reachable", "../gate/units.go", "./gate/", "TestTheReachableProvidersChangeTheModelsUnitsKeyAndNoOthers",
+		"if _, err := exec.LookPath(client); err != nil {", "if _, err := exec.LookPath(client); err != nil && false {"},
+	{"gate: an unreadable policy registered rather than refused", "../gate/units.go", "./gate/", "TestAModelsUnitWhosePolicyCannotBeReadRefuses",
+		"\treachable, unreachable, err := g.probedClients()\n\tif err != nil {",
+		"\treachable, unreachable, err := g.probedClients()\n\tif err != nil && false {"},
+	{"gate: the unit given nothing to say about a provider nothing could ask", "../gate/units.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"prerequisiteShortfall: unaskedProviderNote(unreachable)})",
+		"prerequisiteShortfall: \"\"})\n\t_ = unreachable"},
+	{"gate: the shortfall dropped from every line that carries it", "../gate/report.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"\tif u.prerequisiteShortfall == \"\" {", "\tif u.prerequisiteShortfall == \"\" || true {"},
+	// Two lines, two worlds: the run that earns the verdict holds model-check's stderr back, and the
+	// cache hit runs no command at all.
+	{"gate: a cache hit reporting a verdict without its narrowed scope", "../gate/run.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"g.unitLine(\"fresh\", u.id, withShortfall(key[:12]+\" — inputs unchanged since it last passed\", u))",
+		"g.unitLine(\"fresh\", u.id, key[:12]+\" — inputs unchanged since it last passed\")"},
+	{"gate: the run that earns the verdict reporting none of what it skipped", "../gate/run.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"g.unitLine(\"ran ok\", u.id, withShortfall(fmt.Sprintf(\"%ds\", took), u))",
+		"g.unitLine(\"ran ok\", u.id, fmt.Sprintf(\"%ds\", took))"},
+
 	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
+
+	// The stub-usage drift check discovers its own subjects and then compares two strings, so the three
+	// decisions worth breaking are what counts as a stub, where a documented line ends, and what name the
+	// binary is told it was invoked by. Each is killed by that suite itself: the mutation moves one half
+	// of a comparison and the other half stops matching it.
+	{"stub usage: every shell script in the repository read as a stub", "../stub_usage_test.go", "./",
+		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
+		"if !carriesStubRegion(string(body)) {", "if !carriesStubRegion(string(body)) && false {"},
+	{"stub usage: a stub's usage line taken with the prose written after it", "../stub_usage_test.go", "./",
+		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
+		`if cut := strings.Index(trimmed, "   #"); cut >= 0 {`, `if cut := strings.Index(trimmed, "   #"); cut >= 0 && false {`},
+
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
 		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
+	{"gate: a refused invocation names no flags", "../gate/gate.go", "./gate/", "TestAnUnknownArgumentRefuses",
+		"\treturn refuse(errOut, usageLine)\n", "\treturn 2\n"},
+	{"gate: a refusal echoes its argument raw", "../gate/gate.go", "./gate/", "TestARefusalCarriesNoControlBytesFromTheArgumentItEchoes",
+		"shell.Oneline(reason)", "reason"},
 
 	{"guide: the maintainer marker stops excluding", "../eco-guide/inventory.go", "./eco-guide/", "TestTheMaintainerOnlySkillsAreLeftOut",
 		"if err != nil || shell.IsMaintainerAudience(lines) {", "if err != nil || shell.IsMaintainerAudience(lines) && false {"},
@@ -1038,6 +1261,68 @@ var mutants = []mutant{
 		`const standardGlob = "*.[mM][dD]"`, `const standardGlob = "*.md"`},
 	{"graph: a refused charge leaves the budget looking unspent", "../shell/graph.go", "./shell/", "TestARefusedChargeLeavesTheBudgetExhausted",
 		"\t\tb.left = 0\n\t\treturn false", "\t\treturn false"},
+
+	// Three tools grew a usage line so `stub_usage_test.go` has something to hold their stub headers
+	// against. Each is broken both ways: the grammar going missing from a refusal of an argument the
+	// tool will not take, and the grammar spreading to an exit 2 that was a sound invocation the tool
+	// could not carry out — a tree it could not read, a revision git would not resolve — where it sends
+	// the caller to fix what was already right.
+	{"tree-fingerprint: a second root accepted", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestTheCommandsArgumentTable",
+		"if len(args) > 1 {\n\t\treturn refuse(errOut, usage)", "if len(args) > 1 && false {\n\t\treturn refuse(errOut, usage)"},
+	{"tree-fingerprint: a refused invocation names no grammar", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestTheCommandsArgumentTable",
+		"return refuse(errOut, usage)", `return refuse(errOut, "")`},
+	{"tree-fingerprint: a tree it could not read answered with the grammar", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestTheCommandsArgumentTable",
+		"return refuse(errOut, err.Error())", `return refuse(errOut, err.Error()+"\n"+usage)`},
+
+	{"density: an argument refusal names no grammar", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"return out.refuseArguments(err)", "return out.refuse(err)"},
+	{"density: the bar arm refuses an argument without the grammar", "../comment-density/bar.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"return out.refuseArguments(err)", "return out.refuse(err)"},
+	{"density: a tree it could not read answered with the grammar", "../comment-density/density.go", "./comment-density/", "TestARevisionIsNotAPath",
+		"func (c console) refuse(err error) int {\n\tc.note(\"%v\", err)\n",
+		"func (c console) refuse(err error) int {\n\tc.note(\"%v\", err)\n\tc.note(\"%s\", usage)\n"},
+
+	{"dup: an argument refusal names no grammar", "../dup-literals/dup.go", "./dup-literals/", "TestARevisionIsNotAPath",
+		`fmt.Fprintf(stderr, "%s: %s\n%s: %s\n", self, err, self, usage)`,
+		`fmt.Fprintf(stderr, "%s: %s\n", self, err)`},
+	{"dup: a diff git refused answered with the grammar", "../dup-literals/dup.go", "./dup-literals/", "TestARevisionIsNotAPath",
+		"\tdiff, err := diffscan.Diff(cwd, args)\n\tif err != nil {\n\t\tfmt.Fprintf(stderr, \"%s: %s\\n\", self, err)\n",
+		"\tdiff, err := diffscan.Diff(cwd, args)\n\tif err != nil {\n\t\tfmt.Fprintf(stderr, \"%s: %s\\n%s: %s\\n\", self, err, self, usage)\n"},
+
+	// This harness's own scope selector — the code that decides which mutants a run is about, which
+	// until now could answer confidently about a file nobody asked for.
+	{"scope: an ambiguous spelling resolved to the first candidate", "../go-mutate/main.go", "./go-mutate/", "TestASpellingThatNamesSeveralFilesIsRefusedRatherThanGuessed",
+		"\t\tcase 1:\n", "\t\tcase 1, 2, 3:\n"},
+	{"scope: a bare file name matched against the registry's column", "../go-mutate/main.go", "./go-mutate/", "TestOneFileIsSelectedByEverySpellingOfIt",
+		"hit := filepath.Base(file) == spelling", "hit := file == spelling"},
+	{"scope: a path read only from the module root", "../go-mutate/main.go", "./go-mutate/", "TestOneFileIsSelectedByEverySpellingOfIt",
+		"hit = file == filepath.Clean(spelling) || file == filepath.Clean(filepath.Join(pkgBase, spelling))",
+		"hit = file == filepath.Clean(spelling)"},
+	{"scope: a dead end left without the spellings that exist", "../go-mutate/main.go", "./go-mutate/", "TestARefusalCarriesTheNearestRegisteredSpelling",
+		"if len(near) == 0 {", "if len(near) >= 0 {"},
+	{"scope: the unit listing spelled as the registry spells it", "../go-mutate/main.go", "./go-mutate/", "TestEveryListedFileSelectsAndTogetherTheyCoverEveryMutant",
+		"canonicalFile(file, pkgDir), strings.Join", "file, strings.Join"},
+
+	// This harness deciding whether it is the build of itself that the caller edited.
+	{"self: a binary built from other source runs anyway", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"if built != current {", "if built != current && false {"},
+	{"self: the source hashed by its bytes and not its file names", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"\t\tfmt.Fprintf(sum, \"%s %d\\n\", name, len(body))\n", ""},
+	{"self: a binary with no source beside it read as one whose source moved on", "../go-mutate/main.go", "./go-mutate/", "TestABinaryBuiltFromOtherSourceRefusesToRun",
+		"if len(names) == 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")",
+		"if len(names) < 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")"},
+	{"self: the registry left outside what the binary carries", "../go-mutate/main.go", "./go-mutate/", "TestTheRegistryIsInsideWhatTheStalenessCheckHashes",
+		"//go:embed *.go", "//go:embed main.go"},
+
+	// The rule that stops a loaded machine reddening this package: a case bounds a roll either at the
+	// shared out-of-reach constant or at a sub-second figure it is actually asking about. A guard that
+	// exempted everything would read exactly like this one and observe nothing.
+	{"judge: the shared roll deadline stops exempting", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`if spelled == "notTheSubject" {`, `if spelled == "notTheSubject" && false {`},
+	{"judge: every deadline counts as sub-second", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`[]string{"time.Millisecond", "time.Microsecond", "time.Nanosecond"}`, `[]string{""}`},
+	{"judge: the scan stops caring which call bounds a roll", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`if !isName || (callee.Name != "ClaudeCaller" && callee.Name != "CodexCaller") {`, `if !isName || callee.Name == "" {`},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain

@@ -5,11 +5,13 @@ import "kk-flavor/tools/shell"
 const (
 	FindingCap       = findingCap
 	FindingNameCap   = findingNameCap
+	LineWidthCap     = lineWidthCap
 	SuppressedMarker = suppressedMarker
 	UnshownMarker    = unshownMarker
 	UnnamedClassRank = unnamedClassRank
 
 	SharedRegionBodyCap = sharedRegionBodyCap
+	FlagCallSiteCap     = flagCallSiteCap
 )
 
 const (
@@ -33,6 +35,9 @@ const (
 	BasenameNotChecked            = basenameNotChecked
 	SubcommandCallSitesNotChecked = subcommandCallSitesNotChecked
 	UnreadDispatch                = unreadDispatch
+	FlagCallSitesNotChecked       = flagCallSitesNotChecked
+	FlagScanAtItsBound            = flagScanAtItsBound
+	ScriptUsageSpellingUnread     = scriptUsageSpellingUnread
 
 	ScriptNotExecutable = scriptNotExecutable
 
@@ -46,6 +51,7 @@ const (
 	DanglingLink                     = danglingLink
 	DanglingPathRef                  = danglingPathRef
 	DanglingSectionRef               = danglingSectionRef
+	FlagUsageDoesNotName             = flagUsageDoesNotName
 	InjectListsMissingDoc            = injectListsMissingDoc
 	ScriptDeclaresNoTestPosition     = scriptDeclaresNoTestPosition
 	SharedLayerCitesLane             = sharedLayerCitesLane
@@ -62,6 +68,7 @@ const (
 	SubcommandDispatchDoesNotAccept  = subcommandDispatchDoesNotAccept
 	SubcommandUsageDoesNotName       = subcommandUsageDoesNotName
 	SubcommandWithNoCallSite         = subcommandWithNoCallSite
+	DispatchNamesFewerFlags          = dispatchNamesFewerFlags
 	UncheckableCitation              = uncheckableCitation
 	UndelimitedSectionCitation       = undelimitedSectionCitation
 	UnknownSkillReferenced           = unknownSkillReferenced

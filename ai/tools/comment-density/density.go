@@ -38,6 +38,15 @@ const (
 	exitDidNotRun = 2
 )
 
+// The stub this command runs behind, written out rather than read from argv[0]. `stub_usage_test.go`
+// compares the usage line below against the one the stub's own header documents, and a name that
+// changes with how the binary was reached leaves it nothing stable to compare.
+const stubName = "comment-density.sh"
+
+// Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
+// refused where a revision belongs, and one after `--` narrows the scan to it.
+const usage = "usage: " + stubName + " [--bar] [<git-diff revisions>] [-- <paths>]"
+
 // console is the tool's name and its two streams. Findings go to stdout bare; a note on stderr opens
 // with the name, and nothing else in the package writes there. The default mode's denominator is a
 // note too, so its stdout is exactly the outliers; the bar prints its two shape lines on stdout.
@@ -53,6 +62,16 @@ func (c console) note(format string, args ...any) {
 
 func (c console) refuse(err error) int {
 	c.note("%v", err)
+	return exitDidNotRun
+}
+
+// An argument this tool will not take, answered with the grammar as well as the complaint. Held apart
+// from refuse because every other exit 2 here is a sound invocation the tool could not carry out — a
+// repository with no baseline, a revision git would not resolve — and printing the grammar there sends
+// the caller to fix an argument that was already right.
+func (c console) refuseArguments(err error) int {
+	c.note("%v", err)
+	c.note("%s", usage)
 	return exitDidNotRun
 }
 
@@ -155,7 +174,7 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 
 func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
 	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
-		return out.refuse(err)
+		return out.refuseArguments(err)
 	}
 	s := &scan{cfg: cfg, files: map[string]*stats{}}
 

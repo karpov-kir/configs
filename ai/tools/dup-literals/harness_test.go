@@ -166,4 +166,11 @@ func (r *repo) expectStderrHas(want string) {
 	}
 }
 
+func (r *repo) expectStderrLacks(unwanted string) {
+	r.t.Helper()
+	if strings.Contains(r.stderr.String(), unwanted) {
+		r.t.Errorf("%q appears on stderr: %s", unwanted, r.stderr.String())
+	}
+}
+
 func repeated(char rune, n int) string { return strings.Repeat(string(char), n) }

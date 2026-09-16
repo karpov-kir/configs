@@ -20,7 +20,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	repokey "kk-flavor/tools/repo-key"
+	"kk-flavor/tools/shell"
 )
+
+// The fixture clone's own directory name, which is therefore the name `repo-key` answers for it and
+// the only repository prefix a title may carry in this suite. Written out rather than asked of
+// `repo-key`, so a case comparing the two is not comparing that package with itself.
+//
+// Distinctive, not "repo": the gate refuses a draft naming the repository by basename, and a fixture
+// called "repo" would make that case pass on the word "repo" appearing anywhere.
+const fixtureName = "handoff-fixture"
 
 // The one repository every case runs against, its resolved path, and its commit. Built once in
 // TestMain: `git init` plus a commit is the expensive part of a case, and nothing here changes what a
@@ -45,9 +56,7 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(base)
 
-	// Named distinctively, not "repo": the gate refuses a draft naming the repository by basename, and
-	// a fixture called "repo" would make that case pass on the word "repo" appearing anywhere.
-	fixtureRepo = filepath.Join(base, "handoff-fixture")
+	fixtureRepo = filepath.Join(base, fixtureName)
 	if fixtureRepo, fixturePath, fixtureSHA, err = newRepo(fixtureRepo); err != nil {
 		fmt.Fprintln(os.Stderr, "handoff-check: no git fixture, so nothing was tested:", err)
 		os.RemoveAll(base)
@@ -281,10 +290,13 @@ func TestStructure(t *testing.T) {
 			contains: []string{"unknown section: Appendix"},
 		},
 		{
+			// No prefix, so the line IS the work half and the finding names the line. Pinned against the
+			// half-naming case below: a title with no prefix has no second slot to point the author at.
 			name:     "the template title placeholder",
 			mutate:   func(d *draft) { d.title = "<one imperative line: the work>" },
 			want:     1,
-			contains: []string{"title line is still the template placeholder"},
+			contains: []string{"the title line is still the template placeholder"},
+			absent:   []string{"work half"},
 		},
 		{
 			// The control for the anchored placeholder test: an angle bracket inside a real title is
@@ -292,6 +304,109 @@ func TestStructure(t *testing.T) {
 			name:   "a real title holding an angle bracket",
 			mutate: func(d *draft) { d.title = "Cut the mutation run to <10 minutes" },
 			want:   0,
+		},
+		{
+			name:     "the template's repository prefix left unfilled",
+			mutate:   func(d *draft) { d.title = "[<repo name>] Cut the mutation run down" },
+			want:     1,
+			contains: []string{"repository prefix is still the template placeholder"},
+		},
+		{
+			name:   "a filled repository prefix",
+			mutate: func(d *draft) { d.title = "[" + fixtureName + "] Cut the mutation run down" },
+			want:   0,
+		},
+		{
+			// The half the whole-line test used to hide: a filled prefix in front of an unfilled work
+			// half reads as a done line, and the work slot nobody wrote went unreported. The finding
+			// names that half rather than the line, because the line's other slot is filled.
+			name:     "a filled prefix in front of an unfilled work half",
+			mutate:   func(d *draft) { d.title = "[" + fixtureName + "] <one imperative line: the work>" },
+			want:     1,
+			contains: []string{"the title's work half is still the template placeholder"},
+		},
+		{
+			// The control for the placeholder test's closing anchor, on the prefix half: `<10min` opens
+			// with an angle bracket and is not the template's slot, so it is refused for naming the
+			// wrong repository and never for being unfilled.
+			name:     "a prefix that opens with an angle bracket is not the placeholder",
+			mutate:   func(d *draft) { d.title = "[<10min] Cut the mutation run down" },
+			want:     1,
+			contains: []string{"the title opens with [<10min]"},
+			absent:   []string{"still the template placeholder"},
+		},
+		{
+			name:   "a filled prefix on a title holding an angle bracket",
+			mutate: func(d *draft) { d.title = "[" + fixtureName + "] Cut the mutation run to <10 minutes" },
+			want:   0,
+		},
+		{
+			// The drift the prefix exists to remove: two sessions in one repository wrote two different
+			// names there, and nothing held either against what the tool the template names would print.
+			name:     "an opening bracket naming a repository this is not",
+			mutate:   func(d *draft) { d.title = "[invest-tasks] Cut the mutation run down" },
+			want:     1,
+			contains: []string{"the title opens with [invest-tasks]", "is named " + fixtureName},
+			absent:   []string{"still the template placeholder"},
+		},
+		{
+			// The same refusal, reached by an author who wrote a bracketed word as prose. The finding
+			// may not tell them their repository prefix is wrong: they wrote no prefix. It says what it
+			// saw — an opening bracket, which is the slot — and names both ways out.
+			name:     "an opening bracket that was never meant as a repository",
+			mutate:   func(d *draft) { d.title = "[flaky] resolver test — cut it from the run" },
+			want:     1,
+			contains: []string{"the title opens with [flaky]", "off the start of the line"},
+			absent:   []string{"repository prefix"},
+		},
+		{
+			// A prefix carrying a control byte reaches the finding as text. The bytes are the draft's,
+			// and a raw escape would be re-interpreted by the terminal the human reads the finding in.
+			name:     "an opening bracket holding a control byte",
+			mutate:   func(d *draft) { d.title = "[conf\x1b[31migs] Cut the mutation run down" },
+			want:     1,
+			contains: []string{"the title opens with [conf [31migs]"},
+			absent:   []string{"\x1b"},
+		},
+		{
+			// The bracket has to open the line. A title holding one further along is a title with no
+			// repository prefix, and reading its first words as one would refuse a sound line for
+			// naming a repository nobody wrote down.
+			name:   "a bracket further along a title with no prefix",
+			mutate: func(d *draft) { d.title = "Cut the [flaky] resolver test out of the run" },
+			want:   0,
+		},
+		{
+			// Only the FIRST `]` cuts, so a second bracketed word stays in the work half where its
+			// author put it.
+			name:   "a second bracketed word after a filled prefix",
+			mutate: func(d *draft) { d.title = "[" + fixtureName + "] [flaky] resolver test — cut it from the run" },
+			want:   0,
+		},
+		{
+			// The extreme of the defect this check exists to refuse: a title that is only the prefix.
+			// The work half is absent rather than a placeholder, and the line used to pass whole
+			// because the split wanted a space it never found.
+			name:     "a title that is only a filled prefix",
+			mutate:   func(d *draft) { d.title = "[" + fixtureName + "]" },
+			want:     1,
+			contains: []string{"the title's work half is still the template placeholder"},
+		},
+		{
+			// A CRLF draft. `\r` is a space byte, so an unfilled half ended in one and never matched
+			// its own closing `>`; the title check passed a line in which nothing had been written.
+			name:     "a placeholder title on a CRLF line",
+			mutate:   func(d *draft) { d.title = "<one imperative line: the work>\r" },
+			want:     1,
+			contains: []string{"the title line is still the template placeholder"},
+		},
+		{
+			// The space after the bracket is the work half's to lose, so a name written tight against
+			// it is still the name standing in the slot and is still weighed.
+			name:     "an opening bracketed word with no space after it",
+			mutate:   func(d *draft) { d.title = "[invest-tasks]Cut the mutation run down" },
+			want:     1,
+			contains: []string{"the title opens with [invest-tasks]"},
 		},
 		{
 			name:     "two title lines",
@@ -562,6 +677,159 @@ func TestRepositoryNameHoldingEscapes(t *testing.T) {
 	got, code := gateOver(t, d.text(), repo)
 	expect(t, "a correct draft in a repository whose name holds escapes", got, code, 0,
 		nil, []string{"--injected-token", "no repository named"})
+}
+
+// Nothing reaches the terminal carrying an escape, whichever line it rode out on. The bytes come from
+// the path the caller named and from the draft's own text, and a raw `ESC [ 2 K` erases the line it
+// prints on while `ESC [ n A` first walks up over the ones above — `base commit does not resolve` is
+// the last line printed, so an escape there reaches every finding already on screen, and kk-handoff
+// tells the drafting agent to fix what a finding names and never to argue with one.
+//
+// Every printing site is driven, because the guard belongs to the printer rather than to whichever
+// message someone remembered: an earlier version escaped two sites and left three raw, and the case
+// that covered it was green because its fixture left the tree clean and the base resolvable.
+func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "evil\x1b[31mname")
+	repo, path, sha, err := newRepo(dir)
+	if err != nil {
+		t.Skipf("could not build a repository named %q, so this proves nothing: %v", dir, err)
+	}
+	// Almost never fires: APFS and ext4 both carry a raw 0x1b through mkdir, git init and realpath.
+	if !strings.Contains(path, "\x1b") {
+		t.Skipf("the filesystem did not keep the escape in %q, so this proves nothing", path)
+	}
+	// Dirty, so `dirtyNote` speaks; it is the fixture's own file and nothing else reads this repository.
+	if err := os.WriteFile(filepath.Join(repo, "untracked.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatalf("dirtying %s: %v — nothing was tested", repo, err)
+	}
+	for _, tc := range []struct {
+		name     string
+		mutate   func(*draft)
+		contains []string
+	}{
+		{
+			// The path through `resolveBase` and `dirtyNote`, the two that printed it raw, plus the
+			// `no repository named` finding that quotes it as the repair.
+			name:   "a draft naming no repository, over a dirty tree with no base that resolves",
+			mutate: func(d *draft) { d.start = "Base commit 0123456789ab and nobody else is live here." },
+			contains: []string{
+				"no repository named in: Where it starts",
+				"base commit does not resolve",
+				"does not travel",
+			},
+		},
+		{
+			// The path through the title finding, which needs the draft to have named the repository.
+			name: "a draft naming the repository but opening with the wrong bracketed word",
+			mutate: func(d *draft) {
+				d.title = "[invest-tasks] Cut the mutation run down"
+				d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
+			},
+			contains: []string{"the title opens with [invest-tasks]", "does not travel"},
+		},
+		{
+			// The draft's own bytes, on the two findings that quote a heading back.
+			name:     "a draft whose headings carry the escape",
+			mutate:   func(d *draft) { d.extra = "\n## Append\x1b[2K\nwhatever else I felt like adding" },
+			contains: []string{"unknown section:", "does not travel"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := cleanDraft()
+			d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
+			tc.mutate(&d)
+			got, code := gateOver(t, d.text(), repo)
+			expect(t, tc.name, got, code, 1, tc.contains, []string{"\x1b"})
+		})
+	}
+}
+
+// What a message quotes is bounded where it stands, and the line it becomes is bounded again. Both
+// bounds exist so the words carrying the repair survive: cut only at the line, a long name would push
+// `use [X]` — the one repair the message offers — off the end.
+func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
+	long := strings.Repeat("z", 400)
+
+	d := cleanDraft()
+	d.title = "[" + long + "] Cut the mutation run down"
+	got, code := gateOver(t, d.text(), fixtureRepo)
+	expect(t, "a very long opening bracketed word", got, code, 1,
+		[]string{shell.CutMarker, "use [" + fixtureName + "]"}, nil)
+
+	d = cleanDraft()
+	d.extra = "\n## " + strings.Repeat("y", 900) + "\nwhatever else I felt like adding"
+	got, code = gateOver(t, d.text(), fixtureRepo)
+	expect(t, "a heading longer than the line bound", got, code, 1, []string{shell.CutMarker}, nil)
+	for _, line := range shell.SplitLines(got) {
+		if len(line) > lineWidthCap {
+			t.Errorf("a line left the gate at %d bytes, past the %d-byte bound: %.80s", len(line), lineWidthCap, line)
+		}
+	}
+
+	// The path is the other field standing before the repair, and the tree rather than the draft
+	// chooses how long it is. Long enough that the line bound alone would take `use [repo]` off the
+	// end: cut only at 500, the repair is what the path pushes past it.
+	deep := filepath.Join(t.TempDir(), strings.Repeat("d", 150), strings.Repeat("e", 150), strings.Repeat("f", 150), "repo")
+	repo, path, sha, err := newRepo(deep)
+	if err != nil {
+		t.Skipf("could not build a repository at %q, so this proves nothing: %v", deep, err)
+	}
+	d = cleanDraft()
+	d.title = "[invest-tasks] Cut the mutation run down"
+	d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
+	got, code = gateOver(t, d.text(), repo)
+	expect(t, "a repository path longer than its bound", got, code, 1,
+		[]string{shell.CutMarker, "use [repo]"}, nil)
+}
+
+// The name in hand belongs to the repository this process was pointed at, which is the draft's own
+// only once the draft has named it. Run from one checkout over a correct draft about another, the
+// comparison would tell a correct author to break a correct title.
+func TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository(t *testing.T) {
+	other, _, _, err := newRepo(filepath.Join(t.TempDir(), "alpha"))
+	if err != nil {
+		t.Fatalf("building the second repository: %v — nothing was tested", err)
+	}
+	d := cleanDraft()
+	d.title = "[" + fixtureName + "] Cut the mutation run down"
+	got, code := gateOver(t, d.text(), other)
+	expect(t, "a correct title weighed from another checkout", got, code, 1,
+		[]string{"no repository named in: Where it starts"}, []string{"the title opens with"})
+}
+
+// The prefix is held against a name only where there is one. A directory the gate is told is a work
+// tree but that `repo-key` cannot name leaves the prefix unread, rather than refusing a draft on a
+// comparison the gate could not make.
+//
+// This is the one case that fakes git, and the divergence is the point: what the gate is told about
+// the repository and what `repo-key` finds out for itself are two different questions, and a real
+// repository answers both the same way. An inherited GIT_DIR is how they come apart in the field.
+func TestAPrefixIsUnreadWhereTheRepositoryHasNoName(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := repokey.ResolveName(dir); err == nil {
+		t.Skip("the temporary directory sits inside a clone, so this case would measure a named repository")
+	}
+	path, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("resolving %s: %v — nothing was tested", dir, err)
+	}
+	d := cleanDraft()
+	d.title = "[invest-tasks] Cut the mutation run down"
+	d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
+	file := filepath.Join(t.TempDir(), "case.md")
+	if err := os.WriteFile(file, []byte(d.text()), 0o644); err != nil {
+		t.Fatalf("writing the case draft: %v — nothing was tested", err)
+	}
+	var out, errOut bytes.Buffer
+	code := run("handoff-check.sh", file, dir, &out, &errOut, answersEveryQuestion)
+	expect(t, "a prefix over a repository with no name", out.String()+errOut.String(), code, 0,
+		nil, []string{"prefix is", "still the template placeholder"})
+}
+
+// A git that answers every read-only question the scan asks: the directory is a work tree, the commit
+// resolves, and the tree is clean.
+func answersEveryQuestion(dir string, args ...string) (string, error) {
+	return "", nil
 }
 
 // The template and the gate each hold the seven headings, and nothing else compares them. Rename one

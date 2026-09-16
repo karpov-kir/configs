@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Print a fingerprint of the working tree (tracked and untracked content, ignored paths excluded) so a
-# ledger can name the tree it was written against (`~/.kk-flavor/standards/skill-protocol.md` →
-# **Queue**).
+# Print a fingerprint of the working tree (tracked and untracked content, ignored paths and untracked
+# nested repositories excluded) so a ledger can name the tree it was written against
+# (`~/.kk-flavor/standards/skill-protocol.md` → **Queue**).
 #
-# usage: tree-fingerprint.sh [<repo path>]. Prints the tree hash, or exits 2 with a reason.
+#   usage: tree-fingerprint.sh [<repo path>]   # <repo path> defaults to .
+#
+# Prints the tree hash, or exits 2 with a reason. A second path is refused rather than dropped: the
+# hash of the first one reads exactly like an answer about the pair.
 #
 # The recipe is Go, in `ai/tools/tree-fingerprint/`, and the Go callers import it rather than coming
 # through here.
@@ -12,7 +15,9 @@
 # otherwise leave the caller's working files recoverable from `.git/objects` for good. And the
 # throwaway index is seeded from HEAD, because git applies ignore rules only to paths the index does
 # not hold, so an unseeded walk drops a tracked file matching an ignore rule and a rewrite of it
-# becomes invisible to every ledger.
+# becomes invisible to every ledger. And a repository sitting inside this one is held out of the walk,
+# because `add -A` records it as its HEAD — a hash that moves when a session working in there commits,
+# and not when anything here does.
 #
 # tested by: the Go suite beside the tool, `ai/tools/tree-fingerprint/`; the shared stub region below
 # by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.

@@ -1,7 +1,7 @@
 // Measures the shape of what agents read: how deep a consumer reaches for a rule, how wide a file's
 // surface is, and which of its sections nothing enters by.
 //
-//	usage: cite-graph <root>
+//	usage: cite-graph.sh <root>
 //
 // Three finders, and not one of them a target. Each reads the tree through a proxy, so moving a
 // number and improving what agents read are separate acts: a door is how a consumer reaches a rule it
@@ -251,7 +251,7 @@ func report(out, errOut io.Writer, defined map[string]map[string]bool, edges []e
 
 func run(args []string, out, errOut io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(errOut, "usage: cite-graph <root>")
+		fmt.Fprintln(errOut, "usage: cite-graph.sh <root>")
 		return 2
 	}
 	root := args[0]

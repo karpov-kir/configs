@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Restore installed project skills after checkout. Never installs dependencies or instructions.
-# Usage: bash ai/project-skills.sh --sync <worktree>
+# usage: bash ai/project-skills.sh --sync <worktree>
 # tested by: project-skills-test.sh
 
 project_git_paths() {
@@ -173,7 +173,7 @@ project_disable_worktrees() {
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   set -uo pipefail
-  [ "$#" -eq 2 ] && [ "$1" = --sync ] || { printf 'Usage: %s --sync <worktree>\n' "$0" >&2; exit 2; }
+  [ "$#" -eq 2 ] && [ "$1" = --sync ] || { printf 'usage: %s --sync <worktree>\n' "$0" >&2; exit 2; }
   repo=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
   script_name=install-project.sh
   label='project skill sync'

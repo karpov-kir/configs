@@ -71,12 +71,6 @@ func fakeCodex(t *testing.T, script string) {
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-// The roll deadline for a case whose subject is NOT the deadline — every Codex case here but
-// TestCodexCallerBoundsTheRoll, which keeps its own 100ms. Generous deliberately: no case here
-// asserts on latency, and at a one-second bound spawning the fake alone can exceed it on a loaded
-// machine, so runBounded cancels the roll and the case fails on the bound rather than on its subject.
-const notTheSubject = 10 * time.Second
-
 func TestCodexCallerRefusesMissingFinalAnswer(t *testing.T) {
 	fakeCodex(t, "echo none")
 	if _, err := CodexCaller(notTheSubject, testSettings())("prompt", "view"); err == nil || !strings.Contains(err.Error(), "final answer") {

@@ -336,7 +336,7 @@ func (r *run) dispatch() {
 	case "record":
 		r.cmdRecord(r.args[1:])
 	default:
-		r.refuse("usage: report.sh {init <intent>|root|layout check|layout migrate --dry-run|layout migrate --apply|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record <op> <record> \"<text>\"} [<intent>]",
+		r.refuse("usage: report.sh {init <intent>|root|layout check|layout migrate --dry-run|layout migrate --apply|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp \"<stages>\"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record [--intent <NNN-slug>] <op> <record> \"<text>\"} [<intent>]",
 			"  every subcommand that reads a report takes the intent as its last argument; omit it when only one is open")
 	}
 }

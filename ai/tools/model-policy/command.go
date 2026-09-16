@@ -56,7 +56,7 @@ func Run(command Command) int {
 	task := flags.String("task", "", "task from the policy, such as code-review or patrol/scout")
 	limits := flags.Bool("limits", false, "emit the policy's limits instead of a task's settings")
 	flags.Usage = func() {
-		fmt.Fprintln(command.Stderr, "Usage: model-policy.sh --client codex|claude --task <task> [--config <file>]\nEmits the requested settings and the policy digest. It never dispatches, and never reports what actually ran.")
+		fmt.Fprintln(command.Stderr, "usage: model-policy.sh --client codex|claude --task <task> [--config <file>] [--limits] [--help]\nEmits the requested settings and the policy digest. It never dispatches, and never reports what actually ran.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(command.Args); err != nil {
