@@ -88,6 +88,12 @@ var rankTable = []struct {
 	// The bound this scan withheld subcommands under. Without an entry it sorts by byte order
 	// against the basenames its own findings lead with, so a stub named `alpha.sh` buries it.
 	{subcommandScanAtItsBound, 2},
+	// Both ways flags.go can hold a call site and check the flag in it against nothing: the script
+	// states no usage line, or the bound withheld the call site. Each leads with a path or a number the
+	// reviewed tree chose, so without a row here they land at rank 5 and a flood of `dangling link:`
+	// buries them.
+	{flagCallSitesNotChecked, 2},
+	{flagScanAtItsBound, 2},
 
 	{scriptNotExecutable, 3},
 	{skillNameDirMismatch, 3},
@@ -103,6 +109,7 @@ var rankTable = []struct {
 	{danglingLink, 5},
 	{danglingPathRef, 5},
 	{danglingSectionRef, 5},
+	{flagUsageDoesNotName, 5},
 	{budgetRefusalsSuppressed, 5},
 	{injectListsMissingDoc, 5},
 	{citationPathIsPattern, 5},

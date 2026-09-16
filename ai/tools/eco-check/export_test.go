@@ -10,6 +10,7 @@ const (
 	UnnamedClassRank = unnamedClassRank
 
 	SharedRegionBodyCap = sharedRegionBodyCap
+	FlagCallSiteCap     = flagCallSiteCap
 )
 
 const (
@@ -33,6 +34,8 @@ const (
 	BasenameNotChecked            = basenameNotChecked
 	SubcommandCallSitesNotChecked = subcommandCallSitesNotChecked
 	UnreadDispatch                = unreadDispatch
+	FlagCallSitesNotChecked       = flagCallSitesNotChecked
+	FlagScanAtItsBound            = flagScanAtItsBound
 
 	ScriptNotExecutable = scriptNotExecutable
 
@@ -46,6 +49,7 @@ const (
 	DanglingLink                     = danglingLink
 	DanglingPathRef                  = danglingPathRef
 	DanglingSectionRef               = danglingSectionRef
+	FlagUsageDoesNotName             = flagUsageDoesNotName
 	InjectListsMissingDoc            = injectListsMissingDoc
 	ScriptDeclaresNoTestPosition     = scriptDeclaresNoTestPosition
 	SharedLayerCitesLane             = sharedLayerCitesLane

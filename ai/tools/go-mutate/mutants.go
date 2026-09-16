@@ -598,6 +598,52 @@ var mutants = []mutant{
 	}`, ``},
 	{"call sites: the whole-file read unbounded again", "subcommands.go", "./eco-check/", "TestOversizeFileIsNotReadByTheCallSiteScan", `		if info.Size() > maxFileBytes {`, `		if info.Size() > (1 << 62) {`},
 
+	// The flag scan. Its silent form is the one that matters: a scan that looks at nothing reports
+	// nothing, which every caller reads as a pass.
+	{"flags: a flag no usage line names goes unreported", "flags.go", "./eco-check/", "TestFlagCallSites", "case !usage.flags[site.flag]:", "case !usage.flags[site.flag] && false:"},
+	{"flags: a script with no usage line reported as one that merely omits the flag", "flags.go", "./eco-check/", "TestFlagCallSites", "case !usage.stated:", "case !usage.stated && false:"},
+	// Without the indent test the whole leading comment block is the usage line, so a flag the header
+	// mentions in passing documents itself.
+	{"flags: the usage block read past its own indent", "flags.go", "./eco-check/", "TestFlagCallSites", "} else if at <= indent {", "} else if at <= indent && false {"},
+	{"flags: a usage line taken from anywhere in the script", "flags.go", "./eco-check/", "TestFlagCallSites", "for _, line := range leadingCommentBlock(lines) {", "for _, line := range lines {"},
+	{"flags: the commentary after the usage line read as part of it", "flags.go", "./eco-check/", "TestFlagCallSites", `if cut := strings.Index(trimmed, "   #"); cut >= 0 {`, `if cut := strings.Index(trimmed, "   #"); cut >= 0 && false {`},
+	{"flags: prose read as a command", "flags.go", "./eco-check/", "TestWhereAFlagCallSiteIsRead", "\t\tfor _, span := range delimitedSpans(line, \"`\") {\n\t\t\tspans = append(spans, commandSpan{text: span, line: at + 1})\n\t\t}", "\t\tspans = append(spans, commandSpan{text: line, line: at + 1})"},
+	{"flags: the command not ended at the separator that starts the next", "flags.go", "./eco-check/", "TestWhereAFlagCallSiteIsRead", "if isCommandSeparator(token) {", "if isCommandSeparator(token) && false {"},
+	{"flags: the call-site bound removed", "flags.go", "./eco-check/", "TestTheFlagScanStaysWithinItsBounds", "if len(sites) >= flagCallSiteCap {", "if len(sites) >= 100000 {"},
+	{"flags: a cut flag name left unmarked", "flags.go", "./eco-check/", "TestTheFlagScanStaysWithinItsBounds", `shell.CutBytesMarked("--"+site.flag, findingNameCap)`, `shell.CutBytes("--"+site.flag, findingNameCap)`},
+	{"flags: the script path in a finding left unsanitised", "flags.go", "./eco-check/", "TestAFlagFindingCarriesNoControlByte", `" is passed to " + shell.Oneline(paths[0])`, `" is passed to " + paths[0]`},
+
+	// The located half. A finding that names only the script leaves its reader grepping every
+	// instruction file for the call, so each way the location can go missing or go wrong is its own
+	// mutant — including the off-by-one, which reads as a real line and sends them to the wrong one.
+	{"flags: the finding never says which file the call site is in", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", `c.add(flagUsageDoesNotName + at + " — " + shell.CutBytesMarked(`, `c.add(flagUsageDoesNotName + shell.CutBytesMarked(`},
+	{"flags: the located line is the one above the call site", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "commandSpan{text: span, line: at + 1}", "commandSpan{text: span, line: at}"},
+	{"flags: the located path left unsanitised", "flags.go", "./eco-check/", "TestAFlagFindingCarriesNoControlByte", `at := shell.Oneline(site.file) + ":"`, `at := site.file + ":"`},
+	// Both halves of the call the dedupe makes. Keyed on the place as well as the pair, one flag named
+	// in every skill becomes one finding per skill; reported once per flag instead of once per script,
+	// a script with no usage line at all floods its rank on its own.
+	{"flags: one pair reported once per file that names it", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "return flagPair{script: s.script, flag: s.flag}", "return flagPair{script: s.script + s.file, flag: s.flag}"},
+	{"flags: a script stating no usage line reported once per flag", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "if !unstated[paths[0]] {", "if true {"},
+	// The fenced branch carries most of this tree's call sites, so its locator earns the same mutant
+	// the backticked one has rather than riding on it.
+	{"flags: the located line of a fenced call site is the one above it", "flags.go", "./eco-check/", "TestAFlagFindingNamesTheCallSiteItWasReadFrom", "commandSpan{text: line, line: at + 1}", "commandSpan{text: line, line: at}"},
+	// What a scan says about a file it never opened. readLines declines twice over, and the arm for
+	// each is here: the nil error a file past the read bound comes back with, and the error every
+	// other refusal carries.
+	{"flags: a script past the read bound described as stating no usage line", "flags.go", "./eco-check/", "TestAScriptTheFlagScanCouldNotRead", "if err != nil || lines == nil {", "if err != nil {"},
+	{"flags: the unread arm removed, so an unread script is described anyway", "flags.go", "./eco-check/", "TestAScriptTheFlagScanCouldNotRead", "case usage.unread:", "case usage.unread && false:"},
+	// The insert put back in front of the bound, which is the form that bounds the slice and lets the
+	// map grow with the tree.
+	{"flags: the dedupe map filled past the call-site bound", "flags.go", "./eco-check/", "TestTheFlagScanStaysWithinItsBounds", `				if len(sites) >= flagCallSiteCap {
+					capped++
+					continue
+				}
+				seen[site.pair()] = true`, `				seen[site.pair()] = true
+				if len(sites) >= flagCallSiteCap {
+					capped++
+					continue
+				}`},
+
 	// Test each route for uncommitted files separately: the walk, explicit citation paths,
 	// and the skill directories listed by the mount scan.
 	{"gate: a gitignored file left in the walk", "gate.go", "./eco-check/", "TestAGitignoredFileIsJudgedWithoutTheFlagAndNotWithIt", "if g.holds(entry.path) {", "if g.holds(entry.path) && false {"},
