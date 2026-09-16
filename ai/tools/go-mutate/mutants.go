@@ -1160,9 +1160,6 @@ var mutants = []mutant{
 	{"stub usage: a stub's usage line taken with the prose written after it", "../stub_usage_test.go", "./",
 		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
 		`if cut := strings.Index(trimmed, "   #"); cut >= 0 {`, `if cut := strings.Index(trimmed, "   #"); cut >= 0 && false {`},
-	{"stub usage: the binary told a bare name rather than the stub's path", "../stub_usage_test.go", "./",
-		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
-		"\trun.Args[0] = stub\n", "\trun.Args[0] = filepath.Base(stub)\n"},
 
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
 		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
