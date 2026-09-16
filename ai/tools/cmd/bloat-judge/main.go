@@ -31,6 +31,13 @@ func main() {
 		policyPath = args[1]
 		args = args[2:]
 	}
+	// Before the policy and the provider, so an invocation error is answered with the grammar on a
+	// machine that can reach no model at all. Resolving first made `bloat-judge.sh` with no arguments
+	// refuse with "no provider" wherever no CLI is installed — green here, red in CI, and the reader
+	// sent to install something rather than to fix the command they typed.
+	if bloatjudge.RefuseIfNotTheGrammar(self, args, os.Stderr) {
+		os.Exit(2)
+	}
 	if policyPath == "" {
 		var err error
 		policyPath, err = modelpolicy.InstalledPath(os.Args[0])
