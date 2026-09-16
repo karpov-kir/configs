@@ -54,6 +54,18 @@ serve() {
 }
 
 # Written by whoever puts the binary there — this script after a build, install.sh after a download.
+#
+# It is also the build identity every stub exports as ECO_TOOL_BUILD, so a tool that reports a
+# measurement can name what produced it. `992662a` settled the other half — a scanner number names the
+# commit it was read off — and a reading whose instrument is unnamed cannot be compared with one taken
+# later: a rebuild here moved comment-density's attribution figures on an unchanged tree with nothing in
+# the output saying so. The stamp rather than the binary's own bytes, because it moves exactly when the
+# build does and costs one file read where hashing the binary on every invocation would not. Never the
+# stub: that file barely changes and would name nothing.
+#
+# It names the SOURCE, not the bytes: identical source built under two Go toolchains stamps the same and
+# can still behave differently. Narrow, and stated rather than built for — but do not read a matching
+# stamp as a bytes-identical guarantee.
 stamp="$binary.stamp"
 
 # Three answers: 0 built from this source, 1 built from something else, 2 could not tell. The third
