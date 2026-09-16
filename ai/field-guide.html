@@ -339,7 +339,7 @@
     <h2>Keep coordination in the reactor</h2>
     <p class="sec-note">One reactor per intent set. Return to it with new requests.</p>
   </div>
-  <p class="lede" style="margin-top:0">A request without an intent goes to <code>idsd-reactor</code>. It assigns an intent number and starts a separate <code>idsd-intent</code> task to author the ICE, without building it. Answer that task's questions there. It lands the intent on the target branch and reports back to the reactor.</p>
+  <p class="lede" style="margin-top:0">A request without an intent goes to <code>idsd-reactor</code>. It assigns an intent number and starts a separate <code>idsd-intent</code> task to author the ICE, without building it. Answer that task's questions there. It puts the intent where the repo mode keeps one &mdash; on the target branch when <code>.idsd/</code> is tracked, in the external record otherwise &mdash; and reports back to the reactor.</p>
   <p>The reactor tracks the new intent's dependencies and starts an <code>idsd-ship</code> task when it is ready within the approved scope. It coordinates live tasks, relays changes that affect siblings, and starts newly unblocked work as each intent lands. The <code>idsd/audit</code> worker checks consistency and derives the build order.</p>
   <p>Keep the reactor task available throughout the run. Bring additions and coordination requests back to it; answer feature-specific questions in the task that asks them.</p>
   <figure class="workflow" aria-label="Example dependency graph: A lands, then B and C can build in parallel. D waits for both B and C to land.">
@@ -427,7 +427,7 @@
     </div>
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-finalize</code><span class="tag you">you type it</span></div>
-      <p>Land an already qualified intent through a direct merge or a PR, and archive its records. Use for "finalize the intent" or an explicit final checkpoint. Waits for verified landing; the broader ship lifecycle and throwaway cleanup belong to idsd-ship.</p>
+      <p>Land an already qualified intent through a direct merge or a PR, and archive its records. Use for "finalize the intent" or an explicit final checkpoint. Waits for verified landing; the broader ship lifecycle belongs to idsd-ship.</p>
       <p class="hint">takes: &lt;NNN-slug&gt;</p>
     </div>
     <div class="lane">
@@ -447,7 +447,7 @@
     <div class="lane">
       <div class="lane-top"><code class="i">idsd-ship</code></div>
       <p>Coordinate an ICE intent through build, qualification and authorized landing. Use for "ship it", "merge this", or "continue the ship". For one checkpoint use idsd-build, idsd-qualify or idsd-finalize; several intents at once belong to idsd-reactor.</p>
-      <p class="hint">takes: &lt;arg&gt; | done [&lt;intent&gt;] | qualify | continue [&lt;intent&gt;] | promote</p>
+      <p class="hint">takes: &lt;arg&gt; | done [&lt;intent&gt;] | qualify | continue [&lt;intent&gt;] | promote | discard [&lt;intent&gt;]</p>
     </div>
     <div class="group-label"><span>kk-*</span><i></i></div>
     <div class="lane">

@@ -8,10 +8,10 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// What the older in-tree layout left behind, and what this does about it. Throwaway scratch used to
+// What the older in-tree layout left behind, and what this does about it. An external idsd used to
 // sit at `<repo>/.idsd`, hidden from `git add -A` by a rule in `.git/info/exclude` — so a repo that
-// ever ran a throwaway ship carries both a directory and a rule for a location nothing writes any
-// more. Neither is decided here; root.go decides where the scratch lives, and this reconciles what the
+// ever ran an external ship carries both a directory and a rule for a location nothing writes any
+// more. Neither is decided here; root.go decides where the idsd lives, and this reconciles what the
 // last decision left.
 //
 // check-ignore reaches both, and it runs before anything else in every pass, so a repo cleans itself
@@ -19,7 +19,7 @@ import (
 // the rule again on its own path, because reading through a rule that hides untracked files under
 // .idsd/ is what makes a promotion fail for a reason that blames the human.
 
-// Throwaway mode holds nothing in the tree, so an in-tree `.idsd/` here is either a directory left by
+// External mode holds nothing in the tree, so an in-tree `.idsd/` here is either a directory left by
 // the older layout or one a human made by hand. Its content is the only copy of whatever it holds, so
 // this refuses and says what to do rather than moving or merging anything.
 //
@@ -32,7 +32,7 @@ func (r *run) reconcileTreeIdsdDir() {
 	}
 	if shell.IsSymlink(tree) {
 		r.refuse("error: "+tree+" is a symlink -> "+shell.Oneline(readLink(tree))+" — nothing was read or written.",
-			"  The scratch directory now lives at "+r.idsdDir+"; remove the link, then re-run.")
+			"  The idsd directory now lives at "+r.idsdDir+"; remove the link, then re-run.")
 	}
 	// Files, not directory entries. Moving the content out leaves `intents/` and `archive/` standing as
 	// empty directories, and counting entries reads those as content — so a repo whose move is finished
@@ -40,7 +40,7 @@ func (r *run) reconcileTreeIdsdDir() {
 	count, sample, err := filesUnder(tree)
 	if err != nil {
 		r.refuse("error: could not read "+tree+" ("+err.Error()+") — whether it holds anything is unknown, so nothing was read or written.",
-			"  The scratch directory now lives at "+r.idsdDir+".")
+			"  The idsd directory now lives at "+r.idsdDir+".")
 	}
 	if count == 0 {
 		// RemoveAll, because what is left is the empty directory skeleton the move left behind rather
@@ -48,19 +48,19 @@ func (r *run) reconcileTreeIdsdDir() {
 		_ = os.RemoveAll(tree)
 		return
 	}
-	r.refuse("error: "+tree+" still holds "+strconv.Itoa(count)+" file(s), and throwaway idsd scratch no longer lives in the tree — nothing was read or written.",
-		"  The scratch directory is now "+r.idsdDir+", shared by every branch and worktree of this clone.",
+	r.refuse("error: "+tree+" still holds "+strconv.Itoa(count)+" file(s), and an external idsd no longer lives in the tree — nothing was read or written.",
+		"  The idsd directory is now "+r.idsdDir+", shared by every branch and worktree of this clone.",
 		"  Still there: "+shell.Oneline(strings.Join(sample, " "))+sampleTail(count, len(sample)),
 		"  Nothing here moves your files for you: copy what you still want into that directory, delete the rest of "+tree+", then re-run.")
 }
 
-// The line the old in-tree layout wrote into `.git/info/exclude` to hide the scratch from
+// The line the old in-tree layout wrote into `.git/info/exclude` to hide the idsd from
 // `git add -A`.
 const staleExclusionEntry = ".idsd/"
 
 // Remove that rule.
 //
-// Stale in both modes, so every caller may run it: throwaway writes nothing in the tree to hide, and
+// Stale in both modes, so every caller may run it: external mode writes nothing in the tree to hide, and
 // in committed mode the rule hides a new intent from git. The file is shared across every worktree,
 // and no worktree needs the rule any more.
 //

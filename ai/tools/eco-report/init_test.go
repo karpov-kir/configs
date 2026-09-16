@@ -187,8 +187,8 @@ func TestInitWillNotWriteAReportIntoItsOwnFingerprint(t *testing.T) {
 	// `gate` blocks on freshness with nothing that can clear it.
 	//
 	// Committed mode, because that is now the only mode where the report CAN land inside the tree.
-	// Throwaway scratch sits outside it by construction, which is the stronger guarantee — there is no
-	// ignore rule left to skip. The throwaway side of this is TestScratchSitsWhereGitAddAllCannotReachIt.
+	// An external idsd sits outside it by construction, which is the stronger guarantee — there is no
+	// ignore rule left to skip. The external side of this is TestScratchSitsWhereGitAddAllCannotReachIt.
 	f := newCommittedRepoUnignored(t)
 	f.runReport("init", "001-unignored")
 	f.assertRefused("init refuses when git does not ignore the reports directory")

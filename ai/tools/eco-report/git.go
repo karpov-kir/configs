@@ -61,7 +61,7 @@ type gitAnswer struct {
 //
 // ONE of them can move under us after all, and that is why this is a memo rather than a package
 // cache: `git add` changes the index, so `stagedIndex` clears the entry instead of leaving a stale
-// "throwaway" behind a tree that is now committed. `discard` reads that answer before deleting, so a
+// "external" behind a tree that is now committed. `discard` reads that answer before deleting, so a
 // stale one is not a slow report — it is the wrong one, over a tracked .idsd/.
 func (r *run) memoGit(stderr io.Writer, args ...string) (string, int) {
 	key := strings.Join(args, "\x00")
@@ -123,15 +123,15 @@ func (r *run) repoMode() string {
 	if tracked != "" {
 		return "committed"
 	}
-	return "throwaway"
+	return "external"
 }
 
 // The two answers are not equally safe: `discard`'s guard is `committed`, so a failed read falling
-// through to `throwaway` deletes a tracked .idsd/. That is why this is a separate assertion rather
+// through to `external` deletes a tracked .idsd/. That is why this is a separate assertion rather
 // than a refusal inside repoMode, which every call site reads as a value.
 func (r *run) assertRepoModeReadable() {
 	if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {
-		r.refuse("error: could not read the index (git ls-files .idsd) — the repo mode is unknown, and it decides whether .idsd/ is the durable record or scratch to delete")
+		r.refuse("error: could not read the index (git ls-files .idsd) — the repo mode is unknown, and it decides whether .idsd/ is tracked in the repo or kept outside it")
 	}
 }
 
@@ -180,7 +180,7 @@ func (r *run) ignoredSourceTravels(path string) (string, bool) {
 func (r *run) assertReportIsIgnored() {
 	// Outside the tree, git ignores nothing because git contains nothing: the requirement is met by
 	// the location itself rather than by an ignore rule, and asking check-ignore about a path the repo
-	// does not hold would refuse every throwaway init. The location is asserted instead, which is the
+	// does not hold would refuse every external init. The location is asserted instead, which is the
 	// stronger of the two — an ignore entry can be edited away, a path outside the tree cannot.
 	if r.idsdDir != r.treeIdsdDir() {
 		r.assertScratchIsUnreachableByGit()
@@ -195,7 +195,7 @@ func (r *run) assertReportIsIgnored() {
 		readNote = "  A global core.excludesFile does not count — it belongs to this machine alone, so a clone would commit the report. Source read: " + source
 	}
 	r.refuse("error: nothing in this repository ignores "+r.report+" — the report was NOT initialized.",
-		"  Run report.sh check-ignore first; it is what excludes the scratch, by the mechanism that fits the repo mode.",
+		"  Run report.sh check-ignore first; it is what keeps the record out of the tree, by the mechanism that fits the repo mode.",
 		"  Written here, the report would sit inside its own fingerprint, so every stamp would be stale on arrival.",
 		readNote)
 }
@@ -208,7 +208,7 @@ func (r *run) assertReportIsIgnored() {
 // the durable record and must stay tracked. The `*` is what covers the ship folders that do not exist
 // yet when `promote` runs.
 //
-// Built from the IN-TREE layout, never from a resolved path, which in throwaway mode is outside the
+// Built from the IN-TREE layout, never from a resolved path, which in external mode is outside the
 // tree — that would put an absolute path into .gitignore, where it matches nothing while both writer
 // and verifier agree it is fine. These entries describe where the files land once the directory IS in
 // the tree, which is the only state either caller is about.

@@ -393,10 +393,8 @@ func (r *run) openLockedRecord(path string, creating bool) (*os.File, []string, 
 	}
 	handle, err := os.OpenFile(path, flags, 0o600)
 	if err != nil {
-		// Only an append creates a record. A bump, revise, evict or admit that created one would leave an
-		// empty file behind after refusing, and `playbook.md` is on survivingContent's durable list
-		// (paths.go): a nought-byte one left by a typo keeps a throwaway `.idsd/` standing for good, the
-		// mode's zero-traces contract broken by a command that refused.
+		// Only an append creates a record. A bump, revise, evict or admit that created one would leave
+		// an empty file behind after refusing, and TestOnlyAnAppendCreatesARecord holds what that costs.
 		if !creating && errors.Is(err, fs.ErrNotExist) {
 			r.refuse("error: there is no "+path+" yet — nothing was written.",
 				"  Only `record append` creates a record; the rest act on entries already in one.")

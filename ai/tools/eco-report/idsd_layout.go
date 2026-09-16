@@ -131,11 +131,11 @@ func (r *run) idsdLayoutFindings() []string {
 	if shell.PathExists(legacyConstraints) {
 		findings = append(findings, "  "+legacyConstraints+": curate these preserved constraints into charter.md with the human, then retire this legacy copy")
 	}
+	// A charter that exists is held to its format; its ABSENCE is not a finding. An else-branch here
+	// fails TestLayoutCheckDoesNotReportAnAbsentCharter, which holds why.
 	charter := filepath.Join(r.idsdDir, "charter.md")
 	if info, err := os.Lstat(charter); err == nil && info.Mode().IsRegular() {
 		findings = append(findings, charterLayoutFindings(charter)...)
-	} else if r.hasIntentFiles() {
-		findings = append(findings, "  missing charter.md; curate the human charter through idsd-charter")
 	}
 	return findings
 }
@@ -185,18 +185,6 @@ func allowedShipAgentPath(parts []string, isDir bool) bool {
 		return !isDir
 	}
 	return allowedAgentPath(parts, isDir)
-}
-
-func (r *run) hasIntentFiles() bool {
-	for _, group := range []string{"intents", "archive"} {
-		entries, _ := os.ReadDir(filepath.Join(r.idsdDir, group))
-		for _, entry := range entries {
-			if entry.IsDir() && shell.IsRegularFile(filepath.Join(r.idsdDir, group, entry.Name(), intentName)) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func sanitizeLayoutPaths(paths []string) []string {

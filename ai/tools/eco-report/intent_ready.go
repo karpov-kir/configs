@@ -36,7 +36,7 @@ func (r *run) cmdIntentReady() {
 	number := leadingNumber(name)
 	if name == "" || strings.HasPrefix(name, ".") || !isSlugCharset(name) || number == "" {
 		r.refuse("usage: report.sh intent-ready <NNN-slug>",
-			"  the slug names <scratch>/intents/<NNN-slug>/; it must be [0-9A-Za-z._-], cannot start with a dot, and must open with the intent's number")
+			"  the slug names <idsd-root>/intents/<NNN-slug>/; it must be [0-9A-Za-z._-], cannot start with a dot, and must open with the intent's number")
 	}
 	path := r.shipDir(name) + "/" + intentName
 	if !shell.PathExists(path) && shell.IsRegularFile(r.archiveDir(name)+"/"+intentName) {

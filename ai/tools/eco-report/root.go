@@ -12,8 +12,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// Where the scratch directory lives, and the only place that decides it. Committed mode keeps it in
-// the tree, where git tracks it and every worktree gets it for free. Throwaway mode holds it outside
+// Where the idsd directory lives, and the only place that decides it. Committed mode keeps it in
+// the tree, where git tracks it and every worktree gets it for free. External mode holds it outside
 // the tree entirely — the shared git dir by default, or wherever this machine's override points.
 //
 // One rule shapes all of it: the location must resolve the same from every worktree of one clone.
@@ -51,7 +51,7 @@ func (r *run) gitCommonPath(name string) string {
 	}
 	if status != 0 || path == "" {
 		r.refuse("error: could not resolve this repository's shared git dir (git rev-parse --git-common-dir) —",
-			"  the idsd scratch location is unknown, so nothing was read and nothing was written.")
+			"  the idsd location is unknown, so nothing was read and nothing was written.")
 	}
 	if !filepath.IsAbs(path) {
 		path = r.root + "/" + path
@@ -93,13 +93,13 @@ func (r *run) overrideRoot() string {
 		return ""
 	}
 	if !shell.IsRegularFile(path) || !isReadable(path) {
-		r.refuse("error: "+path+" is not a readable file — the idsd scratch location is unknown.",
-			"  Fix it or remove it. Falling back to the default would put this repo's scratch somewhere you were not told about.")
+		r.refuse("error: "+path+" is not a readable file — the idsd location is unknown.",
+			"  Fix it or remove it. Falling back to the default would put this repo's idsd directory somewhere you were not told about.")
 	}
 	r.assertOverrideConfigIsTrustworthy(path)
 	content, err := os.ReadFile(path)
 	if err != nil {
-		r.refuse("error: could not read " + path + " (" + err.Error() + ") — the idsd scratch location is unknown, and nothing was read or written.")
+		r.refuse("error: could not read " + path + " (" + err.Error() + ") — the idsd location is unknown, and nothing was read or written.")
 	}
 	root := ""
 	for _, line := range shell.SplitLines(string(content)) {
@@ -121,7 +121,7 @@ func (r *run) overrideRoot() string {
 		root = fields[1]
 	}
 	if root == "" {
-		r.refuse("error: "+path+" sets no `root` — the idsd scratch location is unknown.",
+		r.refuse("error: "+path+" sets no `root` — the idsd location is unknown.",
 			"  Add a `root <path>` line, or remove the file to use the default (this repository's shared git dir).")
 	}
 	// `~` expanded here because this file is written by hand, where `~/…` is what a person types and
@@ -131,7 +131,7 @@ func (r *run) overrideRoot() string {
 		root = r.home + strings.TrimPrefix(root, "~")
 	}
 	if !filepath.IsAbs(root) {
-		r.refuse("error: "+path+" sets a relative root ("+shell.Oneline(root)+") — the idsd scratch location is unknown.",
+		r.refuse("error: "+path+" sets a relative root ("+shell.Oneline(root)+") — the idsd location is unknown.",
 			"  A relative path would resolve against whatever directory the caller stood in, so it must be absolute (or start with `~/`).")
 	}
 	root = filepath.Clean(root)
@@ -160,11 +160,11 @@ func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 		// read must not pass as one it checked. Reachable only as a race against the IsRegularFile above,
 		// but accepting silently here is exactly the asymmetry that made the two guards disagree about
 		// one fact — and this is the guard the other one's strength rests on.
-		r.refuse("error: could not read " + shell.Oneline(path) + " (" + err.Error() + ") — whether the file naming the scratch root is safe to trust is unknown, so nothing was read or written.")
+		r.refuse("error: could not read " + shell.Oneline(path) + " (" + err.Error() + ") — whether the file naming the idsd root is safe to trust is unknown, so nothing was read or written.")
 	}
 	if isGroupOrWorldWritable(info.Mode()) {
 		r.refuse("error: "+shell.Oneline(path)+" is group- or world-writable (mode "+fmt.Sprintf("%04o", info.Mode().Perm())+") — nothing was read or written.",
-			"  Another account could name a scratch root of its own here, and every check below this one would pass it,",
+			"  Another account could name an idsd root of its own here, and every check below this one would pass it,",
 			"  because the root it names can be an ordinary private directory. `chmod go-w` the file, then re-run.")
 	}
 	// The same substitution, one level out: a writable directory holding the config lets it be replaced
@@ -178,7 +178,7 @@ func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 			continue
 		}
 		r.refuse("error: "+shell.Oneline(path)+" sits under a group- or world-writable directory ("+shell.Oneline(above)+", mode "+fmt.Sprintf("%04o", info.Mode().Perm())+") — nothing was read or written.",
-			"  Whoever can write there can replace the config wholesale and name a scratch root of their own.",
+			"  Whoever can write there can replace the config wholesale and name an idsd root of their own.",
 			"  `chmod go-w` the directory named, or move the config somewhere every directory above it is yours alone.")
 	}
 }
@@ -348,7 +348,7 @@ func (r *run) resolveIdsdDir() {
 	}
 	if override := r.overrideRoot(); override != "" {
 		r.idsdDir = override + "/" + r.repoKey()
-		r.overrideNote = "note: idsd scratch location overridden by " + r.overrideConfigPath() + " — using " + r.idsdDir
+		r.overrideNote = "note: idsd location overridden by " + r.overrideConfigPath() + " — using " + r.idsdDir
 		return
 	}
 	r.idsdDir = r.gitCommonPath(sharedDirName)
@@ -363,7 +363,7 @@ func (r *run) noteOverride() {
 	}
 }
 
-// The property throwaway mode now rests on: no write lands anywhere `git add -A` can reach, so no
+// The property external mode rests on: no write lands anywhere `git add -A` can reach, so no
 // ignore entry is needed and no report sits inside the tree it fingerprints.
 //
 // The default root satisfies it by sitting under the git dir — which is
@@ -376,7 +376,7 @@ func (r *run) assertScratchIsUnreachableByGit() {
 	}
 	scratch, root, gitDir := resolveExisting(r.idsdDir), shell.CanonicalDir(r.root), shell.CanonicalDir(r.gitCommonPath(""))
 	if root == "" {
-		r.refuse("error: could not resolve " + r.root + " to a real path — whether the idsd scratch is inside the working tree is unknown, so nothing was read or written.")
+		r.refuse("error: could not resolve " + r.root + " to a real path — whether the idsd root is inside the working tree is unknown, so nothing was read or written.")
 	}
 	// Under the git dir is safe: git tracks nothing there and no commit or `git add -A` reaches it.
 	if gitDir != "" && (scratch == gitDir || strings.HasPrefix(scratch, gitDir+"/")) {
@@ -385,8 +385,8 @@ func (r *run) assertScratchIsUnreachableByGit() {
 	if scratch != root && !strings.HasPrefix(scratch, root+"/") {
 		return
 	}
-	r.refuse("error: the idsd scratch location "+r.idsdDir+" is inside this checkout's working tree — nothing was read or written.",
-		"  Throwaway scratch must sit where `git add -A` cannot reach it, or every report lands inside the tree it fingerprints",
+	r.refuse("error: the external idsd location "+r.idsdDir+" is inside this checkout's working tree — nothing was read or written.",
+		"  An external idsd must sit where `git add -A` cannot reach it, or every report lands inside the tree it fingerprints",
 		"  and no stamp can ever be fresh. Point `root` in "+r.overrideConfigPath()+" outside "+root+", or remove that file to use the default.")
 }
 

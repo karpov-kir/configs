@@ -8,10 +8,10 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The scratch directory's whole life: excluded, promoted to durable, or torn down. Two of the three
-// are destructive — `discard` removes files the throwaway mode keeps no copy of anywhere, and
-// `promote` writes to the human's index — so every refusal here stands between this tool and work
-// nothing else can recover.
+// The idsd directory's whole life: excluded, moved into the repo, or torn down. Two of the three
+// are destructive — `discard` removes files external mode keeps no copy of anywhere, and `promote`
+// writes to the human's index — so every refusal here stands between this tool and work nothing else
+// can recover.
 
 // The ignore-surface entries `attempt` reports as failing, rendered as the quoted run all three
 // refusals below echo: ` '.idsd/intents/*/for-agents/qualify-report.md'`, and empty when none failed. `attempt` may act
@@ -31,7 +31,7 @@ func (r *run) cmdCheckIgnore() {
 	// any fingerprinting `git add -A`, so nothing scratch is ever staged.
 	r.assertRepoModeReadable()
 	if r.repoMode() == "committed" {
-		// A repo promoted out of throwaway still carries the old rule, and in this mode it is worse than
+		// A repo promoted out of external mode still carries the old rule, and in this mode it is worse than
 		// stale: it makes git ignore untracked files under .idsd/, so a new intent never gets tracked.
 		// Unconditional here because committed mode has no reconcile step to wait for.
 		r.removeStaleExclusion()
@@ -43,10 +43,10 @@ func (r *run) cmdCheckIgnore() {
 			return !travels
 		})
 		if unignored == "" {
-			r.line("ok: each ship's scratch is gitignored (committed idsd repo)")
+			r.line("ok: each ship's working files are gitignored (committed idsd repo)")
 			r.exit(0)
 		}
-		r.errLines("WARN: NOT gitignored:" + unignored + " — add each to .gitignore (shared idsd setup)")
+		r.errLines("WARN: NOT gitignored:" + unignored + " — add each to .gitignore (committed idsd setup)")
 		r.exit(1)
 	}
 	// Nothing is written in the tree any more, so there is nothing to exclude and no exclusion to keep
@@ -57,7 +57,7 @@ func (r *run) cmdCheckIgnore() {
 	r.reconcileTreeIdsdDir()
 	// After the reconcile, so the entry can only be excluding a directory that is already gone.
 	r.removeStaleExclusion()
-	r.line("ok: throwaway run — idsd scratch is %s, where `git add -A` cannot reach it (nothing to exclude)", r.idsdDir)
+	r.line("ok: external idsd — the record is at %s, where `git add -A` cannot reach it (nothing to exclude)", r.idsdDir)
 }
 
 func (r *run) cmdPromote() {
@@ -71,7 +71,7 @@ func (r *run) cmdPromote() {
 		r.line("already committed — .idsd/ is tracked; nothing to promote")
 		r.exit(0)
 	}
-	// Before anything is written or verified. A repo that ran a throwaway ship under the old layout still
+	// Before anything is written or verified. A repo that ran an external ship under the old layout still
 	// carries a `.idsd/` rule in .git/info/exclude, and every step below reads the wrong answer through
 	// it: `git add` stages nothing and exits 0, the mode check refuses, and the message blames the human
 	// for having nothing to promote — while the .gitignore verification reads info/exclude as the source.
@@ -122,7 +122,7 @@ func (r *run) cmdPromote() {
 	r.movePromotedScratch(target)
 
 	// The index moves here, so the memoized `ls-files .idsd` answer goes with it: it is what decides
-	// committed from throwaway, and `discard` reads that before deleting.
+	// committed from external, and `discard` reads that before deleting.
 	r.forgetIndexAnswers()
 	if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
@@ -132,7 +132,7 @@ func (r *run) cmdPromote() {
 	// is a no-op. Success is read from the mode for that reason, never from the add's exit.
 	if r.repoMode() != "committed" {
 		r.refuseUnmoved(moved, target,
-			"error: nothing under "+target+" could be staged, so this is still a throwaway — not promoted.",
+			"error: nothing under "+target+" could be staged, so the idsd is still external — not promoted.",
 			"  Every file there is ignored. A durable .idsd/ needs something that is not: an intent, a charter, a playbook.")
 	}
 	for _, path := range priorResults {
@@ -140,20 +140,20 @@ func (r *run) cmdPromote() {
 			r.errLines("warning: promotion retained an unused prior result manifest: " + err.Error())
 		}
 	}
-	r.line("promoted: moved the scratch to %s and staged it, each ship's scratch ignored via .gitignore — commit when ready (not committed here)", target)
+	r.line("promoted: moved the idsd record to %s and staged it, each ship's working files ignored via .gitignore — commit when ready (not committed here)", target)
 }
 
-// A refusal after the move puts the scratch back where it came from. Left in the tree it is the worst
+// A refusal after the move puts the record back where it came from. Left in the tree it is the worst
 // of both states: the intents sit untracked while the human has been told the promotion did not
 // happen, and the next `git add -A` picks up whatever .gitignore does not cover. The undo is the
 // inverse rename, so if it fails, say where the files actually are — the one thing the human needs.
 func (r *run) refuseUnmoved(from, to string, lines ...string) {
 	if err := os.Rename(to, from); err != nil {
-		lines = append(lines, "  WARNING: the scratch was moved to "+to+" and could not be put back ("+err.Error()+").",
+		lines = append(lines, "  WARNING: the idsd record was moved to "+to+" and could not be put back ("+err.Error()+").",
 			"  Your intents are there, in the working tree. Move them to "+from+" yourself, or promote again.")
 		r.refuse(lines...)
 	}
-	lines = append(lines, "  The scratch is back at "+from+"; the .gitignore entry stays (it is wanted in both modes).")
+	lines = append(lines, "  The record is back at "+from+"; the .gitignore entry stays (it is wanted in both modes).")
 	r.refuse(lines...)
 }
 
@@ -184,7 +184,7 @@ func (r *run) assertPromotionTargetIsClear(target string) {
 		"  one side's charter or playbook would silently win. Reconcile them by hand, then re-run.")
 }
 
-// The move itself. A rename, never a recursive copy: a copy has a half-done state, and in throwaway
+// The move itself. A rename, never a recursive copy: a copy has a half-done state, and in external
 // mode the thing being copied is the only version of the human's intents anywhere. A rename cannot
 // cross filesystems, and an override root legitimately can be on another volume — that case refuses
 // and hands the move to the human rather than growing a copier with partial failures of its own.
@@ -207,9 +207,8 @@ func (r *run) movePromotedScratch(target string) {
 	}
 }
 
-// Named, this runs with no report at all, so `done` can `close` first and still `discard` after. That
-// is the one order that composes, and the one `idsd-ship` → `done` uses; reversed, `close` has no
-// report left to read and refuses.
+// Named, this runs with no report at all, so a `close` may precede it. That is the one order that
+// composes: reversed, `close` has no report left to read and refuses.
 func (r *run) cmdDiscard() {
 	switch r.resolveReport(r.arg(1)) {
 	case reportNoneOpen:
@@ -238,7 +237,7 @@ func (r *run) cmdDiscard() {
 		slug = r.intentSlug()
 	}
 	// The two must name the same ship before anything is deleted. Out of step, what gets deleted is
-	// another ship's in-flight intent file, which throwaway mode keeps no copy of anywhere.
+	// another ship's in-flight intent file, which external mode keeps no copy of anywhere.
 	if slug != "" && slug != stem {
 		r.refuse("error: "+r.report+" is named for '"+stem+"' but records 'intent: "+slug+"' — nothing was discarded.",
 			"  Those are different ships, and discard deletes the intent file the frontmatter names.",
@@ -268,7 +267,7 @@ func (r *run) cmdDiscard() {
 	// trip over and no exclusion to drop. "Removed" holds only because assertShipExists ran: nothing
 	// reaches here without a report or an intent file to remove, so a second run or a wrong slug cannot
 	// claim this having deleted nothing.
-	r.line("discarded: removed the idsd scratch at %s (throwaway, zero traces)", r.idsdDir)
+	r.line("discarded: removed the external idsd record at %s", r.idsdDir)
 }
 
 // Retire one ship's scratch once it has landed. `done` calls this after the commit succeeds; the open

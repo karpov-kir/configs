@@ -91,7 +91,7 @@ func (r *run) reportNames() []string {
 		// Absent is "no reports open", which every caller reads correctly — before `init` there is no
 		// such directory. Present but unreadable is a different fact wearing the same shape, and it
 		// reaches the destructive branch: `survivingContent` reads the empty list as "no other ship is in
-		// flight" and `discard` goes on to remove the whole .idsd/, which in throwaway mode is the only
+		// flight" and `discard` goes on to remove the whole .idsd/, which in external mode is the only
 		// copy of a parallel ship's report. The same rule assertRepoModeReadable states.
 		if !errors.Is(err, fs.ErrNotExist) {
 			r.refuse("error: could not read "+r.intentsDir+" ("+err.Error()+") — which reports are open is unknown.",
@@ -196,8 +196,8 @@ func (r *run) requireReport(name string) {
 }
 
 // Nothing of the named ship present means there is no ship to discard, whatever the argument says.
-// Without this, `discard <any-legal-slug>` deletes at exit 0 and reports "zero traces" — a whole
-// .idsd/ in a repo that never used idsd, or one holding only decisions.md. A slug that names a real
+// Without this, `discard <any-legal-slug>` deletes at exit 0 and reports it removed the record — a whole
+// .idsd/ in a repo that never used idsd, or one holding only roadmap.md. A slug that names a real
 // ship still discards it, and must, since that is how a closed ship gets torn down.
 func (r *run) assertShipExists(slug string) {
 	if shell.IsRegularFile(r.report) {
@@ -219,36 +219,43 @@ func (r *run) assertShipExists(slug string) {
 		"  Check the name against report.sh list; a standalone review is discarded before its report is closed, not after.")
 }
 
-// What is left under .idsd/ that is not this ship's scratch, as a printable list — empty means
+// What is left under .idsd/ that is not this ship's own files, as a printable list — empty means
 // `discard` may take the whole directory. What counts as remaining is named, never "the .idsd/ root
-// is non-empty". Unknown artifacts are preserved; `decisions.md` is deliberately NOT on
-// the list — `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **The decision log** makes it throwaway
-// scratch by design. `roadmap.md` is off it for its own reason: `~/.kk-flavor/skills/idsd-intent/SKILL.md`
+// is non-empty". Unknown artifacts are preserved. `roadmap.md` is off the list for its own reason: `~/.kk-flavor/skills/idsd-intent/SKILL.md`
 // → **Phase 3 — Emit** generates it from the intents' own frontmatter, so whenever it holds anything,
 // the intents arm below is already keeping .idsd/ standing for the intents it came from.
 //
 // Read after this ship's own files are gone, so every count it takes is of what survives.
+// One reason per comma, because two run together read as a single garbled phrase — and `discard`
+// prints this list as the whole of why it kept the directory.
+func appendReason(kept, reason string) string {
+	if kept == "" {
+		return " " + reason
+	}
+	return kept + ", " + reason
+}
+
 func (r *run) survivingContent() string {
 	kept := ""
-	for _, durable := range []string{"charter.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting"} {
+	for _, durable := range []string{"charter.md", "for-agents/decisions.md", "for-agents/language.md", "for-agents/playbook.md", "for-agents/supporting"} {
 		if shell.PathExists(r.idsdDir + "/" + durable) {
-			kept += " " + durable
+			kept = appendReason(kept, durable)
 		}
 	}
 	// A parallel ship's report is another human's work in flight, so it keeps .idsd/ standing.
 	// Counted by re-reading intents/ once this ship's folder is gone — the caller's rmdir only
 	// tidies the directory when it empties, and its status is discarded.
 	if left := len(r.reportNames()); left != 0 {
-		kept += " " + strconv.Itoa(left) + " other qualify report(s)"
+		kept = appendReason(kept, strconv.Itoa(left)+" other qualify report(s)")
 	}
 	// Anything at all under intents/ or archive/ keeps .idsd/ alive, but the label counts what is
 	// actually there — "other intents" for a stray `.DS_Store` tells the human something untrue.
 	intents, archive := r.intentsDir, r.idsdDir+"/archive"
 	if shell.PathExists(intents) || shell.PathExists(archive) {
 		if left := countShipFolders(intents, archive); left > 0 {
-			kept += " " + strconv.Itoa(left) + " other intent(s)"
+			kept = appendReason(kept, strconv.Itoa(left)+" other intent(s)")
 		} else {
-			kept += " unrecognised content under intents/ or archive/"
+			kept = appendReason(kept, "unrecognised content under intents/ or archive/")
 		}
 	}
 
@@ -265,7 +272,7 @@ func (r *run) survivingContent() string {
 			if dir == r.projectAgentsDir() && (name == "decisions.md" || name == "language.md" || name == "playbook.md" || name == "supporting") {
 				continue
 			}
-			kept += " unrecognised artifact " + shell.Oneline(filepath.Join(dir, name))
+			kept = appendReason(kept, "unrecognised artifact "+shell.Oneline(filepath.Join(dir, name)))
 		}
 	}
 	return kept
@@ -319,7 +326,7 @@ func (r *run) assertScratchDirsAreReal(outcome string) {
 	for _, writeDir := range []string{r.idsdDir, r.intentsDir} {
 		if shell.IsSymlink(writeDir) {
 			r.refuse("error: "+writeDir+" is a symlink -> "+shell.Oneline(readLink(writeDir))+" — "+outcome+".",
-				"  the scratch directory and its intents/ are always real directories. Remove the link, then re-run.")
+				"  the idsd directory and its intents/ are always real directories. Remove the link, then re-run.")
 		}
 	}
 }
@@ -339,7 +346,7 @@ func readLink(path string) string {
 func (r *run) assertRealPathParents(path, outcome string) {
 	relative, err := filepath.Rel(r.idsdDir, filepath.Dir(path))
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		r.refuse("error: path is outside the scratch root — " + outcome)
+		r.refuse("error: path is outside the idsd root — " + outcome)
 	}
 	parent := r.idsdDir
 	for _, component := range append([]string{""}, strings.Split(relative, string(filepath.Separator))...) {

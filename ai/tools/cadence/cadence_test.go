@@ -9,7 +9,7 @@
 // absence of the longer one instead — and the undetermined message deliberately ends "this is not a
 // 'not due'", so searching for the bare phrase finds the disclaimer and passes a broken run.
 //
-// The audit record is resolved through git, so all but the usage cases run inside a throwaway
+// The audit record is resolved through git, so all but the usage cases run inside a disposable
 // repository built by copying one seed rather than by running `git init` per case: the seed costs six
 // processes and a copy costs none.
 //
@@ -308,7 +308,7 @@ func TestRecordingAnOffer(t *testing.T) {
 	if got := strings.TrimRight(string(body), "\n"); got != today() {
 		t.Errorf("the record holds %q, wanted %q", got, today())
 	}
-	// `report.sh discard` wipes a throwaway .idsd/, so a cadence kept there could never come due.
+	// `report.sh discard` wipes an external .idsd/, so a cadence kept there could never come due.
 	if _, err := os.Stat(filepath.Join(f.repo, ".idsd")); !os.IsNotExist(err) {
 		t.Errorf("something was written under .idsd, where a discard would wipe it")
 	}

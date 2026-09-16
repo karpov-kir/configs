@@ -38,7 +38,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 
 ## Report
 
-**`.idsd/` in this suite means the resolved scratch root, not a path in the repo.** `report.sh root` prints it, and it is the only way to learn it. In **committed** mode it is `<repo>/.idsd/`. In **throwaway** mode it is outside the working tree — shared by every branch and worktree of the clone — so a skill that joins `.idsd/` onto the repo root writes where no other worktree will look, and where the next `git add -A` can see it. Every `.idsd/<file>` below, and in every skill of this suite, is relative to what that subcommand printed.
+**`.idsd/` in this suite means the resolved idsd root, not a path in the repo.** `report.sh root` prints it, and it is the only way to learn it. In **committed** mode it is `<repo>/.idsd/`. In **external** mode it is outside the working tree — shared by every branch and worktree of the clone — so a skill that joins `.idsd/` onto the repo root writes where no other worktree will look, and where the next `git add -A` can see it. Every `.idsd/<file>` below, and in every skill of this suite, is relative to what that subcommand printed.
 
 **The layout is fixed at both scopes.** Human-facing project files are `.idsd/charter.md` and generated `.idsd/roadmap.md`; each active or archived intent exposes only `intent.md` beside `for-agents/`.
 
@@ -56,7 +56,7 @@ Run `report.sh layout check` to validate the layout. For an old layout, explicit
 
 **Before the first write into `.idsd/` — any file, by any skill — run `report.sh check-ignore`**: it is what keeps each ship's records and report, and nothing else under `.idsd/`, out of the human's `git add -A` — no other step does it. Its exit 1 blocks the write however its message is worded.
 
-**Two repo modes, decided by whether `.idsd/` is tracked in git** (`report.sh repo-mode` prints which): **committed** — `.idsd/` is part of the durable record; **throwaway** — the whole `.idsd/`, intents and report alike, leaves zero traces, and survives only if the human promotes it (`idsd-ship promote`). Either way **never commit a report — however that is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): no route commits one, `promote` included, which keeps every ship's scratch ignored on its way to committed mode. A stamped report asserts a merge gate over a tree fingerprint, and committed it carries that assertion past the tree it was taken from.
+**Two repo modes, decided by whether `.idsd/` is tracked in git** (`report.sh repo-mode` prints which): **committed** — `.idsd/` travels in the repo's own history; **external** — `.idsd/` is kept outside the repo, equally durable there and shared by every branch and worktree of the clone, and it moves into the repo only when the human asks (`idsd-ship promote`). **Neither mode is scratch, and no route deletes an external `.idsd/` unprompted** — `report.sh discard` is a human's explicit request, the counterpart of `promote`. Either way **never commit a report — however that is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): no route commits one, `promote` included, which keeps every ship's working files ignored on their way into the repo. A stamped report asserts a merge gate over a tree fingerprint, and committed it carries that assertion past the tree it was taken from.
 
 ### The decision log
 
@@ -66,9 +66,9 @@ It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole de
 
 Classify an existing entry with `report.sh record --intent <NNN-slug> classify local-decisions "<selector>" candidate|decision` (for the project log, use `project-decisions` and omit `--intent <NNN-slug>`). Classification preserves the entry and its count; it neither edits the charter nor grants promotion approval.
 
-**Write it only through `report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-decisions "<text>"`** — this ship's own log, which finalize merges upward. Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In throwaway mode every worktree of the clone races for that one copy (**Report**).
+**Write it only through `report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-decisions "<text>"`** — this ship's own log, which finalize merges upward. Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In external mode every worktree of the clone races for that one copy (**Report**).
 
-Tracked in committed mode only; in throwaway mode `done` discards it, so route out anything that must outlive the ship. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale.
+Tracked in committed mode only; in external mode it stays outside the repo, so route out anything a reader with the repo alone must reach. **Write it before `report.sh stamp`** — content added afterwards moves the tree out from under `reviewed-tree`, and the merge gate reads the pass as stale.
 
 **Read it at pass start and re-evaluate every entry against the tree — the log is pruned here and nowhere else.** An entry whose subject is gone from the code, or which a later one supersedes, goes now: `record evict`, whatever its count. One still binding on what this pass examines takes `record bump`. **Then `report.sh decisions-reviewed <intent>`, after this pass's `invalidate`** — `stamp` refuses until you have, and `invalidate` clears it, so no pass inherits another's reading of the log.
 
@@ -92,7 +92,7 @@ Tracked in committed mode only; in throwaway mode `done` discards it, so route o
 
 ## After the pass
 
-The closing message adds to `~/.kk-flavor/skills/kk-qualify/SKILL.md` → **After the pass**. The **repo mode** rides its status line. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too. After a standalone review, one line saying `report.sh close review` retires it (**Report**). In throwaway mode add one line — `.idsd/` is local scratch this run, `/idsd-ship promote` to keep it.
+The closing message adds to `~/.kk-flavor/skills/kk-qualify/SKILL.md` → **After the pass**. The **repo mode** rides its status line. After an `idsd-ship` build, surface `idsd-build`'s checkpoint evidence too. After a standalone review, one line saying `report.sh close review` retires it (**Report**). In external mode add one line naming where the record is (`report.sh root`), since nothing in the repo points at it.
 
 ## Rules
 

@@ -179,20 +179,20 @@ func (r *run) cmdFinalize(args []string) {
 	r.clearResultManifest()
 
 	if err := os.MkdirAll(shell.DirName(target), 0o700); err != nil {
-		r.refuse("error: could not create " + shell.DirName(target) + " (" + err.Error() + ") — this ship's scratch is already gone, so re-run once the directory can be made.")
+		r.refuse("error: could not create " + shell.DirName(target) + " (" + err.Error() + ") — this ship's report is already gone, so re-run once the directory can be made.")
 	}
 	// os.Rename rather than moveFile: that helper falls back to a file copy across devices, which
 	// cannot move a directory. Both paths are under one scratch root, so a rename is always what
 	// happens here — and a cross-device error is worth surfacing rather than half-answering.
 	if err := os.Rename(r.shipDir(stem), target); err != nil {
-		r.refuse("error: could not move " + r.shipDir(stem) + " to " + target + " (" + err.Error() + ") — this ship's scratch is already gone, and its intent is still under intents/.")
+		r.refuse("error: could not move " + r.shipDir(stem) + " to " + target + " (" + err.Error() + ") — this ship's report is already gone, and its intent is still under intents/.")
 	}
 	rmdirIfEmpty(r.intentsDir)
 	staged := ""
 	if r.repoMode() == "committed" {
 		staged = r.stageArchivedShip(stem)
 	}
-	r.line("finalized %s — its scratch is gone and it is archived%s at %s", stem, staged, target)
+	r.line("finalized %s — its report is gone and it is archived%s at %s", stem, staged, target)
 }
 
 // The archived records reach the index here: `.gitignore` covers them under intents/ and nothing covers
