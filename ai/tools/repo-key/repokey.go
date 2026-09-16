@@ -2,9 +2,10 @@
 // off it — the idsd scratch directory under a machine-local override root, and the owner's worktree
 // directory — so both call FromSharedGitDir, and one shared git dir answers to one name whoever asks.
 //
-// The readable half also answers on its own, as the prefix a session title carries. It identifies no
-// clone — two clones of one repository share it — and that is the point: a human reading a sidebar
-// wants every session in one project under one word.
+// That name also abbreviates, and the abbreviation is the prefix a session title carries. It
+// identifies no clone — two clones of one repository share it, and so do two repositories whose names
+// start alike — and that is the point: a human reading a sidebar wants every session in one project
+// under one short word.
 //
 // What is shared is that resolution, not the finding of the git dir: a consumer that resolves its own
 // path decides for itself what may relocate it.
@@ -30,6 +31,14 @@ import (
 // the cost that keeps it at six.
 const digestLength = 6
 
+// How much of an abbreviation reaches a title. Only a name built from many runs, or a long
+// digit-carrying one, is long enough to hit it.
+const abbrevLength = 7
+
+// What a name with nothing usable left in it answers to. One literal for both projections, because
+// two would drift into naming one degenerate clone two ways.
+const fallbackName = "repo"
+
 // The key for the clone whose SHARED git dir is at `shared` — the answer to `rev-parse
 // --git-common-dir`, never `--git-path` or `--show-toplevel`.
 //
@@ -44,16 +53,61 @@ func FromSharedGitDir(shared string) (string, error) {
 	return nameOf(canonical) + "-" + hex.EncodeToString(digest[:])[:digestLength], nil
 }
 
-func nameFromSharedGitDir(shared string) (string, error) {
+func abbrevFromSharedGitDir(shared string) (string, error) {
 	canonical, err := canonicalGitDir(shared)
 	if err != nil {
 		return "", err
 	}
-	return nameOf(canonical), nil
+	return abbrevOf(nameOf(canonical)), nil
 }
 
-// The shared git dir as a real path, or a refusal. The key and the name both start here, so a guard
-// added to one of them and not the other cannot exist.
+// The clone's abbreviation: the initial of every alphanumeric run in its name, uppercased.
+// `player-testing-codec-compatibility` abbreviates to `PTCC`, `invest-tasks` to `IT`, and a name with
+// no separator in it to its single letter.
+//
+// A run carrying a digit keeps its whole spelling instead — `github-action-deploy-k8s` is `GADK8s`
+// and not `GADK`. The digits are the distinguishing half of a `k8s`, `v2` or `s3`, and an initial
+// throws exactly that away.
+//
+// Initials collide by construction: `player-testing` and `player-tools` both abbreviate to `PT`. This
+// is a label a human groups sessions by and never an identity — FromSharedGitDir is what tells two
+// clones apart, and a caller keying a directory off this instead would collide two repositories into
+// one directory.
+func abbrevOf(name string) string {
+	initials := initialsOf(name)
+	if initials == "" {
+		// Nothing alphanumeric to take an initial from — `___` reaches here, because safeName leaves an
+		// underscore alone.
+		initials = initialsOf(fallbackName)
+	}
+	if len(initials) > abbrevLength {
+		return initials[:abbrevLength]
+	}
+	return initials
+}
+
+// One initial per alphanumeric run, and a digit-carrying run's whole spelling — the rule abbrevOf
+// states. isSeparator cuts at everything else, so a run can hold nothing but ASCII alphanumerics —
+// which is what makes `run[:1]` whole and the answer safe to splice.
+func initialsOf(name string) string {
+	var initials strings.Builder
+	for _, run := range strings.FieldsFunc(name, isSeparator) {
+		initials.WriteString(strings.ToUpper(run[:1]))
+		if strings.ContainsAny(run, "0123456789") {
+			initials.WriteString(run[1:])
+		}
+	}
+	return initials.String()
+}
+
+// Where one run of a name ends and the next begins: anything that is not alphanumeric, which covers
+// both a raw `-`/`_`/`.` and anything else safeName has already flattened to a dash.
+func isSeparator(r rune) bool {
+	return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9')
+}
+
+// The shared git dir as a real path, or a refusal. The key and the abbreviation both start here, so a
+// guard added to one of them and not the other cannot exist.
 func canonicalGitDir(shared string) (string, error) {
 	canonical := shell.CanonicalDir(shared)
 	if canonical == "" {
@@ -95,7 +149,7 @@ func safeName(name string) string {
 	// cannot collide two clones that the digest keeps apart.
 	flattened := strings.TrimLeft(safe.String(), "-.")
 	if flattened == "" {
-		return "repo"
+		return fallbackName
 	}
 	return flattened
 }
@@ -110,16 +164,16 @@ func resolveKey(root string) (string, error) {
 	return FromSharedGitDir(shared)
 }
 
-// ResolveName is the readable half for the clone containing `root`, asking git where the shared git
-// dir is. It is what `repo-key.sh --name` prints, and what a caller holding a repository path — the
-// handoff gate holds one — compares a written-down name against. A root that is not inside a clone
-// this process can read comes back as an error and never as a name.
-func ResolveName(root string) (string, error) {
+// ResolveAbbrev is the abbreviation for the clone containing `root`, asking git where the shared git
+// dir is. It is what `repo-key.sh --abbrev` prints, and what a caller holding a repository path — the
+// handoff gate holds one — compares a written-down prefix against. A root that is not inside a clone
+// this process can read comes back as an error and never as an abbreviation.
+func ResolveAbbrev(root string) (string, error) {
 	shared, err := sharedGitDir(root)
 	if err != nil {
 		return "", err
 	}
-	return nameFromSharedGitDir(shared)
+	return abbrevFromSharedGitDir(shared)
 }
 
 // Where git says the shared git dir of `root` is, anchored to `root` — absolute only when `root`
@@ -171,17 +225,17 @@ func withoutGitLocation(env []string) []string {
 // changes with how the binary was reached leaves it nothing stable to compare.
 const stubName = "repo-key.sh"
 
-const usage = "usage: " + stubName + " [--name] [<repo path>]"
+const usage = "usage: " + stubName + " [--abbrev] [<repo path>]"
 
-// The command behind the stub. `--name` prints the clone's readable name, no flag prints the key, and
+// The command behind the stub. `--abbrev` prints the clone's abbreviation, no flag prints the key, and
 // the root defaults to the working directory.
 //
 // There is no exit 1: a key either names this clone or it is nothing, and a caller that read a refusal
 // as a key would write into a directory belonging to no repository.
 func Run(args []string, out, errOut io.Writer) int {
 	resolve := resolveKey
-	if len(args) > 0 && args[0] == "--name" {
-		resolve, args = ResolveName, args[1:]
+	if len(args) > 0 && args[0] == "--abbrev" {
+		resolve, args = ResolveAbbrev, args[1:]
 	}
 	// A second argument is a caller who does not know which clone they are asking about. Whatever is
 	// left once the flag is taken is a path even when it starts with a dash: a directory may
