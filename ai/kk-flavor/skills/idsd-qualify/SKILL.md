@@ -43,7 +43,7 @@ When all stages complete, stamp: `report.sh stamp "<stage entries>" <intent>` �
 **The layout is fixed at both scopes.** Human-facing project files are `.idsd/charter.md` and generated `.idsd/roadmap.md`; each active or archived intent exposes only `intent.md` beside `for-agents/`.
 
 - Project records: `.idsd/for-agents/{language,decisions,playbook}.md`.
-- Intent records and report: `.idsd/intents/<intent>/for-agents/{language,decisions,playbook,qualify-report}.md`; archiving preserves this structure under `.idsd/archive/<intent>/`.
+- Intent records and report: `.idsd/intents/<intent>/for-agents/{language,decisions,playbook,qualify-report}.md`; archiving keeps that structure under `.idsd/archive/<intent>/` for the three records alone — `finalize` deletes the report before the move.
 - Arbitrary handoffs, proposals and evidence: `for-agents/supporting/` at the project or intent scope. Tool-owned qualification state stays in the tool's reserved paths.
 
 Run `report.sh layout check` to validate the layout. For an old layout, explicitly run `report.sh layout migrate --dry-run`, review the planned moves, then `report.sh layout migrate --apply`. Migration refuses active reports: finish their pass or preserve and resolve their outstanding residue before closing them. Never bypass that refusal. Legacy `constraints.md` moves to `.idsd/for-agents/supporting/constraints.md` for manual curation through `idsd-charter`; migration never promotes its entries or invents a charter. Use only the new paths after migration.
@@ -54,7 +54,7 @@ Run `report.sh layout check` to validate the layout. For an old layout, explicit
 
 **A landed ship's report is retired, not left standing** — `report.sh close <intent>`, which `idsd-ship done` runs. **A standalone review has no `done`** — `report.sh close review` retires it, and unsaid, `report.sh list` offers it as work in flight for good.
 
-**Before the first write into `.idsd/` — any file, by any skill — run `report.sh check-ignore`**: it is what keeps the directory out of the human's `git add -A`, and nothing else runs it. Its exit 1 blocks the write however its message is worded.
+**Before the first write into `.idsd/` — any file, by any skill — run `report.sh check-ignore`**: it is what keeps each ship's records and report, and nothing else under `.idsd/`, out of the human's `git add -A` — no other step does it. Its exit 1 blocks the write however its message is worded.
 
 **Two repo modes, decided by whether `.idsd/` is tracked in git** (`report.sh repo-mode` prints which): **committed** — `.idsd/` is part of the durable record; **throwaway** — the whole `.idsd/`, intents and report alike, leaves zero traces, and survives only if the human promotes it (`idsd-ship promote`). Either way **never commit a report — however that is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): no route commits one, `promote` included, which keeps every ship's scratch ignored on its way to committed mode. A stamped report asserts a merge gate over a tree fingerprint, and committed it carries that assertion past the tree it was taken from.
 
