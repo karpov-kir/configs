@@ -346,6 +346,11 @@ var mutants = []mutant{
 	{"repo-key: a path that is not a git dir answers a key", "../repo-key/repokey.go", "./repo-key/", "TestAPathThatIsNotAGitDirRefuses", `if !shell.IsRegularFile(canonical + "/HEAD") {`, "if false {"},
 	{"repo-key: the key follows the worktree, not the clone", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneKeysTheSame", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--show-toplevel"`},
 	{"repo-key: two clones of one remote collapse onto one name", "../repo-key/repokey.go", "./repo-key/", "TestTwoClonesOfOneRemoteKeyApart", `"-" + hex.EncodeToString(digest[:])[:digestLength]`, `"-" + hex.EncodeToString(digest[:])[:0]`},
+	{"repo-key: the name answers the whole key", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneNamesTheSame", "return nameFromSharedGitDir(shared)", "return FromSharedGitDir(shared)"},
+	{"repo-key: --name selects nothing", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", `if len(args) > 0 && args[0] == "--name" {`, `if len(args) > 0 && args[0] == "--name" && false {`},
+	{"repo-key: the name skips the safe half", "../repo-key/repokey.go", "./repo-key/", "TestANameIsSafeToSpliceIntoAPathOrACommand", "return nameOf(canonical), nil", "return shell.BaseName(shell.DirName(canonical)), nil"},
+	{"repo-key: the default root is not the working directory", "../repo-key/repokey.go", "./repo-key/", "TestWithNoPathItAnswersForTheWorkingDirectory", `root := "."`, `root := "/"`},
+	{"repo-key: a second root accepted", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", "if len(args) > 1 {\n\t\treturn refuse(errOut, usage)", "if len(args) > 1 && false {\n\t\treturn refuse(errOut, usage)"},
 
 	// These rev-parse fallbacks require a fixture that disables the filesystem layout reader.
 	{"root: the scratch follows the worktree, not the clone", "../eco-report/root.go", "./eco-report/", "TestTheGitFallbackResolvesWhatTheLayoutReaderWould", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--git-path", "."`},
@@ -721,6 +726,8 @@ var mutants = []mutant{
 	{"handoff: the hex scan unbounded again", "../handoff-check/handoff-check.go", "./handoff-check/", "TestBaseAndRepository", "`(^|[^0-9A-Za-z])([0-9a-f]{7,})([^0-9A-Za-z]|$)`", "`()([0-9a-f]{7,})()`"},
 	{"handoff: the reachback scan silenced", "../handoff-check/handoff-check.go", "./handoff-check/", "TestReachback", "if hit := matcher.FindString(low); hit != \"\" {", "if hit := matcher.FindString(low); false {"},
 	{"handoff: an empty slot read as filled", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !s.filled[name]:", "case !s.filled[name] && false:"},
+	{"handoff: the unfilled repository prefix goes unread", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">")`, `found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">") && false`},
+	{"handoff: the prefix scan's closing anchor removed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `found && strings.HasPrefix(prefix, "[<") && strings.HasSuffix(prefix, ">")`, `found && strings.HasPrefix(prefix, "[<")`},
 	{"handoff: an eighth heading accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "case !isRequired(name):", "case !isRequired(name) && false:"},
 	{"handoff: a second title line accepted", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "if s.titles > 1 {", "if s.titles > 1 && false {"},
 	// The anchor on the placeholder, which is what lets a real title hold an angle bracket.

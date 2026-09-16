@@ -1,10 +1,12 @@
 <!-- Fill every slot and delete its comment. Everything you know that the base commit does not show
      belongs in a slot, or it is lost; `handoff-check.sh` refuses what falls short of that. -->
 
-# [<repo abbreviation>] <one imperative line: the work>
+# [<repo name>] <one imperative line: the work>
 
-<!-- Infer a recognizable abbreviation of 1–5 letters from the repository name. Reuse it for
-     handoffs from the same repo. Keep the square brackets and use this full line as the session title. -->
+<!-- The name is what `~/.kk-flavor/scripts/repo-key.sh --name` prints, never one you infer — every
+     session infers a different one. Where it refuses, name the directory holding the clone's `.git`,
+     never the worktree you are standing in: those differ per worktree. Keep the square brackets and
+     use this full line as the session title. -->
 
 ## The task
 
