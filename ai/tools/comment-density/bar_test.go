@@ -493,7 +493,7 @@ func TestTheOverageNamesTheFilesCarryingIt(t *testing.T) {
 		r.runBar()
 		r.expectCode(exitFound)
 		r.expectStdoutHas("over on lines:")
-		r.expectStdoutHas("legacy.go: 60 comment line(s), carried")
+		r.expectStdoutHas("legacy.go: 60 comment line(s), 0% written here")
 		r.expectStdoutLacks("mine.go: 3 comment line(s)")
 	})
 
@@ -506,8 +506,7 @@ func TestTheOverageNamesTheFilesCarryingIt(t *testing.T) {
 		r.write("fresh.go", heavy(60, 20))
 		r.runBar()
 		r.expectCode(exitFound)
-		r.expectStdoutHas("fresh.go: 60 comment line(s)")
-		r.expectStdoutLacks("carried")
+		r.expectStdoutHas("fresh.go: 60 comment line(s), 100% written here")
 	})
 
 	t.Run("a change set under the bar names nobody", func(t *testing.T) {
@@ -539,4 +538,35 @@ func TestTheReportSeparatesWhatIsChargeableFromTheOverage(t *testing.T) {
 	r.expectStdoutHas("legacy.go: 60 comment line(s)")
 	// Everything this change actually wrote is lean, so nothing it wrote is chargeable.
 	r.expectStdoutHas("nothing chargeable")
+}
+
+// Whether the change created the file is a crude stand-in for whether the change wrote its comments: a
+// comment-only rewrite of an existing file reads as inherited and is charged nothing, which is the whole
+// mass the bar exists to catch. Authorship is measured over the population being graded — the file's own
+// comment lines — and printed as a fraction, so there is no threshold for a later pass to clear.
+func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
+	t.Run("a comment-only rewrite reads as this change's own", func(t *testing.T) {
+		r := newRepoWithLeanBaseline(t)
+		for i := 0; i < 20; i++ {
+			r.write(fmt.Sprintf("lean%d.go", i), strings.Repeat("code()\n", 50))
+		}
+		r.write("rewritten.go", "// old one\n// old two\n"+strings.Repeat("code()\n", 8))
+		r.commit("the file arrives")
+		// Same code, every comment line replaced: the change wrote all of its comment mass.
+		r.write("rewritten.go", heavy(40, 0)+strings.Repeat("code()\n", 8))
+		r.runBar()
+		r.expectStdoutHas("rewritten.go: 40 comment line(s), 100% written here")
+	})
+
+	t.Run("a file brushed without touching its comments reads as inherited", func(t *testing.T) {
+		r := newRepoWithLeanBaseline(t)
+		for i := 0; i < 20; i++ {
+			r.write(fmt.Sprintf("lean%d.go", i), strings.Repeat("code()\n", 50))
+		}
+		r.write("legacy.go", heavy(60, 20))
+		r.commit("legacy arrives")
+		r.write("legacy.go", heavy(60, 21))
+		r.runBar()
+		r.expectStdoutHas("legacy.go: 60 comment line(s), 0% written here")
+	})
 }

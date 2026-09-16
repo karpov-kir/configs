@@ -121,6 +121,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	c.scanSkillDirectories()
 	c.scanScriptsParse()
 	c.scanSubcommandCallSites()
+	c.scanInvocationSpelling()
 	c.scanTestPositions()
 	c.scanSharedRegions()
 
