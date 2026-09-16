@@ -38,7 +38,9 @@ const exitMergeSlotHeld = 4
 // The holder, as the slot records it. The worktree rather than a pid: the slot spans several
 // invocations of this tool, so no process alive at the moment it was taken is alive when the next
 // caller reads it. A worktree is what a session owns for its whole life, which makes it the name a
-// caller can check against its own list of live sessions rather than merely trust.
+// caller can put to whoever keeps the list of live sessions. Not one the caller can check for itself:
+// it has no such list, and the slot outlives its writer, so the name says a file is there and nothing
+// about whether anyone still holds it.
 type mergeSlot struct {
 	intent   string
 	worktree string
@@ -71,9 +73,17 @@ func (r *run) readMergeSlot() *mergeSlot {
 	return held
 }
 
-// Take it, or refuse naming who has it. `--force` breaks a slot whose holder is gone — the tool cannot
+// Take it, or refuse naming who has it. `--force` breaks a slot whose holder is gone. The tool cannot
 // see that for itself, since the session it would be asking about is not a process it started, so the
 // judgment is the caller's and this only carries it out and says so.
+//
+// Nor can the caller see it from inside its own session, which is why the refusal now names who to ask.
+// The slot outlives the session that wrote it, so a worktree nobody is in reads exactly like one whose
+// session is mid-merge, and every check available from a session — a name, a path, a process list —
+// answers about the file rather than about the writer. Whoever holds the live-session list settles it:
+// the coordinator, or the human. Telling a stage to "look for a session working in that worktree" was
+// the same defect `idsd-finalize`'s own frontmatter carried, one layer over — an instruction to
+// establish something the reader has no instrument for.
 // Reports whether THIS call took the slot. A caller that brackets the whole merge took it before
 // finalize ran, and finalize releasing it on the way out hands the rest of that bracket to whoever is
 // waiting — the judging half writes the project's records outside this process, which is the window
@@ -98,7 +108,8 @@ func (r *run) takeMergeSlot(intent string, isForced bool) bool {
 			r.errLines("error: another ship holds the merge slot — '"+shell.Oneline(held.intent)+"' in "+shell.Oneline(held.worktree)+age+". Nothing was finalized.",
 				"  Finalizing is serial: it moves the archive, regenerates the roadmap and writes the project's records, which every ship shares.",
 				"  Wait for it, or re-run with --force once you have established that holder is gone.",
-				"  Establishing that is yours: this tool started no process it could ask about. Look for a session working in that worktree — none, and the slot outlived its holder.")
+				"  A named holder proves this file exists, not that its writer is alive: the slot outlives the session that wrote it.",
+				"  So ask your coordinator, or the human, who can see the live sessions. This tool started no process it could ask about, and no check you can run from here settles it.")
 			r.exit(exitMergeSlotHeld)
 		}
 		r.line("reclaimed the merge slot from '%s' in %s", shell.Oneline(held.intent), shell.Oneline(held.worktree))
@@ -113,6 +124,50 @@ func (r *run) takeMergeSlot(intent string, isForced bool) bool {
 }
 
 func (r *run) releaseMergeSlot() { _ = rmFile(r.mergeSlotPath()) }
+
+// The slot asked on the write it was built for. Until this, only `finalize` and an explicit
+// `merge-slot take` consulted it, so a lane that appended to a project record without taking it passed
+// no check at all and the ship holding the slot learned nothing.
+//
+// Observed on 2026-09-16 on a clone where eleven changes landed at once, then reproduced in a probe
+// clone of two worktrees. With the slot held, a second worktree's `git merge` and its
+// `record append project-decisions` both went through at exit 0, and the holder's slot file came back
+// byte-identical. The merge half is not fixable here and never was: `git merge` is the session's own
+// command and this tool is not in its path. So what the slot promises is narrowed to the records, and
+// on those it is now kept.
+//
+// Only the project records. A local one belongs to one ship and no other lane can reach it, so
+// refusing there would stall a build for a slot it has no business waiting on.
+//
+// Ownership is the worktree, not the intent. A project record belongs to no single ship, so
+// `record project-*` carries no slug to compare against the slot's — and a worktree is what a session
+// owns for its whole life (mergeSlot above), which makes it the one name both sides can state. The
+// holder's own judging half runs from the worktree it took the slot in, so it writes freely; any other
+// worktree is the collision.
+//
+// No slot, no refusal: a clone where nobody brackets a merge behaves exactly as it did. An unreadable
+// slot refuses, for the reason readMergeSlot treats one as held — absent is the answer that lets a
+// second writer in, and a corrupt slot is when that must not happen.
+func (r *run) refuseSharedRecordUnderAForeignSlot(kind *recordKind) {
+	if kind.isLocal {
+		return
+	}
+	held := r.readMergeSlot()
+	if held == nil || held.worktree == r.root {
+		return
+	}
+	age := ""
+	if !held.taken.IsZero() {
+		age = ", taken " + strconv.Itoa(int(time.Since(held.taken).Round(time.Minute)/time.Minute)) + " minute(s) ago"
+	}
+	// Both quoted halves collapsed, as takeMergeSlot collapses them: neither is text this tool chose,
+	// and what reads this refusal is another agent waiting its turn.
+	r.errLines("error: another ship holds the merge slot — '"+shell.Oneline(held.intent)+"' in "+shell.Oneline(held.worktree)+age+". "+kind.file+" is unchanged.",
+		"  "+kind.name+" is the project's own record, and merging entries into it is what the slot makes serial.",
+		"  Wait for that ship, or take the slot yourself once you have established its holder is gone.",
+		"  A named holder proves this file exists, not that its writer is alive. Ask your coordinator, or the human, who can see the live sessions.")
+	r.exit(exitMergeSlotHeld)
+}
 
 // The ship's own scratch, deleted before the folder moves: the report, which outlived the pass it
 // recorded and which any later pass reproduces.

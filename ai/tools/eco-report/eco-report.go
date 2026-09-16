@@ -92,7 +92,10 @@
 //	                 where an entry restating a project one becomes a bump. --intent names that ship,
 //	                 and is required for a local-* record and refused for the rest — a local write with
 //	                 no ship named would land at the project root and surface only when finalize found
-//	                 nothing to merge. Run `record` bare for the record names
+//	                 nothing to merge. Run `record` bare for the record names.
+//	                 A project-* write is the mutation the merge slot exists to serialise, so it exits
+//	                 4 while another worktree of this clone holds the slot — the same code and the same
+//	                 named holder finalize gives. A local-* write is one ship's own and never waits
 //
 // Every subcommand that reads a report takes the intent as its LAST argument, optional while only one
 // report is open. Several open and none named is refused, never guessed: resolving to the wrong report
@@ -138,8 +141,9 @@ func Run(args []string, out, errOut io.Writer) int {
 }
 
 // Exec runs one invocation and returns the process exit code. 0 is a result, 1 is a gate's block
-// (`gate`, `intent-ready` and `check-ignore` alone), 4 is `finalize` finding the merge slot held by
-// another ship, and 2 is "this did not run" — never a result.
+// (`gate`, `intent-ready` and `check-ignore` alone), 4 is the merge slot held by another ship —
+// `finalize`, `merge-slot take` and a `record` write to a project record — and 2 is "this did not
+// run" — never a result.
 func (inv Invocation) Exec() (code int) {
 	r := newRun(inv)
 	// Every path that stops halfway leaves by here. A panic is what gives `refuse` reach from any

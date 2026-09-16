@@ -39,7 +39,8 @@ const (
 	FlagScanAtItsBound            = flagScanAtItsBound
 	ScriptUsageSpellingUnread     = scriptUsageSpellingUnread
 
-	ScriptNotExecutable = scriptNotExecutable
+	ScriptNotExecutable   = scriptNotExecutable
+	StageNothingCanInvoke = stageNothingCanInvoke
 
 	ImportRefused = importRefused
 

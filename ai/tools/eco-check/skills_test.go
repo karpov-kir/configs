@@ -86,6 +86,50 @@ func TestAnUnreadableSkillFileIsNotCountedAsADescriptionThatWasRead(t *testing.T
 	})
 }
 
+// The defect observed on 2026-09-16: an IDSD ship reached its landing stage twice and stopped both
+// times, because Claude Code refuses a `disable-model-invocation` skill to every model caller and
+// tells the caller not to reach the workflow by other means either. The stage's caller is a skill, so
+// there was nobody to type the slash command it waited for.
+func TestAStageItsOrchestratorCannotInvoke(t *testing.T) {
+	// `marked` is the only variable: the extending caller and the stage are the same two files in every
+	// case, so a silence below is the marker leaving and not a tree that lost its edge.
+	newPipeline := func(t *testing.T, marked bool) *fixture {
+		t.Helper()
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/kk-flavor/skills/kk-ship")
+		f.mkdirAll(f.root + "/kk-flavor/skills/kk-land")
+		f.write(f.root+"/kk-flavor/skills/kk-ship/SKILL.md",
+			"---\nname: kk-ship\ndescription: runs the pipeline end to end\n---\n\n"+
+				"**Extends:** kk-land — the landing step, once the gate is clean\n")
+		frontmatter := "---\nname: kk-land\ndescription: lands the change\n"
+		if marked {
+			frontmatter += "disable-model-invocation: true\n"
+		}
+		f.write(f.root+"/kk-flavor/skills/kk-land/SKILL.md", frontmatter+"---\n")
+		return f
+	}
+
+	t.Run("fires on a marked skill another skill extends", func(t *testing.T) {
+		newPipeline(t, true).reports(ecocheck.StageNothingCanInvoke)
+	})
+
+	// The control for the case above: same two files, same edge, marker gone. Without it the finding
+	// could be coming from the `**Extends:**` line alone, and every stage in the tree would raise it.
+	t.Run("stays silent once the marker is gone", func(t *testing.T) {
+		newPipeline(t, false).doesNotReport(ecocheck.StageNothingCanInvoke)
+	})
+
+	// The marker's legitimate use, which this check must not take away: a skill the human always
+	// initiates, that no other skill extends.
+	t.Run("leaves a marked skill nothing extends alone", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/kk-flavor/skills/kk-retro")
+		f.write(f.root+"/kk-flavor/skills/kk-retro/SKILL.md",
+			"---\nname: kk-retro\ndescription: the human asks for this one by name\ndisable-model-invocation: true\n---\n")
+		f.doesNotReport(ecocheck.StageNothingCanInvoke)
+	})
+}
+
 func newBrokenSkillDirs(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
