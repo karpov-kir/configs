@@ -141,8 +141,9 @@ func Run(args []string, out, errOut io.Writer) int {
 }
 
 // Exec runs one invocation and returns the process exit code. 0 is a result, 1 is a gate's block
-// (`gate`, `intent-ready` and `check-ignore` alone), 4 is `finalize` finding the merge slot held by
-// another ship, and 2 is "this did not run" — never a result.
+// (`gate`, `intent-ready` and `check-ignore` alone), 4 is the merge slot held by another ship —
+// `finalize`, `merge-slot take` and a `record` write to a project record — and 2 is "this did not
+// run" — never a result.
 func (inv Invocation) Exec() (code int) {
 	r := newRun(inv)
 	// Every path that stops halfway leaves by here. A panic is what gives `refuse` reach from any
