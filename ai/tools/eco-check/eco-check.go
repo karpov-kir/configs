@@ -22,6 +22,7 @@ import (
 	"io"
 
 	ecoroot "kk-flavor/tools/eco-root"
+	"kk-flavor/tools/shell"
 )
 
 // The bound each shape of the direction scan emits under, and the bound the printer holds each rank
@@ -156,10 +157,21 @@ func parseArgs(args []string) (root string, isGate, ok bool) {
 
 // The one wording for a run that never started: what did not happen, then the line that stops a caller
 // reading exit 2 as clean.
+//
+// Safe in that order only because the reason is escaped below: one escaped line can neither erase what
+// is above it nor add a line of its own. The other way round, the last word on screen is the caller's.
 func refuseToRun(errOut io.Writer, reason string) int {
-	fmt.Fprintf(errOut, "check.sh: %s\n", reason)
-	fmt.Fprintln(errOut, "check.sh: exit 2 — nothing was checked. Fix the invocation; do not read this as clean.")
+	writeRefusalLine(errOut, reason)
+	writeRefusalLine(errOut, "exit 2 — nothing was checked. Fix the invocation; do not read this as clean.")
 	return 2
+}
+
+// Every line this tool writes to stderr, escaped and bounded on the one path all of them take. A
+// reason quotes text this package did not choose — the root off argv, git's own stderr — into output
+// an agent reads a verdict off. Stated here rather than at each reason's own site, so a refusal added
+// later cannot forget it; lineWidthCap says why a refusal is held to the width a finding is.
+func writeRefusalLine(errOut io.Writer, reason string) {
+	fmt.Fprintln(errOut, shell.CutBytesMarked(shell.Oneline("check.sh: "+reason), lineWidthCap))
 }
 
 // The code this check answers with. A scan that could not run outranks the finding count: 0 and 1 both
@@ -172,9 +184,9 @@ func (c *checker) exitCode(out, errOut io.Writer) int {
 		return status
 	}
 	for _, reason := range c.unrunnable {
-		fmt.Fprintf(errOut, "check.sh: %s\n", reason)
+		writeRefusalLine(errOut, reason)
 	}
-	fmt.Fprintln(errOut, "check.sh: exit 2 — part of this check did not run. Do not read this as clean.")
+	writeRefusalLine(errOut, "exit 2 — part of this check did not run. Do not read this as clean.")
 	return 2
 }
 
