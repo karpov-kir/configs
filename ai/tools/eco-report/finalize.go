@@ -1,7 +1,9 @@
 package ecoreport
 
 import (
+	"bytes"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -186,5 +188,84 @@ func (r *run) cmdFinalize(args []string) {
 		r.refuse("error: could not move " + r.shipDir(stem) + " to " + target + " (" + err.Error() + ") — this ship's scratch is already gone, and its intent is still under intents/.")
 	}
 	rmdirIfEmpty(r.intentsDir)
-	r.line("finalized %s — its scratch is gone and it is archived at %s", stem, target)
+	staged := ""
+	if r.repoMode() == "committed" {
+		staged = r.stageArchivedShip(stem)
+	}
+	r.line("finalized %s — its scratch is gone and it is archived%s at %s", stem, staged, target)
+}
+
+// The archived records reach the index here: `.gitignore` covers them under intents/ and nothing covers
+// the archive path, so after the rename the next commit's pathspec alone decides their fate. The vacated
+// path is staged too, or that commit writes the intent at both paths. Files are named one by one: a
+// directory pathspec sweeps in strays, and exits 0 having staged nothing when all its files are ignored.
+func (r *run) stageArchivedShip(stem string) string {
+	target := r.archiveDir(stem)
+	// One read, two answers: whether the vacated path needs staging at all, and which files the removal
+	// it stages will cover. `-z`, because the second answer is parsed and git quotes a path holding a
+	// newline or a quote — a quoted name handed back as a pathspec matches nothing.
+	tracked, status := r.captureGit(nil, "ls-files", "-z", "--", r.shipDir(stem))
+	// A failed read answers the same as "nothing tracked", and here the two are not interchangeable: it
+	// says which files the removal must be matched against, so guessing stages a removal with no
+	// addition and the commit drops them.
+	if status != 0 {
+		r.refuse("error: "+stem+" is archived at "+target+", but the index could not be read (git ls-files "+r.shipDir(stem)+") — nothing was staged.",
+			"  Nothing needs re-running: stage "+target+" and the vacated path yourself, then commit.")
+	}
+	var paths []string
+	for _, path := range archivedShipFiles(target, shipRelativeTrackedFiles(tracked, r.root, r.shipDir(stem))) {
+		if shell.IsRegularFile(path) {
+			paths = append(paths, path)
+		}
+	}
+	// Named only when the index still holds something under it: one unmatched pathspec fails the whole
+	// add, and a ship whose intent.md was never committed matches nothing there.
+	if tracked != "" {
+		paths = append(paths, r.shipDir(stem))
+	}
+	if len(paths) == 0 {
+		return ""
+	}
+	// Captured rather than passed through: git's account of a failure names the paths it could not stage,
+	// and those are the ship folder's own bytes. git leaves a newline alone, so one of them forges a whole
+	// line — and what reads this output is another agent.
+	var reported bytes.Buffer
+	if _, status := r.captureGit(&reported, append([]string{"add", "--"}, paths...)...); status != 0 {
+		r.refuse("error: "+stem+" is archived at "+target+", but staging it failed — its records are untracked there, and a commit that stages by path will leave them behind.",
+			"  git said: "+shell.Oneline(reported.String()),
+			"  Nothing needs re-running: stage "+target+" yourself, then commit.")
+	}
+	return " and staged"
+}
+
+// Every path the archive must carry into the index: the ship's own records, which `.gitignore` kept out
+// of it under intents/, plus the counterpart of each file the index DID hold there. That second half
+// keeps the move symmetric — the vacated path is staged as a directory, so its removal covers every
+// tracked file under it, and one missing here is a file the commit deletes with nothing added back.
+// Read from the INDEX, never the moved directory: a stray an agent dropped into the ship folder is
+// untracked, has no removal to match, and must not ride in.
+func archivedShipFiles(target string, trackedRelative []string) []string {
+	files := []string{target + "/" + intentName}
+	for _, record := range agentRecordFiles {
+		files = append(files, target+"/"+agentsDirName+"/"+record)
+	}
+	for _, path := range trackedRelative {
+		if !slices.Contains(files, target+"/"+path) {
+			files = append(files, target+"/"+path)
+		}
+	}
+	return files
+}
+
+// The ship-folder-relative form of every path the index holds under it. `ls-files` answers relative to
+// the root it was asked from, and the ship folder is under that root whenever this runs.
+func shipRelativeTrackedFiles(lsFiles, root, shipDir string) []string {
+	prefix := strings.TrimPrefix(shipDir, root+"/") + "/"
+	var relative []string
+	for _, path := range strings.Split(lsFiles, "\x00") {
+		if rest, found := strings.CutPrefix(path, prefix); found && rest != "" {
+			relative = append(relative, rest)
+		}
+	}
+	return relative
 }
