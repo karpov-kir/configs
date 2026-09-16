@@ -1,7 +1,6 @@
 ---
 name: idsd-finalize
 description: Land an already qualified intent through a direct merge or a PR, and archive its records. Use for "finalize the intent" or an explicit final checkpoint. Waits for verified landing; the broader ship lifecycle belongs to idsd-ship.
-disable-model-invocation: true
 argument-hint: "<NNN-slug>"
 ---
 
@@ -10,7 +9,7 @@ argument-hint: "<NNN-slug>"
 **Extends:** idsd-qualify — step 1, where no pass has stamped this tree or one had to be re-run
 **Extends:** idsd-charter — step 1, to rewrite a promotion candidate as a charter constraint
 
-An explicit request to finalize invokes this skill directly; the invocation marker disables automatic selection, not a human's natural-language request.
+**`idsd-ship` runs this as its landing stage, so it carries no `disable-model-invocation`.** A stage its own orchestrator cannot invoke stalls the pipeline waiting for a human to type a command. Step 1's gate is what makes an unearned invocation harmless: with no fresh `idsd-qualify` stamp it refuses before anything moves.
 
 The last stage of a ship: what its own records learned goes up into the project's, and the ship moves to `archive/`. You orchestrate under `~/.kk-flavor/standards/skill-protocol.md`, and step 3 is `~/.kk-flavor/standards/records.md` applied rather than restated — read it whole first.
 
