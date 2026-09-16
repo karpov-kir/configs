@@ -97,6 +97,13 @@ type unit struct {
 	// Left off — the conservative value — everywhere else. Narrowing a key wrongly is the direction
 	// that reports a pass nobody earned.
 	blindToGoTests bool
+	// prerequisite is what THIS MACHINE has to provide for the command to measure everything it claims
+	// to, as key material. Per-unit rather than a field in g.stamp, which sits in every key: there, a
+	// provider CLI appearing would retire every verdict in the table, units that ask no model included.
+	prerequisite string
+	// prerequisiteShortfall says, for the unit's own line, what this machine does not provide. Printed
+	// on a cache hit too, where nothing runs — true there only because `prerequisite` is in the key.
+	prerequisiteShortfall string
 }
 
 type gate struct {

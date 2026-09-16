@@ -3,12 +3,14 @@ package gate
 import (
 	"bufio"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
+	modelpolicy "kk-flavor/tools/model-policy"
 	"kk-flavor/tools/shell"
 )
 
@@ -204,11 +206,64 @@ func (g *gate) addGuideCheck(imports map[string][]string) int {
 //
 // Blind to the module's test files, like every other unit that observes a compiled binary, and
 // ECO_TOOLS_BUILD=1 for the reason the wiring unit sets it: a gate measures the source in this tree.
-func (g *gate) addModelCheck() {
-	g.addBlindToGoTests("models", "check",
-		[]string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
+//
+// Keyed on the reachable providers too, which no file says: a client off PATH goes unasked and
+// model-check still exits 0, so a green keyed without that set answers for a machine holding another.
+func (g *gate) addModelCheck() int {
+	reachable, unreachable, err := g.probedClients()
+	if err != nil {
+		return g.fail("%s, so the models unit could not be keyed on which providers this machine can "+
+			"reach — nothing ran", err)
+	}
+	g.addUnit(unit{id: "models", kind: "check", blindToGoTests: true,
+		inputs: []string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
 			"ai/tools/bloat-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
-		"ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh")
+		cmd:                   "ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh",
+		prerequisite:          reachable,
+		prerequisiteShortfall: unaskedProviderNote(unreachable)})
+	return 0
+}
+
+// What the unit's line says about the providers nothing could ask; empty when all are reachable. The
+// clients come last so one spelling covers any number: "no codex, gemini on PATH" needs no verb.
+func unaskedProviderNote(unreachable []string) string {
+	if len(unreachable) == 0 {
+		return ""
+	}
+	return "some model names went unasked — no " + strings.Join(unreachable, ", ") + " on PATH"
+}
+
+// Which clients the policy dispatches to, each marked present or unavailable here, plus the absent
+// ones for whoever has to say so out loud. Both states are named, so `--why` shows which SET a verdict
+// is keyed to rather than which half of it answered.
+//
+// The clients come from models.json through model-policy's `Selections()`, never a list written here:
+// a third client added to that file must be probed without the gate being edited. Presence rather than
+// a version — `exec.LookPath` decides whether a name gets asked, and it is a lookup where two CLI
+// spawns per gate run are not.
+//
+// No guard for a policy naming no client: `validate` demands a non-empty tier order per client, so a
+// parsed one always yields some — modelcheck's `report` declines the same guard for the same reason.
+func (g *gate) probedClients() (reachable string, unreachable []string, err error) {
+	policy, err := modelpolicy.Load(filepath.Join(g.root, extModels))
+	if err != nil {
+		return "", nil, err
+	}
+	var clients []string
+	for _, selection := range policy.Selections() {
+		clients = append(clients, selection.Client)
+	}
+	clients = shell.SortUnique(clients)
+	var marks []string
+	for _, client := range clients {
+		if _, err := exec.LookPath(client); err != nil {
+			marks = append(marks, client+" unavailable")
+			unreachable = append(unreachable, client)
+			continue
+		}
+		marks = append(marks, client+" present")
+	}
+	return strings.Join(marks, " "), unreachable, nil
 }
 
 // The import graph is read once here, for `guide` and for the mutation units that key on it.
@@ -238,8 +293,7 @@ func (g *gate) addChecks(imports map[string][]string) int {
 	if code := g.addGuideCheck(imports); code != 0 {
 		return code
 	}
-	g.addModelCheck()
-	return 0
+	return g.addModelCheck()
 }
 
 func (g *gate) discoverShellSuites() int {

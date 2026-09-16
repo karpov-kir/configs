@@ -153,7 +153,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			if _, err := os.Stat(inputsFile); err != nil {
 				writeSidecar(inputsFile, renderLines(lines))
 			}
-			g.unitLine("fresh", u.id, key[:12]+" — inputs unchanged since it last passed")
+			g.unitLine("fresh", u.id, withShortfall(key[:12]+" — inputs unchanged since it last passed", u))
 			tally.fresh++
 			continue
 		case settledDeferred:
@@ -176,7 +176,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		if status == 0 {
 			os.WriteFile(record, nil, 0o644)
 			writeSidecar(inputsFile, renderLines(lines))
-			g.unitLine("ran ok", u.id, fmt.Sprintf("%ds", took))
+			g.unitLine("ran ok", u.id, withShortfall(fmt.Sprintf("%ds", took), u))
 			continue
 		}
 		// Neither a record nor a pass, whichever way it went: a verdict recorded before someone broke

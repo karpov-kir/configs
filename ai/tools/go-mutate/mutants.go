@@ -1067,7 +1067,8 @@ var mutants = []mutant{
 	// worktree from cold, and a sidecar written onto its own path lets a peer read the middle of a
 	// write and call moved content unchanged.
 	{"gate: a verdict keyed on the worktree it was earned in", "../gate/keys.go", "./gate/", "TestAVerdictRecordedInOneWorktreeIsFreshInAnother",
-		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp)", "\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, g.root)"},
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, u.prerequisite)",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, u.prerequisite, g.root)"},
 	{"gate: the sidecar written onto its own path rather than renamed onto it", "../gate/keys.go", "./gate/", "TestASidecarIsPublishedWholeOrNotAtAll",
 		"\tif err == nil {\n\t\terr = os.Rename(temp.Name(), path)\n\t}",
 		"\tif err == nil {\n\t\tos.Remove(temp.Name())\n\t\terr = os.WriteFile(path, []byte(body), 0o644)\n\t}"},
@@ -1110,6 +1111,35 @@ var mutants = []mutant{
 		"inputs := []string{\"ai/kk-flavor/skills\", \"ai/field-guide.html\", \"ai/guide.sh\", extModels, \"ai/tools/eco-guide\", \"ai/tools/eco-root\", \"ai/tools/shell\"}\n\t_ = compiles"},
 	{"gate: a graph that cannot answer for the guide's command is keyed anyway", "../gate/units.go", "./gate/", "TestAGuideUnitTheGraphCannotAnswerForRefuses",
 		"if !known {", "if !known && false {"},
+
+	// The models unit's prerequisite: which providers this machine can reach, the one thing a verdict
+	// here depends on that no file says. Each arm is that going wrong in one of three directions — the
+	// key stops carrying the provider set, the set stops being read off the policy, or the narrowed
+	// green stops saying so on the line someone reads.
+	{"gate: the prerequisite left out of a unit's key", "../gate/keys.go", "./gate/", "TestTheReachableProvidersChangeTheModelsUnitsKeyAndNoOthers",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp, u.prerequisite)",
+		"\tfmt.Fprintf(&b, \"%s\\n%s\\n%s\\n\", u.id, u.cmd, g.stamp)"},
+	{"gate: the probed clients back on a list written into the gate", "../gate/units.go", "./gate/", "TestTheReachableProvidersChangeTheModelsUnitsKeyAndNoOthers",
+		"\tfor _, selection := range policy.Selections() {\n\t\tclients = append(clients, selection.Client)\n\t}",
+		"\tclients = []string{\"claude\"}\n\t_ = policy"},
+	{"gate: every client the policy names counted as reachable", "../gate/units.go", "./gate/", "TestTheReachableProvidersChangeTheModelsUnitsKeyAndNoOthers",
+		"if _, err := exec.LookPath(client); err != nil {", "if _, err := exec.LookPath(client); err != nil && false {"},
+	{"gate: an unreadable policy registered rather than refused", "../gate/units.go", "./gate/", "TestAModelsUnitWhosePolicyCannotBeReadRefuses",
+		"\treachable, unreachable, err := g.probedClients()\n\tif err != nil {",
+		"\treachable, unreachable, err := g.probedClients()\n\tif err != nil && false {"},
+	{"gate: the unit given nothing to say about a provider nothing could ask", "../gate/units.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"prerequisiteShortfall: unaskedProviderNote(unreachable)})",
+		"prerequisiteShortfall: \"\"})\n\t_ = unreachable"},
+	{"gate: the shortfall dropped from every line that carries it", "../gate/report.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"\tif u.prerequisiteShortfall == \"\" {", "\tif u.prerequisiteShortfall == \"\" || true {"},
+	// Two lines, two worlds: the run that earns the verdict holds model-check's stderr back, and the
+	// cache hit runs no command at all.
+	{"gate: a cache hit reporting a verdict without its narrowed scope", "../gate/run.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"g.unitLine(\"fresh\", u.id, withShortfall(key[:12]+\" — inputs unchanged since it last passed\", u))",
+		"g.unitLine(\"fresh\", u.id, key[:12]+\" — inputs unchanged since it last passed\")"},
+	{"gate: the run that earns the verdict reporting none of what it skipped", "../gate/run.go", "./gate/", "TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache",
+		"g.unitLine(\"ran ok\", u.id, withShortfall(fmt.Sprintf(\"%ds\", took), u))",
+		"g.unitLine(\"ran ok\", u.id, fmt.Sprintf(\"%ds\", took))"},
 
 	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
