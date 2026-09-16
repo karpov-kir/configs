@@ -2,7 +2,6 @@
 package bloatjudge
 
 import (
-	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -121,7 +120,7 @@ func TestVotingRefusesWhenARollFails(t *testing.T) {
 		first := rolled == 1
 		mu.Unlock()
 		if first {
-			return "", errors.New("the model did not answer within 420s")
+			return "", &RollTimedOut{Deadline: defaultRollDeadline}
 		}
 		return "1", nil
 	}

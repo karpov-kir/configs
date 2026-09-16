@@ -237,13 +237,18 @@ distinguished by this corpus, and the honest response is more cases rather than 
 these. The cheapest source is real artifacts this repo already produces: a commit message, a residue
 list, a PR body per week, labelled when they are written and the reading is fresh.
 
-**`defaultRollDeadline` is still 420s and still unmeasured where it matters**, which is why this
-entry keeps its predecessor's count — it is the one item here carried rather than opened. About 500
-rolls went through the sweeps and the slowest case took 25 seconds, but every corpus text is under
-2KB. The figure the 420 was set from is the other end — 13KB at 104 seconds, 53KB at 85 — and nothing
-has measured a large document since a prose unit became the markdown block rather than the line,
-cutting what a view offers. A bound that clips an honest roll costs the whole gate, so it does not
-move on small-payload evidence.
+**`defaultRollDeadline` is measured now, and it moved to 900s — but what it is guarding against is
+still unexplained.** Twenty runs of the shipped path over 9KB, 18KB, 36KB and 53KB of this repo's own
+standards, five reps in both size orders, memo defeated each time: eighteen landed in 19 to 45
+seconds, and six times the text bought about twice the clock. Then two consecutive runs, on different
+payloads, took 344 and 342 seconds each — silent throughout, within two seconds of one another, an
+order of magnitude over their own neighbours. They ran serially, so this is not one event caught
+twice; it is two rolls in an eleven-minute window each stalling at about the same figure, which reads
+more like a fixed retry somewhere below than like a fat tail. The provider was codex throughout, so
+the Claude CLI outage others saw on this machine the same afternoon is not the cause, and the machine
+was carrying three other gate runs at load 5 to 8, which is the condition the judge actually runs in.
+Nothing here identifies the stall. What the number can do is survive it, which at 343 against the old
+420 it very nearly did not.
 
 **A managed policy setting still reaches a judge roll, and nothing here can refuse it.** The client's
 setting sources and the roll's environment are both allow-lists now, and `runBounded` is the single
@@ -257,6 +262,13 @@ tree can close that; what it can do is stop claiming isolation, which
 framing around them. Seven of the eight cases are right every time. No lane sends a residue list
 through the judge today, so this is a bound on where the judge may be pointed rather than a defect to
 fix — and it is the closest thing the corpus has to the close call it cannot yet decide.
+
+**A slow roll now says so, and every other wait in this pipeline still does not.** The two stalls
+above printed nothing on either stream for five and a half minutes, which from the outside is
+indistinguishable from the hang the deadline exists to end — and the gate that hosts the judge shows
+the same face during a 29-minute mutation unit. The judge answers for itself now, a line a minute
+naming the elapsed time and the bound; the rule that a long wait must say it is still a wait is
+stated nowhere, and no other tool here follows it.
 
 **A scanner now names the build that answered it, and the rest of the tree does not.**
 `comment-density --bar` leads with `measured by: comment-density build <id>`, after two opposite

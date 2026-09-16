@@ -216,15 +216,21 @@ func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
 // single roll is spent, and an untuned machine saying nothing.
 func TestResolveRollDeadlineAnnouncesRefusesOrStaysQuiet(t *testing.T) {
 	quiet := t.TempDir()
-	if deadline, ok := ResolveRollDeadline("bloat-judge.sh", quiet, quiet, failingWriter{t}); !ok || deadline != defaultRollDeadline {
+	deadline, path, ok := ResolveRollDeadline("bloat-judge.sh", quiet, quiet, failingWriter{t})
+	if !ok || deadline != defaultRollDeadline {
 		t.Fatalf("got %s ok=%v with no override, want the default and silence", deadline, ok)
+	}
+	// The path comes back from the quiet case too. It is what a timed-out roll sends the reader to,
+	// and an untuned machine is precisely the one where the file does not exist yet.
+	if path != overridePath(quiet, quiet) {
+		t.Fatalf("got %q with no override, want the location one would go in", path)
 	}
 
 	tuned := t.TempDir()
 	writeOverride(t, tuned, "roll-timeout 45\n")
 	var said strings.Builder
-	if deadline, ok := ResolveRollDeadline("bloat-judge.sh", tuned, tuned, &said); !ok || deadline != 45*time.Second {
-		t.Fatalf("got %s ok=%v, want 45s", deadline, ok)
+	if deadline, path, ok := ResolveRollDeadline("bloat-judge.sh", tuned, tuned, &said); !ok || deadline != 45*time.Second || path != overridePath(tuned, tuned) {
+		t.Fatalf("got %s %q ok=%v, want 45s at the override", deadline, path, ok)
 	}
 	if !strings.HasPrefix(said.String(), "bloat-judge.sh: ") || !strings.Contains(said.String(), "45s") {
 		t.Fatalf("the announcement is not the tool's own voice: %q", said.String())
@@ -233,7 +239,7 @@ func TestResolveRollDeadlineAnnouncesRefusesOrStaysQuiet(t *testing.T) {
 	broken := t.TempDir()
 	writeOverride(t, broken, "timeout 45\n")
 	said.Reset()
-	if _, ok := ResolveRollDeadline("bloat-judge.sh", broken, broken, &said); ok {
+	if _, _, ok := ResolveRollDeadline("bloat-judge.sh", broken, broken, &said); ok {
 		t.Fatal("a broken override let the judge run")
 	}
 	if !strings.Contains(said.String(), "the judge did NOT run") {
