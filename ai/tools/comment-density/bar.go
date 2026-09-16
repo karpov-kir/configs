@@ -123,11 +123,23 @@ func (h hostRepo) measure(paths []string, visit func(rel string, file stats)) (t
 	return total, read
 }
 
-func (h hostRepo) measureBaseline(paths []string) baseline {
-	ratios := make([]float64, 0, len(paths))
+// carried are files this change touched but did not create. They stay in the baseline at their
+// pre-change content: that content is the repo's, and dropping it lets one edit to a comment-heavy file
+// lower the very rate the change is then held to.
+func (h hostRepo) measureBaseline(paths, carried []string, rev string) baseline {
+	ratios := make([]float64, 0, len(paths)+len(carried))
 	whole, _ := h.measure(paths, func(_ string, file stats) {
 		ratios = append(ratios, file.ratio())
 	})
+	for _, rel := range carried {
+		content, ok := h.readCappedAt(rev, rel)
+		if !ok {
+			continue
+		}
+		file := statsOf(content)
+		whole.add(file)
+		ratios = append(ratios, file.ratio())
+	}
 	return baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)}
 }
 
@@ -150,7 +162,22 @@ type fileOverCeiling struct {
 type changeSet struct {
 	stats
 	over []fileOverCeiling
-	read int
+	// mass is every changed file's comment count, so the report can say where the overage sits. A file
+	// the change did not create is marked carried: its comments are counted here because the file lands
+	// with them, but they are the repo's and `code-style.md` reports them rather than charging them.
+	mass []fileMass
+	// chargeable is the change set less the files it did not write. Carried mass is reported and never
+	// charged, so the overage — which counts every changed file whole — is the workings and this is the
+	// figure a reader acts on. They differ by more than the overage itself on a change that brushes a
+	// comment-heavy file.
+	chargeable stats
+	read       int
+}
+
+type fileMass struct {
+	rel      string
+	comments int
+	carried  bool
 }
 
 func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) changeSet {
@@ -159,8 +186,35 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) chang
 		if ceiling.isOver(rel, file) {
 			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.ratio()})
 		}
+		carried := !ceiling.isNew[rel]
+		if !carried {
+			set.chargeable.add(file)
+		}
+		if file.comments > 0 {
+			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, carried: carried})
+		}
 	})
 	return set
+}
+
+// carriers names the files holding the first half of the change set's comment mass, heaviest first. Half
+// rather than a chosen count: it answers "where is this" without a number invented to make a report fit.
+func (c changeSet) carriers() []fileMass {
+	ranked := append([]fileMass(nil), c.mass...)
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].comments != ranked[j].comments {
+			return ranked[i].comments > ranked[j].comments
+		}
+		return ranked[i].rel < ranked[j].rel
+	})
+	running := 0
+	for i, file := range ranked {
+		running += file.comments
+		if running*2 >= c.comments || i+1 == maxShown {
+			return ranked[:i+1]
+		}
+	}
+	return ranked
 }
 
 func bar(out console, args []string, cwd string, cfg Config) int {
@@ -184,17 +238,27 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 	if err != nil {
 		return out.refuse(err)
 	}
+	baseRev, err := host.baseRevision(revisions)
+	if err != nil {
+		return out.refuse(err)
+	}
 	isNew, err := host.newSinceBase(revisions, changed)
 	if err != nil {
 		return out.refuse(err)
 	}
-	base := host.measureBaseline(without(tracked, changed))
+	carried := make([]string, 0, len(changed))
+	for _, rel := range changed {
+		if !isNew[rel] {
+			carried = append(carried, rel)
+		}
+	}
+	base := host.measureBaseline(without(tracked, changed), carried, baseRev)
 	// No baseline is refused, never defaulted: a number invented here reads exactly like one measured.
 	if base.files == 0 {
 		return out.refuse(refusal("no file outside this change set carried countable lines, so the repo has no rate to hold it to"))
 	}
 	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling})
-	out.note("%d changed source file(s), %d read, %d skipped unread; %d file(s) outside the change in the baseline.",
+	out.note("%d changed source file(s), %d read, %d skipped unread; %d file(s) in the baseline.",
 		len(changed), set.read, len(changed)-set.read, base.files)
 	if set.total() == 0 {
 		return out.refuse(refusal("no changed source file could be read, so this run says nothing about the change set"))
@@ -206,7 +270,7 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
 func (c console) reportBar(base baseline, set changeSet) int {
-	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) outside this change)\n",
+	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
 		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
 	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
 		set.ratio()*100, set.comments, set.code, set.meanBlock(), set.longShare()*100, longBlockLines)
@@ -215,6 +279,21 @@ func (c console) reportBar(base baseline, set changeSet) int {
 	if cut := cutToRatio(set.stats, base.stats); cut > 0 {
 		findings++
 		fmt.Fprintf(c.stdout, "over on lines: cut %d comment line(s) to reach %.1f%%\n", cut, base.stats.ratio()*100)
+	}
+	if cutToRatio(set.stats, base.stats) > 0 {
+		if owed := cutToRatio(set.chargeable, base.stats); owed > 0 {
+			fmt.Fprintf(c.stdout, "chargeable: %d comment line(s), in the files this change wrote\n", owed)
+		} else {
+			fmt.Fprintf(c.stdout, "chargeable: nothing chargeable — the overage is in files this change did not write\n")
+		}
+		for _, file := range set.carriers() {
+			carried := ""
+			if file.carried {
+				carried = ", carried — the repo's up to this change, so report it rather than charge it"
+			}
+			fmt.Fprintf(c.stdout, "%s: %d comment line(s)%s\n",
+				shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.comments, carried)
+		}
 	}
 	if allowed := (rate{numerator: base.stats.longBlocks, denominator: base.stats.blocks}).allowance(set.blocks); set.longBlocks > allowed {
 		findings++
