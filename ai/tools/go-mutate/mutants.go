@@ -291,6 +291,15 @@ var mutants = []mutant{
 
 	{"ignore source: a machine-local info/exclude counted as ignoring", "../eco-report/git.go", "./eco-report/", "TestAMachineLocalExcludeDoesNotCountAsIgnoringTheReport", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, false", "case source == \".git/info/exclude\" || strings.HasSuffix(source, \"/.git/info/exclude\"):\n\t\treturn source, true"},
 
+	{"fingerprint: a nested repository walked, so its HEAD is the hash", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestCommitsInANestedRepositoryDoNotMoveTheFingerprint", "for _, path := range nested {", "for _, path := range []string(nil) {"},
+	// The other half of the trailing-slash rule: every untracked path held out, not only the directories
+	// git refused to walk into. What that costs is the untracked content the fingerprint exists to name.
+	{"fingerprint: every untracked path held out, not the nested repositories", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestWhatMovesTheFingerprint", "if strings.HasSuffix(path, \"/\") {", "if path != \"\" {"},
+	{"fingerprint: a nested repository's name read as a glob", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestANestedRepositoryNamedWithAGlobHoldsOutOnlyItself", "\":(exclude,top,literal)\"", "\":(exclude,top)\""},
+	{"fingerprint: the excluded path read from the caller's directory", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestASubdirectoryRootStillNamesTheWholeRepository", "\":(exclude,top,literal)\"", "\":(exclude,literal)\""},
+	{"fingerprint: the walk narrowed to the caller's own directory", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestASubdirectoryRootStillNamesTheWholeRepository", "args := []string{\"add\", \"-A\", \"--\", \":/\"}", "args := []string{\"add\", \"-A\", \"--\", \".\"}"},
+	{"fingerprint: nested repositories looked for under the caller's directory alone", "../tree-fingerprint/fingerprint.go", "./tree-fingerprint/", "TestASubdirectoryRootStillNamesTheWholeRepository", "\"--full-name\", \"-z\", \"--\", \":/\"", "\"--full-name\", \"-z\""},
+
 	{"gate: a sibling worktree's stamp gates clean", "../eco-report/worktree.go", "./eco-report/", "TestASiblingWorktreeCannotReadAStampItNeverEarned", "case recorded != mine:", "case recorded != mine \u0026\u0026 false:"},
 	{"gate: an unstamped block never names an unestablishable identity", "../eco-report/gate.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "if _, established := r.worktreeToken(); !established {", "if _, established := r.worktreeToken(); !established \u0026\u0026 false {"},
 	{"gate: an unestablished identity reads as a match", "../eco-report/worktree.go", "./eco-report/", "TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity", "case !established:", "case !established \u0026\u0026 false:"},
