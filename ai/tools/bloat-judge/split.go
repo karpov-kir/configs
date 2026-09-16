@@ -262,7 +262,7 @@ func isTrailer(line string) bool {
 		return false
 	}
 	for _, r := range token {
-		if !(r == '-' || r >= '0' && r <= '9' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z') {
+		if !(r == '-' || shell.IsAlnumRune(r)) {
 			return false
 		}
 	}

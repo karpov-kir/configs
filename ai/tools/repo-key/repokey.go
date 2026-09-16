@@ -103,7 +103,7 @@ func initialsOf(name string) string {
 // Where one run of a name ends and the next begins: anything that is not alphanumeric, which covers
 // both a raw `-`/`_`/`.` and anything else safeName has already flattened to a dash.
 func isSeparator(r rune) bool {
-	return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9')
+	return !shell.IsAlnumRune(r)
 }
 
 // The shared git dir as a real path, or a refusal. The key and the abbreviation both start here, so a
@@ -138,7 +138,7 @@ func safeName(name string) string {
 	var safe strings.Builder
 	for _, r := range name {
 		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '_', r == '-':
+		case shell.IsAlnumRune(r), r == '.', r == '_', r == '-':
 			safe.WriteRune(r)
 		default:
 			safe.WriteByte('-')

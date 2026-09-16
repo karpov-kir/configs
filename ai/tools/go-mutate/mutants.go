@@ -146,6 +146,16 @@ var mutants = []mutant{
 	{"path: DirName leaves a repeated slash on the parent", "../shell/path.go", "./shell/", "TestDirNameAndBaseNameAreDirnameAndBasename", `if parent := strings.TrimRight(trimmed[:i], "/"); parent != "" {`, `if parent := trimmed[:i]; parent != "" {`},
 	// A Unicode ellipsis reintroduces bytes that Oneline strips.
 	{"cut: the marker carries a byte Oneline strips", "../shell/text.go", "./shell/", "TestCutMarkerCarriesNoByteOnelineStrips", `const CutMarker = "..."`, "const CutMarker = \"\u2026\""},
+	// A dropped arm still answers correctly for every byte the other two cover, so only a case walking
+	// the whole byte range reddens either of these.
+	{"alnum: the digits fall out of the class", "../shell/text.go", "./shell/", "TestIsAlnumByteIsTheCLocaleAlnumClass", "return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'", "return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'"},
+	{"alnum: the upper half of the byte range reads as alphanumeric", "../shell/text.go", "./shell/", "TestIsAlnumByteIsTheCLocaleAlnumClass", "return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'", "return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= 0x80"},
+	// The truncation guard, and the one site that holds it now. `byte(r)` wraps, so 269,762 runes at or
+	// above 0x80 land on an ASCII alphanumeric byte: without the range test a clone named `\u0663abc`
+	// keeps that rune through repo-key's safeName, and initialsOf then slices it in half and answers a
+	// broken byte into a path. Only a case carrying such a rune can see this at all.
+	{"alnum: a rune truncated onto an alphanumeric byte reads as alphanumeric", "../shell/text.go", "./shell/", "TestIsAlnumRuneRejectsEverythingAboveASCII", "return uint32(r) < 0x80 && IsAlnumByte(byte(r))", "return IsAlnumByte(byte(r))"},
+	{"alnum: the range test reopens the class below zero", "../shell/text.go", "./shell/", "TestIsAlnumRuneRejectsEverythingAboveASCII", "return uint32(r) < 0x80 && IsAlnumByte(byte(r))", "return r < 0x80 && IsAlnumByte(byte(r))"},
 	// The second anchor includes the following return to exclude CutBytes' matching early return.
 	{"cut: a message cut with nothing marking it", "../shell/text.go", "./shell/", "TestCutBytesMarkedSaysWhenItCut", "return CutBytes(text, n-len(CutMarker)) + CutMarker", "return CutBytes(text, n)"},
 	{"cut: a message that was never cut marked anyway", "../shell/text.go", "./shell/", "TestCutBytesMarkedSaysWhenItCut", `	if len(text) <= n {
@@ -364,6 +374,10 @@ var mutants = []mutant{
 	{"repo-key: an abbreviation reaches a title at any length", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", "if len(initials) > abbrevLength {", "if len(initials) > abbrevLength && false {"},
 	{"repo-key: a name with nothing to abbreviate answers the empty string", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", `if initials == "" {`, `if initials == "" && false {`},
 	{"repo-key: a run's initial reaches the title lowercase", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", "initials.WriteString(strings.ToUpper(run[:1]))", "initials.WriteString(run[:1])"},
+	// The shell mutant above covers the guard existing; these two cover a caller going back to
+	// truncating for itself, which is what the consolidation was for.
+	{"repo-key: the safe half truncates a rune for itself", "../repo-key/repokey.go", "./repo-key/", "TestSafeNameAdmitsNoByteOutsideTheClassItPromises", "case shell.IsAlnumRune(r), r == '.', r == '_', r == '-':", "case shell.IsAlnumByte(byte(r)), r == '.', r == '_', r == '-':"},
+	{"repo-key: the run splitter truncates a rune for itself", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", "return !shell.IsAlnumRune(r)", "return !shell.IsAlnumByte(byte(r))"},
 	{"repo-key: the default root is not the working directory", "../repo-key/repokey.go", "./repo-key/", "TestWithNoPathItAnswersForTheWorkingDirectory", `root := "."`, `root := "/"`},
 	{"repo-key: a second root accepted", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", "if len(args) > 1 {\n\t\treturn refuse(errOut, usage)", "if len(args) > 1 && false {\n\t\treturn refuse(errOut, usage)"},
 
@@ -1402,7 +1416,10 @@ var unreachableMutants = []unreachableMutant{
 		"repo-key: the abbreviation skips the safe half",
 		"equivalent, not unobserved, and only since the prefix became an abbreviation: safeName cannot " +
 			"change what abbrevOf answers, so dropping it from abbrevFromSharedGitDir is the same " +
-			"function. safeName preserves every [A-Za-z0-9._-] rune and maps every other one to `-`, " +
+			"function. safeName and isSeparator read one predicate for that class now, shell.IsAlnumRune, " +
+			"so the half " +
+			"the equivalence turns on cannot drift: " +
+			"safeName preserves every [A-Za-z0-9._-] rune and maps every other one to `-`, " +
 			"while isSeparator calls everything outside [A-Za-z0-9] a separator — so `.`, `_`, `-` and " +
 			"each substituted byte are all separators, the maximal alnum runs FieldsFunc yields are the " +
 			"same sequence either way, and TrimLeft(\"-.\") removes only separators. The one branch that " +

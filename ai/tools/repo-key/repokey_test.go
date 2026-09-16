@@ -353,6 +353,11 @@ func TestTheAbbreviationTable(t *testing.T) {
 		{"2fa-tool", "2faT"},
 		// A space separates two runs like any other non-alphanumeric byte.
 		{"a b", "AB"},
+		// A rune whose low byte is itself alphanumeric — `byte('\u0663')` is `'c'`. Only the range test
+		// inside shell.IsAlnumRune keeps it a separator; without it `run[:1]` cuts the rune in two and
+		// answers an invalid-UTF-8 byte. safeName never lets one this far, so this is the only case
+		// that can see the guard at all.
+		{"\u0663abc", "A"},
 		// Nothing alphanumeric to take an initial from: `___` is left whole by safeName.
 		{"___", "R"},
 		// Eight runs is one more than a title takes.
@@ -501,6 +506,67 @@ func TestAnAbbreviationIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 		}
 		if strings.HasPrefix(got, "-") {
 			t.Errorf("directory %q abbreviated to %q, which reads as an option wherever the abbreviation reaches a command", name, got)
+		}
+	}
+}
+
+// The eight-name case above proves the reduction on the shapes a person types. This one proves the
+// class, because the class is what safeName promises and safeName no longer spells it out: the
+// alphanumeric half is shell.IsAlnumRune now, and widening that one predicate in a general-purpose
+// text package would put a `;` or a backtick into a key — spliced into a path and into the `git
+// worktree add` line a human runs — with nothing in this package saying so. A directory name may
+// hold every byte but NUL and `/`, so every one of them is a case.
+func TestSafeNameAdmitsNoByteOutsideTheClassItPromises(t *testing.T) {
+	t.Parallel()
+	for i := 1; i < 0x100; i++ {
+		if byte(i) == '/' {
+			continue
+		}
+		b := string(byte(i))
+		for _, name := range []string{b, "a" + b + "z", b + "tail", "head" + b, "a" + b + "1"} {
+			got := safeName(name)
+			if !safeCharacters.MatchString(got) {
+				t.Errorf("directory %q reduced to %q, which is not confined to characters that survive a path or a command line", name, got)
+			}
+			if strings.HasPrefix(got, "-") {
+				t.Errorf("directory %q reduced to %q, which reads as an option wherever the name reaches a command", name, got)
+			}
+			if strings.HasPrefix(got, ".") {
+				t.Errorf("directory %q reduced to %q, which names a hidden directory", name, got)
+			}
+		}
+	}
+	// A rune the range loop yields as several bytes, and a byte sequence that is not UTF-8 at all.
+	// `\u0663` and `\u0130` are the discriminating ones: `byte(r)` truncates them onto `'c'` and `'0'`,
+	// so only the range test inside shell.IsAlnumRune keeps them out of the name — the rest of this list
+	// truncates onto bytes that are not alphanumeric and cannot see that half at all.
+	for _, name := range []string{"café", "日本", "\U0001F600", "\xff\xfe", "\xed\xa0\x80", "..", "\u0663abc", "\u0130stanbul-tools"} {
+		if got := safeName(name); !safeCharacters.MatchString(got) || strings.HasPrefix(got, "-") || strings.HasPrefix(got, ".") {
+			t.Errorf("directory %q reduced to %q", name, got)
+		}
+	}
+}
+
+// The abbreviation is spliced into a session title and compared against a written-down prefix, and
+// initialsOf takes `run[:1]` off a run isSeparator bounded — so a run holding anything but an ASCII
+// alphanumeric would both widen the answer and cut a multi-byte rune in half.
+func TestAnAbbreviationAdmitsNoByteOutsideTheClassItPromises(t *testing.T) {
+	t.Parallel()
+	alnumOnly := regexp.MustCompile(`^[A-Za-z0-9]*$`)
+	for i := 1; i < 0x100; i++ {
+		if byte(i) == '/' {
+			continue
+		}
+		b := string(byte(i))
+		for _, name := range []string{b, "a" + b + "z", "k8s" + b, b + "v2"} {
+			if got := abbrevOf(safeName(name)); !alnumOnly.MatchString(got) {
+				t.Errorf("directory %q abbreviated to %q, which is not confined to characters that survive a path or a command line", name, got)
+			}
+		}
+	}
+	for _, name := range []string{"café", "日本", "\xff\xfe", "a;rm -rf /", "$(id)"} {
+		if got := abbrevOf(safeName(name)); !alnumOnly.MatchString(got) {
+			t.Errorf("directory %q abbreviated to %q", name, got)
 		}
 	}
 }
