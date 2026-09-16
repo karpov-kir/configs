@@ -145,6 +145,7 @@ var rankTable = []struct {
 	{subcommandDispatchDoesNotAccept, 5},
 	{subcommandUsageDoesNotName, 5},
 	{subcommandWithNoCallSite, 5},
+	{dispatchNamesFewerFlags, 5},
 	{uncheckableCitation, 5},
 	{undelimitedSectionCitation, 5},
 	// The two kinds scanUnknownSkills emits, kept together so the pair reads as one scan's two

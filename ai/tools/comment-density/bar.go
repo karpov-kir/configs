@@ -166,7 +166,7 @@ type changeSet struct {
 	// the change did not create is marked carried: its comments are counted here because the file lands
 	// with them, but they are the repo's and `code-style.md` reports them rather than charging them.
 	mass []fileMass
-	// chargeable is the change set less the files it did not write. Carried mass is reported and never
+	// chargeable weights each file by how much of its comment mass this change wrote. Carried mass is reported and never
 	// charged, so the overage — which counts every changed file whole — is the workings and this is the
 	// figure a reader acts on. They differ by more than the overage itself on a change that brushes a
 	// comment-heavy file.
@@ -177,24 +177,67 @@ type changeSet struct {
 type fileMass struct {
 	rel      string
 	comments int
-	carried  bool
+	// written is the share of this file's landed comment lines that this change wrote. Authorship is
+	// measured over the population being graded: a comment-only rewrite touches almost no code, so a
+	// whole-file share would call it inherited and charge nothing for a mass entirely the change's own.
+	// It is a fraction of the file as it stands, never a ratio of one delta to another.
+	written float64
 }
 
-func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) changeSet {
+func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) changeSet {
 	var set changeSet
 	set.stats, set.read = h.measure(paths, func(rel string, file stats) {
 		if ceiling.isOver(rel, file) {
 			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.ratio()})
 		}
-		carried := !ceiling.isNew[rel]
-		if !carried {
-			set.chargeable.add(file)
+		// A file the change created carries no older line, and an untracked one has no diff to read at
+		// all, so its whole comment mass is this change's by construction rather than by counting.
+		written := 1.0
+		if file.comments > 0 && !ceiling.isNew[rel] {
+			written = min(float64(authored[rel])/float64(file.comments), 1)
 		}
+		set.chargeable.add(stats{
+			comments: int(float64(file.comments)*written + 0.5),
+			code:     int(float64(file.code)*written + 0.5),
+		})
 		if file.comments > 0 {
-			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, carried: carried})
+			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, written: written})
 		}
 	})
 	return set
+}
+
+// authoredComments counts, per file, the comment lines this change added. Paired with the file's landed
+// comment count it gives authorship as a share of what is there, which is bounded whichever way the
+// change went — where a rate built from the diff alone inverts on a change that only deleted.
+func (h hostRepo) authoredComments(revisions, changed []string) (map[string]int, error) {
+	// Scoped to the files already resolved as changed, which both narrows the diff and supplies the `--`
+	// that keeps a tree holding a file named like a revision from making the command ambiguous. Diff's
+	// bare form must stay ambiguous there: it is how a path passed where a revision belongs is refused
+	// rather than silently scanned against the index.
+	named := revisions
+	if len(named) == 0 {
+		named = []string{"HEAD"}
+	}
+	args := append(append([]string{}, named...), "--")
+	args = append(args, changed...)
+	diff, err := gitOutput(h.root, append([]string{
+		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
+		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/",
+	}, args...)...)
+	if err != nil {
+		return nil, gitRefusal("could not read which comment lines this change wrote", err)
+	}
+	authored := map[string]int{}
+	var result diffscan.Result
+	if err := result.WalkDiff(diff, func(added diffscan.AddedLine) {
+		if isComment(strings.TrimLeft(added.Text, shell.SpaceBytes)) {
+			authored[added.File]++
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return authored, nil
 }
 
 // carriers names the files holding the first half of the change set's comment mass, heaviest first. Half
@@ -257,7 +300,11 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 	if base.files == 0 {
 		return out.refuse(refusal("no file outside this change set carried countable lines, so the repo has no rate to hold it to"))
 	}
-	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling})
+	authored, err := host.authoredComments(revisions, changed)
+	if err != nil {
+		return out.refuse(err)
+	}
+	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling}, authored)
 	out.note("%d changed source file(s), %d read, %d skipped unread; %d file(s) in the baseline.",
 		len(changed), set.read, len(changed)-set.read, base.files)
 	if set.total() == 0 {
@@ -287,12 +334,12 @@ func (c console) reportBar(base baseline, set changeSet) int {
 			fmt.Fprintf(c.stdout, "chargeable: nothing chargeable — the overage is in files this change did not write\n")
 		}
 		for _, file := range set.carriers() {
-			carried := ""
-			if file.carried {
-				carried = ", carried — the repo's up to this change, so report it rather than charge it"
+			note := ""
+			if file.written < 0.5 {
+				note = " — mostly the repo's, so report it rather than charge it"
 			}
-			fmt.Fprintf(c.stdout, "%s: %d comment line(s)%s\n",
-				shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.comments, carried)
+			fmt.Fprintf(c.stdout, "%s: %d comment line(s), %.0f%% written here%s\n",
+				shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.comments, file.written*100, note)
 		}
 	}
 	if allowed := (rate{numerator: base.stats.longBlocks, denominator: base.stats.blocks}).allowance(set.blocks); set.longBlocks > allowed {

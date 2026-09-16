@@ -68,6 +68,7 @@ const (
 	SubcommandDispatchDoesNotAccept  = subcommandDispatchDoesNotAccept
 	SubcommandUsageDoesNotName       = subcommandUsageDoesNotName
 	SubcommandWithNoCallSite         = subcommandWithNoCallSite
+	DispatchNamesFewerFlags          = dispatchNamesFewerFlags
 	UncheckableCitation              = uncheckableCitation
 	UndelimitedSectionCitation       = undelimitedSectionCitation
 	UnknownSkillReferenced           = unknownSkillReferenced

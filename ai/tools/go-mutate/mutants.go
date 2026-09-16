@@ -21,6 +21,8 @@ var mutants = []mutant{
 	// This condition skips a finding, so `|| true` disables the floor.
 	{"report: the per-class floor removed", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) {", "if findings[i].class.shown > 0 || isRankFull(findings[i].class.rank) || true {"},
 	{"report: the catch-all class given a note of its own", "report.go", "./eco-check/", "TestASuppressionNoteCountsOnlyItsOwnClass", "case class.prefix != \"\" && !isNoted[class]:", "case !isNoted[class]:"},
+	{"invocations: a dispatch missing the lane's flag passes", "invocations.go", "./eco-check/", "TestInvocationSpellingScan",
+		`if len(missing) == 0 {`, `if len(missing) >= 0 {`},
 	// Remove both rows: one remaining catch-all kind prints unchanged.
 	// With two kinds in that class, the floor hides whichever sorts second.
 	{"report: two rank-5 kinds put back in one class", "report.go", "./eco-check/", "TestTheGravestFindingSurvivesAFlood", "\t{skillDirWithoutSkillFile, 5},\n\t{skillWithoutDescription, 5},\n", ""},
@@ -942,6 +944,8 @@ var mutants = []mutant{
 		`} else if s.countable == 0 {`, `} else if s.countable < 0 {`},
 	{"density: a touched file is dropped from the baseline again", "../comment-density/bar.go", "./comment-density/", "TestATouchedFileStaysInTheBaselineAtItsOldContent",
 		`if !isNew[rel] {`, `if !isNew[rel] && false {`},
+	{"density: comment authorship is assumed rather than measured", "../comment-density/bar.go", "./comment-density/", "TestTheReportMeasuresCommentAuthorshipPerFile",
+		`if file.comments > 0 && !ceiling.isNew[rel] {`, `if file.comments > 0 && !ceiling.isNew[rel] && false {`},
 	// These mutants need a successfully parsed override; refusal-only cases cannot observe them.
 	// Keep `+ value*0` so value remains read and the mutant compiles.
 	{"density: COMMENT_MAX_RATIO parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",

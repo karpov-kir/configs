@@ -123,6 +123,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	c.scanScriptsParse()
 	c.scanSubcommandCallSites()
 	c.scanFlagCallSites()
+	c.scanInvocationSpelling()
 	c.scanTestPositions()
 	c.scanUsageSpelling()
 	c.scanSharedRegions()
