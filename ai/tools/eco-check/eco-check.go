@@ -120,6 +120,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	c.scanBareRuleIDs()
 	c.scanUnknownSkills()
 	c.scanSkillDirectories()
+	c.scanStageInvocability()
 	c.scanScriptsParse()
 	c.scanSubcommandCallSites()
 	c.scanFlagCallSites()

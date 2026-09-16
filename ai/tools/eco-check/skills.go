@@ -14,6 +14,7 @@ const (
 	audienceNothingReads     = "audience nothing reads"
 	codexPolicyRefused       = "Codex invocation policy refused: "
 	codexPolicyMismatch      = "Codex invocation policy mismatch: "
+	stageNothingCanInvoke    = "stage nothing can invoke: "
 )
 
 // Each defect here makes a skill unreachable rather than merely mis-linked: the loader finds a skill
@@ -54,6 +55,53 @@ func (c *checker) scanSkillDirectories() {
 			c.add(audienceNothingReads + ": " + shell.Oneline(file) + " declares '" + shell.Oneline(value) +
 				"' — the only value is `audience: maintainer`, and this one leaves the skill installed for everyone")
 		}
+	}
+}
+
+// A skill another skill extends is a stage, and a stage its own orchestrator cannot invoke stalls.
+//
+// `disable-model-invocation` is for the skill ecosystem.md → **Conventions a new file joins** describes
+// as one the human always initiates. A skill named on an `**Extends:**` line is the opposite: its
+// caller is another skill, reaching it mid-pipeline with nobody at the keyboard. Claude Code refuses
+// the marked skill to every model caller and adds "Do not replicate this skill's workflow by other
+// means" — which bans the read-the-file route the extending skill instructs, so the stage's only
+// remaining move is to stop and wait for a human to type the slash command. That was observed on
+// 2026-09-16: a ship reached its landing stage twice and stopped both times.
+//
+// The edge is read off `**Extends:**` rather than off prose. ecosystem.md → **Three kinds, two homes**
+// names three ways one skill can mention another and only extension runs it, so the declaration is the
+// one signal that distinguishes a stage from a neighbour a description merely points at.
+func (c *checker) scanStageInvocability() {
+	extendedBy := map[string]string{}
+	for _, file := range c.filesNamed(c.root.Skills(), "SKILL.md") {
+		lines, err := c.readLines(file)
+		if err != nil {
+			continue
+		}
+		caller := shell.BaseName(shell.DirName(file))
+		extends, _ := shell.ExtendsDeclarations(lines)
+		for _, stage := range extends {
+			// First caller wins, and the files arrive byte-sorted, so the name in the finding is stable
+			// across runs. Naming one is enough: the finding is about the stage, and a second caller
+			// changes nothing about what the reader has to do to it.
+			if _, named := extendedBy[stage]; !named {
+				extendedBy[stage] = caller
+			}
+		}
+	}
+	for _, name := range c.skillDirNames() {
+		caller, isStage := extendedBy[name]
+		if !isStage {
+			continue
+		}
+		file := c.skillFilePath(name)
+		lines, err := c.readLines(file)
+		if err != nil || !shell.IsOptedOutOfModelInvocation(lines) {
+			continue
+		}
+		c.add(stageNothingCanInvoke + shell.Oneline(file) + " — " + shell.Oneline(caller) +
+			" extends it, so a skill invokes it with nobody at the keyboard, and disable-model-invocation" +
+			" leaves it waiting for a human to type /" + shell.Oneline(name))
 	}
 }
 

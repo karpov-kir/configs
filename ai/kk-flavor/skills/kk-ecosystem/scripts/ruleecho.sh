@@ -54,6 +54,11 @@ binary="$("$resolver" "$tool")" || exit 2
 # callers parse. Empty when nothing stamped it. `ai/tools/resolve.sh` carries why.
 export ECO_TOOL_BUILD="$(cat "$binary.stamp" 2>/dev/null || true)"
 
+# The checkout that answered, which the build stamp does not name: the stamp hashes source, so it moves
+# when the source does and says nothing about which commit the tree sits on. `ai/tools/resolve.sh`
+# carries why the two are both needed.
+export ECO_TOOL_TREE="$(git -C "${resolver%/*}" rev-parse HEAD 2>/dev/null || true)"
+
 # `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
 # it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
 exec -a "$0" "$binary" "$@"
