@@ -99,9 +99,10 @@ func TestCodexCallerBoundsTheRoll(t *testing.T) {
 }
 
 func TestCodexCallerIsolatesInputAndCleansItsDirectory(t *testing.T) {
+	// Baked into the script rather than passed as a variable: a roll's environment is an allow-list,
+	// so a test hook handed through it would be dropped the way any other stray variable is.
 	record := filepath.Join(t.TempDir(), "cwd")
-	t.Setenv("JUDGE_TEST_CWD", record)
-	fakeCodex(t, `pwd > "$JUDGE_TEST_CWD"
+	fakeCodex(t, `pwd > "`+record+`"
 for arg do
  case "$arg" in
   --ignore-user-config) user_config=1;;
@@ -301,5 +302,61 @@ exit 1`)
 	}
 	if refused.Model != "fixture-model" {
 		t.Errorf("refusal names %q; want fixture-model", refused.Model)
+	}
+}
+
+func TestARollIsHandedOnlyTheAllowListedEnvironment(t *testing.T) {
+	kept := rollEnv([]string{
+		"HOME=/h", "PATH=/p", "LC_ALL=C", "ANTHROPIC_API_KEY=k", "CODEX_HOME=/c",
+		"ANTHROPIC_BASE_URL=http://attacker", "OPENAI_BASE_URL=http://attacker",
+		"HTTPS_PROXY=http://attacker", "MAX_THINKING_TOKENS=0", "NOT_A_PAIR",
+	})
+	want := []string{"HOME=/h", "PATH=/p", "LC_ALL=C", "ANTHROPIC_API_KEY=k", "CODEX_HOME=/c"}
+	if strings.Join(kept, " ") != strings.Join(want, " ") {
+		t.Fatalf("kept %q, want %q — a destination must not pass where a credential does", kept, want)
+	}
+}
+
+// The allow-list at the syscall rather than in a slice: a child really does see only these, and a
+// caller's own extra really does reach it.
+func TestTheChildProcessSeesTheAllowListAndTheCommandsOwnAdditions(t *testing.T) {
+	t.Setenv("ANTHROPIC_BASE_URL", "http://attacker")
+	t.Setenv("JUDGE_TEST_STRAY", "stray")
+	out, err := runBounded(notTheSubject, modelCommand{
+		name: "/usr/bin/env", model: "none", env: []string{"MAX_THINKING_TOKENS=0"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unwanted := range []string{"ANTHROPIC_BASE_URL", "JUDGE_TEST_STRAY"} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("%s reached the roll:\n%s", unwanted, out)
+		}
+	}
+	for _, wanted := range []string{"PATH=", "MAX_THINKING_TOKENS=0"} {
+		if !strings.Contains(out, wanted) {
+			t.Errorf("%s did not reach the roll:\n%s", wanted, out)
+		}
+	}
+}
+
+func TestAnExhaustedLoginIsNotAnAnswer(t *testing.T) {
+	fakeCodex(t, `printf "Usage limit reached. Try again later.\n"`)
+	_, err := CodexCaller(notTheSubject, testSettings())("judge", "text")
+	var exhausted *ProviderExhausted
+	if !errors.As(err, &exhausted) {
+		t.Fatalf("got %v, want the login reported as exhausted rather than as a verdict", err)
+	}
+}
+
+// The subtraction refusedTheModel does, for the same reason: a document about rate limits must not
+// report the account out of capacity.
+func TestJudgedTextAboutRateLimitsIsNotAnExhaustedLogin(t *testing.T) {
+	said := []byte("You've hit your session limit · resets 3:50pm\n")
+	if !exhausted("claude", "some other text", said) {
+		t.Fatal("the measured apology was not recognised")
+	}
+	if exhausted("claude", "You've hit your session limit · resets 3:50pm", said) {
+		t.Fatal("the judged text was read back as the provider's own answer")
 	}
 }

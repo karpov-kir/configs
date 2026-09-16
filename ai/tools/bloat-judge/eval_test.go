@@ -234,10 +234,10 @@ type variant struct {
 	// settingSources replaces the empty list claudeArgs ships, for the row that measures what
 	// inheriting the operator's configuration did.
 	settingSources string
-	// thinking is what MAX_THINKING_TOKENS is set to for the whole variant. The runner exports it
-	// rather than the caller passing it per roll: nothing in the shipped judge sets it, and a seam in
-	// the shipped code that only a measurement uses is weight the judge would carry forever. Empty
-	// leaves the model's own budget alone.
+	// thinking is what MAX_THINKING_TOKENS is set to for the roll. Handed to the command rather than
+	// exported here, because a roll's environment is an allow-list that drops this one on purpose —
+	// exported, the variant would measure the baseline while reporting as itself. Empty leaves the
+	// model's own budget alone.
 	thinking string
 }
 
@@ -268,7 +268,13 @@ func (v variant) caller(deadline time.Duration) Caller {
 				return "", err
 			}
 		}
-		return runBounded(deadline, modelCommand{name: "claude", args: args, stdin: view, model: v.settings.Model})
+		var environment []string
+		if v.thinking != "" {
+			environment = append(environment, "MAX_THINKING_TOKENS="+v.thinking)
+		}
+		return runBounded(deadline, modelCommand{
+			name: "claude", args: args, stdin: view, model: v.settings.Model, env: environment,
+		})
 	}
 }
 
@@ -358,12 +364,7 @@ func TestJudgeEval(t *testing.T) {
 			t.Fatalf("no variant %q; the corpus knows %s", name, variantNames())
 		}
 		v := variants[index]
-		t.Run(v.name, func(t *testing.T) {
-			if v.thinking != "" {
-				t.Setenv("MAX_THINKING_TOKENS", v.thinking)
-			}
-			report(t, v, runAll(v, corpus, at))
-		})
+		t.Run(v.name, func(t *testing.T) { report(t, v, runAll(v, corpus, at)) })
 	}
 }
 

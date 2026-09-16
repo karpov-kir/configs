@@ -169,9 +169,10 @@ empty `--setting-sources` list, so a pin in the user, project or local settings 
 neither can either `CLAUDE.md`. An operator's own reaching a roll makes it answer in prose where a
 verdict belongs, which the judge refuses as the whole vote failing. That buys reproducibility and not
 better verdicts: with the `user` source loaded the judge scored exactly as it scores without it.
-**Two channels it does not close**, so read it as those three sources and not as isolation: a managed
-policy setting is merged whatever the list says, and the roll inherits this process's whole
-environment, `ANTHROPIC_BASE_URL` included.
+**The roll's environment is an allow-list too** — the machine's own shape and its login, so a key
+passes and a base URL does not; a destination set by a devcontainer, by a `.envrc` in the checkout
+under review or by a CI step reaches nothing. **One channel stays open**, so read this as those
+sources plus that list and not as isolation: a managed policy setting is merged whatever either says.
 
 **Three levers sit outside the file, and no row can move them.** The session an orchestrator runs in
 takes the model the human chose before the skill loaded, so a cheap reactor or patrol loop is bought

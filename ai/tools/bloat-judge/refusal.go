@@ -84,3 +84,54 @@ func refusedTheModel(client, echoed string, stdout []byte, err error) bool {
 	}
 	return false
 }
+
+// ProviderExhausted is the account out of capacity for now: the name is good, the text is good, and
+// the answer is a wait rather than an edit. Its own type beside ModelRefused because the repairs
+// differ — that one sends someone to models.json, this one sends them to the clock.
+type ProviderExhausted struct {
+	Client string
+}
+
+func (e *ProviderExhausted) Error() string {
+	return fmt.Sprintf("%s has no capacity left on this login, so nothing was judged", e.Client)
+}
+
+// What a CLI was measured saying when the login is out of capacity. Measured 2026-09-16 on this
+// repo's machine: `claude -p` prints "You've hit your session limit · resets 3:50pm (Europe/Moscow)"
+// on stdout and exits 0 — the apology takes the answer's place, at the status a good answer uses.
+//
+// The second claude marker and the codex ones are the same sentence in the wordings those CLIs use
+// elsewhere for the same condition, and are NOT measured. A marker that never matches costs nothing
+// here: the roll then ends the way it ended before this existed.
+var exhaustionMarkers = map[string][]string{
+	"claude": {"hit your session limit", "usage limit reached"},
+	"codex":  {"usage limit reached", "rate limit", "quota"},
+}
+
+// exhausted reads a SUCCESSFUL call's output for one of those. The judged text is subtracted first,
+// for the reason refusedTheModel subtracts it: a document discussing rate limits would otherwise
+// report the account exhausted and send someone to wait out a limit they never hit.
+func exhausted(client, echoed string, stdout []byte) bool {
+	markers, known := exhaustionMarkers[client]
+	if !known {
+		return false
+	}
+	fromTheInput := map[string]bool{}
+	for _, line := range shell.SplitLines(echoed) {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			fromTheInput[trimmed] = true
+		}
+	}
+	for _, line := range shell.SplitLines(string(stdout)) {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || fromTheInput[trimmed] {
+			continue
+		}
+		for _, marker := range markers {
+			if strings.Contains(strings.ToLower(trimmed), marker) {
+				return true
+			}
+		}
+	}
+	return false
+}

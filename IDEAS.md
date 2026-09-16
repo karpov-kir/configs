@@ -245,15 +245,25 @@ has measured a large document since a prose unit became the markdown block rathe
 cutting what a view offers. A bound that clips an honest roll costs the whole gate, so it does not
 move on small-payload evidence.
 
-**A judge roll still inherits this process's whole environment.** Closing the client's setting sources
-left two channels open, and the smaller one is a managed policy setting, which nothing here can
-refuse. The other is the environment `runBounded` passes through untouched: `ANTHROPIC_BASE_URL` and
-`ANTHROPIC_AUTH_TOKEN` set by a devcontainer, a `.envrc` in the checkout under review, or a CI step,
-point every roll at an endpoint of someone else's choosing, which both reads the judged text and
-dictates the verdict. An allow-listed environment is the fix and it was not taken here, because the
-same exposure reaches `model-check` and every other CLI this repo shells out to, and a list narrow
-enough to matter has to be measured against both providers' auth before it can ship — one tool
-hardened alone reads as protection the others do not have.
+**A managed policy setting still reaches a judge roll, and nothing here can refuse it.** The client's
+setting sources and the roll's environment are both allow-lists now, and `runBounded` is the single
+seam both `bloat-judge` and `model-check` shell out through, so one list covers every provider call
+this repo makes. A managed setting is merged above all of them by the client itself. Nothing in the
+tree can close that; what it can do is stop claiming isolation, which
+[model-policy.md](ai/kk-flavor/standards/model-policy.md) now does.
+
+**The corpus says where codex is weak, and it is the residue list.** Over six runs it made 1, 1, 0, 2,
+0 and 3 false cuts, and the worst run deleted three items out of `report-residue` while keeping the
+framing around them. Seven of the eight cases are right every time. No lane sends a residue list
+through the judge today, so this is a bound on where the judge may be pointed rather than a defect to
+fix — and it is the closest thing the corpus has to the close call it cannot yet decide.
+
+**No scanner names the build that answered it.** A peer session got two opposite `--bar` verdicts on
+identical inputs an hour apart, because `comment-density/bar.go` moved between the runs and nothing in
+either report said so. That is [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)'s
+"names the commit you measured" one level up: there the unnamed thing is the tree, here it is the
+instrument. A build stamp in the report line would make the pair self-explaining. The file is another
+session's; this is the note, not the change.
 
 **A positive thinking cap is not a lever on this path.** `MAX_THINKING_TOKENS=256` over a real view
 still drew 542 and 434 output tokens, and 1024, 2048 and 4096 each measured the same roll time and
