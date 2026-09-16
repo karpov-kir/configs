@@ -38,7 +38,9 @@ const exitMergeSlotHeld = 4
 // The holder, as the slot records it. The worktree rather than a pid: the slot spans several
 // invocations of this tool, so no process alive at the moment it was taken is alive when the next
 // caller reads it. A worktree is what a session owns for its whole life, which makes it the name a
-// caller can check against its own list of live sessions rather than merely trust.
+// caller can put to whoever keeps the list of live sessions. Not one the caller can check for itself:
+// it has no such list, and the slot outlives its writer, so the name says a file is there and nothing
+// about whether anyone still holds it.
 type mergeSlot struct {
 	intent   string
 	worktree string
@@ -71,9 +73,17 @@ func (r *run) readMergeSlot() *mergeSlot {
 	return held
 }
 
-// Take it, or refuse naming who has it. `--force` breaks a slot whose holder is gone — the tool cannot
+// Take it, or refuse naming who has it. `--force` breaks a slot whose holder is gone. The tool cannot
 // see that for itself, since the session it would be asking about is not a process it started, so the
 // judgment is the caller's and this only carries it out and says so.
+//
+// Nor can the caller see it from inside its own session, which is why the refusal now names who to ask.
+// The slot outlives the session that wrote it, so a worktree nobody is in reads exactly like one whose
+// session is mid-merge, and every check available from a session — a name, a path, a process list —
+// answers about the file rather than about the writer. Whoever holds the live-session list settles it:
+// the coordinator, or the human. Telling a stage to "look for a session working in that worktree" was
+// the same defect `idsd-finalize`'s own frontmatter carried, one layer over — an instruction to
+// establish something the reader has no instrument for.
 // Reports whether THIS call took the slot. A caller that brackets the whole merge took it before
 // finalize ran, and finalize releasing it on the way out hands the rest of that bracket to whoever is
 // waiting — the judging half writes the project's records outside this process, which is the window
@@ -98,7 +108,8 @@ func (r *run) takeMergeSlot(intent string, isForced bool) bool {
 			r.errLines("error: another ship holds the merge slot — '"+shell.Oneline(held.intent)+"' in "+shell.Oneline(held.worktree)+age+". Nothing was finalized.",
 				"  Finalizing is serial: it moves the archive, regenerates the roadmap and writes the project's records, which every ship shares.",
 				"  Wait for it, or re-run with --force once you have established that holder is gone.",
-				"  Establishing that is yours: this tool started no process it could ask about. Look for a session working in that worktree — none, and the slot outlived its holder.")
+				"  A named holder proves this file exists, not that its writer is alive: the slot outlives the session that wrote it.",
+				"  So ask your coordinator, or the human, who can see the live sessions. This tool started no process it could ask about, and no check you can run from here settles it.")
 			r.exit(exitMergeSlotHeld)
 		}
 		r.line("reclaimed the merge slot from '%s' in %s", shell.Oneline(held.intent), shell.Oneline(held.worktree))
@@ -153,7 +164,8 @@ func (r *run) refuseSharedRecordUnderAForeignSlot(kind *recordKind) {
 	// and what reads this refusal is another agent waiting its turn.
 	r.errLines("error: another ship holds the merge slot — '"+shell.Oneline(held.intent)+"' in "+shell.Oneline(held.worktree)+age+". "+kind.file+" is unchanged.",
 		"  "+kind.name+" is the project's own record, and merging entries into it is what the slot makes serial.",
-		"  Wait for that ship, or take the slot yourself once you have established its holder is gone.")
+		"  Wait for that ship, or take the slot yourself once you have established its holder is gone.",
+		"  A named holder proves this file exists, not that its writer is alive. Ask your coordinator, or the human, who can see the live sessions.")
 	r.exit(exitMergeSlotHeld)
 }
 

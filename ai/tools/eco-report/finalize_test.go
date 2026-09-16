@@ -59,8 +59,15 @@ func TestFinalizeRefusesWhileAnotherShipHoldsTheMergeSlot(t *testing.T) {
 	// turn" from "your tree is bad" re-runs gates that were fine, or sits on a red that is real.
 	f.record("and says so with its own exit code, not a gate's",
 		f.status == 4, "exit "+strconv.Itoa(f.status))
-	f.record("and names the holder, so a caller can check it rather than trust it",
+	f.record("and names the holder, so the waiter has something to ask about",
 		strings.Contains(f.out, "001-first"), f.out)
+	// The refusal used to end "look for a session working in that worktree", which reads as a check and
+	// is not one: the slot outlives its writer, so an abandoned worktree and a busy one look identical
+	// from here. Every way a session could try costs someone a wrong --force into a half-written merge.
+	f.record("and sends the waiter to whoever can see the live sessions, rather than to a check",
+		strings.Contains(f.out, "coordinator") && strings.Contains(f.out, "live sessions"), f.out)
+	f.record("and says the name is evidence about the file, not about its writer",
+		strings.Contains(f.out, "not that its writer is alive"), f.out)
 	f.record("and nothing of the second ship moved",
 		f.isFile(f.shipDir("002-second")+"/intent.md") && !f.exists(f.archiveDir("002-second")),
 		joinLines(f.find(f.scratch())))
@@ -106,8 +113,12 @@ func TestASharedRecordWriteWaitsForTheSlotItsHolderTook(t *testing.T) {
 		// The slot's own code, so a caller already handling `merge-slot take`'s exit 4 handles this
 		// without learning a second vocabulary for the same wait.
 		f.record("and says so with the slot's exit code", f.status == 4, "exit "+strconv.Itoa(f.status)+"\n"+f.out)
-		f.record("and names the holder and its worktree, so the waiter can check rather than trust",
+		f.record("and names the holder and its worktree, so the waiter has something to ask about",
 			strings.Contains(f.out, "002-landing") && strings.Contains(f.out, "sibling-worktree"), f.out)
+		// Same correction as the finalize refusal above: the name is evidence about the file, and only
+		// whoever can see the live sessions knows whether its writer is still there.
+		f.record("and sends the waiter to whoever can see the live sessions",
+			strings.Contains(f.out, "coordinator") && strings.Contains(f.out, "live sessions"), f.out)
 		f.record("and the record is untouched, so nothing half-wrote while it waited",
 			!strings.Contains(f.read(recordFile(f, "project-decisions")), "settled while someone else"),
 			f.read(recordFile(f, "project-decisions")))
