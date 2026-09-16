@@ -106,7 +106,7 @@ func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
 
 func TestNoRootIsARefusalWithTheUsageGrammar(t *testing.T) {
 	code, _, errOut := runOver(t)
-	if code != 2 || !strings.Contains(errOut, "usage: cite-graph <root>") {
+	if code != 2 || !strings.Contains(errOut, "usage: cite-graph.sh <root>") {
 		t.Errorf("exit %d, stderr %q — want 2 and the usage grammar", code, errOut)
 	}
 }

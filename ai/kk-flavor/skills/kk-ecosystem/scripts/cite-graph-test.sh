@@ -178,7 +178,7 @@ expect_status "a root that does not exist exits 2" 2
 out=$("$script" 2>&1)
 status=$?
 expect_status "no root exits 2" 2
-expect_out "and prints the usage grammar" "usage: cite-graph <root>"
+expect_out "and prints the usage grammar" "usage: cite-graph.sh <root>"
 
 out=$("$script" "$root" "$root" 2>&1)
 status=$?

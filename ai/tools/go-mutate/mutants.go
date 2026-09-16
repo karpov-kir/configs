@@ -1093,6 +1093,21 @@ var mutants = []mutant{
 
 	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
+
+	// The stub-usage drift check discovers its own subjects and then compares two strings, so the three
+	// decisions worth breaking are what counts as a stub, where a documented line ends, and what name the
+	// binary is told it was invoked by. Each is killed by that suite itself: the mutation moves one half
+	// of a comparison and the other half stops matching it.
+	{"stub usage: every shell script in the repository read as a stub", "../stub_usage_test.go", "./",
+		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
+		"if !carriesStubRegion(string(body)) {", "if !carriesStubRegion(string(body)) && false {"},
+	{"stub usage: a stub's usage line taken with the prose written after it", "../stub_usage_test.go", "./",
+		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
+		`if cut := strings.Index(trimmed, "   #"); cut >= 0 {`, `if cut := strings.Index(trimmed, "   #"); cut >= 0 && false {`},
+	{"stub usage: the binary told a bare name rather than the stub's path", "../stub_usage_test.go", "./",
+		"TestEveryStubDocumentsTheUsageItsBinaryPrints",
+		"\trun.Args[0] = stub\n", "\trun.Args[0] = filepath.Base(stub)\n"},
+
 	{"gate: the report printed in completion order", "../gate/run.go", "./gate/", "TestTheReportKeepsDeclaredOrderWhicheverLaneFinishesFirst",
 		"\tfor _, sl := range slots {\n\t\t<-sl.done\n", "\tfor i := len(slots) - 1; i >= 0; i-- {\n\t\tsl := slots[i]\n\t\t<-sl.done\n"},
 	{"gate: a refused invocation names no flags", "../gate/gate.go", "./gate/", "TestAnUnknownArgumentRefuses",

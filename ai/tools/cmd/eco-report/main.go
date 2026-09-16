@@ -1,7 +1,8 @@
 // The qualify report tool as a command.
 //
-//	usage: report.sh {init <intent>|repo-mode|invalidate|result-context|stage-result <json-file>|
-//	                  stamp "<stages>"|gate|carry|check-ignore|promote|discard|close|state|list} [<intent>]
+// The usage grammar is not repeated here. It lives in the stub's header and in the line eco-report.go
+// prints when it refuses, and ai/tools/stub_usage_test.go holds those two to each other; a third copy
+// answers to neither.
 //
 // It reads its skill directory from argv[0], as the shell version read it from $0, so a copied skill
 // directory resolves its own template and todo-gate.sh.
