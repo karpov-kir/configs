@@ -1280,6 +1280,16 @@ var mutants = []mutant{
 		"if len(names) < 0 {\n\t\treturn \"\", fmt.Errorf(\"it holds no Go source at all\")"},
 	{"self: the registry left outside what the binary carries", "../go-mutate/main.go", "./go-mutate/", "TestTheRegistryIsInsideWhatTheStalenessCheckHashes",
 		"//go:embed *.go", "//go:embed main.go"},
+
+	// The rule that stops a loaded machine reddening this package: a case bounds a roll either at the
+	// shared out-of-reach constant or at a sub-second figure it is actually asking about. A guard that
+	// exempted everything would read exactly like this one and observe nothing.
+	{"judge: the shared roll deadline stops exempting", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`if spelled == "notTheSubject" {`, `if spelled == "notTheSubject" && false {`},
+	{"judge: every deadline counts as sub-second", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`[]string{"time.Millisecond", "time.Microsecond", "time.Nanosecond"}`, `[]string{""}`},
+	{"judge: the scan stops caring which call bounds a roll", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+		`if !isName || (callee.Name != "ClaudeCaller" && callee.Name != "CodexCaller") {`, `if !isName || callee.Name == "" {`},
 }
 
 // Declare only unreachable or behaviorally equivalent mutants. Each reason must explain

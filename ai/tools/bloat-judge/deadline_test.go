@@ -3,6 +3,9 @@ package bloatjudge
 import (
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +14,132 @@ import (
 	"testing"
 	"time"
 )
+
+// notTheSubject is what a case bounds its roll at when the deadline is not what the case asks about,
+// which is nearly every case here and in provider_test.go. An hour, and the hour is the point: the
+// gate and both workflows give each package `-timeout 30m` (gate/run.go, goSuiteTimeout), so this sits
+// past the bound that already stops a hang and can never be the one that fires.
+//
+// A roll deadline exists so a run ends, not so it ends soon; deadline.go carries the production figure
+// and the measurements behind it. A case driving a fake that answers and exits is already certain to
+// end, so the only thing left for this to catch is a caller that hangs forever — which the suite
+// timeout catches, and which is a real defect. That is the one place its confusing goroutine dump is
+// worth paying for. A machine that was merely busy is not a defect and must not go red at all.
+//
+// Sized out of reach, not sized generously. The 10s this replaces was itself a raise from 1s made for
+// this same reason, and gates over sibling worktrees still spent all ten of those seconds before a
+// fake that only echoes could answer — nine cases in this package at once, under a reproduction of
+// that load. Any figure chosen against load is one a busier machine erodes.
+const notTheSubject = time.Hour
+
+// The constant above cannot hold its own line. It already carried this reasoning while two cases in
+// this package typed `10*time.Second` instead of using it, and one of those two is a case concurrent
+// gates turned red on a green tree.
+//
+// So: a roll deadline in a case here is spelled one of two ways. Sub-second is the shape of a deadline
+// that IS the subject — such a case drives a fake that never returns, so the bound fires whatever else
+// the machine is doing. Anything coarser is the shape of a budget, an allowance for work expected to
+// finish sooner, and a budget is what load eats.
+func TestNoCaseGivesARollAWallClockBudget(t *testing.T) {
+	names, err := filepath.Glob("*_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, name := range names {
+		source, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		budgets, rolls := rollDeadlines(t, name, string(source))
+		found += rolls
+		for _, budget := range budgets {
+			t.Errorf("%s bounds a roll at %s, which is a budget. Under concurrent gates this package "+
+				"spent ten such seconds before a fake that only echoes could answer, and nine cases "+
+				"failed on the bound rather than on their subjects. Pass notTheSubject, or — where "+
+				"the deadline is what the case asks about — a sub-second one against a fake that "+
+				"never returns.", name, budget)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no case here bounds a roll at all, so this would pass over the suite in any state")
+	}
+}
+
+// The scan above driven over text, so the spelling it exists to catch is a case rather than something
+// the tree merely happens not to hold today.
+func TestWhatCountsAsARollDeadlineBudget(t *testing.T) {
+	for _, row := range []struct {
+		name    string
+		source  string
+		budgets []string
+		rolls   int
+	}{
+		{"the shared constant", "func f() { ClaudeCaller(notTheSubject, s()) }", nil, 1},
+		{"a sub-second bound the case is about", "func f() { CodexCaller(100*time.Millisecond, s()) }", nil, 1},
+		{"a budget in seconds", "func f() { ClaudeCaller(10*time.Second, s()) }", []string{"10*time.Second"}, 1},
+		{"a budget in minutes", "func f() { CodexCaller(time.Minute, s()) }", []string{"time.Minute"}, 1},
+		{"a second constant beside the shared one", "func f() { ClaudeCaller(generous, s()) }", []string{"generous"}, 1},
+		{"a duration in a call that bounds no roll", "func f() { Waiting(10*time.Second, 3) }", nil, 0},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			budgets, rolls := rollDeadlines(t, "fixture_test.go", "package bloatjudge\n"+row.source+"\n")
+			if rolls != row.rolls {
+				t.Errorf("found %d roll(s), want %d", rolls, row.rolls)
+			}
+			if strings.Join(budgets, ",") != strings.Join(row.budgets, ",") {
+				t.Errorf("budgets = %q, want %q", budgets, row.budgets)
+			}
+		})
+	}
+}
+
+// rollDeadlines reports the deadlines `source` hands a caller constructor that are spelled as budgets,
+// and how many it hands one at all — the second so a scan that matched nothing can say so rather than
+// read as a clean sweep. The deadline is taken as the bytes the author wrote, not as a reconstruction
+// of them, so what the failure quotes is what the reader will search the file for.
+func rollDeadlines(t *testing.T, name, source string) ([]string, int) {
+	t.Helper()
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, name, source, 0)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", name, err)
+	}
+	var budgets []string
+	found := 0
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		call, isCall := node.(*ast.CallExpr)
+		if !isCall || len(call.Args) == 0 {
+			return true
+		}
+		callee, isName := call.Fun.(*ast.Ident)
+		if !isName || (callee.Name != "ClaudeCaller" && callee.Name != "CodexCaller") {
+			return true
+		}
+		found++
+		deadline := call.Args[0]
+		spelled := source[fileSet.Position(deadline.Pos()).Offset:fileSet.Position(deadline.End()).Offset]
+		if deadlineIsABudget(spelled) {
+			budgets = append(budgets, spelled)
+		}
+		return true
+	})
+	return budgets, found
+}
+
+// The shared constant, or a unit finer than a second. There is no third legitimate way to bound a roll
+// in a case here, so everything else is a budget.
+func deadlineIsABudget(spelled string) bool {
+	if spelled == "notTheSubject" {
+		return false
+	}
+	for _, fine := range []string{"time.Millisecond", "time.Microsecond", "time.Nanosecond"} {
+		if strings.HasSuffix(spelled, fine) {
+			return false
+		}
+	}
+	return true
+}
 
 // fakeClaude puts a `claude` on PATH that does what the case needs, so the deadline is driven against
 // a real process, a real signal and a real pipe rather than a stand-in for them.
@@ -25,7 +154,7 @@ func fakeClaude(t *testing.T, script string) {
 
 func TestClaudeCallerAnswersWhatTheModelPrinted(t *testing.T) {
 	fakeClaude(t, "echo none")
-	reply, err := ClaudeCaller(10*time.Second, testSettings())("prompt", "view")
+	reply, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
 	if err != nil || strings.TrimSpace(reply) != "none" {
 		t.Fatalf("got %q %v, want none", reply, err)
 	}
@@ -43,7 +172,7 @@ func TestClaudeCallerNamesTheDeadlineItCutTheRollOffAt(t *testing.T) {
 
 func TestClaudeCallerReportsAModelThatFailedRatherThanTimedOut(t *testing.T) {
 	fakeClaude(t, "exit 1")
-	_, err := ClaudeCaller(10*time.Second, testSettings())("prompt", "view")
+	_, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
 	if err == nil || strings.Contains(err.Error(), "within") {
 		t.Fatalf("got %v, want a plain failure and no deadline in it", err)
 	}
