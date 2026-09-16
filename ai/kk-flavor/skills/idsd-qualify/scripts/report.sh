@@ -54,6 +54,10 @@ binary="$("$resolver" "$tool")" || exit 2
 [ -n "$binary" ] && [ -x "$binary" ] ||
   die "the resolver named no runnable binary for $tool, so it did NOT run"
 
+# The build about to answer, handed to the tool rather than printed: a stub's own output is a value
+# callers parse. Empty when nothing stamped it. `ai/tools/resolve.sh` carries why.
+export ECO_TOOL_BUILD="$(cat "$binary.stamp" 2>/dev/null || true)"
+
 # `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
 # it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
 exec -a "$0" "$binary" "$@"

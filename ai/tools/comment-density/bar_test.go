@@ -570,3 +570,39 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 		r.expectStdoutHas("legacy.go: 60 comment line(s), 0% written here")
 	})
 }
+
+// Every report names the build that produced it, so two readings taken apart can be told apart. The
+// stub exports the stamp; run directly, as here, nothing does.
+func TestBarNamesTheBuildThatMeasured(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
+	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
+
+	r.runBar()
+	r.expectStdoutHas("measured by: comment-density build deadbeefcafe")
+}
+
+// An identity nobody stamped is reported, never omitted. A line that disappears when the build is
+// unknown leaves its absence meaning two things — no stamp, or an older binary that never printed one
+// — and the reader cannot tell which.
+func TestBarNamesAnUnknownBuildRatherThanOmittingIt(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
+	t.Setenv("ECO_TOOL_BUILD", "")
+
+	r.runBar()
+	r.expectStdoutHas("measured by: comment-density build unknown")
+}
+
+// Under the bar the attribution half prints nothing at all, so the identity must not ride on it: an
+// absent line would read as an older binary to anyone comparing an under-bar log with an over-bar one.
+func TestBarNamesTheBuildEvenWhenUnderTheBar(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
+	t.Setenv("ECO_TOOL_BUILD", "underbar99")
+
+	r.runBar()
+	r.expectCode(exitClean)
+	r.expectStdoutLacks("chargeable")
+	r.expectStdoutHas("measured by: comment-density build underbar99")
+}
