@@ -1,0 +1,13 @@
+kind: return
+cut: 1 5
+keep: 2 3 4
+---
+I have completed the task you assigned me and here is my return.
+
+**Verdict:** the change set is ready to merge.
+
+**What ran:** build, vet and the Go suite over `ai/tools/`; `eco-check` over the standards; comment density at 21.9% against the host's 21.9%.
+
+**Open:** `ai/gate.sh`'s `models` unit probed three of six names, because `codex` is on no PATH on this machine. Read the pass as "no reachable provider refuses a name", never as "every name runs".
+
+I hope this is helpful and let me know if you would like me to look at anything else.

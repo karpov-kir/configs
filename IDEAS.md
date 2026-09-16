@@ -222,37 +222,45 @@ one check a wrong declaration cannot survive, and it is also the only way to ans
 changes saved anything — the question below has been open for four steps. It needs a recording
 mechanism that does not exist, so it waits until the declarations it would audit are in the tree.
 
-## 2x | 2026-09-15 | What a judge roll costs, and whether the vote can be cheaper
+## 2x | 2026-09-16 | What the judge corpus cannot yet decide
 
-A `bloat-judge` run over a 7-line commit message took about six minutes. Diagnosed: a roll's wall
-clock is the model's extended thinking and nothing else — 1,162 to 3,634 output tokens of which 99.8%
-are thinking, at roughly 10.6 ms/token, **varying 3.1x run to run over byte-identical input**. Prompt
-size (1287 bytes) and CLI startup (a flat ~6s) are both ruled out by measurement. The vote's
-quorum-then-remainder waves paid two draws from that tail where one would do, and that is fixed: the
-vote now fires every roll at once. The fixed path then measured **87s** for a three-roll vote over an
-8-line commit message, so the waves were worth a doubling of that — and what made up the rest of the
-original six minutes is not reconstructed by any figure here.
+The three questions the six-minute judge run left are answered and the answers are in the tree: a
+positive thinking cap changes nothing, rolls load no client settings, and the call sites take codex.
+The instrument that settled them is `ai/tools/bloat-judge/eval_test.go` over the eight labelled cases
+beside it, and two things about it are worth knowing before the next change to the judge leans on it.
 
-Two questions are left, and both need an eval over the judge's own corpus before anything moves —
-each changes what the judge deletes, which is the one thing it may not get wrong:
+**Eight cases and 42 labels is enough for a landslide and not for a close call.** It separated codex
+from claude/haiku on a signal that repeated five times out of five, and it could not separate haiku
+from sonnet at all — those scored identically, which is either a real tie or a corpus too small to
+see the difference. A configuration that comes back one false cut apart from the shipped one is not
+distinguished by this corpus, and the honest response is more cases rather than a closer reading of
+these. The cheapest source is real artifacts this repo already produces: a commit message, a residue
+list, a PR body per week, labelled when they are written and the reading is fresh.
 
-- **Cap the roll's thinking budget.** Worth roughly 30x on API time. `MAX_THINKING_TOKENS=0` measured
-  892–1047 ms against 11–38 s — but all three thinking-free rolls answered `none` where thinking rolls
-  answered a unit. So zero is out; a middle value is the open question, and it is not answerable by
-  one more timing run.
-- **Stop the rolls inheriting the human's settings.** `claudeArgs` passes `--setting-sources user`,
-  so each roll reads about 7.9k tokens of the user's own configuration — their `effortLevel` and
-  `model` included — against a 1287-byte payload. A verdict that shifts with whose machine it ran on
-  is not a verdict. Removing it measured *slower*, not faster, so this is reproducibility, not speed.
+**`defaultRollDeadline` is still 420s and still unmeasured where it matters**, which is why this
+entry keeps its predecessor's count — it is the one item here carried rather than opened. About 500
+rolls went through the sweeps and the slowest case took 25 seconds, but every corpus text is under
+2KB. The figure the 420 was set from is the other end — 13KB at 104 seconds, 53KB at 85 — and nothing
+has measured a large document since a prose unit became the markdown block rather than the line,
+cutting what a view offers. A bound that clips an honest roll costs the whole gate, so it does not
+move on small-payload evidence.
 
-**The other provider is not slow.** Through the same three-roll vote, `gpt-5.6-luna` at effort low
-returned a ten-line commit message in 18 seconds, against the 87s above. So the cost is a property of
-the claude/haiku path rather than of the vote's design, and which provider a judge run takes is a
-third question beside the two above: `JUDGE_PROVIDER` is the caller's to set and nothing says which
-to set it to.
+**A judge roll still inherits this process's whole environment.** Closing the client's setting sources
+left two channels open, and the smaller one is a managed policy setting, which nothing here can
+refuse. The other is the environment `runBounded` passes through untouched: `ANTHROPIC_BASE_URL` and
+`ANTHROPIC_AUTH_TOKEN` set by a devcontainer, a `.envrc` in the checkout under review, or a CI step,
+point every roll at an endpoint of someone else's choosing, which both reads the judged text and
+dictates the verdict. An allow-listed environment is the fix and it was not taken here, because the
+same exposure reaches `model-check` and every other CLI this repo shells out to, and a list narrow
+enough to matter has to be measured against both providers' auth before it can ship — one tool
+hardened alone reads as protection the others do not have.
 
-Also open, smaller: `defaultRollDeadline` is 420s, about 5x the 87s a whole one-wave vote measured,
-and a vote is now bounded at one roll rather than two. Nothing measured says what it should be instead.
+**A positive thinking cap is not a lever on this path.** `MAX_THINKING_TOKENS=256` over a real view
+still drew 542 and 434 output tokens, and 1024, 2048 and 4096 each measured the same roll time and
+the same verdicts as no cap at all; only `0` changes anything, taking a roll from about 10.7s to
+3.4s. With codex judging, none of it is on the shipped path. The two rows left in the variant list
+are the cap that should bind and the switch that does, so the finding stays reproducible rather than
+remembered.
 
 ## 1x | 2026-09-10 | Two things left over from the worker layer
 

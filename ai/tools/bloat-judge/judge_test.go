@@ -2,13 +2,17 @@ package bloatjudge
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	modelpolicy "kk-flavor/tools/model-policy"
 )
 
 func all(Unit) bool { return true }
@@ -169,8 +173,24 @@ func TestClaudeArgsGrantNoToolsServersOrRepoSettings(t *testing.T) {
 		t.Fatalf("--tools must be followed by \"\" and then an option, got %q", args[i:])
 	}
 	at("--strict-mcp-config")
-	if i := at("--setting-sources"); args[i+1] != "user" {
-		t.Fatalf("--setting-sources must be user alone, got %q", args[i+1])
+	// Empty, and followed by an option rather than by the prompt: this flag takes a comma-separated
+	// list, so a value that slipped out would leave the next token read as one source name.
+	if i := at("--setting-sources"); args[i+1] != "" || !strings.HasPrefix(args[i+2], "--") {
+		t.Fatalf("--setting-sources must load nothing and be followed by an option, got %q", args[i:])
+	}
+	if args[len(args)-1] != "You are" {
+		t.Fatalf("the prompt must come last, got %q", args)
+	}
+}
+
+// The shipped claude row sets no effort, so this is the real argv and the case above is not: with an
+// empty-valued list flag last, the prompt becomes that flag's value and the judge reads nothing.
+func TestClaudeArgsWithNoEffortStillEndAtThePrompt(t *testing.T) {
+	args := claudeArgs("You are", modelpolicy.Settings{Model: "fixture-model"})
+	for i, arg := range args {
+		if (arg == "--tools" || arg == "--setting-sources") && !strings.HasPrefix(args[i+2], "--") {
+			t.Fatalf("%s takes an empty value and is followed by %q, not by an option", arg, args[i+2])
+		}
 	}
 	if args[len(args)-1] != "You are" {
 		t.Fatalf("the prompt must come last, got %q", args)
@@ -386,11 +406,18 @@ func counting(inner Caller) (Caller, func() int) {
 		}
 }
 
-// A real view, so the unit numbers the cases below name are numbers the vote actually offered. A
-// hand-written string is not one: the vote bounds an answer by the units in the margin, and a string
-// carrying no margins offers nothing.
+// A real view, so the numbers the cases below name are numbers the vote actually offered — a
+// hand-written string carries no margins and offers nothing. One argument is one unit, and the blank
+// line between them is why: a prose unit is the markdown block, so two adjacent lines would be one.
 func viewOf(lines ...string) string {
-	_, view := Split(lines, false, all)
+	separated := make([]string, 0, 2*len(lines))
+	for i, line := range lines {
+		if i > 0 {
+			separated = append(separated, "")
+		}
+		separated = append(separated, line)
+	}
+	_, view := Split(separated, false, all)
 	return view
 }
 
@@ -571,5 +598,249 @@ func TestVotingRefusesWhenARollFails(t *testing.T) {
 	}
 	if _, err := Voting(call, 3)("p", viewOf("a", "b")); err == nil {
 		t.Fatal("a roll that never answered was outvoted instead of failing the vote")
+	}
+}
+
+// The message that prompted the block rule: hard-wrapped at 72 columns, so every line but the subject
+// is the middle of a sentence. Offered by the line, a majority naming some of a paragraph's lines and
+// not the rest leaves half a sentence behind, which is not a verdict any reader could have meant.
+const wrapped = "Name the commit a scanner number was read off\n" +
+	"\n" +
+	"A pass measured PR 3197 while HEAD was somewhere else, then wrote the\n" +
+	"result up as a range it never measured. Both readings are real, and the\n" +
+	"one in the write-up was not taken.\n" +
+	"\n" +
+	"Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
+
+func TestSplitProseHoldsAWrappedParagraphAsOneUnit(t *testing.T) {
+	units, view := Split(strings.Split(strings.TrimSuffix(wrapped, "\n"), "\n"), false, all)
+	if len(units) != 3 {
+		t.Fatalf("got %d units, want 3 (subject, body, trailer)", len(units))
+	}
+	if units[1].Line != 3 || units[1].Span != 3 {
+		t.Fatalf("the body is line %d span %d, want 3 span 3", units[1].Line, units[1].Span)
+	}
+	if !strings.Contains(view, "   2| A pass measured") || !strings.Contains(view, "   .| result up as") {
+		t.Fatalf("the body's wrapped lines are not marked as one unit:\n%s", view)
+	}
+}
+
+func TestSplitProseKeepsEachListItemItsOwnUnit(t *testing.T) {
+	lines := []string{"Lead-in text", "- first item that wraps", "  onto a second line", "- second item", "1. numbered", "2. also numbered", "# heading", "| a | b |"}
+	units, _ := Split(lines, false, all)
+	want := []Unit{{Line: 1, Span: 1}, {Line: 2, Span: 2}, {Line: 4, Span: 1}, {Line: 5, Span: 1}, {Line: 6, Span: 1}, {Line: 7, Span: 1}, {Line: 8, Span: 1}}
+	if len(units) != len(want) {
+		t.Fatalf("got %d units, want %d: %v", len(units), len(want), units)
+	}
+	for i, unit := range units {
+		if unit != want[i] {
+			t.Fatalf("unit %d is %+v, want %+v", i+1, unit, want[i])
+		}
+	}
+}
+
+// A paragraph opening in bold is prose, not a list: `**Bold**` and `--- so` both start with a marker
+// character and neither carries the space that makes one.
+func TestSplitProseDoesNotReadBoldOrADashAsAListItem(t *testing.T) {
+	units, _ := Split([]string{"**Bold** opens this", "--- and this continues it", "*emphasis* too"}, false, all)
+	if len(units) != 1 || units[0].Span != 3 {
+		t.Fatalf("got %v, want one unit spanning 3 lines", units)
+	}
+}
+
+func TestCommitTrailersAreShownAsContextAndNeverOffered(t *testing.T) {
+	path := write(t, wrapped)
+	var out, errs strings.Builder
+	// The roll names every unit it is offered; the trailer survives because it is not one of them.
+	greedy := func(_, view string) (string, error) {
+		var named []string
+		for n := 1; n <= unitsInView(view); n++ {
+			named = append(named, strconv.Itoa(n))
+		}
+		if !strings.Contains(view, "    | Co-Authored-By:") {
+			return "", fmt.Errorf("the trailer was not shown as context:\n%s", view)
+		}
+		return strings.Join(named, ","), nil
+	}
+	if code := RunIn("j", []string{"commit", path}, ".", nil, &out, &errs, greedy, nil); code != exitCut {
+		t.Fatalf("exit %d, stderr %s", code, errs.String())
+	}
+	// The separators a deleted block sat between stay, which git's own `--cleanup` collapses and
+	// markdown renders as one blank; what matters here is that the trailer itself is untouched.
+	if got := out.String(); got != "Name the commit a scanner number was read off\n\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n" {
+		t.Fatalf("the judge kept %q; the subject and the trailer should survive and nothing else", got)
+	}
+}
+
+// Git's own rule, and the reason for it: with no block above it, the last block is the subject line,
+// and a subject shaped like `Fix: the thing` is the message rather than metadata about it.
+func TestASubjectLineShapedLikeATrailerIsStillJudged(t *testing.T) {
+	if withheld := trailerLines([]string{"Fix: the thing"}); withheld != nil {
+		t.Fatalf("a lone subject was withheld as a trailer: %v", withheld)
+	}
+	if withheld := trailerLines([]string{"Subject", "", "Body text"}); withheld != nil {
+		t.Fatalf("an ordinary closing paragraph was withheld as a trailer: %v", withheld)
+	}
+	withheld := trailerLines([]string{"Subject", "", "Signed-off-by: A <a@b>", "Co-Authored-By: C <c@d>"})
+	if len(withheld) != 2 || !withheld[3] || !withheld[4] {
+		t.Fatalf("the trailer block is %v, want lines 3 and 4", withheld)
+	}
+}
+
+// Git writes lines into the trailer block that are not `Token: value`, and the block has to survive
+// them: all-or-nothing, a cherry-pick note hands the sign-off and the co-author line back to a vote
+// told to delete provenance.
+func TestATrailerBlockSurvivesTheLinesGitPutsInIt(t *testing.T) {
+	for name, block := range map[string][]string{
+		"a cherry-pick note": {"Signed-off-by: A <a@b>", "(cherry picked from commit deadbee)"},
+		"a bare issue ref":   {"Co-Authored-By: C <c@d>", "Fixes #123"},
+		"a folded value":     {"Co-Authored-By: C", "  <c@d>"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withheld := trailerLines(append([]string{"Subject", "", "Body.", ""}, block...))
+			if len(withheld) != len(block) || !withheld[5] || !withheld[6] {
+				t.Fatalf("withheld %v, want lines 5 and 6", withheld)
+			}
+		})
+	}
+	// Still nothing to withhold where no line in the block is a trailer at all.
+	if withheld := trailerLines([]string{"Subject", "", "Body.", "", "Closing thought.", "Another line."}); withheld != nil {
+		t.Fatalf("an ordinary closing paragraph was withheld: %v", withheld)
+	}
+}
+
+// The shape of a message piped from `git log`, which ends in blank lines.
+func TestTrailingBlanksDoNotHideTheTrailerBlock(t *testing.T) {
+	withheld := trailerLines([]string{"Subject", "", "Body.", "", "Co-Authored-By: C <c@d>", "", ""})
+	if len(withheld) != 1 || !withheld[5] {
+		t.Fatalf("the trailer block is %v, want line 5 alone", withheld)
+	}
+}
+
+func TestOpensBlockTakesAMarkerOnlyWithTheSpaceAfterIt(t *testing.T) {
+	// Inside a paragraph, which is where a stray marker does the damage.
+	for line, want := range map[string]bool{
+		"# heading": true, "#no-space": true, "> quoted": true, "| a | b |": true,
+		"- item": true, "* item": true, "+ item": true, "1. item": true, "1) item": true,
+		"-\titem": true, "1.\titem": true,
+		"**Bold** opens a paragraph": false, "--- a comparison": false, "*emphasis*": false,
+		"-": false, "12": false, "12.": false, "0": false, "2026-09-16 was the date": false,
+		"plain continuation": false, "": false,
+	} {
+		if got := opensBlock(line, false); got != want {
+			t.Errorf("opensBlock(%q, inList=false) = %v, want %v", line, got, want)
+		}
+	}
+}
+
+// CommonMark lets an ordered list interrupt a paragraph only where it numbers from one. Without that,
+// a commit message wrapping onto a line like `163. Three wordings were tried` is split mid-sentence
+// by the very rule that exists to stop that — this repo's own commit a1eb712f is where it was found.
+func TestAnOrderedMarkerSplitsAParagraphOnlyAtOneOrInsideAList(t *testing.T) {
+	for _, line := range []string{"163. Three wordings were tried", "2) and then"} {
+		if opensBlock(line, false) {
+			t.Errorf("%q opened a block mid-paragraph, cutting the sentence it belongs to", line)
+		}
+		if !opensBlock(line, true) {
+			t.Errorf("%q did not open its own item inside a list", line)
+		}
+	}
+	lines := []string{"A pass measured the range while HEAD was somewhere else, then wrote it up as", "163. Three wordings were tried and the shortest won.", "", "1. first", "2. second"}
+	units, _ := Split(lines, false, all)
+	want := []Unit{{Line: 1, Span: 2}, {Line: 4, Span: 1}, {Line: 5, Span: 1}}
+	if len(units) != len(want) {
+		t.Fatalf("got %v, want %v", units, want)
+	}
+	for i, unit := range units {
+		if unit != want[i] {
+			t.Fatalf("unit %d is %+v, want %+v", i+1, unit, want[i])
+		}
+	}
+}
+
+// A unit can reach past the block it opened as: an unclosed fence runs one unit to the end of the
+// text. Withholding on the unit's first line alone then hands the trailers it swallowed to the vote.
+func TestAnUnclosedFenceCannotCarryTheTrailersIntoAUnit(t *testing.T) {
+	lines := []string{"Subject", "", "Body with a repro:", "```", "$ run it", "", "Co-Authored-By: C <c@d>"}
+	units, _ := Split(lines, false, offerFor(lines, kinds["commit"]))
+	for _, unit := range units {
+		if unit.Line <= 7 && unit.Line+unit.Span > 7 {
+			t.Fatalf("unit %+v was offered though it holds the trailer on line 7", unit)
+		}
+	}
+}
+
+// A bullet that wraps is the same half-sentence hazard one context over: an ordered marker after a
+// bullet item begins a fresh ordered list, whose first item must be numbered 1 to interrupt anything.
+func TestAWrappedBulletIsNotSplitByANumberOnItsNextLine(t *testing.T) {
+	units, _ := Split([]string{"- a sentence that wraps onto", "163. Three wordings were tried", "and keeps going"}, false, all)
+	if len(units) != 1 || units[0] != (Unit{Line: 1, Span: 3}) {
+		t.Fatalf("got %v, want one unit spanning all three lines", units)
+	}
+	// What must keep working: a real ordered list still numbers past one, and a bullet list still
+	// gives every bullet its own unit.
+	for name, lines := range map[string][]string{
+		"an ordered list":            {"1. first", "2. second", "3. third"},
+		"an ordered list that wraps": {"1. first", "   onto a second line", "2. second"},
+		"a bullet list":              {"- a", "- b"},
+		"a bullet then an ordered":   {"- a", "1. b"},
+	} {
+		units, _ := Split(lines, false, all)
+		if len(units) < 2 {
+			t.Errorf("%s collapsed into %v", name, units)
+		}
+	}
+}
+
+// A heading takes nothing with it, so deleting the paragraph under one leaves the heading standing.
+// A quote does wrap, by markdown's own lazy continuation.
+func TestAHeadingAndATableRowDoNotSwallowTheLineBelow(t *testing.T) {
+	for name, lines := range map[string][]string{
+		"a heading":   {"# Heading", "Some prose here.", "More prose."},
+		"a table row": {"| a | b |", "Some prose here.", "More prose."},
+	} {
+		units, _ := Split(lines, false, all)
+		if len(units) != 2 || units[0].Span != 1 || units[1] != (Unit{Line: 2, Span: 2}) {
+			t.Errorf("%s gave %v, want it alone then the paragraph below it", name, units)
+		}
+	}
+	units, _ := Split([]string{"> quoted", "lazy continuation"}, false, all)
+	if len(units) != 1 || units[0].Span != 2 {
+		t.Fatalf("a quote's lazy continuation gave %v, want one unit spanning both", units)
+	}
+}
+
+// The subject is the line `git log --oneline` shows and the one git requires, and it summarises the
+// body — which is the shape the prompt calls restating what the reader can already see. This change's
+// own commit message lost its subject to a real vote before the kind withheld it.
+func TestACommitSubjectIsShownButNeverOffered(t *testing.T) {
+	path := write(t, wrapped)
+	var out, errs strings.Builder
+	greedy := func(_, view string) (string, error) {
+		var named []string
+		for n := 1; n <= unitsInView(view); n++ {
+			named = append(named, strconv.Itoa(n))
+		}
+		if !strings.Contains(view, "    | Name the commit a scanner number was read off") {
+			return "", fmt.Errorf("the subject was not shown as context:\n%s", view)
+		}
+		return strings.Join(named, ","), nil
+	}
+	if code := RunIn("j", []string{"commit", path}, ".", nil, &out, &errs, greedy, nil); code != exitCut {
+		t.Fatalf("exit %d, stderr %s", code, errs.String())
+	}
+	if got := out.String(); !strings.HasPrefix(got, "Name the commit a scanner number was read off\n") {
+		t.Fatalf("the judge kept %q; the subject must survive a vote that named everything", got)
+	}
+}
+
+// Git's own shape for a subject-only commit. Withholding the one block there is would leave nothing
+// to judge, and the run would report clean over text no roll ever read.
+func TestASubjectOnlyMessageIsStillJudged(t *testing.T) {
+	if withheld := subjectLines([]string{"Fix the thing"}); withheld != nil {
+		t.Fatalf("a subject-only message withheld %v, leaving nothing to judge", withheld)
+	}
+	if withheld := subjectLines([]string{"Subject", "", "Body."}); len(withheld) != 1 || !withheld[1] {
+		t.Fatalf("the subject block is %v, want line 1", withheld)
 	}
 }

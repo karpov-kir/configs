@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,6 +46,17 @@ const (
 type Kind struct {
 	Reader string
 	Source bool
+	// Trailers marks a kind whose closing block is machine-read metadata rather than prose. The
+	// prompt tells the model to delete provenance, and a `Co-Authored-By:` line is exactly that, so
+	// a kind that offered its trailers would be inviting the judge to eat the attribution the
+	// commit is required to carry. Shown as context, never offered.
+	Trailers bool
+	// Subject marks a kind whose opening block is structure rather than prose. A commit's subject is
+	// the line `git log --oneline` shows, the one git requires, and the only part most readers ever
+	// see — and it is a summary of the body, which is what the prompt calls restating what you can
+	// already see. Offered, it is the likeliest unit in the message to be cut, and cutting it leaves
+	// a message git will not take. Measured 2026-09-16 on this change's own commit message.
+	Subject bool
 }
 
 var kinds = map[string]Kind{
@@ -54,7 +66,7 @@ var kinds = map[string]Kind{
 	"review":       {Reader: "the author of this change deciding what to change, with the line in front of you"},
 	"ticket":       {Reader: "an engineer picking this ticket up cold"},
 	"slack":        {Reader: "a person reading this message in the thread it lands in"},
-	"commit":       {Reader: "someone reading `git log` deciding whether to open this commit's diff"},
+	"commit":       {Reader: "someone reading `git log` deciding whether to open this commit's diff", Trailers: true, Subject: true},
 	"report":       {Reader: "the human deciding what to do next from this report, with no other context"},
 	"return":       {Reader: "an orchestrator deciding what to do next from this stage's return"},
 	"reply":        {Reader: "the person you are replying to, in chat"},
@@ -98,9 +110,8 @@ func (m *Memo) key(kind, content string) string {
 	kindName, _, _ := strings.Cut(kind, "\n")
 	specification := kinds[kindName]
 	// Bump the algorithm version when unit extraction or majority semantics change, either of which
-	// can move a verdict over identical bytes. v3: the bound a verdict is read against became the
-	// units on offer rather than the view's line count.
-	identity := "judge-v3\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
+	// can move a verdict over identical bytes.
+	identity := "judge-v4\n" + m.Policy + "\n" + Prompt(specification) + "\n" + strconv.FormatBool(specification.Source)
 	sum := sha256.Sum256([]byte(identity + "\n" + kind + "\n" + content))
 	return filepath.Join(m.Dir, hex.EncodeToString(sum[:]))
 }
@@ -204,24 +215,16 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		content = string(raw)
 	}
 
-	offer := func(Unit) bool { return true }
+	lines := shell.SplitLines(content)
+	offer := offerFor(lines, kind)
 	if changed {
 		added, err := addedLines(cwd, args[1], revisions)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
 			return exitDidNotRun
 		}
-		offer = func(u Unit) bool {
-			for l := u.Line; l < u.Line+u.Span; l++ {
-				if added[l] {
-					return true
-				}
-			}
-			return false
-		}
+		offer = narrowToDiff(offer, added)
 	}
-
-	lines := shell.SplitLines(content)
 	units, view := Split(lines, kind.Source, offer)
 	if len(units) == 0 {
 		if !numbersOnly {
@@ -303,11 +306,10 @@ func Prompt(kind Kind) string {
 		"where deleting it would make you edit or decide wrongly, and where it stands on its own."
 }
 
-// Split turns the lines into units and the view the model reads. For a source file the candidates are
-// its comment blocks — consecutive comment lines, ended by code or a blank — and the code is shown
-// unnumbered; for prose every non-blank line is one, with a fenced block held whole so the model can
-// drop a pasted repro or not at all. offer says which candidates become units; the rest are shown as
-// context. A continuation line of a unit is marked `.` in the margin.
+// Split turns the lines into units and the view the model reads. A source file's candidates are its
+// comment blocks and its code is shown unnumbered; prose's are its markdown blocks, so a fenced block
+// is held whole and the model drops a pasted repro or not at all. offer says which candidates become
+// units, the rest are shown as context, and a unit's continuation lines are marked `.` in the margin.
 func Split(lines []string, source bool, offer func(Unit) bool) ([]Unit, string) {
 	candidates := blocks(lines, source)
 	var units []Unit
@@ -337,31 +339,50 @@ func Split(lines []string, source bool, offer func(Unit) bool) ([]Unit, string) 
 }
 
 func blocks(lines []string, source bool) []Unit {
+	if source {
+		return commentBlocks(lines)
+	}
+	return proseBlocks(lines)
+}
+
+func commentBlocks(lines []string) []Unit {
 	var found []Unit
-	inFence, inBlock, inStar := false, false, false
+	inBlock, inStar := false, false
+	for i, raw := range lines {
+		line := strings.TrimLeft(raw, shell.SpaceBytes)
+		// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it starts
+		// with: a continuation without a leading `*` is still the same comment, and ending the block
+		// there would delete its first line alone and leave the tail to break the file.
+		switch {
+		case inStar:
+			found[len(found)-1].Span++
+			if strings.Contains(line, "*/") {
+				inStar, inBlock = false, false
+			}
+		case !isComment(line):
+			inBlock = false
+		case inBlock:
+			found[len(found)-1].Span++
+			inStar = opensStar(line)
+		default:
+			found = append(found, Unit{Line: i + 1, Span: 1})
+			inBlock = true
+			inStar = opensStar(line)
+		}
+	}
+	return found
+}
+
+// proseBlocks makes the markdown block the unit. A line in the middle of a hard-wrapped paragraph is
+// not a unit any reader ever sees, and offered as one it lets a majority delete half a sentence.
+// Prose written a paragraph to a line is unaffected; a commit message at 72 columns, and the four
+// standards that wrap, are not.
+func proseBlocks(lines []string) []Unit {
+	var found []Unit
+	inFence, inParagraph, inOrdered := false, false, false
 	for i, raw := range lines {
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
 		switch {
-		case source:
-			// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it starts
-			// with: a continuation without a leading `*` is still the same comment, and ending the block
-			// there would delete its first line alone and leave the tail to break the file.
-			switch {
-			case inStar:
-				found[len(found)-1].Span++
-				if strings.Contains(line, "*/") {
-					inStar, inBlock = false, false
-				}
-			case !isComment(line):
-				inBlock = false
-			case inBlock:
-				found[len(found)-1].Span++
-				inStar = opensStar(line)
-			default:
-				found = append(found, Unit{Line: i + 1, Span: 1})
-				inBlock = true
-				inStar = opensStar(line)
-			}
 		case inFence:
 			found[len(found)-1].Span++
 			if shell.IsFenceDelimiter(line) {
@@ -369,12 +390,177 @@ func blocks(lines []string, source bool) []Unit {
 			}
 		case shell.IsFenceDelimiter(line):
 			found = append(found, Unit{Line: i + 1, Span: 1})
-			inFence = true
-		case line != "":
+			inFence, inParagraph, inOrdered = true, false, false
+		case line == "":
+			inParagraph, inOrdered = false, false
+		case inParagraph && !opensBlock(line, inOrdered):
+			found[len(found)-1].Span++
+		default:
 			found = append(found, Unit{Line: i + 1, Span: 1})
+			number, isItem := listMarker(line)
+			inParagraph, inOrdered = wraps(line), isItem && number != ""
 		}
 	}
 	return found
+}
+
+// opensBlock says a line begins a markdown block of its own instead of continuing the paragraph
+// above it. inOrdered says an ordered list is already open, which is what keeps this from becoming
+// the defect it removes: CommonMark lets an ordered list interrupt a paragraph only where it numbers
+// from one, and a message wrapping onto `163. Three wordings were tried` is otherwise cut in half.
+func opensBlock(line string, inOrdered bool) bool {
+	switch {
+	case strings.HasPrefix(line, "#"), strings.HasPrefix(line, ">"), strings.HasPrefix(line, "|"):
+		return true
+	}
+	number, marked := listMarker(line)
+	return marked && (number == "" || number == "1" || inOrdered)
+}
+
+// wraps says a plain line below this one belongs to the same unit. A paragraph, a list item and a
+// quote all wrap — the quote by markdown's own lazy continuation. A heading and a table row do not:
+// a heading that swallowed the paragraph under it would make deleting the paragraph delete the
+// heading too, and a table row's neighbour is another row or the end of the table.
+func wraps(line string) bool {
+	return !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "|")
+}
+
+// listMarker reads a line's list marker: the empty string for a bullet, the digits for an ordered
+// item, and false where there is no marker or no space after one. A marker needs that space —
+// `**Bold**` opening a paragraph and `--- a comparison` are not list items, and reading them as ones
+// would split a paragraph the writer did not split.
+func listMarker(line string) (string, bool) {
+	number, rest := "", ""
+	switch {
+	case strings.HasPrefix(line, "-"), strings.HasPrefix(line, "*"), strings.HasPrefix(line, "+"):
+		rest = line[1:]
+	default:
+		digits := 0
+		for digits < len(line) && line[digits] >= '0' && line[digits] <= '9' {
+			digits++
+		}
+		if digits == 0 || digits+1 > len(line) || (line[digits] != '.' && line[digits] != ')') {
+			return "", false
+		}
+		number, rest = line[:digits], line[digits+1:]
+	}
+	if rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
+		return "", false
+	}
+	return number, true
+}
+
+// offerFor is which candidates a kind puts to the vote — `Kind.Trailers` for what a commit withholds.
+// One function, so a run and anything measuring a run offer the same units over the same text.
+func offerFor(lines []string, kind Kind) func(Unit) bool {
+	withheld := map[int]bool{}
+	if kind.Trailers {
+		maps.Copy(withheld, trailerLines(lines))
+	}
+	if kind.Subject {
+		maps.Copy(withheld, subjectLines(lines))
+	}
+	if len(withheld) == 0 {
+		return func(Unit) bool { return true }
+	}
+	// Every line of the unit, not its first. A unit can reach further than the block it started as —
+	// an unclosed fence earlier in the message runs one unit to the end of the text — and a unit
+	// whose first line is not withheld would carry the structure into a vote.
+	return func(u Unit) bool {
+		for at := u.Line; at < u.Line+u.Span; at++ {
+			if withheld[at] {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// subjectLines is the first block of a commit message. Empty where that block is the whole message,
+// which is git's own shape for a subject-only commit: withholding it would leave nothing to judge and
+// report a clean run over text no roll ever read.
+func subjectLines(lines []string) map[int]bool {
+	first := 0
+	for first < len(lines) && strings.TrimSpace(lines[first]) == "" {
+		first++
+	}
+	last := first
+	for last < len(lines) && strings.TrimSpace(lines[last]) != "" {
+		last++
+	}
+	if !hasContent(lines[min(last, len(lines)):]) {
+		return nil
+	}
+	withheld := map[int]bool{}
+	for at := first + 1; at <= last; at++ {
+		withheld[at] = true
+	}
+	return withheld
+}
+
+func narrowToDiff(offer func(Unit) bool, added map[int]bool) func(Unit) bool {
+	return func(u Unit) bool {
+		if !offer(u) {
+			return false
+		}
+		for line := u.Line; line < u.Line+u.Span; line++ {
+			if added[line] {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// trailerLines is the git trailer block of a commit message: the last block, once any of its lines
+// reads `Token: value`, and only where a block stands above it — git's own rule, so `Fix: the thing`
+// alone is a subject. One line is enough because git writes `(cherry picked from commit <sha>)` and
+// bare issue refs in there too, and a block handed back is attribution the prompt tells a vote to cut.
+func trailerLines(lines []string) map[int]bool {
+	last := len(lines)
+	for last > 0 && strings.TrimSpace(lines[last-1]) == "" {
+		last--
+	}
+	first := last
+	for first > 1 && strings.TrimSpace(lines[first-2]) != "" {
+		first--
+	}
+	if !hasContent(lines[:max(first-1, 0)]) {
+		return nil
+	}
+	trailered := false
+	withheld := map[int]bool{}
+	for at := first; at <= last; at++ {
+		trailered = trailered || isTrailer(lines[at-1])
+		withheld[at] = true
+	}
+	if !trailered {
+		return nil
+	}
+	return withheld
+}
+
+func hasContent(lines []string) bool {
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// isTrailer is git's own shape for one: a token of letters, digits and dashes, a colon, then a space.
+func isTrailer(line string) bool {
+	token, rest, found := strings.Cut(line, ":")
+	if !found || token == "" || rest == "" || rest[0] != ' ' {
+		return false
+	}
+	for _, r := range token {
+		if !(r == '-' || r >= '0' && r <= '9' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z') {
+			return false
+		}
+	}
+	return true
 }
 
 func offeredKey(units []Unit) string {
@@ -497,6 +683,9 @@ func ParseVerdict(reply string, count int) ([]int, error) {
 
 // Apply deletes the chosen units' lines and returns what is left, always ending in one newline. Text
 // that ended in one and lost no unit comes back byte-identical; text that did not gains one.
+// A block cut from the middle leaves both its blank lines, so the seam doubles. Left alone: git's
+// `--cleanup` collapses them and markdown renders one and two alike, while closing the seam would
+// delete the blank between two functions in a source file, where a blank is structure.
 func Apply(lines []string, units []Unit, gone []int) string {
 	drop := map[int]bool{}
 	for _, index := range gone {

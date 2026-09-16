@@ -161,14 +161,32 @@ Two kinds of control, and the difference decides where effort is worth spending:
 Claude client's settings overrides `--model` on the CLI, a `--settings` file passed beside it, and safe
 mode. So a row selects a model only where the human has pinned none — and because nothing anywhere
 compares the model requested against the model served, an overridden row looks exactly like a working
-one. **This is why requested and observed stay
-separate in every record**: the observed half is the only thing that could have caught it.
+one. **This is why requested and observed stay separate in every record**: the observed half is the
+only thing that could have caught it.
 
-**Two levers sit outside the file, and no row can move them.** The session an orchestrator runs in
+**The judge is the one exception, because it loads no client settings at all**: its rolls pass an
+empty `--setting-sources` list, so a pin in the user, project or local settings cannot reach them, and
+neither can either `CLAUDE.md`. An operator's own reaching a roll makes it answer in prose where a
+verdict belongs, which the judge refuses as the whole vote failing. That buys reproducibility and not
+better verdicts: with the `user` source loaded the judge scored exactly as it scores without it.
+**Two channels it does not close**, so read it as those three sources and not as isolation: a managed
+policy setting is merged whatever the list says, and the roll inherits this process's whole
+environment, `ANTHROPIC_BASE_URL` included.
+
+**Three levers sit outside the file, and no row can move them.** The session an orchestrator runs in
 takes the model the human chose before the skill loaded, so a cheap reactor or patrol loop is bought
 with that choice and not with an assignment. The judge's roll deadline stays machine-local in
 `bloat-judge.conf` on purpose (`ai/tools/bloat-judge/deadline.go`) — a timeout tuned in the tree would
 travel to everyone on the next commit.
+
+**The third is which client judges, and it is `JUDGE_PROVIDER`'s.** Every row names a model for both
+clients and nothing in the file chooses between them, so the caller does. **A call site defaults to
+codex, and still fails rather than falls back when it is absent** — an unconfigured machine failed
+before this default too, and now says which CLI to install. A labelled corpus settled that default
+rather than a preference: `claude` at haiku deleted a load-bearing paragraph of a real commit message
+that `codex` at `gpt-5.6-luna` effort low kept, and sonnet scored as haiku did, so it is the provider
+and not the tier. Re-run the eval before moving it; `ai/tools/bloat-judge/eval_test.go` holds what it
+measures and why its two counts are not symmetric.
 
 ## Resolving
 

@@ -1,0 +1,20 @@
+kind: commit
+cut:
+keep: 1 2
+---
+Name the commit a scanner number was read off
+
+A pass measured PR 3197 with `--bar 69a4572b9...HEAD` while HEAD was at
+7f7094f62, then wrote the result up as the range 69a4572b9...36b7f857d.
+Both commits are real and both readings are real -- 1515/1233 and
+1517/1235 -- but the one in the write-up was never measured, and the
+handoff built on it carried a number nobody could reproduce. It survived
+every check downstream because the number was right.
+
+quality-pipeline.md already had the rule and scoped it to one carrier:
+"a spawn prompt describes the tree you read, never the tree you
+intended". A handoff is not a spawn prompt, and neither is a report to a
+human, which is how this one travelled. Widened in place rather than
+given a second home.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

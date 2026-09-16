@@ -1,0 +1,15 @@
+kind: report
+cut: 2 6
+keep: 1 3 4 5
+---
+The pass ran conformance, drive, code-review, security-review, edit and refactor over 6cc7550..HEAD. 5 items: 1 falsified, 4 forks.
+
+Below are the items the pass produced, in order.
+
+1. **falsified** — The plan claimed three prose edits clear every cross-layer cycle. `code-style → architecture/core → project → code-style` survives all three and crosses. A fourth edit cut it. Nothing is owed unless you want the cycle back.
+
+2. **fork** — `code-style.md` sits in base though the criterion argues craft. The tree keeps it in base. Moving it now changes no verdict, which is why a run did not make the move on its own. Recommendation: leave it until you weigh it.
+
+3. **fork** — `shell:ai/run-tests` fails one case here, 21 lines against a bound of 20, the extra line being the `bash 3.2 has no wait -n` notice. It fails identically on a clean export of origin/main. Recommendation: nothing, this is not this branch's.
+
+Overall the change set is in good shape and the work was thorough.

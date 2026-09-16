@@ -93,9 +93,11 @@ user can resolve targets the installer left untouched.
 ## Dependencies and controls
 
 The Go tools need `gh` to download verified releases, or Go to build from source when no release exists.
-Set `JUDGE_PROVIDER=codex` or `JUDGE_PROVIDER=claude` for each judge invocation and authenticate
-the matching CLI yourself. Missing, invalid or unavailable providers fail with exit 2. There is no
-`auto` mode or fallback.
+The judge needs `JUDGE_PROVIDER` set to `codex` or `claude`, and the matching CLI authenticated by
+you. Missing, invalid or unavailable providers fail with exit 2. There is no `auto` mode or fallback.
+The skills that call it supply `codex` as the default, so only a machine overriding that has to set
+the variable by hand. [Model policy](kk-flavor/standards/model-policy.md) → **What the policy can
+and cannot reach** says why codex. `ai/tools/bloat-judge/eval_test.go` is the corpus that decided it.
 
 ```sh
 JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh instruction instructions.md
@@ -105,14 +107,15 @@ Every dispatch site's model lives in [models.json](kk-flavor/models.json), which
 tune what a run costs. It holds `workers` — the model a dispatch actually sets — and `sessions`, the
 tier a session should be started at, which nothing can enforce once it is running. A task the policy
 does not name is refused rather than run at the caller's tier. Read [model policy](kk-flavor/standards/model-policy.md) before changing an assignment: it says
-which rows a tool enforces, which are a convention an agent keeps, and which two cost levers no row
-can reach. The resolver prints requested settings only; dispatch still verifies what it selected.
+which rows a tool enforces, which are a convention an agent keeps, and which three cost levers no
+row can reach. The resolver prints requested settings only; dispatch still verifies what it selected.
 `JUDGE_PROVIDER` selects the client, not a fallback provider. Change the `bloat-judge` task to tune
 the judge's model, effort or vote count; a legacy `JUDGE_MODEL` setting is refused.
 
 Reply editing and structured stage returns do not call the judge. Durable deletion disputes can use
-it explicitly. Matching first and second votes avoid a third call; cache identity includes the model
-policy and judging policy so a changed assignment cannot reuse an old verdict.
+it explicitly. Every roll of a vote goes out at once, so a vote costs the slowest single roll; cache
+identity includes the model policy and judging policy so a changed assignment cannot reuse an old
+verdict.
 
 ## Pipeline use
 
@@ -171,9 +174,9 @@ The wiring check and statistics tool also require `--agent=claude|codex`:
 ~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent=codex ai
 ```
 
-In skill commands, set `ECO_AGENT` explicitly to supply that argument; set `JUDGE_PROVIDER`
-separately for model calls. Reports name instructions excluded from measurement; audit those
-installed files separately. Skills restricted to explicit invocation carry Claude frontmatter and
+In skill commands, set `ECO_AGENT` explicitly to supply that argument. Reports name instructions
+excluded from measurement; audit those installed files separately. Skills restricted to explicit
+invocation carry Claude frontmatter and
 [Codex invocation policy](https://learn.chatgpt.com/docs/build-skills) in
 `agents/openai.yaml`.
 

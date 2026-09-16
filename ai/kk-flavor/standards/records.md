@@ -26,7 +26,7 @@ A record of **measurements** carries a different entry: a row of figures, dated 
 
 Every record is capped, states its bound in the file itself, and **the writer holds that bound** — an append into a full record refuses. Where the record is hand-written under the exception above, the skill states the bound instead, and its own pruning point holds it.
 
-**Eviction is the judge's** — `JUDGE_PROVIDER="${JUDGE_PROVIDER:?choose claude or codex explicitly}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry` over every entry.
+**Eviction is the judge's** — `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry` over every entry.
 
 **Never evict by count, and never from the top of the file.** The count says how often the record has been needed, never how much the next agent needs the entry. Age is worse: the settled decisions everything rests on are old *because* nothing has needed to revisit them.
 

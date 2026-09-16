@@ -1,0 +1,11 @@
+kind: review
+cut: 2 4
+keep: 1 3
+---
+`trailerLines` returns nil when the last block is not all trailers, so a message ending `Fixes: #12\nsome prose` offers the whole block. That is the intent, but the nil is also what an all-blank message returns, and a reader here cannot tell the two apart.
+
+Great work on this function overall!
+
+Consider naming the two cases: return an empty map for "there is no trailer block" and reserve nil for "there is no message". A caller that grows a second use of this will otherwise read the nil as the first.
+
+I could be wrong about this, and it is only a small thing, so feel free to ignore it if you disagree.

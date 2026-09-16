@@ -1,0 +1,21 @@
+kind: pr-body
+cut: 2 9
+keep: 1 4 5 6 8
+---
+## What this does
+
+This PR does what the title says.
+
+### Summary
+
+The judge offered a prose unit per line, so a hard-wrapped commit message was 13 units of which 11 were mid-sentence fragments. A vote naming some of a paragraph's lines and not the rest left half a sentence behind.
+
+A prose unit is now the markdown block. Unwrapped text is unaffected — a paragraph written on one line was always one unit — so what moves is hard-wrapped text: a commit message at 72 columns, and the four standards that wrap rather than the fourteen that do not.
+
+`Co-Authored-By:` and every other git trailer is shown to the model as context and never offered. The prompt tells the model to delete provenance, and a trailer is exactly that.
+
+### Testing
+
+`go test ./...` passes; three cases cover the block rule and two the trailer rule.
+
+I have carefully reviewed this change and I am confident it is correct.

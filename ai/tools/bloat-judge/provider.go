@@ -87,15 +87,14 @@ func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller 
 	}
 }
 
-// claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from the
-// repository it runs in. The view is whatever the judged text says, and `-p` skips the workspace trust
-// dialog. Without these flags a checked-out branch's `.claude/settings.json` would apply, allow rules
-// and hooks and all, and a comment telling the model to run a command would be obeyed before the
-// numbers came back. `--tools` is variadic, so an option follows it, never the prompt.
+// claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from
+// anywhere. An untrusted branch's `.claude/settings.json` would otherwise bring its hooks and allow
+// rules, and with the `user` source the operator's own `CLAUDE.md` made a roll answer in prose where
+// a verdict belongs. Every empty-valued flag is followed by another, and the prompt comes last.
 func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
 	args := []string{
 		"-p", "--model", settings.Model, "--output-format", "text",
-		"--tools", "", "--strict-mcp-config", "--setting-sources", "user",
+		"--tools", "", "--setting-sources", "", "--strict-mcp-config",
 	}
 	if settings.Effort != "" {
 		args = append(args, "--effort", settings.Effort)

@@ -1,0 +1,32 @@
+kind: comment
+cut: 2 4 6
+keep: 1 3 5
+---
+// killRollGroup signals the whole process group, because a roll spawns children and reaching them is
+// the point. Asked of os.Process first rather than killing the pid outright: Cancel runs on the
+// deadline goroutine while Wait runs on this one, and between Wait reaping the child and receiving
+// the result the pid is already freed. A freed pid the kernel has recycled is, because every roll
+// sets Setpgid, immediately a live group leader belonging to somebody else.
+func killRollGroup(p *os.Process) error {
+	// Send signal 0 to p.
+	if err := p.Signal(syscall.Signal(0)); err != nil {
+		return err
+	}
+	// The negation is what makes this the group rather than the process.
+	return syscall.Kill(-p.Pid, syscall.SIGKILL)
+}
+
+// runBounded runs one model call under a deadline.
+func runBounded(deadline time.Duration, command modelCommand) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), deadline)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, command.name, command.args...)
+	// WaitDelay is five seconds so a child that ignores SIGKILL cannot hold the run open forever.
+	cmd.WaitDelay = 5 * time.Second
+	out, err := cmd.Output()
+	// This is a well-tested and carefully considered error path.
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
