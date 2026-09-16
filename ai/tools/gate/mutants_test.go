@@ -256,3 +256,35 @@ func TestEveryFileLandsInExactlyOneUnit(t *testing.T) {
 		}
 	}
 }
+
+// A short row refuses rather than being skipped. Skipping one drops the mutants it named out of the
+// table with nothing said, so the run measures less than its own summary reports — and a count is the
+// only tell, which nobody has a reason to compare. An empty listing is already refused; a truncated one
+// is that same failure arriving a line at a time.
+func TestATruncatedMutantRowRefuses(t *testing.T) {
+	listing := "x.go\t./eco-check/\t1\t/repo/ai/tools/eco-check/x.go\n" +
+		"y.go\t./eco-check/\n"
+	_, err := groupMutants(listing, "/repo", suiteCompiles)
+	if err == nil || !strings.Contains(err.Error(), "cannot read") {
+		t.Fatalf("got %v, want a refusal naming the row it could not read", err)
+	}
+}
+
+// The same for the `go list` listing the import graph is built from: a package dropped here leaves
+// every unit that compiles it keyed on less than its command reads.
+func TestATruncatedPackageRowRefuses(t *testing.T) {
+	listing := "kk-flavor/tools/shell\t/repo/ai/tools/shell\t\t\t\n" +
+		"kk-flavor/tools/eco-root\t/repo/ai/tools/eco-root\n"
+	_, err := moduleImports(listing, "/repo")
+	if err == nil || !strings.Contains(err.Error(), "cannot read") {
+		t.Fatalf("got %v, want a refusal naming the row it could not read", err)
+	}
+}
+
+// A blank line is not a truncated row: a listing ends in one, and refusing it would refuse every run.
+func TestABlankLineIsNotATruncatedRow(t *testing.T) {
+	listing := "kk-flavor/tools/shell\t/repo/ai/tools/shell\t\t\t\n\n"
+	if _, err := moduleImports(listing, "/repo"); err != nil {
+		t.Fatalf("a trailing blank line refused the listing: %v", err)
+	}
+}
