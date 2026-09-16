@@ -182,7 +182,7 @@ func TestBarNarrowsToThePathspecAfterADoubleDash(t *testing.T) {
 	r.expectStdoutHas("(3 comment / 1 code)")
 	r.expectStdoutHas("pkg/heavy.go: 75% against a 10% ceiling")
 	r.expectStdoutLacks("other.go")
-	r.expectStdoutHas("(2 file(s) outside this change)")
+	r.expectStdoutHas("(2 file(s) in the baseline)")
 }
 
 func TestBarPathspecIsRelativeToWhereTheCallerRan(t *testing.T) {
@@ -212,7 +212,7 @@ func TestBarPathspecWithRevisionsKeepsTheirBase(t *testing.T) {
 	r.expectCode(exitFound)
 	r.expectStdoutHas("pkg/d.go: 27% against a 10% ceiling")
 	r.expectStdoutHas("(3 comment / 8 code)")
-	r.expectStdoutHas("(3 file(s) outside this change)")
+	r.expectStdoutHas("(3 file(s) in the baseline)")
 }
 
 func TestBarRefusesOutsideARepository(t *testing.T) {
@@ -278,7 +278,7 @@ func TestBarIsCleanAtTheBaselinesOwnRate(t *testing.T) {
 	r.expectStdoutHas("change set: 10.0% comment lines (1 comment / 9 code)")
 	r.expectStdoutLacks("over on")
 	r.expectStdoutLacks("against a")
-	r.expectStderrHas("1 changed source file(s), 1 read, 0 skipped unread; 2 file(s) outside the change in the baseline.")
+	r.expectStderrHas("1 changed source file(s), 1 read, 0 skipped unread; 2 file(s) in the baseline.")
 }
 
 func TestBarReportsTheOverageAndRepeats(t *testing.T) {
@@ -317,7 +317,7 @@ func TestBarRunFromASubdirectoryMatchesTheRoot(t *testing.T) {
 	r.runBar()
 	r.expectCode(exitFound)
 	fromRoot := r.stdout.String()
-	r.expectStdoutHas("(1 file(s) outside this change)")
+	r.expectStdoutHas("(2 file(s) in the baseline)")
 	r.expectStdoutHas("(11 comment / 3 code)")
 
 	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig())
@@ -336,8 +336,10 @@ func TestBarKeepsAFileTheChangeOnlyDeletedFrom(t *testing.T) {
 
 	r.runBar()
 	r.expectCode(exitFound)
-	r.expectStdoutHas("(2 file(s) outside this change)")
+	r.expectStdoutHas("(3 file(s) in the baseline)")
 	r.expectStdoutHas("(4 comment / 1 code)")
+	// The file it cut comments from is no longer removed from the rate it is judged against.
+	r.expectStdoutHas("29.6% comment lines")
 }
 
 func TestBarHoldsOnlyNewFilesToThePerFileCeiling(t *testing.T) {
@@ -360,7 +362,7 @@ func TestBarWithRevisionsJudgesOnlyThatDiff(t *testing.T) {
 	for _, args := range [][]string{{"HEAD~1", "HEAD"}, {"HEAD~1..HEAD"}, {"HEAD~1...HEAD"}} {
 		r.runBar(args...)
 		r.expectCode(exitFound)
-		r.expectStdoutHas("(2 file(s) outside this change)")
+		r.expectStdoutHas("(2 file(s) in the baseline)")
 		r.expectStdoutHas("d.go: 27% against a 10% ceiling")
 		r.expectStdoutLacks("untracked.go")
 	}
@@ -375,7 +377,7 @@ func TestBarPrintsItsDenominatorOnStderr(t *testing.T) {
 
 	r.runBarIn(r.dir, cfg)
 	r.expectCode(exitFound)
-	r.expectStderrHas("2 changed source file(s), 1 read, 1 skipped unread; 2 file(s) outside the change in the baseline.")
+	r.expectStderrHas("2 changed source file(s), 1 read, 1 skipped unread; 2 file(s) in the baseline.")
 }
 
 func TestBarShowsAtMostMaxShownFilesOverTheCeiling(t *testing.T) {
@@ -455,4 +457,21 @@ func TestBarRefusesAPathWhereARevisionBelongs(t *testing.T) {
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("'a.go' is a path, not a git-diff revision")
 	r.expectNoStdout()
+}
+
+// Touching a comment-heavy file used to remove it from the baseline AND add it to the numerator, so one
+// edit both loosened what the change was measured against and raised what it measured. The file's
+// pre-change content is the repo's, so the baseline keeps it at the content it had before this change.
+func TestATouchedFileStaysInTheBaselineAtItsOldContent(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("legacy.go", heavy(40, 10))
+	r.commit("legacy arrives")
+	r.write("legacy.go", heavy(40, 11))
+	r.runBar()
+	// Two lean files plus the legacy file the change touched: three, not two.
+	r.expectStdoutHas("3 file(s) in the baseline")
+	// A file new to this change cannot grade itself, so it stays out.
+	r.write("fresh.go", heavy(9, 1))
+	r.runBar()
+	r.expectStdoutHas("3 file(s) in the baseline")
 }

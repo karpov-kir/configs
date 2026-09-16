@@ -820,6 +820,8 @@ var mutants = []mutant{
 		`if s.result.Reached == 0 {`, `if s.result.Reached == 0 && false {`},
 	{"density: a report that ranked nothing claims a ranking", "../comment-density/density.go", "./comment-density/", "TestProseDataAndLockfilesAreNotCounted",
 		`} else if s.countable == 0 {`, `} else if s.countable < 0 {`},
+	{"density: a touched file is dropped from the baseline again", "../comment-density/bar.go", "./comment-density/", "TestATouchedFileStaysInTheBaselineAtItsOldContent",
+		`if !isNew[rel] {`, `if !isNew[rel] && false {`},
 	// These mutants need a successfully parsed override; refusal-only cases cannot observe them.
 	// Keep `+ value*0` so value remains read and the mutant compiles.
 	{"density: COMMENT_MAX_RATIO parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",

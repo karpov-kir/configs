@@ -212,6 +212,17 @@ func (h hostRepo) baseRevision(revisions []string) (string, error) {
 // Lstat, so a symlink is skipped rather than followed. The paths come from the branch under review,
 // and a link it plants at a file outside the repository would otherwise be read from the reviewer's
 // machine and its line counts reported.
+// readCappedAt reads a file as it stood at a revision. A file the change touched is still the repo's
+// own content up to this change, so the baseline holds it at the content it had before, rather than
+// dropping it and measuring the change against a repo its own edit made leaner.
+func (h hostRepo) readCappedAt(rev, rel string) (string, bool) {
+	out, err := gitOutput(h.root, "show", rev+":"+rel)
+	if err != nil || int64(len(out)) > h.maxBytes || strings.IndexByte(string(out), 0) >= 0 {
+		return "", false
+	}
+	return string(out), true
+}
+
 func (h hostRepo) readCapped(rel string) (string, bool) {
 	path := shell.Join(h.root, rel)
 	info, err := os.Lstat(path)
