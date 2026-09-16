@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -207,5 +209,51 @@ func TestTheGateNamesTheProviderItCouldNotAskWhetherItRunsOrAnswersFromCache(t *
 			t.Errorf("the cache hit never says %q, so a reader cannot tell a verdict earned over every "+
 				"provider from one earned over half of them:\n%s", want, cached)
 		}
+	}
+}
+
+// A unit that could not measure has said something about the machine, not about one tree — so every
+// verdict it holds goes, whatever key it was taken under. `prerequisite` is PATH presence, so a client
+// that is installed and has stopped answering leaves the key exactly where it was: without this, the
+// record a sibling worktree wrote while it still answered stays fresh, and the next warm run in any
+// tree serves a check that cannot currently run at all as a pass.
+func TestAnUnmeasuredMachineDependentUnitKeepsNoVerdict(t *testing.T) {
+	cache := t.TempDir()
+	seed := func(names ...string) {
+		t.Helper()
+		for _, name := range names {
+			if err := os.WriteFile(filepath.Join(cache, name), nil, 0o644); err != nil {
+				t.Fatalf("seeding %s: %v", name, err)
+			}
+		}
+	}
+	held := func() []string {
+		t.Helper()
+		entries, err := os.ReadDir(cache)
+		if err != nil {
+			t.Fatalf("reading the store: %v", err)
+		}
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		sort.Strings(names)
+		return names
+	}
+
+	seed("models.aaa", "models.bbb", "models"+sidecarSuffix, "gofmt.aaa")
+	g := &gate{cache: cache}
+
+	// A unit with no prerequisite keeps its siblings: its key is its whole question.
+	g.forgetVerdictsIfMachineDependent(unit{id: "gofmt", stem: "gofmt"})
+	if got := held(); len(got) != 4 {
+		t.Errorf("a unit with no prerequisite dropped a verdict: %v", got)
+	}
+
+	g.forgetVerdictsIfMachineDependent(unit{id: "models", stem: "models", prerequisite: "claude present"})
+	want := []string{"gofmt.aaa", "models" + sidecarSuffix}
+	if got := held(); !slices.Equal(got, want) {
+		t.Errorf("after an unmeasured models run the store holds %v, wanted %v — a verdict under any key "+
+			"is one a warm run can still serve, and the sidecar is not a verdict", got, want)
 	}
 }
