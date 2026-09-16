@@ -270,6 +270,7 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 		return out.refuse(err)
 	}
 	revisions, pathspec := splitPathspec(args)
+	host.contentRev = contentRevision(revisions)
 	changed, err := host.changedSources(revisions, pathspec)
 	if err != nil {
 		return out.refuse(err)

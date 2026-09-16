@@ -36,6 +36,9 @@ type hostRepo struct {
 	root     string
 	cwd      string
 	maxBytes int64
+	// The revision whole-file content is read at, empty for the working tree. Set only for a closed
+	// range; see contentRevision.
+	contentRev string
 }
 
 // git names a diff's files from the repository's top whatever directory it ran in, so reading them
@@ -89,11 +92,18 @@ func (h hostRepo) listSources(dir string, args ...string) ([]string, error) {
 }
 
 // `git ls-files`, not a filesystem walk: a walk would pull in vendored trees and build output nobody
-// here commented.
+// here commented. With content pinned to a revision the listing moves there too — a list taken from
+// today's index names files that revision never held, and every one of them reads as unreadable and
+// leaves the baseline without a word, which is the defect this pinning exists to end, moved one step.
 func (h hostRepo) trackedSources() ([]string, error) {
-	paths, err := h.listSources(h.root, "ls-files", "-z")
+	listing, what := []string{"ls-files", "-z"}, "could not list the repo's tracked files"
+	if h.contentRev != "" {
+		listing = []string{"ls-tree", "-r", "-z", "--name-only", h.contentRev}
+		what = "could not list the files at " + h.contentRev
+	}
+	paths, err := h.listSources(h.root, listing...)
 	if err != nil {
-		return nil, gitRefusal("could not list the repo's tracked files", err)
+		return nil, gitRefusal(what, err)
 	}
 	sort.Strings(paths)
 	return paths, nil
@@ -209,12 +219,10 @@ func (h hostRepo) baseRevision(revisions []string) (string, error) {
 	return left, nil
 }
 
-// Lstat, so a symlink is skipped rather than followed. The paths come from the branch under review,
-// and a link it plants at a file outside the repository would otherwise be read from the reviewer's
-// machine and its line counts reported.
-// readCappedAt reads a file as it stood at a revision. A file the change touched is still the repo's
-// own content up to this change, so the baseline holds it at the content it had before, rather than
-// dropping it and measuring the change against a repo its own edit made leaner.
+// readCappedAt reads a file as it stood at a revision. A file the change touched is still the repo's own
+// content up to this change, so the baseline holds it at the content it had before, rather than dropping
+// it and measuring the change against a repo its own edit made leaner. A symlink's blob here is its
+// target string, counted as one code line, so nothing outside the repository is opened on this path.
 func (h hostRepo) readCappedAt(rev, rel string) (string, bool) {
 	out, err := gitOutput(h.root, "show", rev+":"+rel)
 	if err != nil || int64(len(out)) > h.maxBytes || strings.IndexByte(string(out), 0) >= 0 {
@@ -223,7 +231,17 @@ func (h hostRepo) readCappedAt(rev, rel string) (string, bool) {
 	return string(out), true
 }
 
+// Reads from the working tree, or from the revision a closed range named. Lstat on the tree path, so a
+// symlink is skipped rather than followed: the paths come from the branch under review, and a link it
+// plants at a file outside the repository would otherwise be read from the reviewer's machine and its
+// line counts reported. `a..b` asks what b holds, and
+// the tree stops holding it the moment it moves — reading the tree anyway measures today's files under
+// yesterday's file list and hands back a plausible number with no error, which is the worse of the two
+// failures. A single revision is not this case: `HEAD` means "since HEAD", whose content IS the tree.
 func (h hostRepo) readCapped(rel string) (string, bool) {
+	if h.contentRev != "" {
+		return h.readCappedAt(h.contentRev, rel)
+	}
 	path := shell.Join(h.root, rel)
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > h.maxBytes {
@@ -234,4 +252,37 @@ func (h hostRepo) readCapped(rel string) (string, bool) {
 		return "", false
 	}
 	return string(raw), true
+}
+
+// The revision whole-file content belongs to, or empty when that is the working tree. Only a closed
+// range pins content to a commit: `a..b` and `a...b` both ask about what the right-hand side holds, an
+// empty side meaning HEAD. Everything else — no revision, or a single one — measures work the tree still
+// holds, and reading a commit there would drop exactly the uncommitted lines the caller is asking about.
+func contentRevision(revisions []string) string {
+	switch {
+	case len(revisions) == 0:
+		return ""
+	// `git diff a b` is the same closed comparison as `a..b`, and baseRevision already reads it that
+	// way, so its content is b. Three or more is git's combined-merge form, whose content is the merge
+	// named first rather than any parent — left on the tree rather than read off the wrong side.
+	case len(revisions) == 2:
+		return revisions[1]
+	case len(revisions) > 2:
+		return ""
+	}
+	// `...` first: it contains `..`, so cutting on the shorter separator would read a symmetric range's
+	// right side as ".b" and resolve nothing.
+	right, closed := "", false
+	if _, after, found := strings.Cut(revisions[0], "..."); found {
+		right, closed = after, true
+	} else if _, after, found := strings.Cut(revisions[0], ".."); found {
+		right, closed = after, true
+	}
+	if !closed {
+		return ""
+	}
+	if right == "" {
+		return "HEAD"
+	}
+	return right
 }

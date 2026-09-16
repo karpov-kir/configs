@@ -606,3 +606,72 @@ func TestBarNamesTheBuildEvenWhenUnderTheBar(t *testing.T) {
 	r.expectStdoutLacks("chargeable")
 	r.expectStdoutHas("measured by: comment-density build underbar99")
 }
+
+// A closed range asks what its right-hand side holds, so content comes from there and not from a tree
+// that has since moved. Reading the tree measures today's files under yesterday's file list and answers
+// with a plausible number rather than an error, which is the harder failure to notice.
+func TestBarReadsAClosedRangeAtItsOwnRevision(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
+	r.commit("the commit this range names")
+	// The tree moves on past the range, leaving the same file lean and uncommitted.
+	r.write("heavy.go", strings.Repeat("code()\n", 9)+"// one\n")
+
+	r.runBar("HEAD~1..HEAD")
+	r.expectCode(exitFound)
+	r.expectStdoutHas("over on lines: cut ")
+}
+
+// The other half of the same rule: a single revision means "since then", and what it measures is work
+// the tree still holds. Reading a commit there would drop the uncommitted lines being asked about.
+func TestBarReadsASingleRevisionFromTheWorkingTree(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("heavy.go", strings.Repeat("code()\n", 9)+"// one\n")
+	r.commit("a lean file to modify")
+	// Uncommitted, so only the tree holds it — which is exactly what "since HEAD" is asking about.
+	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
+
+	r.runBar("HEAD")
+	r.expectCode(exitFound)
+	r.expectStdoutHas("over on lines: cut ")
+}
+
+// The baseline's file list and its content have to name one revision. Taken from today's index it names
+// files the revision never held — and those read as unreadable and leave without a word, so a count
+// alone cannot catch it. The case that can is a file the revision HELD and the tree has since deleted:
+// the revision's listing counts it, the index's does not.
+func TestBarTakesItsBaselineListFromTheContentRevision(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	r.write("gone.go", strings.Repeat("code()\n", 9)+"// one\n")
+	r.commit("a file the range still had")
+	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
+	r.commit("the commit this range names")
+	if err := os.Remove(filepath.Join(r.dir, "gone.go")); err != nil {
+		t.Fatalf("could not delete the fixture: %v", err)
+	}
+	r.commit("later work deletes it")
+
+	r.runBar("HEAD~2..HEAD~1")
+	r.expectStdoutHas("3 file(s) in the baseline")
+}
+
+func TestContentRevisionPinsOnlyClosedRanges(t *testing.T) {
+	for _, row := range []struct {
+		args []string
+		want string
+	}{
+		{nil, ""},
+		{[]string{"HEAD"}, ""},
+		{[]string{"origin/main"}, ""},
+		{[]string{"a..b"}, "b"},
+		{[]string{"a...b"}, "b"},
+		{[]string{"a.."}, "HEAD"},
+		{[]string{"a..."}, "HEAD"},
+		{[]string{"a", "b"}, "b"},
+		{[]string{"merge", "p1", "p2"}, ""},
+	} {
+		if got := contentRevision(row.args); got != row.want {
+			t.Errorf("contentRevision(%q) = %q, want %q", row.args, got, row.want)
+		}
+	}
+}
