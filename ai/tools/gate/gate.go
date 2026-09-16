@@ -290,6 +290,23 @@ func (g *gate) resolveMachine() int {
 	if !filepath.IsAbs(common) {
 		common = filepath.Join(g.root, common)
 	}
+	// The store is the CLONE's: --git-common-dir is shared by every worktree of a checkout, so three
+	// worktrees gating at once write one directory. That sharing is the intended semantics, and the
+	// reason belongs here because this line is where a reader meets it. A verdict record is an empty
+	// file whose NAME is its key, and keyMaterial in keys.go hashes the unit id, its command, the
+	// toolchain stamp and the hashes of its declared inputs — never g.root, and never an absolute path,
+	// since every command and every manifest path is relative to the repository.
+	// TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn holds that over the real table, so it is a checked
+	// property rather than a claim. A record another worktree wrote is therefore found only by a
+	// worktree computing the same key, meaning it holds the same inputs under the same toolchain, which
+	// is the gate's own premise. A cross-worktree hit is the same event as a same-worktree one, and
+	// neither is a stale green. The record holds no content, so there is nothing in it to catch
+	// half-written. The `<stem>.inputs` sidecars beside the records carry no key at all;
+	// `gotest.inputs` is the only one anything reads back, and changedSinceGreen covers it.
+	//
+	// Keying the store per worktree would end all of that: every new worktree would gate from cold,
+	// which is the sweep this fast path exists to avoid. GATE_CACHE is how a run that must not share
+	// says so — a suite pointing at its own fixture, or a session isolating itself by hand.
 	g.cache = g.env.Cache
 	if g.cache == "" {
 		g.cache = filepath.Join(common, "eco-gate")
@@ -297,6 +314,7 @@ func (g *gate) resolveMachine() int {
 	if err := os.MkdirAll(g.cache, 0o755); err != nil {
 		return g.fail("could not create the cache at %s — nothing ran", g.cache)
 	}
+	g.sweepLeakedSidecars()
 
 	digest := g.env.SelfDigest
 	if digest == "" {
@@ -318,6 +336,55 @@ func (g *gate) resolveMachine() int {
 	}
 	g.stamp = fmt.Sprintf("%s | %s | node %s | gate %s", goVersion, gitVersion, nodeVersion, digest)
 	return 0
+}
+
+// A verdict key is a sha256 rendered as hex, so every record's name ends in a tail this long. Held as
+// a number because the sweep below tells a leaked temp from a record by tail length and nothing else;
+// `TestAVerdictKeyIsAsLongAsTheSweepThinks` holds it against the function that produces one.
+const verdictKeyLength = 64
+
+// How long a temp must have sat before the sweep takes it. THE POINT OF THE BOUND IS THE GUARD, not
+// tidiness: the store is the clone's, so a sibling worktree may have a temp in flight this second, and
+// deleting that one makes its sidecar vanish and the run that owns it write nothing. Publishing takes
+// milliseconds, so nothing an hour old is still being written, and a leak simply waits an hour.
+const leakedSidecarAge = time.Hour
+
+// Temps `writeSidecar` left behind. A run killed between creating one and renaming it onto its path
+// leaks it, and the store is shared by every worktree of the clone, so they arrive from every killed
+// run in every sibling session — and killing a gate run is routine here. Each one is inert, since
+// nothing reads a name but `<stem>.inputs` and `<stem>.<key>`; a directory full of them is what makes
+// a later stale-verdict investigation unreadable.
+//
+// Silent and best-effort. A sweep that cannot read the directory, or cannot remove an entry, leaves
+// clutter and decides no verdict, so there is nothing here to report or to stop a run for.
+func (g *gate) sweepLeakedSidecars() {
+	entries, err := os.ReadDir(g.cache)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !leakedSidecarName(entry.Name()) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || time.Since(info.ModTime()) < leakedSidecarAge {
+			continue
+		}
+		os.Remove(filepath.Join(g.cache, entry.Name()))
+	}
+}
+
+// `<stem>.inputs.<random>`, the shape os.CreateTemp leaves. The tail is measured rather than merely
+// found, because a verdict record is `<stem>.<key>` and a units-file table may name a unit whose stem
+// ends in `.inputs` — its record is then spelt exactly like a temp. CreateTemp's tail is a short
+// decimal and a key is always verdictKeyLength, so the length is what tells a leak from a green.
+func leakedSidecarName(name string) bool {
+	at := strings.LastIndex(name, sidecarSuffix+".")
+	if at < 0 {
+		return false
+	}
+	tail := name[at+len(sidecarSuffix)+1:]
+	return tail != "" && len(tail) < verdictKeyLength
 }
 
 func (g *gate) captureLiteralPathspecs(args ...string) (string, error) {
