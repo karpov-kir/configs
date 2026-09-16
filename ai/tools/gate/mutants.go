@@ -79,9 +79,16 @@ func moduleImports(listing, root string) (map[string][]string, error) {
 	deps := map[string][]string{}
 	fromTests := map[string][]string{}
 	for _, line := range strings.Split(listing, "\n") {
-		fields := strings.Split(line, "\t")
-		if len(fields) < 5 || fields[0] == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
+		}
+		fields := strings.Split(line, "\t")
+		// A record this cannot read is refused, never skipped. Skipping one drops the packages it named
+		// out of the unit table with nothing said: the run then measures less than it reports, and the
+		// only tell is a count nobody has a reason to compare. The empty listing below is already
+		// refused; a truncated one is the same failure arriving one line at a time.
+		if len(fields) < 5 || fields[0] == "" {
+			return nil, fmt.Errorf("go list produced a line the gate cannot read (%d field(s), wanted 5): %q — every package it named would go unkeyed, so nothing ran", len(fields), shell.Oneline(line))
 		}
 		dir, err := filepath.Rel(root, fields[1])
 		if err != nil || strings.HasPrefix(dir, "..") {
@@ -151,9 +158,15 @@ func groupMutants(listing, root string, imports map[string][]string) ([]mutantGr
 	var groups []mutantGroup
 	at := map[string]int{}
 	for _, line := range strings.Split(listing, "\n") {
-		fields := strings.Split(line, "\t")
-		if len(fields) < 4 || fields[0] == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
+		}
+		fields := strings.Split(line, "\t")
+		// Refused rather than skipped, for the reason moduleImports states: a listing that is short
+		// rather than empty leaves a smaller table and says nothing, which is how a run covers less than
+		// its own summary claims.
+		if len(fields) < 4 || fields[0] == "" {
+			return nil, fmt.Errorf("the mutation harness produced a line the gate cannot read (%d field(s), wanted 4): %q — the mutants it named would leave the table, so nothing ran", len(fields), shell.Oneline(line))
 		}
 		file, suites, resolved := fields[0], fields[1], fields[3]
 		// Checked per file, before the join: the gate builds a command from these, and the comma that
