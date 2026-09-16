@@ -44,7 +44,14 @@ check "a noisy failure retains its failing exit" "1" "$rc"
 log="$(printf '%s\n' "$out" | sed -n 's/^     full log: //p')"
 check "a noisy failure reports one readable full log" "yes" "$([ -f "$log" ] && echo yes)"
 check "the full log retains the early failure before the tail" "1" "$(grep -c '^early failure evidence$' "$log" 2>/dev/null || true)"
-check "failure console output remains bounded" "yes" "$([ "$(printf '%s\n' "$out" | wc -l)" -le 20 ] && echo yes)"
+# The runner's own notices are not failure output, and which of them appear depends on the bash this
+# suite runs under: the `wait -n` downgrade prints one. Counted, it takes a report sitting exactly on
+# the ceiling one line over, and the case then reddens on the interpreter rather than on the runner.
+# The tail window below is what actually holds the bound, so the ceiling can carry margin.
+report_lines="$(printf '%s\n' "$out" | grep -vc '^run-tests\.sh: ')"
+check "failure console output remains bounded" "yes" "$([ "$report_lines" -le 24 ] && echo yes)"
+check "the console shows a bounded tail of the suite's output, not all of it" "15" \
+  "$(printf '%s\n' "$out" | grep -c '^     later output ')"
 check "the log path survives an outer tail" "1" "$(printf '%s\n' "$out" | tail -5 | grep -c 'full log: ')"
 check "the full log is outside the subject root" "yes" "$([ -n "$log" ] && [ "${log#"$tmp/noisy"/}" = "$log" ] && echo yes)"
 check "the full log is private" "-rw-------" "$(LC_ALL=C ls -l "$log" 2>/dev/null | awk '{print substr($1, 1, 10)}')"
