@@ -1091,6 +1091,26 @@ var mutants = []mutant{
 	{"gate: the sweep given a key length no key has", "../gate/gate.go", "./gate/", "TestAVerdictKeyIsAsLongAsTheSweepThinks",
 		"const verdictKeyLength = 64", "const verdictKeyLength = 32"},
 
+	// A mutation unit keyed on the packages its suite compiles. Every arm narrows the key back towards
+	// the suite's own directory, the direction that reports a verdict fresh over code nothing re-applied
+	// it against. The graph half gets two: `Deps` says nothing about what a test file pulls in.
+	{"gate: a mutation unit keyed on its suite directory alone", "../gate/mutants.go", "./gate/", "TestAUnitIsKeyedOnThePackagesItsSuiteCompiles",
+		"inputs = append(inputs, compiles...)", "_ = compiles"},
+	{"gate: a suite the import graph cannot name is keyed anyway", "../gate/mutants.go", "./gate/", "TestASuiteTheImportGraphDoesNotNameRefuses",
+		"if !known {", "if !known && false {"},
+	{"gate: what a suite's test files import goes unkeyed", "../gate/mutants.go", "./gate/", "TestWhatASuiteCompilesCoversItsTestImportsTransitively",
+		"for _, imported := range fromTests[pkg] {", "for _, imported := range []string(nil) {"},
+	{"gate: a test import is keyed on without what it reaches", "../gate/mutants.go", "./gate/", "TestWhatASuiteCompilesCoversItsTestImportsTransitively",
+		"\t\t\tcompiled = append(compiled, deps[imported]...)\n", ""},
+
+	// The guide unit reads the same graph, for the one binary its command builds. The replacement is the
+	// hand-written list it replaced, so the mutant is the defect verbatim rather than an invented one.
+	{"gate: the guide unit back on a hand-written package list", "../gate/units.go", "./gate/", "TestTheGuideUnitIsKeyedOnTheCommandItRuns",
+		`inputs := append([]string{"ai/kk-flavor/skills", "ai/field-guide.html", "ai/guide.sh", extModels}, compiles...)`,
+		"inputs := []string{\"ai/kk-flavor/skills\", \"ai/field-guide.html\", \"ai/guide.sh\", extModels, \"ai/tools/eco-guide\", \"ai/tools/eco-root\", \"ai/tools/shell\"}\n\t_ = compiles"},
+	{"gate: a graph that cannot answer for the guide's command is keyed anyway", "../gate/units.go", "./gate/", "TestAGuideUnitTheGraphCannotAnswerForRefuses",
+		"if !known {", "if !known && false {"},
+
 	{"scratch: any sourced file counts as a harness", "../scratch_isolation_test.go", "./", "TestWhatCountsAsOwningScratch",
 		`if err == nil && strings.Contains(string(body), "mktemp -d") {`, `if err == nil && strings.Contains(string(body), "") {`},
 

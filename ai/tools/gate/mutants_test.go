@@ -2,7 +2,8 @@
 //
 // What these pin is the reason for the grouping rather than the grouping itself: the harness runs a
 // full uncached baseline per invocation, so the number of invocations IS the cost, and the only key
-// that shares a baseline correctly is the set of suites it covers.
+// that shares a baseline correctly is the set of suites it covers. A second half sits below it: what
+// a unit is keyed on, which is every package its suites compile.
 package gate
 
 import (
@@ -24,9 +25,21 @@ const unitsListing = "" +
 	"../shell/text.go\t./shell/,./eco-stats/\t5\t/repo/ai/tools/shell/text.go\n" +
 	"../scratch_isolation_test.go\t./\t1\t/repo/ai/tools/scratch_isolation_test.go\n"
 
+// What each listed suite compiles, in the shape moduleImports returns and carrying the real tree's
+// relationships: eco-report reaches repo-key through root.go, eco-stats reaches eco-check through its
+// own harness_test.go. The real graph is read in inputs_test.go.
+var suiteCompiles = map[string][]string{
+	"ai/tools":            {"ai/tools"},
+	"ai/tools/eco-check":  {"ai/tools/eco-check", "ai/tools/eco-root", "ai/tools/shell"},
+	"ai/tools/eco-report": {"ai/tools/diffscan", "ai/tools/eco-report", "ai/tools/repo-key", "ai/tools/shell", "ai/tools/tree-fingerprint"},
+	"ai/tools/eco-root":   {"ai/tools/eco-root", "ai/tools/shell"},
+	"ai/tools/eco-stats":  {"ai/tools/eco-check", "ai/tools/eco-root", "ai/tools/eco-stats", "ai/tools/shell"},
+	"ai/tools/shell":      {"ai/tools/shell"},
+}
+
 func grouped(t *testing.T) []mutantGroup {
 	t.Helper()
-	groups, err := groupMutants(unitsListing, "/repo")
+	groups, err := groupMutants(unitsListing, "/repo", suiteCompiles)
 	if err != nil {
 		t.Fatalf("the listing did not group: %v", err)
 	}
@@ -111,6 +124,70 @@ func TestAGroupIsKeyedOnItsSuitesAndItsFiles(t *testing.T) {
 	}
 }
 
+// A unit is keyed on the packages its suites compile, not only on the directories they live in:
+// editing repokey.go moves what every eco-report mutant is judged by, and that unit stayed fresh.
+func TestAUnitIsKeyedOnThePackagesItsSuiteCompiles(t *testing.T) {
+	group := groupNamed(t, "mutants:go:eco-report")
+	for _, want := range []string{"ai/tools/repo-key", "ai/tools/shell", "ai/tools/tree-fingerprint"} {
+		if !slices.Contains(group.inputs, want) {
+			t.Errorf("the unit is not keyed on %s, which its suite compiles, so an edit there leaves "+
+				"its verdict fresh over mutants that were never re-applied", want)
+		}
+	}
+	// The other half, and why this reads the graph rather than widening every unit to the tree.
+	if slices.Contains(group.inputs, "ai/tools/cadence") {
+		t.Error("the unit is keyed on a package its suite never compiles, so it re-runs on edits that " +
+			"cannot move its verdict")
+	}
+}
+
+// A suite the graph says nothing about refuses the run: silence would key the unit on its directory.
+func TestASuiteTheImportGraphDoesNotNameRefuses(t *testing.T) {
+	_, err := groupMutants("x.go\t./eco-guide/\t1\t/repo/ai/tools/eco-guide/x.go\n", "/repo", suiteCompiles)
+	if err == nil || !strings.Contains(err.Error(), "which packages") {
+		t.Fatalf("got %v, want a refusal naming the suite whose imports are unknown", err)
+	}
+}
+
+// A suite's own directory arrives twice — once as the suite, once out of its import closure — and a
+// unit declaring an input twice makes a count read off `--units` disagree with `--why`.
+func TestASuiteDeclaredByBothItsPathAndItsImportsReachesTheUnitOnce(t *testing.T) {
+	group := groupNamed(t, "mutants:go:eco-check")
+	if count(group.inputs, "ai/tools/eco-check") < 2 {
+		t.Fatalf("the suite directory no longer arrives from both lists, so registering it below shows "+
+			"the dedupe nothing: %v", group.inputs)
+	}
+	g := &gate{}
+	g.add(group.id, "mutation", group.inputs, "run")
+	if n := count(g.units[0].inputs, "ai/tools/eco-check"); n != 1 {
+		t.Errorf("the unit declares its suite directory %d times", n)
+	}
+}
+
+// The graph, read off a listing in `go list`'s own shape. What no `Deps` column carries is the test
+// files' own imports, and they are how eco-stats' suite reaches eco-check and then eco-root.
+func TestWhatASuiteCompilesCoversItsTestImportsTransitively(t *testing.T) {
+	listing := "" +
+		"kk-flavor/tools/shell\t/repo/ai/tools/shell\t\t\t\n" +
+		"kk-flavor/tools/eco-root\t/repo/ai/tools/eco-root\tkk-flavor/tools/shell\t\t\n" +
+		"kk-flavor/tools/eco-check\t/repo/ai/tools/eco-check\tkk-flavor/tools/eco-root kk-flavor/tools/shell\t\t\n" +
+		"kk-flavor/tools/eco-stats\t/repo/ai/tools/eco-stats\tkk-flavor/tools/shell\tkk-flavor/tools/eco-check\tfmt\n"
+	reached, err := moduleImports(listing, "/repo")
+	if err != nil {
+		t.Fatalf("reading the listing: %v", err)
+	}
+	got := reached["ai/tools/eco-stats"]
+	for _, want := range []string{"ai/tools/eco-stats", "ai/tools/shell", "ai/tools/eco-check", "ai/tools/eco-root"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("a test binary over ai/tools/eco-stats compiles %s, and the graph does not say so: %v", want, got)
+		}
+	}
+	// The control: without this, a graph answering the whole module to everything passes the loop above.
+	if got := reached["ai/tools/shell"]; len(got) != 1 || got[0] != "ai/tools/shell" {
+		t.Errorf("a package importing nothing reached %v", got)
+	}
+}
+
 // A set naming two suites keys on both and says so in its name, so `--units` reads as what it runs.
 func TestASetOfTwoSuitesCarriesBoth(t *testing.T) {
 	group := groupNamed(t, "mutants:go:shell+eco-stats")
@@ -141,7 +218,7 @@ func TestAMutantWithNoSuiteIsTheModuleRootsAndIsNamed(t *testing.T) {
 // that will not say which file it means leaves nothing to hash — which would key the unit on its
 // suites alone and report it fresh over a file that moved.
 func TestARowWithNoResolvedPathRefuses(t *testing.T) {
-	_, err := groupMutants("x.go\t./eco-check/\t1\t\n", "/repo")
+	_, err := groupMutants("x.go\t./eco-check/\t1\t\n", "/repo", suiteCompiles)
 	if err == nil || !strings.Contains(err.Error(), "no resolved path") {
 		t.Fatalf("got %v, want a refusal naming the missing path", err)
 	}
@@ -150,7 +227,7 @@ func TestARowWithNoResolvedPathRefuses(t *testing.T) {
 // A file the gate cannot safely put in a command refuses before any unit exists, rather than being
 // joined into a `-file` argument with everything else.
 func TestAFileTheGateCannotQuoteRefuses(t *testing.T) {
-	_, err := groupMutants("a;rm -rf .\t./eco-check/\t1\t/repo/ai/tools/eco-check/a.go\n", "/repo")
+	_, err := groupMutants("a;rm -rf .\t./eco-check/\t1\t/repo/ai/tools/eco-check/a.go\n", "/repo", suiteCompiles)
 	if err == nil || !strings.Contains(err.Error(), "cannot safely put in a command") {
 		t.Fatalf("got %v, want a refusal", err)
 	}
