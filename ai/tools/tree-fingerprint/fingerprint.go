@@ -15,11 +15,53 @@ package treefingerprint
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+// The stub this command runs behind, written out rather than read from argv[0]. `stub_usage_test.go`
+// compares the usage line below against the one the stub's own header documents, and a name that
+// changes with how the binary was reached leaves it nothing stable to compare.
+const stubName = "tree-fingerprint.sh"
+
+const usage = "usage: " + stubName + " [<repo path>]"
+
+// Run is the command behind the stub: one optional repository path, which defaults to the working
+// directory.
+//
+// A second path is refused rather than dropped. Two roots is a caller who does not know which tree
+// they are asking about, and the hash of the first one reads exactly like an answer about the pair —
+// a ledger head naming a tree nobody asked for. Whatever is there is a path even when it starts with
+// a dash, because a directory may legitimately be named `-rf`.
+//
+// There is no exit 1: a fingerprint either is the tree's hash or it is nothing, and a caller that read
+// a refusal as a hash would write a ledger head no later run can match.
+func Run(args []string, out, errOut io.Writer) int {
+	if len(args) > 1 {
+		return refuse(errOut, usage)
+	}
+	root := "."
+	if len(args) == 1 {
+		root = args[0]
+	}
+	tree, err := Fingerprint(root)
+	if err != nil {
+		return refuse(errOut, err.Error())
+	}
+	fmt.Fprintln(out, tree)
+	return 0
+}
+
+// A refusal carries the usage line only where the invocation is what was wrong. A repository this tool
+// could not read is a sound invocation, and answering it with the grammar sends the caller to fix an
+// argument that was already right.
+func refuse(errOut io.Writer, reason string) int {
+	fmt.Fprintf(errOut, "%s: %s\n", stubName, reason)
+	return 2
+}
 
 // Fingerprint answers the tree hash for the repository at root.
 //

@@ -17,6 +17,8 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectCode(2)
 		r.expectStderrHas("is a path, not a git-diff revision")
 		r.expectStderrHas("the scan did NOT run")
+		// The grammar goes with an argument refusal, so the caller is told what this tool does take.
+		r.expectStderrHas(usage)
 		// Not the message a scan git rejected prints — two different failures must not read alike.
 		r.expectStderrLacks("git rejected these arguments")
 		r.expectNoStdout()
@@ -36,6 +38,18 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.run("--output=/dev/null")
 		r.expectCode(2)
 		r.expectStderrHas("is an option, not a git-diff revision")
+		r.expectStderrHas(usage)
+		r.expectNoStdout()
+	})
+
+	// `--bar` reaches the same gate through its own arm, so an option behind it must be refused the
+	// same way and with the same grammar.
+	t.Run("an option after --bar exits 2 with the grammar", func(t *testing.T) {
+		r := newRepo(t)
+		r.run("--bar", "--output=/dev/null")
+		r.expectCode(2)
+		r.expectStderrHas("is an option, not a git-diff revision")
+		r.expectStderrHas(usage)
 		r.expectNoStdout()
 	})
 
@@ -46,6 +60,9 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectStderrHas("git rejected these arguments")
 		r.expectStderrHas("Not a clean result")
 		r.expectStderrLacks("is a path, not a git-diff revision")
+		// A revision this repository does not carry is a sound invocation. Answering it with the grammar
+		// would send the caller to fix an argument that was already the right shape.
+		r.expectStderrLacks(usage)
 		r.expectNoStdout()
 	})
 

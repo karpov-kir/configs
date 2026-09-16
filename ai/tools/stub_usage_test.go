@@ -44,15 +44,13 @@ const (
 // what comes back is the usage line rather than a message about a path that does not exist. No args is
 // itself a refusal, and the one three of these tools take: they want a path they cannot default.
 //
-// noUsageLine declares that the tool prints no usage line at all. The row then asserts that absence, so
-// a tool that grows one turns red here and asks for a comparison, instead of passing on a claim nobody
-// rechecked. The field IS the reason a later reader holds it against, so a row cannot narrow itself
-// without stating why — an unexplained narrowing is indistinguishable from a row somebody gave up on.
+// Every row compares, and there is no field for one that does not. A binary printing no usage line when
+// refused is a binary to fix rather than a row to narrow: narrowed, its header stays documented and
+// held against nothing, which is the state this suite exists to end.
 type refusal struct {
-	stub        string
-	args        []string
-	env         []string
-	noUsageLine string
+	stub string
+	args []string
+	env  []string
 }
 
 func (r refusal) base() string {
@@ -71,8 +69,7 @@ var refusals = []refusal{
 	{stub: "ai/kk-flavor/scripts/model-policy.sh", args: []string{"--nope"}},
 	// Two roots where the tool takes one path.
 	{stub: "ai/kk-flavor/scripts/repo-key.sh", args: []string{"one", "two"}},
-	{stub: "ai/kk-flavor/scripts/tree-fingerprint.sh", args: []string{"one", "two"},
-		noUsageLine: "every refusal names the repository it could not read and stops there; no arm of this tool prints a grammar"},
+	{stub: "ai/kk-flavor/scripts/tree-fingerprint.sh", args: []string{"one", "two"}},
 	{stub: "ai/kk-flavor/skills/idsd-qualify/scripts/report.sh", args: []string{"nope"}},
 	// An unknown flag, which the dispatch refuses. Not `audit asked`, which is a valid subcommand that
 	// OVERWRITES the recorded date and is undone by nothing.
@@ -80,12 +77,12 @@ var refusals = []refusal{
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh", args: []string{"--agent=claude", "one", "two"}},
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph.sh"},
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh"},
-	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh", args: []string{"a", "b", "c"},
-		noUsageLine: "it refuses by quoting what git said about the revisions it was handed, and its one hand-written refusal names the argument kind rather than the grammar"},
+	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
+	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh"},
 	{stub: "ai/kk-flavor/skills/kk-reduce/scripts/stats.sh", args: []string{"--agent=claude", "one", "two"}},
-	{stub: "ai/kk-flavor/workers/refactor/dup-literals.sh", args: []string{"a", "b", "c"},
-		noUsageLine: "it refuses the way comment-density does, by quoting git, and prints no grammar of its own"},
+	{stub: "ai/kk-flavor/workers/refactor/dup-literals.sh", args: []string{"--nope"}},
 }
 
 func TestEveryStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
@@ -102,17 +99,6 @@ func TestEveryStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 		}
 		t.Run(row.base(), func(t *testing.T) {
 			printed := refusedUsage(t, filepath.Join(binaries, tools[stub]), cwd, row)
-			if row.noUsageLine != "" {
-				// Said rather than skipped: the case ran, and what it found is that there is nothing to
-				// compare. A `-v` run and every failing run carry that with the stub's name on it.
-				t.Logf("%s: nothing to hold this stub's header against — %s", row.base(), row.noUsageLine)
-				if printed != "" {
-					t.Errorf("%s is declared here to print no usage line — %s — and it printed %q. Drop the "+
-						"declaration and let the row hold the two halves against each other.",
-						row.base(), row.noUsageLine, printed)
-				}
-				return
-			}
 			if printed == "" {
 				t.Errorf("%s printed no lowercase `usage:` line when refused, so this case would pass against "+
 					"any stub at all. A capitalised `Usage:` reads the same to a human and is invisible to this "+

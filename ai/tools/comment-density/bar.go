@@ -165,7 +165,7 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling) chang
 
 func bar(out console, args []string, cwd string, cfg Config) int {
 	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
-		return out.refuse(err)
+		return out.refuseArguments(err)
 	}
 	host, err := newHostRepo(cwd, cfg.MaxFileBytes)
 	if err != nil {

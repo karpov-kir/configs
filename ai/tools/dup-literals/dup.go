@@ -7,8 +7,8 @@
 // that otherwise differ. A space is one of those delimiters (isDelimiter below holds the list), so a
 // long string with a space inside it is found only when its whole line repeats.
 //
-//	usage: dup-literals.sh [<git-diff revisions>]   # defaults to HEAD (all uncommitted changes);
-//	       a path argument is refused with exit 2, never scanned
+//	usage: dup-literals.sh [<git-diff revisions>] [-- <paths>]   # revisions default to HEAD (all
+//	       uncommitted changes); a bare path argument is refused with exit 2, never scanned
 //	env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
 //	       DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
 //
@@ -50,6 +50,15 @@ const (
 	exitFound     = 1
 	exitDidNotRun = 2
 )
+
+// The stub this command runs behind, written out rather than read from argv[0]. `stub_usage_test.go`
+// compares the usage line below against the one the stub's own header documents, and a name that
+// changes with how the binary was reached leaves it nothing stable to compare.
+const stubName = "dup-literals.sh"
+
+// Every form the binary takes: revisions, and then paths after `--`, which narrow the scan to them. A
+// bare path where a revision belongs is refused.
+const usage = "usage: " + stubName + " [<git-diff revisions>] [-- <paths>]"
 
 type Config struct {
 	MinLength    int
@@ -102,7 +111,11 @@ type scan struct {
 
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
-		fmt.Fprintf(stderr, "%s: %s\n", self, err)
+		// The grammar goes with this refusal and with no other. Every other exit 2 below is a sound
+		// invocation the scan could not carry out — a revision git would not resolve, a diff line past
+		// the cap — and answering one with the grammar sends the caller to fix an argument that was
+		// already right.
+		fmt.Fprintf(stderr, "%s: %s\n%s: %s\n", self, err, self, usage)
 		return exitDidNotRun
 	}
 	revisions, _ := diffscan.RevisionsNamed(args)
