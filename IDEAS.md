@@ -20,6 +20,15 @@ The port makes the fix a one-method change — `cat-file --batch`, or reading th
 the case for it is stronger than the suite's was: the edit lane calls `--bar` with the caller's
 revisions, so every qualify pass over a sizeable repository pays it.
 
+**A case about a BOUNDED message can be decided by the machine's temp path.** Three were, and macOS CI
+caught them the day this branch put macOS on the Go job. `t.TempDir()` is about 140 bytes of ambient
+text on a macOS runner — `/var/folders/<two>/<28 random>/T/<the test's own name>/002` — against about
+60 on Linux, so a 200- or 500-byte bound falls inside the prefix or inside the case's own padding
+depending on where it runs. The three are fixed by building under a short root. Under a TMPDIR longer
+than any real machine's, three more in `eco-check` have the same shape. The general answer is a fixture
+root whose length a case controls, used wherever a case's subject is a cut; the narrow one is to fix
+each as it bites.
+
 **`ai/tools/reach/stub_test.go` reads the checkout from inside a subpackage.** Go's test cache is keyed
 on the module, so a plain `go test` answers `ok (cached)` over a stub that moved. Every other such case
 is gathered in the `ai/tools` root package, which `ai/gate.sh` forces for exactly this reason, and the
