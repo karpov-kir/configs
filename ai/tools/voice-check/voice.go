@@ -730,7 +730,7 @@ func ScanFile(profile Profile, coined []string, allowed allowlist, file, content
 	return s.scanProse(file, lines)
 }
 
-// voice runs the mode. `--voice` selects it as the first argument only, the way `--bar` does.
+// voice runs the register check, which is what bare arguments select.
 func voice(out console, args []string, cwd string, cfg Config) int {
 	profile := ProfileComment
 	for len(args) > 0 && strings.HasPrefix(args[0], "--profile=") {
@@ -743,6 +743,15 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 				shell.CutBytesMarked(shell.Oneline(string(named)), 40)))
 		}
 		args = args[1:]
+	}
+
+	// The arguments are read before anything else, and refused with the grammar. Left to the scan, a
+	// path passed where a revision belongs reaches the caller as a git failure with no statement of
+	// what this tool does take.
+	if profile == ProfileComment && len(args) > 0 && args[0] != "-" {
+		if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+			return out.refuseArguments(err)
+		}
 	}
 
 	coined, allowed, conf, err := voiceConfig(cwd)

@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
-# Comment-density detector. By default it flags changed source files whose ADDED lines are
-# comment-heavy; with `--bar` it holds the whole change set to the host repo's own comment rate; with
-# `--voice` it reads the comments instead of counting them.
+# Register check for comments and prose. By default it reads the comments a change set added and says
+# which sentences are written in the register the rule forbids. With `--density` it reports how many
+# comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
-#   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines (default 0.3)
-#          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this (default 5)
-#          DENSITY_MAX_FILE_BYTES — skip a file larger than this unread: only untracked files in the
-#          default mode, every file under --bar (default 262144)
+#   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)
 #
 # Exits 1 with findings, 0 when clean, 2 when the scan did not run — git rejecting the arguments, a
 # path passed where a revision belongs, or a threshold that is no number. Prose/data files (md, txt,
@@ -22,15 +19,16 @@
 # lines, so rewording a comment the base already carried moves it into the added set, and the ratio can
 # rise across a pass that cut comments.
 #
-# `--bar` counts each changed file as it will land, against the rate the repo's untouched files run at,
+# `--density` counts each changed file as it will land, against the rate the repo's untouched files run at,
 # and says how far over it sits and which files carry it. Two runs over one tree print one report. How
-# many comment lines the set owes is this reading; the judge opens the cut that pays it.
+# The figure is reported and nothing acts on it. It always exits 0, because the bar that used to gate
+# on it is what drove comments into compression, and a compressed comment is what this tool catches.
 # Files are read as they sit in the working tree; revisions only choose which files. Only a file new
 # since the diff's base is held to the per-file ceiling: one the repo already carried has the repo's own
-# density, and its added lines are the default mode's to flag. The two COMMENT_* thresholds do not
-# apply to it, and it exits 2 as well when no file outside the change set carries countable lines.
+# density. It exits 2 when no file outside the change set carries countable lines, because then the
+# repository has no rate to report against.
 #
-# `--voice` prints one finding per line as `<file>:<line>: <check>: <matched text>`, exit 1 with
+# The default mode prints one finding per line as `<file>:<line>: <check>: <matched text>`, exit 1 with
 # findings, 0 clean, 2 when the scan did not run. It counts nothing: each check names a shape a reader
 # stumbles on, so a finding is an edit to make and never a number to drive down. The rule it enforces
 # is `~/.kk-flavor/standards/code-style.md` -> Comments, and the tells are
@@ -38,7 +36,7 @@
 #
 # Three profiles. `comment` (the default) reads the comment lines a diff added to source files, and
 # takes `-` to read a unified diff on stdin, which is how a branch this checkout does not hold is
-# scanned: `gh pr diff <N> | voice-check.sh --voice -`. `prose` reads a markdown or plain-text
+# scanned: `gh pr diff <N> | voice-check.sh -`. `prose` reads a markdown or plain-text
 # file named as a path or `-`: a PR body, a review comment, a reply. `instruction` reads a rule file
 # under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
 #

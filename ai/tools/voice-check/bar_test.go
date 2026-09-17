@@ -16,14 +16,14 @@ func (r *repo) runBar(args ...string) {
 func (r *repo) runBarIn(cwd string, cfg Config, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()
-	r.code = Run("voice-check.sh", append([]string{"--bar"}, args...), cwd, cfg, &r.stdout, &r.stderr)
+	r.code = Run("voice-check.sh", append([]string{"--density"}, args...), cwd, cfg, &r.stdout, &r.stderr)
 }
 
 func TestBarIsAModeOnlyAsTheFirstArgument(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.run("HEAD", "--bar")
+	r.run("HEAD", "--density")
 	r.expectCode(exitDidNotRun)
-	r.expectStderrHas("'--bar' is an option, not a git-diff revision")
+	r.expectStderrHas("'--density' is an option, not a git-diff revision")
 	r.expectNoStdout()
 }
 
@@ -194,7 +194,7 @@ func TestBarNarrowsToThePathspecAfterADoubleDash(t *testing.T) {
 	r.write("other.go", "// a\n// b\n// c\n// d\ncode()\n")
 
 	r.runBar("--", "pkg")
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStderrLacks("usage: git")
 	r.expectStdoutHas("(3 comment / 1 code)")
 	r.expectStdoutHas("pkg/heavy.go: 75% against a 10% ceiling")
@@ -208,11 +208,11 @@ func TestBarPathspecIsRelativeToWhereTheCallerRan(t *testing.T) {
 	r.write("other.go", "// a\n// b\n// c\n// d\ncode()\n")
 
 	r.runBar("--", "pkg/heavy.go")
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	fromRoot := r.stdout.String()
 
 	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig(), "--", "heavy.go")
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutLacks("other.go")
 	if fromSubdir := r.stdout.String(); fromSubdir != fromRoot {
 		t.Fatalf("a pathspec from a subdirectory reported differently:\nroot:\n%s\nsubdirectory:\n%s", fromRoot, fromSubdir)
@@ -226,7 +226,7 @@ func TestBarPathspecWithRevisionsKeepsTheirBase(t *testing.T) {
 	r.commit("d and e land")
 
 	r.runBar("HEAD~1", "HEAD", "--", "pkg")
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("pkg/d.go: 27% against a 10% ceiling")
 	r.expectStdoutHas("(3 comment / 8 code)")
 	r.expectStdoutHas("(3 file(s) in the baseline)")
@@ -303,7 +303,7 @@ func TestBarReportsTheOverageAndRepeats(t *testing.T) {
 	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("over on lines: cut ")
 	first := r.stdout.String()
 
@@ -318,7 +318,7 @@ func TestBarReportsLongBlocks(t *testing.T) {
 	r.write("wall.go", "code()\n// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 60))
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("over on blocks: 1 block(s) over 4 lines against 0 allowed")
 	r.expectStdoutLacks("over on lines")
 }
@@ -332,13 +332,13 @@ func TestBarRunFromASubdirectoryMatchesTheRoot(t *testing.T) {
 	r.write("lib/new.go", "// x\n// y\ncode()\n")
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	fromRoot := r.stdout.String()
 	r.expectStdoutHas("(2 file(s) in the baseline)")
 	r.expectStdoutHas("(11 comment / 3 code)")
 
 	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig())
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("lib/new.go: 67% against a 10% ceiling")
 	if fromSubdir := r.stdout.String(); fromSubdir != fromRoot {
 		t.Fatalf("run from a subdirectory reported differently:\nroot:\n%s\nsubdirectory:\n%s", fromRoot, fromSubdir)
@@ -352,7 +352,7 @@ func TestBarKeepsAFileTheChangeOnlyDeletedFrom(t *testing.T) {
 	r.write("heavy.go", "// a\n// b\n// c\n// d\ncode()\n")
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("(3 file(s) in the baseline)")
 	r.expectStdoutHas("(4 comment / 1 code)")
 	// The file it cut comments from is no longer removed from the rate it is judged against.
@@ -365,7 +365,7 @@ func TestBarHoldsOnlyNewFilesToThePerFileCeiling(t *testing.T) {
 	r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("heavy.go: 75% against a 10% ceiling")
 	r.expectStdoutLacks("a.go: 86% against")
 }
@@ -378,7 +378,7 @@ func TestBarWithRevisionsJudgesOnlyThatDiff(t *testing.T) {
 
 	for _, args := range [][]string{{"HEAD~1", "HEAD"}, {"HEAD~1..HEAD"}, {"HEAD~1...HEAD"}} {
 		r.runBar(args...)
-		r.expectCode(exitFound)
+		r.expectCode(exitClean)
 		r.expectStdoutHas("(2 file(s) in the baseline)")
 		r.expectStdoutHas("d.go: 27% against a 10% ceiling")
 		r.expectStdoutLacks("untracked.go")
@@ -393,7 +393,7 @@ func TestBarPrintsItsDenominatorOnStderr(t *testing.T) {
 	cfg.MaxFileBytes = 100
 
 	r.runBarIn(r.dir, cfg)
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStderrHas("2 changed source file(s), 1 read, 1 skipped unread; 2 file(s) in the baseline.")
 }
 
@@ -404,7 +404,7 @@ func TestBarShowsAtMostMaxShownFilesOverTheCeiling(t *testing.T) {
 	}
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("… and 1 further file(s) over the ceiling, not shown")
 	if shown := strings.Count(r.stdout.String(), "against a "); shown != maxShown {
 		t.Fatalf("%d per-file lines printed, want exactly %d", shown, maxShown)
@@ -435,7 +435,7 @@ func TestBarSkipsABinaryFileUnread(t *testing.T) {
 	r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStderrHas("2 changed source file(s), 1 read, 1 skipped unread;")
 	r.expectStdoutHas("heavy.go: 75% against a 10% ceiling")
 	r.expectStdoutLacks("blob.go")
@@ -448,7 +448,7 @@ func TestBarRunsWithAFileNamedHEADInTheTree(t *testing.T) {
 	r.write("HEAD", "// a\n// b\n// c\ncode()\n")
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStderrLacks("ambiguous argument")
 	r.expectStdoutHas("HEAD: 75% against a 10% ceiling")
 }
@@ -462,7 +462,7 @@ func TestBarHoldsBlocksAgainstABaselineWithoutAny(t *testing.T) {
 	r.write("wall.go", "code()\n// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 5))
 
 	r.runBar()
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("host repo: 0.0% comment lines, 0.0-line mean block, 0% of blocks over 4 lines")
 	r.expectStdoutHas("over on lines: cut 5 comment line(s) to reach 0.0%")
 	r.expectStdoutHas("over on blocks: 1 block(s) over 4 lines against 0 allowed")
@@ -508,7 +508,7 @@ func TestTheOverageNamesTheFilesCarryingIt(t *testing.T) {
 		r.write("legacy.go", heavy(60, 21))
 		r.write("mine.go", heavy(3, 20))
 		r.runBar()
-		r.expectCode(exitFound)
+		r.expectCode(exitClean)
 		r.expectStdoutHas("over on lines:")
 		r.expectStdoutHas("legacy.go: 60 comment line(s), 0% written here")
 		r.expectStdoutLacks("mine.go: 3 comment line(s)")
@@ -522,7 +522,7 @@ func TestTheOverageNamesTheFilesCarryingIt(t *testing.T) {
 		r.commit("lean baseline")
 		r.write("fresh.go", heavy(60, 20))
 		r.runBar()
-		r.expectCode(exitFound)
+		r.expectCode(exitClean)
 		r.expectStdoutHas("fresh.go: 60 comment line(s), 100% written here")
 	})
 
@@ -635,7 +635,7 @@ func TestBarReadsAClosedRangeAtItsOwnRevision(t *testing.T) {
 	r.write("heavy.go", strings.Repeat("code()\n", 9)+"// one\n")
 
 	r.runBar("HEAD~1..HEAD")
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("over on lines: cut ")
 }
 
@@ -649,7 +649,7 @@ func TestBarReadsASingleRevisionFromTheWorkingTree(t *testing.T) {
 	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
 
 	r.runBar("HEAD")
-	r.expectCode(exitFound)
+	r.expectCode(exitClean)
 	r.expectStdoutHas("over on lines: cut ")
 }
 

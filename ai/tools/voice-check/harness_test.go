@@ -127,7 +127,7 @@ func (r *repo) commit(message string) {
 }
 
 func baseConfig() Config {
-	return Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
+	return Config{MaxFileBytes: defaultMaxFileBytes}
 }
 
 func (r *repo) run(args ...string) {
@@ -192,5 +192,26 @@ func heavy(comments, code int) string {
 	for i := 0; i < code; i++ {
 		fmt.Fprintf(&b, "x := %d\n", i)
 	}
+	return b.String()
+}
+
+// density runs the figure mode. The tests below assert what the scan counted, which is that mode's
+// report now that the bare arguments are the register check.
+func (r *repo) density(args ...string) {
+	r.runWith(baseConfig(), append([]string{"--density"}, args...)...)
+}
+
+func (r *repo) densityWith(cfg Config, args ...string) {
+	r.runWith(cfg, append([]string{"--density"}, args...)...)
+}
+
+// housey is a file the register scan reports, so a test about which FILE was reached can observe the
+// scan through its findings. `rather than` is the contrast spine, which the check has always caught.
+func housey(lines int) string {
+	var b strings.Builder
+	for i := 0; i < lines; i++ {
+		fmt.Fprintf(&b, "// The reader climbs to entry %d rather than the entry asked for.\n", i)
+	}
+	b.WriteString("x := 1\n")
 	return b.String()
 }

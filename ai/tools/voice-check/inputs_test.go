@@ -46,7 +46,7 @@ func TestARevisionIsNotAPath(t *testing.T) {
 	// same way and with the same grammar.
 	t.Run("an option after --bar exits 2 with the grammar", func(t *testing.T) {
 		r := newRepo(t)
-		r.run("--bar", "--output=/dev/null")
+		r.run("--density", "--output=/dev/null")
 		r.expectCode(2)
 		r.expectStderrHas("is an option, not a git-diff revision")
 		r.expectStderrHas(usage)
@@ -81,7 +81,7 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r := newRepo(t)
 		r.write("kept.go", "x := 1\n")
 		r.commit("base")
-		r.write("kept.go", heavy(6, 1))
+		r.write("kept.go", housey(1))
 		r.run("HEAD", "--", "kept.go")
 		r.expectCode(1)
 		r.expectStdoutHas("kept.go")
@@ -91,7 +91,7 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r := newRepo(t)
 		r.write("kept.go", "x := 1\n")
 		r.commit("base")
-		r.write("kept.go", heavy(6, 1))
+		r.write("kept.go", housey(1))
 		r.run("HEAD", "--", "no-such-path")
 		r.expectCode(0)
 		r.expectNoStdout()
@@ -120,7 +120,7 @@ func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
 	r.write("café.go", "package fixture\n")
 	r.commit("base")
-	r.write("café.go", heavy(8, 1))
+	r.write("café.go", housey(1))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("café.go")
@@ -133,73 +133,47 @@ func TestADiffAttributeDoesNotSuppressTheScan(t *testing.T) {
 	r.write("attr.go", "package fixture\n")
 	r.write(".gitattributes", "* -diff\n")
 	r.commit("base")
-	r.write("attr.go", heavy(8, 1))
+	r.write("attr.go", housey(1))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("attr.go")
 }
 
-func TestUntrackedFiles(t *testing.T) {
+func TestUntrackedFilesReachTheRegisterScan(t *testing.T) {
 	t.Run("scanned when no revision is given, not when one is", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("fresh.go", heavy(8, 1))
+		r.write("fresh.go", "// The reader climbs to the newest entry rather than the one asked for.\n")
 		r.run()
 		r.expectCode(1)
 		r.expectStdoutHas("fresh.go")
 
 		r.run("HEAD")
-		r.expectCode(0)
 		r.expectStdoutLacks("fresh.go")
 	})
 
-	t.Run("one over the byte cap is skipped, and the skip is counted rather than silent", func(t *testing.T) {
+	t.Run("one over the byte cap is declined rather than read in silence", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("big.go", heavy(400, 1))
+		r.write("big.go", "// The reader climbs to the newest entry rather than the one asked for.\n")
 		cfg := baseConfig()
-		cfg.MaxFileBytes = 32
+		cfg.MaxFileBytes = 8
 		r.runWith(cfg)
-		r.expectCode(0)
 		r.expectStdoutLacks("big.go")
-		r.expectStderrHas("1 untracked file(s) skipped unread")
-	})
-
-	t.Run("a binary one is skipped and reaches the denominator", func(t *testing.T) {
-		r := newRepo(t)
-		r.write("blob.bin", "// comment\x00"+heavy(8, 0))
-		r.run()
-		r.expectCode(0)
-		r.expectStdoutLacks("blob.bin")
-		r.expectStderrHas("1 untracked file(s) skipped unread")
-	})
-
-	t.Run("two are counted apart when the first has no final newline", func(t *testing.T) {
-		r := newRepo(t)
-		r.write("first.go", strings.TrimSuffix(heavy(8, 1), "\n"))
-		r.write("second.go", heavy(9, 1))
-		r.run()
-		r.expectCode(1)
-		r.expectStdoutHas("first.go: 8 comment / 1 code")
-		r.expectStdoutHas("second.go: 9 comment / 1 code")
+		r.expectStderrHas("declined unread")
 	})
 }
 
-// A newline in a path corrupts nothing: the file is opened by name and its lines never become diff
-// text. It is still one report line per outlier — the name reaches the report through shell.Oneline,
-// so the newline arrives as a space. A report whose line count and outlier count disagree is
-// unreadable to the caller ranking them, and half a split name reads as a record of its own.
 func TestANewlineInAPathIsNoLongerAHazard(t *testing.T) {
 	r := newRepo(t)
 	name := "odd\nname.go"
-	r.write(name, heavy(8, 1))
+	r.write(name, housey(1))
 	r.run()
 	r.expectCode(1)
-	r.expectStdoutHas("odd name.go: 8 comment / 1 code")
+	r.expectStdoutHas("odd name.go")
 	r.expectStdoutLacks("odd\nname.go")
 	if lines := strings.Count(strings.TrimRight(r.stdout.String(), "\n"), "\n") + 1; lines != 1 {
 		t.Errorf("the report is %d lines over one outlier, wanted 1: %q", lines, r.stdout.String())
 	}
-	r.expectStderrHas("1 file(s) reached the scan")
-	r.expectStderrHas("0 untracked file(s) skipped unread")
+	r.expectStderrHas("over 1 file(s)")
 }
 
 // A path long enough to be cut says it was cut. Unmarked, a name truncated at the bound is a shorter
@@ -208,13 +182,13 @@ func TestANewlineInAPathIsNoLongerAHazard(t *testing.T) {
 func TestAnOverlongPathIsCutAndSaysSo(t *testing.T) {
 	r := newRepo(t)
 	name := strings.Repeat("d", maxPathBytes) + "/over.go"
-	r.write(name, heavy(8, 1))
+	r.write(name, housey(1))
 	r.run()
 	r.expectCode(1)
-	r.expectStdoutHas(shell.CutMarker + ": 8 comment / 1 code")
+	r.expectStdoutHas(shell.CutMarker + ":1:")
 	r.expectStdoutLacks("over.go")
 	for _, line := range strings.Split(strings.TrimRight(r.stdout.String(), "\n"), "\n") {
-		reported, _, _ := strings.Cut(line, ": ")
+		reported, _, _ := strings.Cut(line, ":")
 		if len(reported) > maxPathBytes {
 			t.Errorf("the reported path is %d bytes, over the %d-byte bound", len(reported), maxPathBytes)
 		}
@@ -230,11 +204,11 @@ func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 	name := "tab\there.go"
 	r.write(name, "package fixture\n")
 	r.commit("base")
-	r.write(name, heavy(8, 1))
+	r.write(name, housey(1))
 	r.run("HEAD")
 	r.expectCode(1)
-	r.expectStdoutHas("tab here.go: 8 comment / 1 code")
-	r.expectStderrHas("1 file(s) reached the scan, 1 with countable added lines")
+	r.expectStdoutHas("tab here.go")
+	r.expectStderrHas("over 1 file(s)")
 }
 
 // A diff line past the cap ends the read where it stands, and every file after it in the diff goes
@@ -248,7 +222,7 @@ func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r.commit("base")
 	// a.go sorts first, so the long line lands ahead of the outlier and hides it.
 	r.write("a.go", strings.Repeat("x", 70000)+"\n")
-	r.write("z.go", heavy(8, 1))
+	r.write("z.go", housey(1))
 
 	realCap := diffscan.MaxDiffLineBytes
 	diffscan.MaxDiffLineBytes = 64 * 1024

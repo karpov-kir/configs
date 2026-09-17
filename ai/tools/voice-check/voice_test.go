@@ -504,8 +504,8 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 
 func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
 	var out, errs strings.Builder
-	code := Run("voice-check.sh", []string{"--voice", "--profile=loud"}, t.TempDir(),
-		Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
+	code := Run("voice-check.sh", []string{"--profile=loud"}, t.TempDir(),
+		Config{MaxFileBytes: 1 << 18}, &out, &errs)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
@@ -771,7 +771,7 @@ func TestASecretNamedFileIsDeclinedUnreadAndSaidSo(t *testing.T) {
 	r.write("keep.go", "package fixture\n")
 	r.commit("base")
 	r.write("deploy.env", "# Otherwise the fallback key is used and nobody notices.\nKEY=redacted\n")
-	r.run("--voice")
+	r.run()
 	r.expectStdoutLacks("nobody notices")
 	r.expectStdoutLacks("deploy.env:")
 	r.expectStderrHas("secret")
@@ -784,7 +784,7 @@ func TestTheSameSentenceInAnOrdinaryFileIsStillReported(t *testing.T) {
 	r.write("keep.go", "package fixture\n")
 	r.commit("base")
 	r.write("deploy.go", "// Otherwise the fallback key is used and nobody notices.\npackage fixture\n")
-	r.run("--voice")
+	r.run()
 	r.expectCode(1)
 	r.expectStdoutHas("deploy.go")
 }
@@ -839,8 +839,8 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
 	var out, errs strings.Builder
-	Run("voice-check.sh", []string{"--voice", "--profile=prose", conf}, dir,
-		Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
+	Run("voice-check.sh", []string{"--profile=prose", conf}, dir,
+		Config{MaxFileBytes: 1 << 18}, &out, &errs)
 	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
 		t.Fatalf("the run did not name the conf it read: %q", errs.String())
 	}

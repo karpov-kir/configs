@@ -1,28 +1,19 @@
-// Comment-density detector. By default Run flags changed source files whose ADDED lines are
-// comment-heavy. With `--bar` it holds the whole change set to the host repo's own comment rate
-// (bar.go). With `--voice` it reads the comments instead of counting them (voice.go). The
-// command-line contract (arguments, environment, exit codes) is the stub's:
-// ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh.
+// The register check for comments and prose, and the density figure beside it.
 //
-// The default mode states its own standing in its report: a targeting aid, not a bar.
+// Two modes, one question each. Bare arguments read the comments a change set added and report which
+// sentences are written in the register the rule forbids (voice.go). `--density` reports how many
+// comment lines the set carries beside the host repository's own rate (bar.go), and acts on nothing.
 package voicecheck
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"path"
-	"sort"
 	"strconv"
 	"strings"
-
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
 )
 
 const (
-	defaultMaxRatio     = 0.3
-	defaultMinLines     = 5
 	defaultMaxFileBytes = 262144
 )
 
@@ -46,7 +37,7 @@ const stubName = "voice-check.sh"
 
 // Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
 // refused where a revision belongs, and one after `--` narrows the scan to it.
-const usage = "usage: " + stubName + " [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]"
+const usage = "usage: " + stubName + " [--density | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. Findings go to stdout bare; a note on stderr opens
 // with the name, and nothing else in the package writes there. The default mode's denominator is a
@@ -77,30 +68,14 @@ func (c console) refuseArguments(err error) int {
 }
 
 type Config struct {
-	MaxRatio     float64
-	MinLines     int
 	MaxFileBytes int64
 }
 
-// ConfigFromEnv reads the three overrides. A value that does not parse is not silently replaced by the
-// default: a caller who set COMMENT_MAX_RATIO=0..3 asked for something, and answering with 0.3 reports
-// a scan against a threshold they did not choose.
+// ConfigFromEnv reads the one override. A value that does not parse is not silently replaced by the
+// default: a caller who set it asked for something, and answering with the default reports a scan
+// against a bound they did not choose.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
-	cfg := Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
-	if raw, ok := lookup("COMMENT_MAX_RATIO"); ok && raw != "" {
-		value, err := strconv.ParseFloat(raw, 64)
-		if err != nil || value < 0 || value > 1 {
-			return cfg, fmt.Errorf("COMMENT_MAX_RATIO is %q, which is no share between 0 and 1 — the scan did NOT run", raw)
-		}
-		cfg.MaxRatio = value
-	}
-	if raw, ok := lookup("COMMENT_MIN_LINES"); ok && raw != "" {
-		value, err := strconv.Atoi(raw)
-		if err != nil || value < 1 {
-			return cfg, fmt.Errorf("COMMENT_MIN_LINES is %q, which is no positive whole number — the scan did NOT run", raw)
-		}
-		cfg.MinLines = value
-	}
+	cfg := Config{MaxFileBytes: defaultMaxFileBytes}
 	if raw, ok := lookup("DENSITY_MAX_FILE_BYTES"); ok && raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || value < 0 {
@@ -158,79 +133,21 @@ func (s *stats) add(other stats) {
 // scan is one run's accumulating state. Held together because every arm reads the config and writes
 // the counts, and a file that reached `files` without reaching `countable` is the one inconsistency
 // they must not be able to express.
-type scan struct {
-	cfg    Config
-	files  map[string]*stats
-	result diffscan.Result
-	// Density's own two: how many files held a line this tool counts, and how many were over the bar.
-	// Reached and SkippedUnread belong to the shared scan and live on result.
-	countable int
-	outliers  int
-}
 
-// `--bar` and `--voice` select a mode only as the first argument. Later in the arguments either is an
-// option like any other, and refused as one. The two are exclusive: the bar says how many comment
-// lines a change set may carry, the voice check says whether the lines it carries can be read.
+// Two modes, one question each. Bare is the register check and exits 1 on findings. `--density`
+// reports how many comment lines a change set carries beside the host repository's rate, and always
+// exits 0, because nothing acts on that figure.
+//
+// `--density` selects the mode only as the first argument. Later in the arguments it is an option
+// like any other, and refused as one.
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
-	if len(args) > 0 && args[0] == "--bar" {
+	if len(args) > 0 && args[0] == "--density" {
 		return bar(out, args[1:], cwd, cfg)
 	}
-	if len(args) > 0 && args[0] == "--voice" {
-		return voice(out, args[1:], cwd, cfg)
-	}
-	return scanAddedLines(out, args, cwd, cfg)
+	return voice(out, args, cwd, cfg)
 }
 
-func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
-	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
-		return out.refuseArguments(err)
-	}
-	s := &scan{cfg: cfg, files: map[string]*stats{}}
-
-	diff, err := diffscan.Diff(cwd, args)
-	if err != nil {
-		return out.refuse(err)
-	}
-	if err := s.result.WalkDiff(diff, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
-		return out.refuse(fmt.Errorf("the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.", err))
-	}
-
-	// The untracked half runs only with no revisions: with revisions the caller named two commits, and
-	// a file in neither of them is not part of what they asked about. SkipSecretNamed is off here and on
-	// in dup-literals: this reports PATHS and counts, where that one echoes 60 bytes of every finding.
-	named, _ := diffscan.RevisionsNamed(args)
-	if len(named) == 0 {
-		opts := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes}
-		if err := s.result.WalkUntracked(cwd, opts, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
-			return out.refuse(errors.New("could not list untracked files — exit 2, the scan did NOT run over them."))
-		}
-	}
-
-	return s.report(out)
-}
-
-func (s *scan) count(file, raw string) {
-	line := strings.TrimLeft(raw, shell.SpaceBytes)
-	if line == "" || notThisRepositorysSource(file) {
-		return
-	}
-	entry, seen := s.files[file]
-	if !seen {
-		entry = &stats{}
-		s.files[file] = entry
-		s.countable++
-	}
-	if isComment(line) {
-		entry.comments++
-	} else {
-		entry.code++
-	}
-}
-
-// notThisRepositorysSource is every reason a discovered file is none of this repository's business.
-// One function, so the diff scan, the bar's baseline and the voice check cannot disagree about what a
-// run covers. A file NAMED on the command line is not put through it: naming a fixture is asking for it.
 func notThisRepositorysSource(file string) bool {
 	return isProseOrData(file) || isFixture(file)
 }
@@ -274,45 +191,4 @@ func isComment(line string) bool {
 		return false
 	}
 	return rest == "" || rest[0] == ' ' || rest[0] == '\t'
-}
-
-func (s *scan) report(out console) int {
-	// Sorted, so two runs over one tree print one report.
-	names := make([]string, 0, len(s.files))
-	for name := range s.files {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	shown := 0
-	for _, name := range names {
-		entry := s.files[name]
-		ratio := entry.ratio()
-		if entry.comments < s.cfg.MinLines || ratio <= s.cfg.MaxRatio {
-			continue
-		}
-		s.outliers++
-		if shown < maxShown {
-			shown++
-			fmt.Fprintf(out.stdout, "%s: %d comment / %d code added lines (%.2f)\n",
-				shell.CutBytesMarked(shell.Oneline(name), maxPathBytes), entry.comments, entry.code, ratio)
-		}
-	}
-	if s.outliers > maxShown {
-		fmt.Fprintf(out.stdout, "… and %d further outlier(s), not shown\n", s.outliers-maxShown)
-	}
-
-	out.note("%d file(s) reached the scan, %d with countable added lines, %d outlier(s), %d untracked file(s) skipped unread.",
-		s.result.Reached, s.countable, s.outliers, s.result.SkippedUnread)
-	if s.result.Reached == 0 {
-		out.note("nothing reached the scan, so this run says nothing about the change set.")
-	} else if s.countable == 0 {
-		out.note("no file reached carried a countable added line, so this run ranks nothing.")
-	} else {
-		out.note("a targeting aid, not a bar: this ranks files to read. It counts ADDED lines only, so rewording an old comment raises a ratio. --bar holds the change set to the repo's own rate.")
-	}
-	if s.outliers > 0 {
-		return exitFound
-	}
-	return exitClean
 }

@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	readerjudge "kk-flavor/tools/reader-judge"
 	modelpolicy "kk-flavor/tools/model-policy"
+	readerjudge "kk-flavor/tools/reader-judge"
 )
 
 func main() {

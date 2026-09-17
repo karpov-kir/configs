@@ -390,10 +390,10 @@ func (c console) reportBar(base baseline, set changeSet) int {
 		fmt.Fprintf(c.stdout, "%s: %.0f%% against a %.0f%% ceiling\n",
 			shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.ratio*100, base.ceiling*100)
 	}
-	if findings == 0 {
-		return exitClean
-	}
-	return exitFound
+	// Always clean. The figure is reported and nothing acts on it: the density bar stopped gating when
+	// it turned out to be what drove comments into compression, and a compressed comment is the thing
+	// this tool exists to catch.
+	return exitClean
 }
 
 // Reported unknown rather than omitted: a line that vanishes with the identity leaves its absence

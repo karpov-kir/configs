@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	readerjudge "kk-flavor/tools/reader-judge"
 	modelpolicy "kk-flavor/tools/model-policy"
+	readerjudge "kk-flavor/tools/reader-judge"
 )
 
 // Two rows and one model per client that the order ranks and no row names, so a case can refuse
