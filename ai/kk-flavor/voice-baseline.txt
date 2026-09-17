@@ -10,13 +10,13 @@
 # Measured by the check in the same change that added it.
 #
 44 ai/kk-flavor/standards/ecosystem.md
-39 ai/kk-flavor/standards/model-policy.md
+40 ai/kk-flavor/standards/model-policy.md
 37 ai/kk-flavor/standards/skill-protocol.md
 31 ai/kk-flavor/skills/idsd-reactor/SKILL.md
 29 ai/kk-flavor/skills/kk-foreman/SKILL.md
 24 ai/kk-flavor/standards/records.md
 24 ai/kk-flavor/standards/testing.md
-23 ai/kk-flavor/skills/kk-pr/SKILL.md
+22 ai/kk-flavor/skills/kk-pr/SKILL.md
 21 ai/kk-flavor/skills/kk-patrol/SKILL.md
 20 ai/kk-flavor/standards/quality-pipeline.md
 18 ai/kk-flavor/skills/idsd-build/SKILL.md
@@ -33,11 +33,11 @@
 13 ai/kk-flavor/skills/kk-retro/SKILL.md
 13 ai/kk-flavor/workers/idsd/audit.md
 12 ai/kk-flavor/skills/kk-handoff/handoff-prompt.md
-11 ai/kk-flavor/skills/idsd-finalize/SKILL.md
 11 ai/kk-flavor/skills/idsd-intent/SKILL.md
 11 ai/kk-flavor/skills/kk-handoff/SKILL.md
 11 ai/kk-flavor/skills/kk-qualify/SKILL.md
 11 ai/kk-flavor/workers/build/explore.md
+10 ai/kk-flavor/skills/idsd-finalize/SKILL.md
 10 ai/kk-flavor/workers/patrol/scout.md
 9 ai/kk-flavor/skills/kk-diagnose/SKILL.md
 9 ai/kk-flavor/workers/idsd/qualify/reconcile.md
@@ -50,11 +50,11 @@
 7 ai/kk-flavor/templates/spawn-prompt.md
 6 ai/kk-flavor/skills/kk-ecosystem/SKILL.md
 6 ai/kk-flavor/skills/kk-reduce/AGENT-BRIEF.md
+6 ai/kk-flavor/skills/kk-reduce/stats.md
 6 ai/kk-flavor/standards/git.md
 6 ai/kk-flavor/workers/reduce/converge.md
 5 ai/kk-flavor/skills/idsd-charter/SKILL.md
 5 ai/kk-flavor/skills/kk-pr/address-review.md
-5 ai/kk-flavor/skills/kk-reduce/stats.md
 4 ai/kk-flavor/skills/idsd-reactor/tests/role-routing.md
 4 ai/kk-flavor/skills/kk-again/SKILL.md
 4 ai/kk-flavor/skills/kk-grill/SKILL.md

@@ -290,6 +290,100 @@ func TestAFindingEchoesTheLineAsItWasTyped(t *testing.T) {
 	}
 }
 
+// A block is read as one text, so a sentence that wraps is read whole. Per line, a check sees half a
+// sentence and matches nothing — and a sentence wrapping at the width of a screen is the ordinary
+// case in a comment, not the exception, so this is most of what there is to find.
+func TestASentenceThatWrapsAcrossTwoLinesIsReadWhole(t *testing.T) {
+	wrapped := []string{
+		"/**",
+		" * Read the book's own attribute",
+		" * alone and a book shaped the other way wins.",
+		" */",
+		"export function f() {}",
+	}
+	found := voiceScanner().scanSource("f.ts", wrapped, nil)
+	if !hasCheck(found, checkCounterfactal) {
+		t.Fatalf("the wrapped counterfactual was not read:\n%s", render(found))
+	}
+	for _, f := range found {
+		if f.Check != checkCounterfactal {
+			continue
+		}
+		if f.Line != 2 {
+			t.Errorf("reported on line %d, want line 2 where the sentence starts", f.Line)
+		}
+		if !strings.Contains(f.Text, "alone and") {
+			t.Errorf("the echoed text stops at the line break: %q", f.Text)
+		}
+	}
+}
+
+// The same for a paragraph in a rule file, which wraps in a repository file and does not in a field
+// you type into. Both shapes reach the prose and instruction profiles.
+func TestAWrappedParagraphInAProseFileIsReadWhole(t *testing.T) {
+	wrapped := []string{"State the fact rather", "than the alternative.", "", "A second paragraph."}
+	found := scanner{profile: ProfileInstruction}.scanProse("x.md", wrapped)
+	if !hasCheck(found, checkContrast) {
+		t.Fatalf("the contrast spanning the line break was not read:\n%s", render(found))
+	}
+	if found[0].Line != 1 {
+		t.Errorf("reported on line %d, want line 1 where the sentence starts", found[0].Line)
+	}
+}
+
+// A blank line ends a paragraph, so two paragraphs are never read as one sentence. The two halves here
+// match nothing apart and match a contrast spine together, so a paragraph that ran past its blank line
+// would report a phrase nobody wrote.
+func TestABlankLineEndsAParagraph(t *testing.T) {
+	apart := []string{"Read the book,", "", "never the entry."}
+	if found := (scanner{profile: ProfileInstruction}).scanProse("x.md", apart); len(found) != 0 {
+		t.Fatalf("two paragraphs were read as one:\n%s", render(found))
+	}
+	together := []string{"Read the book,", "never the entry."}
+	if found := (scanner{profile: ProfileInstruction}).scanProse("x.md", together); !hasCheck(found, checkContrast) {
+		t.Fatalf("one paragraph over two lines was not read whole:\n%s", render(found))
+	}
+}
+
+// A doc tag line is the signature written out, not a sentence. Counted as prose, a function with six
+// parameters is a long block for having documented them, which is the one shape the rule wants.
+func TestADocTagLineIsNotProse(t *testing.T) {
+	tagged := []string{
+		"const a = 1;",
+		"/**",
+		" * Returns the book's total.",
+		" * @param book the book to total",
+		" * @param currency the currency to total in",
+		" * @returns the total",
+		" * @throws when two currencies are declared",
+		" */",
+		"export function totalBook() {}",
+	}
+	found := voiceScanner().scanSource("f.ts", tagged, nil)
+	if hasCheck(found, checkLongBlock) {
+		t.Errorf("a one-sentence summary over a tag list was reported long:\n%s", render(found))
+	}
+	prose := []string{"const a = 1;", "/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const b = 2;"}
+	if !hasCheck(voiceScanner().scanSource("f.ts", prose, nil), checkLongBlock) {
+		t.Error("five lines of prose were not reported long, so the tag rule cut too much")
+	}
+}
+
+// A tag line's words do not join the segment either. Joined, `@param book the book to total` would put
+// the signature in the middle of whatever sentence ran before it.
+func TestADocTagLineDoesNotJoinTheSentenceAroundIt(t *testing.T) {
+	lines := []string{
+		"/**",
+		" * Totals the book.",
+		" * @param book counted across the whole ledger",
+		" */",
+		"export function f() {}",
+	}
+	if found := voiceScanner().scanSource("f.ts", lines, nil); len(found) != 0 {
+		t.Fatalf("a tag line was read as prose:\n%s", render(found))
+	}
+}
+
 // Two things are scoped by the diff, and a test that moved only one of them would leave the other
 // free: a block the diff did not touch at all, and a line the diff did not touch inside a block it
 // did. The second is what makes a reworded sentence the change set's and the line above it not.
@@ -488,7 +582,8 @@ func blockAt(lines []string, at int) (block, bool) {
 // The false-positive side of the same measurement: what the check says about a tree nobody asked it to
 // change. Gated the same way and for the same reason.
 //
-// VOICE_CORPUS_HOST names a directory holding that tree. VOICE_CORPUS_OURS is a comma-separated list
+// VOICE_CORPUS_HOST names a directory holding that tree, VOICE_CORPUS_CEILING and
+// VOICE_CORPUS_LONG_CEILING the counts a rise past fails. VOICE_CORPUS_OURS is a comma-separated list
 // of path prefixes inside it whose comments were written under the register this check looks for, held
 // apart because a finding there is the check working rather than a false positive. Reported, never
 // asserted: the number belongs in the change's own account, and a threshold here would only teach the
@@ -545,8 +640,29 @@ func TestWhatTheCheckSaysAboutAHostRepositoryThatDidNotAskForIt(t *testing.T) {
 		counts["host-authored"], counts["host-authored/long-block"], files["host-authored"])
 	t.Logf("ours:          %d register finding(s) and %d long block(s) over %d files",
 		counts["ours"], counts["ours/long-block"], files["ours"])
-	if counts["ours"] <= counts["host-authored"] {
-		t.Errorf("the check found %d in the files written in that register and %d in the rest, so it is not reading a register difference",
-			counts["ours"], counts["host-authored"])
+
+	// Absolute ceilings, not a comparison between the two sides. "Louder on ours than on theirs"
+	// passes at twelve against eleven and says nothing about whether the check got noisier, which is
+	// the direction this measurement exists to catch. The numbers live with the corpus rather than
+	// here, because they are a property of that tree.
+	atMost(t, "register findings over host-authored files", counts["host-authored"], "VOICE_CORPUS_CEILING")
+	atMost(t, "long blocks over host-authored files", counts["host-authored/long-block"], "VOICE_CORPUS_LONG_CEILING")
+}
+
+// atMost holds a count to a ceiling the corpus carries. An unset ceiling fails rather than skips: the
+// caller named a corpus, so they asked for a measurement, and a measurement with no bound is a number
+// nobody can fail.
+func atMost(t *testing.T, what string, got int, variable string) {
+	t.Helper()
+	raw := os.Getenv(variable)
+	if raw == "" {
+		t.Fatalf("%s is unset, so %s (%d) is measured against nothing", variable, what, got)
+	}
+	ceiling, err := strconv.Atoi(raw)
+	if err != nil {
+		t.Fatalf("%s is %q, which is no whole number", variable, raw)
+	}
+	if got > ceiling {
+		t.Errorf("%d %s, over the ceiling of %d", got, what, ceiling)
 	}
 }

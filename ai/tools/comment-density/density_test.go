@@ -150,6 +150,33 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r.expectStderrLacks("not a bar")
 }
 
+// A new file is the commonest place a new comment lands, so a voice scan that read only the tracked
+// diff would report clean over the change most worth reading. The default mode and the bar both walk
+// the untracked half with no revisions named; this holds --voice to the same.
+func TestTheVoiceScanReadsAnUntrackedFileWithNoRevisionsNamed(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("fresh.go", "// Counted across the whole ledger.\npackage fixture\n")
+	r.run("--voice")
+	r.expectCode(1)
+	r.expectStdoutHas("fresh.go")
+	r.expectStdoutHas("no-subject")
+}
+
+// With revisions named the caller asked about two commits, and a file in neither of them is not part
+// of the question. Answering with it would report a finding the named range does not carry.
+func TestTheVoiceScanLeavesTheUntrackedHalfOutWhenRevisionsAreNamed(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("keep.go", "// Reads the ledger.\npackage fixture\n")
+	r.commit("second")
+	r.write("fresh.go", "// Counted across the whole ledger.\npackage fixture\n")
+	r.run("--voice", "HEAD~1", "HEAD")
+	r.expectStdoutLacks("fresh.go")
+}
+
 // A fixture is another repository's source, copied in to be read by a test. Counted as this
 // repository's, it measures that repository through this one — and the voice check's own host corpus
 // is 131 TypeScript files, enough on its own to move a Go repo's comment rate.

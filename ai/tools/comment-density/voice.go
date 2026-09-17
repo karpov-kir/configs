@@ -11,6 +11,7 @@
 package density
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -178,6 +179,16 @@ func stripMarker(raw string) string {
 	return line
 }
 
+// proseOf is stripMarker with the doc tags dropped, which is what a check reads. A `@param` line
+// joined into the segment would put the signature in the middle of a sentence.
+func proseOf(raw string) string {
+	stripped := stripMarker(raw)
+	if !isProseLine(stripped) {
+		return ""
+	}
+	return stripped
+}
+
 // block is one run of adjacent comment lines, by the 1-based lines it spans.
 type block struct {
 	start int
@@ -227,16 +238,25 @@ func (b block) isFileHeader(lines []string) bool {
 	return true
 }
 
-// textLines is how long a block reads: the lines carrying words, so a `/**` and its closing `*/` do
-// not spend the allowance.
+// textLines is how long a block reads: the lines carrying prose. A `/**` and its closing `*/` carry no
+// words, and a doc tag line is a table of the signature rather than a sentence, so neither spends the
+// allowance. Counting tag lines made a six-parameter function's `@param` list a long block, which is
+// the one shape the rule has no quarrel with.
 func (b block) textLines(lines []string) int {
 	counted := 0
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		if stripMarker(lines[at-1]) != "" {
+		if isProseLine(stripMarker(lines[at-1])) {
 			counted++
 		}
 	}
 	return counted
+}
+
+// isProseLine says a stripped comment line carries sentences. A line opening on a doc tag does not:
+// `@param`, `@returns`, `@throws`, `@example` and the rest are the signature written out, and every
+// language's doc tool spells them this way.
+func isProseLine(stripped string) bool {
+	return stripped != "" && !strings.HasPrefix(stripped, "@")
 }
 
 // scanner holds one run's settings so every profile reaches the same checks.
@@ -246,8 +266,61 @@ type scanner struct {
 	allowed allowlist
 }
 
-// scanSource reads a source file's comment blocks. Findings on lines outside `within` are dropped
-// where `within` is non-nil, which is how the comment profile reports only what a diff added.
+// segment is one run of text a check reads whole, with the line every byte of it came from. A comment
+// block and a markdown paragraph are both written across several lines and read as one, so a check
+// that ran per line would never see a sentence that wraps — and a wrapped sentence is the ordinary
+// case in a block the width of a screen.
+type segment struct {
+	text   string
+	lineOf []int
+}
+
+// join builds a segment out of the lines from..to, taking each line's words through strip and putting
+// a single space between them. The space is a byte of the segment too, and it belongs to the line it
+// follows, so a match landing on it reports the line the sentence continues onto.
+func join(lines []string, from, to int, strip func(string) string) segment {
+	var seg segment
+	var b strings.Builder
+	for at := from; at <= to && at <= len(lines); at++ {
+		words := strip(lines[at-1])
+		if words == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+			seg.lineOf = append(seg.lineOf, at)
+		}
+		b.WriteString(words)
+		for range []byte(words) {
+			seg.lineOf = append(seg.lineOf, at)
+		}
+	}
+	seg.text = b.String()
+	return seg
+}
+
+// lineAt is the source line one byte of the segment came from, and lineSpan the lines a match covers.
+func (seg segment) lineAt(offset int) int {
+	if offset < 0 || offset >= len(seg.lineOf) {
+		return 0
+	}
+	return seg.lineOf[offset]
+}
+
+func (seg segment) lineSpan(from, to int) (int, int) {
+	first, last := seg.lineAt(from), seg.lineAt(from)
+	for at := from; at < to && at < len(seg.lineOf); at++ {
+		if line := seg.lineOf[at]; line > last {
+			last = line
+		}
+	}
+	return first, last
+}
+
+// scanSource reads a source file's comment blocks. Findings whose lines lie outside `within` are
+// dropped where `within` is non-nil, which is how the comment profile reports only what a diff added.
+// A finding spanning several lines stays where any one of them was added: a sentence is the unit a
+// writer edits, and half of one is not a thing to report.
 func (s scanner) scanSource(file string, lines []string, within map[int]bool) []Finding {
 	var found []Finding
 	for _, b := range commentBlocks(lines) {
@@ -262,12 +335,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool) []
 			found = append(found, Finding{File: file, Line: b.start, Check: checkLongBlock,
 				Text: fmt.Sprintf("%d text lines, over %d", n, limit)})
 		}
-		for at := b.start; at <= b.end && at <= len(lines); at++ {
-			if within != nil && !within[at] {
-				continue
-			}
-			found = append(found, s.scanText(file, at, stripMarker(lines[at-1]))...)
-		}
+		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf), within)...)
 	}
 	return s.allowed.filter(found)
 }
@@ -281,17 +349,29 @@ func (b block) touches(within map[int]bool) bool {
 	return false
 }
 
-// scanProse reads a whole text file. The instruction profile skips what a rule file uses as structure:
-// its frontmatter, its fenced code, and its headings.
+// scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
+// file uses as structure: its frontmatter, its fenced code, and its headings.
+//
+// A paragraph is a run of lines with no blank line in it. The flavor asks for one paragraph to a line
+// in a field you type into, and repository files wrap, so both shapes arrive here and both are read
+// the same way.
 func (s scanner) scanProse(file string, lines []string) []Finding {
 	var found []Finding
 	inFence, inFrontmatter := false, false
+	paragraph := 0
+	flush := func(end int) {
+		if paragraph == 0 {
+			return
+		}
+		found = append(found, s.scanSegment(file, join(lines, paragraph, end, strings.TrimSpace), nil)...)
+		paragraph = 0
+	}
 	for i, raw := range lines {
 		at := i + 1
 		line := strings.TrimSpace(raw)
 		if s.profile == ProfileInstruction {
 			if at == 1 && shell.IsFrontmatterDelimiter(line) {
-				inFrontmatter = true
+				inFrontmatter, paragraph = true, 0
 				continue
 			}
 			if inFrontmatter {
@@ -299,47 +379,60 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 				continue
 			}
 			if shell.IsFenceDelimiter(line) {
+				flush(at - 1)
 				inFence = !inFence
 				continue
 			}
 			if inFence || strings.HasPrefix(line, "#") {
+				flush(at - 1)
 				continue
 			}
 		}
-		found = append(found, s.scanText(file, at, line)...)
+		if line == "" {
+			flush(at - 1)
+			continue
+		}
+		if paragraph == 0 {
+			paragraph = at
+		}
 	}
+	flush(len(lines))
 	return s.allowed.filter(found)
 }
 
-// scanText is every check over one line of words, and the only place a check runs. One function, so
-// the three profiles cannot drift into reading the same sentence differently.
-func (s scanner) scanText(file string, at int, text string) []Finding {
-	if text == "" {
+// scanSegment is every check over one segment, and the only place a check runs. One function, so the
+// three profiles cannot drift into reading the same sentence differently.
+func (s scanner) scanSegment(file string, seg segment, within map[int]bool) []Finding {
+	if seg.text == "" {
 		return nil
 	}
+	text := seg.text
 	var found []Finding
-	add := func(check, matched string) {
-		found = append(found, Finding{File: file, Line: at, Check: check, Text: matched})
+	add := func(check string, from, to int) {
+		first, last := seg.lineSpan(from, to)
+		if within != nil && !spans(first, last, within) {
+			return
+		}
+		found = append(found, Finding{File: file, Line: first, Check: check,
+			Text: strings.TrimSpace(text[from:to])})
 	}
 
-	// The coined check reads the line as typed, and every other check reads it with its inline code
-	// spans blanked. A coined word inside backticks is an identifier built on the coined term —
-	// `playedRung` is the rename the refactor lane owes — and that is the one thing a reader still has
-	// to have been in the room for.
+	// The coined check reads the segment as typed, and every other check reads it with its inline code
+	// spans blanked. A coined word inside backticks is an identifier built on the coined term, and that
+	// is the one thing a reader still has to have been in the room for.
 	//
 	// Blanking replaces each span with as many spaces, so an offset into `prose` addresses the same
-	// byte of `text`. Every finding below is echoed out of `text`, so the writer reads the line they
-	// typed rather than the one the check read.
+	// byte of `text`. Every finding is echoed out of `text`, so the writer reads what they typed.
 	prose := reInlineCode.ReplaceAllStringFunc(text, func(span string) string {
 		return strings.Repeat(" ", len(span))
 	})
 	for _, word := range s.coined {
-		for _, m := range coinedPattern(word).FindAllString(text, -1) {
-			add(checkCoined, m)
+		for _, at := range coinedPattern(word).FindAllStringIndex(text, -1) {
+			add(checkCoined, at[0], at[1])
 		}
 		if inIdentifier := coinedInIdentifier(word); inIdentifier != nil {
-			for _, m := range inIdentifier.FindAllString(text, -1) {
-				add(checkCoined, m)
+			for _, at := range inIdentifier.FindAllStringIndex(text, -1) {
+				add(checkCoined, at[0], at[1])
 			}
 		}
 	}
@@ -347,33 +440,43 @@ func (s scanner) scanText(file string, at int, text string) []Finding {
 	// Bold is markdown. A rule file is markdown, so the check is the comment and prose profiles'.
 	if s.profile != ProfileInstruction {
 		for _, at := range reBold.FindAllStringIndex(prose, -1) {
-			add(checkBold, text[at[0]:at[1]])
+			add(checkBold, at[0], at[1])
 		}
 	}
 	for _, re := range []*regexp.Regexp{reRatherThan, reNeverNot, reInsteadOf} {
 		for _, at := range re.FindAllStringIndex(prose, -1) {
-			add(checkContrast, strings.TrimSpace(text[at[0]:at[1]]))
+			add(checkContrast, at[0], at[1])
 		}
 	}
 	for _, at := range reIntensifier.FindAllStringIndex(prose, -1) {
-		add(checkIntensifier, strings.TrimSpace(text[at[0]:at[1]]))
+		add(checkIntensifier, at[0], at[1])
 	}
 	for _, span := range sentenceSpans(text) {
-		typed, read := text[span[0]:span[1]], prose[span[0]:span[1]]
+		read := prose[span[0]:span[1]]
 		if reCounterfactual.MatchString(read) || reReadAloneAnd.MatchString(read) {
-			add(checkCounterfactal, typed)
+			add(checkCounterfactal, span[0], span[1])
 		}
 		if reParticipleOpen.MatchString(read) || opensWithGerund(read) {
-			add(checkNoSubject, typed)
+			add(checkNoSubject, span[0], span[1])
 		}
 		if at := reParticiplePhr.FindStringIndex(read); at != nil && !reOpensWithVerb.MatchString(read) {
-			add(checkNoSubject, strings.TrimSpace(typed[at[0]:at[1]]))
+			add(checkNoSubject, span[0]+at[0], span[0]+at[1])
 		}
 		if at := rePositional.FindStringIndex(read); at != nil {
-			add(checkPositional, typed[at[0]:at[1]])
+			add(checkPositional, span[0]+at[0], span[0]+at[1])
 		}
 	}
 	return found
+}
+
+// spans says a finding reaches a line the diff added.
+func spans(first, last int, within map[int]bool) bool {
+	for at := first; at <= last; at++ {
+		if within[at] {
+			return true
+		}
+	}
+	return false
 }
 
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in
@@ -444,7 +547,7 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 
 	var found []Finding
 	if profile == ProfileComment {
-		found, err = s.scanChange(args, cwd)
+		found, err = s.scanChange(args, cwd, cfg)
 	} else {
 		found, err = s.scanPaths(args, cwd, cfg)
 	}
@@ -458,7 +561,7 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 // is how the negative control runs over `gh pr diff`. Blocks are runs of ADDED comment lines, so the
 // scan needs no working tree: a block split by an untouched line is two blocks, which is what a
 // reviewer reading the diff sees too.
-func (s scanner) scanChange(args []string, cwd string) ([]Finding, error) {
+func (s scanner) scanChange(args []string, cwd string, cfg Config) ([]Finding, error) {
 	var diff []byte
 	var err error
 	if len(args) > 0 && args[0] == "-" {
@@ -493,6 +596,27 @@ func (s scanner) scanChange(args []string, cwd string) ([]Finding, error) {
 	})
 	if walkErr != nil {
 		return nil, fmt.Errorf("the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.", walkErr)
+	}
+
+	// The untracked half runs only with no revisions and no diff on stdin, the way the default mode's
+	// does: with revisions the caller named two commits, and a file in neither of them is not part of
+	// what they asked about. A new file is the commonest place a new comment lands, so a voice scan
+	// that skipped it would report clean over the change most worth reading.
+	fromStdin := len(args) > 0 && args[0] == "-"
+	named, _ := diffscan.RevisionsNamed(args)
+	if !fromStdin && len(named) == 0 {
+		untracked := func(a diffscan.AddedLine) {
+			if notThisRepositorysSource(a.File) || a.Line == 0 {
+				return
+			}
+			if _, seen := byFile[a.File]; !seen {
+				order = append(order, a.File)
+			}
+			byFile[a.File] = append(byFile[a.File], addedLine{at: a.Line, text: a.Text})
+		}
+		if err := result.WalkUntracked(cwd, diffscan.Options{MaxFileBytes: cfg.MaxFileBytes}, untracked); err != nil {
+			return nil, errors.New("could not list untracked files — exit 2, the scan did NOT run over them.")
+		}
 	}
 
 	var found []Finding
