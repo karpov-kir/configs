@@ -258,7 +258,8 @@ func Prompt(kind Kind) string {
 		"unit; when you could not restate it in your own words after one reading; or when it is a fact that " +
 		"only makes sense beside a unit you are deleting. Keep a unit only where deleting it would make you " +
 		"edit or decide wrongly, and where it stands on its own. Keep a one-sentence summary on a " +
-		"declaration, and delete only the sentences after it."
+		"declaration where it says something the identifier and signature do not; a summary that " +
+		"restates the name is a unit you delete."
 }
 
 // addedLines is the set of 1-based lines the diff added to one file, that file named as the caller

@@ -111,7 +111,7 @@ func TestAnAddedLineShapedLikeADiffHeader(t *testing.T) {
 	// `++ b/decoy.go` is what arrives as `+++ b/decoy.go` and can be mistaken for a real file header.
 	// Written with three, the line arrives as `++++ ` and matches nothing — a fixture that exercises
 	// the anchor is the only one that can fail when the anchor is removed.
-	r.diffs(patchAdding("real.go", append([]string{"++ b/decoy.go"}, addedLines(heavy(8, 1))...)...))
+	r.diffs(patchAdding("real.go", append([]string{"++ b/decoy.go"}, bodyLines(heavy(8, 1))...)...))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("real.go")
@@ -222,7 +222,7 @@ func TestAnOverlongPathIsCutAndSaysSo(t *testing.T) {
 func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
 	name := "tab\there.go"
-	r.diffs(patchHeaded(name, strconv.Quote("b/"+name), addedLines(heavy(8, 1))...))
+	r.diffs(patchHeaded(name, strconv.Quote("b/"+name), bodyLines(heavy(8, 1))...))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("tab here.go: 8 comment / 1 code")

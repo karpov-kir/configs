@@ -24,7 +24,7 @@ Then, sentence by sentence, name the edit the sentence causes or the answer only
 
 Preserve the artifact's required meaning: facts, negation, exceptions, numbers, tense, conditionality, commitments, severity and open questions. Where a sentence carries one of these in a PR body, a ticket or a message, shorten its expression and keep its substance. This does not hold for a code comment. A comment pays the bar by deleting whole notes ([code-style.md](code-style.md) → **Comments**), because a note compressed to fit a bar stops being readable. Keep quoted text unchanged.
 
-Apply this check within the current editing pass. External voting is an explicit tool for a disputed durable deletion, and no lane requires it for each reply, review return or artifact.
+Apply this check within the current editing pass. External voting is an explicit tool for a disputed durable deletion. No lane requires it for each reply, review return or artifact.
 
 Leave your method out of the content: the machine you drove on, what you substituted for something unavailable, the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it does not. Name the gap a verdict rests on and leave out the search that found it.
 
@@ -32,7 +32,7 @@ Length is the tell you can measure, and it has two causes. The first is explaini
 
 ## AI tells
 
-A watch-list, and not a complete set.
+A watch-list; more exist than are listed here.
 
 **House voice** — the tells these instructions themselves taught, which is why they come first. Contrast as the sentence's spine (`X rather than Y`, `X, never Y`, `X, not Y`) where the reader did not ask about Y. A sentence that opens on the counterfactual (`Read it alone and …`, `Left whole, …`, `Without this, …`, `Otherwise …`). A past participle with no subject (`Counted across …`, `Guarded with …`). Claim-colon-justification as a habit. `nothing`, `nobody` and `the one` as intensifiers. A positional reference (`the token above`) where a name exists. Metaphor for mechanism (`climbs`, `slips past`, `rubber-stamps`, `hedge`, `settles`, `load-bearing`). Bold inside text that is not markdown. The edit lane measures this group.
 
@@ -62,8 +62,8 @@ Leave out why the code is right, because deciding that is the reviewer's job. Le
 
 ## Review comments
 
-The reviewer's side, for an author deciding what to change. Put each note on the line it concerns. Put in the body the verdict, any mismatch with what was asked, and no point a line could have held.
+The reviewer's side, for an author deciding what to change. Put each note on the line it concerns. Put in the body the verdict and any mismatch with what was asked. A point a line could have held belongs on the line.
 
 Drop a note that fails **Budget**'s keep test, and do not mark it optional instead. Write no coverage accounting — the reviewer writing about the review.
 
-Treat a reply as a review comment. Open it on what changes; the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>` and no other text.
+Treat a reply as a review comment. Open it on what changes; the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>`, and leave the reply at that.

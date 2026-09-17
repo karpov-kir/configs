@@ -18,11 +18,11 @@
 
 A comment is one of two kinds, and each kind has one shape.
 
-A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". Every exported symbol has one. A private symbol has one when its name does not say what it does. A summary may say in words what the signature says in types. It does not say why.
+A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". A symbol has one where its name and signature leave something to say: a return case, a unit, an ordering, a side effect, a precondition. A summary that only restates the identifier in words is deleted, exported or not. A summary may say in words what the signature says in types when that is the thing left to say. It does not say why.
 
 A **note** says something the code cannot say: a fact about the outside world the code relies on, or an edit that looks right and breaks something. It states the fact first, in a sentence with a subject, and the consequence second. It is at most two sentences. A note that needs more is one of three other things: a test whose name states it, a line in the PR body, or a shape the refactor lane changes.
 
-Inside a block the summary comes first, then the note. A block is at most four lines. A file header is at most eight.
+Inside a block the summary comes first, then the note. A block is at most four prose lines. A file header is at most eight. A line carrying only a doc tag — `@param`, `@returns`, `@throws`, `@example` — is the signature written out, and counts as neither.
 
 Use the identifier's name or the domain's own word. Where a specification names a thing and the code names it something else, a comment takes one of those two names and coins no third. A word the reader would need to have been in the room for does not go in a comment.
 
@@ -71,7 +71,7 @@ Where log lines belong and what they say; how you obtain a logger is [architectu
 - A message names the operation, its key identifiers, and the outcome with its cause — "failed to \<operation\> for \<entity\>: \<error\>". Prefer static text plus structured fields (ids, counts, durations) over interpolated prose. Carry enough correlating fields (request id, entity id, attempt) to follow one flow across lines.
 - Choose the level by the action needed: `error`, `warn`, `info`, `debug`. A line the reader would not act on is not `error`.
 - No per-item logging at `info`+ inside loops — one aggregate line with counts, or drop to `debug`.
-- Keep secrets and PII out at the call site, and do not redact them downstream. Pass only what is safe to print.
+- Keep secrets and PII out at the call site instead of redacting them downstream. Pass only what is safe to print.
 
 ## Abstraction
 

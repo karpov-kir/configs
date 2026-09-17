@@ -67,14 +67,30 @@ func TestStatsOfCountsDereferenceAsCode(t *testing.T) {
 	}
 }
 
+// The blocks here sit BELOW a line of code, so they are blocks in the body. A block opening the file
+// is a file header and is allowed twice the length — the case below this one.
 func TestStatsOfLongBlockBoundary(t *testing.T) {
-	four := statsOf("// a\n// b\n// c\n// d\ncode()\n")
+	four := statsOf("code()\n// a\n// b\n// c\n// d\ncode()\n")
 	if four.longBlocks != 0 {
 		t.Fatalf("a 4-line block counted as long")
 	}
-	five := statsOf("// a\n// b\n// c\n// d\n// e\ncode()\n")
+	five := statsOf("code()\n// a\n// b\n// c\n// d\n// e\ncode()\n")
 	if five.longBlocks != 1 {
 		t.Fatalf("a 5-line block did not count as long")
+	}
+}
+
+// A file header is allowed eight lines here, as it is in the voice check and in the rule. Held to a
+// block's four, this package's own headers count as long blocks while the other two instruments allow
+// them, which is one rule giving two verdicts.
+func TestStatsOfAllowsAFileHeaderMoreThanABlockInTheBody(t *testing.T) {
+	header := statsOf("// a\n// b\n// c\n// d\n// e\ncode()\n")
+	if header.longBlocks != 0 {
+		t.Fatalf("a five-line file header counted as long")
+	}
+	tooLong := statsOf("// a\n// b\n// c\n// d\n// e\n// f\n// g\n// h\n// i\ncode()\n")
+	if tooLong.longBlocks != 1 {
+		t.Fatalf("a nine-line file header did not count as long")
 	}
 }
 
@@ -294,7 +310,7 @@ func TestBarReportsTheOverageAndRepeats(t *testing.T) {
 
 func TestBarReportsLongBlocks(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("wall.go", "// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 60))
+	r.write("wall.go", "code()\n// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 60))
 
 	r.runBar()
 	r.expectCode(exitFound)
@@ -461,7 +477,7 @@ func TestBarHoldsBlocksAgainstABaselineWithoutAny(t *testing.T) {
 	r.write("a.go", strings.Repeat("code()\n", 10))
 	r.write("b.go", strings.Repeat("code()\n", 10))
 	r.commit("code only")
-	r.write("wall.go", "// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 5))
+	r.write("wall.go", "code()\n// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 5))
 
 	r.runBar()
 	r.expectCode(exitFound)
@@ -578,7 +594,7 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 		// Same code, every comment line replaced: the change wrote all of its comment mass, and the diff
 		// carries all forty of them.
 		r.write("rewritten.go", heavy(40, 0)+strings.Repeat("code()\n", 8))
-		r.diffs(patchAdding("rewritten.go", addedLines(heavy(40, 0))...))
+		r.diffs(patchAdding("rewritten.go", bodyLines(heavy(40, 0))...))
 		r.runBar()
 		r.expectStdoutHas("rewritten.go: 40 comment line(s), 100% written here")
 	})
@@ -724,4 +740,28 @@ func TestBarNamesAnUnknownTreeRatherThanOmittingIt(t *testing.T) {
 
 	r.runBar()
 	r.expectStdoutHas("build deadbeefcafe, tree unknown")
+}
+
+// The bar and the voice check both enforce "a block is at most four lines", so they have to mean the
+// same thing by it. They did not: the bar counted every comment line, the voice check counted prose
+// lines, and one tool reported a block long and clean at the same time.
+func TestTheBarAndTheVoiceCheckAgreeOnBlockLength(t *testing.T) {
+	// One summary sentence over a five-line doc-tag list: eight comment lines, two prose lines.
+	tagged := "func g() {}\n/**\n * Returns the book's total.\n * @param book the book\n * @param currency the currency\n" +
+		" * @returns the total\n * @throws when two currencies are declared\n */\nfunc f() {}\n"
+	if counted := statsOf(tagged); counted.longBlocks != 0 {
+		t.Errorf("the bar reported a one-sentence summary over a tag list as %d long block(s)", counted.longBlocks)
+	}
+	lines := strings.Split(strings.TrimSuffix(tagged, "\n"), "\n")
+	if found := (scanner{profile: ProfileComment}).scanSource("f.go", lines, nil); hasCheck(found, checkLongBlock) {
+		t.Error("the voice check reported the same block long, so the two disagree")
+	}
+
+	prose := "const a = 1;\n/**\n * One.\n * Two.\n * Three.\n * Four.\n * Five.\n */\nfunc f() {}\n"
+	if counted := statsOf(prose); counted.longBlocks != 1 {
+		t.Errorf("the bar reported %d long block(s) over five prose lines, want 1", counted.longBlocks)
+	}
+	if found := (scanner{profile: ProfileComment}).scanSource("f.go", strings.Split(strings.TrimSuffix(prose, "\n"), "\n"), nil); !hasCheck(found, checkLongBlock) {
+		t.Error("the voice check did not report five prose lines long, so the two disagree")
+	}
 }

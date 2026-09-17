@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/repo/repotest"
 	"kk-flavor/tools/shell"
 )
@@ -428,7 +429,7 @@ func TestAnAllowlistEntryNeedsACheckItRunsAndAReason(t *testing.T) {
 	}{
 		{"no reason", "allow contrast rather than", "no reason"},
 		{"empty reason", "allow contrast rather than # ", "no reason"},
-		{"unknown check", "allow loudness rather than # because", "not one this scan runs"},
+		{"unknown check", "allow loudness rather than # because", "a check this scan does not run"},
 		{"no text", "allow contrast  # because", "no matched text"},
 		{"unknown keyword", "suppress contrast rather than", "neither `coined` nor `allow`"},
 	}
@@ -475,9 +476,9 @@ func TestTheRepositorysOwnConfComesBeforeTheMachines(t *testing.T) {
 	}
 	t.Setenv("XDG_CONFIG_HOME", dir+"/machine")
 	t.Setenv("COMMENT_VOICE_CONF", "")
-	got, ok := voiceConfPath(dir)
-	if !ok || got != repoConf {
-		t.Fatalf("resolved %q (found %v), want the repository's own conf at %q", got, ok, repoConf)
+	got, origin, ok := voiceConfPath(dir)
+	if !ok || got != repoConf || origin != confRepository {
+		t.Fatalf("resolved %q as %q (found %v), want the repository's own conf at %q", got, origin, ok, repoConf)
 	}
 }
 
@@ -488,7 +489,7 @@ func TestAConfThatDoesNotParseRefusesTheRunRatherThanScanningWithHalfOfIt(t *tes
 		t.Fatal(err)
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
-	if _, _, err := voiceConfig(dir); err == nil {
+	if _, _, _, err := voiceConfig(dir); err == nil {
 		t.Fatal("a conf with an entry carrying no reason was accepted")
 	}
 }
@@ -497,7 +498,7 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("COMMENT_VOICE_CONF", "")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "absent"))
-	coined, allowed, err := voiceConfig(dir)
+	coined, allowed, _, err := voiceConfig(dir)
 	if err != nil || len(coined) != 0 || len(allowed) != 0 {
 		t.Fatalf("got %v/%v/%v, want an empty configuration and no error", coined, allowed, err)
 	}
@@ -679,4 +680,437 @@ func refusingGit() *repotest.Fake {
 		fake.Fail[question] = errors.New("the case's port answers nothing")
 	}
 	return fake
+}
+
+// Over a diff the scan holds only the added lines, and the rest of the file is a gap. A gap read as a
+// blank line makes every block look like a file header, because nothing but blanks stands above it —
+// and a header is allowed twice a block's length, so five-to-eight-line blocks pass unreported in the
+// one mode the lane actually runs.
+func TestABlockInADiffDoesNotInheritTheFileHeadersAllowance(t *testing.T) {
+	// A five-prose-line block at lines 40-46 and nothing else added. Every line above it is a gap, so
+	// the array holds blanks there and the header test has only `held` to tell it this is not the top
+	// of a file.
+	lines := make([]string, 46)
+	body := []string{"/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */"}
+	for i, text := range body {
+		lines[39+i] = text
+	}
+	within := map[int]bool{}
+	for at := 40; at <= 46; at++ {
+		within[at] = true
+	}
+	found := voiceScanner().scanSource("f.ts", lines, within)
+	if !hasCheck(found, checkLongBlock) {
+		t.Fatalf("a five-line block deep in a file was not reported long:\n%s", render(found))
+	}
+}
+
+// The same block at the top of a new file is a header and keeps the header's allowance, so the fix
+// above does not simply delete the allowance.
+func TestARealFileHeaderInADiffKeepsItsAllowance(t *testing.T) {
+	lines := []string{"/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const a = 1;"}
+	within := map[int]bool{}
+	for at := 1; at <= len(lines); at++ {
+		within[at] = true
+	}
+	if found := voiceScanner().scanSource("f.ts", lines, within); hasCheck(found, checkLongBlock) {
+		t.Fatalf("a six-line header at the top of a new file was reported long:\n%s", render(found))
+	}
+}
+
+// A `/*` run ends at a gap. Without that, a diff rewording one `/**` whose `*/` it never touched runs
+// that block to the end of the file, swallowing every later comment into it — which reports one long
+// block that does not exist and lets a register check match across the seam between two of them.
+func TestAStarRunDoesNotSwallowTheCommentsBelowAGap(t *testing.T) {
+	lines := make([]string, 20)
+	lines[9] = "/** Reworded opening."
+	for _, at := range []int{13, 15, 17, 19} {
+		lines[at-1] = "// A separate one-line note."
+	}
+	within := map[int]bool{10: true, 13: true, 15: true, 17: true, 19: true}
+	found := voiceScanner().scanSource("f.ts", lines, within)
+	if hasCheck(found, checkLongBlock) {
+		t.Fatalf("four one-line notes below an unclosed opening were read as one long block:\n%s", render(found))
+	}
+	blocks := commentBlocksIn(lines, onlyAdded(within))
+	if len(blocks) != 5 {
+		t.Fatalf("want five blocks, one per added line; got %d: %v", len(blocks), blocks)
+	}
+}
+
+// stripMarker and isComment have to agree about a lone `*`. They disagreed: isComment refuses a `*`
+// with no space after it, stripMarker stripped it anyway, so `**Bold**` opening a starless line inside
+// a `/* */` block became `*Bold**` — the check could not fire and the echo was corrupt.
+func TestABoldSpanOpeningAStarlessLineSurvivesTheMarkerStrip(t *testing.T) {
+	if got := stripMarker("**Bold** and the rest."); got != "**Bold** and the rest." {
+		t.Fatalf("stripMarker returned %q, want the line untouched", got)
+	}
+	if got := stripMarker(" * A continuation."); got != "A continuation." {
+		t.Fatalf("stripMarker returned %q, want the continuation marker taken off", got)
+	}
+	lines := []string{"/*", "**Bold** opens this line.", " */", "const a = 1;"}
+	found := scanner{profile: ProfileComment}.scanSource("f.ts", lines, nil)
+	if !hasCheck(found, checkBold) {
+		t.Fatalf("the bold span was not reported:\n%s", render(found))
+	}
+	for _, f := range found {
+		if f.Check == checkBold && f.Text != "**Bold**" {
+			t.Errorf("the echoed span is corrupt: %q", f.Text)
+		}
+	}
+}
+
+// A coined word opening on a multi-byte rune must not be title-cased by the byte. Sliced, it leaves an
+// orphaned continuation byte in the pattern and regexp refuses it, so the tool dies with a Go stack
+// trace where its own refusal belongs.
+func TestACoinedWordOpeningOnAMultiByteRuneCompiles(t *testing.T) {
+	for _, word := range []string{"échelon", "über", "日本語", "rung"} {
+		pattern := coinedInIdentifier(word)
+		if pattern == nil {
+			t.Errorf("%q produced no pattern", word)
+		}
+	}
+	s := scanner{profile: ProfileComment, coined: []string{"échelon"}}
+	if found := s.scanSource("f.ts", []string{"// Reads the échelon from the entry."}, nil); !hasCheck(found, checkCoined) {
+		t.Error("a coined word opening on a multi-byte rune was not reported")
+	}
+}
+
+// This scan echoes file CONTENT, so it takes the guard dup-literals takes: a file whose NAME marks it
+// as secret-bearing is declined unread, and the decline is announced so the report's denominator is
+// honest. Without it a sentence out of a `.env` reaches the orchestrator's transcript and any body
+// drafted from it.
+func TestASecretNamedFileIsDeclinedUnreadAndSaidSo(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("deploy.env", "# Otherwise the fallback key is used and nobody notices.\nKEY=redacted\n")
+	r.run("--voice")
+	r.expectStdoutLacks("nobody notices")
+	r.expectStdoutLacks("deploy.env:")
+	r.expectStderrHas("secret")
+}
+
+// The same sentence in a file with an ordinary name is reported, so the case above measures the guard
+// and not the check going quiet.
+func TestTheSameSentenceInAnOrdinaryFileIsStillReported(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("deploy.go", "// Otherwise the fallback key is used and nobody notices.\npackage fixture\n")
+	r.run("--voice")
+	r.expectCode(1)
+	r.expectStdoutHas("deploy.go")
+}
+
+// The untracked arm gets its guard from diffscan's Options. The diff arm has its own, and a diff is
+// where a branch somebody else wrote arrives — so it needs its own case or only half the guard is held.
+func TestASecretNamedFileInADiffIsDeclinedUnread(t *testing.T) {
+	diff := "diff --git a/deploy.env b/deploy.env\n--- a/deploy.env\n+++ b/deploy.env\n" +
+		"@@ -0,0 +1 @@\n+# Otherwise the fallback key is used and nobody notices.\n"
+	found, err := voiceScanner().scanDiff([]byte(diff))
+	if err != nil {
+		t.Fatalf("the scan refused the diff: %v", err)
+	}
+	if len(found) != 0 {
+		t.Fatalf("a secret-named file in a diff was read and echoed: %s", render(found))
+	}
+	ordinary := strings.ReplaceAll(diff, "deploy.env", "deploy.go")
+	found, err = voiceScanner().scanDiff([]byte(ordinary))
+	if err != nil || len(found) == 0 {
+		t.Fatalf("the same sentence in an ordinary file was not reported (%v): %s", err, render(found))
+	}
+}
+
+// A hunk header's line number is caller-controlled on the `-` arm, and scanChange sizes a slice by it.
+// Unbounded, one added line at `@@ +10000000` measured 166 MB resident.
+func TestAnAbsurdLineNumberInAHunkHeaderIsDropped(t *testing.T) {
+	diff := "diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n" +
+		"@@ -1,0 +2147483000,1 @@\n+// Otherwise the caller pays for it.\n"
+	s := voiceScanner()
+	found, err := s.scanDiff([]byte(diff))
+	if err != nil {
+		t.Fatalf("the scan refused the diff: %v", err)
+	}
+	if len(found) != 0 {
+		t.Fatalf("a line past the cap was scanned: %s", render(found))
+	}
+	within := "diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n" +
+		"@@ -1,0 +2,1 @@\n+// Otherwise the caller pays for it.\n"
+	found, err = s.scanDiff([]byte(within))
+	if err != nil || len(found) == 0 {
+		t.Fatalf("a line inside the cap was not scanned (%v): %s", err, render(found))
+	}
+}
+
+// A conf that took effect says so. Silent, a conf a repository ships can allow every check and the run
+// still reports `0 finding(s)` and "clean, which says the register was read".
+func TestARunThatReadAConfNamesIt(t *testing.T) {
+	dir := t.TempDir()
+	conf := filepath.Join(dir, voiceConfName)
+	if err := os.WriteFile(conf, []byte("coined climb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("COMMENT_VOICE_CONF", conf)
+	var out, errs strings.Builder
+	// The port answers nothing: this case names a path directly, so no repository is read, and a port
+	// that answered would mean the run took a route this is not about.
+	Run("comment-density.sh", []string{"--voice", "--profile=prose", conf}, dir,
+		refusingGit(), Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
+	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
+		t.Fatalf("the run did not name the conf it read: %q", errs.String())
+	}
+}
+
+// The conf path is one a repository can ship, so it is one a repository can ship as a symlink. A
+// non-regular file is declined, and the refusal names the file rather than what it found inside it.
+func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
+	dir := t.TempDir()
+	secret := filepath.Join(dir, "elsewhere")
+	if err := os.WriteFile(secret, []byte("NPM_TOKEN=abcdef\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, voiceConfName)
+	if err := os.Symlink(secret, conf); err != nil {
+		t.Skipf("this filesystem does not take symlinks: %v", err)
+	}
+	t.Setenv("COMMENT_VOICE_CONF", conf)
+	_, _, _, err := voiceConfig(dir)
+	if err == nil {
+		t.Fatal("a symlinked conf was read")
+	}
+	if !strings.Contains(err.Error(), "not a regular file") {
+		t.Fatalf("got %v, want the refusal that declines a non-regular file — a parse error here means it was read", err)
+	}
+	if strings.Contains(err.Error(), "NPM_TOKEN") || strings.Contains(err.Error(), "abcdef") {
+		t.Fatalf("the refusal echoed the file it was aimed at: %v", err)
+	}
+}
+
+// A conf that does not parse is refused by line, and the refusal carries no text off the line. A
+// symlinked or mistaken conf otherwise prints its first token into the transcript.
+func TestAParseRefusalNamesTheLineAndNotItsContents(t *testing.T) {
+	_, _, err := parseVoiceConf("NPM_TOKEN=abcdef\n")
+	if err == nil {
+		t.Fatal("a line that is neither directive was accepted")
+	}
+	if strings.Contains(err.Error(), "NPM_TOKEN") || strings.Contains(err.Error(), "abcdef") {
+		t.Fatalf("the refusal echoed the line: %v", err)
+	}
+	if !strings.Contains(err.Error(), "line 1") {
+		t.Fatalf("the refusal does not name the line: %v", err)
+	}
+}
+
+// A coined word is a codebase's invented vocabulary. A rule file is prose about writing and uses the
+// ordinary English word a codebase may have coined, so the instruction profile does not run the check
+// — otherwise a machine-level conf naming one project's terms reports every repository's rule files
+// for using English, and the baseline stops being reproducible from one machine to another.
+func TestTheInstructionProfileDoesNotRunTheCoinedCheck(t *testing.T) {
+	line := "Cut the hedge frames and the drift in tense."
+	s := scanner{coined: []string{"hedge", "drift"}}
+
+	s.profile = ProfileInstruction
+	if found := s.scanProse("x.md", []string{line}); hasCheck(found, checkCoined) {
+		t.Errorf("a rule file was reported for using English:\n%s", render(found))
+	}
+	s.profile = ProfileProse
+	if found := s.scanProse("b.md", []string{line}); !hasCheck(found, checkCoined) {
+		t.Error("the prose profile did not run the coined check, and a body about the work should")
+	}
+	s.profile = ProfileComment
+	if found := s.scanSource("f.ts", []string{"// " + line}, nil); !hasCheck(found, checkCoined) {
+		t.Error("the comment profile did not run the coined check, which is its whole subject")
+	}
+}
+
+// In a comment the check reads past the backtick blanking, because a coined word inside backticks is
+// an identifier built on the term. In a body it does not: there the backticks quote a literal.
+func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
+	s := scanner{coined: []string{"sprocket"}}
+	s.profile = ProfileComment
+	if found := s.scanSource("f.ts", []string{"// Reads `readSprocket` from the entry."}, nil); !hasCheck(found, checkCoined) {
+		t.Error("a comment did not report a coined word inside an identifier")
+	}
+	s.profile = ProfileProse
+	if found := s.scanProse("b.md", []string{"The rename is `readSprocket`, landing next."}); hasCheck(found, checkCoined) {
+		t.Error("a body reported a coined word inside a quoted identifier")
+	}
+}
+
+// A bound that truncates is worse than no bound: the scan reports clean over the half it never saw,
+// and git orders a diff by path, so padding an early file pushes a hostile one past the cut. The
+// documented entry point pipes `gh pr diff` in, where a diff over any per-file cap is ordinary.
+func TestAStreamOverTheCapIsRefusedRatherThanTruncated(t *testing.T) {
+	under := strings.Repeat("x", 16)
+	if _, err := readAllCapped(strings.NewReader(under), 32); err != nil {
+		t.Fatalf("a stream inside the cap was refused: %v", err)
+	}
+	at := strings.Repeat("x", 32)
+	if _, err := readAllCapped(strings.NewReader(at), 32); err != nil {
+		t.Fatalf("a stream exactly at the cap was refused: %v", err)
+	}
+	over := strings.Repeat("x", 33)
+	body, err := readAllCapped(strings.NewReader(over), 32)
+	if err == nil {
+		t.Fatalf("a stream over the cap was truncated to %d bytes and read as complete", len(body))
+	}
+	if !strings.Contains(err.Error(), "report clean over the rest") {
+		t.Fatalf("the refusal does not say what truncation would have cost: %v", err)
+	}
+}
+
+// A hunk header's line number is walked by a counter that can overflow, so it arrives negative. A
+// negative number passes a ceiling test and then indexes a zero-length slice.
+func TestALineNumberBelowOneIsRefusedLikeOneAboveTheCap(t *testing.T) {
+	for _, at := range []int{-1, 0, maxDiffLine + 1} {
+		added := newAddedLines()
+		var said []string
+		s := voiceScanner()
+		s.notice = func(line string) { said = append(said, line) }
+		var result diffscan.Result
+		if !s.skip(added, diffscan.AddedLine{File: "f.go", Line: at, Text: "// Otherwise."}, &result) {
+			t.Errorf("line %d was taken", at)
+		}
+		if at != 0 && len(said) == 0 {
+			t.Errorf("line %d was dropped with nothing said, so the run closes on `clean` over what it discarded", at)
+		}
+	}
+	added := newAddedLines()
+	s := voiceScanner()
+	var result diffscan.Result
+	if s.skip(added, diffscan.AddedLine{File: "f.go", Line: 1, Text: "// Otherwise."}, &result) {
+		t.Error("line 1 was refused, so the floor cuts real lines")
+	}
+}
+
+// A file the scan declines says so once, however many of its lines the diff carried. A notice per line
+// buries the report it belongs to.
+func TestADeclinedFileIsAnnouncedOnceNotPerLine(t *testing.T) {
+	added := newAddedLines()
+	said := 0
+	s := voiceScanner()
+	s.notice = func(string) { said++ }
+	var result diffscan.Result
+	for at := 1; at <= 5; at++ {
+		s.skip(added, diffscan.AddedLine{File: "deploy.env", Line: at, Text: "// Otherwise."}, &result)
+	}
+	if said != 1 {
+		t.Fatalf("a five-line decline said %d thing(s); want one", said)
+	}
+}
+
+// A coined word twice over, parted by one byte, is two findings. Matched rather than asserted
+// boundaries consume the separator, so a scan resuming past the match swallows the second.
+func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
+	s := scanner{profile: ProfileComment, coined: []string{"rung"}}
+	for _, line := range []string{"// rung rung", "// The rung. Rung again."} {
+		found := s.scanSource("f.ts", []string{line}, nil)
+		coined := 0
+		for _, f := range found {
+			if f.Check == checkCoined {
+				coined++
+			}
+		}
+		if coined != 2 {
+			t.Errorf("%q reported %d coined finding(s); want 2", line, coined)
+		}
+	}
+}
+
+// The contrast spine with the comma dropped and a conjunction in its place.
+func TestTheContrastSpineIsCaughtWithAConjunction(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	for _, line := range []string{
+		"// It is logged and not believed.",
+		"// The string is thrown and not the object.",
+		"// It is a survey and no verdict.",
+	} {
+		if !hasCheck(s.scanSource("f.ts", []string{line}, nil), checkContrast) {
+			t.Errorf("%q produced no contrast finding", line)
+		}
+	}
+	plain := "// The string is thrown and the object is kept."
+	if hasCheck(s.scanSource("f.ts", []string{plain}, nil), checkContrast) {
+		t.Errorf("%q produced a contrast finding, and it names two real things", plain)
+	}
+}
+
+// A conf line that is not valid UTF-8 reaches a regular expression, and regexp refuses invalid UTF-8.
+// Through MustCompile that is a panic printing the conf's own bytes and a stack trace of host paths —
+// which undoes the refusal-without-echoing the rest of the conf handling was written for.
+func TestAConfLineThatIsNotUTF8IsRefusedWithoutEchoingIt(t *testing.T) {
+	_, _, err := parseVoiceConf("coined API\xffKEY\n")
+	if err == nil {
+		t.Fatal("a conf line holding invalid UTF-8 was accepted")
+	}
+	if strings.Contains(err.Error(), "API") || strings.Contains(err.Error(), "KEY") {
+		t.Fatalf("the refusal echoed the line: %v", err)
+	}
+	if !strings.Contains(err.Error(), "line 1") {
+		t.Fatalf("the refusal does not name the line: %v", err)
+	}
+}
+
+// A conf present but unusable refuses rather than falling back. A dangling symlink at either searched
+// path would otherwise leave the scan running with no coined words and no allowlist, reporting clean —
+// and a default quietly restored cannot be told from the override working.
+func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".kk-flavor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, ".kk-flavor", voiceConfName)
+	if err := os.Symlink(filepath.Join(dir, "absent"), conf); err != nil {
+		t.Skipf("this filesystem does not take symlinks: %v", err)
+	}
+	t.Setenv("COMMENT_VOICE_CONF", "")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "machine"))
+	if _, _, _, err := voiceConfig(dir); err == nil {
+		t.Fatal("a dangling conf symlink was treated as no conf at all")
+	}
+}
+
+// A finding the allowlist answers is still a finding the text carried. Uncounted, a conf a repository
+// ships silences every check and the run still reports `0 finding(s)` and `clean`.
+func TestASuppressedFindingIsCounted(t *testing.T) {
+	_, allowed, err := parseVoiceConf("allow contrast rather than # the fixture's own phrase, quoted\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suppressed := 0
+	s := scanner{profile: ProfileComment, allowed: allowed, suppressed: &suppressed}
+	if found := s.scanSource("f.ts", []string{"// Read the book rather than the entry."}, nil); len(found) != 0 {
+		t.Fatalf("want the finding suppressed; got %s", render(found))
+	}
+	if suppressed != 1 {
+		t.Fatalf("suppressed %d finding(s); want 1", suppressed)
+	}
+}
+
+// Two prohibitions in one sentence are not the contrast spine. "Use no nesting and no preamble"
+// forbids two things; "It is logged and not believed" defines one thing against another the reader
+// did not ask about. Told apart by whether what stands before the conjunction is already a negation.
+func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	spine := []string{
+		"// It is logged and not believed.",
+		"// The string is thrown and not the object.",
+		"// It is a survey and no verdict.",
+	}
+	both := []string{
+		"// Use no nesting and no preamble above the items.",
+		"// Write no speculative abstraction and no flexibility the task did not ask for.",
+		"// Use no headings, and no bold lead-in restating its own line.",
+	}
+	for _, line := range spine {
+		if !hasCheck(s.scanSource("f.ts", []string{line}, nil), checkContrast) {
+			t.Errorf("%q is the spine and produced no finding", line)
+		}
+	}
+	for _, line := range both {
+		if hasCheck(s.scanSource("f.ts", []string{line}, nil), checkContrast) {
+			t.Errorf("%q forbids two things and was read as the spine", line)
+		}
+	}
 }

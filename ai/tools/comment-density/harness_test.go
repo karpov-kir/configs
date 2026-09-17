@@ -138,7 +138,7 @@ func (r *repo) diffs(patches ...string) {
 
 // patchOf is the diff of a file every line of which the change added — one it created, or rewrote whole.
 func patchOf(file, body string) string {
-	return patchAdding(file, addedLines(body)...)
+	return patchAdding(file, bodyLines(body)...)
 }
 
 func patchAdding(file string, added ...string) string {
@@ -156,7 +156,7 @@ func patchHeaded(file, header string, added ...string) string {
 	return b.String()
 }
 
-func addedLines(body string) []string {
+func bodyLines(body string) []string {
 	return strings.Split(strings.TrimSuffix(body, "\n"), "\n")
 }
 

@@ -9,34 +9,34 @@
 #
 # Measured by the check in the same change that added it.
 #
-44 ai/kk-flavor/standards/ecosystem.md
-40 ai/kk-flavor/standards/model-policy.md
+45 ai/kk-flavor/standards/ecosystem.md
+43 ai/kk-flavor/standards/model-policy.md
 37 ai/kk-flavor/standards/skill-protocol.md
 31 ai/kk-flavor/skills/idsd-reactor/SKILL.md
 29 ai/kk-flavor/skills/kk-foreman/SKILL.md
 24 ai/kk-flavor/standards/records.md
 24 ai/kk-flavor/standards/testing.md
+23 ai/kk-flavor/skills/kk-patrol/SKILL.md
 22 ai/kk-flavor/skills/kk-pr/SKILL.md
-21 ai/kk-flavor/skills/kk-patrol/SKILL.md
 20 ai/kk-flavor/standards/quality-pipeline.md
-18 ai/kk-flavor/skills/idsd-build/SKILL.md
-17 ai/kk-flavor/skills/kk-reduce/SKILL.md
+19 ai/kk-flavor/skills/idsd-build/SKILL.md
+18 ai/kk-flavor/skills/kk-reduce/SKILL.md
+17 ai/kk-flavor/skills/idsd-ship/SKILL.md
 17 ai/kk-flavor/workers/skillcraft.md
-16 ai/kk-flavor/skills/idsd-ship/SKILL.md
+16 ai/kk-flavor/skills/idsd-qualify/SKILL.md
 16 ai/kk-flavor/skills/kk-pr/review.md
 16 ai/kk-flavor/workers/drive.md
-15 ai/kk-flavor/skills/idsd-qualify/SKILL.md
 15 ai/kk-flavor/standards/architecture/core.md
 15 ai/kk-flavor/standards/streaming.md
 15 ai/kk-flavor/workers/patrol/fixer.md
 14 ai/kk-flavor/standards/project.md
+13 ai/kk-flavor/skills/kk-handoff/handoff-prompt.md
 13 ai/kk-flavor/skills/kk-retro/SKILL.md
 13 ai/kk-flavor/workers/idsd/audit.md
-12 ai/kk-flavor/skills/kk-handoff/handoff-prompt.md
-11 ai/kk-flavor/skills/idsd-intent/SKILL.md
+12 ai/kk-flavor/skills/idsd-intent/SKILL.md
+12 ai/kk-flavor/skills/kk-qualify/SKILL.md
+12 ai/kk-flavor/workers/build/explore.md
 11 ai/kk-flavor/skills/kk-handoff/SKILL.md
-11 ai/kk-flavor/skills/kk-qualify/SKILL.md
-11 ai/kk-flavor/workers/build/explore.md
 10 ai/kk-flavor/skills/idsd-finalize/SKILL.md
 10 ai/kk-flavor/workers/patrol/scout.md
 9 ai/kk-flavor/skills/kk-diagnose/SKILL.md
@@ -46,9 +46,9 @@
 8 ai/kk-flavor/workers/grill/facts.md
 8 ai/kk-flavor/workers/reduce/arbitrate.md
 7 ai/kk-flavor/skills/kk-build/SKILL.md
+7 ai/kk-flavor/skills/kk-ecosystem/SKILL.md
 7 ai/kk-flavor/standards/building.md
 7 ai/kk-flavor/templates/spawn-prompt.md
-6 ai/kk-flavor/skills/kk-ecosystem/SKILL.md
 6 ai/kk-flavor/skills/kk-reduce/AGENT-BRIEF.md
 6 ai/kk-flavor/skills/kk-reduce/stats.md
 6 ai/kk-flavor/standards/git.md
