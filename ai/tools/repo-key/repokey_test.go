@@ -275,7 +275,7 @@ func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
 // titled from the drifted one stop grouping with their siblings.
 func TestTheAbbreviationIsTheKeysReadableHalfAbbreviated(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "invest-tasks")
+	dir := newBareRepo(t, "issue-tracker")
 	abbrev, err := abbrevFromSharedGitDir(filepath.Join(dir, ".git"))
 	if err != nil {
 		t.Fatalf("abbreviating %s: %v", dir, err)
@@ -296,7 +296,7 @@ func TestTheAbbreviationTable(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ name, want string }{
 		{"player-testing-codec-compatibility", "PTCC"},
-		{"invest-tasks", "IT"},
+		{"issue-tracker", "IT"},
 		{"github-action-deploy-k8s", "GADK8s"},
 		{"bitmovin-k8s", "BK8s"},
 		{"configs", "C"},
@@ -330,7 +330,7 @@ func TestTheAbbreviationTable(t *testing.T) {
 // inconsistency the tool exists to remove.
 func TestEveryWorktreeOfOneCloneAbbreviatesTheSame(t *testing.T) {
 	t.Parallel()
-	main := newBareRepo(t, "invest-tasks")
+	main := newBareRepo(t, "issue-tracker")
 	worktree := filepath.Join(filepath.Dir(main), "wt-one")
 
 	for _, where := range []string{main, worktree} {

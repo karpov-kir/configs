@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"kk-flavor/tools/shell"
 )
 
 // Every placeholder the template may carry. The set is closed in both directions: a template missing
@@ -235,7 +237,7 @@ func skillNamesIn(template string) []string {
 }
 
 func isNameByte(b byte) bool {
-	return b == '-' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+	return b == '-' || shell.IsAlnumByte(b)
 }
 
 // One card per worker, under a heading per family, matching the skills inventory's shape so the two

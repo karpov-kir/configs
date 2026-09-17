@@ -125,7 +125,7 @@ func TestADryRunOverTheOwnerMigrationLeavesTheFileAlone(t *testing.T) {
 // whose whole content is the owner's.
 func TestTheOwnerMemoryStoreIsCreatedOnceAndThenLeftAlone(t *testing.T) {
 	f := newFixture(t)
-	memory := f.home + "/Document/AI/MEMORY.md"
+	memory := f.home + "/Documents/AI/MEMORY.md"
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
 	f.expectFileBody(memory, "# Memory\n")
@@ -141,7 +141,7 @@ func TestAnOrdinaryInstallCreatesNoOwnerMemory(t *testing.T) {
 
 	f.expectCode(f.install("--agent=claude"), 0)
 
-	f.expectAbsent(f.home + "/Document")
+	f.expectAbsent(f.home + "/Documents")
 }
 
 // Both clients get the same file, so an owner running one after the other is not reading two different
@@ -168,7 +168,7 @@ func TestTheOwnerUninstallRemovesItsOwnCopyAndRefusesAnEditedOne(t *testing.T) {
 	f.expectAbsent(f.home + "/.claude/CLAUDE.md.kk-flavor-installed")
 	// The memory store stays: it is the owner's own writing, and nothing here records whether they
 	// still want it.
-	f.expectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n")
+	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n")
 }
 
 func TestTheOwnerUninstallPreservesAModifiedFile(t *testing.T) {
@@ -240,4 +240,59 @@ func backupsOf(t *testing.T, directory, prefix string) []string {
 		}
 	}
 	return found
+}
+
+// The spelling was `Document` for months, and correcting the destination alone would leave every
+// entry already written at a path no session reads. Silent, too: the run would report a memory file
+// created, and the file it created would be empty.
+func TestOwnerMemoryWrittenAtTheOldPathIsMoved(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
+
+	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+
+	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
+	f.expectAbsent(f.home + "/Document/AI/MEMORY.md")
+	// The directories it left behind go too, but only because nothing else is in them.
+	f.expectAbsent(f.home + "/Document")
+	f.expectSaid("moved")
+}
+
+// A directory the human put something else in is theirs, whatever this run emptied beside it.
+func TestTheOldMemoryDirectoryIsKeptWhenItHoldsAnythingElse(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n")
+	f.write(f.home+"/Document/AI/notes.md", "mine\n")
+
+	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+
+	f.expectFileBody(f.home+"/Document/AI/notes.md", "mine\n")
+}
+
+// Two stores and no way to tell which holds what. Merging them is the human's call: this cannot read
+// either, and cannot know which entry is the newer one.
+func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
+	f.write(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
+
+	f.expectCode(f.install("--agent=claude", "--owner"), 1)
+
+	f.expectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
+	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
+	f.expectSaid("exists at both")
+}
+
+// A dry run moves nothing and says so once. Saying it would move the file AND that it would create one
+// at the destination is two lines that cannot both hold, about the one file this exists to protect.
+func TestADryRunSaysItWouldMoveAndCreatesNothing(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
+
+	f.install("--agent=claude", "--owner", "--dry-run")
+
+	f.expectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
+	f.expectAbsent(f.home + "/Documents/AI/MEMORY.md")
+	f.expectSaid("would move")
+	f.expectNotSaid("would create " + f.home + "/Documents/AI/MEMORY.md")
 }

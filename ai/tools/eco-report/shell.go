@@ -41,8 +41,7 @@ func firstField(value string) string {
 // The slug charset, `[0-9A-Za-z._-]`. It is what stops a slug `../`-escaping a path it indexes, so
 // it is a whitelist and stays one: `/` outside the set is the whole point.
 func isSlugByte(b byte) bool {
-	return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' ||
-		b == '.' || b == '_' || b == '-'
+	return shell.IsAlnumByte(b) || b == '.' || b == '_' || b == '-'
 }
 
 func isSlugCharset(value string) bool {

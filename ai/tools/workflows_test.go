@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/shell"
 )
 
 const repoRoot = "../.."
@@ -386,7 +388,7 @@ func unwrapShell(field string) string {
 func isPlainPath(path string) bool {
 	for _, b := range []byte(path) {
 		switch {
-		case b >= 'a' && b <= 'z', b >= 'A' && b <= 'Z', b >= '0' && b <= '9':
+		case shell.IsAlnumByte(b):
 		case b == '.', b == '_', b == '-', b == '/':
 		default:
 			return false

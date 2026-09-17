@@ -68,11 +68,12 @@ func (h hostRepo) hasCommit() bool {
 }
 
 // Sorted, because a change set is two listings appended and a report over it must not depend on which
-// order they arrived in.
+// order they arrived in. A discovery path must not read another repository's source copied in as a
+// fixture, which is what notThisRepositorysSource holds out.
 func sourcesOf(paths []string) []string {
 	kept := make([]string, 0, len(paths))
 	for _, name := range paths {
-		if !isProseOrData(name) {
+		if !notThisRepositorysSource(name) {
 			kept = append(kept, name)
 		}
 	}

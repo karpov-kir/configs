@@ -9,11 +9,14 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The owner tier's memory store. The path carries the spelling ai/bootstrap.sh has always written —
-// `Document`, not `Documents` — because changing it here would leave every machine already set up
-// reading one file while this run creates another, and the owner's own instructions name the file they
-// actually use.
-const ownerMemoryFile = "/Document/AI/MEMORY.md"
+// The owner tier's memory store, and where an owner install before this one put it. The spelling was
+// `Document` for months, which is not a directory anything else on a Mac uses, and the owner's own
+// instructions name `Documents`. Correcting the destination alone would leave every entry already
+// written sitting at a path no session reads, so the migration below moves them.
+const (
+	ownerMemoryFile = "/Documents/AI/MEMORY.md"
+	legacyMemoryOne = "/Document/AI/MEMORY.md"
+)
 
 // A Codex profile can shadow AGENTS.md with a file of its own, and a run that wrote the instructions
 // anyway would leave the tree installed and nothing loading it. Asked before anything is written; an
@@ -39,7 +42,7 @@ func isNonEmptyFile(path string) bool {
 func (run *invocation) writeInstructions() bool {
 	run.mounting.Say("instructions")
 	if run.isOwner {
-		return run.writeOwnerInstructions() && run.ensureOwnerMemory()
+		return run.writeOwnerInstructions() && run.moveLegacyOwnerMemory() && run.ensureOwnerMemory()
 	}
 	// Asked again here as well as at the top of the run. The check above stops a run before it writes
 	// anything; this one is the guard on the write itself, so a path that reached here some other way
@@ -233,6 +236,55 @@ func withoutBlankLines(text string) string {
 
 // The owner's memory store, created empty when it is not there and never written over: it is the one
 // file in this install whose whole content is the owner's.
+// The owner's entries, moved off the path an earlier install wrote them to. Drop this and they stay
+// somewhere no session reads, which is silent: the run reports a memory file created and the file it
+// created is empty.
+//
+// Returns true when there is nothing to move, which is every run after the first.
+func (run *invocation) moveLegacyOwnerMemory() bool {
+	legacy, memory := run.Home+legacyMemoryOne, run.Home+ownerMemoryFile
+	if !shell.PathExists(legacy) {
+		return true
+	}
+	// Two stores and no way to tell which holds what. Merging them is the human's call — this one
+	// cannot read either and cannot know which entry is newer.
+	if shell.PathExists(memory) {
+		run.mounting.Refuse("owner memory exists at both " + legacy + " and " + memory +
+			" — merge them into " + memory + " and remove " + legacy)
+		return false
+	}
+	if run.isDryRun {
+		run.mounting.Say("  would move " + legacy + " to " + memory)
+		// Nothing moved, so ensureOwnerMemory below would still find the destination absent and say it
+		// would create one — two lines that cannot both hold, about the file this exists to protect.
+		return false
+	}
+	if err := os.MkdirAll(shell.DirName(memory), 0o755); err != nil {
+		run.mounting.Refuse("could not create " + shell.DirName(memory) + ", so owner memory was left at " + legacy)
+		return false
+	}
+	// A hard link and then a remove, rather than a rename: `os.Rename` REPLACES a destination that
+	// appeared since the check above, and the check is not atomic with the move — a session following
+	// the very rule this installer writes can create it in between. `os.Link` refuses an existing
+	// destination, so the only copy there is cannot be replaced by this line.
+	if err := os.Link(legacy, memory); err != nil {
+		run.mounting.Refuse("could not move owner memory from " + legacy + " to " + memory +
+			" — both were left as they are")
+		return false
+	}
+	if err := os.Remove(legacy); err != nil {
+		run.mounting.Refuse("owner memory was copied to " + memory + " and " + legacy +
+			" could not be removed — merge them by hand, since a later run will refuse both")
+		return false
+	}
+	// Only if they are now empty; a directory holding anything else is the human's. Best-effort, since
+	// a leftover empty directory decides nothing.
+	os.Remove(shell.DirName(legacy))
+	os.Remove(shell.DirName(shell.DirName(legacy)))
+	run.mounting.Say("  moved    " + legacy + " to " + memory)
+	return true
+}
+
 func (run *invocation) ensureOwnerMemory() bool {
 	memory := run.Home + ownerMemoryFile
 	if !shell.PathExists(memory) {

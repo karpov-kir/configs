@@ -345,9 +345,9 @@ func TestStructure(t *testing.T) {
 			// The drift the prefix exists to remove: two sessions in one repository wrote two different
 			// names there, and nothing held either against what the tool the template names would print.
 			name:     "an opening bracket naming a repository this is not",
-			mutate:   func(d *draft) { d.title = "[invest-tasks] Cut the mutation run down" },
+			mutate:   func(d *draft) { d.title = "[issue-tracker] Cut the mutation run down" },
 			want:     1,
-			contains: []string{"the title opens with [invest-tasks]", "abbreviates to " + fixtureAbbrev},
+			contains: []string{"the title opens with [issue-tracker]", "abbreviates to " + fixtureAbbrev},
 			absent:   []string{"still the template placeholder"},
 		},
 		{
@@ -405,9 +405,9 @@ func TestStructure(t *testing.T) {
 			// The space after the bracket is the work half's to lose, so a name written tight against
 			// it is still the name standing in the slot and is still weighed.
 			name:     "an opening bracketed word with no space after it",
-			mutate:   func(d *draft) { d.title = "[invest-tasks]Cut the mutation run down" },
+			mutate:   func(d *draft) { d.title = "[issue-tracker]Cut the mutation run down" },
 			want:     1,
-			contains: []string{"the title opens with [invest-tasks]"},
+			contains: []string{"the title opens with [issue-tracker]"},
 		},
 		{
 			name:     "two title lines",
@@ -721,10 +721,10 @@ func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
 			// The path through the title finding, which needs the draft to have named the repository.
 			name: "a draft naming the repository but opening with the wrong bracketed word",
 			mutate: func(d *draft) {
-				d.title = "[invest-tasks] Cut the mutation run down"
+				d.title = "[issue-tracker] Cut the mutation run down"
 				d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
 			},
-			contains: []string{"the title opens with [invest-tasks]", "does not travel"},
+			contains: []string{"the title opens with [issue-tracker]", "does not travel"},
 		},
 		{
 			// The draft's own bytes, on the two findings that quote a heading back.
@@ -778,7 +778,7 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 		t.Skipf("could not build a repository at %q, so this proves nothing: %v", deep, err)
 	}
 	d = cleanDraft()
-	d.title = "[invest-tasks] Cut the mutation run down"
+	d.title = "[issue-tracker] Cut the mutation run down"
 	d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
 	got, code = gateOver(t, d.text(), repo, git)
 	expect(t, "a repository path longer than its bound", got, code, 1,
@@ -818,7 +818,7 @@ func TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation(t *testing.T) {
 		t.Fatalf("building a shared git dir with no HEAD: %v — nothing was tested", err)
 	}
 	d := cleanDraft()
-	d.title = "[invest-tasks] Cut the mutation run down"
+	d.title = "[issue-tracker] Cut the mutation run down"
 	d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
 	got, code := gateOver(t, d.text(), dir, git)
 	expect(t, "a prefix over a repository with no abbreviation", got, code, 0,
