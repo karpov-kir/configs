@@ -1,6 +1,6 @@
 // The judge as a command.
 //
-//	usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]
+//	usage: bloat-judge.sh [--config <policy.json>] [--numbers | --strip=<dir>] [--changed[=<revisions>]] <kind> [<path>]
 package main
 
 import (
@@ -35,6 +35,10 @@ func main() {
 	// machine that can reach no model at all. Resolving first made `bloat-judge.sh` with no arguments
 	// refuse with "no provider" wherever no CLI is installed — green here, red in CI, and the reader
 	// sent to install something rather than to fix the command they typed.
+	// The strip calls no model, so it needs no policy and no provider, and its grammar is its own.
+	if bloatjudge.StripRequested(args) {
+		os.Exit(bloatjudge.Strip(self, args, ".", os.Stdout, os.Stderr))
+	}
 	if bloatjudge.RefuseIfNotTheGrammar(self, args, os.Stderr) {
 		os.Exit(2)
 	}

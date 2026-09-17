@@ -84,7 +84,7 @@ func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, 
 
 // The grammar, in one place, because two copies of it drift and `ai/tools/stub_usage_test.go` holds
 // this one against the stub's header byte for byte.
-const usageLine = "usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]"
+const usageLine = "usage: bloat-judge.sh [--config <policy.json>] [--numbers | --strip=<dir>] [--changed[=<revisions>]] <kind> [<path>]"
 
 // What the option grammar says about these arguments, resolving nothing and reaching no provider.
 // Returns the refusal to print, or "" when the arguments are the grammar.

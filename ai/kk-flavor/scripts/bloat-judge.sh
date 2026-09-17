@@ -2,7 +2,7 @@
 # The judge: what a named reader would delete from an outward text, decided by a model that sees only
 # what that reader sees.
 #
-#   usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
+#   usage: bloat-judge.sh [--config <policy.json>] [--numbers | --strip=<dir>] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
 #
 # Set JUDGE_PROVIDER=codex or JUDGE_PROVIDER=claude explicitly. Missing, unknown or unavailable
 # providers fail with exit 2; no auto-selection or fallback. models.json selects the judge model.
@@ -18,6 +18,12 @@
 # with a `roll-timeout <seconds>` line; `ai/tools/bloat-judge/deadline.go` holds the figure it replaces.
 #
 # What the model may do, and why it is safe, is the package doc in `ai/tools/bloat-judge/judge.go`.
+#
+# `--strip=<dir>` calls no model. It removes the comment blocks of a source file in place, with
+# `--changed` only the blocks the diff touched, writes each to `<dir>/<n>.facts` headed by the site it
+# sat on, and prints those sites. The comment writer reads the stripped file and opens a facts file
+# only when it asks whether a note is owed; `ai/tools/bloat-judge/strip.go` says why. A comment the
+# toolchain reads (`eslint-disable`, `@ts-expect-error`, `go:generate`) is kept and named on stderr.
 #
 # tested by: the Go suite beside the tool, `ai/tools/bloat-judge/`; the shared stub region below by
 # tool-stub-test.sh, and the resolver it calls by resolve-test.sh.

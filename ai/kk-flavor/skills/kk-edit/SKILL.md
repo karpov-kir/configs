@@ -24,9 +24,23 @@ Read `~/.kk-flavor/standards/writing.md` for clarity and density. For outward co
 
 Cut repetition and recoverable filler. Use concrete words and readable sentences. Keep deliberate repetition where a reader needs a constraint at its point of use. Preserve required facts, numbers, names, negation, exceptions, tense, conditionality, commitments, severity and unresolved questions. Keep the source's wording for unresolved status if paraphrasing would attribute knowledge, intent, a response or a decision to someone. A future commitment is not a present fact. If a cut may change meaning, keep it or return a proposal.
 
-For code comments, run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --voice` first, with the caller's revisions or none for uncommitted changes. **Every finding it prints is an edit you make**, and never a count to drive down: rewrite the block so the check has nothing to report. The shapes it names are the **House voice** group of `~/.kk-flavor/standards/human-writing.md` → **AI tells**, and the form it holds you to is `~/.kk-flavor/standards/code-style.md` → **Comments**. A finding that must stand goes in the repository's `comment-voice.conf` with its reason, which is the caller's call and not yours.
+For code comments, write every block again from the code. A block refined in place is judged against the block it replaces, and three rounds of that produced comments no reader could follow. The lane runs four steps over each changed source file, in this order, and a block ships only as `keep` or not at all.
 
-Then run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --bar` over the same revisions. **Its overage is the cut the change set owes**, not a targeting aid; the bar is `~/.kk-flavor/standards/code-style.md` → **Comments**. **The cut is yours to make, weakest-first against the bar.** The judge only opens it — `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/bloat-judge.sh --changed=<the same revisions> comment <file>` over each file it named, `--numbers` for the line each cut starts on where your caller bars writing. **`--changed` is required**: the unscoped form hangs rather than answering. It deletes only what a majority of rolls calls worthless, so what it returns is a floor and routinely nothing — **its silence is never a clean change set, and exit 2 is a judge that did not run rather than one that found nothing.** Return to the caller only what you kept above the bar and why. Comment truth belongs to correctness review and placement to refactor.
+1. **Strip.** Run `~/.kk-flavor/scripts/bloat-judge.sh --strip=<dir> --changed=<the caller's revisions> comment <file>`, with `<dir>` a directory of your own under the scratch dir, empty. It removes every comment block the change set touched, writes each to a facts file headed by its site, and prints the sites. A comment the toolchain reads stays, and the strip names it on stderr.
+2. **Write.** Dispatch `~/.kk-flavor/workers/comment-writer.md` as `comment-writer` under `~/.kk-flavor/standards/model-policy.md`, with the stripped file, the printed sites and the facts directory. It writes a block from the code or `none` per site, and returns `stale`, `carried by`, `rename` and `for the PR body` lines. Count its `Block` lines against the sites.
+3. **Verdict.** Run `~/.kk-flavor/scripts/bloat-judge.sh --changed=<the same revisions> comment-verdict <file>`, `JUDGE_PROVIDER` set explicitly, over the written file. It prints one verdict per block, `<file>:<line>: <verdict>`, from the closed set `keep`, `obvious`, `unclear`, `coined`, `carried`, `stale`. Count its lines against the blocks. **Exit 2 is a judge that did not run**, and a run with no verdict lines is not a clean file. Act on each verdict once:
+
+   | Verdict | Action |
+   |---|---|
+   | `keep` | leave it |
+   | `obvious` | delete the block |
+   | `unclear`, `coined` | strip that block again and dispatch the writer for it once more; a second verdict other than `keep` deletes the block and returns its facts as `for the PR body` |
+   | `carried` | return `carried by` for the refactor lane, then delete the block |
+   | `stale` | return the block as a correctness finding, then delete it |
+
+4. **Voice.** Run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --voice` over the caller's revisions. **Every finding it prints is an edit you make**: strip that block and dispatch the writer for it. The shapes it names are the **House voice** group of `~/.kk-flavor/standards/human-writing.md` → **AI tells**, and the form it holds you to is `~/.kk-flavor/standards/code-style.md` → **Comments**. A finding that must stand goes in the repository's `comment-voice.conf` with its reason, and the caller decides that entry.
+
+Then run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh --bar` over the same revisions and report its figure. The figure gates no edit. Return the writer's and the verdict's routed lines with it: `carried by` and `rename` to the refactor lane, `stale` to correctness review, `for the PR body` to the caller. Comment truth belongs to correctness review and placement to refactor.
 
 ## Verify and return
 
