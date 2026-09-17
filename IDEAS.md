@@ -4,37 +4,44 @@ Deferred proposals, not active agent instructions. Keep at most 20 open ideas; r
 
 ## 1x | 2026-09-17 | What the 100-second gate left open
 
-Three things this branch measured and did not fix, each because fixing it is a decision rather than a
-consequence.
+Four things this branch measured and deferred. Three are now closed and are recorded here for the
+finding rather than the fix; the fourth is the one that is still open, and it is the general rule
+behind the narrowest of them.
 
-**`jq` is installed and nothing uses it.** `ai/tools/ai-bootstrap` still puts it on every machine, and
-the only remaining mention in this tree is `gh api --jq`, which is gh's own embedded engine and not the
-binary. Its last real consumer was `ai/mcp-sync.sh`'s JSON handling, which is Go now. Dropping it is a
-change to what a machine install puts on someone's machine, and the default tier would then install no
-formula at all — which is a shape worth choosing deliberately rather than falling into.
+**Closed: `jq` is installed and nothing uses it.** Its last consumer was `ai/mcp-sync.sh`'s JSON
+handling, which is Go now; the only mention left in the tree is `gh api --jq`, which is gh's own
+embedded engine. Removing it left the default tier installing no formula at all, which turned up a
+second defect the first was hiding: the step asked whether brew was there before it asked whether the
+tier wanted anything, so a machine without brew failed an install that needed nothing from it.
 
-**`comment-density.sh --bar <base>..<head>` costs a spawn per baseline file.** Measured on a 387-file
-checkout: 107s wall, 2.78s user, 5% CPU, against 0.55s for the bare form. With a revision named,
-`hostRepo.readCapped` takes the `readCappedAt` branch and asks git for one file's content at a time.
-The port makes the fix a one-method change — `cat-file --batch`, or reading the whole tree once — and
-the case for it is stronger than the suite's was: the edit lane calls `--bar` with the caller's
-revisions, so every qualify pass over a sizeable repository pays it.
+**Closed: `comment-density.sh --bar <base>..<head>` cost a spawn per baseline file.** 40.4s and 31.8s
+wall for 3.06s of user CPU on a 454-file repository, against 0.22s for the bare form.
+`repo.Git.ContentsAt` answers a whole list at one revision through a single `git cat-file --batch -z`:
+0.84s and 0.55s after, with git spawns over the range down from about 390 to 8.
 
-**A case about a BOUNDED message can be decided by the machine's temp path.** Three were, and macOS CI
-caught them the day this branch put macOS on the Go job. `t.TempDir()` is about 140 bytes of ambient
-text on a macOS runner — `/var/folders/<two>/<28 random>/T/<the test's own name>/002` — against about
-60 on Linux, so a 200- or 500-byte bound falls inside the prefix or inside the case's own padding
-depending on where it runs. The three are fixed by building under a short root. Under a TMPDIR longer
-than any real machine's, three more in `eco-check` have the same shape. The general answer is a fixture
-root whose length a case controls, used wherever a case's subject is a cut; the narrow one is to fix
-each as it bites.
+**Closed: a suite reading the checkout from inside a subpackage.** Go's test cache is keyed on the
+MODULE, so a file above `ai/tools` is invisible to it — measured twice, on `ai/README.md` and on
+`ai/kk-flavor/standards/records.md`, both answering `ok (cached)` over a changed file. The route out
+was smaller than the one first costed: only what READS THE CHECKOUT had to move, not the fixture
+helpers around it. Every such case is now in the `ai/tools` root package, which `ai/gate.sh` forces
+with `-count=1` on every run, and `gate/gate.go` says so.
 
-**`ai/tools/reach/stub_test.go` reads the checkout from inside a subpackage.** Go's test cache is keyed
-on the module, so a plain `go test` answers `ok (cached)` over a stub that moved. Every other such case
-is gathered in the `ai/tools` root package, which `ai/gate.sh` forces for exactly this reason, and the
-workflow gates all pass `-count=1` — so this is a local blind spot only. The honest route out is a
-`reachtest` package holding the fixture helpers, about 150 call sites, on a suite that was rewritten
-the day this was written. Not worth doing twice.
+**Open: a case about a BOUNDED message can be decided by the machine's temp path.** Three were, and
+macOS CI caught them the day this branch put macOS on the Go job. A sweep under a longer TMPDIR found
+six in `eco-check`, and the grep for `CutMarker` reached none of them: every one asserts that a path
+appears WHOLE, not that it was cut. That is why the general answer won over six more short-root call
+sites — `report.go` cuts EVERY finding line at 500 bytes, so any case quoting a fixture path is in the
+class whether it says so or not, and nothing enumerates that set. `eco-check` and `eco-stats` now take
+every fixture root from one `newBase` helper, 14 to 16 bytes under `/tmp`, and
+`TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines` in each holds the root under 24 bytes with
+TMPDIR moved to a macOS-length path. Measured: both green up to a 349-byte TMPDIR, where six failed at
+145.
+
+What stays open is the rule everywhere else. `handoff-check`'s
+`TestNoLineLeavesTheGateCarryingAControlByte` is the same shape and turns red between 300 and 350
+bytes — past any real machine, so latent rather than live — and `diffscan`, `comment-density` and
+`dup-literals` bound messages with no such rule of their own. Worth stating once for all of them: a
+suite whose subject is where a message is cut owns the length of its own fixture root.
 
 ## 3x | 2026-09-14 | Type every edge, then collapse the tooling that reads them
 
