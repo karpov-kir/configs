@@ -309,6 +309,9 @@ func (g *gate) runGotest() (string, string, int) {
 	if g.changedSinceGreen([]string{extModels}) {
 		groups = append(groups, "model-policy", "bloat-judge")
 	}
+	if g.changedSinceGreen([]string{extConfigs}) {
+		groups = append(groups, "bloat-judge", "comment-density", "dup-literals", "eco-report")
+	}
 	if g.changedSinceGreen([]string{extWorkflows}) {
 		groups = append(groups, ".")
 	}

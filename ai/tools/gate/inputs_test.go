@@ -323,7 +323,7 @@ func TestTheGuideUnitIsKeyedOnEveryFileItsPageIsBuiltFrom(t *testing.T) {
 	// The skills tree and the template decide the page too, and were keyed on from the start; the
 	// policy is the one that arrived with the second inventory. All three are asserted, so a later
 	// edit that trims the declaration is caught whichever entry it takes.
-	want := []string{"ai/kk-flavor/models.json", "ai/kk-flavor/skills", "ai/tools/eco-guide"}
+	want := []string{"ai/kk-flavor/configs/models.json", "ai/kk-flavor/skills", "ai/tools/eco-guide"}
 	found := false
 	for _, u := range g.units {
 		if u.id != "guide" {
@@ -359,7 +359,7 @@ func TestTheGuideUnitIsKeyedOnEveryFileItsPageIsBuiltFrom(t *testing.T) {
 func TestTheModelsUnitStaysKeyedOnThePackagesItsProbeIsBuiltFrom(t *testing.T) {
 	g, _, _ := discoveredOverThisRepo(t)
 
-	want := []string{"ai/kk-flavor/models.json", "ai/kk-flavor/scripts/model-check.sh",
+	want := []string{"ai/kk-flavor/configs/models.json", "ai/kk-flavor/scripts/model-check.sh",
 		"ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
 		"ai/tools/bloat-judge", "ai/tools/shell"}
 	found := false
@@ -428,4 +428,116 @@ func TestThisModulesGraphSaysWhatASuiteCompiles(t *testing.T) {
 		t.Errorf("cadence's suite compiles nothing else in this module, and the graph answers %v — a "+
 			"unit keyed on that re-runs on edits that cannot move its verdict", got)
 	}
+}
+
+// The suites read the shipped configs through the real paths, from outside their own module, so
+// `go test` keys on none of them: edit a config and the answer comes back from cache, over a file the
+// run never opened. The directory is what the unit carries, so a config added later is keyed too.
+func TestTheGoTestUnitIsKeyedOnTheShippedConfigs(t *testing.T) {
+	g, _, _ := discoveredOverThisRepo(t)
+
+	for _, u := range g.units {
+		if u.id != "gotest" {
+			continue
+		}
+		if !slices.Contains(u.inputs, "ai/kk-flavor/configs") {
+			t.Fatalf("the gotest unit is not keyed on ai/kk-flavor/configs, so editing a shipped config leaves the suites green from cache: %v", u.inputs)
+		}
+		return
+	}
+	t.Fatal("no gotest unit was discovered, so this case measured nothing")
+}
+
+// Every package whose suite opens a shipped config through the real path must be forced when one
+// moves, or `go test` answers from a cache that cannot see the file it read. The forced list is read
+// out of run.go and the expected list is DERIVED from the suites, because a hand-copied oracle passes
+// for a package somebody forgot to add.
+func TestEveryShippedConfigReaderIsForcedWhenAConfigMoves(t *testing.T) {
+	forced := groupsForcedOn(t, "extConfigs")
+	for _, pkg := range shippedConfigReaders(t) {
+		if !slices.Contains(forced, pkg) {
+			t.Errorf("%s reads a shipped config through the real path but is not forced on extConfigs, so editing one leaves its suite green from cache: forced %v", pkg, forced)
+		}
+	}
+	for _, pkg := range forced {
+		if _, err := os.Stat(filepath.Join("..", pkg)); err != nil {
+			t.Errorf("extConfigs forces %q, which is no package under ai/tools: %v", pkg, err)
+		}
+	}
+}
+
+// The group names one `changedSinceGreen` branch appends. This reads it out of the source, so the case
+// cannot fall out of step with the branch it describes.
+func groupsForcedOn(t *testing.T, constName string) []string {
+	t.Helper()
+	body, err := os.ReadFile("run.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker := "if g.changedSinceGreen([]string{" + constName + "}) {"
+	_, after, found := strings.Cut(string(body), marker)
+	if !found {
+		t.Fatalf("run.go has no %s branch, so this case measured nothing", constName)
+	}
+	// Cut at the branch's own closing brace — one tab in — or this reads on through the rest of the
+	// function and picks the `go test` argv up as group names.
+	line, _, closed := strings.Cut(after, "\n\t}")
+	if !closed {
+		t.Fatalf("the %s branch in run.go is not closed where this expects it: %.200q", constName, after)
+	}
+	// Odd segments of a split on the quote character are what sat inside quotes; the even ones are the
+	// commas and the closing paren between them.
+	var groups []string
+	segments := strings.Split(line, `"`)
+	for i := 1; i < len(segments); i += 2 {
+		groups = append(groups, segments[i])
+	}
+	if len(groups) == 0 {
+		t.Fatalf("read no groups out of the %s branch: %q", constName, line)
+	}
+	return groups
+}
+
+// A package whose own suite resolves the real flavor tree AND names a `.conf` reads a shipped config
+// through the path a real run uses. That pair is the signal; either alone is not (a package may hold
+// the tree for other fixtures, or write `.conf` files of its own under t.TempDir()).
+func shippedConfigReaders(t *testing.T) []string {
+	t.Helper()
+	entries, err := os.ReadDir("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var readers []string
+	for _, entry := range entries {
+		// This package does the deriving, so its own source carries both signals verbatim — the tree
+		// literal and the `.conf` suffix are what the scan searches FOR. It opens no shipped config, and
+		// counting it would make this case demand that the gate force itself.
+		if !entry.IsDir() || entry.Name() == "gate" {
+			continue
+		}
+		tests, err := filepath.Glob(filepath.Join("..", entry.Name(), "*_test.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolvesTree, namesConf := false, false
+		for _, test := range tests {
+			body, err := os.ReadFile(test)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(body), `"../../kk-flavor"`) {
+				resolvesTree = true
+			}
+			if strings.Contains(string(body), ".conf") {
+				namesConf = true
+			}
+		}
+		if resolvesTree && namesConf {
+			readers = append(readers, entry.Name())
+		}
+	}
+	if len(readers) == 0 {
+		t.Fatal("found no package reading a shipped config, so this case measured nothing")
+	}
+	return readers
 }

@@ -974,6 +974,13 @@ var mutants = []mutant{
 	{"density: DENSITY_MAX_FILE_BYTES parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
 		`cfg.MaxFileBytes = value`, `cfg.MaxFileBytes = defaultMaxFileBytes + value*0`},
 
+	// One entry for three callers: every tool with a tracked default parses through this package, so a
+	// line silently skipped here restores the built-in value in all of them at once. The guard narrows
+	// to `&&` rather than going away, because `slices` is used on this line alone and removing it
+	// orphans the import; a mutant that does not build proves nothing.
+	{"flavorconfig: a line the caller cannot read is skipped rather than refused", "../flavorconfig/flavorconfig.go", "./flavorconfig/", "TestAnUnusableConfigRefusesRatherThanReadingAsAbsent",
+		`if len(fields) != 2 || !slices.Contains(allowed, fields[0]) {`, `if len(fields) != 2 && !slices.Contains(allowed, fields[0]) {`},
+
 	{"density: a fixture under testdata is counted as this repository's source", "../comment-density/density.go", "./comment-density/", "TestAFixtureUnderTestdataIsNotThisRepositorysSource",
 		`return isProseOrData(file) || isFixture(file)`, `return isProseOrData(file)`},
 	{"density: testdata matches as a prefix rather than a path segment", "../comment-density/density.go", "./comment-density/", "TestNamingAFixtureIsAskingForIt",

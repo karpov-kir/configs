@@ -6,8 +6,9 @@
 #   usage: dup-literals.sh [<git-diff revisions>] [-- <paths>]   # revisions default to HEAD (all
 #          uncommitted changes); a bare path argument is refused with exit 2, never scanned, and paths
 #          after `--` narrow the scan to them
-#   env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
-#          DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
+#   env:   DUP_MIN_LEN — minimum literal length in chars
+#          DUP_MAX_FILE_BYTES — skip untracked files larger than this
+#          The defaults are in `~/.kk-flavor/configs/dup-literals.conf`, one line per variable.
 #
 # Prints each duplicate (count, length, 60-char prefix). Exits 1 when any found, 0 when clean, 2 when
 # the scan did not run — a path where a revision belongs, git rejecting the arguments, or a threshold

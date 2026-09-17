@@ -45,12 +45,12 @@ const graphPolicy = `{
 func newGraphRoot(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, dir := range []string{"kk-flavor/skills", "kk-flavor/workers", "tools/eco-guide"} {
+	for _, dir := range []string{"kk-flavor/configs", "kk-flavor/skills", "kk-flavor/workers", "tools/eco-guide"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatalf("fixture root: %v", err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(graphPolicy), 0o644); err != nil {
+	if err := os.WriteFile(policyPath(root), []byte(graphPolicy), 0o644); err != nil {
 		t.Fatalf("fixture policy: %v", err)
 	}
 	// A template, so the page path stays runnable from this root too and a case can assert that the
@@ -451,7 +451,7 @@ func TestARefusalNamesWhichOfTheThreeDidNotHappen(t *testing.T) {
 		{args: []string{"--cost", "kk-pr"}, want: "the cost profile was NOT emitted"},
 	} {
 		root := newGraphRoot(t, map[string]string{"skills/kk-pr/SKILL.md": skillBody("holds — landing", "x")})
-		if err := os.Remove(filepath.Join(root, "kk-flavor", "models.json")); err != nil {
+		if err := os.Remove(policyPath(root)); err != nil {
 			t.Fatalf("wrecking the fixture policy: %v", err)
 		}
 
@@ -587,7 +587,7 @@ func TestABorrowedPromptsDispatchesAreTheBorrowersToo(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
 		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Dispatch `~/.kk-flavor/workers/code-review.md`."),
 	})
-	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(policy), 0o644); err != nil {
+	if err := os.WriteFile(policyPath(root), []byte(policy), 0o644); err != nil {
 		t.Fatalf("fixture policy: %v", err)
 	}
 	writeWorkers(t, root, fixtureWorker{"code-review", "One review. Then `~/.kk-flavor/workers/refactor.md`.\n"})
@@ -659,7 +659,7 @@ func TestABorrowedPromptsSelfCitationsAreNotTheBorrowersDispatches(t *testing.T)
 		"skills/kk-edit/SKILL.md": skillBody("dispatched",
 			"My own branch is `~/.kk-flavor/skills/kk-edit/humanize.md`; hand structure to `~/.kk-flavor/workers/refactor.md`."),
 	})
-	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(policy), 0o644); err != nil {
+	if err := os.WriteFile(policyPath(root), []byte(policy), 0o644); err != nil {
 		t.Fatalf("fixture policy: %v", err)
 	}
 	if err := os.Remove(filepath.Join(root, "kk-flavor", "workers", "kk-edit.md")); err != nil {

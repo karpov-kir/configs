@@ -26,7 +26,7 @@ const (
 	flavorTree        = "../../kk-flavor"
 	skillsTree        = flavorTree + "/skills"
 	workersTree       = flavorTree + "/workers"
-	shippedPolicyPath = flavorTree + "/models.json"
+	shippedPolicyPath = flavorTree + "/configs/models.json"
 )
 
 // The Lanes table row the quality pass dispatches by. How a SKILL.md declares it runs is

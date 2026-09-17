@@ -247,7 +247,7 @@ func TestASuiteNameHoldingASpaceIsRefusedWholeNotSplit(t *testing.T) {
 }
 
 func TestModelPolicyChangeInvalidatesGoGate(t *testing.T) {
-	g := &gate{stamp: "toolchain", manifest: []manifestLine{{hash: "first", path: "ai/kk-flavor/models.json"}, {hash: "source", path: goSource}}}
+	g := &gate{stamp: "toolchain", manifest: []manifestLine{{hash: "first", path: "ai/kk-flavor/configs/models.json"}, {hash: "source", path: goSource}}}
 	g.addGoChecks()
 	for _, u := range g.units {
 		if u.id != "gotest" {

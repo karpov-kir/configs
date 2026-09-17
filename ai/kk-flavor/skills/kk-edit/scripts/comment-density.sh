@@ -6,14 +6,15 @@
 #   usage: comment-density.sh [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
-#   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines (default 0.3)
-#          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this (default 5)
+#   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines
+#          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this
 #          DENSITY_MAX_FILE_BYTES — skip a file larger than this unread: only untracked files in the
-#          default mode, every file under --bar (default 262144)
+#          default mode, every file under --bar
+#          The defaults are in `~/.kk-flavor/configs/comment-density.conf`, one line per variable.
 #
 # Exits 1 with findings, 0 when clean, 2 when the scan did not run — git rejecting the arguments, a
 # path passed where a revision belongs, or a threshold that is no number. Prose/data files (md, txt,
-# json, lockfiles) don't count. With no diff args, untracked text files are scanned too; the index is
+# json, conf, lockfiles) don't count. With no diff args, untracked text files are scanned too; the index is
 # never touched.
 #
 # The default mode prints each outlier with its counts, then on stderr its denominator — files reached,

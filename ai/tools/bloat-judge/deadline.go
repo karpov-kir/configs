@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"kk-flavor/tools/flavorconfig"
 )
 
 // defaultRollDeadline bounds one roll of the model. A vote rolls every roll at once, so a judge run is
@@ -31,9 +31,16 @@ import (
 // 420 was 2.8 times the slowest roll then known; against 343 it had become 1.22 while still calling
 // itself generous. 900 restores the ratio. Concurrency is what makes it affordable, every roll of a
 // vote waiting at once — one at a time it would bound a run at 45 minutes.
+//
+// `configs/bloat-judge.conf` ships this same number and wins wherever the mount is reachable, so the
+// two move together. This constant is the bound for a checkout run straight out of the tree.
 const defaultRollDeadline = 900 * time.Second
 
 const overrideKey = "roll-timeout"
+
+const configName = "bloat-judge.conf"
+
+const maxRollSeconds = 86400
 
 // overridePath is where this machine tunes the deadline — the one place ecosystem.md → **Conventions
 // a new file joins** puts a machine-local value. Never in the tree: `~/.kk-flavor` is a symlink into
@@ -70,55 +77,55 @@ func ResolveRollDeadline(self, configHome, home string, stderr io.Writer) (time.
 	return deadline, path, true
 }
 
-// rollDeadline answers how long one roll gets, plus the line to announce when an override decided it —
-// printed every run, so a tuned machine never looks like an untuned one.
-//
-// A file that is present but unusable is refused rather than ignored, and no path here falls back to
-// the default: a default quietly restored is indistinguishable from the override working. Absent is a
-// different thing from broken, and only absent is quiet.
+// rollDeadline answers how long one roll gets, plus the line to announce when this machine's override
+// decided it — printed every run, so a tuned machine never looks like an untuned one.
 func rollDeadline(configHome, home string) (time.Duration, string, error) {
-	path := overridePath(configHome, home)
-	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
-	// alone cannot see one.
-	if path == "" || (!shell.PathExists(path) && !shell.IsSymlink(path)) {
-		return defaultRollDeadline, "", nil
-	}
-	if !shell.IsRegularFile(path) {
-		return 0, "", fmt.Errorf("%s is not a readable regular file, so how long a roll of the model gets is unknown", path)
-	}
-	raw, err := os.ReadFile(path)
+	shipped := defaultRollDeadline
+	seconds, err := secondsIn(flavorconfig.Path(home, configName), shipped)
 	if err != nil {
-		return 0, "", fmt.Errorf("could not read %s (%v), so how long a roll of the model gets is unknown", path, err)
+		return 0, "", err
 	}
-	seconds := 0
-	for _, line := range shell.SplitLines(string(raw)) {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		// Refused rather than skipped: a line the human meant as a setting, silently ignored, is a
-		// bound they think they changed and did not. The echo is one-lined, this file being written
-		// by hand and its content reaching a terminal.
-		fields := shell.SplitFields(trimmed)
-		if len(fields) != 2 || fields[0] != overrideKey {
-			return 0, "", fmt.Errorf("%s has a line this does not understand: %s — the only supported line is `%s <seconds>`",
-				path, echoable(trimmed), overrideKey)
-		}
-		if seconds != 0 {
-			return 0, "", fmt.Errorf("%s sets %s more than once — which one wins is not this tool's guess to make", path, overrideKey)
-		}
-		if seconds, err = strconv.Atoi(fields[1]); err != nil || seconds < 1 {
-			return 0, "", fmt.Errorf("%s sets %s to %s, which is not a whole number of seconds above zero",
-				path, overrideKey, echoable(fields[1]))
-		}
+	if seconds > 0 {
+		shipped = time.Duration(seconds) * time.Second
+	}
+	path := overridePath(configHome, home)
+	seconds, err = secondsIn(path, shipped)
+	if err != nil {
+		return 0, "", err
 	}
 	if seconds == 0 {
-		return 0, "", fmt.Errorf("%s sets no %s — add a `%s <seconds>` line, or remove the file to use the default of %s",
-			path, overrideKey, overrideKey, defaultRollDeadline)
+		return shipped, "", nil
 	}
 	deadline := time.Duration(seconds) * time.Second
 	return deadline, fmt.Sprintf("a roll of the model gets %s, set by %s, in place of the default %s",
-		deadline, path, defaultRollDeadline), nil
+		deadline, path, shipped), nil
+}
+
+// secondsIn reads the roll-timeout the config at path carries, or zero when there is no such file.
+// fallback is named in the refusal that asks for the file to be removed, so the number offered is what
+// removing it would actually restore.
+func secondsIn(path string, fallback time.Duration) (int, error) {
+	settings, err := flavorconfig.Read(path, []string{overrideKey})
+	if err != nil {
+		return 0, fmt.Errorf("%w, so how long a roll of the model gets is unknown", err)
+	}
+	if settings == nil {
+		return 0, nil
+	}
+	raw, set := settings[overrideKey]
+	if !set {
+		return 0, fmt.Errorf("%s sets no %s — add a `%s <seconds>` line, or remove the file to use the default of %s",
+			path, overrideKey, overrideKey, fallback)
+	}
+	// Both ends are bounded. Below one second there is no roll; above a day, `time.Duration(seconds)`
+	// overflows int64 nanoseconds into a NEGATIVE duration, so every roll is cancelled before it starts
+	// and the judge jams at exit 2 — from a line that reads like an ordinary number.
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds < 1 || seconds > maxRollSeconds {
+		return 0, fmt.Errorf("%s sets %s to %s, which is not a whole number of seconds between 1 and %d",
+			path, overrideKey, echoable(raw), maxRollSeconds)
+	}
+	return seconds, nil
 }
 
 // rollEnvironment is every variable a roll is handed. A provider CLI needs the machine's own shape

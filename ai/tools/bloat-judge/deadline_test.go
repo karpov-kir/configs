@@ -419,3 +419,114 @@ func TestKillingAReapedRollSignalsNothing(t *testing.T) {
 			"pid is a live group leader belonging to somebody else", err)
 	}
 }
+
+func writeShippedDefault(t *testing.T, home, content string) {
+	t.Helper()
+	path := filepath.Join(home, ".kk-flavor", "configs", "bloat-judge.conf")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTheShippedDefaultSetsTheBoundAndSaysNothing(t *testing.T) {
+	home := t.TempDir()
+	writeShippedDefault(t, home, "# the flavor's own\nroll-timeout 120\n")
+	deadline, override, err := rollDeadline(t.TempDir(), home)
+	if err != nil || deadline != 120*time.Second || override != "" {
+		t.Fatalf("got %s %q %v, want 120s and no announcement", deadline, override, err)
+	}
+}
+
+// And the announcement offers the number that removing the override would actually restore, which is
+// the shipped default and not the constant behind it.
+func TestAnOverrideWinsOverTheShippedDefaultAndNamesIt(t *testing.T) {
+	home, config := t.TempDir(), t.TempDir()
+	writeShippedDefault(t, home, "roll-timeout 120\n")
+	writeOverride(t, config, "roll-timeout 45\n")
+	deadline, override, err := rollDeadline(config, home)
+	if err != nil || deadline != 45*time.Second {
+		t.Fatalf("got %s %v, want 45s", deadline, err)
+	}
+	if !strings.Contains(override, "in place of the default 2m0s") {
+		t.Fatalf("the announcement offers a default the override does not sit in front of: %q", override)
+	}
+}
+
+// Present but unusable refuses here too. The fallback is the constant, which is a real number, so
+// every run would otherwise report success under a bound the human never chose.
+func TestAnUnusableShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
+	for _, c := range []struct{ name, content, says string }{
+		{"a line it does not understand", "timeout 45\n", "does not understand"},
+		{"no setting at all", "# nothing here\n", "sets no roll-timeout"},
+		{"the key twice", "roll-timeout 45\nroll-timeout 60\n", "more than once"},
+		{"a value that is not seconds", "roll-timeout soon\n", "not a whole number"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			home := t.TempDir()
+			writeShippedDefault(t, home, c.content)
+			_, _, err := rollDeadline(t.TempDir(), home)
+			if err == nil {
+				t.Fatal("an unusable shipped default fell back to the constant instead of refusing")
+			}
+			if !strings.Contains(err.Error(), c.says) {
+				t.Fatalf("the refusal does not say %q: %v", c.says, err)
+			}
+		})
+	}
+}
+
+// The flavor ships this file, and this case is the only place in the repository that opens it through
+// the resolver an installed run uses: a typo is invisible until every judge run refuses at exit 2.
+// The case holds the shipped number to the constant behind it, so the two cannot become different
+// bounds for the same thing.
+func TestTheShippedJudgeConfigParsesAndMatchesTheConstant(t *testing.T) {
+	flavor, err := filepath.Abs("../../kk-flavor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	if err := os.Symlink(flavor, filepath.Join(home, ".kk-flavor")); err != nil {
+		t.Fatal(err)
+	}
+	deadline, announcement, err := rollDeadline(t.TempDir(), home)
+	if err != nil {
+		t.Fatalf("the shipped bloat-judge.conf does not parse: %v", err)
+	}
+	if deadline != defaultRollDeadline {
+		t.Fatalf("the shipped bloat-judge.conf bounds a roll at %s and the constant behind it at %s — a run that cannot reach the mount would be judged under a different bound",
+			deadline, defaultRollDeadline)
+	}
+	if announcement != "" {
+		t.Fatalf("the shipped default announced itself, which leaves a tuned machine indistinguishable from this one: %q", announcement)
+	}
+}
+
+func TestARollTimeoutThatWouldOverflowIsRefused(t *testing.T) {
+	for _, source := range []string{"override", "shipped default"} {
+		t.Run(source, func(t *testing.T) {
+			home, config := t.TempDir(), t.TempDir()
+			if source == "override" {
+				writeOverride(t, config, "roll-timeout 10000000000\n")
+			} else {
+				writeShippedDefault(t, home, "roll-timeout 10000000000\n")
+			}
+			deadline, _, err := rollDeadline(config, home)
+			if err == nil {
+				t.Fatalf("10000000000 seconds was accepted, giving a deadline of %s", deadline)
+			}
+			if !strings.Contains(err.Error(), "between 1 and 86400") {
+				t.Fatalf("the refusal does not name the bound: %v", err)
+			}
+		})
+	}
+	// The bound itself is usable, so those refusals are about overflow and not about an off-by-one that
+	// would reject a legitimate long timeout.
+	config := t.TempDir()
+	writeOverride(t, config, "roll-timeout 86400\n")
+	if deadline, _, err := rollDeadline(config, t.TempDir()); err != nil || deadline != 86400*time.Second {
+		t.Fatalf("got %s %v, want the bound accepted", deadline, err)
+	}
+}

@@ -105,7 +105,13 @@ and cannot reach** says why codex. `ai/tools/bloat-judge/eval_test.go` is the co
 JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh instruction instructions.md
 ```
 
-Every dispatch site's model lives in [models.json](kk-flavor/models.json), which is the one place to
+Every tunable value is a file in [kk-flavor/configs/](kk-flavor/configs). Each is the tracked
+default, read through the installed `~/.kk-flavor` rather than the repository being worked on, and
+each `.conf` header says how to retune it without editing the checkout: a machine-local `.conf`, an
+environment variable, or neither. [Ecosystem](kk-flavor/standards/ecosystem.md) → **Conventions a new
+file joins** holds what those files are held to.
+
+Every dispatch site's model lives in [models.json](kk-flavor/configs/models.json) — the one place to
 tune what a run costs. It holds `workers` — the model a dispatch actually sets — and `sessions`, the
 tier a session should be started at, which nothing can enforce once it is running. A task the policy
 does not name is refused rather than run at the caller's tier. Read [model policy](kk-flavor/standards/model-policy.md) before changing an assignment: it says
