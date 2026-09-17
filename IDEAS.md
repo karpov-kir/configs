@@ -254,20 +254,29 @@ this repo makes. A managed setting is merged above all of them by the client its
 tree can close that; what it can do is stop claiming isolation, which
 [model-policy.md](ai/kk-flavor/standards/model-policy.md) now does.
 
-**The judge cuts the unit a standard requires, and this is not one provider's weakness.** The earlier
-reading of eight cases blamed codex and the residue list. Eleven cases say something sharper: both
-providers, in every run, delete the opening status line of a report, its closing recommendation, and
-the line in a reply that answers a question nobody asked again. `report-residue` unit 1,
-`report-plan` unit 8 and `reply-landing` unit 11 went in every run of both providers; `pr-body` unit 1
-and `report-residue` unit 1 in most of them. Each of them is mandated content:
-[quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md) requires the status line and
-requires the recommendation to close an item on its own line. They are cut because mandated content
-reads as ceremony from inside the text, and the prompt gives the model no way to know a line is owed
-to a rule it cannot see.
+**The judge cuts the unit that says what happens next, and this is not one provider's weakness.** The
+earlier reading of eight cases blamed codex and the residue list. Eleven cases say something sharper.
+`report-plan` unit 8, a report's closing recommendation, and `reply-landing` unit 11, the line
+answering a question nobody asked again, went in every run of both providers; `pr-body` unit 1 in
+four runs of five; `report-residue` unit 1, a residue list's opening status line, in all three codex
+runs and neither haiku run.
+
+Two of those are mandated — [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)
+requires the status line, and requires the recommendation to close an item on its own line — but that
+is not what they have in common, because nothing mandates the reply. What they share is that their
+value is entirely forward: a unit saying what to do next carries nothing about the text it sits in,
+so from inside that text it reads as restating what you can already see, which is the one thing the
+prompt asks the model to delete.
 
 It is not confined to the two kinds the corpus caught it in. Judged as a `record-entry`, this entry
 lost the paragraph naming the repair; judged as a `commit`, the message introducing it lost the same
 paragraph again. Three kinds, three texts, the same unit — whichever block carries what to do next.
+
+The repair is narrower than "spare a unit that looks forward", though, and the fourth instance is why:
+asked again on the message correcting this paragraph, the judge named a closing line that genuinely
+restated the one above it, and that cut was taken. It cannot tell a forward-looking unit carrying
+something found nowhere else from one that only repeats what the reader has just read. A rule that
+spared both would buy the accuracy back by making the judge useless against ordinary sign-off.
 
 The repair is a sentence in `Prompt()` and it is not made here: a peer is editing that same function
 on `claude/comments-overhaul-69d0ac`, and two sessions rewriting one prompt against two evals would

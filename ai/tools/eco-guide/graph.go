@@ -350,13 +350,7 @@ func refsOn(line, prefix string) []string {
 }
 
 func isRefByte(b byte) bool {
-	switch {
-	case b >= 'a' && b <= 'z', b >= 'A' && b <= 'Z', b >= '0' && b <= '9':
-		return true
-	case b == '.' || b == '_' || b == '/' || b == '-':
-		return true
-	}
-	return false
+	return shell.IsAlnumByte(b) || b == '.' || b == '_' || b == '/' || b == '-'
 }
 
 // emitGraph writes the workflow map: every skill with what it dispatches and what it reads, then
