@@ -2,6 +2,31 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
+## 1x | 2026-09-17 | What the 100-second gate left open
+
+Three things this branch measured and did not fix, each because fixing it is a decision rather than a
+consequence.
+
+**`jq` is installed and nothing uses it.** `ai/tools/ai-bootstrap` still puts it on every machine, and
+the only remaining mention in this tree is `gh api --jq`, which is gh's own embedded engine and not the
+binary. Its last real consumer was `ai/mcp-sync.sh`'s JSON handling, which is Go now. Dropping it is a
+change to what a machine install puts on someone's machine, and the default tier would then install no
+formula at all — which is a shape worth choosing deliberately rather than falling into.
+
+**`comment-density.sh --bar <base>..<head>` costs a spawn per baseline file.** Measured on a 387-file
+checkout: 107s wall, 2.78s user, 5% CPU, against 0.55s for the bare form. With a revision named,
+`hostRepo.readCapped` takes the `readCappedAt` branch and asks git for one file's content at a time.
+The port makes the fix a one-method change — `cat-file --batch`, or reading the whole tree once — and
+the case for it is stronger than the suite's was: the edit lane calls `--bar` with the caller's
+revisions, so every qualify pass over a sizeable repository pays it.
+
+**`ai/tools/reach/stub_test.go` reads the checkout from inside a subpackage.** Go's test cache is keyed
+on the module, so a plain `go test` answers `ok (cached)` over a stub that moved. Every other such case
+is gathered in the `ai/tools` root package, which `ai/gate.sh` forces for exactly this reason, and the
+workflow gates all pass `-count=1` — so this is a local blind spot only. The honest route out is a
+`reachtest` package holding the fixture helpers, about 150 call sites, on a suite that was rewritten
+the day this was written. Not worth doing twice.
+
 ## 3x | 2026-09-14 | Type every edge, then collapse the tooling that reads them
 
 `--graph` prints `reads` for 27 edges because a path citation carries no kind. `cite-graph` prints 10
