@@ -204,7 +204,7 @@ func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
 
 	// `repo` and not the working directory: the drafting session is often standing in another checkout.
 	// An error is no abbreviation and no finding — reportTitlePrefix says why.
-	repoAbbrev, _ := repokey.ResolveAbbrev(repo)
+	repoAbbrev, _ := repokey.ResolveAbbrev(repokey.CommandGit(), repo)
 
 	s := newScan(repoPath, repoAbbrev)
 	s.read(shell.SplitLines(body))

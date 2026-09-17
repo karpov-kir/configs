@@ -813,7 +813,7 @@ func TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository(t *testing.T) {
 // repository answers both the same way. An inherited GIT_DIR is how they come apart in the field.
 func TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation(t *testing.T) {
 	dir := t.TempDir()
-	if _, err := repokey.ResolveAbbrev(dir); err == nil {
+	if _, err := repokey.ResolveAbbrev(repokey.CommandGit(), dir); err == nil {
 		t.Skip("the temporary directory sits inside a clone, so this case would measure a repository that abbreviates")
 	}
 	path, err := filepath.EvalSymlinks(dir)

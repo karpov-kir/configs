@@ -9,5 +9,5 @@ import (
 )
 
 func main() {
-	os.Exit(repokey.Run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(repokey.Run(os.Args[1:], repokey.CommandGit(), os.Stdout, os.Stderr))
 }

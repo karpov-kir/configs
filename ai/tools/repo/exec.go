@@ -304,18 +304,27 @@ func (e Exec) listing(dir string, args ...string) ([]string, error) {
 	return names, nil
 }
 
-// WithoutGitLocation is the caller's environment with the variables that point git at a repository
-// removed. git reads those before it reads the directory it was handed, so a process run from a git
-// hook — which is given them — would otherwise answer about the hook's repository whatever directory
-// it was asked about.
+// WithoutGitLocation is the caller's environment with the two variables that relocate git's idea of
+// the repository removed. git reads them before it reads the directory it was handed, so a process run
+// from a git hook — which is given them — would otherwise answer about the hook's repository whatever
+// directory it was asked about, and a consumer keying a directory off that answer would create, write
+// and later remove directories under the wrong name.
+//
+// Exactly two. GIT_WORK_TREE moves `--show-toplevel` but not the store, and a tool asked about a
+// directory inside a work tree its caller declared is being asked the question its caller meant.
+// GIT_OBJECT_DIRECTORY and GIT_DISCOVERY_ACROSS_FILESYSTEM name no other repository either: discovery
+// across a mount boundary still has to land on an ancestor that genuinely holds the path. Stripping
+// any of them would read as a guard while guarding nothing.
+//
+// GIT_CEILING_DIRECTORIES stays on purpose. Set on the repository's own root it stops discovery rather
+// than redirecting it, so honouring it costs a refusal and never a wrong answer.
 func WithoutGitLocation(environ []string) []string {
+	relocates := map[string]bool{"GIT_DIR": true, "GIT_COMMON_DIR": true}
 	kept := make([]string, 0, len(environ))
 	for _, entry := range environ {
-		name, _, _ := strings.Cut(entry, "=")
-		if name == "GIT_DIR" || name == "GIT_WORK_TREE" || name == "GIT_COMMON_DIR" {
-			continue
+		if name, _, found := strings.Cut(entry, "="); !found || !relocates[name] {
+			kept = append(kept, entry)
 		}
-		kept = append(kept, entry)
 	}
 	return kept
 }

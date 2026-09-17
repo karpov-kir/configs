@@ -18,10 +18,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
+	"kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -156,8 +155,8 @@ func safeName(name string) string {
 
 // The key for the clone containing `root`, asking git where the shared git dir is. For a caller that
 // holds no resolved path of its own.
-func resolveKey(root string) (string, error) {
-	shared, err := sharedGitDir(root)
+func resolveKey(git repo.Git, root string) (string, error) {
+	shared, err := sharedGitDir(git, root)
 	if err != nil {
 		return "", err
 	}
@@ -168,56 +167,37 @@ func resolveKey(root string) (string, error) {
 // dir is. It is what `repo-key.sh --abbrev` prints, and what a caller holding a repository path — the
 // handoff gate holds one — compares a written-down prefix against. A root that is not inside a clone
 // this process can read comes back as an error and never as an abbreviation.
-func ResolveAbbrev(root string) (string, error) {
-	shared, err := sharedGitDir(root)
+func ResolveAbbrev(git repo.Git, root string) (string, error) {
+	shared, err := sharedGitDir(git, root)
 	if err != nil {
 		return "", err
 	}
 	return abbrevFromSharedGitDir(shared)
 }
 
-// Where git says the shared git dir of `root` is, anchored to `root` — absolute only when `root`
-// is. canonicalGitDir resolves it the rest of the way.
-func sharedGitDir(root string) (string, error) {
-	command := exec.Command("git", "rev-parse", "--git-common-dir")
-	command.Dir = root
-	// Dir alone does NOT select the repository: git reads its location from the environment first, so an
-	// inherited GIT_DIR wins over the path this was handed. A hook in a linked worktree is given one, so
-	// it would key its own clone, and a consumer would create, write and later remove directories under
-	// that name.
-	command.Env = withoutGitLocation(os.Environ())
-	out, err := command.Output()
+// Where git says the shared git dir of `root` is. The port answers absolute, which matters: git's own
+// answer in an ordinary repository is a bare `.git`, and a relative one would resolve against whatever
+// directory the next caller happened to stand in.
+//
+// What the port must be given, and what CommandGit below hands it, is an environment with GIT_DIR and
+// GIT_COMMON_DIR taken out. A directory does NOT select the repository on its own: git reads its
+// location from the environment first, so a run from a hook in a linked worktree — which is given
+// those — would key its own clone, and a consumer would create, write and later remove directories
+// under that name.
+func sharedGitDir(git repo.Git, root string) (string, error) {
+	shared, err := git.CommonDir(root)
 	if err != nil {
 		return "", errors.New("could not ask git for the shared git dir of " + shell.Oneline(root) + " (git rev-parse --git-common-dir)")
 	}
-	shared := strings.TrimSpace(string(out))
-	// `--git-common-dir` answers relative to the caller in an ordinary repo — a bare `.git` — so a
-	// relative answer would resolve against whatever directory the next caller happened to stand in.
-	if !filepath.IsAbs(shared) {
-		shared = filepath.Join(root, shared)
-	}
-	return filepath.Clean(shared), nil
+	return shared, nil
 }
 
-// The environment with the two variables that relocate git's idea of the repository removed. Exactly
-// two: only GIT_DIR and GIT_COMMON_DIR point `rev-parse --git-common-dir` at another repository.
-// GIT_WORK_TREE moves `--show-toplevel` but not this. GIT_OBJECT_DIRECTORY and
-// GIT_DISCOVERY_ACROSS_FILESYSTEM name no other repository either: discovery across a mount boundary
-// still has to land on an ancestor that genuinely holds the path. Stripping any of them would read as
-// a guard while guarding nothing.
-//
-// GIT_CEILING_DIRECTORIES stays in the caller's environment on purpose. Set on the repository's own
-// root it stops discovery rather than redirecting it, so honouring it costs a refusal and never a
-// wrong key, and a refusal is what this tool is for. `eco-report/layout.go` reads it the same way.
-func withoutGitLocation(env []string) []string {
-	relocates := map[string]bool{"GIT_DIR": true, "GIT_COMMON_DIR": true}
-	kept := make([]string, 0, len(env))
-	for _, entry := range env {
-		if name, _, found := strings.Cut(entry, "="); !found || !relocates[name] {
-			kept = append(kept, entry)
-		}
-	}
-	return kept
+// CommandGit is the port every command here runs with. GIT_CEILING_DIRECTORIES stays in the
+// environment on purpose: set on the repository's own root it stops discovery rather than redirecting
+// it, so honouring it costs a refusal and never a wrong key, and a refusal is what this tool is for.
+// `eco-report/layout.go` reads it the same way.
+func CommandGit() repo.Git {
+	return repo.Exec{Env: repo.WithoutGitLocation(os.Environ())}
 }
 
 // The stub this command runs behind, written out rather than read from argv[0]. `stub_usage_test.go`
@@ -232,7 +212,7 @@ const usage = "usage: " + stubName + " [--abbrev] [<repo path>]"
 //
 // There is no exit 1: a key either names this clone or it is nothing, and a caller that read a refusal
 // as a key would write into a directory belonging to no repository.
-func Run(args []string, out, errOut io.Writer) int {
+func Run(args []string, git repo.Git, out, errOut io.Writer) int {
 	resolve := resolveKey
 	if len(args) > 0 && args[0] == "--abbrev" {
 		resolve, args = ResolveAbbrev, args[1:]
@@ -248,7 +228,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 1 {
 		root = args[0]
 	}
-	answer, err := resolve(root)
+	answer, err := resolve(git, root)
 	if err != nil {
 		return refuse(errOut, err.Error())
 	}
