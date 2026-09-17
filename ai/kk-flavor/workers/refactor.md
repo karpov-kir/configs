@@ -28,7 +28,7 @@ Apply every fix directly except the **architecture**, **testing**, and **project
 
 ## Verdict
 
-**Every comment block in the scope gets a line**, the way every file does: `carried by <rename, move, lint rule or test>`, which is an edit you make, or `stays: <the fact no name can carry>`. Your caller counts those lines against the blocks, so a block with no line reads as a missing verdict and never as a pass. Two shapes are almost always carried: a constant whose comment explains its number, and an invariant more than one file states in prose. Each is a finding against the name, and the edit is the fix.
+**Every comment block in the scope gets a line**, the way every file does: `carried by <rename, move, extraction, lint rule or test>`, which is an edit you make, or `stays: <the fact no name can carry>`. Your caller counts those lines against the blocks, so a block with no line reads as a missing verdict and never as a pass. Three shapes are almost always carried: a constant whose comment explains its number, an invariant more than one file states in prose, and a note saying which of two branches handles which case, which a named function per branch carries. Each is a finding against the name, and the edit is the fix.
 
 Adds a coverage field — `File N/M <path> | <lines>L | G1..Gn | OK` — counting the guidelines you checked. If you couldn't check them all, list only the ones you did and mark the verdict `WARN`.
 
