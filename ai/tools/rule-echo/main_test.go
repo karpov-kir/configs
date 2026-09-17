@@ -484,7 +484,7 @@ func TestARunThatCouldNotScanRefusesRatherThanReadingAsClean(t *testing.T) {
 		want string
 	}{
 		{"no root at all", nil, "usage: ruleecho.sh <root> [file ...]"},
-		{"a root holding nothing to read", []string{empty}, "nothing read under"},
+		{"a root holding nothing to read", []string{empty}, "ruleecho.sh: nothing read under"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			code, out, errOut := runOver(t, c.args...)
@@ -528,7 +528,7 @@ func TestAScanShownLessThanTheTreeExitsTwoEvenHavingFoundARestatement(t *testing
 	if !strings.Contains(out, "NOT read, so this is a partial scan") {
 		t.Errorf("the summary does not say the scan was partial:\n%s", out)
 	}
-	if !strings.Contains(errOut, "could not be read — exit 2") {
+	if !strings.Contains(errOut, "ruleecho.sh: ") || !strings.Contains(errOut, "could not be read — exit 2") {
 		t.Errorf("stderr %q does not say why the run refused", errOut)
 	}
 }

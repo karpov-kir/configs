@@ -69,7 +69,7 @@ func TestAPartialScanRefusesRatherThanReporting(t *testing.T) {
 	if strings.Contains(out, "DEPTH") || strings.Contains(out, "file(s)") {
 		t.Errorf("a partial scan printed a report:\n%s", out)
 	}
-	if !strings.Contains(errOut, "were NOT read") {
+	if !strings.Contains(errOut, "cite-graph.sh: ") || !strings.Contains(errOut, "were NOT read") {
 		t.Errorf("stderr %q does not say the tree was not read whole", errOut)
 	}
 }
@@ -99,7 +99,7 @@ func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
 	if out != "" {
 		t.Errorf("a refusal printed a report:\n%s", out)
 	}
-	if !strings.Contains(errOut, "read nothing under") {
+	if !strings.Contains(errOut, "cite-graph.sh: read nothing under") {
 		t.Errorf("stderr %q does not say it read nothing", errOut)
 	}
 }

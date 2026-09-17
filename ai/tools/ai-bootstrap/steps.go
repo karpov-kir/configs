@@ -68,15 +68,13 @@ func (run *invocation) syncMcp() {
 // A setup that reports success without checking anything has reported nothing, so the last step is the
 // repository's own gate over what was just linked.
 //
-// The gate and not ai/run-tests.sh. That runner stayed shell because a verify could land on a machine
-// with no Go — a constraint this file drops: the step above installs the tool binaries and already
-// refuses a machine that can neither download nor build them, so by the time verify runs there is a
-// binary or there is a refusal.
+// Running the gate here assumes a machine that can run Go, which a verify step could once not assume.
+// The step above earns it: it installs the tool binaries and already refuses a machine that can
+// neither download nor build them, so by the time verify runs there is a binary or there is a refusal.
 //
-// The re-entry marker is load-bearing. The gate discovers every `*-test.sh` and runs it, so a suite
-// that drives this installer would reach verify again, and verify would run the gate again. Nothing in
-// the tree does that today; the marker is what stops the one written tomorrow from hanging a machine
-// setup instead of failing it.
+// The re-entry marker is load-bearing. The gate runs the Go suites, and a case that drives this
+// installer reaches verify, which would run the gate, which would run that case again. The marker is
+// what makes that recursion stop at a failure rather than hang a machine setup.
 func (run *invocation) verify() {
 	gate := run.Repo + "/gate.sh"
 	switch {

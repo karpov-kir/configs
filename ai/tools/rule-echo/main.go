@@ -303,7 +303,7 @@ func run(args []string, out, errOut io.Writer) int {
 	found, err := collect(root)
 	spans := found.spans
 	if err != nil || len(spans) == 0 {
-		fmt.Fprintf(errOut, "ruleecho: nothing read under %s — exit 2, which is not the same as nothing to report.\n", root)
+		fmt.Fprintf(errOut, "ruleecho.sh: nothing read under %s — exit 2, which is not the same as nothing to report.\n", root)
 		return 2
 	}
 
@@ -360,7 +360,7 @@ func run(args []string, out, errOut io.Writer) int {
 	// exactly that. This is the only cross-file restatement detector there is, so a scan that was
 	// shown less than the tree must never be mistaken for one that found nothing in it.
 	if found.unread > 0 {
-		fmt.Fprintf(errOut, "ruleecho: %d path(s) under %s could not be read — exit 2. The pairs above are real; the ones in what went unread are not ruled out.\n",
+		fmt.Fprintf(errOut, "ruleecho.sh: %d path(s) under %s could not be read — exit 2. The pairs above are real; the ones in what went unread are not ruled out.\n",
 			found.unread, shell.Oneline(root))
 		return 2
 	}
