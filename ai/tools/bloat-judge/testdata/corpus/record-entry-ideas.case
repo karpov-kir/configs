@@ -1,0 +1,13 @@
+kind: record-entry
+cut:
+keep: 1 2 3 4
+---
+## 1x | 2026-09-08 | Reusable gate evidence
+
+Typed stage ingestion shipped; `idsd-qualify/stage-results.md` is its procedure. What it bought was fewer report calls and stronger result accounting, not lower latency — coordinator turns, provider tokens and real-project savings stayed unmeasured, and a three-trial comparison had median elapsed time rising from 7.24s to 9.17s on a tiny fixture.
+
+Gate reuse is what remains, and it is deferred. Finalize still reruns build gates because report stamps hold no command, tool, dependency or environment evidence that could justify avoiding them. Keep those reruns until an explicit receipt establishes equivalent inputs and a successful real execution. Store evidence in scratch, separate from human project records. Include commands, working directory, exit status, candidate/dependency identity, relevant tool/configuration identity and logs without secrets. External or otherwise unbounded inputs require rerunning the gate.
+
+Before building gate reuse, measure repeated gates in representative releases. Compare saved runtime with receipt validation and maintenance costs; exercise changed commands, dependencies, toolchains and environments as negative controls. Keep local-model evaluation separate from this decision.
+
+Standing cost of typed ingestion: a versioned format, retained manifests, caller migration and crash-recovery tests. In-flight releases use a frozen old tool bundle until completion; new passes use the typed contract. No scheduler, provider runtime or gate cache was added.

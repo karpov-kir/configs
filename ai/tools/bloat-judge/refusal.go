@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"kk-flavor/tools/shell"
 )
@@ -83,6 +84,18 @@ func refusedTheModel(client, echoed string, stdout []byte, err error) bool {
 		}
 	}
 	return false
+}
+
+// RollTimedOut is the bound in deadline.go firing. Its own type so the wrapper that names files can
+// reach it: the repair is a `roll-timeout` line, and an exit 2 that does not name that file sends the
+// reader hunting a fault in the text they were judging. The wording is asserted in deadline_test.go,
+// being how a caller tells a roll that was cut off from one whose model crashed.
+type RollTimedOut struct {
+	Deadline time.Duration
+}
+
+func (t *RollTimedOut) Error() string {
+	return fmt.Sprintf("the model did not answer within %s", t.Deadline)
 }
 
 // ProviderExhausted is the account out of capacity for now: the name is good, the text is good, and
