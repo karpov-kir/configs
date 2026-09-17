@@ -9,6 +9,7 @@ package density
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -375,14 +376,14 @@ func bar(out console, git gitrepo.Git, args []string, cwd string, cfg Config) in
 	if set.total() == 0 {
 		return out.refuse(refusal("no changed source file could be read, so this run says nothing about the change set"))
 	}
-	return out.reportBar(base, set)
+	return out.reportBar(base, set, toolIdentity(git))
 }
 
 // Exit 1 means over the bar, and the report says how many lines: a share tells nobody what to delete. At
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
-func (c console) reportBar(base baseline, set changeSet) int {
-	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", toolBuild(), toolTree())
+func (c console) reportBar(base baseline, set changeSet, by identity) int {
+	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", by.build, by.tree)
 	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
 		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
 	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
@@ -426,22 +427,53 @@ func (c console) reportBar(base baseline, set changeSet) int {
 	return exitFound
 }
 
-// Reported unknown rather than omitted: a line that vanishes with the identity leaves its absence
-// meaning either no stamp or an older binary, and the reader cannot tell which. `resolve.sh` carries
-// what the stamp is and why it, rather than the binary's bytes.
-// The checkout the stub resolved through, reported unknown rather than omitted for the reason toolBuild
-// gives. A different fact from the build: source can hash identically to its own tree and that tree
-// still be a commit nobody else has, which is what makes two readings taken apart incomparable.
-func toolTree() string {
-	if tree := os.Getenv("ECO_TOOL_TREE"); tree != "" {
-		return tree
+// What produced a reading: the build the running binary came from, and the checkout that binary sits
+// in. Two facts, not one — source can hash identically to its own tree and that tree still be a commit
+// nobody else has, which is what makes two readings taken apart incomparable.
+type identity struct{ build, tree string }
+
+// Either half is reported unknown rather than omitted: a field that vanishes leaves its absence meaning
+// either nothing named it or an older binary that never printed one, and the reader cannot tell which.
+const unknownIdentity = "unknown"
+
+// Read off the binary that is running, never handed in. The stubs used to export both as environment,
+// which cost all 23 of them a `cat` and a `git` per invocation to carry a line this tool alone prints;
+// worse, a binary run directly reported unknown for a build it could have named. `resolve.sh` carries
+// what the stamp is, and why it rather than the binary's own bytes.
+func toolIdentity(git gitrepo.Git) identity {
+	binary, err := os.Executable()
+	if err != nil {
+		return identity{build: unknownIdentity, tree: unknownIdentity}
 	}
-	return "unknown"
+	return identityOf(git, binary)
 }
 
-func toolBuild() string {
-	if stamp := os.Getenv("ECO_TOOL_BUILD"); stamp != "" {
+// Split from the call above so the suite can stand a fixture where `os.Executable()` names the test
+// binary, which sits beside no stamp and in no checkout.
+func identityOf(git gitrepo.Git, binary string) identity {
+	return identity{build: stampBeside(binary), tree: checkoutOf(git, filepath.Dir(binary))}
+}
+
+// The stamp whoever put the binary there wrote beside it — resolve.sh after a build, install.sh after a
+// download. Absent is the normal answer for a binary nobody stamped, so it is not an error here.
+func stampBeside(binary string) string {
+	body, err := os.ReadFile(binary + ".stamp")
+	if err != nil {
+		return unknownIdentity
+	}
+	if stamp := strings.TrimSpace(string(body)); stamp != "" {
 		return stamp
 	}
-	return "unknown"
+	return unknownIdentity
+}
+
+// The commit the checkout serving the binary sits on. A directory that is no checkout at all answers
+// the same way one with an unborn HEAD does, and neither is worth a refusal: this line describes the
+// instrument, and a measurement is not wrong because its instrument could not name itself.
+func checkoutOf(git gitrepo.Git, dir string) string {
+	head, err := git.Resolve(dir, "HEAD")
+	if err != nil || head == "" {
+		return unknownIdentity
+	}
+	return head
 }

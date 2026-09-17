@@ -15,8 +15,12 @@
 //
 // What that replaces: four shell suites, 280 assertions, 247 seconds and 1,887 commands, nearly all of
 // it fixture plumbing — a real `go build` per staleness case, a 22-tool release per install case, and a
-// process for each of the sourced-function rows. This package and the stub cases named above answer 127
-// cases in about 15 seconds and 469 commands, counted through the same PATH shim.
+// process for each of the sourced-function rows. This package and the stub cases named above answer 134
+// cases in 469 commands, counted through the same PATH shim, and about half a minute.
+//
+// The six cases `--run` added cost four commands between them: the stub region they cover shed a `cat`
+// and a `git rev-parse` per launch when the resolver took the exec over, and the launches here paid for
+// most of the new ones.
 //
 // The floor under that number is one launch per claim: what a script did on a machine shaped a
 // particular way can only be measured by running it there, and the rest of each launch's cost is the
@@ -88,6 +92,28 @@ const failingStamper = "#!/bin/sh\nexit 1\n"
 // An executable file standing in for a binary somebody else built — a release asset, or a tool since
 // renamed. resolve.sh serves any runnable regular file in bin/, so a fixture needs no build to have one.
 const foreignBinary = "#!/bin/sh\nexit 0\n"
+
+// A binary that says how it was launched, for the `--run` cases: one line of its own, its arguments one
+// per line, and an exit status no success or refusal of resolve.sh's shares.
+//
+// It cannot report its argv[0], and no fixture here can: `exec -a NAME file` puts NAME in the execve
+// argv, and the kernel then hands a `#!` file to its interpreter as `sh file …`, dropping NAME on the
+// way. A real binary does see it, which is why that half is `ai/tools/stub_reach_test.go`'s ledger
+// case — a whole stub, a real Go binary, and the write whose destination argv[0] decides.
+const reportingBinary = `#!/bin/sh
+printf 'the tool ran\n'
+for argument in "$@"; do printf 'argument=%s\n' "$argument"; done
+exit 7
+`
+
+// The first line reportingBinary prints. Cases hold the WHOLE of stdout against this and the arguments:
+// under `--run` that stream is the tool's, and a path or a warning on it is a line every caller of
+// every stub would have to learn to drop.
+const reportingMark = "the tool ran\n"
+
+// The status reportingBinary leaves. Neither 0 nor 2, so "the binary's own status reached the caller"
+// cannot be satisfied by resolve.sh succeeding or refusing.
+const reportingExit = 7
 
 // What one launch of a script came back with. stdout and stderr are kept apart because several cases
 // turn on a warning being audible on stderr while stdout carries the path a caller execs and nothing

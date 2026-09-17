@@ -1,10 +1,33 @@
 #!/usr/bin/env bash
-# Print the path to a runnable binary for <tool>, or exit 2 saying which way it could not be reached.
+# Reach a runnable binary for <tool>, or exit 2 saying which way it could not be reached.
 #
-#   usage: resolve.sh <tool>          # <tool> is a directory name under ai/tools
+#   usage: resolve.sh <tool>                            # print the path, and nothing else
+#          resolve.sh --run <tool> <argv0> [argument …] # and exec it, under that argv[0]
 #
-# Callers are the stubs in each skill's scripts/ directory. Everything about *finding* a binary lives
-# here, so a stub stays a tool name and an exec.
+# Callers are the stubs in each skill's scripts/ directory, which take the second spelling. Everything
+# about reaching a binary lives here, so a stub is a tool name, its depth, and one exec: a stub has to
+# find THIS file before this file can decide anything, and that is the whole of what it can hold.
+#
+# `--run` replaces the calling stub rather than answering it: this file runs IN the stub's process and
+# execs the binary from there, where a stub that read a path back forked one shell to get it. With the
+# identity reads that went with it, a warm invocation of a stub fell from 15 processes to 12, measured.
+# `<argv0>` is the stub's own `$0`, passed rather than inherited: the tools derive their skill directory
+# from argv[0], so a skill reached through its symlink mount still finds its own ledger and siblings.
+#
+# What the stub region still holds, and why each line of it is the shape it is:
+#
+#   `CDPATH=`, because `cd` echoes where it landed when the path is relative, which would put a second
+#   line into that substitution and corrupt every path built from it. `pwd -P`, because it resolves the
+#   symlink the skill is mounted by: the resolver is found from the stub's real location, never cwd.
+#
+#   One declared offset, never a search. The stubs sit at four depths, and both ways of guessing
+#   between them reach a tools directory the stub does not name: an upward walk execs the first
+#   `tools/resolve.sh` in any ancestor of a checkout that ships none, and a list of relative candidates
+#   resolves outside the repository for the shallowest stubs. Either runs a stranger's binary at exit 0.
+#
+#   Two guards and two messages, because the fixes differ: no resolver means a checkout that ships no
+#   `ai/tools/`, and one without its exec bit means a half-finished install. Both exit 2, and both say
+#   the tool did NOT run — these tools report findings, so silence from one reads as a clean tree.
 #
 # Order: a binary already at bin/<tool>, then a local `go build` when the source is here. The first
 # branch is what a release install lands on, and why installing these skills needs no Go toolchain.
@@ -37,8 +60,23 @@ die() {
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no tool can be located"
 
-[ $# -eq 1 ] || die "usage: resolve.sh <tool>"
-tool="$1"
+# `exec` is the mode a stub takes and `print` the one a human or another script takes. Held in a word of
+# its own rather than inferred from argv0 being set: read that way, `--run <tool> ""` would quietly fall
+# back to printing a path to a caller that is waiting to be replaced, and exit 0 having run nothing.
+mode="print"
+argv0=""
+forward=()
+if [ "${1:-}" = "--run" ]; then
+  [ $# -ge 3 ] || die "usage: resolve.sh --run <tool> <argv0> [argument …]"
+  mode="exec"
+  tool="$2"
+  argv0="$3"
+  shift 3
+  forward=("$@")
+else
+  [ $# -eq 1 ] || die "usage: resolve.sh <tool>"
+  tool="$1"
+fi
 
 # A tool name is a directory name here, so anything that could climb out of this directory or name
 # something other than a plain entry is refused before it reaches a path.
@@ -48,27 +86,37 @@ esac
 
 binary="$tools/bin/$tool"
 
+# The one way out that is not a refusal. Under `--run` nothing is printed at all: stdout belongs to the
+# tool from here on, and a path on it would be a line every caller of every stub had to learn to drop.
+#
+# `${forward[@]+…}` because bash 3.2 — which is still /bin/bash on macOS — reads an empty array under
+# `set -u` as unbound, and a tool invoked with no arguments is the common case, not the odd one.
 serve() {
+  if [ "$mode" = exec ]; then
+    exec -a "$argv0" "$binary" ${forward[@]+"${forward[@]}"}
+  fi
   printf '%s\n' "$binary"
   exit 0
 }
 
 # Written by whoever puts the binary there — this script after a build, install.sh after a download.
 #
-# It is also the build identity every stub exports as ECO_TOOL_BUILD, so a tool that reports a
-# measurement can name what produced it. `992662a` settled the other half — a scanner number names the
-# commit it was read off — and a reading whose instrument is unnamed cannot be compared with one taken
-# later: a rebuild here moved comment-density's attribution figures on an unchanged tree with nothing in
-# the output saying so. The stamp rather than the binary's own bytes, because it moves exactly when the
-# build does and costs one file read where hashing the binary on every invocation would not. Never the
-# stub: that file barely changes and would name nothing.
+# It is also the build identity a tool reports, so a measurement can name what produced it. `992662a`
+# settled the other half — a scanner number names the commit it was read off — and a reading whose
+# instrument is unnamed cannot be compared with one taken later: a rebuild here moved comment-density's
+# attribution figures on an unchanged tree with nothing in the output saying so. The stamp rather than
+# the binary's own bytes, because it moves exactly when the build does and costs one file read where
+# hashing the binary on every invocation would not. Never the stub: that file barely changes and would
+# name nothing.
 #
-# The stamp is one of two facts a stub exports, and they answer different questions. This one says what
-# the binary was built from; ECO_TOOL_TREE says which commit the checkout serving it sits on. A tree can
-# hold a stamp that matches its own source perfectly and still be a commit nobody else has — the mount
-# resolves to one checkout's working tree, so a session reading source, running a binary or loading a
-# skill through it gets whatever that tree currently holds. Observed: a skill appeared in a live
-# session's list and vanished two turns later as that checkout moved and moved back.
+# Read by the tool that reports it, off its own `os.Executable()`, and never handed down from here: the
+# stub used to export it beside a `git rev-parse`, which cost every one of the 23 tools two processes
+# per invocation to carry a line one of them prints. comment-density/bar.go is that one, and it reads
+# the checkout's own commit there too — a different fact from this one, because a tree can hold a stamp
+# that matches its own source perfectly and still be a commit nobody else has. The mount resolves to one
+# checkout's working tree, so a session reading source, running a binary or loading a skill through it
+# gets whatever that tree currently holds. Observed: a skill appeared in a live session's list and
+# vanished two turns later as that checkout moved and moved back.
 #
 # It names the SOURCE, not the bytes: identical source built under two Go toolchains stamps the same and
 # can still behave differently. Narrow, and stated rather than built for — but do not read a matching

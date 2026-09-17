@@ -377,6 +377,91 @@ func TestANameThatCouldBecomeSomethingOtherThanADirectoryIsRefusedAsAName(t *tes
 	}
 }
 
+// `--run` is the spelling every stub takes, and it owns what the stub region used to do line by line.
+// Three properties at once, because a resolver that dropped any of them would still look like it
+// worked: the binary is REPLACED into, so its own exit status is what a caller sees; its arguments
+// arrive whole and in order; and stdout carries what the tool printed and nothing else, which is why
+// the whole stream is asserted rather than searched. The fourth — argv[0] — is stub_reach_test.go's,
+// for the reason reportingBinary states.
+func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
+	t.Parallel()
+	sandbox := newSandbox(t)
+	tools := newSourcelessDir(t, sandbox, "run")
+	placeBinary(t, tools, tool, reportingBinary, 0o755)
+
+	ran := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+		newReleasePath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh", "--flag", "a value"))
+
+	if ran.code != reportingExit {
+		t.Errorf("the caller saw exit %d where the binary exits %d, so resolve.sh answered instead of being "+
+			"replaced by it\n%v", ran.code, reportingExit, ran)
+	}
+	if want := reportingMark + "argument=--flag\nargument=a value\n"; ran.stdout != want {
+		t.Errorf("stdout is not the tool's own output alone — it belongs to the tool from the exec on, and a "+
+			"path or a warning there is a line every caller of every stub has to learn to drop\nwant: %s%v",
+			want, ran)
+	}
+}
+
+// A tool invoked with no arguments at all is the common case, not the odd one, and an empty array under
+// `set -u` is unbound in the bash macOS still ships as /bin/bash. Without the guard for it this is the
+// launch that dies before the exec, and every case above passes while no stub can be run bare.
+func TestRunExecsTheBinaryWhenThereIsNothingToForward(t *testing.T) {
+	t.Parallel()
+	sandbox := newSandbox(t)
+	tools := newSourcelessDir(t, sandbox, "run-bare")
+	placeBinary(t, tools, tool, reportingBinary, 0o755)
+
+	ran := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+		newReleasePath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh"))
+
+	if ran.code != reportingExit {
+		t.Errorf("a tool invoked with no arguments did not reach its binary\n%v", ran)
+	}
+	if ran.stdout != reportingMark {
+		t.Errorf("an argument reached the binary that no caller passed\n%v", ran)
+	}
+}
+
+// Under `--run` a refusal is all the caller gets, so it has to be the same refusal print mode gives:
+// exit 2, naming what did not happen. A resolver that exec'd something on this path, or exited 0 having
+// run nothing, would hand every stub's caller a clean tree.
+func TestRunRefusesTheSameWayAndNeverExecsAnything(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct {
+		name  string
+		asked []string
+		says  string
+	}{
+		{
+			name:  "the checkout ships neither a binary nor source",
+			asked: []string{"--run", tool, "/somewhere/else/widget.sh"},
+			says:  "ships neither",
+		},
+		{
+			// The argv[0] is not optional: without it the resolver would exec the binary under its own
+			// path, and every tool would then write into ai/tools instead of its skill directory.
+			name:  "no argv0 to exec under",
+			asked: []string{"--run", tool},
+			says:  "usage: resolve.sh --run",
+		},
+		{
+			name:  "no tool either",
+			asked: []string{"--run"},
+			says:  "usage: resolve.sh --run",
+		},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			sandbox := newSandbox(t)
+			tools := newSourcelessDir(t, sandbox, "refused")
+			refused := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+				newReleasePath(t, sandbox, "no-go"), scenario.asked...))
+			expectRefusal(t, refused, scenario.says)
+		})
+	}
+}
+
 // Older than anything a case writes, so the binary can be made newer than every source beside it.
 func backdate(t *testing.T, path string) {
 	t.Helper()

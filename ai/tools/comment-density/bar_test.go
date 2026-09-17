@@ -614,27 +614,42 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 	})
 }
 
-// Every report names the build that produced it, so two readings taken apart can be told apart. The
-// stub exports the stamp; run directly, as here, nothing does.
-func TestBarNamesTheBuildThatMeasured(t *testing.T) {
+// Every report names the build that produced it, so two readings taken apart can be told apart. Read
+// off the binary that is running rather than handed in by the stub, which is what lets a binary invoked
+// directly — as every case in this file does — still name what it was built from.
+func TestTheBuildIsTheStampBesideTheRunningBinary(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "deadbeefcafe\n")
 
-	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build deadbeefcafe")
+	if by := identityOf(r.git, binary); by.build != "deadbeefcafe" {
+		t.Errorf("the build reads %q where the stamp beside the binary says %q", by.build, "deadbeefcafe")
+	}
 }
 
 // An identity nobody stamped is reported, never omitted. A line that disappears when the build is
 // unknown leaves its absence meaning two things — no stamp, or an older binary that never printed one
-// — and the reader cannot tell which.
+// — and the reader cannot tell which. Driven end to end, because the test binary really is unstamped:
+// what this holds is the LINE, not just the value behind it.
 func TestBarNamesAnUnknownBuildRatherThanOmittingIt(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "")
 
 	r.runBar()
 	r.expectStdoutHas("measured by: comment-density build unknown")
+}
+
+// A stamp file that exists and holds nothing is the same answer as no stamp at all: a build written as
+// the empty string would print as `build , tree …` and read as a formatting bug rather than a gap.
+func TestAnEmptyStampReadsUnknownRatherThanEmpty(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "\n")
+
+	if by := identityOf(r.git, binary); by.build != unknownIdentity {
+		t.Errorf("an empty stamp reads as %q, which prints as a gap in the line rather than as a gap in "+
+			"what is known", by.build)
+	}
 }
 
 // Under the bar the attribution half prints nothing at all, so the identity must not ride on it: an
@@ -642,12 +657,11 @@ func TestBarNamesAnUnknownBuildRatherThanOmittingIt(t *testing.T) {
 func TestBarNamesTheBuildEvenWhenUnderTheBar(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "underbar99")
 
 	r.runBar()
 	r.expectCode(exitClean)
 	r.expectStdoutLacks("chargeable")
-	r.expectStdoutHas("measured by: comment-density build underbar99")
+	r.expectStdoutHas("measured by: comment-density build ")
 }
 
 // A closed range asks what its right-hand side holds, so content comes from there and not from a tree
@@ -719,27 +733,45 @@ func TestContentRevisionPinsOnlyClosedRanges(t *testing.T) {
 
 // The report names the checkout as well as the binary. They are different facts: a stamp hashes source,
 // so a tree can hash identically to its own source and still be a commit nobody else has — which is what
-// makes two readings taken apart incomparable when the mount moved between them.
-func TestBarNamesTheTreeItMeasuredOn(t *testing.T) {
+// makes two readings taken apart incomparable when the mount moved between them. The checkout asked
+// about is the BINARY's, not the tree under measurement, so the question is put at its directory.
+func TestTheTreeIsTheCheckoutTheBinarySitsIn(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
-	t.Setenv("ECO_TOOL_TREE", "feedfacedead")
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "deadbeefcafe\n")
 
-	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build deadbeefcafe, tree feedfacedead")
+	by := identityOf(r.git, binary)
+	if want := r.fake.Refs["HEAD"]; by.tree != want {
+		t.Errorf("the tree reads %q where HEAD at the binary's own directory is %q", by.tree, want)
+	}
+	if by.build != "deadbeefcafe" {
+		t.Errorf("the build reads %q, so this case says nothing about the two being separate facts", by.build)
+	}
 }
 
 // An unnamed checkout is reported, never omitted — the same reason the build is. A line that drops the
-// tree when nothing named it leaves its absence meaning either no git or an older binary.
-func TestBarNamesAnUnknownTreeRatherThanOmittingIt(t *testing.T) {
+// tree when nothing named it leaves its absence meaning either no git or an older binary. A binary
+// installed outside any checkout is the ordinary way here, not a broken machine.
+func TestAnUnnamedCheckoutReadsUnknownRatherThanEmpty(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
-	t.Setenv("ECO_TOOL_TREE", "")
+	r.fake.Fail = map[string]error{"Resolve": errors.New("not a git repository")}
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "deadbeefcafe\n")
 
-	r.runBar()
-	r.expectStdoutHas("build deadbeefcafe, tree unknown")
+	if by := identityOf(r.git, binary); by.tree != unknownIdentity {
+		t.Errorf("a directory git could not answer about reads as %q rather than as unknown", by.tree)
+	}
+}
+
+// One fixture binary with its stamp beside it, which is the pair resolve.sh and install.sh both leave.
+func writeIdentityFixture(t *testing.T, binary, stamp string) {
+	t.Helper()
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("writing the fixture binary: %v — nothing was measured", err)
+	}
+	if err := os.WriteFile(binary+".stamp", []byte(stamp), 0o644); err != nil {
+		t.Fatalf("writing the fixture stamp: %v — nothing was measured", err)
+	}
 }
 
 // The bar and the voice check both enforce "a block is at most four lines", so they have to mean the
