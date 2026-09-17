@@ -58,7 +58,7 @@ var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-fla
 // to close.
 //
 // The cost is real and deliberate: gotest is the slowest unit here, and a comment-only edit in any of
-// these sixteen files now re-runs the whole Go suite. The alternative is a key narrower than what the
+// these seventeen files now re-runs the whole Go suite. The alternative is a key narrower than what the
 // suite reads, and that one answers green over a stub nothing looked at.
 var extStubs = []string{
 	"ai/gate.sh",
@@ -68,6 +68,7 @@ var extStubs = []string{
 	"ai/kk-flavor/scripts/model-policy.sh",
 	"ai/kk-flavor/scripts/repo-key.sh",
 	"ai/kk-flavor/scripts/tree-fingerprint.sh",
+	"ai/kk-flavor/scripts/wait-reap.sh",
 	"ai/kk-flavor/skills/idsd-qualify/scripts/report.sh",
 	"ai/kk-flavor/skills/idsd-ship/scripts/cadence.sh",
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh",
@@ -76,7 +77,7 @@ var extStubs = []string{
 	"ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh",
 	"ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh",
 	"ai/kk-flavor/skills/kk-reduce/scripts/stats.sh",
-	"ai/kk-flavor/skills/kk-refactor/scripts/dup-literals.sh",
+	"ai/kk-flavor/workers/refactor/dup-literals.sh",
 }
 
 // A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and

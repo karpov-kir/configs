@@ -70,6 +70,9 @@ var refusals = []refusal{
 	// Two roots where the tool takes one path.
 	{stub: "ai/kk-flavor/scripts/repo-key.sh", args: []string{"one", "two"}},
 	{stub: "ai/kk-flavor/scripts/tree-fingerprint.sh", args: []string{"one", "two"}},
+	// An unknown flag, which the tool refuses before it reads the process listing. Not `--kill`, which
+	// is valid and ends processes.
+	{stub: "ai/kk-flavor/scripts/wait-reap.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/skills/idsd-qualify/scripts/report.sh", args: []string{"nope"}},
 	// An unknown flag, which the dispatch refuses. Not `audit asked`, which is a valid subcommand that
 	// OVERWRITES the recorded date and is undone by nothing.
