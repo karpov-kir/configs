@@ -181,6 +181,33 @@ invocation carry Claude frontmatter and
 [Codex invocation policy](https://learn.chatgpt.com/docs/build-skills) in
 `agents/openai.yaml`.
 
+## Wait loops sessions leave behind
+
+A wait the harness has put in the background is parented to a daemon that outlives the session, its
+archive and its worktree. A task you start detached lands there, and so does a foreground call that
+hit its timeout. A loop polling for a file no session will write then keeps running until the machine
+reboots, and they pile up. List them, and end the ones holding no work anyone is still waiting on:
+
+```sh
+~/.kk-flavor/scripts/wait-reap.sh            # reports only
+~/.kk-flavor/scripts/wait-reap.sh --kill
+```
+
+`--kill` ends a waiter only when the harness started it and the whole command is one loop that does no
+work of its own. Past that, the waiter has to be over fifteen minutes old — the ten a foreground call
+can run, plus margin — and then either its session is named and has been silent for `--idle-for` (30
+minutes by default) while the waiter is past `--stale-after`, or no session can be attributed to it
+and it is past `--stale-after` (2 hours by default) on age alone. A waiter that clears none of this is
+listed and left alone, a loop doing work of its own included.
+
+Silence is not absence: a transcript records turns and tool events, so a session waiting at its prompt
+writes no line at all. Across 600 of them, 5% went quiet for more than half an hour and then resumed.
+That is why a session's silence alone ends no waiter, and why this is a command you run and not a hook
+that ends processes while you are not watching.
+
+[Skill protocol](kk-flavor/standards/skill-protocol.md) → **Waiting for work you dispatched** is the
+rule for waiting without adding to the pile.
+
 ## Machine-wide setup by hand
 
 - [Claude Code](https://code.claude.com)

@@ -64,6 +64,7 @@ import (
 	repokey "kk-flavor/tools/repo-key"
 	"kk-flavor/tools/shell"
 	treefingerprint "kk-flavor/tools/tree-fingerprint"
+	waitreap "kk-flavor/tools/wait-reap"
 )
 
 const (
@@ -187,6 +188,11 @@ var refusals = []refusal{
 	}},
 	{stub: "ai/kk-flavor/scripts/tree-fingerprint.sh", args: []string{"one", "two"}, call: func(i invocation) int {
 		return treefingerprint.Run(i.args, i.out, i.out)
+	}},
+	// An unknown flag, which the tool refuses before it reads the process listing. Not `--kill`, which
+	// is valid and ends processes.
+	{stub: "ai/kk-flavor/scripts/wait-reap.sh", args: []string{"--nope"}, call: func(i invocation) int {
+		return waitreap.Run(i.args, i.out, i.out)
 	}},
 	{stub: "ai/kk-flavor/skills/idsd-qualify/scripts/report.sh", args: []string{"nope"}, call: func(i invocation) int {
 		// The one tool here that resolves a repository before it dispatches, so the working directory it

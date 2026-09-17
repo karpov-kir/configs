@@ -25,5 +25,6 @@ dist/
 /rule-echo/rule-echo
 /cmd/ai-bootstrap/ai-bootstrap
 /cmd/env-bootstrap/env-bootstrap
+/cmd/wait-reap/wait-reap
 /install-project/install-project
 /project-skills/project-skills
