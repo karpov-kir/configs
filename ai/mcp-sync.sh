@@ -90,7 +90,7 @@ for arg in "$@"; do
       #
       # `sed` only: this arm runs on the stripped PATH mcp-sync-test.sh drives it under, and the usage
       # line it prints is the one in the header, so there is no second copy here to drift from it.
-      sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
+      sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;/^#$/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     *)

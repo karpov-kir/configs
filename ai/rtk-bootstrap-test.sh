@@ -23,6 +23,20 @@ run_rtk_boot() {
   out=$(HOME="$home" CODEX_HOME="$home/profile" PATH="$tmp/bin:$PATH" bash "$here/bootstrap.sh" --agent=codex --owner --skip-brew --skip-tools --skip-mcp --skip-verify "$@" 2>&1)
   status=$?
 }
+# The path is a literal bootstrap.sh creates and the owner instructions send every session to. Copying
+# it here would only catch bootstrap.sh drifting from the copy. Every fixture below derives it from the
+# instruction source instead, which a case can read before any install has run, and one case holds the
+# installed copy against that source. The drift that reaches an agent — a rule naming a store bootstrap
+# never created — is then a red case rather than a silent one.
+memory_named_by() { # <instruction file> <home>
+  local named
+  named=$(sed -n 's/.*`\(~\/[^`]*\/MEMORY\.md\)`.*/\1/p' "$1" 2>/dev/null | head -1)
+  [ -n "$named" ] || return 1
+  printf '%s' "$2${named#\~}"
+}
+store_in() { # <home>
+  memory_named_by "$here/owner-instructions.md" "$1"
+}
 owner_source_before=$(cat "$here/owner-instructions.md")
 fresh_home
 run_rtk_boot --dry-run
@@ -79,22 +93,67 @@ expect_absent "existing RTK instructions bypass native initialization" "$home/rt
 fresh_home
 run_rtk_boot --skip-rtk
 expect_status "owner creates its shared memory store" 0
-[ -f "$home/Document/AI/MEMORY.md" ] && record_pass "owner memory file exists" || record_fail "owner memory file exists" "missing"
-printf '# Memory\n\nKeep this entry.\n' >"$home/Document/AI/MEMORY.md"
+owner_memory=$(store_in "$home") || owner_memory=
+# No fallback literal here on purpose: one would let the case below pass on a run whose instructions
+# named nothing, which is the failure this derivation exists to catch. The dependent cases go red too,
+# and the first failure names the cause.
+[ -n "$owner_memory" ] && record_pass "the owner instruction source names a memory store" || record_fail "the owner instruction source names a memory store" "no backticked MEMORY.md path in $here/owner-instructions.md"
+installed_memory=$(memory_named_by "$home/profile/AGENTS.md" "$home") || installed_memory=
+[ -n "$installed_memory" ] && [ "$installed_memory" = "$owner_memory" ] && record_pass "the installed instructions name the store their source does" || record_fail "the installed instructions name the store their source does" "installed names ${installed_memory:-nothing}, source names ${owner_memory:-nothing}"
+[ -n "$owner_memory" ] && [ -f "$owner_memory" ] && record_pass "bootstrap created the store its instructions name" || record_fail "bootstrap created the store its instructions name" "instructions name ${owner_memory:-nothing}, which does not exist"
+printf '# Memory\n\nKeep this entry.\n' >"$owner_memory"
 run_rtk_boot --skip-rtk
-[ "$(cat "$home/Document/AI/MEMORY.md")" = "$(printf '# Memory\n\nKeep this entry.')" ] && record_pass "reinstall preserves memory" || record_fail "reinstall preserves memory" "overwritten"
+[ "$(cat "$owner_memory")" = "$(printf '# Memory\n\nKeep this entry.')" ] && record_pass "reinstall preserves memory" || record_fail "reinstall preserves memory" "overwritten"
 out=$(HOME="$home" PATH="$tmp/bin:$PATH" bash "$here/bootstrap.sh" --agent=claude --owner --skip-rtk --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
 status=$?
 expect_status "second owner provider installs" 0
 cmp -s "$home/.claude/CLAUDE.md" "$home/profile/AGENTS.md" && record_pass "both owner instruction files are identical" || record_fail "both owner instruction files are identical" "different"
 run_rtk_boot --uninstall
-[ -f "$home/Document/AI/MEMORY.md" ] && record_pass "uninstall keeps memory" || record_fail "uninstall keeps memory" "removed"
+[ -f "$owner_memory" ] && record_pass "uninstall keeps memory" || record_fail "uninstall keeps memory" "removed"
 [ "$(cat "$here/owner-instructions.md")" = "$owner_source_before" ] && record_pass "native RTK never changes shared owner source" || record_fail "native RTK never changes shared owner source" "source changed"
+
+# A machine that ran the older owner bootstrap holds the entries at the singular spelling. Creating an
+# empty store beside them would strand every entry at a path no session reads.
+fresh_home
+migrated=$(store_in "$home")
+mkdir -p "$home/Document/AI"
+printf '# Memory\n\nEntry from the old path.\n' >"$home/Document/AI/MEMORY.md"
+run_rtk_boot --skip-rtk
+expect_status "owner install migrates a legacy memory store" 0
+[ "$(cat "$migrated" 2>/dev/null)" = "$(printf '# Memory\n\nEntry from the old path.')" ] && record_pass "migration carries the entries over" || record_fail "migration carries the entries over" "content did not survive the move"
+expect_absent "migration leaves nothing at the legacy path" "$home/Document/AI/MEMORY.md"
+expect_absent "migration removes the emptied legacy directory" "$home/Document"
+
+# bootstrap.sh's early return is what keeps a dry run to one claim about the store; this pins the
+# regression where it also prints "would create" after "would move".
+fresh_home
+mkdir -p "$home/Document/AI"
+printf '# Memory\n\nEntry from the old path.\n' >"$home/Document/AI/MEMORY.md"
+run_rtk_boot --skip-rtk --dry-run
+expect_status "a dry run with a legacy store succeeds" 0
+expect_out "the dry run says it would move the store" "would move"
+case "$out" in *"would create"*) record_fail "the dry run does not also claim it would create one" "said both" ;; *) record_pass "the dry run does not also claim it would create one" ;; esac
+[ -f "$home/Document/AI/MEMORY.md" ] && record_pass "a dry run moves nothing" || record_fail "a dry run moves nothing" "the store left the legacy path"
+
+# Two stores is the one case where guessing loses an entry, so it refuses instead of picking.
+fresh_home
+kept=$(store_in "$home")
+mkdir -p "$home/Document/AI" "${kept%/*}"
+printf 'older store\n' >"$home/Document/AI/MEMORY.md"
+printf 'newer store\n' >"$kept"
+run_rtk_boot --skip-rtk
+expect_status "a store at both paths refuses rather than picking one" 1
+# Without this the case passes on any refusal the run happens to raise, including one about something else.
+expect_out "the refusal names both stores" "owner memory exists at both"
+[ "$(cat "$home/Document/AI/MEMORY.md")" = 'older store' ] && [ "$(cat "$kept")" = 'newer store' ] && record_pass "a refused migration leaves both stores untouched" || record_fail "a refused migration leaves both stores untouched" "a store changed"
 fresh_home
 out=$(HOME="$home" bash "$here/bootstrap.sh" --agent=codex --skip-rtk --skip-brew --skip-tools --skip-mcp --skip-verify 2>&1)
 status=$?
 expect_status "ordinary install still works" 0
-expect_absent "ordinary install creates no owner memory" "$home/Document/AI/MEMORY.md"
+# A derivation that yields nothing would hand expect_absent an empty path, and `[ ! -e "" ]` is true —
+# the case would pass having checked nothing. The guard is what keeps this dependent case honest.
+ordinary_store=$(store_in "$home") || ordinary_store=
+[ -n "$ordinary_store" ] && expect_absent "ordinary install creates no owner memory" "$ordinary_store" || record_fail "ordinary install creates no owner memory" "the instruction source named no store to check for"
 if grep -q 'MEMORY.md' "$home/.codex/AGENTS.md"; then record_fail "ordinary instructions contain no owner memory rule" "leaked"; else record_pass "ordinary instructions contain no owner memory rule"; fi
 fresh_home
 mkdir -p "$home/profile"

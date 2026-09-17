@@ -13,7 +13,8 @@ for arg in "$@"; do
     --agent=claude | --agent=codex) agent="${arg#*=}" ;;
     --dry-run) is_dry_run=true ;;
     --uninstall) is_uninstall=true ;;
-    -h | --help) sed -n '2,3p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    # Anchored on content, not line numbers — see ai/mcp-sync.sh for why.
+    -h | --help) sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;/^#$/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"; exit 0 ;;
     -*) echo "project MCP: unknown option $arg" >&2; exit 2 ;;
     *)
       [ -z "$project" ] || { echo 'project MCP: select one project' >&2; exit 2; }

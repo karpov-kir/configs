@@ -62,14 +62,14 @@ func abbrevFromSharedGitDir(shared string) (string, error) {
 }
 
 // The clone's abbreviation: the initial of every alphanumeric run in its name, uppercased.
-// `player-testing-codec-compatibility` abbreviates to `PTCC`, `invest-tasks` to `IT`, and a name with
+// `project-tracker-cache-cleanup` abbreviates to `PTCC`, `issue-tracker` to `IT`, and a name with
 // no separator in it to its single letter.
 //
 // A run carrying a digit keeps its whole spelling instead — `github-action-deploy-k8s` is `GADK8s`
 // and not `GADK`. The digits are the distinguishing half of a `k8s`, `v2` or `s3`, and an initial
 // throws exactly that away.
 //
-// Initials collide by construction: `player-testing` and `player-tools` both abbreviate to `PT`. This
+// Initials collide by construction: `project-tracker` and `project-tools` both abbreviate to `PT`. This
 // is a label a human groups sessions by and never an identity — FromSharedGitDir is what tells two
 // clones apart, and a caller keying a directory off this instead would collide two repositories into
 // one directory.

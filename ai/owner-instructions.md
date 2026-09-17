@@ -12,4 +12,4 @@ Create a worktree with `git worktree add ~/Documents/WP/worktrees/<repo-key>/<wo
 
 ## Memory
 
-Read `~/Document/AI/MEMORY.md` at the start of every session. Write owner memory only to that file, shared by all owner clients; never to these instructions or a client's automatic memory directory. Preserve existing entries when updating it.
+Read `~/Documents/AI/MEMORY.md` at the start of every session. Write owner memory only to that file, shared by all owner clients; never to these instructions or a client's automatic memory directory. Preserve existing entries when updating it.
