@@ -254,8 +254,14 @@ func (g *gate) runGotest() (string, string, int) {
 	if g.changedSinceGreen(extQualify) {
 		groups = append(groups, "eco-report")
 	}
-	if g.changedSinceGreen([]string{extAudience}) {
-		groups = append(groups, "shell")
+	if g.changedSinceGreen([]string{extDeclaration, extLauncher}) {
+		groups = append(groups, "mcp-sync", "project-mcp")
+	}
+	if g.changedSinceGreen([]string{extEnvReadme}) {
+		groups = append(groups, "env-bootstrap")
+	}
+	if g.changedSinceGreen([]string{extAiReadme, extOwnerTemplate}) {
+		groups = append(groups, "ai-bootstrap")
 	}
 	if g.changedSinceGreen([]string{extReduce}) {
 		groups = append(groups, "eco-stats")

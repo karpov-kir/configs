@@ -3,109 +3,66 @@
 # Set this machine's shell and editor environment up from this repository: link every config in env/
 # into place and install what those links need.
 #
-#   usage: env/bootstrap.sh [--dry-run] [--relocate] [--skip-brew]
+#   usage: bootstrap.sh [--dry-run] [--relocate] [--skip-brew]
 #
 # Safe to re-run: every step checks the state it wants before changing anything, so a second run over
-# a finished machine reports "ok" throughout and writes nothing.
+# a finished machine reports "ok" throughout and writes nothing. It refuses rather than deletes, and
+# it will not move a machine whose configuration is mounted from a different checkout.
 #
-# It will not move a machine that is already mounted from somewhere else. Run from a second checkout —
-# a scratch clone, a colleague's copy — every link this script writes would be repointed at the copy,
-# and deleting the copy afterwards leaves the human with no shell config and no git config. That is
-# refused before anything is written; `--relocate` is how you say you mean it.
+# The recipe is Go, in `ai/tools/env-bootstrap/`. env/ and ai/ install together for that reason: this
+# reaches the resolver next door, and a checkout carrying only env/ has nothing to run.
 #
-# It refuses rather than deletes. env/README.md's hand-run form is `rm -rf ~/.config/nvim && ln -s ...`,
-# which is fine when a human types it having just looked at the directory, and is data loss when a
-# script does it unattended on a machine that already had a real config there. A target this does not
-# already own is reported and skipped, and the run exits non-zero with the list.
-#
-# Independent of ai/bootstrap.sh in both directions: neither reads the other's mounts, and either half
-# can be installed on a machine that never gets the other.
-#
-# tested by: bootstrap-test.sh
-# untested: brew is an external command. Faking it would only assert the fake, so the suite covers the
-# linking and the refusals and drives the brew step behind --skip-brew.
-set -uo pipefail
+# tested by: the Go suite in ai/tools/env-bootstrap/; shared stub by tool-stub-test.sh.
+set -euo pipefail
 
-# `CDPATH=`: set in the environment, `cd` echoes the directory it landed on, so `repo` comes back two
-# lines long and every source path built from it resolves nowhere.
-repo="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-# What a second copy of this repository is recognised by. Read from the running file rather than
-# written down, so a rename cannot leave the guard looking for a name nothing has.
-script_name="$(basename -- "${BASH_SOURCE[0]}")"
-label="env bootstrap"
+tool="env-bootstrap"
+# How far THIS file sits above the tools directory.
+tools_offset="../ai"
 
-dry_run=false
-relocate=false
-skip_brew=false
-
-for arg in "$@"; do
-  case "$arg" in
-    --dry-run) dry_run=true ;;
-    --relocate) relocate=true ;;
-    --skip-brew) skip_brew=true ;;
-    -h | --help)
-      sed -n '3,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-      exit 0
-      ;;
-    *)
-      printf 'env/bootstrap.sh: unknown option %s\n' "$arg" >&2
-      exit 2
-      ;;
-  esac
-done
-
-# Refused by name rather than left to `.` failing. Without `set -e` a missing library carries on into
-# `add_cfg: command not found` six times over and exits 127, naming neither the file that is gone nor
-# what to do about it — the same false diagnosis the verify step in ai/bootstrap.sh guards against.
-# env/ is copied out of this repository on its own, so a checkout without lib/ is a real one.
-[ -r "$repo/../lib/mount.sh" ] || {
-  printf 'env/bootstrap.sh: lib/mount.sh is missing from this checkout — env/ and lib/ install together, and nothing was linked\n' >&2
+# --- shared:tool-stub ---
+# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
+# sourced because sourcing a file is executing it, and these run from whatever repo the human is in.
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
 }
-# shellcheck source=../lib/mount.sh
-. "$repo/../lib/mount.sh"
 
-# --- the mount table ------------------------------------------------------------------------------
+# `CDPATH=` because `cd` echoes where it landed when the path is relative, which would put a second
+# line into this substitution and corrupt every path built from it. `pwd -P` resolves the symlink the
+# skill is mounted by, so the tools directory is found from this file's real location, not from cwd.
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
+  die "cannot resolve my own directory, so $tool could not be located"
 
-add_cfg "$repo/zsh/.zpreztorc" "$HOME/.zpreztorc"
-add_cfg "$repo/zsh/.zshrc" "$HOME/.zshrc"
-add_cfg "$repo/git/.gitconfig" "$HOME/.gitconfig"
-add_cfg "$repo/ghostty" "$HOME/.config/ghostty"
-add_cfg "$repo/nvim" "$HOME/.config/nvim"
-add_cfg "$repo/starship/starship.toml" "$HOME/.config/starship.toml"
+# Exactly one path, named by the stub above rather than searched for here. The stubs sit at three
+# depths, so anything that guesses between them is a stub reaching a directory it does not name: an
+# upward walk leaves a checkout shipping no `ai/tools/` and execs the first `tools/resolve.sh` in any
+# ancestor, and a list of relative candidates resolves outside the repository for the stubs one level
+# above the tools directory. Either runs a stranger's binary at exit 0.
+resolver="$here/$tools_offset/tools/resolve.sh"
+[ -e "$resolver" ] ||
+  die "no resolver at $resolver — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+[ -x "$resolver" ] ||
+  die "$resolver is not executable, so $tool did NOT run — chmod +x it"
 
-mount_run
+# The resolver names its own failures on stderr, so nothing is re-reported here. Its status is NOT
+# passed through: the 2 below is deliberate rather than a copy of it. Every way a resolver can fail
+# means the tool did not run, which is 2 in this repo's vocabulary, and 3 (ran, and refuses a result)
+# must never reach a caller for a binary that never started. `ai/tools/resolve.sh` exits 2 for all of
+# them today, so keep the literal 2 if it ever grows a code.
+binary="$("$resolver" "$tool")" || exit 2
+[ -n "$binary" ] && [ -x "$binary" ] ||
+  die "the resolver named no runnable binary for $tool, so it did NOT run"
 
-# --- packages ------------------------------------------------------------------------------------
+# The build about to answer, handed to the tool rather than printed: a stub's own output is a value
+# callers parse. Empty when nothing stamped it. `ai/tools/resolve.sh` carries why.
+export ECO_TOOL_BUILD="$(cat "$binary.stamp" 2>/dev/null || true)"
 
-if $skip_brew; then
-  say "brew (skipped)"
-elif ! command -v brew >/dev/null 2>&1; then
-  refuse "brew is not installed, so no formula or cask was installed"
-else
-  say "brew"
-  # Installed-first rather than `brew install` unconditionally: the latter is slow, noisy, and exits
-  # non-zero on an already-installed cask, which would make a finished machine look broken.
-  for formula in zsh-autocomplete mise hstr neovim starship; do
-    if brew list --formula "$formula" >/dev/null 2>&1; then
-      say "  ok       $formula"
-    elif $dry_run; then
-      say "  would install $formula"
-    else
-      brew install "$formula" >/dev/null || refuse "brew install $formula failed"
-    fi
-  done
-  for cask in ghostty; do
-    if brew list --cask "$cask" >/dev/null 2>&1; then
-      say "  ok       $cask"
-    elif $dry_run; then
-      say "  would install --cask $cask"
-    else
-      brew install --cask "$cask" >/dev/null || refuse "brew install --cask $cask failed"
-    fi
-  done
-fi
+# The checkout that answered, which the build stamp does not name: the stamp hashes source, so it moves
+# when the source does and says nothing about which commit the tree sits on. `ai/tools/resolve.sh`
+# carries why the two are both needed.
+export ECO_TOOL_TREE="$(git -C "${resolver%/*}" rev-parse HEAD 2>/dev/null || true)"
 
-# --- result --------------------------------------------------------------------------------------
-
-report_and_exit
+# `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
+# it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
+exec -a "$0" "$binary" "$@"
+# --- end shared:tool-stub ---

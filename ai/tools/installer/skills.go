@@ -19,7 +19,7 @@ type SkillMountOptions struct {
 	// Uninstalling takes the marked skills whatever Maintainer says. The tier a machine or a project
 	// was installed with is nowhere on disk, so filtering on an uninstall would build a removal table
 	// for the tier being asked for now rather than the one that wrote the mounts — `--maintainer` in,
-	// plain out, and the marked skills stay mounted while the run reports ok. unlinkMount removes only
+	// plain out, and the marked skills stay mounted while the run reports ok. UnmountTarget removes only
 	// a symlink resolving under the checkout, so widening the table cannot reach anything this checkout
 	// did not write.
 	Uninstalling bool

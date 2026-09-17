@@ -68,7 +68,9 @@ func readRegionState(lines []string, openFence, closeFence string) regionState {
 	}
 }
 
-// The guard both writers run first. Everything here is a reason to touch nothing, and each one is a
+// RegionWritable is the guard both writers run first, and a caller's own where it writes a file this
+// package does not — the Codex RTK step, which hands the writing to another program and has to know
+// first whether the file is one this run may touch at all. Everything here is a reason to touch nothing, and each one is a
 // different sentence because they send a reader somewhere different.
 //
 // A missing file is refused rather than created: this is for regions inside files that already exist,
@@ -77,7 +79,7 @@ func readRegionState(lines []string, openFence, closeFence string) regionState {
 //
 // A symlink is refused for the mirror of link's reason — writing through one edits a file in a place
 // the caller never named, which for a CLAUDE.md symlinked into a checkout means editing the checkout.
-func (r *Run) regionWritable(file string) bool {
+func (r *Run) RegionWritable(file string) bool {
 	if shell.IsSymlink(file) {
 		r.Refuse(file + " is a symlink, and this writes into the file itself — repoint or remove it, then re-run")
 		return false
@@ -119,10 +121,21 @@ func replaceRefusal(file string, err error) string {
 	}
 }
 
+// HasBrokenRegion is one half of a fence without the other, which is the one state a write refuses. A
+// caller asks ahead of its own first write: by the time WriteRegion refuses, an installer has already
+// mounted everything else and the project is half done.
+func (r *Run) HasBrokenRegion(file, openFence, closeFence string) bool {
+	content, err := os.ReadFile(file)
+	if err != nil {
+		return false
+	}
+	return readRegionState(shell.SplitLines(string(content)), openFence, closeFence) == regionConflict
+}
+
 // WriteRegion appends the region when it is absent, rewrites between the fences when it is present,
 // and says nothing changed when what is there already matches byte for byte.
 func (r *Run) WriteRegion(file, openFence, closeFence, body string) bool {
-	if !r.regionWritable(file) {
+	if !r.RegionWritable(file) {
 		return false
 	}
 	content, err := os.ReadFile(file)
@@ -207,7 +220,7 @@ func (r *Run) appendRegion(file string, content []byte, openFence, closeFence, b
 // The blank line the writer added ahead of the region goes with it, so install-then-uninstall leaves
 // the file as it was found rather than growing a blank line per cycle.
 func (r *Run) RemoveRegion(file, openFence, closeFence string) bool {
-	if !r.regionWritable(file) {
+	if !r.RegionWritable(file) {
 		return false
 	}
 	content, err := os.ReadFile(file)

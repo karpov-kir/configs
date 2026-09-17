@@ -9,11 +9,11 @@
 # stating it either way.
 #
 # Nothing here creates a directory, writes a file or installs a trap, which is what lets a suite with
-# no scratch of its own source it. lib/test-harness.sh mktemps and traps EXIT at source time, so it
-# could not grow a `check` without forcing both on every caller.
+# no scratch of its own source it. A harness that mktemps and traps EXIT at source time could not grow
+# a `check` without forcing both on every caller.
 #
-# tested by: ai/mcp-env-test.sh, ai/mcp-sync-test.sh, ai/run-tests-test.sh,
-# ai/run-tests-concurrency-test.sh — a break here goes red in all four at once.
+# tested by: ai/run-tests-test.sh, ai/run-tests-concurrency-test.sh — a break here goes red in both
+# at once.
 
 pass=0
 fail=0

@@ -22,11 +22,26 @@ func (r *Run) BulkMounts() []Mount {
 	return r.bulk
 }
 
-// Link target at source, and report which of the four states it found. The only state that writes
-// over something is a symlink, which carries no data of its own — but see the foreign-root guard
-// below, which is the case where that reasoning holds for the link and not for what the link is part
-// of.
-func (r *Run) link(source, target string) bool {
+// RewriteBulkSources replaces every declared bulk source with what rewrite answers for it. The project
+// installer is the caller: it declares its skills against this checkout so the second-checkout guard
+// has a checkout to recognise, then points them at the shared bucket so a project holds the one path
+// every install of this flavor has. Declaring them at the bucket in the first place would leave the
+// guard nothing to see and a project quietly repointed off somebody else's clone.
+func (r *Run) RewriteBulkSources(rewrite func(source string) string) {
+	for i := range r.bulk {
+		r.bulk[i].Source = rewrite(r.bulk[i].Source)
+	}
+}
+
+// Link writes one mount at once, and reports which of the four states it found. The only state that
+// writes over something is a symlink, which carries no data of its own — but see the foreign-root
+// guard below, which is the case where that reasoning holds for the link and not for what the link is
+// part of.
+//
+// Exported for one caller and one shape: the project installer mounts a bucket that every other mount
+// in its table then resolves THROUGH, so that one has to land before the rest are even spelled. Mount
+// is still what writes the table, and it links this one again, reporting it as already ok.
+func (r *Run) Link(source, target string) bool {
 	if !shell.PathExists(source) {
 		r.Refuse(source + " is missing from the repository, so " + target + " was left alone")
 		return false
@@ -210,12 +225,12 @@ func (r *Run) Mount() bool {
 
 	r.Say("links")
 	for _, mount := range r.configs {
-		r.link(mount.Source, mount.Target)
+		r.Link(mount.Source, mount.Target)
 	}
 	if len(r.bulk) > 0 {
 		r.Say(r.bulkLabel)
 		for _, mount := range r.bulk {
-			r.link(mount.Source, mount.Target)
+			r.Link(mount.Source, mount.Target)
 		}
 	}
 
@@ -253,7 +268,9 @@ func (r *Run) surveyForeignMounts() int {
 
 // --- taking it back out ---------------------------------------------------------------------------
 
-// Remove one mount, and only when this checkout can prove it wrote it.
+// UnmountTarget removes one mount, and only when this checkout can prove it wrote it. Named by the
+// caller rather than taken off the table, because one caller has a target the table never held: the
+// Codex install migrates a skill out of an older mount directory once its replacement exists.
 //
 // The proof is the whole of why this lives here rather than in a caller's own removal: a target is
 // removed only if it is a symlink AND its value resolves under the checkout. Anything else — a real
@@ -263,7 +280,7 @@ func (r *Run) surveyForeignMounts() int {
 // similarly-named directory for this one.
 //
 // A target that is already gone is success, not a refusal. Uninstall run twice is ordinary.
-func (r *Run) unlinkMount(target string) bool {
+func (r *Run) UnmountTarget(target string) bool {
 	if !shell.IsSymlink(target) {
 		if shell.PathExists(target) {
 			r.Refuse(target + " is not a symlink, so this did not write it — remove it yourself if you mean to")
@@ -312,18 +329,18 @@ func (r *Run) unlinkMount(target string) bool {
 // one direction nobody notices: leaving things behind and reporting ok.
 //
 // A mount resolving into another checkout is not this run's to delete any more than it is this run's
-// to repoint. unlinkMount is what refuses it, by removing a target only when the target resolves under
-// the checkout.
+// to repoint. UnmountTarget is what refuses it, by removing a target only when the target resolves
+// under the checkout.
 func (r *Run) Unmount() {
 	r.Say("unmounts")
 	for _, mount := range r.configs {
-		r.unlinkMount(mount.Target)
+		r.UnmountTarget(mount.Target)
 	}
 	if len(r.bulk) == 0 {
 		return
 	}
 	r.Say(r.bulkLabel)
 	for _, mount := range r.bulk {
-		r.unlinkMount(mount.Target)
+		r.UnmountTarget(mount.Target)
 	}
 }

@@ -58,6 +58,10 @@ func (r refusal) base() string {
 }
 
 var refusals = []refusal{
+	// An unknown option, refused in argument parsing before the first link is surveyed. Not a bare
+	// invocation: for either of these that one mounts this machine's own configuration.
+	{stub: "ai/bootstrap.sh", args: []string{"--nope"}},
+	{stub: "env/bootstrap.sh", args: []string{"--nope"}},
 	// An unknown flag, refused in argument parsing before anything reads the machine or writes a cache.
 	{stub: "ai/gate.sh", args: []string{"--nope"}},
 	{stub: "ai/guide.sh", args: []string{"--nope"}},
@@ -65,6 +69,16 @@ var refusals = []refusal{
 	// without one — so this row reaches the usage line only with a provider named. No provider is
 	// called: what refuses is the missing argument.
 	{stub: "ai/kk-flavor/scripts/bloat-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}},
+	// An unknown argument, refused before the client is looked for and long before a registry is
+	// written. Not a bare invocation: that one is also refused, but only after this machine has been
+	// asked whether it has the client's CLI.
+	{stub: "ai/mcp-sync.sh", args: []string{"--nope"}},
+	// An unknown option, refused in argument parsing before any project is read or written.
+	{stub: "ai/install-project.sh", args: []string{"--nope"}},
+	{stub: "ai/project-mcp.sh", args: []string{"--nope"}},
+	// No arguments at all, which is the one refusal this entry point has: it takes a worktree it cannot
+	// default, and any path it were handed here would be one on the machine running the suite.
+	{stub: "ai/project-skills.sh"},
 	{stub: "ai/kk-flavor/scripts/model-check.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/scripts/model-policy.sh", args: []string{"--nope"}},
 	// Two roots where the tool takes one path.

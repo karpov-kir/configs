@@ -15,7 +15,7 @@
 # Adding a name here widens what an unreviewed release can read, so add one only when a server fails
 # without it, and say which server in the same edit.
 #
-# tested by: mcp-env-test.sh
+# tested by: the Go suite in ai/tools/mcp-env/, which execs this script once per case.
 set -euo pipefail
 
 # PATH/HOME: find mise and node at all, and locate mise's data dir, the npm cache and the browser

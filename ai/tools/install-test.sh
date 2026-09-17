@@ -72,12 +72,14 @@ expect_nothing_installed() { # <name>, over $bin
   fi
 }
 
-# --- shared:needle-tests ---
 # Each reports its condition with a distinctive word, so a check that fails prints the whole output
 # rather than a bare `no`. They are functions rather than inline `case`es because bash 3.2 — macOS's
 # own, and one leg of the gates workflow — does not parse `$( )` so much as scan it for the first
 # unbalanced `)`, and a `case` pattern supplies one: the substitution closes mid-pattern, holding an
 # unfinished `case`. A function covers every construct with a bare `)`, not just `case`.
+#
+# No longer a shared region: the two suites that carried the other copies are Go now, and a marker
+# over one copy claims a duplication nobody can drift from.
 held() { # <needle> <text> — 'held' when the text holds the needle, the whole text when it does not
   case "$2" in
     *"$1"*) printf 'held' ;;
@@ -91,7 +93,6 @@ lacked() { # <needle> <text> — 'lacked' when the text is free of the needle, t
     *) printf 'lacked' ;;
   esac
 }
-# --- end shared:needle-tests ---
 
 echo "install.sh"
 

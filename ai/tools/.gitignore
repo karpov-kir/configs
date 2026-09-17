@@ -19,5 +19,11 @@ dist/
 /cmd/model-policy/model-policy
 /cmd/model-check/model-check
 /cmd/repo-key/repo-key
+/cmd/mcp-sync/mcp-sync
+/cmd/project-mcp/project-mcp
 /cite-graph/cite-graph
 /rule-echo/rule-echo
+/cmd/ai-bootstrap/ai-bootstrap
+/cmd/env-bootstrap/env-bootstrap
+/install-project/install-project
+/project-skills/project-skills

@@ -5,27 +5,18 @@ import (
 	"testing"
 )
 
-func TestProjectSuitesTrackTheirInstallationInputs(t *testing.T) {
+func TestAShellSuiteIsKeyedOnItsScriptAndEveryLibraryThatScriptSources(t *testing.T) {
 	root := newLibFixture(t)
 	for name, body := range map[string]string{
-		"ai/install-project.sh":           "#!/bin/sh\n. \"$repo/../lib/mount.sh\"\n",
-		"ai/install-project-test.sh":      "#!/bin/sh\ntrue\n",
-		"ai/project-skills.sh":            "#!/bin/sh\ntrue\n",
-		"ai/project-skills-test.sh":       "#!/bin/sh\nbash \"$here/install-project.sh\"\n",
-		"ai/project-dependencies.sh":      "#!/bin/sh\ntrue\n",
-		"ai/project-dependencies-test.sh": "#!/bin/sh\ntrue\n",
-		"ai/project-mcp.sh":               "#!/bin/sh\nnode \"$here/project-mcp.mjs\"\n",
-		"ai/project-mcp-test.sh":          "#!/bin/sh\ntrue\n",
-		"ai/project-mcp.mjs":              "console.log('project MCP');\n",
-		"ai/mcp.jsonc":                    "{}\n",
-		"ai/mcp-env.sh":                   "#!/bin/sh\ntrue\n",
+		"ai/install-project.sh":      "#!/bin/sh\n. \"$repo/../lib/mount.sh\"\n",
+		"ai/install-project-test.sh": "#!/bin/sh\ntrue\n",
 	} {
 		writeRepoFile(t, root, name, body)
 	}
-	units := []string{
-		"shell:ai/install-project", "shell:ai/project-skills",
-		"shell:ai/project-mcp", "shell:ai/project-dependencies",
-	}
+	// One unit, and a fixture rather than the tree: the project installer is Go now, so the repository
+	// itself has no such suite. What this holds is the general rule every shell suite still depends on —
+	// a unit is keyed on the script it covers and on every library that script sources.
+	units := []string{"shell:ai/install-project"}
 	keys := keysOverTree(t, root)
 	for _, id := range units {
 		if keys[id] == "" {
@@ -33,26 +24,19 @@ func TestProjectSuitesTrackTheirInstallationInputs(t *testing.T) {
 		}
 	}
 	for _, scenario := range []struct {
-		file                                 string
-		installer, skills, mcp, dependencies bool
+		file      string
+		wantMoved bool
 	}{
-		{file: "ai/install-project.sh", installer: true, skills: true},
-		{file: "ai/project-skills.sh", installer: true, skills: true},
-		{file: "lib/mount.sh", installer: true, skills: true},
-		{file: "ai/project-dependencies.sh", installer: true, skills: true, dependencies: true},
-		{file: "ai/project-mcp.sh", installer: true, skills: true, mcp: true},
-		{file: "ai/project-mcp.mjs", installer: true, skills: true, mcp: true},
-		{file: "ai/mcp.jsonc", installer: true, skills: true, mcp: true},
-		{file: "ai/mcp-env.sh", installer: true, skills: true, mcp: true},
+		{file: "ai/install-project.sh", wantMoved: true},
+		{file: "lib/mount.sh", wantMoved: true},
 		{file: "ai/bootstrap.sh"},
 		{file: "lib/unsourced.sh"},
 	} {
 		editFixture(t, filepath.Join(root, scenario.file))
 		moved := keysOverTree(t, root)
-		for index, wantMove := range []bool{scenario.installer, scenario.skills, scenario.mcp, scenario.dependencies} {
-			id := units[index]
-			if gotMove := moved[id] != keys[id]; gotMove != wantMove {
-				t.Errorf("editing %s changed %s cache key: %v, want %v", scenario.file, id, gotMove, wantMove)
+		for _, id := range units {
+			if gotMove := moved[id] != keys[id]; gotMove != scenario.wantMoved {
+				t.Errorf("editing %s changed %s cache key: %v, want %v", scenario.file, id, gotMove, scenario.wantMoved)
 			}
 		}
 		keys = moved

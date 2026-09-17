@@ -1,0 +1,129 @@
+package projectsetup_test
+
+import "testing"
+
+// Codex discovers skills under .agents/skills and loads the shared AGENTS.md. The Claude file stays a
+// file of its own carrying an import, so a project's two clients read one set of instructions.
+func TestACodexInstallUsesItsOwnDirectoryAndTheSharedInstructions(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.project+"/AGENTS.md", "Project instructions.\n")
+
+	f.expectCode(f.install("--agent=codex"), 0)
+
+	f.expectLinkTo(f.skillsMount("codex")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+	f.expectFileContains(f.project+"/AGENTS.md", "kk-flavor:begin")
+	f.expectFileContains(f.project+"/AGENTS.md", "Project instructions.")
+	f.expectFileContains(f.project+"/CLAUDE.md", "@AGENTS.md")
+	f.expectFileContains(f.project+"/CLAUDE.md", "How this project works.")
+}
+
+// A nonempty AGENTS.override.md shadows AGENTS.md, so a run that wrote the instructions anyway would
+// leave the project installed and nothing loading them.
+func TestCodexRefusesAShadowedProjectInstructionFile(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.project+"/AGENTS.override.md", "Project override instructions.\n")
+
+	f.expectCode(f.install("--agent=codex"), 1)
+
+	f.expectSaid(f.project + "/AGENTS.override.md")
+	f.expectAbsent(f.project + "/AGENTS.md")
+}
+
+func TestCodexRefusesItsOwnBroadIgnoreRule(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.project+"/.gitignore", "node_modules/\n.agents/\n")
+
+	f.expectCode(f.install("--agent=codex"), 1)
+
+	f.expectSaid("already ignores .agents/ wholesale")
+}
+
+// The two clients have a skills directory and an ignore region each, which is what lets one be removed
+// while the other stays. One shared region would make the first uninstall unhide the second client's
+// mounts.
+func TestUninstallingOneClientLeavesTheOthersMountsRulesAndRegistryEntry(t *testing.T) {
+	f := newFixture(t)
+	f.expectCode(f.install("--agent=codex"), 0)
+	f.expectCode(f.install("--agent=claude"), 0)
+
+	f.expectCode(f.install("--agent=codex", "--uninstall"), 0)
+
+	f.expectAbsent(f.skillsMount("codex") + "/kk-build")
+	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+	f.expectFileContains(f.project+"/.gitignore", ".claude/skills/kk-*")
+	f.expectFileLacks(f.project+"/.gitignore", ".agents/skills/kk-*")
+	// The instructions and the import are shared, so they stay while a client still loads them.
+	f.expectFileContains(f.project+"/AGENTS.md", "kk-flavor:begin")
+	f.expectFileContains(f.project+"/CLAUDE.md", "@AGENTS.md")
+	f.expectSaid("another client still uses them")
+	f.expectFileContains(f.home+"/.config/kk-flavor/installs", f.project)
+}
+
+// And the last client out takes the shared files and the registry entry with it.
+func TestTheLastClientUninstalledTakesTheSharedInstructionsAndTheEntry(t *testing.T) {
+	f := newFixture(t)
+	f.expectCode(f.install("--agent=codex"), 0)
+	f.expectCode(f.install("--agent=claude"), 0)
+	f.expectCode(f.install("--agent=codex", "--uninstall"), 0)
+
+	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+
+	f.expectFileLacks(f.project+"/AGENTS.md", "kk-flavor:begin")
+	f.expectFileLacks(f.project+"/CLAUDE.md", "@AGENTS.md")
+	f.expectFileLacks(f.home+"/.config/kk-flavor/installs", f.project)
+}
+
+// A project already carrying the region in CLAUDE.md is what the first version of this installer left
+// behind. The region moves to the shared file and CLAUDE.md keeps an import, so the two clients stop
+// reading two copies.
+func TestALegacyClaudeOnlyRegionMigratesToTheSharedFile(t *testing.T) {
+	f := newFixture(t)
+	f.write(f.project+"/AGENTS.md", "# Shared standards\n\nKeep this shared rule.\n")
+	f.write(f.project+"/CLAUDE.md", "# project\n\nHow this project works.\n\n"+
+		"<!-- kk-flavor:begin -->\n### KK Flavor\n\n"+
+		"Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.\n"+
+		"<!-- kk-flavor:end -->\n")
+
+	f.expectCode(f.install("--agent=claude"), 0)
+
+	f.expectFileContains(f.project+"/CLAUDE.md", "@AGENTS.md")
+	f.expectFileLacks(f.project+"/CLAUDE.md", "inject.md")
+	f.expectFileContains(f.project+"/CLAUDE.md", "How this project works.")
+	f.expectFileContains(f.project+"/AGENTS.md", "Keep this shared rule.")
+	f.expectFileContains(f.project+"/AGENTS.md", "inject.md")
+}
+
+// A symlinked shared file is refused before either file is written — the checks on the project's own
+// files all run ahead of the first mount, so a run cannot leave a project half installed.
+func TestASymlinkedSharedFileIsRefusedBeforeEitherFileIsWritten(t *testing.T) {
+	f := newFixture(t)
+	f.symlink(f.base+"/untouched-shared-target", f.project+"/AGENTS.md")
+
+	f.expectCode(f.install("--agent=claude"), 1)
+
+	f.expectAbsent(f.base + "/untouched-shared-target")
+	f.expectFileLacks(f.project+"/CLAUDE.md", "@AGENTS.md")
+	f.expectAbsent(f.skillsMount("claude"))
+}
+
+// The import names the shared file, so writing it when the shared file could not be written points a
+// client at nothing. The one way to reach that is a shared file this run has to create and cannot:
+// every other failure is caught by the checks above, before the first mount.
+func TestAnUnwritableSharedFileLeavesNoImportBehind(t *testing.T) {
+	f := newFixture(t)
+	f.removeAll(f.project + "/CLAUDE.md")
+	f.expectCode(f.install("--agent=claude"), 0)
+	// Both files back out, and the project closed to new ones. A later run then has the mounts already
+	// and reaches the instruction step, which is the only path this case can take.
+	f.removeAll(f.project + "/AGENTS.md")
+	f.removeAll(f.project + "/CLAUDE.md")
+	f.closeToNewFiles(f.project)
+
+	f.expectCode(f.install("--agent=claude"), 1)
+
+	f.expectSaid("could not create " + f.project + "/AGENTS.md")
+	// And the import was never attempted. Read off what the run said rather than off the tree: the same
+	// directory refuses both files, so a run that went for the import anyway leaves the same tree behind
+	// and a second refusal nobody should be reading.
+	f.expectNotSaid("could not create " + f.project + "/CLAUDE.md")
+}

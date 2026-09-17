@@ -3,13 +3,9 @@
 // that changed underneath. The second is the dangerous one, so no case here narrows without a control
 // asserting the narrowing stopped where it should.
 //
-// Two of the entries below moved from one map to the other, and what moved them is worth keeping: a
-// suite that stubs a tool is not one that drives it. `ai/bootstrap-test.sh` writes its own
-// `ai/tools/install.sh` and its own `ai/run-tests.sh` into fixture repos — its last verify case deletes
-// the runner outright — and asserts what bootstrap makes of their exit codes. Every path by which the
-// checkout's tools could be reached is the path it replaces. The marker scan cannot see that, because
-// the stub and the real thing are spelt the same; `# go-tools: none` in the suite is how the suite
-// says which it wrote.
+// A suite that stubs a tool is not one that drives it, and the marker scan cannot see the difference —
+// the stub and the real thing are spelt the same. `# go-tools: none` in the suite is how the suite says
+// which it wrote, and the `todo-gate` entry below is the case that occurs today.
 package gate
 
 import (
@@ -22,16 +18,10 @@ import (
 
 // Keyed on nothing in the tool tree, with what used to put it there anyway.
 var notGoDriven = map[string]string{
-	"shell:ai/install-project":                                 "a fake mise shim the suite writes into its own temp dir under $tmp_real/tools/",
-	"shell:ai/project-skills":                                  "the same shim in that suite's fixture",
 	"shell:ai/kk-flavor/skills/idsd-qualify/scripts/todo-gate": "a header comment naming eco-report's Go suite",
-	// The other two the comment skip is holding: drop that skip and three units re-key, so all three
-	// have to be named here for the revert to redden.
+	// The other one the comment skip is holding: drop that skip and both units re-key, so both have to
+	// be named here for the revert to redden.
 	"shell:ai/run-tests-concurrency": "this suite's own header naming ai/tools/gate/units.go",
-	"shell:lib/install-registry":     "lib/install-registry.sh's header naming a bloat-judge source",
-	// These two say so themselves, because nothing in their text could: both are `# go-tools: none`.
-	"shell:ai/bootstrap":     "the ai/tools/install.sh it names is a stub it writes into its own fixture repo",
-	"shell:ai/rtk-bootstrap": "ai/bootstrap.sh does run the installer, on a branch all four of this suite's invocations skip with --skip-tools",
 }
 
 // The control, and the half that matters more: each of these does drive a Go tool, so a change that

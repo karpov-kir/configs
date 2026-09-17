@@ -52,12 +52,12 @@ func TestWhatCountsAsOwningScratch(t *testing.T) {
 		owned bool
 	}{
 		{"mktemp of its own", "#!/bin/sh\nwork=$(mktemp -d)\n", true},
-		{"a sourced harness that mktemps", "#!/bin/sh\n. \"$checkout/lib/test-harness.sh\"\n", true},
-		{"a sourced harness whose status is checked", "#!/bin/sh\n. \"$checkout/lib/test-harness.sh\" ||\n  { echo did not load >&2; exit 2; }\n", true},
+		{"a sourced harness that mktemps", "#!/bin/sh\n. \"$checkout/lib/run-tests-fixtures.sh\"\n", true},
+		{"a sourced harness whose status is checked", "#!/bin/sh\n. \"$checkout/lib/run-tests-fixtures.sh\" ||\n  { echo did not load >&2; exit 2; }\n", true},
 		{"a declared need for none", "#!/bin/sh\n" + noScratchMarker + " it writes nothing\n", true},
 		{"a fixed path under /tmp", "#!/bin/sh\nwork=/tmp/suite-scratch\nmkdir -p \"$work\"\n", false},
 		{"no scratch and no marker", "#!/bin/sh\necho hello\n", false},
-		{"a harness that mktemps nothing", "#!/bin/sh\n. \"$checkout/lib/mount.sh\"\n", false},
+		{"a harness that mktemps nothing", "#!/bin/sh\n. \"$checkout/lib/test-check.sh\"\n", false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			if got := ownsScratch(t, row.body); got != row.owned {

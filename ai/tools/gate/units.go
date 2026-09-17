@@ -21,14 +21,22 @@ const (
 	// The main package `ai/guide.sh --check` builds and runs — resolve.sh picks `./cmd/<tool>/` first.
 	ecoGuideCommand = goTree + "/cmd/eco-guide"
 	extFlavor       = "ai/kk-flavor/scripts/tree-fingerprint.sh"
-	// The audience marker is read twice — as a Go regexp in shell/markdown.go, and as awk in this
-	// library, which both installers source and which runs before the machine has a Go binary at all.
-	// shell's suite holds the two spellings to each other, so it is keyed on the file it reads them
-	// out of: key it on anything else and an edit to the awk leaves that suite fresh from cache.
-	extAudience  = "lib/skill-audience.sh"
-	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
-	extWorkflows = ".github/workflows"
-	extModels    = "ai/kk-flavor/models.json"
+	extReduce       = "ai/kk-flavor/skills/kk-reduce/stats.md"
+	extWorkflows    = ".github/workflows"
+	extModels       = "ai/kk-flavor/models.json"
+	// The MCP declaration that ships, and the wrapper its stdio servers launch through. Both Go suites
+	// under `ai/tools/mcp-sync/` and `ai/tools/project-mcp/` read these two out of `ai/` rather than a
+	// fixture, because what they assert is that the committed files still map to servers that start.
+	// Keyed here for the reason the block above states: outside the module, Go's cache cannot see them.
+	extDeclaration = "ai/mcp.jsonc"
+	extLauncher    = "ai/mcp-env.sh"
+	// The two READMEs the installers hold their brew lists against, and the owner template
+	// `ai/tools/ai-bootstrap/` holds the region body against. Files and not their directories: those
+	// suites read these pages and nothing else out of those trees, and keying on `env/` would re-run the
+	// whole Go suite for an edit to somebody's nvim config.
+	extEnvReadme     = "env/README.md"
+	extAiReadme      = "ai/README.md"
+	extOwnerTemplate = "ai/owner-instructions.md"
 )
 
 // The marker opening the shared stub region. It is what actually defines this input set:
@@ -61,6 +69,8 @@ var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-fla
 var extStubs = []string{
 	"ai/gate.sh",
 	"ai/guide.sh",
+	"ai/mcp-sync.sh",
+	"ai/project-mcp.sh",
 	"ai/kk-flavor/scripts/bloat-judge.sh",
 	"ai/kk-flavor/scripts/model-check.sh",
 	"ai/kk-flavor/scripts/model-policy.sh",
@@ -75,6 +85,10 @@ var extStubs = []string{
 	"ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh",
 	"ai/kk-flavor/skills/kk-reduce/scripts/stats.sh",
 	"ai/kk-flavor/skills/kk-refactor/scripts/dup-literals.sh",
+	"ai/bootstrap.sh",
+	"ai/install-project.sh",
+	"ai/project-skills.sh",
+	"env/bootstrap.sh",
 }
 
 // A suite that runs the Go module's own suites, rather than only a binary built from it. `go test` and
@@ -144,8 +158,14 @@ func (g *gate) unitsFromFile() int {
 func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
+	// One `gotestInputs` per line, and every constant named on a line that carries that word.
+	// `gate_script_test.go` reads this statement line by line to hold each external input against the
+	// forcing decision in run.go, so a name carried onto a continuation line is invisible to it — and an
+	// input wired half way reads as a pass in both directions.
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
-	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels)
+	gotestInputs = append(gotestInputs, extReduce, extWorkflows, extModels)
+	gotestInputs = append(gotestInputs, extDeclaration, extLauncher)
+	gotestInputs = append(gotestInputs, extEnvReadme, extAiReadme, extOwnerTemplate)
 	gotestInputs = append(gotestInputs, extStubs...)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the
@@ -235,22 +255,10 @@ func (g *gate) discoverShellSuites() int {
 		// unit's verdict with neither the suite nor its script moving a byte.
 		inputs := []string{suite, "ai/run-tests.sh"}
 		sibling := strings.TrimSuffix(suite, "-test.sh") + ".sh"
-		switch suite {
-		case "ai/bootstrap-test.sh":
-			inputs = append(inputs, "ai/bootstrap-owner.sh", "ai/owner-instructions.md")
-		case "ai/rtk-bootstrap-test.sh":
-			sibling = "ai/bootstrap.sh"
-			inputs = append(inputs, "ai/owner-instructions.md")
 		// No ai/run-tests-concurrency.sh exists; this suite covers ai/run-tests.sh. Being an input keys
 		// the unit on that file; naming it the sibling is what gets its text SCANNED.
-		case "ai/run-tests-concurrency-test.sh":
+		if suite == "ai/run-tests-concurrency-test.sh" {
 			sibling = "ai/run-tests.sh"
-		case "ai/install-project-test.sh", "ai/project-skills-test.sh":
-			sibling = "ai/install-project.sh"
-			inputs = append(inputs, "ai/project-skills.sh", "ai/project-dependencies.sh",
-				"ai/project-mcp.sh", "ai/project-mcp.mjs", "ai/mcp.jsonc", "ai/mcp-env.sh")
-		case "ai/project-mcp-test.sh":
-			inputs = append(inputs, "ai/project-mcp.mjs", "ai/mcp.jsonc", "ai/mcp-env.sh")
 		}
 		siblingPath := filepath.Join(g.root, sibling)
 		if _, err := os.Stat(siblingPath); err == nil {

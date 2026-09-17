@@ -1,45 +1,64 @@
 #!/usr/bin/env bash
-# Configure public MCP servers in one project's client files; never user settings.
-# usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
-# tested by: project-mcp-test.sh
+#
+# Configure the public MCP servers in one project's own client files, and never in user settings.
+# ai/mcp.private.jsonc is never read here: a project file is committed and shared with everyone who
+# clones the project.
+#
+#   usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
+#
+# The recipe is Go, in `ai/tools/project-mcp/`.
+#
+# tested by: the Go suite in ai/tools/project-mcp/; shared stub by tool-stub-test.sh.
 set -euo pipefail
-here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-agent=""
-project=""
-is_dry_run=false
-is_uninstall=false
-for arg in "$@"; do
-  case "$arg" in
-    --agent=claude | --agent=codex) agent="${arg#*=}" ;;
-    --dry-run) is_dry_run=true ;;
-    --uninstall) is_uninstall=true ;;
-    -h | --help) sed -n '2,3p' "${BASH_SOURCE[0]}"; exit 0 ;;
-    -*) echo "project MCP: unknown option $arg" >&2; exit 2 ;;
-    *)
-      [ -z "$project" ] || { echo 'project MCP: select one project' >&2; exit 2; }
-      project="$arg"
-      ;;
-  esac
-done
-[ -n "$agent" ] && [ -n "$project" ] && [ -d "$project" ] || {
-  echo 'project MCP: --agent=claude|codex and an existing project directory are required' >&2
+
+tool="project-mcp"
+# How far THIS file sits above the tools directory.
+tools_offset="."
+
+# --- shared:tool-stub ---
+# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
+# sourced because sourcing a file is executing it, and these run from whatever repo the human is in.
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
 }
-if command -v node >/dev/null 2>&1; then
-  exec node "$here/project-mcp.mjs" "$@"
-fi
-# Lookup and provisioning must not evaluate the caller's mise configuration or hooks.
-node_dir="$(MISE_NO_CONFIG=1 MISE_NO_ENV=1 MISE_NO_HOOKS=1 mise where node@lts 2>/dev/null || true)"
-if [ -x "$node_dir/bin/node" ]; then
-  exec "$node_dir/bin/node" "$here/project-mcp.mjs" "$@"
-fi
-if $is_dry_run; then
-  echo 'project MCP: would update public browser servers; validation deferred until Node is installed through mise'
-  exit 0
-fi
-if $is_uninstall; then
-  echo 'project MCP: Node is required to uninstall safely; install Node through mise, then retry' >&2
-  exit 1
-fi
-command -v mise >/dev/null 2>&1 || { echo 'project MCP: mise is required to provide Node' >&2; exit 1; }
-MISE_NO_CONFIG=1 MISE_NO_ENV=1 MISE_NO_HOOKS=1 exec mise exec node@lts -- node "$here/project-mcp.mjs" "$@"
+
+# `CDPATH=` because `cd` echoes where it landed when the path is relative, which would put a second
+# line into this substitution and corrupt every path built from it. `pwd -P` resolves the symlink the
+# skill is mounted by, so the tools directory is found from this file's real location, not from cwd.
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
+  die "cannot resolve my own directory, so $tool could not be located"
+
+# Exactly one path, named by the stub above rather than searched for here. The stubs sit at three
+# depths, so anything that guesses between them is a stub reaching a directory it does not name: an
+# upward walk leaves a checkout shipping no `ai/tools/` and execs the first `tools/resolve.sh` in any
+# ancestor, and a list of relative candidates resolves outside the repository for the stubs one level
+# above the tools directory. Either runs a stranger's binary at exit 0.
+resolver="$here/$tools_offset/tools/resolve.sh"
+[ -e "$resolver" ] ||
+  die "no resolver at $resolver — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+[ -x "$resolver" ] ||
+  die "$resolver is not executable, so $tool did NOT run — chmod +x it"
+
+# The resolver names its own failures on stderr, so nothing is re-reported here. Its status is NOT
+# passed through: the 2 below is deliberate rather than a copy of it. Every way a resolver can fail
+# means the tool did not run, which is 2 in this repo's vocabulary, and 3 (ran, and refuses a result)
+# must never reach a caller for a binary that never started. `ai/tools/resolve.sh` exits 2 for all of
+# them today, so keep the literal 2 if it ever grows a code.
+binary="$("$resolver" "$tool")" || exit 2
+[ -n "$binary" ] && [ -x "$binary" ] ||
+  die "the resolver named no runnable binary for $tool, so it did NOT run"
+
+# The build about to answer, handed to the tool rather than printed: a stub's own output is a value
+# callers parse. Empty when nothing stamped it. `ai/tools/resolve.sh` carries why.
+export ECO_TOOL_BUILD="$(cat "$binary.stamp" 2>/dev/null || true)"
+
+# The checkout that answered, which the build stamp does not name: the stamp hashes source, so it moves
+# when the source does and says nothing about which commit the tree sits on. `ai/tools/resolve.sh`
+# carries why the two are both needed.
+export ECO_TOOL_TREE="$(git -C "${resolver%/*}" rev-parse HEAD 2>/dev/null || true)"
+
+# `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
+# it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.
+exec -a "$0" "$binary" "$@"
+# --- end shared:tool-stub ---

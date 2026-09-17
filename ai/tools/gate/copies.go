@@ -20,8 +20,8 @@ var copiedFileLine = regexp.MustCompile(`\bcp[ \t]+(?:-[-A-Za-z]+(?:=[^ \t\n]*)?
 
 // The repository files a suite copies into its fixture, plus the first copy naming a file the gate
 // cannot resolve. Keyed whether the copy is run or only read: a regexp cannot tell those apart, and
-// either way the file moves what the suite measures. ai/mcp-sync-test.sh copies ai/mcp.jsonc in and
-// asserts every command it names is executable.
+// either way the file moves what the suite measures. ai/tools/install-test.sh copies the release
+// workflow into its fixture and reads the tool list out of it.
 func (g *gate) copiedRepoFiles(repo repoListing, suiteDir string, bodies ...string) ([]string, string) {
 	var copied []string
 	for _, body := range bodies {
@@ -77,7 +77,7 @@ func resolveCopiedPath(repo repoListing, suiteDir, tail string) ([]string, strin
 }
 
 // Both spellings the suites use: `$checkout/ai/bootstrap-test.sh` is rooted at the repository, while
-// `$script_dir/mcp-env.sh` names a sibling of the suite.
+// `$here/install.sh` names a sibling of the suite.
 func copyCandidates(suiteDir, tail string) []string {
 	if suiteDir == "" || suiteDir == "." {
 		return []string{tail}

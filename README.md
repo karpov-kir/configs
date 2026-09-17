@@ -9,8 +9,8 @@
 The environment and AI installations are independent. Run either or both, in any order; removing one
 leaves the other working. Their READMEs describe what gets installed and how to remove it.
 
-The installers share `lib/mount.sh`. They report and skip targets they don't own, and refuse to move
-mounts from another checkout unless you pass `--relocate`. Use `--dry-run` to preview changes.
+The installers share one mounting library, `ai/tools/installer/`. They report and skip targets they
+don't own, and refuse to move mounts from another checkout unless you pass `--relocate`. Use `--dry-run` to preview changes.
 Keep the checkout: deleting it breaks its symlinks. AI bootstrap also removes stale skill links
 when their source disappears from this checkout.
 
