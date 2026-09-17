@@ -66,3 +66,20 @@ func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f.expectSaid("brew is not installed, so no formula was installed")
 	f.expectLinkTo(f.home+"/.kk-flavor", f.repo+"/kk-flavor")
 }
+
+// A machine with no brew still installs, where the tier asks brew for nothing. Since jq went, that is
+// every tier but the owner's, and refusing there failed a whole install over a prerequisite nothing in
+// it needed. The skip line still prints, so the run says what this tier does not take rather than
+// going quiet about it.
+func TestATierThatInstallsNoFormulaDoesNotNeedBrew(t *testing.T) {
+	f := newFixture(t)
+	f.machine.without("brew")
+
+	f.expectCode(f.runStep("--skip-brew", "--agent=claude"), 0)
+
+	f.expectNotSaid("brew is not installed")
+	f.expectSaid("  skipped  rtk is the owner tier's")
+	if len(f.machine.installs) > 0 {
+		t.Errorf("a tier with no formula installed %v", f.machine.installs)
+	}
+}

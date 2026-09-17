@@ -40,6 +40,21 @@ func (run *invocation) installPackages() {
 		run.mounting.Say("brew (skipped)")
 		return
 	}
+	// Asked before brew is, because the default tier installs no formula at all since jq went, and a
+	// machine with no brew would otherwise fail an install that needed nothing from it. The skip lines
+	// still print: a tier that quietly left a formula out reads the same as a step that never ran.
+	wanted := 0
+	for _, formula := range formulae {
+		if formula.isOwnersOnly && !run.isOwner {
+			continue
+		}
+		wanted++
+	}
+	if wanted == 0 {
+		run.mounting.Say("brew (nothing this tier installs)")
+		run.sayWhatThisTierSkips()
+		return
+	}
 	if !machine.HasBrew(run.Machine) {
 		run.mounting.Refuse("brew is not installed, so no formula was installed")
 		return
@@ -65,5 +80,15 @@ func (run *invocation) installOne(name string) {
 		run.mounting.Say("  would install " + spelled)
 	case machine.InstallPackage(run.Machine, machine.Formula, name) != 0:
 		run.mounting.Refuse("brew install " + spelled + " failed")
+	}
+}
+
+// What this tier does not install, said by name. The reason it is said at all is the reason the skip
+// line above exists: a formula left out silently reads the same as a step that never ran.
+func (run *invocation) sayWhatThisTierSkips() {
+	for _, formula := range formulae {
+		if formula.isOwnersOnly && !run.isOwner {
+			run.mounting.Say("  skipped  " + formula.name + " is the owner tier's")
+		}
 	}
 }
