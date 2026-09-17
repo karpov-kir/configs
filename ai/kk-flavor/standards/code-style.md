@@ -18,9 +18,9 @@
 
 A comment is one of two kinds, and each kind has one shape.
 
-A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". A symbol has one where its name and signature leave something to say: a return case, a unit, an ordering, a side effect, a precondition. A summary that only restates the identifier in words is deleted, exported or not. A summary may say in words what the signature says in types when that is the thing left to say. It does not say why.
+A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". A symbol has one where its name and signature — a type's fields and members included — leave something to say: a return case, a unit, an ordering, a side effect, a precondition. A summary that only restates the identifier in words is deleted, exported or not; the parameter names and the return type are part of what the identifier says. A field whose meaning is not in its name and type gets a sentence on that field. A summary may say in words what the signature says in types when that is the thing left to say. It does not say why.
 
-A **note** says something the code cannot say: a fact about the outside world the code relies on, or an edit that looks right and breaks something. It states the fact first, in a sentence with a subject, and the consequence second. It is at most two sentences, in the words the domain uses; a coined phrase is a rename finding in prose. A note that needs more is one of four other things: a lint rule whose message states it, a test whose name states it, a line in the PR body, or a shape the refactor lane changes. An invariant that more than one file states is enforced by a lint rule or a test, which then carries the message, and the notes go.
+A **note** says something the code cannot say: a fact about the outside world the code relies on, or an edit that looks right and breaks something. It states the fact first, in a sentence with a subject, and the consequence second. It is at most two sentences, in the words the domain uses; a coined phrase is a rename finding in prose. A note that needs more is one of four other things: a lint rule whose message states it, a test whose name states it, a line in the PR body, or a shape the refactor lane changes. An ordering, a pairing or an invariant earns a sentence only where a caller depends on it. Where a test holds it, the test is its home. An invariant that more than one file states is enforced by a lint rule or a test, which then carries the message, and the notes go.
 
 Inside a block the summary comes first, then the note. A block is at most four prose lines. A file header is at most eight. A line carrying only a doc tag — `@param`, `@returns`, `@throws`, `@example` — is the signature written out, and counts as neither.
 
@@ -30,7 +30,7 @@ No markdown in a comment: no bold, no bullets, no headings. A comment cites a fi
 
 The edit lane's bar measures a change set's comment share and its share of long blocks, and both stay at or under the host repository's. Compare against the host repository and against no other set. Over the bar, delete whole notes, weakest first. A summary does not pay the bar. Shorten no comment to pay the bar. A note that would have to be compressed to fit is a note that goes.
 
-Before a note stays, ask whether a rename, a moved line or a line of code would carry it. Where the symbol is in the change set, that rename or move is the edit and the note goes; where it is not, flag the rename. A numeric constant's name says what the number bounds, for whom, and in what unit. Write the arithmetic between constants as code and leave it out of prose. Delete a note when it justifies a decision no reader would question, when another note in the change set already says it, or when it is history a reader can get from `git log`.
+Before a note stays, ask whether a rename, a moved line or a line of code would carry it. Where the symbol is in the change set, that rename or move is the edit and the note goes; where it is not, flag the rename. A note saying which of two branches handles which case is carried by a named function per branch. A numeric constant's name says what the number bounds, for whom, and in what unit. Write the arithmetic between constants as code and leave it out of prose. Delete a note when it justifies a decision no reader would question, when another note in the change set already says it, or when it is history a reader can get from `git log`.
 
 A published surface states in its summary block what the types do not carry: call order, lifecycle, error modes, units, ranges, caller invariants.
 
@@ -39,11 +39,12 @@ One pair, so the shape is not in doubt:
 ```ts
 // Before
 /**
- * The ledger allows `currency` on the book or on its entries, so both are consulted. Read the book's own attribute
- * alone and a book shaped the other way slips past totalling whole, rounding included.
+ * Books exported by older versions of the ledger have no `currency` field at all — it was only added in v3 —
+ * so a book read out of one of those files carries nothing on the book and nothing on its entries either,
+ * which means a call like this one answers false for every single one of them.
  */
 // After
-/** Checks whether a book is priced. The ledger allows `currency` on the book or on each entry, so both are read. */
+/** Exports written before v3 set no currency on the book or its entries, and those books read as unpriced. */
 ```
 
 Comment form is also [human-writing.md](human-writing.md), which binds every outward text.

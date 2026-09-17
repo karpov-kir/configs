@@ -31,6 +31,11 @@ import (
 const (
 	voiceLongBlock  = 4
 	voiceLongHeader = 8
+
+	// writing.md puts one idea in a sentence and keeps it under about 25 words. The check fires at 30
+	// so a sentence at the rule's own edge is not a finding, and only a sentence carrying a second
+	// idea is.
+	voiceLongSentence = 30
 )
 
 // Findings and echoed text are bounded the same way the default mode's are: under kk-pr this text
@@ -87,11 +92,12 @@ const (
 	checkPositional    = "positional"
 	checkLongBlock     = "long-block"
 	checkCoined        = "coined"
+	checkLongSentence  = "long-sentence"
 )
 
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
-	checkIntensifier, checkPositional, checkLongBlock, checkCoined}
+	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkLongSentence}
 
 var (
 	// A bold span opening on a word or a backtick. `**` around a space is markdown that did not close.
@@ -591,6 +597,11 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		if at := rePositional.FindStringIndex(read); at != nil {
 			add(checkPositional, span[0]+at[0], span[0]+at[1])
+		}
+		// Counted over `text` rather than `read`, because blanking an inline code span leaves spaces:
+		// a backticked identifier is a word the reader reads, and counting the blanked form drops it.
+		if len(strings.Fields(text[span[0]:span[1]])) > voiceLongSentence {
+			add(checkLongSentence, span[0], span[1])
 		}
 	}
 	return found

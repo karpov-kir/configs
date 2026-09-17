@@ -9,6 +9,7 @@ Write so the reader understands the text on the first read, without backtracking
 * In code and in comments, use the identifier's name or the domain's own word. A coined term belongs in neither.
 * Put one idea in a sentence, and keep it under about 25 words.
 * Name the actor.
+* Name the thing again where a pronoun would stand for something last named two clauses back.
 * Stack no more than three words into a noun.
 * Use plain words, direct verbs and whole sentences. Contractions are fine.
 * Put the point alone in the first sentence and the caveat after it, and put a warning before the step it guards.
