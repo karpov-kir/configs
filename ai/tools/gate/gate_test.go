@@ -1,310 +1,243 @@
 // Cases for the pre-commit gate. Three must not be weakened, and each is the gate reporting a pass it
 // did not earn:
 //
-//   - a unit that FAILED must leave no record, or reverting an unrelated file later answers the broken
-//     tree out of a green one;
-//   - a unit that resolved to NO INPUT FILE must exit 2, because a rename or a typo silently narrowing
-//     the gate looks exactly like a clean run;
-//   - two units sharing one cache record must exit 2, because running either then reports the other
-//     fresh over inputs nothing read.
+//   - a check that FAILED must exit 1, because a gate whose only signal is its own exit status is
+//     read by a hook that reads nothing else;
+//   - a check that exited 2 must exit 2 and not 0, because "it did not run" is not "it passed";
+//   - a run over the time budget must exit 1, because the budget is the one check that forces every
+//     other one to stay fast, and a gate that reports it as a warning has no budget.
 //
-// Every case drives the gate through its units-file seam rather than the real table: that reaches the
-// run loop, the cache and every refusal in milliseconds, where discovering the real units means
-// running the suites themselves — the very work this exists not to do.
+// Every case drives the gate through its checks-file seam rather than the real five: that reaches the
+// run loop, the report and every refusal in milliseconds, where running the real checks means running
+// the suite this file is part of.
 package gate
 
 import (
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
-func TestAUnitRunsAndIsThenFresh(t *testing.T) {
+type fixture struct {
+	t      *testing.T
+	root   string
+	checks string
+	// budget is zero for every case but the three about the bound, where spending a hundred seconds to
+	// reach a refusal is not a thing a suite may do.
+	budget int
+	out    strings.Builder
+	errOut strings.Builder
+	code   int
+}
+
+func newFixture(t *testing.T) *fixture {
+	t.Helper()
+	base := t.TempDir()
+	return &fixture{t: t, root: base, checks: filepath.Join(base, "checks")}
+}
+
+// The table the run loop reads. Tab-separated, id then command, exactly as GATE_CHECKS_FILE takes it.
+func (f *fixture) table(lines ...string) {
+	f.t.Helper()
+	if err := os.WriteFile(f.checks, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		f.t.Fatalf("writing the checks table: %v", err)
+	}
+}
+
+func (f *fixture) run(args ...string) {
+	f.t.Helper()
+	f.out.Reset()
+	f.errOut.Reset()
+	f.code = Run(args, Env{Root: f.root, Checks: f.checks, Budget: f.budget}, &f.out, &f.errOut)
+}
+
+func (f *fixture) expectCode(want int) {
+	f.t.Helper()
+	if f.code != want {
+		f.t.Errorf("exited %d, wanted %d\nstdout:\n%s\nstderr:\n%s", f.code, want, f.out.String(), f.errOut.String())
+	}
+}
+
+func (f *fixture) expectSaid(want string) {
+	f.t.Helper()
+	if !strings.Contains(f.out.String()+f.errOut.String(), want) {
+		f.t.Errorf("nothing said %q\nstdout:\n%s\nstderr:\n%s", want, f.out.String(), f.errOut.String())
+	}
+}
+
+func (f *fixture) expectSilentAbout(what string) {
+	f.t.Helper()
+	if strings.Contains(f.out.String()+f.errOut.String(), what) {
+		f.t.Errorf("the run said %q, and nothing here should have\nstdout:\n%s\nstderr:\n%s", what, f.out.String(), f.errOut.String())
+	}
+}
+
+// A command that records it ran, so a case can tell a check that was executed from one that was
+// merely reported. Written into the fixture root, which is where every command runs.
+func marker(name string, status int) string {
+	return "printf x >> " + name + "; exit " + strconv.Itoa(status)
+}
+
+func (f *fixture) runCount(name string) int {
+	f.t.Helper()
+	body, err := os.ReadFile(filepath.Join(f.root, name))
+	if err != nil {
+		return 0
+	}
+	return len(body)
+}
+
+func TestACleanRunExitsZeroAndRunsEveryCheck(t *testing.T) {
 	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 0))
+	f.table("one\t"+marker("one.log", 0), "two\t"+marker("two.log", 0))
 
 	f.run()
 	f.expectCode(0)
-	f.expectOut("ran ok")
-	if got := f.runCount("ran.log"); got != 1 {
-		t.Fatalf("the command ran %d times, wanted 1 — output:\n%s", got, f.out())
-	}
-
-	f.run()
-	f.expectCode(0)
-	f.expectOut("fresh")
-	f.expectNotOut("ran ok")
-	if got := f.runCount("ran.log"); got != 1 {
-		t.Errorf("a fresh unit ran its command again (%d times)", got)
+	f.expectSaid("ran ok")
+	if got := f.runCount("one.log") + f.runCount("two.log"); got != 2 {
+		t.Errorf("%d of the 2 checks ran", got)
 	}
 }
 
-func TestAnInputChangedByAByteRunsAgain(t *testing.T) {
+// A failing check fails the gate, and its output reaches the report. Held back on a pass, because a
+// report read on every commit that carries every passing command's chatter stops being read.
+func TestAFailingCheckExitsOneAndShowsItsOutput(t *testing.T) {
 	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 0))
-	f.run()
-	f.write("watched.txt", "two\n")
-	f.run()
-	f.expectCode(0)
-	f.expectOut("ran ok")
-	if got := f.runCount("ran.log"); got != 2 {
-		t.Errorf("the command ran %d times after its input moved, wanted 2", got)
-	}
-}
-
-// The command is part of the key, because it decides the verdict as much as the inputs do.
-func TestAChangedCommandRunsAgainThoughItsInputsDidNot(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("first.log", 0))
-	f.run()
-	f.table("one\tcheck\twatched.txt\t" + marker("second.log", 0))
-	f.run()
-	f.expectCode(0)
-	f.expectOut("ran ok")
-	if got := f.runCount("second.log"); got != 1 {
-		t.Errorf("the new command ran %d times, wanted 1", got)
-	}
-}
-
-func TestAFailingUnitFailsTheGateAndRecordsNothing(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 1))
-
-	f.run()
-	f.expectCode(1)
-	f.expectOut("FAILED")
-
-	// The load-bearing half: a record written here would answer for the broken tree the moment someone
-	// reverted an unrelated file.
-	f.run()
-	f.expectCode(1)
-	f.expectOut("FAILED")
-	if got := f.runCount("ran.log"); got != 2 {
-		t.Errorf("the failing unit ran %d times over two runs, wanted 2 — a record was written for a failure", got)
-	}
-}
-
-func TestAUnitExitingTwoIsNeverMeasuredRatherThanFailed(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 2))
-
-	f.run()
-	f.expectCode(2)
-	f.expectOut("NO MEASURE")
-	f.expectNotOut("FAILED")
-	f.expectOut("not a pass")
-
-	f.run()
-	if got := f.runCount("ran.log"); got != 2 {
-		t.Errorf("an unmeasured unit was answered from a record: ran %d times over two runs, wanted 2", got)
-	}
-}
-
-func TestAUnitExitingThreeRefusesItsResultRatherThanFailing(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 3))
-
-	f.run()
-	f.expectCode(2)
-	f.expectOut("REFUSED")
-	f.expectNotOut("FAILED")
-
-	f.run()
-	if got := f.runCount("ran.log"); got != 2 {
-		t.Errorf("a refused unit was answered from a record: ran %d times, wanted 2", got)
-	}
-}
-
-func TestAFailureBesideAnUnmeasuredUnitExitsOne(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
 	f.table(
-		"broken\tcheck\twatched.txt\t"+marker("a.log", 1),
-		"silent\tcheck\twatched.txt\t"+marker("b.log", 2),
+		"clean\techo nothing-to-see; exit 0",
+		"broken\techo the-reason-it-failed; exit 1",
 	)
-	f.run()
-	f.expectCode(1)
-	f.expectOut("FAILED")
-	f.expectOut("NO MEASURE")
-}
-
-func TestAUnitResolvingToNoFileExitsTwo(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table(
-		"real\tcheck\twatched.txt\t"+marker("a.log", 0),
-		"phantom\tcheck\tnot-there.txt\t"+marker("b.log", 0),
-	)
-	f.run()
-	f.expectCode(2)
-	f.expectOut("NO INPUTS")
-	f.expectOut("narrowed itself")
-	// And it is not softened by the unit beside it that passed.
-	f.expectNotOut("exit 0")
-}
-
-func TestATableWhoseEveryInputIsMissingExitsTwoAndRunsNothing(t *testing.T) {
-	f := newFixture(t)
-	f.table("phantom\tcheck\tnot-there.txt\t" + marker("ran.log", 0))
-	f.run()
-	f.expectCode(2)
-	if got := f.runCount("ran.log"); got != 0 {
-		t.Errorf("a unit with no inputs ran its command %d times", got)
-	}
-}
-
-// A path git still lists and the filesystem no longer has. It reaches further in than the case above:
-// the listing is not empty, so the refusal that fires is the manifest's own, and the run must stop
-// there. Both refusals exit 2, so the wording is the assertion, not the exit code. Past the manifest
-// guard the unit resolves to no key material and is reported as NO INPUTS.
-func TestAnInputTrackedButGoneFromTheWorkingTreeStopsAtTheManifest(t *testing.T) {
-	f := newFixture(t)
-	f.write("gone.txt", "one\n")
-	f.commit()
-	if err := os.Remove(filepath.Join(f.root, "gone.txt")); err != nil {
-		t.Fatalf("could not remove the fixture input: %v", err)
-	}
-	f.table("one\tcheck\tgone.txt\t" + marker("ran.log", 0))
-	f.run()
-	f.expectCode(2)
-	f.expectOut("not one input path resolved to a file")
-	f.expectNotOut("NO INPUTS")
-	if got := f.runCount("ran.log"); got != 0 {
-		t.Errorf("the gate ran a unit keyed on a file that is not there (%d times)", got)
-	}
-}
-
-// Two units under one cache record share a verdict, so running either reports the other fresh over
-// inputs nothing read. Asked about STEMS rather than ids, because the stem is the record's name.
-func TestTwoIdsNamingOneCacheRecordExitTwo(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	// Different ids, one stem: every byte outside [A-Za-z0-9._-] flattens to a dash.
-	f.table(
-		"a:b\tcheck\twatched.txt\t"+marker("a.log", 0),
-		"a/b\tcheck\twatched.txt\t"+marker("b.log", 0),
-	)
-	f.run()
-	f.expectCode(2)
-	f.expectOut("share one cache record")
-	f.expectOut("different ids, one record name")
-	if got := f.runCount("a.log") + f.runCount("b.log"); got != 0 {
-		t.Errorf("a clashing table ran %d command(s) before refusing", got)
-	}
-}
-
-// A `/` in an id names a directory the cache does not have, so every write for such a unit failed
-// silently and the run reported a pass having recorded nothing. recordStem is what flattens it.
-func TestAnIdHoldingASlashStillRecords(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("go:pkg/file.go\tcheck\twatched.txt\t" + marker("ran.log", 0))
-
-	f.run()
-	f.expectCode(0)
-	f.expectOut("ran ok")
-
-	f.run()
-	f.expectOut("fresh")
-	if got := f.runCount("ran.log"); got != 1 {
-		t.Errorf("the unit ran %d times, wanted 1 — its record did not stick", got)
-	}
-}
-
-// --full ignores a record and then refreshes it, so a unit that has started failing is caught rather
-// than answered out of the green record it earned before.
-func TestFullRunsAgainOverUnchangedInputsAndDropsTheRecordWhenItFails(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 0))
-	f.run()
-	f.expectCode(0)
-
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 1))
-	// Its inputs did not move, so only --full reaches it.
-	f.run("--full")
-	f.expectCode(1)
-	f.expectOut("FAILED")
-
-	// And the failing run dropped the record, so the next fast run measures rather than reporting fresh.
-	f.run()
-	f.expectCode(1)
-	f.expectOut("FAILED")
-}
-
-// The case above cannot see the record being dropped: it moves the COMMAND to turn the unit red, and
-// the command is part of the key, so the second run misses the green record rather than finding it
-// removed. So this unit's verdict turns on a file that is not a declared input: the key holds still
-// across all three runs, and the removal is the only thing between FAILED and a clean gate over it.
-func TestAFailingRunDropsTheGreenRecordItAlreadyHad(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\tprintf 'x ' >> ran.log; test ! -f flip")
-
-	f.run()
-	f.expectCode(0)
-	f.expectOut("ran ok")
-
-	// --full, because the fast path would report the unit fresh and never reach the command at all.
-	f.write("flip", "")
-	f.run("--full")
-	f.expectCode(1)
-	f.expectOut("FAILED")
 
 	f.run()
 	f.expectCode(1)
-	f.expectOut("FAILED")
-	f.expectNotOut("inputs unchanged since it last passed")
-	if got := f.runCount("ran.log"); got != 3 {
-		t.Errorf("the command ran %d times over three runs, wanted 3 — the failing run left its green record behind", got)
-	}
+	f.expectSaid("FAILED")
+	f.expectSaid("the-reason-it-failed")
+	f.expectSilentAbout("nothing-to-see")
 }
 
-// A verdict is a statement about these inputs under THIS deciding code, so the digest of that code is
-// in every key. Dropped from the key material, every verdict recorded by one gate binary answers for
-// the next one — including the edit that broke a guard.
-func TestAChangedGateBinaryIsNotAnsweredOutOfTheOldCache(t *testing.T) {
+// Exit 2 is "it did not run", which a caller may never read as a pass. The gate's own exit status is
+// the only thing a hook looks at.
+func TestACheckThatDidNotRunExitsTwo(t *testing.T) {
 	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("one\tcheck\twatched.txt\t" + marker("ran.log", 0))
+	f.table("clean\texit 0", "absent\techo the-tool-is-missing; exit 2")
 
-	f.runAs("digest-before")
-	f.expectCode(0)
-	f.expectOut("ran ok")
-
-	f.runAs("digest-after")
-	f.expectCode(0)
-	f.expectOut("ran ok")
-	f.expectNotOut("inputs unchanged since it last passed")
-	if got := f.runCount("ran.log"); got != 2 {
-		t.Errorf("the unit ran %d times across two gate binaries, wanted 2 — the digest is not in the key", got)
-	}
-}
-
-// An input the gate cannot read used to vanish from the manifest silently, which takes it out of every
-// key that declared it — its edits then stop invalidating anything, and the gate narrows itself.
-func TestAnUnreadableInputExitsTwo(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.write("locked.txt", "secret\n")
-	if err := os.Chmod(filepath.Join(f.root, "locked.txt"), 0o000); err != nil {
-		t.Skipf("cannot drop read permission here: %v", err)
-	}
-	defer os.Chmod(filepath.Join(f.root, "locked.txt"), 0o644)
-	if body, err := os.ReadFile(filepath.Join(f.root, "locked.txt")); err == nil {
-		t.Skipf("this filesystem still reads a 0000 file (%d bytes), so the case cannot run", len(body))
-	}
-	f.table("one\tcheck\twatched.txt locked.txt\t" + marker("ran.log", 0))
 	f.run()
 	f.expectCode(2)
-	f.expectOut("stop invalidating")
-	if got := f.runCount("ran.log"); got != 0 {
-		t.Errorf("the gate ran a unit whose input it could not hash (%d times)", got)
+	f.expectSaid("NO MEASURE")
+	f.expectSaid("the-tool-is-missing")
+}
+
+// A finding outranks a machine that could not answer: exit 2 alone means nothing was found wrong and
+// something never ran, and a caller that read the pair as 2 would go looking at its own toolchain for
+// a broken test.
+func TestAFailureOutranksACheckThatDidNotRun(t *testing.T) {
+	f := newFixture(t)
+	f.table("absent\texit 2", "broken\texit 1")
+
+	f.run()
+	f.expectCode(1)
+}
+
+// The budget, which is the point of the whole file. testing.md rule 6 says the suite runs cold under
+// 100 seconds and the gate fails a run over that; without this case that sentence is a wish.
+func TestARunOverTheBudgetFailsAndNamesTheSlowest(t *testing.T) {
+	f := newFixture(t)
+	f.budget = 1
+	f.table("quick\texit 0", "slow\tsleep 2")
+
+	f.run()
+	f.expectCode(1)
+	f.expectSaid("the budget is 1s")
+	// Named, not merely counted. A wall clock on its own tells nobody what to fix, and the bound
+	// exists to point at the thing that has to get faster.
+	f.expectSaid("slowest first:")
+	if said := f.errOut.String(); strings.Index(said, "slow") > strings.Index(said, "quick") {
+		t.Errorf("the over-budget report lists the quick check before the slow one:\n%s", said)
+	}
+}
+
+// Over budget AND red is reported as red. A gate that answered "and it was slow" would bury the
+// reason under the symptom, and the reason is the thing someone has to fix first.
+func TestAFailingRunOverBudgetStillReportsTheFailure(t *testing.T) {
+	f := newFixture(t)
+	f.budget = 1
+	f.table("broken\techo the-reason-it-failed; exit 1", "slow\tsleep 2")
+
+	f.run()
+	f.expectCode(1)
+	f.expectSaid("the-reason-it-failed")
+	f.expectSilentAbout("slowest first:")
+}
+
+// A clean run inside the budget says nothing about the budget at all.
+func TestACleanRunInsideTheBudgetSaysNothingAboutIt(t *testing.T) {
+	f := newFixture(t)
+	f.budget = 60
+	f.table("quick\texit 0")
+
+	f.run()
+	f.expectCode(0)
+	f.expectSilentAbout("budget")
+}
+
+// A table naming nothing is the gate broken, never a clean sweep. It is the same refusal discovery
+// used to make when it found no suites: a gate that narrowed itself to nothing looks exactly like one
+// that found nothing wrong.
+func TestAnEmptyTableRefuses(t *testing.T) {
+	f := newFixture(t)
+	f.table("")
+
+	f.run()
+	f.expectCode(2)
+	f.expectSaid("named no check at all")
+}
+
+func TestTheArgumentTable(t *testing.T) {
+	for _, c := range []struct {
+		what   string
+		args   []string
+		status int
+		said   string
+	}{
+		{"no argument runs the gate", nil, 0, "ran ok"},
+		{"--full runs it too", []string{"--full"}, 0, "ran ok"},
+		{"--help prints the usage line and runs nothing", []string{"--help"}, 0, usageLine},
+		{"an unknown argument is refused with the usage line", []string{"--mutants"}, 2, usageLine},
+	} {
+		t.Run(c.what, func(t *testing.T) {
+			f := newFixture(t)
+			f.table("one\t" + marker("one.log", 0))
+			f.run(c.args...)
+			f.expectCode(c.status)
+			f.expectSaid(c.said)
+			if ran := f.runCount("one.log"); c.args != nil && len(c.args) > 0 && c.args[0] != "--full" && ran != 0 {
+				t.Errorf("%s ran %d check(s), and it answers a question about the flags", c.what, ran)
+			}
+		})
+	}
+}
+
+// Every command runs at the repository root, whatever directory the caller stood in. Half the real
+// checks cd from there, and a root taken from the process's own cwd would scope them to a
+// subdirectory and report a pass over the rest of the tree.
+func TestEveryCommandRunsAtTheRoot(t *testing.T) {
+	f := newFixture(t)
+	f.table("where\tpwd > where.log")
+
+	f.run()
+	f.expectCode(0)
+	body, err := os.ReadFile(filepath.Join(f.root, "where.log"))
+	if err != nil {
+		t.Fatalf("the check wrote no record of where it ran: %v", err)
+	}
+	said := strings.TrimSpace(string(body))
+	physical, err := filepath.EvalSymlinks(f.root)
+	if err != nil {
+		t.Fatalf("resolving the fixture root: %v", err)
+	}
+	if said != physical {
+		t.Errorf("the check ran in %s, and the root is %s", said, physical)
 	}
 }

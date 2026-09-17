@@ -22,14 +22,14 @@ const repoRoot = "../.."
 
 const workflowsDir = repoRoot + "/.github/workflows"
 
-const gateSource = "gate/run.go"
+const gateSource = "gate/gate.go"
 
 // What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
 // on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
 // covers a package that fails, and without `./...` the gate runs a subset of the module.
 //
-// The bound is deliberately not in this list. It has one home, `goSuiteTimeout` in
-// ai/tools/gate/run.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
+// The bound is deliberately not in this list. It has one home, `budgetSeconds` in
+// ai/tools/gate/gate.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
 // Pinned here too, raising it would mean one more file to edit, with this case red until that edit
 // lands.
 var goSuiteFlags = []string{"-count=1", "./..."}
@@ -82,7 +82,7 @@ func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
 	for _, line := range strings.Split(string(body), "\n") {
 		trimmed := strings.TrimSpace(line)
 		// The invocations only, never the prose about them: a comment naming `go test` is not a run.
-		if strings.HasPrefix(trimmed, "//") || !strings.Contains(trimmed, `"test"`) {
+		if strings.HasPrefix(trimmed, "//") || !strings.Contains(trimmed, "go test") {
 			continue
 		}
 		found++
@@ -148,18 +148,19 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// `goSuiteTimeout` in ai/tools/gate/run.go is the bound's one home. Each workflow's Gate step still
-// has to spell that number into its own `-timeout`, and carries a comment pointing at the home
-// rather than repeating its reasoning. A pointer is only as good as something checking it still
-// points at the same number, and this is that check.
+// `budgetSeconds` in ai/tools/gate/gate.go is the bound's one home, and it is the same number
+// `testing.md` rule 6 states: the whole suite runs cold under it, and the gate fails a run over it.
+// Each workflow's Gate step has to spell that number into its own `-timeout`, so a suite that hangs
+// on a runner fails as the thing it is rather than after Go's ten-minute default. A pointer is only
+// as good as something checking it still points at the same number, and this is that check.
 func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	gateBody, err := os.ReadFile(gateSource)
 	if err != nil {
 		t.Fatalf("reading %s: %v", gateSource, err)
 	}
-	want := constStringIn(string(gateBody), "goSuiteTimeout")
+	want := constSecondsIn(string(gateBody), "budgetSeconds")
 	if want == "" {
-		t.Fatalf("%s no longer declares goSuiteTimeout at the start of a line, so this case has nothing to "+
+		t.Fatalf("%s no longer declares budgetSeconds at the start of a line, so this case has nothing to "+
 			"hold the workflows to and would pass over any value they carry. Restore the declaration, or "+
 			"retire this case deliberately — do not leave it green over nothing.", gateSource)
 	}
@@ -178,9 +179,9 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 			switch {
 			case bound == "":
 				t.Errorf("`go test` invocation %d in %s's Gate step carries no -timeout, so Go's 10m "+
-					"default applies there while %s uses %s. eco-report alone has been measured past 10m "+
-					"on a loaded runner, and overrunning prints a goroutine dump that reads as a hang "+
-					"rather than a slow pass.", i+1, name, gateSource, want)
+					"default applies there while %s uses %s. Overrunning prints a goroutine dump that "+
+					"reads as a hang rather than as a suite over its budget, and this repository has "+
+					"twice reported one as a red gate that was not one.", i+1, name, gateSource, want)
 			case bound != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
 					"goSuiteTimeout=%s — the two drifted, so the same suite is bounded differently "+
@@ -195,13 +196,15 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	}
 }
 
-// The value of a `const <name> = "…"` declaration in Go source. Anchored at column zero, so a mention
-// inside a comment or a nested scope is not mistaken for the declaration itself.
-func constStringIn(source, name string) string {
-	assign := "const " + name + ` = "`
+// A `const <name> = <n>` seconds declaration, rendered the way `go test -timeout` spells one. Anchored
+// at column zero, so a mention inside a comment or a nested scope is not mistaken for the declaration.
+func constSecondsIn(source, name string) string {
+	assign := "const " + name + " = "
 	for _, line := range strings.Split(source, "\n") {
-		if strings.HasPrefix(line, assign) {
-			return strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(line, assign)), `"`)
+		if rest, found := strings.CutPrefix(line, assign); found {
+			if value := strings.TrimSpace(strings.SplitN(rest, "//", 2)[0]); value != "" {
+				return value + "s"
+			}
 		}
 	}
 	return ""

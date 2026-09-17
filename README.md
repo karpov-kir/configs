@@ -16,6 +16,14 @@ when their source disappears from this checkout.
 
 ## Tests
 
-`ai/run-tests.sh` discovers every `*-test.sh` in the repository and fails if it finds none.
-GitHub Actions runs it on Linux and macOS for pushes to `main` and pull requests, alongside the
-other gates in `.github/workflows/gates.yml`.
+`ai/gate.sh` is the whole of it: gofmt, `go vet`, `go test ./...`, the wiring check and the field
+guide. It fails a run over 100 seconds, which is the bound
+[`testing.md`](ai/kk-flavor/standards/testing.md) rule 6 sets. `--full` defeats Go's own test cache,
+and that is what the bound is measured against.
+
+There are no shell suites. The installers and the MCP tools are Go; the three scripts that stay
+shell — `ai/tools/resolve.sh`, `install.sh` and `source-stamp.sh`, which exist to reach a Go binary
+from a checkout that has none yet — are covered by Go suites inside the module.
+
+GitHub Actions runs the same checks for pushes to `main` and pull requests, in
+`.github/workflows/gates.yml`.

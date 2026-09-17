@@ -1,27 +1,18 @@
 #!/usr/bin/env bash
-# The pre-commit gate: every check this repo gates on, run only where the change could have moved it.
+# The pre-commit gate: every check this repository gates on, run from cold, every time.
 #
-#   usage: gate.sh [--full] [--units] [--why <unit>] [--check-path <name>]
-#          (no flag)     the fast path — run what is stale, skip what is not
-#          --full        run everything from cold, ignoring and then refreshing every cached verdict
-#          --units       print the unit table with each unit's freshness, and stop
-#          --why         print the input files one unit is keyed on, and stop
-#          --check-path  say whether a name is one the gate can safely build a command from, and stop
+#   usage: gate.sh [--full]
+#          (no flag)  run every check, letting Go's own test cache answer where it can
+#          --full     defeat that cache too, which is what the time budget is measured against
 #
-# Skipping is sound, not a sample: every check is a pure function of a declared set of input files
-# plus the toolchain, so a unit whose inputs hash to the last green run's already has its verdict.
+# Five checks — gofmt, vet, the Go suite, the wiring check, the field guide — run at once and printed
+# in that order.
 #
-# It may never report a pass for a unit it did not run, resolve a unit to an empty input set, finish
-# having resolved nothing, or skip anything quietly. Each of those exits 2 and says so.
+# It may never report a pass for a check it did not run, finish over budget and exit 0, or skip
+# anything quietly. `ai/kk-flavor/standards/testing.md` rule 6 is the bound and `ai/tools/gate/` is
+# where it is enforced.
 #
-# A fast path beside the full sweep, never instead of it: `.github/workflows/gates.yml` still runs
-# every command from cold on every push, and `--full` is the same sweep on demand.
-#
-# The gate is Go, in `ai/tools/gate/`. Don't put it back in shell: keying 60-odd units there measured
-# 9.5s for `--units`, against 1.0s here.
-#
-# tested by: the Go suite beside the tool, `ai/tools/gate/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# tested by: the Go suite in ai/tools/gate/.
 
 set -euo pipefail
 

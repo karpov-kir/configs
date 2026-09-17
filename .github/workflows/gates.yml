@@ -4,14 +4,18 @@
 # The Go step duplicates release-tools.yml's `Gate`, and that one must stay: it guards the
 # binaries a release attaches, and `resolve.sh` prefers a downloaded binary over the source beside
 # it, so a release built from unchecked code is worse than no release. Sharing them would mean a
-# reusable workflow, which is more machinery than three commands are worth.
+# reusable workflow, which is more machinery than four commands are worth.
 #
-# No suite list here: ai/run-tests.sh discovers every `*-test.sh`, so a suite added later is gated
-# without anyone remembering to register it, and finding none is a failure rather than an empty pass.
+# Two jobs, where there were four. The `suites` job ran every `*-test.sh` and there are none left —
+# the installers, the MCP scripts and every library they shared are Go, and the three scripts that
+# stay shell are covered by Go suites inside the module. The `mutants` job swept a hand-written table
+# of 526 deliberate breaks and is deleted: `ai/kk-flavor/standards/testing.md` rule 7 says a negative
+# control runs once, by hand, when the case is written, never as standing machinery.
 #
-# Both legs matter. macOS is where these suites are written and where /bin/bash is 3.2; Linux is where
-# they are unproven and where CI is cheap. fail-fast is off so one leg going red still reports the
-# other, since the delta between them is the portability signal.
+# The matrix stays on the Go job for one reason, and it is not portability of the tests: macOS is
+# where /bin/bash is 3.2, and `eco-check`'s parse scan asks every bash the machine carries, so the
+# macOS leg is the only place that arm of it runs at all. fail-fast is off so one leg going red still
+# reports the other.
 #
 # The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
 # it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
@@ -33,42 +37,22 @@ permissions:
   contents: read
 
 jobs:
-  suites:
+  # `-count=1` because this job's whole job is to measure the commit, and a runner's build cache is
+  # warm between steps. Nothing here reads outside the module any more, so Go's cache would now be
+  # correct — it is defeated because a gate that answers from cache is not a sweep, not because it
+  # would answer wrongly.
+  #
+  # `-timeout 100s`, the same bound `ai/gate.sh` carries and `testing.md` rule 6 states. A suite that
+  # hangs then fails as the thing it is, rather than after Go's ten-minute default with a goroutine
+  # dump that reads like a deadlock. The two numbers have to move together.
+  #
+  # `-cover` for the one number `testing.md` asks for, printed per package.
+  go:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v7
-
-      # Some suites cover scripts that build or resolve the Go tools. jq and gh, the other two
-      # binaries the suites reach for, are preinstalled on both images.
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: ai/tools/go.mod
-          cache: false
-
-      - name: Run every suite
-        run: ai/run-tests.sh
-
-  # `-count=1` because Go's test cache is keyed on the module, and several suites read files outside
-  # it: eco-report's fixtures copy in `ai/kk-flavor/skills/idsd-qualify`'s report template and
-  # todo-gate.sh, and `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a
-  # plain run answers out of cache over a tree one of them has changed, and this job would go green
-  # on exactly that.
-  # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
-  # while `go test ./eco-report/` says `ok (cached)` over the same corrupt tree.
-  #
-  # A cached failure is not the hole. A deliberately failing case appended to eco-root re-ran and
-  # re-failed on two consecutive runs, never once from cache. `.github/workflows/release-tools.yml`
-  # cites this paragraph rather than repeating it.
-  #
-  # `ai/gate.sh` is the developer-side answer to the same hole — it keys on those files itself and
-  # forces the packages that read them. This job stays as it is: the gate is a fast path beside the
-  # full sweep, never a substitute for it.
-  go:
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -87,13 +71,31 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/tools/gate/run.go states at goSuiteTimeout.
+          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at budgetSeconds.
           # The two have to match.
-          go test -count=1 -timeout 30m ./...
+          go test -count=1 -timeout 100s ./...
 
-  # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
-  # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file
-  # that does not exist reaches main with nothing looking at it.
+      # The one number `ai/kk-flavor/standards/testing.md` → **6. Coverage** asks for, and the floor it
+      # sets. Its own step rather than a flag on the Gate above, because that step is byte-identical to
+      # release-tools.yml's and `workflows_test.go` holds the two to each other — a flag here alone
+      # would be the drift that case exists to catch.
+      #
+      # Linux only: the number is a property of the code, not of the runner, and two legs reporting
+      # two numbers invites someone to read the higher one.
+      - name: Coverage
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ai/tools
+        run: |
+          go test -count=1 -timeout 100s -coverprofile=cover.out ./...
+          total=$(go tool cover -func=cover.out | awk '/^total:/ {print $3}')
+          echo "coverage: $total"
+          # awk rather than bash arithmetic: the figure is a percentage with one decimal, and bash has
+          # no floats. The comparison is `<`, so exactly 80.0 passes, which is what "≥ 80%" means.
+          awk -v got="${total%\%}" 'BEGIN { if (got < 80) { printf "coverage %s%% is under the 80%% floor testing.md sets\n", got > "/dev/stderr"; exit 1 } }'
+
+  # The instruction tree — standards, SKILL.md files, templates. The wiring check is not a Go suite,
+  # so without this job a citation pointing at a file that does not exist reaches main with nothing
+  # looking at it.
   #
   # `check.sh` exits 1 with findings and 2 when it could not run at all, and both fail the job:
   # a check that did not run is not a clean one, which is the rule the script's own header states.
@@ -109,7 +111,7 @@ jobs:
           go-version-file: ai/tools/go.mod
           cache: false
 
-      # --gate, so this job and ai/gate.sh's wiring unit ask the same question of the same commit.
+      # --gate, so this job and ai/gate.sh's wiring check ask the same question of the same commit.
       # Not a no-op on a fresh runner: the build the step above provides for writes ai/tools/bin/eco-check
       # before the binary execs, so build output is in the tree by the time the walk runs, and without
       # the flag the check reads files it cannot judge.
