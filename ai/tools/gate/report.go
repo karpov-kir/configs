@@ -32,10 +32,6 @@ func (g *gate) printWhy(want string) int {
 		fmt.Fprintf(g.out, "%s  (%s)\n", u.id, u.kind)
 		fmt.Fprintf(g.out, "  command: %s\n", u.cmd)
 		fmt.Fprintf(g.out, "  key:     %s\n", key)
-		// --why exists to explain a key, and files alone cannot account for one that moved untouched.
-		if u.prerequisite != "" {
-			fmt.Fprintf(g.out, "  machine: %s\n", u.prerequisite)
-		}
 		fmt.Fprintln(g.out, "  inputs:")
 		for _, line := range lines {
 			fmt.Fprintf(g.out, "    %s\n", line)
@@ -47,15 +43,6 @@ func (g *gate) printWhy(want string) int {
 
 func (g *gate) unitLine(state, id, detail string) {
 	fmt.Fprintf(g.out, "  %-11s %-32s %s\n", state, id, detail)
-}
-
-// A passing unit's detail, carrying what the machine could not provide as a clause rather than a block
-// of its own: the table is read every run. Passing only — a failure already has its output tailed.
-func withShortfall(detail string, u unit) string {
-	if u.prerequisiteShortfall == "" {
-		return detail
-	}
-	return detail + "; " + u.prerequisiteShortfall
 }
 
 func (g *gate) reportRun(started time.Time, tally runTally) int {

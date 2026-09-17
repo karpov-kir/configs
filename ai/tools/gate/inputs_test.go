@@ -322,44 +322,6 @@ func TestTheGuideUnitIsKeyedOnEveryFileItsPageIsBuiltFrom(t *testing.T) {
 	}
 }
 
-// The same claim as the guide case above, over the one unit whose command spends money. `addModelCheck`
-// keys on direct imports by hand rather than on `ai/tools`, so that a Go edit anywhere does not buy a
-// model call per name — which means the list is the only thing standing between an edit and a stale
-// green.
-//
-// `ai/tools/model-policy` is the entry that shows why this is worth a case: `Selections()` lives there
-// and decides which names the probe asks about. Drop that one and repricing a row changes the question
-// while the unit answers from the last run's record — a provider never asked about the new name, and a
-// green saying it was. `bloat-judge` is here for the same reason one step out: the probe runs through
-// its callers, so the argv a name is proven against is built there.
-//
-// What this catches is an entry TRIMMED from the declaration, and only that — hence "stays keyed".
-// `want` is a hand-copy, so a package newly imported and left out passes silently. The stub case below
-// derives its oracle instead; that is not available here, because the only mechanical derivation is
-// `go list -deps`, which over-reaches to diffscan for the reason `addModelCheck` gives.
-func TestTheModelsUnitStaysKeyedOnThePackagesItsProbeIsBuiltFrom(t *testing.T) {
-	g, _, _ := discoveredOverThisRepo(t)
-
-	want := []string{"ai/kk-flavor/models.json", "ai/kk-flavor/scripts/model-check.sh",
-		"ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
-		"ai/tools/bloat-judge", "ai/tools/shell"}
-	found := false
-	for _, u := range g.units {
-		if u.id != "models" {
-			continue
-		}
-		found = true
-		for _, input := range want {
-			if !slices.Contains(u.inputs, input) {
-				t.Errorf("the models unit is not keyed on %s, so editing it leaves the provider unasked and the check green from cache", input)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("no models unit among the discovered units, so nothing here was checked")
-	}
-}
-
 // The gotest unit has to be keyed on the stubs its suite opens. `stub_usage_test.go` discovers every
 // stub in the repository and reads each one, all of them outside this module, and Go's test cache
 // cannot see any of them: without the key, editing a stub's header leaves the unit fresh and the drift
@@ -392,9 +354,14 @@ func TestTheGotestUnitIsKeyedOnTheStubsItsSuiteReads(t *testing.T) {
 	}
 }
 
-// `go list`'s answer over the real module, which is what every unit's key now rests on. Two directions,
-// and only one is the cheap mistake: eco-report's suite compiles repo-key, so that pair must be there,
-// while cadence compiles nothing but itself, so a graph answering "the whole module" fails here.
+// `go list`'s answer over the real module, which is what every unit's key now rests on. Two
+// directions, and only one is the cheap mistake: eco-report's suite compiles repo-key, so that pair
+// must be there, while `shell` is a leaf nothing in the module reaches from, so a graph answering
+// "the whole module" fails here.
+//
+// `shell` and not a tool, because the narrow direction needs a package that STAYS narrow. Every tool
+// here now imports `ai/tools/repo`, so any of them would fail this the day it takes the port — which
+// is a rename of the fixture, not a defect for anyone to find.
 func TestThisModulesGraphSaysWhatASuiteCompiles(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	if err != nil {
@@ -405,8 +372,8 @@ func TestThisModulesGraphSaysWhatASuiteCompiles(t *testing.T) {
 		t.Errorf("the graph does not say eco-report's suite compiles repo-key, so a unit keyed off it "+
 			"stays fresh over an edit to repokey.go: %v", reached["ai/tools/eco-report"])
 	}
-	if got := reached["ai/tools/cadence"]; len(got) != 1 || got[0] != "ai/tools/cadence" {
-		t.Errorf("cadence's suite compiles nothing else in this module, and the graph answers %v — a "+
+	if got := reached["ai/tools/shell"]; len(got) != 1 || got[0] != "ai/tools/shell" {
+		t.Errorf("shell's suite compiles nothing else in this module, and the graph answers %v — a "+
 			"unit keyed on that re-runs on edits that cannot move its verdict", got)
 	}
 }

@@ -112,7 +112,7 @@ func (g *gate) keyMaterial(u unit) (key string, lines []manifestLine) {
 		lines = kept
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n%s\n%s\n%s\n", u.id, u.cmd, g.stamp, u.prerequisite)
+	fmt.Fprintf(&b, "%s\n%s\n%s\n", u.id, u.cmd, g.stamp)
 	b.WriteString(renderLines(lines))
 	return hashString(b.String()), lines
 }
