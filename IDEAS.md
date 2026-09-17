@@ -222,20 +222,17 @@ one check a wrong declaration cannot survive, and it is also the only way to ans
 changes saved anything — the question below has been open for four steps. It needs a recording
 mechanism that does not exist, so it waits until the declarations it would audit are in the tree.
 
-## 2x | 2026-09-16 | What the judge corpus cannot yet decide
+## 3x | 2026-09-17 | What the judge corpus cannot yet decide
 
-The three questions the six-minute judge run left are answered and the answers are in the tree: a
-positive thinking cap changes nothing, rolls load no client settings, and the call sites take codex.
-The instrument that settled them is `ai/tools/bloat-judge/eval_test.go` over the eight labelled cases
-beside it, and two things about it are worth knowing before the next change to the judge leans on it.
-
-**Eight cases and 42 labels is enough for a landslide and not for a close call.** It separated codex
-from claude/haiku on a signal that repeated five times out of five, and it could not separate haiku
-from sonnet at all — those scored identically, which is either a real tie or a corpus too small to
-see the difference. A configuration that comes back one false cut apart from the shipped one is not
-distinguished by this corpus, and the honest response is more cases rather than a closer reading of
-these. The cheapest source is real artifacts this repo already produces: a commit message, a residue
-list, a PR body per week, labelled when they are written and the reading is fresh.
+**Eleven cases still cannot settle a close call, but they were enough to find something eight could
+not.** Three cases went in — a real `IDEAS.md` entry, a plan report and a landing reply, taking
+`record-entry` and `reply` off zero coverage — and the false-cut count moved from a handful scattered
+across runs to a cluster that repeats. Over three runs of the finished corpus, codex made 5, 4 and 3
+false cuts and claude/haiku 8 and 7 — the separation holds, and is wider than it was. What eleven
+cases still cannot do is rank two configurations a single false cut apart, and the answer to that is
+what it was: more real artifacts, labelled when they are written and the reading is fresh. `ticket` and `slack` remain
+at zero cases, deliberately — this repo produces neither, and a case someone invents to fill a row
+measures the inventor.
 
 **`defaultRollDeadline` is measured now, and it moved to 900s — but what it is guarding against is
 still unexplained.** Twenty runs of the shipped path over 9KB, 18KB, 36KB and 53KB of this repo's own
@@ -257,11 +254,25 @@ this repo makes. A managed setting is merged above all of them by the client its
 tree can close that; what it can do is stop claiming isolation, which
 [model-policy.md](ai/kk-flavor/standards/model-policy.md) now does.
 
-**The corpus says where codex is weak, and it is the residue list.** Over six runs it made 1, 1, 0, 2,
-0 and 3 false cuts, and the worst run deleted three items out of `report-residue` while keeping the
-framing around them. Seven of the eight cases are right every time. No lane sends a residue list
-through the judge today, so this is a bound on where the judge may be pointed rather than a defect to
-fix — and it is the closest thing the corpus has to the close call it cannot yet decide.
+**The judge cuts the unit a standard requires, and this is not one provider's weakness.** The earlier
+reading of eight cases blamed codex and the residue list. Eleven cases say something sharper: both
+providers, in every run, delete the opening status line of a report, its closing recommendation, and
+the line in a reply that answers a question nobody asked again. `report-residue` unit 1,
+`report-plan` unit 8 and `reply-landing` unit 11 went in every run of both providers; `pr-body` unit 1
+and `report-residue` unit 1 in most of them. Each of them is mandated content:
+[quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md) requires the status line and
+requires the recommendation to close an item on its own line. They are cut because mandated content
+reads as ceremony from inside the text, and the prompt gives the model no way to know a line is owed
+to a rule it cannot see.
+
+It is not confined to the two kinds the corpus caught it in. Judged as a `record-entry`, this entry
+lost the paragraph naming the repair; judged as a `commit`, the message introducing it lost the same
+paragraph again. Three kinds, three texts, the same unit — whichever block carries what to do next.
+
+The repair is a sentence in `Prompt()` and it is not made here: a peer is editing that same function
+on `claude/comments-overhaul-69d0ac`, and two sessions rewriting one prompt against two evals would
+leave neither measurable. It lands after theirs, measured against this corpus, which is now large
+enough to tell whether it worked.
 
 **A slow roll now says so, and every other wait in this pipeline still does not.** The two stalls
 above printed nothing on either stream for five and a half minutes, which from the outside is
