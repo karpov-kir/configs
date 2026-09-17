@@ -39,10 +39,6 @@ func plainText(text string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(string(out), " "), " ")
 }
 
-func isAlnumByte(b byte) bool {
-	return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
-}
-
 // The bound and its reason are shell.MaxFileBytes. Over it the file is reported and not read, which
 // is what keeps an unchecked file distinguishable from a checked one.
 const maxFileBytes = shell.MaxFileBytes

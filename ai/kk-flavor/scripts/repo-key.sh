@@ -2,10 +2,12 @@
 # Print a stable name for this clone — `<basename>-<digest>` — so the idsd scratch dir under a
 # machine-local override root and the owner's worktree directory key one repository the same way.
 #
-#   usage: repo-key.sh [--name] [<repo path>]   # <repo path> defaults to .
+#   usage: repo-key.sh [--abbrev] [<repo path>]   # <repo path> defaults to .
 #
-# `--name` prints the clone's own directory name — the key without its digest, and the same from
-# every worktree of the clone. That is what a session title's prefix takes.
+# `--abbrev` prints the clone's abbreviation instead — `GADK8s` for a clone in
+# `github-action-deploy-k8s`. It is the same from every worktree of the clone, and it is what a session
+# title's prefix takes. Two repositories can abbreviate alike, so a directory keys off the name above,
+# never this.
 #
 # Exits 2 with a reason where it cannot name the clone.
 #

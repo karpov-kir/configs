@@ -1,15 +1,14 @@
 <!-- Fill every slot and delete its comment. Everything you know that the base commit does not show
      belongs in a slot, or it is lost; `handoff-check.sh` refuses what falls short of that. -->
 
-# [<repo name>] <one imperative line: the work>
+# [<repo abbrev>] <one imperative line: the work>
 
-<!-- The name is what `~/.kk-flavor/scripts/repo-key.sh --name <repo path>` prints, never one you
-     infer — every session infers a different one. Pass the repository you name under **Where it
-     starts**, not the checkout you are standing in: those are often not the same. The gate holds this
-     prefix against that repository. Where the tool refuses, run `git -C <repo path> rev-parse
-     --path-format=absolute --git-common-dir` and name the directory that path sits in; never name a
-     worktree's own directory, which differs per worktree. Keep the square brackets and use this full
-     line as the session title. -->
+<!-- The abbreviation is what `~/.kk-flavor/scripts/repo-key.sh --abbrev <repo path>` prints, never one
+     you infer — every session infers a different one, and that drift is what the tool exists to
+     remove. Pass the repository the work is in — **Where it starts** names it — not the checkout you
+     are standing in: those are often not the same. The gate holds this prefix against that repository.
+     Keep the square brackets and use this full line as the session title; where the tool refuses, drop
+     the brackets and open with the work half: the gate accepts a title with no prefix. -->
 
 ## The task
 

@@ -192,7 +192,7 @@ func lastMarkdownFileIn(text string) string {
 }
 
 func isPathByte(b byte) bool {
-	return isAlnumByte(b) || b == '.' || b == '_' || b == '-' || b == '/' || b == '~'
+	return shell.IsAlnumByte(b) || b == '.' || b == '_' || b == '-' || b == '/' || b == '~'
 }
 
 type citedHead struct {

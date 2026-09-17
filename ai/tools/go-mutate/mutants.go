@@ -146,6 +146,16 @@ var mutants = []mutant{
 	{"path: DirName leaves a repeated slash on the parent", "../shell/path.go", "./shell/", "TestDirNameAndBaseNameAreDirnameAndBasename", `if parent := strings.TrimRight(trimmed[:i], "/"); parent != "" {`, `if parent := trimmed[:i]; parent != "" {`},
 	// A Unicode ellipsis reintroduces bytes that Oneline strips.
 	{"cut: the marker carries a byte Oneline strips", "../shell/text.go", "./shell/", "TestCutMarkerCarriesNoByteOnelineStrips", `const CutMarker = "..."`, "const CutMarker = \"\u2026\""},
+	// A dropped arm still answers correctly for every byte the other two cover, so only a case walking
+	// the whole byte range reddens either of these.
+	{"alnum: the digits fall out of the class", "../shell/text.go", "./shell/", "TestIsAlnumByteIsTheCLocaleAlnumClass", "return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'", "return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'"},
+	{"alnum: the upper half of the byte range reads as alphanumeric", "../shell/text.go", "./shell/", "TestIsAlnumByteIsTheCLocaleAlnumClass", "return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'", "return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= 0x80"},
+	// The truncation guard, and the one site that holds it now. `byte(r)` wraps, so 269,762 runes at or
+	// above 0x80 land on an ASCII alphanumeric byte: without the range test a clone named `\u0663abc`
+	// keeps that rune through repo-key's safeName, and initialsOf then slices it in half and answers a
+	// broken byte into a path. Only a case carrying such a rune can see this at all.
+	{"alnum: a rune truncated onto an alphanumeric byte reads as alphanumeric", "../shell/text.go", "./shell/", "TestIsAlnumRuneRejectsEverythingAboveASCII", "return uint32(r) < 0x80 && IsAlnumByte(byte(r))", "return IsAlnumByte(byte(r))"},
+	{"alnum: the range test reopens the class below zero", "../shell/text.go", "./shell/", "TestIsAlnumRuneRejectsEverythingAboveASCII", "return uint32(r) < 0x80 && IsAlnumByte(byte(r))", "return r < 0x80 && IsAlnumByte(byte(r))"},
 	// The second anchor includes the following return to exclude CutBytes' matching early return.
 	{"cut: a message cut with nothing marking it", "../shell/text.go", "./shell/", "TestCutBytesMarkedSaysWhenItCut", "return CutBytes(text, n-len(CutMarker)) + CutMarker", "return CutBytes(text, n)"},
 	{"cut: a message that was never cut marked anyway", "../shell/text.go", "./shell/", "TestCutBytesMarkedSaysWhenItCut", `	if len(text) <= n {
@@ -357,9 +367,17 @@ var mutants = []mutant{
 	{"repo-key: a path that is not a git dir answers a key", "../repo-key/repokey.go", "./repo-key/", "TestAPathThatIsNotAGitDirRefuses", `if !shell.IsRegularFile(canonical + "/HEAD") {`, "if false {"},
 	{"repo-key: the key follows the worktree, not the clone", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneKeysTheSame", `"rev-parse", "--git-common-dir"`, `"rev-parse", "--show-toplevel"`},
 	{"repo-key: two clones of one remote collapse onto one name", "../repo-key/repokey.go", "./repo-key/", "TestTwoClonesOfOneRemoteKeyApart", `"-" + hex.EncodeToString(digest[:])[:digestLength]`, `"-" + hex.EncodeToString(digest[:])[:0]`},
-	{"repo-key: the name answers the whole key", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneNamesTheSame", "return nameFromSharedGitDir(shared)", "return FromSharedGitDir(shared)"},
-	{"repo-key: --name selects nothing", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", `if len(args) > 0 && args[0] == "--name" {`, `if len(args) > 0 && args[0] == "--name" && false {`},
-	{"repo-key: the name skips the safe half", "../repo-key/repokey.go", "./repo-key/", "TestANameIsSafeToSpliceIntoAPathOrACommand", "return nameOf(canonical), nil", "return shell.BaseName(shell.DirName(canonical)), nil"},
+	{"repo-key: the abbreviation answers the whole key", "../repo-key/repokey.go", "./repo-key/", "TestEveryWorktreeOfOneCloneAbbreviatesTheSame", "return abbrevFromSharedGitDir(shared)", "return FromSharedGitDir(shared)"},
+	{"repo-key: --abbrev selects nothing", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", `if len(args) > 0 && args[0] == "--abbrev" {`, `if len(args) > 0 && args[0] == "--abbrev" && false {`},
+	{"repo-key: the abbreviation skips the safe half", "../repo-key/repokey.go", "./repo-key/", "TestAnAbbreviationIsSafeToSpliceIntoAPathOrACommand", "return abbrevOf(nameOf(canonical)), nil", "return abbrevOf(shell.BaseName(shell.DirName(canonical))), nil"},
+	{"repo-key: a digit-carrying run reduced to its initial", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", `if strings.ContainsAny(run, "0123456789") {`, `if strings.ContainsAny(run, "0123456789") && false {`},
+	{"repo-key: an abbreviation reaches a title at any length", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", "if len(initials) > abbrevLength {", "if len(initials) > abbrevLength && false {"},
+	{"repo-key: a name with nothing to abbreviate answers the empty string", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", `if initials == "" {`, `if initials == "" && false {`},
+	{"repo-key: a run's initial reaches the title lowercase", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", "initials.WriteString(strings.ToUpper(run[:1]))", "initials.WriteString(run[:1])"},
+	// The shell mutant above covers the guard existing; these two cover a caller going back to
+	// truncating for itself, which is what the consolidation was for.
+	{"repo-key: the safe half truncates a rune for itself", "../repo-key/repokey.go", "./repo-key/", "TestSafeNameAdmitsNoByteOutsideTheClassItPromises", "case shell.IsAlnumRune(r), r == '.', r == '_', r == '-':", "case shell.IsAlnumByte(byte(r)), r == '.', r == '_', r == '-':"},
+	{"repo-key: the run splitter truncates a rune for itself", "../repo-key/repokey.go", "./repo-key/", "TestTheAbbreviationTable", "return !shell.IsAlnumRune(r)", "return !shell.IsAlnumByte(byte(r))"},
 	{"repo-key: the default root is not the working directory", "../repo-key/repokey.go", "./repo-key/", "TestWithNoPathItAnswersForTheWorkingDirectory", `root := "."`, `root := "/"`},
 	{"repo-key: a second root accepted", "../repo-key/repokey.go", "./repo-key/", "TestTheCommandsArgumentTable", "if len(args) > 1 {\n\t\treturn refuse(errOut, usage)", "if len(args) > 1 && false {\n\t\treturn refuse(errOut, usage)"},
 
@@ -805,18 +823,18 @@ var mutants = []mutant{
 	// reading "to <10 minutes" and a prefix reading "[<10min]" are both sound.
 	{"handoff: the placeholder test matched anywhere in the half", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))`, `return half == "" || strings.Contains(half, "<")`},
 	{"handoff: the placeholder test's closing anchor removed", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `return half == "" || (strings.HasPrefix(half, "<") && strings.HasSuffix(half, ">"))`, `return half == "" || strings.HasPrefix(half, "<")`},
-	{"handoff: the repository prefix goes unheld against the clone's name", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if s.prefix != s.repoName {`, `if s.prefix != s.repoName && false {`},
-	// Silence where there is no name is the other half of that check, and the only case that can observe
-	// it is the one whose repository `repo-key` cannot name.
-	{"handoff: a prefix refused where the repository has no name", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixIsUnreadWhereTheRepositoryHasNoName", `if s.prefix == "" || s.repoName == "" {`, `if s.prefix == "" {`},
+	{"handoff: the repository prefix goes unheld against the clone's abbreviation", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", `if s.prefix != s.repoAbbrev {`, `if s.prefix != s.repoAbbrev && false {`},
+	// Silence where there is no abbreviation is the other half of that check, and the only case that can
+	// observe it is the one whose repository `repo-key` cannot name.
+	{"handoff: a prefix refused where the repository has no abbreviation", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation", `if s.prefix == "" || s.repoAbbrev == "" {`, `if s.prefix == "" {`},
 	// The other half of that guard: with no word in the slot there is nothing to weigh, and a draft
 	// carrying no prefix at all would otherwise be told its empty slot is the wrong repository.
-	{"handoff: a title with no opening bracketed word weighed anyway", "../handoff-check/handoff-check.go", "./handoff-check/", "TestCompleteDraftPasses", `if s.prefix == "" || s.repoName == "" {`, `if s.repoName == "" {`},
-	// The name in hand is this process's repository, not the draft's, until the draft says so.
+	{"handoff: a title with no opening bracketed word weighed anyway", "../handoff-check/handoff-check.go", "./handoff-check/", "TestCompleteDraftPasses", `if s.prefix == "" || s.repoAbbrev == "" {`, `if s.repoAbbrev == "" {`},
+	// The abbreviation in hand is this process's repository, not the draft's, until the draft says so.
 	{"handoff: a prefix weighed against a repository the draft never named", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository", "if !s.named {", "if false {"},
 	// The drafting session and the repository the draft points at are two different checkouts, which is
 	// why the repository is a slot in the template at all.
-	{"handoff: the prefix held against the working directory, not the target repository", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "repokey.ResolveName(repo)", `repokey.ResolveName(".")`},
+	{"handoff: the prefix held against the working directory, not the target repository", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "repokey.ResolveAbbrev(repo)", `repokey.ResolveAbbrev(".")`},
 	// The draft's own bytes and the path this process was handed both reach a finding, and a raw escape
 	// in either is re-interpreted by the terminal the human reads it in.
 	// The escaping and the line bound belong to the printer, so they are broken there. Held at each
@@ -825,7 +843,7 @@ var mutants = []mutant{
 	{"handoff: every line leaves the gate unbounded", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(shell.Oneline(text), lineWidthCap)", "shell.Oneline(text)"},
 	// The two fields standing before the repair. Cut only at the line, a long one takes `use [X]` with it.
 	{"handoff: the opening bracketed word quoted unbounded", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.prefix, findingNameCap)", "s.prefix"},
-	{"handoff: the repository path quoted unbounded beside it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.repoPath, pathCap), s.repoName, s.repoName", "s.repoPath, s.repoName, s.repoName"},
+	{"handoff: the repository path quoted unbounded beside it", "../handoff-check/handoff-check.go", "./handoff-check/", "TestAFindingIsBoundedWhereItQuotesTheDraft", "shell.CutBytesMarked(s.repoPath, pathCap), s.repoAbbrev, s.repoAbbrev", "s.repoPath, s.repoAbbrev, s.repoAbbrev"},
 	// The title line is the one line reader that has to trim BOTH ends: `\r` is a space byte, so a CRLF
 	// draft left every half ending in one and no half ever matched its closing `>`.
 	{"handoff: the title line right-trimmed no longer", "../handoff-check/handoff-check.go", "./handoff-check/", "TestStructure", "title := strings.Trim(raw[2:], shell.SpaceBytes)", "title := strings.TrimLeft(raw[2:], shell.SpaceBytes)"},
@@ -1393,5 +1411,34 @@ var unreachableMutants = []unreachableMutant{
 			"TestTheOverrideConfigIsJudgedLikeTheRootItNames, whose four other cases drive every " +
 			"permission path that IS constructible, and TestAnUntrustworthyOverrideRootIsRefused, which " +
 			"reaches the sibling's identical branch through a root that need not exist.",
+	},
+	{
+		"repo-key: the abbreviation skips the safe half",
+		"equivalent, not unobserved, and only since the prefix became an abbreviation: safeName cannot " +
+			"change what abbrevOf answers, so dropping it from abbrevFromSharedGitDir is the same " +
+			"function. safeName and isSeparator read one predicate for that class now, shell.IsAlnumRune, " +
+			"so the half " +
+			"the equivalence turns on cannot drift: " +
+			"safeName preserves every [A-Za-z0-9._-] rune and maps every other one to `-`, " +
+			"while isSeparator calls everything outside [A-Za-z0-9] a separator — so `.`, `_`, `-` and " +
+			"each substituted byte are all separators, the maximal alnum runs FieldsFunc yields are the " +
+			"same sequence either way, and TrimLeft(\"-.\") removes only separators. The one branch that " +
+			"could differ is safeName's own \"\" -> fallbackName, which fires only for a name holding no " +
+			"alnum rune at all, and abbrevOf's initials == \"\" arm answers initialsOf(fallbackName) for " +
+			"that same input: one literal, one answer. Checked rather than argued: the two projections " +
+			"were compared over every Unicode code point in six surrounding shapes (6,672,384 inputs), " +
+			"over three million random strings mixing alnum, `._-`, space, `/$*`, tab, newline, an " +
+			"accented rune, a CJK rune and an Arabic-Indic digit, and over the eight directory names the " +
+			"suite itself drives — zero disagreements, with a deliberately altered projection caught on " +
+			"the same harness. It killed the NAME this mutant replaced, because that one returned the " +
+			"name itself and `-rf` came back leading with a dash. What stands behind the abbreviation's " +
+			"safety now is initialsOf, which can emit nothing but ASCII alphanumerics whatever it is " +
+			"handed, driven by TestAnAbbreviationIsSafeToSpliceIntoAPathOrACommand. A STALE CLAIM here " +
+			"means abbrevOf has come to read something safeName changes — keep the mutant and delete " +
+			"THIS ENTRY. Deleting the now-inert nameOf call retires the mutant and this entry together, " +
+			"and is the worse repair: it costs the coupling that makes the abbreviation the key's own " +
+			"readable half rather than a second reading of the same directory, and " +
+			"TestTheAbbreviationIsTheKeysReadableHalfAbbreviated would go on passing without it, because " +
+			"the two projections agree today. That is the drift the composition exists to prevent.",
 	},
 }

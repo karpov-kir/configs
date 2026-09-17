@@ -136,6 +136,24 @@ func IsSpaceByte(b byte) bool {
 	return strings.IndexByte(SpaceBytes, b) >= 0
 }
 
+// IsAlnumByte is the C-locale `[[:alnum:]]`: ASCII letters and digits, nothing else. The high half is
+// not alphanumeric here, whatever a locale would say about it.
+func IsAlnumByte(b byte) bool {
+	return b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+}
+
+// IsAlnumRune is the same class over a rune, and it is what a rune caller reads rather than
+// truncating one itself: `byte(r)` wraps, so 269,762 runes at or above 0x80 land on an ASCII
+// alphanumeric byte and would read as alphanumeric without the range test below.
+//
+// `uint32(r)` and not `r`, because a rune is signed and wrapping runs both ways: `r < 0x80` admits
+// every negative rune, and 269,824 of those truncate onto an alphanumeric byte too. No caller here
+// produces one — a range over a string and FieldsFunc both yield U+FFFD instead — so this is the
+// range test being the whole class rather than the reachable half of it.
+func IsAlnumRune(r rune) bool {
+	return uint32(r) < 0x80 && IsAlnumByte(byte(r))
+}
+
 // Nothing has two shapes across the three functions below, and neither shape is promised. SplitLines
 // and SortUnique return nil for empty input; SplitFields returns the allocated empty slice it
 // inherits from strings.FieldsFunc. Every caller reads the result with len or range, which cannot

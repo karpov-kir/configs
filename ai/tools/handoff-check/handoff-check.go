@@ -10,11 +10,11 @@
 // process cannot see each other's.
 //
 // Three things reach outside the draft, all read-only and all against the repository the caller names:
-// whether the base commit resolves, whether the tree is dirty, and what `repo-key` calls that clone.
-// The first two are git calls; the SHA handed to git is re-checked for its hex-only shape at the call,
-// because that shape is the whole reason a token lifted out of a draft is safe to pass. The third goes
-// through repokey rather than git, so the name the title is held against is the same string
-// `repo-key.sh --name` prints.
+// whether the base commit resolves, whether the tree is dirty, and how `repo-key` abbreviates that
+// clone. The first two are git calls; the SHA handed to git is re-checked for its hex-only shape at the
+// call, because that shape is the whole reason a token lifted out of a draft is safe to pass. The third
+// goes through repokey rather than git, so the prefix the title is held against is the same string
+// `repo-key.sh --abbrev` prints.
 //
 // `handoff-check.sh` in kk-handoff's scripts/ is the stub that reaches this binary.
 package handoffcheck
@@ -105,9 +105,9 @@ func runGit(dir string, args ...string) (string, error) {
 // One draft's accumulated state. Nothing here is package-level, so two runs in one process cannot see
 // each other's counts.
 type scan struct {
-	repoPath string // the resolved absolute path the draft has to name
-	repoName string // what `repo-key` calls that clone, or "" where it could not say
-	prefix   string // the title's opening bracketed word, "" where it holds none worth weighing
+	repoPath   string // the resolved absolute path the draft has to name
+	repoAbbrev string // how `repo-key` abbreviates that clone, or "" where it could not say
+	prefix     string // the title's opening bracketed word, "" where it holds none worth weighing
 
 	findings []string
 	declared []string // `declared None:` lines, which pass and are printed so the human sees them
@@ -123,14 +123,14 @@ type scan struct {
 	named  bool // "Where it starts" holds the repository's absolute path
 }
 
-func newScan(repoPath, repoName string) *scan {
+func newScan(repoPath, repoAbbrev string) *scan {
 	return &scan{
-		repoPath: repoPath,
-		repoName: repoName,
-		seen:     map[string]bool{},
-		filled:   map[string]bool{},
-		first:    map[string]string{},
-		words:    map[string]int{},
+		repoPath:   repoPath,
+		repoAbbrev: repoAbbrev,
+		seen:       map[string]bool{},
+		filled:     map[string]bool{},
+		first:      map[string]string{},
+		words:      map[string]int{},
 	}
 }
 
@@ -201,10 +201,10 @@ func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
 	}
 
 	// `repo` and not the working directory: the drafting session is often standing in another checkout.
-	// An error is no name and no finding — reportTitlePrefix says why.
-	repoName, _ := repokey.ResolveName(repo)
+	// An error is no abbreviation and no finding — reportTitlePrefix says why.
+	repoAbbrev, _ := repokey.ResolveAbbrev(repo)
 
-	s := newScan(repoPath, repoName)
+	s := newScan(repoPath, repoAbbrev)
 	s.read(shell.SplitLines(body))
 	s.report()
 	s.resolveBase(repo, git)
@@ -305,7 +305,7 @@ func (s *scan) read(lines []string) {
 	}
 }
 
-// readTitle reads the `# ` line as the two slots it is — `[<repo name>] <one imperative line>` — and
+// readTitle reads the `# ` line as the two slots it is — `[<repo abbrev>] <one imperative line>` — and
 // each of them on its own. Read as a single string, a filled half in front of an unfilled one made the
 // line look done: a real repository prefix hid a work half nobody had written.
 func (s *scan) readTitle(raw string) {
@@ -331,14 +331,14 @@ func (s *scan) readTitle(raw string) {
 	}
 }
 
-// titleHalves splits the title into the repository name inside its leading brackets and the work half
-// after them: `[configs] Cut the run` is "configs" and "Cut the run". The bracket has to open the
+// titleHalves splits the title into the repository abbreviation inside its leading brackets and the
+// work half after them: `[IT] Cut the run` is "IT" and "Cut the run". The bracket has to open the
 // line, and a line without one is all work half — a title reading "Cut the [flaky] resolver test out"
-// would otherwise hand its own first words over to be refused as a repository name.
+// would otherwise hand its own first words over to be refused as a repository abbreviation.
 //
-// Cut on `]` and not on `] `, so the space after it is the work half's to lose. `# [configs]` alone
-// was read as one unsplit line, which is neither half filled in and was the shape this whole check
-// exists to refuse; `[configs]Cut the run` skipped the name check for want of that space.
+// Cut on `]` and not on `] `, so the space after it is the work half's to lose. `# [IT]` alone was
+// read as one unsplit line, which is neither half filled in and was the shape this whole check
+// exists to refuse; `[IT]Cut the run` skipped the prefix check for want of that space.
 func titleHalves(title string) (prefix, work string, prefixed bool) {
 	if !strings.HasPrefix(title, "[") {
 		return "", title, false
@@ -362,30 +362,30 @@ func (s *scan) readTitlePrefix(prefix string) {
 }
 
 // reportTitlePrefix holds the opening bracketed word against the repository the draft points at. That
-// position is the repository slot, so whatever stands there has to be what `repo-key.sh --name` prints
-// — nothing can tell `[flaky]` from `[INV]`, and a name each session invents for itself puts two of
-// them on one repository's sessions.
+// position is the repository slot, so whatever stands there has to be what `repo-key.sh --abbrev`
+// prints — nothing can tell `[flaky]` from `[INV]`, and an abbreviation each session invents for
+// itself puts two of them on one repository's sessions.
 //
 // The finding says what was seen and never what was meant. An author who wrote `[flaky]` as prose was
 // not filling a slot, and telling them their repository prefix is wrong names a mistake they did not
 // make; the line is still refused, and the reason given is the one that is observably true.
 func (s *scan) reportTitlePrefix() {
-	// No word in the slot, or no name to weigh it against: a repository this machine cannot name yields
-	// nothing to compare, and a sound draft must not be refused for the gate's own blind spot.
-	if s.prefix == "" || s.repoName == "" {
+	// No word in the slot, or nothing to weigh it against: a repository this machine cannot name yields
+	// no abbreviation to compare, and a sound draft must not be refused for the gate's own blind spot.
+	if s.prefix == "" || s.repoAbbrev == "" {
 		return
 	}
-	// The name in hand belongs to whatever repository this process was pointed at, which is only the
-	// draft's repository once the draft has named it. Run from `alpha` with no second argument over a
+	// The abbreviation in hand belongs to whatever repository this process was pointed at, which is only
+	// the draft's repository once the draft has named it. Run from `alpha` with no second argument over a
 	// correct draft about `beta`, the comparison would tell a correct author to write `[alpha]` — the
 	// mistake-nobody-made this function's own words are against. `no repository named` refuses that
 	// draft anyway, so nothing passes quietly.
 	if !s.named {
 		return
 	}
-	if s.prefix != s.repoName {
-		s.flag(fmt.Sprintf("the title opens with [%s], which is the repository slot, and %s is named %s — use [%s], or move a bracketed word that is not the repository off the start of the line",
-			shell.CutBytesMarked(s.prefix, findingNameCap), shell.CutBytesMarked(s.repoPath, pathCap), s.repoName, s.repoName))
+	if s.prefix != s.repoAbbrev {
+		s.flag(fmt.Sprintf("the title opens with [%s], which is the repository slot, and %s abbreviates to %s — use [%s], or move a bracketed word that is not the repository off the start of the line",
+			shell.CutBytesMarked(s.prefix, findingNameCap), shell.CutBytesMarked(s.repoPath, pathCap), s.repoAbbrev, s.repoAbbrev))
 	}
 }
 

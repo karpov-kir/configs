@@ -160,7 +160,7 @@ func (c *checker) laneNames() []string {
 }
 
 func isNotLaneNameRune(r rune) bool {
-	return !(r < 0x80 && (isAlnumByte(byte(r)) || r == '.' || r == '_' || r == '-'))
+	return !(shell.IsAlnumRune(r) || r == '.' || r == '_' || r == '-')
 }
 
 // The alternation the two path-shaped scans embed. With no lanes it is `$^`, which matches nothing
@@ -276,7 +276,7 @@ func (c *checker) reportLaneBasenames(counters *directionCounters, safeFile stri
 		// The leading boundary character comes back with the match; a token starts on
 		// `[A-Za-z0-9]`, so a first character outside that set is the boundary, never the name.
 		named := hit.match
-		if named != "" && !isAlnumByte(named[0]) {
+		if named != "" && !shell.IsAlnumByte(named[0]) {
 			named = named[1:]
 		}
 		// The order below is the guard, not a tidy-up. Test the violation set first and every

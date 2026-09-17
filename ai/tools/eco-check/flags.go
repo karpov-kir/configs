@@ -3,7 +3,7 @@ package ecocheck
 // Closes the prose half of a chain whose other half is already held shut: `ai/tools/stub_usage_test.go`
 // holds a stub's documented usage line against the one its binary prints, so a flag the stub names is
 // a flag the tool takes. Nothing held the step before it. An instruction file could tell every session
-// to run `repo-key.sh --name`, the script could document no such flag, and the check that reads this
+// to run `repo-key.sh --abbrev`, the script could document no such flag, and the check that reads this
 // tree said "wiring: clean". With both halves the chain runs prose → stub → binary.
 //
 // subcommands.go scans call sites too and a flag is invisible to it twice over: it reads only a braced
@@ -51,7 +51,7 @@ var (
 	// underRoot exists to close — there is no path question for a committed `../../../etc/passwd` to
 	// ask, because this never asks the filesystem about one.
 	scriptInACommand = regexp.MustCompilePOSIX(`^([A-Za-z0-9._~$/-]*/)?([A-Za-z0-9][A-Za-z0-9._-]*\.sh)$`)
-	// `--name`, with the `=value` half dropped. Unanchored at the tail so `--agent=claude|codex`
+	// `--abbrev`, with the `=value` half dropped. Unanchored at the tail so `--agent=claude|codex`
 	// answers `agent`; POSIX leftmost-longest is what makes that the whole name and not one letter.
 	flagInACommand = regexp.MustCompilePOSIX(`^--([a-z0-9][a-z0-9-]*)`)
 	// The same names, anywhere on a usage line: `[--gate]`, `--agent=claude|codex`, `--changed[=<rev>]`.
