@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -238,7 +239,7 @@ func TestARefusalNamesThePolicyFileThatChoseTheModel(t *testing.T) {
 	refuse := func(string, string) (string, error) {
 		return "", &ModelRefused{Client: "codex", Model: "gpt-5.4-mini"}
 	}
-	_, err := namingWhatChoseTheModel(refuse, "/somewhere/models.json")("prompt", "view")
+	_, err := namingTheFileThatDecides(refuse, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view")
 	if err == nil {
 		t.Fatal("the wrapper dropped the refusal")
 	}
@@ -256,16 +257,92 @@ func TestARefusalNamesThePolicyFileThatChoseTheModel(t *testing.T) {
 // that fail some other way.
 func TestNamingThePolicyLeavesEveryOtherAnswerAlone(t *testing.T) {
 	answered := func(string, string) (string, error) { return "none", nil }
-	if reply, err := namingWhatChoseTheModel(answered, "/somewhere/models.json")("prompt", "view"); reply != "none" || err != nil {
+	if reply, err := namingTheFileThatDecides(answered, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view"); reply != "none" || err != nil {
 		t.Errorf("a good roll came back %q, %v; want none, nil", reply, err)
 	}
 	broke := func(string, string) (string, error) {
 		return "", errors.New("the model did not answer (exit status 7)")
 	}
-	_, err := namingWhatChoseTheModel(broke, "/somewhere/models.json")("prompt", "view")
-	if err == nil || strings.Contains(err.Error(), "models.json") {
-		t.Errorf("an unrelated failure was blamed on the policy: %v", err)
+	_, err := namingTheFileThatDecides(broke, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view")
+	if err == nil || strings.Contains(err.Error(), "models.json") || strings.Contains(err.Error(), "bloat-judge.conf") {
+		t.Errorf("an unrelated failure was blamed on a config file: %v", err)
 	}
+}
+
+// The other half of the wrapper. A roll cut off by the bound is the one failure a human repairs by
+// raising a number, and the number lives in a file the error is the only place they will be told
+// about — nothing else in a gate's output points at it.
+func TestACutOffRollNamesTheFileThatSetsTheBound(t *testing.T) {
+	cutOff := func(string, string) (string, error) { return "", &RollTimedOut{Deadline: 900 * time.Second} }
+	_, err := namingTheFileThatDecides(cutOff, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view")
+	if err == nil {
+		t.Fatal("the wrapper dropped the expiry")
+	}
+	for _, want := range []string{"did not answer within 15m0s", "roll-timeout", "/somewhere/bloat-judge.conf"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("expiry %q does not say %q", err.Error(), want)
+		}
+	}
+	// A machine with no absolute config home has nowhere an override could sit, and a message
+	// pointing at the empty string is worse than the bare bound.
+	_, nowhere := namingTheFileThatDecides(cutOff, "/somewhere/models.json", "")("prompt", "view")
+	if nowhere == nil || strings.Contains(nowhere.Error(), "roll-timeout") {
+		t.Errorf("with nowhere to set it, the expiry still sent someone to a file: %v", nowhere)
+	}
+}
+
+// A stall is silent from the outside — the two 343-second rolls this bound was measured against
+// printed nothing on either stream — so the point of the announcer is that something arrives while
+// the wait is happening rather than only in the error that ends it.
+func TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing(t *testing.T) {
+	var said lockedBuilder
+	slow := func(string, string) (string, error) { time.Sleep(60 * time.Millisecond); return "none", nil }
+	if reply, err := announcingASlowRoll(slow, 900*time.Second, 10*time.Millisecond, &said)("prompt", "view"); reply != "none" || err != nil {
+		t.Fatalf("the announcer changed the answer: %q %v", reply, err)
+	}
+	if !strings.Contains(said.String(), "still waiting") || !strings.Contains(said.String(), "15m0s") {
+		t.Errorf("a slow roll did not say it was waiting, or against what: %q", said.String())
+	}
+
+	said.Reset()
+	quick := func(string, string) (string, error) { return "none", nil }
+	if _, err := announcingASlowRoll(quick, 900*time.Second, 10*time.Millisecond, &said)("prompt", "view"); err != nil {
+		t.Fatal(err)
+	}
+	if said.String() != "" {
+		t.Errorf("a roll that answered at once still announced itself: %q", said.String())
+	}
+
+	// Nil is the suite's and the eval's setting, and it must not merely go unread: a decorator that
+	// wrote to a nil writer would panic on the first tick, in a goroutine, taking the run with it.
+	if reply, err := announcingASlowRoll(slow, 900*time.Second, 10*time.Millisecond, nil)("prompt", "view"); reply != "none" || err != nil {
+		t.Fatalf("a silent announcer changed the answer: %q %v", reply, err)
+	}
+}
+
+// The announcer writes from a goroutine per roll, so the destination in a case has to be safe to
+// write and read from two of them; strings.Builder is not.
+type lockedBuilder struct {
+	mu      sync.Mutex
+	builder strings.Builder
+}
+
+func (l *lockedBuilder) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.builder.Write(p)
+}
+
+func (l *lockedBuilder) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.builder.String()
+}
+
+func (l *lockedBuilder) Reset() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.builder.Reset()
 }
 
 // The false positive the subtraction exists to stop, and why it is not hypothetical: judge this very

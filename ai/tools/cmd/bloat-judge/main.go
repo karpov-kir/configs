@@ -17,7 +17,7 @@ func main() {
 	// An unreadable home leaves nowhere for an override to sit, which reads as no override rather
 	// than as a broken one.
 	home, _ := os.UserHomeDir()
-	deadline, ok := bloatjudge.ResolveRollDeadline(self, os.Getenv("XDG_CONFIG_HOME"), home, os.Stderr)
+	deadline, overridePath, ok := bloatjudge.ResolveRollDeadline(self, os.Getenv("XDG_CONFIG_HOME"), home, os.Stderr)
 	if !ok {
 		os.Exit(2)
 	}
@@ -46,7 +46,9 @@ func main() {
 			os.Exit(2)
 		}
 	}
-	configured, err := bloatjudge.Configure(bloatjudge.Configuration{Deadline: deadline, PolicyPath: policyPath})
+	configured, err := bloatjudge.Configure(bloatjudge.Configuration{
+		Deadline: deadline, PolicyPath: policyPath, OverridePath: overridePath, Progress: os.Stderr,
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v — the judge did NOT run\n", self, err)
 		os.Exit(2)

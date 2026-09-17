@@ -1,0 +1,23 @@
+kind: report
+cut: 4 10
+keep: 1 2 3 5 6 7 8 9
+---
+Full gate over the merged tree: 49 units, 49 ran, 0 failed, 4515s. Clean.
+
+The managed policy setting I looked at first needs nothing built: `--setting-sources` accepts only `user,project,local`, so the channel is real, no managed file exists on this machine, and anything added here would be a hard-coded path list that rots. It stays documented rather than fixed.
+
+Still owed by you: landing `e3e272c` to main.
+
+What is left, ranked:
+
+1. **Grow the corpus.** Eight cases and 42 labels can settle a landslide and nothing closer. It is the prerequisite for every other judge question — including whether codex's residue-list weakness is real or an artifact of one case. The cheapest source is artifacts this repo already produces, labelled when written.
+
+2. **The ~343s stall.** Two serial runs converging within two seconds looks like a fixed retry below the CLI. Unexplained, and 900s now hides it rather than revealing it. A handful of timed rolls with the codex log captured would probably name it.
+
+3. **The build stamp.** One scanner says which binary answered; every other still answers anonymously. Small, mechanical, and it is the rule that stopped two sessions reaching opposite conclusions today.
+
+Recommendation: (1). It unblocks the most and costs the least.
+
+One timing note — a peer's overhaul edits `Prompt()`, which is in the memo key, so every cached judge verdict on this machine dies when it lands. Corpus work is cleaner on the far side of that merge.
+
+That is everything from this pass, and I hope the ranking is useful.
