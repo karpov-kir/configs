@@ -68,6 +68,9 @@ func newFixture(t *testing.T) fixture {
 	write(t, filepath.Join(root, "sundæ.txt"), "loose\n")
 	write(t, filepath.Join(root, "ignored", "build.out"), "generated\n")
 	write(t, filepath.Join(root, "odd\nname.out"), "newline in the name\n")
+	// One untracked file inside pkg/, so a listing asked from that subdirectory has something to name
+	// and the cases below can tell "confined to pkg/" from "the whole tree".
+	write(t, filepath.Join(root, "pkg", "loose.txt"), "loose in pkg\n")
 
 	mustRun(t, root, "git", "worktree", "add", "-q", f.linked, "-b", "other")
 	return f
@@ -146,14 +149,26 @@ func (f fixture) listings(t *testing.T) {
 	if slices.Contains(tracked, "gone.txt") {
 		t.Errorf("Tracked named gone.txt, which the second commit removed: %v", tracked)
 	}
-	// Root-relative from a subdirectory. `ls-files` prints paths relative to where git ran unless it is
-	// told otherwise, and a caller joining those against the root would open files that do not exist.
+	// Root-relative from a subdirectory, and CONFINED to it. `ls-files` prints paths relative to where
+	// git ran unless it is told otherwise, and a caller joining those against the root would open files
+	// that do not exist; it also lists only what sits under that directory, which is why a caller
+	// wanting the whole tree asks at the root.
 	fromSub := f.list(f.git.Tracked(filepath.Join(f.root, "pkg")))
-	if !slices.Contains(fromSub, "pkg/moved.txt") {
-		t.Errorf("Tracked from pkg/ = %v, wanted the root-relative pkg/moved.txt", fromSub)
+	if !slices.Equal(fromSub, []string{"pkg/moved.txt"}) {
+		t.Errorf("Tracked from pkg/ = %v, wanted only the root-relative pkg/moved.txt", fromSub)
 	}
 	if narrowed := f.list(f.git.Tracked(f.root, "pkg")); !slices.Equal(narrowed, []string{"pkg/moved.txt"}) {
 		t.Errorf("Tracked under the pathspec pkg = %v, wanted only pkg/moved.txt", narrowed)
+	}
+	// A pathspec is relative to the directory git ran in, never to the root: `moved.txt` asked from
+	// pkg/ names pkg/moved.txt, and `pkg` asked from pkg/ names pkg/pkg and matches nothing. A stand-in
+	// reading the same spec from the root answers the opposite for both, so a case about running from a
+	// subdirectory would pass in the suite and fail in production.
+	if named := f.list(f.git.Tracked(filepath.Join(f.root, "pkg"), "moved.txt")); !slices.Equal(named, []string{"pkg/moved.txt"}) {
+		t.Errorf("Tracked from pkg/ under the pathspec moved.txt = %v, wanted pkg/moved.txt", named)
+	}
+	if fromSubSpec := f.list(f.git.Tracked(filepath.Join(f.root, "pkg"), "pkg")); len(fromSubSpec) != 0 {
+		t.Errorf("Tracked from pkg/ under the pathspec pkg = %v, wanted nothing — that spec names pkg/pkg", fromSubSpec)
 	}
 
 	untracked := f.list(f.git.Untracked(f.root))
@@ -162,13 +177,24 @@ func (f fixture) listings(t *testing.T) {
 	if !slices.Contains(untracked, "sundæ.txt") {
 		t.Errorf("Untracked did not name sundæ.txt as it is spelt on disk: %v", untracked)
 	}
+	// `--exclude-standard` is why: an untracked path git ignores is not in this listing at all, so a
+	// caller need not filter one out and a stand-in offering one hands it work git never gives it.
 	if slices.Contains(untracked, "ignored/build.out") {
 		t.Errorf("Untracked named an ignored file: %v", untracked)
 	}
+	if loose := f.list(f.git.Untracked(filepath.Join(f.root, "pkg"))); !slices.Equal(loose, []string{"pkg/loose.txt"}) {
+		t.Errorf("Untracked from pkg/ = %v, wanted only the root-relative pkg/loose.txt", loose)
+	}
 
+	// Asked of a whole commit whatever directory git runs in, and named from the root. `ls-tree` on its
+	// own answers the subtree of the directory it ran in and names it from there, which is a different
+	// question and one no caller here asks.
 	held := f.list(f.git.NamesAt(f.root, f.previous))
 	if !slices.Contains(held, "gone.txt") {
 		t.Errorf("NamesAt(previous) did not name gone.txt, which that commit held: %v", held)
+	}
+	if heldFromSub := f.list(f.git.NamesAt(filepath.Join(f.root, "pkg"), f.previous)); !slices.Equal(heldFromSub, held) {
+		t.Errorf("NamesAt from pkg/ = %v, wanted the same whole commit the root answered, %v", heldFromSub, held)
 	}
 }
 
@@ -192,6 +218,20 @@ func (f fixture) changes_(t *testing.T) {
 			"pkg/moved.txt — the adapter has stopped passing --no-relative", fromSub)
 	}
 	mustRun(t, f.root, "git", "config", "--unset", "diff.relative")
+
+	// A diff's PATHSPEC is relative to the directory git ran in, where the comparison itself is not: the
+	// case above named added.txt from pkg/, and `moved.txt` here names pkg/moved.txt while `pkg` names
+	// pkg/pkg and matches nothing.
+	if named := f.list(f.git.Changed(filepath.Join(f.root, "pkg"), []string{f.previous, f.head}, []string{"moved.txt"})); !slices.Equal(named, []string{"pkg/moved.txt"}) {
+		t.Errorf("Changed from pkg/ under the pathspec moved.txt = %v, wanted pkg/moved.txt", named)
+	}
+	if spec := f.list(f.git.Changed(filepath.Join(f.root, "pkg"), []string{f.previous, f.head}, []string{"pkg"})); len(spec) != 0 {
+		t.Errorf("Changed from pkg/ under the pathspec pkg = %v, wanted nothing — that spec names pkg/pkg", spec)
+	}
+	if !slices.Contains(fromSub, "added.txt") {
+		t.Errorf("Changed from pkg/ with no pathspec = %v, wanted the whole comparison including the "+
+			"root's added.txt — only a pathspec narrows to where git ran", fromSub)
+	}
 
 	raw := f.changes(f.git.ChangedWithStatus(f.root, []string{f.previous, f.head}, nil))
 	byPath := map[string]repo.Change{}
@@ -334,6 +374,12 @@ func (f fixture) ignores(t *testing.T) {
 	if ignored["tracked-but-matched.out"] {
 		t.Errorf("Ignored called the tracked tracked-but-matched.out ignored, and git does not: a "+
 			"caller filtering on this drops a file every commit carries: %v", ignored)
+	}
+	// The same rule through the other question, because a caller reading a source reads it as "ignored,
+	// and by this file" and would act on one git never gave.
+	if source := f.str(f.git.IgnoreSource(f.root, "tracked-but-matched.out")); source != "" {
+		t.Errorf("IgnoreSource over the tracked tracked-but-matched.out = %q, wanted empty — git does "+
+			"not call a tracked file ignored whatever a rule says", source)
 	}
 	// A path holding a newline, which is what `-z` on both sides of the pipe is for. Without it the
 	// answer arrives as two paths and neither names a file.

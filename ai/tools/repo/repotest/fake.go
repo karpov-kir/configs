@@ -8,6 +8,13 @@
 //
 // A path is repository-relative, exactly as git prints one. Content is held per revision, with the
 // empty revision meaning the working tree.
+//
+// The `dir` every method takes is the directory git would have run in, and it is NOT decoration: a
+// pathspec is relative to it, and `ls-files` asked from a subdirectory lists only what sits under that
+// directory. prefixOf below is where dir turns into a repository-relative prefix.
+//
+// Safe for concurrent use. Suites run cases with t.Parallel() and a case may drive two invocations
+// against one table, so every method here takes the lock.
 package repotest
 
 import (
@@ -17,6 +24,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 
 	"kk-flavor/tools/repo"
 )
@@ -28,14 +36,18 @@ const WorkTree = ""
 // Fake answers repo.Git from what a case put in it. The zero value is an empty repository at "/repo"
 // with no commit; New gives it a root and the usual answers.
 type Fake struct {
+	// Every answer and every builder below takes this, so a case may drive two invocations against one
+	// table. It guards the fields too: a builder called while another goroutine reads is the same race.
+	mu sync.Mutex
+
 	// Root is what TopLevel answers, and the directory every other answer is anchored to.
 	Root string
 	// Git is what GitDir answers, and CommonDir too unless Common is set.
 	Git string
 	// Common is the store linked worktrees share; empty means Git.
 	Common string
-	// Prefix is what Prefix answers for Root itself. A case asking from a subdirectory sets
-	// PrefixByDir instead.
+	// PrefixByDir is what a directory's path below Root is, for a case that spells its directories some
+	// way prefixOf cannot read. Left empty, every directory under Root places itself.
 	PrefixByDir map[string]string
 
 	// Revs maps a revision name to the files it holds. Revs[WorkTree] is the working tree.
@@ -46,7 +58,8 @@ type Fake struct {
 	// Bases answers MergeBase, keyed "left\x00right" and consulted in both orders.
 	Bases map[string]string
 
-	// UntrackedPaths are present in the working tree and not in the index.
+	// UntrackedPaths are present in the working tree and not in the index. One that IgnoredPaths covers
+	// leaves the Untracked listing, because `--exclude-standard` is on it.
 	UntrackedPaths []string
 	// IgnoredPaths are what git would ignore, and Sources says which rule said so.
 	IgnoredPaths []string
@@ -98,6 +111,8 @@ func New(root string) *Fake {
 
 // Diff sets what Patch answers, for every revision spelling a case does not name on its own.
 func (f *Fake) Diff(text string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.PatchText = text
 	return f
 }
@@ -105,6 +120,8 @@ func (f *Fake) Diff(text string) *Fake {
 // Commit puts files at a revision and gives that revision an object id, so Resolve answers for it.
 // The working tree is not touched: a case that wants the same content on disk calls Write too.
 func (f *Fake) Commit(rev string, files map[string]string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.Revs == nil {
 		f.Revs = map[string]map[string]string{}
 	}
@@ -124,6 +141,8 @@ func (f *Fake) Commit(rev string, files map[string]string) *Fake {
 
 // Write puts one file in the working tree and the index.
 func (f *Fake) Write(name, body string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.Revs == nil {
 		f.Revs = map[string]map[string]string{}
 	}
@@ -136,12 +155,18 @@ func (f *Fake) Write(name, body string) *Fake {
 
 // AddUntracked puts a file in the working tree without tracking it.
 func (f *Fake) AddUntracked(names ...string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.UntrackedPaths = append(f.UntrackedPaths, names...)
 	return f
 }
 
-// Ignore marks paths ignored, with source as what `check-ignore -v` would print for each.
+// Ignore marks paths ignored, with source as what `check-ignore -v` would print for each. A path the
+// working tree also TRACKS is not ignored however this is called: git does not call a tracked file
+// ignored, and isIgnored is where that is decided.
 func (f *Fake) Ignore(source string, names ...string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.IgnoredPaths = append(f.IgnoredPaths, names...)
 	if f.Sources == nil {
 		f.Sources = map[string]string{}
@@ -165,6 +190,8 @@ func (f *Fake) note(method string) error {
 }
 
 func (f *Fake) TopLevel(dir string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("TopLevel"); err != nil {
 		return "", err
 	}
@@ -172,6 +199,8 @@ func (f *Fake) TopLevel(dir string) (string, error) {
 }
 
 func (f *Fake) CommonDir(dir string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("CommonDir"); err != nil {
 		return "", err
 	}
@@ -182,6 +211,8 @@ func (f *Fake) CommonDir(dir string) (string, error) {
 }
 
 func (f *Fake) GitDir(dir string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("GitDir"); err != nil {
 		return "", err
 	}
@@ -189,6 +220,8 @@ func (f *Fake) GitDir(dir string) (string, error) {
 }
 
 func (f *Fake) GitPath(dir, name string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("GitPath"); err != nil {
 		return "", err
 	}
@@ -196,13 +229,19 @@ func (f *Fake) GitPath(dir, name string) (string, error) {
 }
 
 func (f *Fake) Prefix(dir string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Prefix"); err != nil {
 		return "", err
 	}
-	return f.PrefixByDir[dir], nil
+	// The same reading the listings use, so a case cannot be told dir sits at the root here and under
+	// pkg/ there.
+	return f.prefixOf(dir), nil
 }
 
 func (f *Fake) Resolve(dir, rev string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Resolve"); err != nil {
 		return "", err
 	}
@@ -216,6 +255,8 @@ func (f *Fake) Resolve(dir, rev string) (string, error) {
 }
 
 func (f *Fake) MergeBase(dir, left, right string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("MergeBase"); err != nil {
 		return "", err
 	}
@@ -229,22 +270,36 @@ func (f *Fake) MergeBase(dir, left, right string) (string, error) {
 }
 
 func (f *Fake) Tracked(dir string, pathspec ...string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Tracked"); err != nil {
 		return nil, err
 	}
-	return underPathspec(sortedKeys(f.Revs[WorkTree]), pathspec), nil
+	return underPathspec(sortedKeys(f.Revs[WorkTree]), f.listingPathspec(dir, pathspec)), nil
 }
 
 func (f *Fake) Untracked(dir string, pathspec ...string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Untracked"); err != nil {
 		return nil, err
 	}
-	names := append([]string(nil), f.UntrackedPaths...)
+	// `--exclude-standard` is on this listing, so an ignored path is not in it at all. A case stating a
+	// path both untracked and ignored gets git's answer rather than its own, and a caller is never
+	// handed a file to filter out that git would not have named.
+	var names []string
+	for _, name := range f.UntrackedPaths {
+		if !f.isIgnored(name) {
+			names = append(names, name)
+		}
+	}
 	sort.Strings(names)
-	return underPathspec(names, pathspec), nil
+	return underPathspec(names, f.listingPathspec(dir, pathspec)), nil
 }
 
 func (f *Fake) NamesAt(dir, rev string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("NamesAt"); err != nil {
 		return nil, err
 	}
@@ -259,6 +314,8 @@ func (f *Fake) NamesAt(dir, rev string) ([]string, error) {
 // fills them through Commit; the empty revision list compares the working tree against HEAD, which is
 // what git does.
 func (f *Fake) Changed(dir string, revisions, pathspec []string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Changed"); err != nil {
 		return nil, err
 	}
@@ -272,10 +329,12 @@ func (f *Fake) Changed(dir string, revisions, pathspec []string) ([]string, erro
 			names = append(names, one.Path)
 		}
 	}
-	return underPathspec(names, pathspec), nil
+	return underPathspec(names, f.diffPathspec(dir, pathspec)), nil
 }
 
 func (f *Fake) ChangedWithStatus(dir string, revisions, pathspec []string) ([]repo.Change, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("ChangedWithStatus"); err != nil {
 		return nil, err
 	}
@@ -286,9 +345,10 @@ func (f *Fake) ChangedWithStatus(dir string, revisions, pathspec []string) ([]re
 			return nil, err
 		}
 	}
+	narrowed := f.diffPathspec(dir, pathspec)
 	var kept []repo.Change
 	for _, one := range changes {
-		if len(underPathspec([]string{one.Path}, pathspec)) == 1 {
+		if matchesPathspec(one.Path, narrowed) {
 			kept = append(kept, one)
 		}
 	}
@@ -354,6 +414,8 @@ func (f *Fake) diff(revisions []string) ([]repo.Change, error) {
 }
 
 func (f *Fake) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Patch"); err != nil {
 		return nil, err
 	}
@@ -364,6 +426,8 @@ func (f *Fake) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
 }
 
 func (f *Fake) Status(dir string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Status"); err != nil {
 		return nil, err
 	}
@@ -371,6 +435,8 @@ func (f *Fake) Status(dir string) ([]string, error) {
 }
 
 func (f *Fake) Show(dir, rev, name string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Show"); err != nil {
 		return nil, err
 	}
@@ -388,27 +454,48 @@ func (f *Fake) Show(dir, rev, name string) ([]byte, error) {
 // The revision's table, read in the order the paths were asked. A path the revision does not hold is
 // passed over and so is one over the cap, which is how a case drives the difference between a file
 // that is not there and one the revision holds empty.
+//
+// visit runs with the lock RELEASED, so a caller whose visit asks this fake another question is
+// answered rather than deadlocked.
 func (f *Fake) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit func(string, []byte)) error {
-	if err := f.note("ContentsAt"); err != nil {
+	found, err := f.contentsAt(rev, paths, maxBytes)
+	if err != nil {
 		return err
+	}
+	for _, one := range found {
+		visit(one.path, []byte(one.body))
+	}
+	return nil
+}
+
+type heldFile struct{ path, body string }
+
+func (f *Fake) contentsAt(rev string, paths []string, maxBytes int64) ([]heldFile, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.note("ContentsAt"); err != nil {
+		return nil, err
 	}
 	held, known := f.Revs[rev]
 	if !known {
-		return fmt.Errorf("the fake holds no revision %s", rev)
+		return nil, fmt.Errorf("the fake holds no revision %s", rev)
 	}
+	var found []heldFile
 	for _, name := range paths {
-		body, found := held[name]
-		if !found || int64(len(body)) > maxBytes {
+		body, holds := held[name]
+		if !holds || int64(len(body)) > maxBytes {
 			continue
 		}
-		visit(name, []byte(body))
+		found = append(found, heldFile{name, body})
 	}
-	return nil
+	return found, nil
 }
 
 // Blobs are looked up by the id diff handed out, so a case reads back what it wrote without knowing
 // how an id is made.
 func (f *Fake) Blob(dir, id string) ([]byte, int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Blob"); err != nil {
 		return nil, 0, err
 	}
@@ -423,28 +510,38 @@ func (f *Fake) Blob(dir, id string) ([]byte, int64, error) {
 }
 
 func (f *Fake) Ignored(dir string, paths []string) (map[string]bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Ignored"); err != nil {
 		return nil, err
 	}
 	ignored := map[string]bool{}
 	for _, name := range paths {
-		for _, rule := range f.IgnoredPaths {
-			if name == rule || strings.HasPrefix(name, rule+"/") {
-				ignored[name] = true
-			}
+		if f.isIgnored(name) {
+			ignored[name] = true
 		}
 	}
 	return ignored, nil
 }
 
 func (f *Fake) IgnoreSource(dir, name string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("IgnoreSource"); err != nil {
 		return "", err
+	}
+	// Empty where nothing ignores the path, which is `check-ignore`'s exit 1 — and a tracked path is
+	// one of those however a rule reads, so a case marking a committed file ignored gets the empty
+	// answer git gives.
+	if !f.isIgnored(name) {
+		return "", nil
 	}
 	return f.Sources[name], nil
 }
 
 func (f *Fake) Worktrees(dir string) ([]repo.Worktree, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Worktrees"); err != nil {
 		return nil, err
 	}
@@ -452,6 +549,8 @@ func (f *Fake) Worktrees(dir string) ([]repo.Worktree, error) {
 }
 
 func (f *Fake) Add(dir string, paths []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if err := f.note("Add"); err != nil {
 		return err
 	}
@@ -459,23 +558,96 @@ func (f *Fake) Add(dir string, paths []string) error {
 	return nil
 }
 
-// git's pathspec, as much of it as these tools use: a path, or a directory every path under it. An
-// empty pathspec keeps everything.
-func underPathspec(names, pathspec []string) []string {
-	if len(pathspec) == 0 {
-		return names
+// dir as a repository-relative prefix, slash-terminated and empty at the root — git's own
+// `rev-parse --show-prefix`. A case that spells its directories some other way states them in
+// PrefixByDir, which wins here; a directory this cannot place under Root is read as the root.
+func (f *Fake) prefixOf(dir string) string {
+	if prefix, stated := f.PrefixByDir[dir]; stated {
+		return prefix
 	}
+	if f.Root == "" || dir == "" || dir == f.Root {
+		return ""
+	}
+	if below, under := strings.CutPrefix(dir, f.Root+"/"); under {
+		return below + "/"
+	}
+	return ""
+}
+
+// `ls-files`' reading of dir: the listing covers only what sits under dir, and each spec is relative
+// to dir. Both come out as one repository-relative pathspec.
+func (f *Fake) listingPathspec(dir string, pathspec []string) []string {
+	prefix := f.prefixOf(dir)
+	if len(pathspec) == 0 {
+		return []string{strings.TrimSuffix(prefix, "/")}
+	}
+	return rootedPathspec(prefix, pathspec)
+}
+
+// `diff`'s reading of the same two, which differs in the half that matters: the comparison is the
+// whole tree wherever git ran, and only a pathspec is relative to dir.
+func (f *Fake) diffPathspec(dir string, pathspec []string) []string {
+	if len(pathspec) == 0 {
+		return nil
+	}
+	return rootedPathspec(f.prefixOf(dir), pathspec)
+}
+
+// Each spec resolved against the directory git ran in, which is what makes `pkg` asked from inside
+// pkg/ name pkg/pkg and match nothing.
+func rootedPathspec(prefix string, pathspec []string) []string {
+	rooted := make([]string, 0, len(pathspec))
+	for _, spec := range pathspec {
+		switch {
+		case spec == "":
+			rooted = append(rooted, strings.TrimSuffix(prefix, "/"))
+		case strings.HasPrefix(spec, "/"):
+			rooted = append(rooted, path.Clean(spec))
+		default:
+			rooted = append(rooted, path.Clean(prefix+spec))
+		}
+	}
+	return rooted
+}
+
+// What git would ignore, which is not the same as what a rule matches: a TRACKED path is never
+// ignored whatever rule covers it, and `check-ignore` says so — exec_test.go holds that against a real
+// git. A caller filtering on the other answer drops a file every commit carries.
+func (f *Fake) isIgnored(name string) bool {
+	if _, tracked := f.Revs[WorkTree][name]; tracked {
+		return false
+	}
+	for _, rule := range f.IgnoredPaths {
+		if name == rule || strings.HasPrefix(name, rule+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// git's pathspec, as much of it as these tools use: a path, or a directory every path under it. An
+// empty pathspec, and the empty spec a listing at the root produces, keep everything.
+func underPathspec(names, pathspec []string) []string {
 	var kept []string
 	for _, name := range names {
-		for _, spec := range pathspec {
-			spec = strings.TrimSuffix(spec, "/")
-			if name == spec || spec == "" || spec == "." || strings.HasPrefix(name, spec+"/") {
-				kept = append(kept, name)
-				break
-			}
+		if matchesPathspec(name, pathspec) {
+			kept = append(kept, name)
 		}
 	}
 	return kept
+}
+
+func matchesPathspec(name string, pathspec []string) bool {
+	if len(pathspec) == 0 {
+		return true
+	}
+	for _, spec := range pathspec {
+		spec = strings.TrimSuffix(spec, "/")
+		if spec == "" || spec == "." || name == spec || strings.HasPrefix(name, spec+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys(held map[string]string) []string {

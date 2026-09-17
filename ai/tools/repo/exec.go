@@ -126,8 +126,12 @@ func (e Exec) Untracked(dir string, pathspec ...string) ([]string, error) {
 	return e.listing(dir, append(args, pathspecArgs(pathspec)...)...)
 }
 
+// `--full-tree`, because `ls-tree` on its own answers the subtree of the directory git ran in and names
+// it from there. This question is about what a COMMIT holds, and a caller asking it from a
+// subdirectory would otherwise get that directory's files under names the repository root does not
+// know.
 func (e Exec) NamesAt(dir, rev string) ([]string, error) {
-	return e.listing(dir, "ls-tree", "-r", "-z", "--name-only", rev)
+	return e.listing(dir, "ls-tree", "-r", "-z", "--full-tree", "--name-only", rev)
 }
 
 // `--no-relative`, because `diff.relative=true` in the reader's config names `a.go` for `pkg/a.go` and

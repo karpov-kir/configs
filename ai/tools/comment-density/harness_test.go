@@ -168,31 +168,6 @@ func (r *repo) rewrote(name, body string) {
 	r.fake.PatchText += patchOf(name, body)
 }
 
-// askedFrom records the directory each listing was asked about. Every directory of one repository
-// answers alike, here and in git, so the answer cannot show which one the question went to — and which
-// one it goes to is the whole of what a pathspec case holds.
-type askedFrom struct {
-	gitrepo.Git
-	changed   []string
-	untracked []string
-}
-
-func (a *askedFrom) Changed(dir string, revisions, pathspec []string) ([]string, error) {
-	a.changed = append(a.changed, dir)
-	return a.Git.Changed(dir, revisions, pathspec)
-}
-
-func (a *askedFrom) Untracked(dir string, pathspec ...string) ([]string, error) {
-	a.untracked = append(a.untracked, dir)
-	return a.Git.Untracked(dir, pathspec...)
-}
-
-func (r *repo) recordDirectories() *askedFrom {
-	recorder := &askedFrom{Git: r.fake}
-	r.git = recorder
-	return recorder
-}
-
 func baseConfig() Config {
 	return Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
 }

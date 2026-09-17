@@ -569,7 +569,7 @@ func (f *fixture) ignoreShipFiles(source string, slugs ...string) {
 	f.ignore(source, paths...)
 }
 
-// The fake, plus the one thing a table cannot hold on its own: after `git add`, the index HOLDS what
+// The fake, plus the things a table cannot hold on its own: after `git add`, the index HOLDS what
 // was staged. `promote` reads exactly that back — through repoMode, and deliberately rather than
 // through the add's exit, because `git add` on a directory whose every file is ignored stages nothing
 // and still succeeds. A fake that only recorded the request would answer "still external" and every
@@ -639,35 +639,6 @@ func (f *fixture) answersAgain(question string) {
 	delete(f.fake.Fail, question)
 }
 
-// Every repository answer this tool asks for, serialised. One case submits two stage results at once,
-// and both invocations then share one table — which records what it was asked in a slice of its own,
-// so two unguarded callers lose entries or worse. The methods below are the ones this tool calls; the
-// rest of the port reaches the fake unwrapped, and nothing here asks them.
-func (s stagingRepo) TopLevel(dir string) (string, error) {
-	defer s.holdTheRepository()()
-	return s.Fake.TopLevel(dir)
-}
-
-func (s stagingRepo) CommonDir(dir string) (string, error) {
-	defer s.holdTheRepository()()
-	return s.Fake.CommonDir(dir)
-}
-
-func (s stagingRepo) GitPath(dir, name string) (string, error) {
-	defer s.holdTheRepository()()
-	return s.Fake.GitPath(dir, name)
-}
-
-func (s stagingRepo) Resolve(dir, rev string) (string, error) {
-	defer s.holdTheRepository()()
-	return s.Fake.Resolve(dir, rev)
-}
-
-func (s stagingRepo) Tracked(dir string, pathspec ...string) ([]string, error) {
-	defer s.holdTheRepository()()
-	return s.Fake.Tracked(dir, pathspec...)
-}
-
 // Read off the working tree rather than from a list a case kept in step with it: what `ls-files
 // --others --exclude-standard` answers is "present on disk, not in the index, not ignored", and every
 // case that writes a file into the fixture means exactly that. Declared over stated, so a case cannot
@@ -698,11 +669,10 @@ func (s stagingRepo) Untracked(dir string, pathspec ...string) ([]string, error)
 	return names, nil
 }
 
-func (s stagingRepo) Blob(dir, id string) ([]byte, int64, error) {
-	defer s.holdTheRepository()()
-	return s.Fake.Blob(dir, id)
-}
-
+// IgnoreSource, Add and Untracked are the whole of this wrapper: each answers something a table cannot
+// hold on its own, and each reads the FIXTURE — its files, its .gitignore, its staged list — which is
+// the state this lock guards. repotest.Fake holds a lock of its own, so a method that only forwarded
+// would add nothing here, and none does.
 func (s stagingRepo) holdTheRepository() func() {
 	s.f.asking.Lock()
 	return s.f.asking.Unlock

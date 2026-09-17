@@ -190,26 +190,16 @@ func TestBarNarrowsToThePathspecAfterADoubleDash(t *testing.T) {
 }
 
 // A pathspec is relative to the directory git ran in, so a narrowed listing has to be asked from where
-// the caller stood and an unnarrowed one from the root. Which directory the question went to is the
-// whole of it: every directory of one repository answers the same listing, so no answer can show it.
+// the caller stood. `-- heavy.go` from pkg/ names pkg/heavy.go; the same spec read from the root names
+// a file this repository does not hold, and the change set comes back empty.
 func TestBarPathspecIsRelativeToWhereTheCallerRan(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("pkg/heavy.go", "// a\n// b\n// c\ncode()\n")
-	asked := r.recordDirectories()
 
-	subdir := filepath.Join(r.dir, "pkg")
-	r.runBarIn(subdir, baseConfig(), "--", "heavy.go")
-	listings := append(asked.changed, asked.untracked...)
-	if len(listings) != 2 {
-		t.Fatalf("%d listing(s) were asked for, wanted the changed and the untracked one — this case "+
-			"says nothing until both have been asked", len(listings))
-	}
-	for _, dir := range listings {
-		if dir != subdir {
-			t.Errorf("a narrowed listing was asked about %s rather than the %s the caller ran in, so "+
-				"`-- heavy.go` names a file in neither and the change set comes back empty", dir, subdir)
-		}
-	}
+	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig(), "--", "heavy.go")
+	r.expectCode(exitFound)
+	r.expectStdoutHas("(3 comment / 1 code)")
+	r.expectStdoutHas("pkg/heavy.go: 75% against a 10% ceiling")
 }
 
 func TestBarPathspecWithRevisionsKeepsTheirBase(t *testing.T) {
@@ -312,28 +302,21 @@ func TestBarReportsLongBlocks(t *testing.T) {
 	r.expectStdoutLacks("over on lines")
 }
 
-// lib/new.go is untracked and outside the subdirectory the second run starts in: the untracked listing
-// names only what sits under the directory git ran in, so an unnarrowed one asked from pkg/ would lose
-// the file. The directory the question went to is what says so — the answer cannot, because every
-// directory of one repository gives the same listing back.
+// lib/new.go is untracked and outside the subdirectory this run starts in: a listing names only what
+// sits under the directory git ran in, so an unnarrowed one asked from pkg/ loses the file and every
+// figure below it shrinks. Asked at the root, as it must be, the run from pkg/ reports what a run from
+// the root reports.
 func TestBarRunFromASubdirectoryMatchesTheRoot(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("a.go", strings.Repeat("// more\n", 6)+"code()\n")
 	r.write("pkg/heavy.go", "// a\n// b\n// c\ncode()\n")
 	r.write("lib/new.go", "// x\n// y\ncode()\n")
-	asked := r.recordDirectories()
 
 	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig())
 	r.expectCode(exitFound)
 	r.expectStdoutHas("(2 file(s) in the baseline)")
 	r.expectStdoutHas("(11 comment / 3 code)")
 	r.expectStdoutHas("lib/new.go: 67% against a 10% ceiling")
-	for _, dir := range append(asked.changed, asked.untracked...) {
-		if dir != r.dir {
-			t.Errorf("an unnarrowed listing was asked about %s rather than the working tree root %s, so "+
-				"every untracked file outside that directory silently leaves the change set", dir, r.dir)
-		}
-	}
 }
 
 func TestBarKeepsAFileTheChangeOnlyDeletedFrom(t *testing.T) {
