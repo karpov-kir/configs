@@ -262,8 +262,8 @@ func TestFlatteningTheNameNeverCollidesTwoClones(t *testing.T) {
 // rename every existing directory that a consumer has already created on disk.
 func TestAnOrdinaryNameIsUnchanged(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "player-testing")
-	if got := bareKey(t, dir); !strings.HasPrefix(got, "player-testing-") {
+	dir := newBareRepo(t, "project-tracker")
+	if got := bareKey(t, dir); !strings.HasPrefix(got, "project-tracker-") {
 		t.Fatalf("keyed %s — an ordinary directory name must survive verbatim, or existing directories are renamed under their users", got)
 	}
 }
@@ -321,7 +321,7 @@ func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
 // titled from the drifted one stop grouping with their siblings.
 func TestTheAbbreviationIsTheKeysReadableHalfAbbreviated(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "invest-tasks")
+	dir := newBareRepo(t, "issue-tracker")
 	abbrev, err := abbrevFromSharedGitDir(filepath.Join(dir, ".git"))
 	if err != nil {
 		t.Fatalf("abbreviating %s: %v", dir, err)
@@ -341,10 +341,10 @@ func TestTheAbbreviationIsTheKeysReadableHalfAbbreviated(t *testing.T) {
 func TestTheAbbreviationTable(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ name, want string }{
-		{"player-testing-codec-compatibility", "PTCC"},
-		{"invest-tasks", "IT"},
+		{"project-tracker-cache-cleanup", "PTCC"},
+		{"issue-tracker", "IT"},
 		{"github-action-deploy-k8s", "GADK8s"},
-		{"bitmovin-k8s", "BK8s"},
+		{"billing-k8s", "BK8s"},
 		{"configs", "C"},
 		{"dashboard", "D"},
 		{"my_repo", "MR"},
@@ -376,7 +376,7 @@ func TestTheAbbreviationTable(t *testing.T) {
 // inconsistency the tool exists to remove.
 func TestEveryWorktreeOfOneCloneAbbreviatesTheSame(t *testing.T) {
 	t.Parallel()
-	main := newRepo(t, "invest-tasks")
+	main := newRepo(t, "issue-tracker")
 	worktree := filepath.Join(filepath.Dir(main), "wt-one")
 	run(t, main, "worktree", "add", "-q", "-b", "one", worktree)
 
