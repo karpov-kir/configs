@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/diffscan"
+	"kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -260,14 +261,15 @@ func Prompt(kind Kind) string {
 // typed it and resolved against the repository root. With no revisions it is `git diff HEAD` plus, for
 // an untracked file, every line.
 func addedLines(cwd, path string, revisions []string) (map[int]bool, error) {
-	if err := diffscan.RefuseNonRevisions(revisions, cwd); err != nil {
+	git := repo.Exec{}
+	if err := diffscan.RefuseNonRevisions(git, revisions, cwd); err != nil {
 		return nil, err
 	}
 	rel, err := repoRelative(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	diff, err := diffscan.Diff(cwd, revisions)
+	diff, err := diffscan.Diff(git, cwd, revisions)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +284,7 @@ func addedLines(cwd, path string, revisions []string) (map[int]bool, error) {
 		return nil, fmt.Errorf("the diff could not be read to the end (%v)", err)
 	}
 	if len(revisions) == 0 {
-		if err := result.WalkUntracked(cwd, diffscan.Options{MaxFileBytes: 1 << 20}, note); err != nil {
+		if err := result.WalkUntracked(git, cwd, diffscan.Options{MaxFileBytes: 1 << 20}, note); err != nil {
 			return nil, fmt.Errorf("could not list untracked files")
 		}
 	}

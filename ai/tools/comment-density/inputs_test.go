@@ -66,15 +66,19 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectNoStdout()
 	})
 
-	// Both a real revision and a real filename. git itself refuses the ambiguity, and this must arrive
-	// as git's rejection rather than as a path refusal that never consulted git.
-	t.Run("an argument that is both a revision and a filename exits 2 as git's rejection", func(t *testing.T) {
+	// Both a real revision and a real filename. This used to arrive as git's own refusal of the
+	// ambiguity, which meant a branch could switch this tool off for its own reviewers by committing a
+	// file called HEAD. The port sends `--` on every diff now, so the name resolves as the revision and
+	// the scan runs — `repo.Exec` → pathspecArgs carries the reasoning.
+	t.Run("a file called HEAD does not switch the scan off", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("HEAD", "ambiguous\n")
+		r.write("kept.go", "x := 1\n")
 		r.commit("add a file called HEAD")
+		r.write("kept.go", heavy(6, 1))
 		r.run("HEAD")
-		r.expectCode(2)
-		r.expectStderrHas("git rejected these arguments")
+		r.expectCode(1)
+		r.expectStdoutHas("kept.go")
 	})
 
 	t.Run("a pathspec after -- is scanned rather than refused", func(t *testing.T) {

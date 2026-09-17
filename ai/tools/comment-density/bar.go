@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/diffscan"
+	gitrepo "kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -262,7 +263,7 @@ func (c changeSet) carriers() []fileMass {
 }
 
 func bar(out console, args []string, cwd string, cfg Config) int {
-	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+	if err := diffscan.RefuseNonRevisions(gitrepo.Exec{}, args, cwd); err != nil {
 		return out.refuseArguments(err)
 	}
 	host, err := newHostRepo(cwd, cfg.MaxFileBytes)

@@ -176,6 +176,22 @@ func parseRawDiff(out string) ([]Change, error) {
 	return changes, nil
 }
 
+// `--text`, and it is the load-bearing flag: one NUL byte in a file, or a `* -diff` attribute written
+// by whoever wrote the branch, collapses the body to "Binary files … differ" and a scan reading this
+// exits 0 over a real hit. `--src-prefix`/`--dst-prefix` against `diff.noprefix`, `--no-color` against
+// `color.diff=always`, `--no-ext-diff` against an external driver, and the `core.quotePath=false`
+// `run` already supplies against a non-ASCII path arriving C-quoted — each is a parser's anchor that
+// the reader's own config would otherwise move.
+//
+// No default revision here. "What HEAD means when the caller named nothing" is the caller's policy,
+// and a port that decided it would be answering a question nobody asked.
+func (e Exec) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
+	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-relative",
+		"--text", "--src-prefix=a/", "--dst-prefix=b/"}
+	args = append(args, revisions...)
+	return e.run(dir, append(args, pathspecArgs(pathspec)...)...)
+}
+
 func (e Exec) Status(dir string) ([]string, error) {
 	out, err := e.run(dir, "status", "--porcelain", "-uall")
 	if err != nil {

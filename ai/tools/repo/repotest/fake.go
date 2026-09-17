@@ -51,6 +51,13 @@ type Fake struct {
 	// IgnoredPaths are what git would ignore, and Sources says which rule said so.
 	IgnoredPaths []string
 	Sources      map[string]string
+	// PatchText is what Patch answers, verbatim — the diff a case says git would print. NOT derived
+	// from Revs: deriving it would put a diff implementation in this fake, and a suite driven by that
+	// would be agreeing with the fake rather than with git.
+	PatchText string
+	// PatchByRevisions answers Patch for one spelling of the revisions, where a case drives more than
+	// one change set. The key is the revisions joined by a space, and PatchText answers anything absent.
+	PatchByRevisions map[string]string
 	// StatusLines is what `status --porcelain -uall` prints, verbatim.
 	StatusLines []string
 	// WorktreeList is what `worktree list` prints.
@@ -83,6 +90,12 @@ func New(root string) *Fake {
 		Sources:     map[string]string{},
 		Fail:        map[string]error{},
 	}
+}
+
+// Diff sets what Patch answers, for every revision spelling a case does not name on its own.
+func (f *Fake) Diff(text string) *Fake {
+	f.PatchText = text
+	return f
 }
 
 // Commit puts files at a revision and gives that revision an object id, so Resolve answers for it.
@@ -322,6 +335,16 @@ func (f *Fake) diff(revisions []string) ([]repo.Change, error) {
 		}
 	}
 	return changes, nil
+}
+
+func (f *Fake) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
+	if err := f.note("Patch"); err != nil {
+		return nil, err
+	}
+	if text, found := f.PatchByRevisions[strings.Join(revisions, " ")]; found {
+		return []byte(text), nil
+	}
+	return []byte(f.PatchText), nil
 }
 
 func (f *Fake) Status(dir string) ([]string, error) {

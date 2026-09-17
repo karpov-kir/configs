@@ -2,36 +2,16 @@ package diffscan
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"kk-flavor/tools/repo/repotest"
 )
 
 const crlfBody = "// one\r\n// two\r\nx := 1\r\n"
 const lfBody = "// one\n// two\nx := 1\n"
-
-// The machine's own git config must not reach these fixtures. NOSYSTEM covers /etc/gitconfig and the
-// HOME override covers ~/.gitconfig, but git reads $XDG_CONFIG_HOME/git/config as a global source too;
-// GIT_CONFIG_GLOBAL supersedes both files at once. A global core.excludesFile matching `*.go` empties
-// `ls-files --others --exclude-standard`, and the two untracked cases below then report zero lines on
-// a machine where this package is working perfectly. WalkUntracked execs git itself, so the isolation
-// has to be process-wide rather than per-command.
-func TestMain(m *testing.M) {
-	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-	base, err := os.MkdirTemp("", "diffscan-home")
-	if err != nil {
-		panic("diffscan tests: no temp dir, so nothing was tested: " + err.Error())
-	}
-	os.Setenv("HOME", filepath.Join(base, "home"))
-	os.MkdirAll(os.Getenv("HOME"), 0o755)
-	// Removed explicitly: os.Exit runs no deferred call.
-	code := m.Run()
-	os.RemoveAll(base)
-	os.Exit(code)
-}
 
 func countedLines(t *testing.T, walk func(*Result, func(AddedLine)) error) (map[string]int, Result) {
 	t.Helper()
@@ -47,14 +27,34 @@ func countedLines(t *testing.T, walk func(*Result, func(AddedLine)) error) (map[
 	return seen, result
 }
 
+// A repository whose untracked files are on disk as well as in the listing. bodyToScan opens each one,
+// so a case that only listed them would be measuring the open failing.
+func untrackedRepo(t *testing.T, files map[string]string) (*repotest.Fake, string) {
+	t.Helper()
+	root := t.TempDir()
+	fake := repotest.New(root)
+	for name, body := range files {
+		writeFile(t, filepath.Join(root, name), body)
+		fake.AddUntracked(name)
+	}
+	return fake, root
+}
+
+func writeFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("could not make the directory for the fixture %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("could not write the fixture %s: %v", path, err)
+	}
+}
+
 func TestTheUntrackedArmReadsCRLFLikeTheDiffArm(t *testing.T) {
-	dir := t.TempDir()
-	initRepo(t, dir)
-	writeFile(t, filepath.Join(dir, "crlf.go"), crlfBody)
-	writeFile(t, filepath.Join(dir, "lf.go"), lfBody)
+	fake, root := untrackedRepo(t, map[string]string{"crlf.go": crlfBody, "lf.go": lfBody})
 
 	seen, result := countedLines(t, func(r *Result, visit func(AddedLine)) error {
-		return r.WalkUntracked(dir, Options{MaxFileBytes: 1 << 20}, visit)
+		return r.WalkUntracked(fake, root, Options{MaxFileBytes: 1 << 20}, visit)
 	})
 
 	if seen["lf.go"] != 3 {
@@ -83,12 +83,10 @@ func TestTheDiffArmReadsCRLF(t *testing.T) {
 }
 
 func TestARealControlByteIsStillBinary(t *testing.T) {
-	dir := t.TempDir()
-	initRepo(t, dir)
-	writeFile(t, filepath.Join(dir, "esc.go"), "// fine\n// bad\x1bhere\n")
+	fake, root := untrackedRepo(t, map[string]string{"esc.go": "// fine\n// bad\x1bhere\n"})
 
 	seen, result := countedLines(t, func(r *Result, visit func(AddedLine)) error {
-		return r.WalkUntracked(dir, Options{MaxFileBytes: 1 << 20}, visit)
+		return r.WalkUntracked(fake, root, Options{MaxFileBytes: 1 << 20}, visit)
 	})
 	if seen["esc.go"] != 1 {
 		t.Errorf("%d line(s) reached the visitor, wanted only the clean one", seen["esc.go"])
@@ -98,109 +96,114 @@ func TestARealControlByteIsStillBinary(t *testing.T) {
 	}
 }
 
-func initRepo(t *testing.T, dir string) {
-	t.Helper()
-	cmd := exec.Command("git", "init", "-q")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git init failed, so nothing was measured: %v %s", err, out)
-	}
-}
+// The port names an untracked file from the working tree ROOT, never from the directory the scan was
+// asked about. Opened against that directory instead, every file in a run from a subdirectory fails to
+// open and lands in SkippedUnread: the scan covers nothing and still exits clean, which is the one
+// outcome the denominator exists to make impossible.
+func TestAnUntrackedFileIsScannedFromASubdirectory(t *testing.T) {
+	root := t.TempDir()
+	fake := repotest.New(root)
+	fake.AddUntracked("pkg/a.go")
+	writeFile(t, filepath.Join(root, "pkg", "a.go"), lfBody)
 
-func writeFile(t *testing.T, path, body string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatalf("could not write the fixture %s: %v", path, err)
+	seen, result := countedLines(t, func(r *Result, visit func(AddedLine)) error {
+		return r.WalkUntracked(fake, filepath.Join(root, "pkg"), Options{MaxFileBytes: 1 << 20}, visit)
+	})
+	if seen["pkg/a.go"] != 3 {
+		t.Errorf("the file yielded %d countable lines to a scan run from pkg/, wanted 3", seen["pkg/a.go"])
+	}
+	if result.SkippedUnread != 0 {
+		t.Errorf("%d file(s) were declined unread, so a run from a subdirectory scanned nothing at all "+
+			"and still exited clean", result.SkippedUnread)
 	}
 }
 
 func TestRevisionsNamedSeparatesThemFromPathspecs(t *testing.T) {
 	for _, row := range []struct {
-		name         string
-		args         []string
-		named, paths []string
+		name            string
+		args            []string
+		named, pathspec []string
 	}{
 		{"nothing at all", nil, nil, nil},
 		{"revisions only", []string{"HEAD", "origin/main"}, []string{"HEAD", "origin/main"}, nil},
-		{"pathspecs only, which names no revision", []string{"--", "src/"}, []string{}, []string{"--", "src/"}},
-		{"both halves", []string{"HEAD", "--", "a.go", "b.go"}, []string{"HEAD"}, []string{"--", "a.go", "b.go"}},
-		{"a bare separator", []string{"--"}, []string{}, []string{"--"}},
+		{"pathspecs only, which names no revision", []string{"--", "src/"}, []string{}, []string{"src/"}},
+		{"both halves", []string{"HEAD", "--", "a.go", "b.go"}, []string{"HEAD"}, []string{"a.go", "b.go"}},
+		{"a bare separator", []string{"--"}, []string{}, []string{}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			named, paths := RevisionsNamed(row.args)
+			named, pathspec := RevisionsNamed(row.args)
 			if !slices.Equal(named, row.named) {
 				t.Errorf("revisions = %v, wanted %v", named, row.named)
 			}
-			if !slices.Equal(paths, row.paths) {
-				t.Errorf("pathspecs = %v, wanted %v", paths, row.paths)
+			if !slices.Equal(pathspec, row.pathspec) {
+				t.Errorf("pathspecs = %v, wanted %v", pathspec, row.pathspec)
 			}
 		})
 	}
 }
 
-// The whole point of the split, driven against real git rather than asserted on the argument list: a
-// staged change must be visible through `-- <path>`, because that is the invocation the tool tells
-// people to use.
-func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
-	dir := t.TempDir()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-		}
-	}
-	run("init", "-q", ".")
-	run("config", "user.email", "t@t")
-	run("config", "user.name", "t")
-	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n"), 0o644); err != nil {
-		t.Fatalf("seeding: %v", err)
-	}
-	run("add", "a.go")
-	run("commit", "-qm", "base")
-	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n// staged\n"), 0o644); err != nil {
-		t.Fatalf("staging: %v", err)
-	}
-	run("add", "a.go")
+// What this package hands the port, which nothing the port hands back reflects: a patch is answered
+// verbatim, so a case reading the answer could not tell a dropped pathspec from a kept one.
+type patchAsked struct {
+	*repotest.Fake
+	revisions, pathspec []string
+}
 
-	bare, err := Diff(dir, nil)
-	if err != nil {
+func (p *patchAsked) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
+	p.revisions, p.pathspec = revisions, pathspec
+	return p.Fake.Patch(dir, revisions, pathspec)
+}
+
+// The whole point of the split. That `git diff HEAD -- a.go` then shows a staged change and leaves the
+// rest of the tree out is git's own behaviour, and `repo/exec_test.go` drives Patch against a real
+// repository for it; what belongs here is which revisions and pathspecs this package asks with.
+func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
+	asked := &patchAsked{Fake: repotest.New("/repo")}
+
+	if _, err := Diff(asked, "/repo", nil); err != nil {
 		t.Fatalf("the bare form failed: %v", err)
 	}
-	if !strings.Contains(string(bare), "+// staged") {
-		t.Fatalf("the bare form did not see the staged change, so this case cannot tell the split from "+
-			"a broken fixture:\n%s", bare)
+	if !slices.Equal(asked.revisions, []string{"HEAD"}) {
+		t.Errorf("the bare form asked for %v rather than HEAD, so it diffed against the index. That "+
+			"reports a clean tree over real work and exits 0", asked.revisions)
 	}
 
-	// A second changed file, so the pathspec has something to exclude. Without one, a run that drops
-	// the pathspecs entirely still shows a.go and the case cannot tell the two apart.
-	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("package a\n// elsewhere\n"), 0o644); err != nil {
-		t.Fatalf("seeding the second file: %v", err)
-	}
-	run("add", "b.go")
-
-	scoped, err := Diff(dir, []string{"--", "a.go"})
-	if err != nil {
+	if _, err := Diff(asked, "/repo", []string{"--", "a.go"}); err != nil {
 		t.Fatalf("the pathspec form failed: %v", err)
 	}
-	if !strings.Contains(string(scoped), "+// staged") {
-		t.Errorf("`-- a.go` saw no staged change, so it diffed against the index rather than HEAD. "+
-			"That reports a clean tree over real work and exits 0:\n%s", scoped)
+	if !slices.Equal(asked.revisions, []string{"HEAD"}) {
+		t.Errorf("`-- a.go` asked for %v, so it diffed against the index rather than HEAD. That reports "+
+			"a clean tree over real work and exits 0", asked.revisions)
 	}
-	if strings.Contains(string(scoped), "+// elsewhere") {
-		t.Errorf("`-- a.go` returned b.go as well, so the pathspec never reached git and the scope the "+
-			"caller asked for was silently ignored:\n%s", scoped)
+	if !slices.Equal(asked.pathspec, []string{"a.go"}) {
+		t.Errorf("`-- a.go` reached the port as the pathspec %v, wanted [a.go] — the port supplies the "+
+			"separator itself, and the scope the caller asked for is otherwise silently ignored", asked.pathspec)
+	}
+}
+
+// An argument that is BOTH a path on disk and a revision is the whole reason the scan asks git before
+// refusing one. Refused, a legal invocation is turned away; accepted without asking, `git diff <path>`
+// diffs against the INDEX and the scan runs over a change set nobody asked about.
+func TestAPathIsRefusedOnlyWhereItNamesNoRevision(t *testing.T) {
+	root := t.TempDir()
+	fake := repotest.New(root)
+	fake.Commit("main", nil)
+	writeFile(t, filepath.Join(root, "main", "keep.go"), lfBody)
+	writeFile(t, filepath.Join(root, "notes.txt"), "")
+
+	if err := RefuseNonRevisions(fake, []string{"main"}, root); err != nil {
+		t.Errorf("`main` was refused though it names a branch, so an invocation git would have "+
+			"answered is turned away: %v", err)
+	}
+	if err := RefuseNonRevisions(fake, []string{"notes.txt"}, root); err == nil {
+		t.Error("`notes.txt` was accepted though it names no revision — that scans the diff against the " +
+			"INDEX, which is a different change set and exits 0 over a real hit")
 	}
 }
 
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	const secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"
-	dir := t.TempDir()
-	initRepo(t, dir)
-	writeFile(t, filepath.Join(dir, ".env"), secret+"\n")
-	writeFile(t, filepath.Join(dir, "plain.go"), lfBody)
+	fake, root := untrackedRepo(t, map[string]string{".env": secret + "\n", "plain.go": lfBody})
 
 	walk := func(skipSecretNamed bool) (map[string][]string, []string, Result) {
 		t.Helper()
@@ -212,7 +215,7 @@ func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 			SkipSecretNamed: skipSecretNamed,
 			Announce:        func(line string) { announced = append(announced, line) },
 		}
-		if err := result.WalkUntracked(dir, opts, func(added AddedLine) {
+		if err := result.WalkUntracked(fake, root, opts, func(added AddedLine) {
 			delivered[added.File] = append(delivered[added.File], added.Text)
 		}); err != nil {
 			t.Fatalf("the walk failed, so this case measured nothing: %v", err)

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/diffscan"
+	gitrepo "kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -173,12 +174,13 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 }
 
 func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
-	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+	git := gitrepo.Exec{}
+	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		return out.refuseArguments(err)
 	}
 	s := &scan{cfg: cfg, files: map[string]*stats{}}
 
-	diff, err := diffscan.Diff(cwd, args)
+	diff, err := diffscan.Diff(git, cwd, args)
 	if err != nil {
 		return out.refuse(err)
 	}
@@ -192,7 +194,7 @@ func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
 	named, _ := diffscan.RevisionsNamed(args)
 	if len(named) == 0 {
 		opts := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes}
-		if err := s.result.WalkUntracked(cwd, opts, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
+		if err := s.result.WalkUntracked(git, cwd, opts, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
 			return out.refuse(errors.New("could not list untracked files — exit 2, the scan did NOT run over them."))
 		}
 	}

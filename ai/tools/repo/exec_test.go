@@ -46,8 +46,9 @@ func newFixture(t *testing.T) fixture {
 	write(t, filepath.Join(root, "kept.txt"), "one\n")
 	write(t, filepath.Join(root, "pkg", "moved.txt"), "before\n")
 	write(t, filepath.Join(root, "gone.txt"), "removed later\n")
-	write(t, filepath.Join(root, ".gitignore"), "ignored/\n")
-	mustRun(t, root, "git", "add", "-A")
+	write(t, filepath.Join(root, ".gitignore"), "ignored/\n*.out\n")
+	write(t, filepath.Join(root, "tracked-but-matched.out"), "committed anyway\n")
+	mustRun(t, root, "git", "add", "-A", "-f")
 	mustRun(t, root, "git", "commit", "-qm", "first")
 	f.previous = strings.TrimSpace(capture(t, root, "git", "rev-parse", "HEAD"))
 
@@ -62,6 +63,7 @@ func newFixture(t *testing.T) fixture {
 	// to find. A name with a non-ASCII byte, because that is the one git C-quotes without `-z`.
 	write(t, filepath.Join(root, "sundæ.txt"), "loose\n")
 	write(t, filepath.Join(root, "ignored", "build.out"), "generated\n")
+	write(t, filepath.Join(root, "odd\nname.out"), "newline in the name\n")
 
 	mustRun(t, root, "git", "worktree", "add", "-q", f.linked, "-b", "other")
 	return f
@@ -209,15 +211,50 @@ func (f fixture) changes_(t *testing.T) {
 	if got := f.body(f.git.Show(f.root, f.previous, "pkg/moved.txt")); string(got) != "before\n" {
 		t.Errorf("Show at the previous commit = %q, wanted the content before the change", got)
 	}
+
+	// The patch, and the four anchors a parser reads it by. Each is something the reader's own git
+	// config can move, so each is asserted rather than trusted to the flag being present in the source.
+	patch := string(f.body(f.git.Patch(f.root, []string{f.previous, f.head}, nil)))
+	for _, anchor := range []string{"diff --git ", "+++ b/pkg/moved.txt", "@@ ", "+after"} {
+		if !strings.Contains(patch, anchor) {
+			t.Errorf("the patch carries no %q, which every parser of it keys off:\n%s", anchor, patch)
+		}
+	}
+	if strings.Contains(patch, "\x1b[") {
+		t.Errorf("the patch carries colour escapes, so a parser reading it sees no line it expects:\n%s", patch)
+	}
+
+	// `--text` is the load-bearing one: without it a NUL byte collapses the body to "Binary files …
+	// differ" and a scan reading this exits 0 over a real hit.
+	write(t, filepath.Join(f.root, "binary.dat"), "one\x00two\n")
+	mustRun(t, f.root, "git", "add", "binary.dat")
+	binary := string(f.body(f.git.Patch(f.root, []string{"--cached"}, []string{"binary.dat"})))
+	if strings.Contains(binary, "Binary files") {
+		t.Errorf("a file holding a NUL byte came back as %q rather than as its lines, so a scan over it "+
+			"reports nothing and exits clean", binary)
+	}
+	mustRun(t, f.root, "git", "rm", "-q", "--cached", "binary.dat")
 }
 
 func (f fixture) ignores(t *testing.T) {
-	ignored := f.set(f.git.Ignored(f.root, []string{"ignored/build.out", "kept.txt"}))
+	ignored := f.set(f.git.Ignored(f.root, []string{"ignored/build.out", "kept.txt", "tracked-but-matched.out", "odd\nname.out"}))
 	if !ignored["ignored/build.out"] {
 		t.Errorf("Ignored did not call ignored/build.out ignored: %v", ignored)
 	}
 	if ignored["kept.txt"] {
 		t.Errorf("Ignored called the tracked kept.txt ignored: %v", ignored)
+	}
+	// git's own reading of a tree, which is the whole reason these tools ask rather than matching
+	// patterns themselves. A TRACKED file matching an ignore rule is not ignored — a list written in Go
+	// would say it is, and every caller filtering on that would drop a committed file from its scan.
+	if ignored["tracked-but-matched.out"] {
+		t.Errorf("Ignored called the tracked tracked-but-matched.out ignored, and git does not: a "+
+			"caller filtering on this drops a file every commit carries: %v", ignored)
+	}
+	// A path holding a newline, which is what `-z` on both sides of the pipe is for. Without it the
+	// answer arrives as two paths and neither names a file.
+	if !ignored["odd\nname.out"] {
+		t.Errorf("Ignored lost the path holding a newline, so a caller reads two names no file has: %v", ignored)
 	}
 	// Matching nothing is check-ignore's exit 1, and an adapter reading that as a failure would turn
 	// every clean tree into a refusal.
