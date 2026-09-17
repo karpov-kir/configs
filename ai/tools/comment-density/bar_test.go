@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -372,6 +373,35 @@ func TestBarWithRevisionsJudgesOnlyThatDiff(t *testing.T) {
 		r.expectStdoutHas("(2 file(s) in the baseline)")
 		r.expectStdoutHas("d.go: 27% against a 10% ceiling")
 		r.expectStdoutLacks("untracked.go")
+	}
+}
+
+// What --bar over a range costs must not scale with the repository's size. Content at a revision was
+// once one git call per file, which put a 387-file checkout at 107 seconds of wall clock for 2.8
+// seconds of work — the spawns, not the counting, and the edit lane pays it on every pass over a
+// sizeable repository. Two repositories differing only in how many files sit outside the change have to
+// ask git the same questions in the same order.
+func TestBarOverARangeAsksTheSameQuestionsWhateverTheBaselineHolds(t *testing.T) {
+	questions := func(baselineFiles int) []string {
+		r := newRepo(t)
+		lean := strings.Repeat("code()\n", 9) + "// one\n"
+		for i := 0; i < baselineFiles; i++ {
+			r.write(fmt.Sprintf("base%03d.go", i), lean)
+		}
+		// Carried rather than new, so the read at the base revision is asked for too.
+		r.write("heavy.go", lean)
+		r.commit("the baseline")
+		r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
+		r.commit("the change")
+
+		r.fake.Asked = nil
+		r.runBar("HEAD~1..HEAD")
+		r.expectCode(exitFound)
+		return r.fake.Asked
+	}
+	small, large := questions(1), questions(40)
+	if !slices.Equal(small, large) {
+		t.Errorf("a 40-file baseline asked git\n  %v\nand a 1-file one asked\n  %v", large, small)
 	}
 }
 

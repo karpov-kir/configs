@@ -195,36 +195,17 @@ func (h hostRepo) baseRevision(revisions []string) (string, error) {
 	return left, nil
 }
 
-// readCappedAt reads a file as it stood at a revision. A file the change touched is still the repo's own
-// content up to this change, so the baseline holds it at the content it had before, rather than dropping
-// it and measuring the change against a repo its own edit made leaner. A symlink's blob here is its
-// target string, counted as one code line, so nothing outside the repository is opened on this path.
-func (h hostRepo) readCappedAt(rev, rel string) (string, bool) {
-	out, err := h.git.Show(h.root, rev, rel)
-	if err != nil || int64(len(out)) > h.maxBytes || strings.IndexByte(string(out), 0) >= 0 {
-		return "", false
-	}
-	return string(out), true
-}
-
-// Reads from the working tree, or from the revision a closed range named. Lstat on the tree path, so a
-// symlink is skipped rather than followed: the paths come from the branch under review, and a link it
-// plants at a file outside the repository would otherwise be read from the reviewer's machine and its
-// line counts reported. `a..b` asks what b holds, and
-// the tree stops holding it the moment it moves — reading the tree anyway measures today's files under
-// yesterday's file list and hands back a plausible number with no error, which is the worse of the two
-// failures. A single revision is not this case: `HEAD` means "since HEAD", whose content IS the tree.
-func (h hostRepo) readCapped(rel string) (string, bool) {
-	if h.contentRev != "" {
-		return h.readCappedAt(h.contentRev, rel)
-	}
+// readCappedInTree reads a file from the working tree. Lstat first, so a symlink is skipped rather than
+// followed: the paths come from the branch under review, and a link it plants at a file outside the
+// repository would otherwise be read from the reviewer's machine and its line counts reported.
+func (h hostRepo) readCappedInTree(rel string) (string, bool) {
 	path := shell.Join(h.root, rel)
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > h.maxBytes {
 		return "", false
 	}
 	raw, err := os.ReadFile(path)
-	if err != nil || strings.IndexByte(string(raw), 0) >= 0 {
+	if err != nil {
 		return "", false
 	}
 	return string(raw), true

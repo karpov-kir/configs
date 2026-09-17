@@ -81,6 +81,19 @@ type Git interface {
 
 	// Show is `show <rev>:<path>`: one file's content at a revision.
 	Show(dir, rev, path string) ([]byte, error)
+	// ContentsAt is Show for a whole list, in one call. A caller reading a few hundred files at a
+	// revision asks this rather than Show per path: on the machine this is written on that is one
+	// process instead of a few hundred, and the package comment above carries what a process costs.
+	//
+	// visit is called once per path the revision holds, in the order the paths were asked. A path the
+	// revision does not hold is passed over in SILENCE, and that silence is the answer: a file the
+	// revision holds EMPTY arrives as a visit with no content, and a caller counting files has to tell
+	// the two apart.
+	//
+	// An object larger than maxBytes is passed over too, unread by visit. The caller that wants this is
+	// refusing a large file without counting it, and handing it the bytes anyway would make the refusal
+	// cost what reading costs.
+	ContentsAt(dir, rev string, paths []string, maxBytes int64, visit func(path string, content []byte)) error
 	// Blob is `cat-file blob <id>` with the object's size, so a caller can refuse a large one without
 	// reading it.
 	Blob(dir, id string) (content []byte, size int64, err error)

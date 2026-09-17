@@ -44,6 +44,10 @@ func newFixture(t *testing.T) fixture {
 	mustRun(t, root, "git", "config", "commit.gpgsign", "false")
 
 	write(t, filepath.Join(root, "kept.txt"), "one\n")
+	// Committed EMPTY, and committed under a name holding a newline: the two shapes a batch read has to
+	// tell from "this revision does not hold that path".
+	write(t, filepath.Join(root, "empty.txt"), "")
+	write(t, filepath.Join(root, "odd\nname.txt"), "newline in the name\n")
 	write(t, filepath.Join(root, "pkg", "moved.txt"), "before\n")
 	write(t, filepath.Join(root, "gone.txt"), "removed later\n")
 	write(t, filepath.Join(root, ".gitignore"), "ignored/\n*.out\n")
@@ -75,6 +79,7 @@ func TestTheAdapterAnswersGit(t *testing.T) {
 	t.Run("resolving revisions", f.revisions)
 	t.Run("what the repository holds", f.listings)
 	t.Run("what changed", f.changes_)
+	t.Run("many files at one revision", f.batchContent)
 	t.Run("ignores and status", f.ignores)
 	t.Run("worktrees", f.worktreeList)
 	t.Run("a refusal carries what git said", f.refusal)
@@ -258,6 +263,61 @@ func (f fixture) changes_(t *testing.T) {
 			"reports nothing and exits clean", binary)
 	}
 	mustRun(t, f.root, "git", "rm", "-q", "--cached", "binary.dat")
+}
+
+// The whole list from one process, which is what keeps a tool reading a few hundred files off a few
+// hundred spawns. Every property here is one a caller reads the answer by.
+func (f fixture) batchContent(t *testing.T) {
+	asked := []string{"kept.txt", "empty.txt", "no/such/file.txt", "no\nsuch.txt", "odd\nname.txt", "pkg/moved.txt"}
+	body := map[string]string{}
+	var visited []string
+	if err := f.git.ContentsAt(f.root, f.previous, asked, 1<<20, func(path string, content []byte) {
+		visited = append(visited, path)
+		body[path] = string(content)
+	}); err != nil {
+		t.Fatalf("ContentsAt over the previous commit: %v", err)
+	}
+
+	// In the order asked, absent paths passed over. A caller indexes the answers by its own list, so an
+	// answer arriving out of order attaches one file's content to another file's name. The absent path
+	// holding a NEWLINE is the case that breaks a reader taking one line as one answer: git echoes an
+	// unresolvable name back verbatim, so every object after it would be read from the wrong offset.
+	want := []string{"kept.txt", "empty.txt", "odd\nname.txt", "pkg/moved.txt"}
+	if !slices.Equal(visited, want) {
+		t.Fatalf("ContentsAt visited %q, wanted %q", visited, want)
+	}
+	// Held empty, and it arrives as an answer rather than as silence — the one thing that tells it from
+	// a path the revision does not hold, which a caller counting files has to distinguish.
+	if got, seen := body["empty.txt"]; !seen || got != "" {
+		t.Errorf("a file the commit holds empty came back as (%q, %v), wanted (\"\", true)", got, seen)
+	}
+	if got := body["pkg/moved.txt"]; got != "before\n" {
+		t.Errorf("ContentsAt at the previous commit gave %q for pkg/moved.txt, wanted the content before the change", got)
+	}
+	if got := body["odd\nname.txt"]; got != "newline in the name\n" {
+		t.Errorf("the path holding a newline came back as %q", got)
+	}
+
+	// The cap, and the oversized object is asked for FIRST: git writes its bytes whether or not the
+	// caller wants them, so a reader that does not step over exactly them reads the next file's content
+	// as this one's.
+	var capped []string
+	if err := f.git.ContentsAt(f.root, f.previous, []string{"pkg/moved.txt", "kept.txt"}, int64(len("one\n")), func(path string, _ []byte) {
+		capped = append(capped, path)
+	}); err != nil {
+		t.Fatalf("ContentsAt under a byte cap: %v", err)
+	}
+	if !slices.Equal(capped, []string{"kept.txt"}) {
+		t.Errorf("under a %d-byte cap ContentsAt visited %q, wanted only the file at or under it", len("one\n"), capped)
+	}
+
+	// Nothing asked is not a refusal, and it spawns nothing: a caller with an empty set has nothing
+	// wrong with it.
+	if err := f.git.ContentsAt(f.root, f.previous, nil, 1<<20, func(string, []byte) {
+		t.Error("ContentsAt over no paths visited something")
+	}); err != nil {
+		t.Errorf("ContentsAt over no paths = %v, wanted nil", err)
+	}
 }
 
 func (f fixture) ignores(t *testing.T) {

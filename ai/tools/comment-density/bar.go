@@ -105,44 +105,78 @@ func percentile(values []float64, p float64) float64 {
 	return sorted[index]
 }
 
+// measure counts these paths where this run's content lives: the working tree, or the revision a closed
+// range pinned it to, which contentRevision decides. Reading the tree under a range's file list would
+// measure today's files against yesterday's names and hand back a plausible number with no error.
+func (h hostRepo) measure(paths []string, visit func(rel string, file stats)) (stats, int, error) {
+	return h.measureAt(h.contentRev, paths, visit)
+}
+
+// measureAt is measure at one named revision, and an empty rev is the working tree.
+//
+// At a revision the whole list goes to git in one call, because asking per file costs a process per
+// file and over a checkout of a few hundred that bill, not the counting, is the mode's entire runtime.
+// A symlink there is a blob holding its target string, counted as one code line, so nothing outside the
+// repository is opened on this path either.
+//
 // An unreadable file is skipped, not an error: the set is a population, and one missing member does not
-// change what it says. read counts the files read at all, countable or not, so a caller can say how many
-// were not.
-func (h hostRepo) measure(paths []string, visit func(rel string, file stats)) (total stats, read int) {
-	for _, rel := range paths {
-		content, ok := h.readCapped(rel)
-		if !ok {
-			continue
+// change what it says. A call that fails outright is a different thing and is returned — the batch
+// either answered or did not, and swallowing that would leave a whole baseline silently empty. read
+// counts the files read at all, countable or not, so a caller can say how many were not.
+func (h hostRepo) measureAt(rev string, paths []string, visit func(rel string, file stats)) (stats, int, error) {
+	var total stats
+	read := 0
+	// A NUL byte marks the file binary whichever side it came from, and a binary file is not read at all
+	// rather than read and counted.
+	count := func(rel, content string) {
+		if strings.IndexByte(content, 0) >= 0 {
+			return
 		}
 		read++
 		file := statsOf(content)
 		if file.total() == 0 {
-			continue
+			return
 		}
 		total.add(file)
 		visit(rel, file)
 	}
-	return total, read
+	if rev == "" {
+		for _, rel := range paths {
+			if content, ok := h.readCappedInTree(rel); ok {
+				count(rel, content)
+			}
+		}
+		return total, read, nil
+	}
+	err := h.git.ContentsAt(h.root, rev, paths, h.maxBytes, func(rel string, content []byte) {
+		count(rel, string(content))
+	})
+	if err != nil {
+		return stats{}, 0, gitRefusal("could not read the files at "+rev, err)
+	}
+	return total, read, nil
 }
 
 // carried are files this change touched but did not create. They stay in the baseline at their
 // pre-change content: that content is the repo's, and dropping it lets one edit to a comment-heavy file
 // lower the very rate the change is then held to.
-func (h hostRepo) measureBaseline(paths, carried []string, rev string) baseline {
+func (h hostRepo) measureBaseline(paths, carried []string, rev string) (baseline, error) {
 	ratios := make([]float64, 0, len(paths)+len(carried))
-	whole, _ := h.measure(paths, func(_ string, file stats) {
-		ratios = append(ratios, file.ratio())
-	})
-	for _, rel := range carried {
-		content, ok := h.readCappedAt(rev, rel)
-		if !ok {
-			continue
-		}
-		file := statsOf(content)
-		whole.add(file)
+	collect := func(_ string, file stats) {
 		ratios = append(ratios, file.ratio())
 	}
-	return baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)}
+	whole, _, err := h.measure(paths, collect)
+	if err != nil {
+		return baseline{}, err
+	}
+	// At the base revision, not the run's content revision: these files are in the baseline for the
+	// content they had BEFORE the change, which is the only reading the change cannot move.
+	before, _, err := h.measureAt(rev, carried, collect)
+	if err != nil {
+		return baseline{}, err
+	}
+	whole.add(before)
+	return baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)}, nil
 }
 
 // perFileCeiling is the ratio a file new since the diff's base may not exceed on its own. A file the
@@ -186,9 +220,10 @@ type fileMass struct {
 	written float64
 }
 
-func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) changeSet {
+func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) (changeSet, error) {
 	var set changeSet
-	set.stats, set.read = h.measure(paths, func(rel string, file stats) {
+	var err error
+	set.stats, set.read, err = h.measure(paths, func(rel string, file stats) {
 		if ceiling.isOver(rel, file) {
 			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.ratio()})
 		}
@@ -206,7 +241,7 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, autho
 			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, written: written})
 		}
 	})
-	return set
+	return set, err
 }
 
 // authoredComments counts, per file, the comment lines this change added. Paired with the file's landed
@@ -291,7 +326,10 @@ func bar(out console, git gitrepo.Git, args []string, cwd string, cfg Config) in
 			carried = append(carried, rel)
 		}
 	}
-	base := host.measureBaseline(without(tracked, changed), carried, baseRev)
+	base, err := host.measureBaseline(without(tracked, changed), carried, baseRev)
+	if err != nil {
+		return out.refuse(err)
+	}
 	// No baseline is refused, never defaulted: a number invented here reads exactly like one measured.
 	if base.files == 0 {
 		return out.refuse(refusal("no file outside this change set carried countable lines, so the repo has no rate to hold it to"))
@@ -300,7 +338,10 @@ func bar(out console, git gitrepo.Git, args []string, cwd string, cfg Config) in
 	if err != nil {
 		return out.refuse(err)
 	}
-	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling}, authored)
+	set, err := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling}, authored)
+	if err != nil {
+		return out.refuse(err)
+	}
 	out.note("%d changed source file(s), %d read, %d skipped unread; %d file(s) in the baseline.",
 		len(changed), set.read, len(changed)-set.read, base.files)
 	if set.total() == 0 {

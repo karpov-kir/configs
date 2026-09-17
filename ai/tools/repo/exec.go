@@ -1,9 +1,11 @@
 package repo
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -226,6 +228,113 @@ func (e Exec) Status(dir string) ([]string, error) {
 
 func (e Exec) Show(dir, rev, path string) ([]byte, error) {
 	return e.run(dir, "show", "--textconv", rev+":"+path)
+}
+
+// One process for the whole list. `cat-file --batch` reads object names on stdin and answers in the
+// order it was asked, so the caller's own slice is the index into what comes back.
+//
+// `-z` on the input, because a path holding a newline would otherwise arrive as two object names and
+// neither names a file. It moves the input side only; `-Z`, which moves both, wants a newer git than
+// macOS ships, and the output side needs no help because every terminator this reads is one git wrote.
+//
+// No `--batch-check` pass ahead of it. That would learn every size from a second process to save
+// piping the occasional oversized blob, and a spawn on this machine costs more than the piping does —
+// the header `--batch` prints before each object already carries the size, which is what lets one pass
+// step over a large one instead of handing it over.
+func (e Exec) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit func(string, []byte)) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	args := []string{"cat-file", "--batch", "-z"}
+	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "core.quotePath=false"}, args...)...)
+	if e.Env != nil {
+		cmd.Env = e.Env
+	}
+	var asked bytes.Buffer
+	for _, path := range paths {
+		asked.WriteString(rev + ":" + path + "\x00")
+	}
+	// A buffer rather than a pipe written here: os/exec copies a non-file stdin from a goroutine of its
+	// own, and writing the list inline would deadlock against a git already blocked on a full stdout.
+	cmd.Stdin = &asked
+	var said bytes.Buffer
+	cmd.Stderr = &said
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return gitError(args, said.String(), err)
+	}
+	if err := cmd.Start(); err != nil {
+		return gitError(args, said.String(), err)
+	}
+	readErr := readBatch(bufio.NewReader(out), paths, maxBytes, visit)
+	if readErr != nil {
+		// Drained before waiting: git blocks on a stdout nobody is reading, and Wait would then never
+		// return.
+		_, _ = io.Copy(io.Discard, out)
+	}
+	if err := cmd.Wait(); err != nil {
+		return gitError(args, said.String(), err)
+	}
+	return readErr
+}
+
+// One answer per path asked, read in that order. An object git is about to write arrives as its header,
+// its bytes and one terminator; a path the revision does not hold arrives as the header alone.
+func readBatch(from *bufio.Reader, paths []string, maxBytes int64, visit func(string, []byte)) error {
+	for _, path := range paths {
+		kind, size, err := batchHeader(from)
+		if err != nil {
+			return fmt.Errorf("git cat-file --batch, reading the answer for %q: %w", path, err)
+		}
+		if kind == "" {
+			continue
+		}
+		// Both branches consume the terminator git writes after the bytes, so the next header begins
+		// where the next path's answer does. An object stepped over is still written in full.
+		if kind != "blob" || size > maxBytes {
+			if _, err := io.CopyN(io.Discard, from, size+1); err != nil {
+				return fmt.Errorf("git cat-file --batch, stepping over the answer for %q: %w", path, err)
+			}
+			continue
+		}
+		content := make([]byte, size+1)
+		if _, err := io.ReadFull(from, content); err != nil {
+			return fmt.Errorf("git cat-file --batch, reading %d byte(s) for %q: %w", size, path, err)
+		}
+		visit(path, content[:size])
+	}
+	return nil
+}
+
+// A header is `<object id> SP <type> SP <size>`, or the name echoed back with " missing" after it. The
+// echo carries the path VERBATIM, newline and all, so a reader taking one line as one header loses its
+// place for every object after an absent path with an odd name — hence lines until one of the two
+// shapes ends. An empty type is that absence.
+func batchHeader(from *bufio.Reader) (kind string, size int64, err error) {
+	for {
+		line, readErr := from.ReadString('\n')
+		if readErr != nil {
+			return "", 0, readErr
+		}
+		if strings.HasSuffix(line, " missing\n") {
+			return "", 0, nil
+		}
+		fields := strings.Fields(line)
+		if len(fields) != 3 || !isObjectID(fields[0]) {
+			continue
+		}
+		length, parseErr := strconv.ParseInt(fields[2], 10, 64)
+		if parseErr != nil || length < 0 {
+			return "", 0, fmt.Errorf("git printed the header %q, whose size is no size", strings.TrimRight(line, "\n"))
+		}
+		return fields[1], length, nil
+	}
+}
+
+// Long enough to be a hash and hexadecimal: the one thing in a header that a fragment of an echoed
+// path will not look like.
+func isObjectID(field string) bool {
+	return len(field) >= 40 && strings.Trim(field, "0123456789abcdef") == ""
 }
 
 func (e Exec) Blob(dir, id string) ([]byte, int64, error) {

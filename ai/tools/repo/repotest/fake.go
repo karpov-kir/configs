@@ -385,6 +385,27 @@ func (f *Fake) Show(dir, rev, name string) ([]byte, error) {
 	return []byte(body), nil
 }
 
+// The revision's table, read in the order the paths were asked. A path the revision does not hold is
+// passed over and so is one over the cap, which is how a case drives the difference between a file
+// that is not there and one the revision holds empty.
+func (f *Fake) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit func(string, []byte)) error {
+	if err := f.note("ContentsAt"); err != nil {
+		return err
+	}
+	held, known := f.Revs[rev]
+	if !known {
+		return fmt.Errorf("the fake holds no revision %s", rev)
+	}
+	for _, name := range paths {
+		body, found := held[name]
+		if !found || int64(len(body)) > maxBytes {
+			continue
+		}
+		visit(name, []byte(body))
+	}
+	return nil
+}
+
 // Blobs are looked up by the id diff handed out, so a case reads back what it wrote without knowing
 // how an id is made.
 func (f *Fake) Blob(dir, id string) ([]byte, int64, error) {
