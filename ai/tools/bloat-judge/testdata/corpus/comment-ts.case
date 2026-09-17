@@ -1,0 +1,53 @@
+kind: comment
+cut: 2 3 5 6 8
+keep: 1 4 7
+---
+// Entries in exports written before v3 carry no currency field at all, and the importer fills it
+// from the book. Drop that fallback and those exports total as zero.
+
+// Members are ordered by scheme to match the rate table, so a category's cells under one scheme sit
+// together in both. A pairing that cannot occur, like exempt with a positive rate, has no name.
+export enum TaxCategory {
+  ExemptStandard,
+  ExemptReduced,
+  LeviedStandard,
+  LeviedReduced,
+}
+
+/** Lists every pairing of account and period, account-major. */
+export function listPairings(accounts: Account[], periods: Period[]): Pairing[] {
+  return accounts.flatMap((account) => periods.map((period) => ({ account, period })));
+}
+
+/** Returns the rate in basis points, not percent. */
+export function rateFor(category: TaxCategory): number {
+  return RATE_TABLE[category];
+}
+
+/** Pairs an entry with the book it inherits currency from. */
+export interface EntryInBook {
+  entry: Entry;
+  book: Book;
+}
+
+/**
+ * Checks whether a book is priced. The ledger allows currency on the book or on each entry, so both
+ * are read.
+ */
+export function isPriced(book: Book): boolean {
+  if (book.currency) {
+    return true;
+  }
+  return book.entries.some((entry) => entry.currency);
+}
+
+// Rates are fetched once per run: the provider answers a second request for the same day with 429,
+// and a retry after midnight UTC would read as a new day and bill again.
+export async function loadRates(): Promise<RateTable> {
+  return cached ?? (cached = await fetchRates());
+}
+
+/** Lists every entry in the book that carries the given currency. */
+export function listEntriesCarrying(book: Book, currency: Currency): Entry[] {
+  return book.entries.filter((entry) => entry.currency === currency);
+}

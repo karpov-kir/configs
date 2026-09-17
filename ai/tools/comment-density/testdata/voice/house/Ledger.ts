@@ -59,3 +59,14 @@ export function verifyBook(book: Element): boolean {
 export function totalBook(book: Element): number {
   return 0;
 }
+
+/**
+ * A settlement code that has no name is one the catalogue does not list, which matters because the
+ * reader cannot look it up and will not find it in the schedule either, so the lookup returns a blank
+ * and the caller is left holding a code that no table anywhere resolves for them.
+ * The code is not absent and it is not unknown; it is simply outside the set the catalogue covers.
+ * This is a different question from what `isPriced` answers.
+ */
+export function resolveSettlementCode(book: Element): string {
+  return "";
+}

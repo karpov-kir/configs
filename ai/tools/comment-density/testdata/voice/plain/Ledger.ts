@@ -47,3 +47,8 @@ export function verifyBook(book: Element): boolean {
 export function totalBook(book: Element): number {
   return 0;
 }
+
+/** Returns the settlement code, or an empty string when the catalogue omits it. */
+export function resolveSettlementCode(book: Element): string {
+  return "";
+}
