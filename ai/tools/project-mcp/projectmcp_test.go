@@ -379,6 +379,35 @@ func TestTheHomeDirectoryIsNotAProject(t *testing.T) {
 	})
 }
 
+// And however it is spelled. `.` is what a human standing in their home types, and the guard compares
+// the project against an absolute home — so a spelling that stays relative matches nothing and the
+// run writes a project server list straight into the home directory.
+//
+// Not parallel, because it is the working directory that makes `.` mean the home directory. The
+// declaration is named absolutely for the same reason: the shared fixture reaches it relatively, and
+// a run that could not find it would refuse for that instead and the case would pass either way.
+func TestTheHomeDirectoryIsNotAProjectHoweverItIsSpelled(t *testing.T) {
+	configs, err := filepath.Abs(shippedConfigsDir)
+	if err != nil {
+		t.Fatalf("naming this repository's own declaration: %v", err)
+	}
+	for _, agent := range agents {
+		p := newProject(t, agent)
+		p.dir = "."
+		p.configs = configs
+		t.Chdir(p.home)
+
+		outcome := p.run()
+		if !strings.Contains(outcome.stderr, "the home directory is not a project target") {
+			t.Errorf("%s: a project file was written into the home directory, where every client standing "+
+				"in it reads it as a project of its own\nexit %d\n%s", agent, outcome.code, outcome.stderr)
+		}
+		if entries, err := os.ReadDir(p.home); err != nil || len(entries) != 0 {
+			t.Errorf("%s: the run left %d entries in the home directory", agent, len(entries))
+		}
+	}
+}
+
 // The private declaration is the one carrying credentials and internal hosts. A project file is
 // committed, so nothing from it may ever reach one.
 func TestThePrivateDeclarationIsNeverReadHere(t *testing.T) {

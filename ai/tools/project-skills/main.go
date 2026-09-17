@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	projectsetup "kk-flavor/tools/project-setup"
+	"kk-flavor/tools/shell"
 )
 
 func main() {
@@ -16,7 +17,7 @@ func main() {
 	// reaches this stub through ~/.kk-flavor, so its own directory is the only thing that names the
 	// checkout the skills come from.
 	self := filepath.Base(os.Args[0])
-	repo, err := ownDirectory(os.Args[0])
+	repo, err := shell.OwnDirectory(os.Args[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: cannot resolve my own directory, so no skills were changed: %s\n", self, err)
 		os.Exit(2)
@@ -36,18 +37,4 @@ func main() {
 		Out:        os.Stdout,
 		Err:        os.Stderr,
 	}))
-}
-
-// Symlinks resolved, because the hook reaches this through the shared bucket and the skills are read
-// from the real directory the stub lives in, not from the name it was reached by.
-func ownDirectory(invocation string) (string, error) {
-	absolute, err := filepath.Abs(invocation)
-	if err != nil {
-		return "", err
-	}
-	real, err := filepath.EvalSymlinks(absolute)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Dir(real), nil
 }

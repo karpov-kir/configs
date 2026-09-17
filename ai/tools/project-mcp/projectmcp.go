@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/repo"
+	"kk-flavor/tools/shell"
 )
 
 // Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so nothing
@@ -139,7 +140,10 @@ func isKnownAgent(agent string) bool {
 
 // The whole of one run: resolve the project, work out what the file should hold, and write it.
 func (run *invocation) do(stdout io.Writer) error {
-	project, err := filepath.EvalSymlinks(run.project)
+	// Absolute as well as symlink-free, because the refusals below compare this against paths that
+	// already are: `.` is what a human standing in their home types, and a relative spelling reaching
+	// the home guard matches nothing it is guarding.
+	project, err := shell.RealPath(run.project)
 	if err != nil {
 		return err
 	}
@@ -196,7 +200,7 @@ func (run *invocation) refuseHome() error {
 	if run.home == "" {
 		return nil
 	}
-	home, err := filepath.EvalSymlinks(run.home)
+	home, err := shell.RealPath(run.home)
 	if err != nil {
 		return nil
 	}

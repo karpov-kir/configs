@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"kk-flavor/tools/flavor"
@@ -92,9 +91,11 @@ func perform(options Options) (*installer.Run, int) {
 		return nil, code
 	}
 	// Resolved before anything is written, so every path below and the registry entry all name the same
-	// directory however the caller spelled it. A project that is not there is refused rather than
-	// created: this installs into a repository someone already has.
-	project, err := filepath.EvalSymlinks(parsed.project)
+	// directory however the caller spelled it. Absolute as well as symlink-free: `.` is what a human
+	// standing in the project types, and recorded as typed it names a different directory for every
+	// later reader of the registry. A project that is not there is refused rather than created: this
+	// installs into a repository someone already has.
+	project, err := shell.RealPath(parsed.project)
 	if err != nil || !shell.IsDir(project) {
 		// The spelling as it was typed, because a reader sent after a path this rewrote is being sent
 		// somewhere they never named.

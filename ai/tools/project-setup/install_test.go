@@ -43,6 +43,27 @@ func TestASecondRunRewritesNothingAndRecordsTheProjectOnce(t *testing.T) {
 	f.expectFileBody(f.home+"/.config/kk-flavor/installs", f.project+"\n")
 }
 
+// `.` is what a human types for the project they are standing in, and the registry has to hold the
+// directory that names rather than the spelling. Recorded as typed, the entry means a different
+// directory for every later reader: the registry is pruned by asking whether the recorded directory
+// still exists — and `.` always does, wherever the pruning run stands — and an uninstall drops an
+// entry by matching the project's path, which is never `.` again.
+func TestARelativeProjectIsRecordedByTheDirectoryItReallyNames(t *testing.T) {
+	for _, c := range []struct{ name, standIn, typed string }{
+		{name: "standing in the project", standIn: "/project", typed: "."},
+		{name: "standing beside it", standIn: "/checkout", typed: "../project"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			t.Chdir(f.base + c.standIn)
+
+			f.expectCode(f.run("--agent=claude", c.typed), 0)
+
+			f.expectFileBody(f.home+"/.config/kk-flavor/installs", f.project+"\n")
+		})
+	}
+}
+
 func TestAProjectWithNeitherFileGetsBothCreated(t *testing.T) {
 	f := newFixture(t)
 	f.removeAll(f.project + "/CLAUDE.md")

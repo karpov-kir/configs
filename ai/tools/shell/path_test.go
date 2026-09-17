@@ -1,10 +1,97 @@
 package shell_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"kk-flavor/tools/shell"
 )
+
+// A checkout reached through the bucket link, which is the shape every stub is invoked in: the
+// installers mount `~/.kk-flavor` at a checkout's `ai/kk-flavor`, and the sibling scripts sit one
+// level above it. Answers the base, so a case can build the path it means and the answer it wants
+// from the same directory.
+func checkoutThroughABucket(t *testing.T) string {
+	t.Helper()
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("the case's own temp directory does not resolve: %v", err)
+	}
+	if err = os.MkdirAll(base+"/checkout/ai/kk-flavor", 0o755); err != nil {
+		t.Fatalf("building the fixture checkout: %v", err)
+	}
+	if err = os.MkdirAll(base+"/home", 0o755); err != nil {
+		t.Fatalf("building the fixture home: %v", err)
+	}
+	if err = os.WriteFile(base+"/checkout/ai/project-skills.sh", nil, 0o644); err != nil {
+		t.Fatalf("building the fixture stub: %v", err)
+	}
+	if err = os.Symlink(base+"/checkout/ai/kk-flavor", base+"/home/.kk-flavor"); err != nil {
+		t.Fatalf("linking the fixture bucket: %v", err)
+	}
+	return base
+}
+
+// The path a repository's post-checkout hook runs: through the bucket link and back out of it with
+// `..`. The bucket is a link into a checkout, so that `..` means the checkout's `ai/` and nothing
+// else — while cleaning it against the name it was reached by means the home directory, where no stub
+// has ever been. A resolution that cleans before it follows answers a path that does not exist, and
+// the hook then fails on every checkout.
+//
+// Both spellings, because argv[0] is whatever the human or the hook typed.
+func TestOwnDirectoryFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
+	base := checkoutThroughABucket(t)
+	t.Chdir(base + "/home")
+
+	for _, invocation := range []string{
+		base + "/home/.kk-flavor/../project-skills.sh",
+		".kk-flavor/../project-skills.sh",
+	} {
+		got, err := shell.OwnDirectory(invocation)
+		if err != nil {
+			t.Errorf("OwnDirectory(%q): %v", invocation, err)
+			continue
+		}
+		if want := base + "/checkout/ai"; got != want {
+			t.Errorf("OwnDirectory(%q) = %q, want %q", invocation, got, want)
+		}
+	}
+}
+
+// RealPath is realpath(1): absolute, and symlinks followed. Every caller records or compares the
+// answer, so a relative spelling that survives is a bug rather than a cosmetic difference — an
+// install registry entry reading `.` names a different directory for every later reader, and a guard
+// holding `.` against an absolute home never matches the home it is guarding.
+//
+// The `.kk-flavor/..` row is the one that separates this from filepath.Abs followed by
+// filepath.EvalSymlinks: Abs cleans that `..` away before anything follows the link, and answers a
+// directory that exists and is the wrong one.
+func TestRealPathIsAbsoluteAndPhysicalWhateverTheCallerTyped(t *testing.T) {
+	base := checkoutThroughABucket(t)
+	t.Chdir(base + "/home")
+
+	for _, c := range []struct {
+		path, want string
+	}{
+		{".", base + "/home"},
+		{"./", base + "/home"},
+		{"..", base},
+		{"../checkout/ai", base + "/checkout/ai"},
+		{".kk-flavor", base + "/checkout/ai/kk-flavor"},
+		{".kk-flavor/..", base + "/checkout/ai"},
+		{base + "/home/.kk-flavor", base + "/checkout/ai/kk-flavor"},
+	} {
+		got, err := shell.RealPath(c.path)
+		if err != nil {
+			t.Errorf("RealPath(%q): %v", c.path, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("RealPath(%q) = %q, want %q", c.path, got, c.want)
+		}
+	}
+}
 
 // DirName and BaseName split one path, so one input list holds both: this table exists to catch a
 // row where one of them answers dirname(1) and the other does not. Every expected value is

@@ -97,6 +97,42 @@ func CanonicalDir(path string) string {
 	return resolved
 }
 
+// RealPath is realpath(1): the absolute path with every symlink followed, and the error the resolution
+// failed with when something along the way is not there.
+//
+// The working directory is prepended by concatenation rather than by filepath.Abs, and that is the
+// whole reason this exists. Abs cleans `..` lexically, against the name the path was reached by
+// instead of the directory it really names — so `$HOME/.kk-flavor/../project-skills.sh` becomes
+// `$HOME/project-skills.sh`, and `.kk-flavor` is a link into a checkout whose real parent is somewhere
+// else entirely. Left in the path, each `..` is popped by EvalSymlinks against the directory it has
+// already resolved, which is what the shell's own `cd -P` does.
+func RealPath(path string) (string, error) {
+	absolute := path
+	if !filepath.IsAbs(absolute) {
+		working, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		absolute = Join(working, absolute)
+	}
+	return filepath.EvalSymlinks(absolute)
+}
+
+// OwnDirectory is the real directory a program is running from, taken from the argv[0] the stub
+// preserved with `exec -a`. Every tool here reads its skills, declarations and sibling scripts from
+// beside that stub, so this is what names them — never the process's own working directory, which is
+// wherever the human happened to be standing.
+//
+// One implementation for all six entry points. filepath.Dir is safe on what RealPath answers, which is
+// absolute and already clean.
+func OwnDirectory(invocation string) (string, error) {
+	real, err := RealPath(invocation)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(real), nil
+}
+
 // Fnmatch is fnmatch as find(1)'s -name and -path use it: no FNM_PATHNAME, so `*` spans `/` too, and
 // no FNM_PERIOD, so it matches a leading dot.
 func Fnmatch(pattern, text string) bool {
