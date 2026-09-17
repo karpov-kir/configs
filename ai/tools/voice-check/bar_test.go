@@ -1,4 +1,4 @@
-package density
+package voicecheck
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ func (r *repo) runBar(args ...string) {
 func (r *repo) runBarIn(cwd string, cfg Config, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()
-	r.code = Run("comment-density.sh", append([]string{"--bar"}, args...), cwd, cfg, &r.stdout, &r.stderr)
+	r.code = Run("voice-check.sh", append([]string{"--bar"}, args...), cwd, cfg, &r.stdout, &r.stderr)
 }
 
 func TestBarIsAModeOnlyAsTheFirstArgument(t *testing.T) {
@@ -596,7 +596,7 @@ func TestBarNamesTheBuildThatMeasured(t *testing.T) {
 	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
 
 	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build deadbeefcafe")
+	r.expectStdoutHas("measured by: voice-check build deadbeefcafe")
 }
 
 // An identity nobody stamped is reported, never omitted. A line that disappears when the build is
@@ -608,7 +608,7 @@ func TestBarNamesAnUnknownBuildRatherThanOmittingIt(t *testing.T) {
 	t.Setenv("ECO_TOOL_BUILD", "")
 
 	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build unknown")
+	r.expectStdoutHas("measured by: voice-check build unknown")
 }
 
 // Under the bar the attribution half prints nothing at all, so the identity must not ride on it: an
@@ -621,7 +621,7 @@ func TestBarNamesTheBuildEvenWhenUnderTheBar(t *testing.T) {
 	r.runBar()
 	r.expectCode(exitClean)
 	r.expectStdoutLacks("chargeable")
-	r.expectStdoutHas("measured by: comment-density build underbar99")
+	r.expectStdoutHas("measured by: voice-check build underbar99")
 }
 
 // A closed range asks what its right-hand side holds, so content comes from there and not from a tree
@@ -703,7 +703,7 @@ func TestBarNamesTheTreeItMeasuredOn(t *testing.T) {
 	t.Setenv("ECO_TOOL_TREE", "feedfacedead")
 
 	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build deadbeefcafe, tree feedfacedead")
+	r.expectStdoutHas("measured by: voice-check build deadbeefcafe, tree feedfacedead")
 }
 
 // An unnamed checkout is reported, never omitted — the same reason the build is. A line that drops the

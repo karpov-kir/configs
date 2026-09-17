@@ -9,7 +9,7 @@
 // No conf on the search path is not an error: the scan runs with no coined words and no allowlist,
 // which is the setting every repository starts at. A conf NAMED by COMMENT_VOICE_CONF and then absent
 // is an error, because the caller asked for a file and did not get it.
-package density
+package voicecheck
 
 import (
 	"errors"

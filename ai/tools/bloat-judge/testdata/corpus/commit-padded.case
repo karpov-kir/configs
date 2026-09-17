@@ -8,7 +8,7 @@ This commit changes the comment lane so that it is sent to the mode
 which has a bar.
 
 kk-qualify's Lanes table is the only place an orchestrator reads to get
-the comment scanner's command, and it named comment-density.sh with no
+the comment scanner's command, and it named voice-check.sh with no
 mode, which reports two ranges against each other and never against the
 bar. Three passes in one stack each read a change set at three times its
 repo's rate as house style.

@@ -291,7 +291,7 @@ naming the elapsed time and the bound; the rule that a long wait must say it is 
 stated nowhere, and no other tool here follows it.
 
 **A scanner now names the build that answered it, and the rest of the tree does not.**
-`comment-density --bar` leads with `measured by: comment-density build <id>`, after two opposite
+`voice-check --bar` leads with `measured by: voice-check build <id>`, after two opposite
 verdicts an hour apart on identical inputs with nothing saying the tool had been rebuilt between
 them. That is [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)'s "names the commit
 you measured" one level up — there the unnamed thing is the tree, here the instrument — and the rule

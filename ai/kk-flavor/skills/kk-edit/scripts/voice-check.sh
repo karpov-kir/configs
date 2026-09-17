@@ -3,7 +3,7 @@
 # comment-heavy; with `--bar` it holds the whole change set to the host repo's own comment rate; with
 # `--voice` it reads the comments instead of counting them.
 #
-#   usage: comment-density.sh [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines (default 0.3)
@@ -38,7 +38,7 @@
 #
 # Three profiles. `comment` (the default) reads the comment lines a diff added to source files, and
 # takes `-` to read a unified diff on stdin, which is how a branch this checkout does not hold is
-# scanned: `gh pr diff <N> | comment-density.sh --voice -`. `prose` reads a markdown or plain-text
+# scanned: `gh pr diff <N> | voice-check.sh --voice -`. `prose` reads a markdown or plain-text
 # file named as a path or `-`: a PR body, a review comment, a reply. `instruction` reads a rule file
 # under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
 #
@@ -53,12 +53,12 @@
 # `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. An allow entry with no reason is
 # refused, and a missing file is no error.
 #
-# tested by: the Go suite beside the tool, `ai/tools/comment-density/`; the shared stub region below
+# tested by: the Go suite beside the tool, `ai/tools/voice-check/`; the shared stub region below
 # by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 
-tool="comment-density"
+tool="voice-check"
 # How far THIS file sits above the tools directory.
 tools_offset="../../../.."
 

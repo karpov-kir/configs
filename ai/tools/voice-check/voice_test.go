@@ -1,4 +1,4 @@
-package density
+package voicecheck
 
 import (
 	"os"
@@ -504,7 +504,7 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 
 func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
 	var out, errs strings.Builder
-	code := Run("comment-density.sh", []string{"--voice", "--profile=loud"}, t.TempDir(),
+	code := Run("voice-check.sh", []string{"--voice", "--profile=loud"}, t.TempDir(),
 		Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
@@ -839,7 +839,7 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
 	var out, errs strings.Builder
-	Run("comment-density.sh", []string{"--voice", "--profile=prose", conf}, dir,
+	Run("voice-check.sh", []string{"--voice", "--profile=prose", conf}, dir,
 		Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
 	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
 		t.Fatalf("the run did not name the conf it read: %q", errs.String())

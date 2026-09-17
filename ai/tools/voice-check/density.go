@@ -2,10 +2,10 @@
 // comment-heavy. With `--bar` it holds the whole change set to the host repo's own comment rate
 // (bar.go). With `--voice` it reads the comments instead of counting them (voice.go). The
 // command-line contract (arguments, environment, exit codes) is the stub's:
-// ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh.
+// ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh.
 //
 // The default mode states its own standing in its report: a targeting aid, not a bar.
-package density
+package voicecheck
 
 import (
 	"errors"
@@ -42,7 +42,7 @@ const (
 // The stub this command runs behind, written out rather than read from argv[0]. `stub_usage_test.go`
 // compares the usage line below against the one the stub's own header documents, and a name that
 // changes with how the binary was reached leaves it nothing stable to compare.
-const stubName = "comment-density.sh"
+const stubName = "voice-check.sh"
 
 // Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
 // refused where a revision belongs, and one after `--` narrows the scan to it.

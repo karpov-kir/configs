@@ -1,7 +1,7 @@
-// Cases for the comment-density detector. Don't weaken "a path argument is refused with exit 2, never
+// Cases for the voice-check detector. Don't weaken "a path argument is refused with exit 2, never
 // scanned": `git diff <path>` is legal and diffs against the index, so a path quietly accepted scans
 // the wrong change set and exits 0 — indistinguishable from a clean tree.
-package density
+package voicecheck
 
 import (
 	"fmt"

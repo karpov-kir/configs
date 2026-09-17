@@ -1,4 +1,4 @@
-package density
+package voicecheck
 
 import (
 	"fmt"
@@ -137,7 +137,7 @@ func (r *repo) run(args ...string) {
 func (r *repo) runWith(cfg Config, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()
-	r.code = Run("comment-density.sh", args, r.dir, cfg, &r.stdout, &r.stderr)
+	r.code = Run("voice-check.sh", args, r.dir, cfg, &r.stdout, &r.stderr)
 }
 
 func (r *repo) expectCode(want int) {

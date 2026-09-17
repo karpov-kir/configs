@@ -290,7 +290,7 @@ func opensStar(line string) bool {
 	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
 }
 
-// isComment mirrors comment-density's: `//`, `/*`, `#`, and a continuation `*` or closing `*/` followed
+// isComment mirrors voice-check's: `//`, `/*`, `#`, and a continuation `*` or closing `*/` followed
 // by a space or the end of the line, so `*ptr = 1` stays code.
 func isComment(line string) bool {
 	switch {

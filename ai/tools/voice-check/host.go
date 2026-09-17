@@ -1,4 +1,4 @@
-package density
+package voicecheck
 
 import (
 	"errors"

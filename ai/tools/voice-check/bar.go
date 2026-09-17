@@ -4,7 +4,7 @@
 // A comment's bar is a ratio to the code it sits in. A PR body's is not: body length does not scale with
 // the diff, so a body takes an absolute bar read off the repo's own bodies. Measured over one repository's
 // merged PRs, words per changed line ran 3 at p50 and 36 at p90. That thermometer is not built yet.
-package density
+package voicecheck
 
 import (
 	"fmt"
@@ -352,7 +352,7 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
 func (c console) reportBar(base baseline, set changeSet) int {
-	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", toolBuild(), toolTree())
+	fmt.Fprintf(c.stdout, "measured by: voice-check build %s, tree %s\n", toolBuild(), toolTree())
 	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
 		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
 	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",

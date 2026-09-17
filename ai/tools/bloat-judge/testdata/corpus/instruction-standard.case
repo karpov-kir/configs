@@ -4,7 +4,7 @@ keep: 1 2 4 5
 ---
 ## Comments
 
-**A comment earns its line by saying what the code cannot.** The bar is the repo's own rate, measured by `comment-density.sh --bar` over the change set; the overage is the cut the change owes.
+**A comment earns its line by saying what the code cannot.** The bar is the repo's own rate, measured by `voice-check.sh --bar` over the change set; the overage is the cut the change owes.
 
 This section is about comments, and it sets out the rules for them.
 

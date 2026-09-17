@@ -58,7 +58,7 @@ serve() {
 # It is also the build identity every stub exports as ECO_TOOL_BUILD, so a tool that reports a
 # measurement can name what produced it. `992662a` settled the other half — a scanner number names the
 # commit it was read off — and a reading whose instrument is unnamed cannot be compared with one taken
-# later: a rebuild here moved comment-density's attribution figures on an unchanged tree with nothing in
+# later: a rebuild here moved voice-check's attribution figures on an unchanged tree with nothing in
 # the output saying so. The stamp rather than the binary's own bytes, because it moves exactly when the
 # build does and costs one file read where hashing the binary on every invocation would not. Never the
 # stub: that file barely changes and would name nothing.

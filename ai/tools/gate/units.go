@@ -74,7 +74,7 @@ var extStubs = []string{
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh",
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph.sh",
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh",
-	"ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh",
+	"ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh",
 	"ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh",
 	"ai/kk-flavor/skills/kk-reduce/scripts/stats.sh",
 	"ai/kk-flavor/workers/refactor/dup-literals.sh",

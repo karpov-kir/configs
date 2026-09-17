@@ -1,11 +1,11 @@
-// The comment-density detector as a command.
+// The voice-check detector as a command.
 package main
 
 import (
 	"os"
 	"path/filepath"
 
-	density "kk-flavor/tools/comment-density"
+	voicecheck "kk-flavor/tools/voice-check"
 )
 
 func main() {
@@ -14,10 +14,10 @@ func main() {
 	if err != nil {
 		cwd = "."
 	}
-	cfg, err := density.ConfigFromEnv(os.LookupEnv)
+	cfg, err := voicecheck.ConfigFromEnv(os.LookupEnv)
 	if err != nil {
 		os.Stderr.WriteString(self + ": " + err.Error() + "\n")
 		os.Exit(2)
 	}
-	os.Exit(density.Run(self, os.Args[1:], cwd, cfg, os.Stdout, os.Stderr))
+	os.Exit(voicecheck.Run(self, os.Args[1:], cwd, cfg, os.Stdout, os.Stderr))
 }

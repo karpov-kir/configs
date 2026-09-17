@@ -82,7 +82,7 @@ var refusals = []refusal{
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh"},
 	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
 	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
-	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh", args: []string{"--nope"}},
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh"},
 	{stub: "ai/kk-flavor/skills/kk-reduce/scripts/stats.sh", args: []string{"--agent=claude", "one", "two"}},
 	{stub: "ai/kk-flavor/workers/refactor/dup-literals.sh", args: []string{"--nope"}},

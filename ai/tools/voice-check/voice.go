@@ -8,7 +8,7 @@
 //
 // Deterministic, so two runs over one text print one report and a finding can be allowlisted by its
 // exact matched text.
-package density
+package voicecheck
 
 import (
 	"errors"
