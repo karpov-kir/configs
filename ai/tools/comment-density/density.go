@@ -114,7 +114,11 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 // The default mode counts a file's added lines alone, so its blocks stay at zero; the bar counts whole
 // files, blocks included.
 type stats struct {
-	comments   int
+	comments int
+	// prose is the comment lines carrying words. A `/**`, a `*/` and a doc tag line are comment lines
+	// a reader pays for, so they count in comments; they carry no sentence, so a block's LENGTH is
+	// measured without them.
+	prose      int
 	code       int
 	blocks     int
 	longBlocks int
@@ -145,6 +149,7 @@ func (s stats) longShare() float64 {
 
 func (s *stats) add(other stats) {
 	s.comments += other.comments
+	s.prose += other.prose
 	s.code += other.code
 	s.blocks += other.blocks
 	s.longBlocks += other.longBlocks
@@ -230,10 +235,10 @@ func notThisRepositorysSource(file string) bool {
 	return isProseOrData(file) || isFixture(file)
 }
 
-// isFixture is Go's own reserved directory for a test's material. A file under it is another
-// repository's source copied in to be read by a test, so counting it measures that repository through
-// this one: the voice check's host corpus alone is 131 TypeScript files, and a `--bar` run that read
-// them would hold this repo's Go and shell to a foreign language's comment rate. Matched as a path
+// isFixture is Go's own reserved directory for a test's material. A file under it is written to be
+// read by a test rather than to be this repository's source, and it is routinely in another language
+// — so counted, it measures the fixture through the repository. A handful of TypeScript fixtures is
+// enough to hold a Go and shell repository to a foreign language's comment rate. Matched as a path
 // segment, so `testdata/` at any depth is skipped.
 func isFixture(file string) bool {
 	return file == "testdata" || strings.HasPrefix(file, "testdata/") || strings.Contains(file, "/testdata/")

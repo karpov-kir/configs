@@ -6,15 +6,19 @@
 // `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. The repository's own copy comes before
 // the machine's because a coined word is a property of the codebase, not of who is typing.
 //
-// A missing file is not an error: the scan runs with no coined words and no allowlist, which is the
-// setting every repository starts at.
+// No conf on the search path is not an error: the scan runs with no coined words and no allowlist,
+// which is the setting every repository starts at. A conf NAMED by COMMENT_VOICE_CONF and then absent
+// is an error, because the caller asked for a file and did not get it.
 package density
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"kk-flavor/tools/shell"
 )
@@ -56,44 +60,102 @@ func (a allowlist) covers(f Finding) bool {
 	return false
 }
 
-// voiceConfig reads the conf, returning the coined words and the allowlist. A conf that does not parse
-// refuses the run: a scan that silently ignored half its own allowlist would report findings a human
-// already answered, and the writer would learn to ignore the report.
-func voiceConfig(cwd string) ([]string, allowlist, error) {
-	path, ok := voiceConfPath(cwd)
-	if !ok {
-		return nil, nil, nil
+// The conf is a settings file, not a corpus. A file over this is not one somebody typed.
+const maxVoiceConfBytes = 64 * 1024
+
+// Where a conf came from, so a run can say which one answered. A conf shipped by the tree under review
+// and a conf the operator set on their own machine carry different weight, and a reader of the report
+// cannot tell them apart from a path alone.
+const (
+	confNamed      = "named by COMMENT_VOICE_CONF"
+	confRepository = "shipped by this working tree"
+	confMachine    = "this machine's"
+)
+
+// voiceConfig reads the conf, returning the coined words, the allowlist, a phrase naming what answered,
+// and nothing at all where no conf exists. A conf that does not parse refuses the run: a scan that
+// silently ignored half its own allowlist would report findings a human already answered.
+//
+// Present-but-unusable refuses rather than falling back. A dangling symlink, a directory or an
+// unreadable file at either path would otherwise leave the scan running with no coined words and no
+// allowlist, reporting clean — and a default quietly restored is indistinguishable from the override
+// working (ecosystem.md → Conventions a new file joins).
+//
+// One Lstat decides both selection and validity. Split across two calls, the tree under review could
+// ship a symlink that passes selection and fails validation, which refuses the run and takes the
+// machine's own conf out of reach — a branch disabling the check for anyone who reads it.
+func voiceConfig(cwd string) ([]string, allowlist, string, error) {
+	path, origin, found := voiceConfPath(cwd)
+	if !found {
+		return nil, nil, "", nil
 	}
-	body, err := os.ReadFile(path)
+	named := shell.CutBytesMarked(shell.Oneline(path), maxPathBytes)
+	refuse := func(why string) ([]string, allowlist, string, error) {
+		return nil, nil, "", fmt.Errorf("%s (%s) %s — exit 2, the scan did NOT run", named, origin, why)
+	}
+	info, err := os.Lstat(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read %s — exit 2, the scan did NOT run",
-			shell.CutBytesMarked(shell.Oneline(path), maxPathBytes))
+		return refuse("is not there")
 	}
-	coined, allowed, err := parseVoiceConf(string(body))
+	if !info.Mode().IsRegular() {
+		return refuse("is not a regular file this scan will read")
+	}
+	body, err := readCapped(path, maxVoiceConfBytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w — exit 2, the scan did NOT run",
-			shell.CutBytesMarked(shell.Oneline(path), maxPathBytes), err)
+		return refuse(err.Error())
 	}
-	return coined, allowed, nil
+	coined, allowed, err := parseVoiceConf(body)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("%s (%s): %w — exit 2, the scan did NOT run", named, origin, err)
+	}
+	return coined, allowed, origin + " " + named, nil
 }
 
-func voiceConfPath(cwd string) (string, bool) {
-	if named, set := os.LookupEnv("COMMENT_VOICE_CONF"); set && named != "" {
-		return named, true
+// readCapped reads a file and refuses one that is larger than the cap. The cap is enforced on the READ
+// rather than on the size Lstat reported: a file can grow between the two, and on some systems a
+// special file reports a size it does not have.
+func readCapped(path string, cap int64) (string, error) {
+	handle, err := os.Open(path)
+	if err != nil {
+		return "", errors.New("cannot be read")
 	}
-	if repo := shell.Join(shell.Join(cwd, ".kk-flavor"), voiceConfName); shell.IsRegularFile(repo) {
-		return repo, true
+	defer handle.Close()
+	body, err := io.ReadAll(io.LimitReader(handle, cap+1))
+	if err != nil {
+		return "", errors.New("cannot be read")
+	}
+	if int64(len(body)) > cap {
+		return "", errors.New("is larger than a settings file")
+	}
+	return string(body), nil
+}
+
+// voiceConfPath says which conf answers and where it came from. A path named by the environment is
+// always "found": the caller asked for that file, so its absence is a refusal rather than a fallback.
+// The two searched paths are probed with Lstat, so a dangling symlink counts as present and is refused
+// by the caller rather than skipped over in silence.
+func voiceConfPath(cwd string) (path, origin string, found bool) {
+	if named, set := os.LookupEnv("COMMENT_VOICE_CONF"); set && named != "" {
+		return named, confNamed, true
+	}
+	if repo := shell.Join(shell.Join(cwd, ".kk-flavor"), voiceConfName); exists(repo) {
+		return repo, confRepository, true
 	}
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", false
+			return "", "", false
 		}
 		base = shell.Join(home, ".config")
 	}
 	machine := shell.Join(shell.Join(base, "kk-flavor"), voiceConfName)
-	return machine, shell.IsRegularFile(machine)
+	return machine, confMachine, exists(machine)
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }
 
 // parseVoiceConf reads two line shapes:
@@ -111,6 +173,13 @@ func parseVoiceConf(body string) ([]string, allowlist, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		// Refused before anything is built from it. A coined word is interpolated into a regular
+		// expression, and Go's regexp rejects invalid UTF-8 — reached through MustCompile that is a
+		// panic printing the conf's own bytes and a stack trace of absolute host paths, which undoes
+		// the whole point of refusing without echoing the file.
+		if !utf8.ValidString(line) {
+			return nil, nil, fmt.Errorf("line %d is not valid UTF-8", number+1)
+		}
 		keyword, rest, _ := strings.Cut(line, " ")
 		rest = strings.TrimSpace(rest)
 		switch keyword {
@@ -126,8 +195,7 @@ func parseVoiceConf(body string) ([]string, allowlist, error) {
 			}
 			allowed = append(allowed, entry)
 		default:
-			return nil, nil, fmt.Errorf("line %d starts with %q, which is neither `coined` nor `allow`",
-				number+1, shell.CutBytesMarked(shell.Oneline(keyword), 40))
+			return nil, nil, fmt.Errorf("line %d starts with a word that is neither `coined` nor `allow`", number+1)
 		}
 	}
 	return coined, allowed, nil
@@ -139,17 +207,17 @@ func parseAllowLine(rest string, number int) (allowEntry, error) {
 		return allowEntry{}, fmt.Errorf("line %d allows nothing: an entry is `allow <check> <matched text> # <reason>`", number)
 	}
 	if !slices.Contains(AllChecks, check) {
-		return allowEntry{}, fmt.Errorf("line %d allows check %q, which is not one this scan runs. Checks: %s",
-			number, shell.CutBytesMarked(shell.Oneline(check), 40), strings.Join(AllChecks, " "))
+		return allowEntry{}, fmt.Errorf("line %d allows a check this scan does not run. Checks: %s",
+			number, strings.Join(AllChecks, " "))
 	}
 	text, reason, hasReason := strings.Cut(remainder, " # ")
 	text = strings.TrimSpace(text)
 	reason = strings.TrimSpace(reason)
 	if text == "" {
-		return allowEntry{}, fmt.Errorf("line %d allows check %q with no matched text to match against", number, check)
+		return allowEntry{}, fmt.Errorf("line %d allows a check with no matched text to match against", number)
 	}
 	if !hasReason || reason == "" {
-		return allowEntry{}, fmt.Errorf("line %d allows %q with no reason after ` # `; an entry with no reason is refused", number, check)
+		return allowEntry{}, fmt.Errorf("line %d allows a check with no reason after ` # `; an entry with no reason is refused", number)
 	}
 	return allowEntry{check: check, text: text, reason: reason}, nil
 }

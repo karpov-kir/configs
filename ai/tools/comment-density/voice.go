@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
@@ -36,6 +38,16 @@ const (
 const (
 	maxFindings   = 500
 	maxMatchBytes = 120
+	// What a whole diff or body on stdin may be. Held apart from DENSITY_MAX_FILE_BYTES, which is a
+	// per-FILE number: a diff is many files, and `gh pr diff` over an ordinary change set is larger
+	// than any file in it. Read to a cap and TRUNCATED, a scan reports clean over the half it never
+	// saw — and git orders a diff by path, so padding an early file pushes a hostile one past the cut.
+	maxStdinBytes = 64 * 1024 * 1024
+	// The highest line number a hunk header may claim before the line is dropped. scanAdded sizes a
+	// slice by it, and on the `-` arm the header comes off a diff somebody else wrote: `@@ +10000000`
+	// for one added line measured 166 MB resident, and a 2^31 line number asks for tens of gigabytes.
+	// A source file reaching this many lines has other problems.
+	maxDiffLine = 1 << 20
 )
 
 // Profile is which text the scan reads and which checks apply to it.
@@ -92,7 +104,13 @@ var (
 	// after is the one that opens on the alternative in order to pre-refute it.
 	reRatherThan = regexp.MustCompile(`\brather than\b`)
 	reNeverNot   = regexp.MustCompile(`,\s+never\s+[a-z]|,\s+not\s+(?:a|an|the|its|his|her|their|our|your|[a-z]+s\b)`)
-	reInsteadOf  = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
+	// The same spine with the comma dropped and a conjunction in its place. "It is logged and not
+	// believed", "a survey and no verdict" — the reader is still being told about the thing they did
+	// not ask about.
+	reAndNot = regexp.MustCompile(`\s+and\s+(?:not|no)\s+(?:a|an|the|its|his|her|their|our|your|[a-z]+)`)
+	// What stands before the conjunction, asked whether it is already a negation.
+	reNegated   = regexp.MustCompile(`(?i)\b(?:no|not|never|nothing|nobody|none)\b`)
+	reInsteadOf = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
 
 	// A sentence opening on the wrong implementation, which the reader has to imagine before they can
 	// read the right one.
@@ -171,12 +189,36 @@ func sentenceSpans(text string) [][2]int {
 // star, so a sentence that starts a continuation line is read as starting a sentence.
 func stripMarker(raw string) string {
 	line := strings.TrimLeft(raw, shell.SpaceBytes)
-	for _, marker := range []string{"/**", "/*", "*/", "//", "*", "#"} {
+	for _, marker := range []string{"/**", "/*", "*/", "//", "#"} {
 		if strings.HasPrefix(line, marker) {
 			return strings.TrimSpace(line[len(marker):])
 		}
 	}
+	// A lone `*` is a continuation marker only where a space or the end of the line follows, which is
+	// the rule isComment applies. Stripped unconditionally, the `**Bold**` opening a starless line
+	// inside a `/* */` block becomes `*Bold**`: the bold check cannot fire and the echoed text is
+	// corrupt. The two have to agree, or a line counts as a comment and is then read as something else.
+	if rest, marked := continuation(line); marked {
+		return strings.TrimSpace(rest)
+	}
 	return line
+}
+
+// continuation reads a `*` or `*/` continuation marker, returning what follows it.
+func continuation(line string) (string, bool) {
+	rest := ""
+	switch {
+	case strings.HasPrefix(line, "*/"):
+		rest = line[2:]
+	case strings.HasPrefix(line, "*"):
+		rest = line[1:]
+	default:
+		return line, false
+	}
+	if rest == "" || rest[0] == ' ' || rest[0] == '\t' {
+		return rest, true
+	}
+	return line, false
 }
 
 // proseOf is stripMarker with the doc tags dropped, which is what a check reads. A `@param` line
@@ -195,26 +237,53 @@ type block struct {
 	end   int
 }
 
+// present says a line is one this scan actually holds. Over a whole file every line is; over the
+// sparse file scanChange reconstructs from a diff, only the added ones are, and the rest are gaps
+// standing in for text nobody handed us.
+//
+// The distinction is load-bearing twice over, and both ways it goes wrong quietly. A gap read as a
+// blank line makes every block in a diff look like a file header, because nothing but blanks stands
+// above it — and a header is allowed twice a block's length, so blocks of five to eight lines pass
+// unreported in the one mode that matters. A gap read as more of a `/*` run makes one reworded `/**`
+// swallow every later comment in the file into a single block, because the `*/` that would have
+// closed it is a line the diff never added.
+type present func(int) bool
+
+func wholeFile(int) bool { return true }
+
+func onlyAdded(within map[int]bool) present {
+	if within == nil {
+		return wholeFile
+	}
+	return func(at int) bool { return within[at] }
+}
+
 // commentBlocks groups adjacent comment lines. Mirrors bloat-judge's own grouping: inside a `/*` run
-// every line belongs to the block until one carries `*/`, whatever it starts with.
-func commentBlocks(lines []string) []block {
+// every line belongs to the block until one carries `*/`, whatever it starts with — except that a gap
+// ends the run here, since the line that would have closed it may be one the diff did not touch.
+func commentBlocks(lines []string) []block { return commentBlocksIn(lines, wholeFile) }
+
+func commentBlocksIn(lines []string, held present) []block {
 	var found []block
 	inBlock, inStar := false, false
 	for i, raw := range lines {
+		at := i + 1
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
 		switch {
+		case !held(at):
+			inBlock, inStar = false, false
 		case inStar:
-			found[len(found)-1].end = i + 1
+			found[len(found)-1].end = at
 			if strings.Contains(line, "*/") {
 				inStar, inBlock = false, false
 			}
 		case !isComment(line):
 			inBlock = false
 		case inBlock:
-			found[len(found)-1].end = i + 1
+			found[len(found)-1].end = at
 			inStar = opensStar(line)
 		default:
-			found = append(found, block{start: i + 1, end: i + 1})
+			found = append(found, block{start: at, end: at})
 			inBlock = true
 			inStar = opensStar(line)
 		}
@@ -229,9 +298,13 @@ func opensStar(line string) bool {
 // isFileHeader says this block opens the file: nothing but blank lines stands above it. A block two
 // lines down from an import is not a header, and giving it the header's allowance would let every
 // block in a file claim eight lines by sitting near the top.
-func (b block) isFileHeader(lines []string) bool {
+//
+// A line above that this scan does not hold refuses the claim rather than passing it. Over a diff we
+// cannot see what stands there, and the header allowance is twice a block's, so a guess in the
+// generous direction is the whole check going quiet.
+func (b block) isFileHeader(lines []string, held present) bool {
 	for at := 1; at < b.start; at++ {
-		if strings.TrimSpace(lines[at-1]) != "" {
+		if !held(at) || strings.TrimSpace(lines[at-1]) != "" {
 			return false
 		}
 	}
@@ -264,6 +337,18 @@ type scanner struct {
 	profile Profile
 	coined  []string
 	allowed allowlist
+	// suppressed counts what the allowlist dropped. A finding answered by an entry is still a finding
+	// the text carried, and a report that said nothing about it would read as text that matched nothing.
+	suppressed *int
+	// notice writes a line to the run's stderr. A file this scan declines to read has to say so, or
+	// the report claims a denominator it never covered. Nil in a caller that only wants the findings.
+	notice func(string)
+}
+
+func (s scanner) announce(line string) {
+	if s.notice != nil {
+		s.notice(line)
+	}
 }
 
 // segment is one run of text a check reads whole, with the line every byte of it came from. A comment
@@ -276,8 +361,9 @@ type segment struct {
 }
 
 // join builds a segment out of the lines from..to, taking each line's words through strip and putting
-// a single space between them. The space is a byte of the segment too, and it belongs to the line it
-// follows, so a match landing on it reports the line the sentence continues onto.
+// a single space between them. The space is a byte of the segment too, and it is attributed to the
+// line it precedes, so a match starting at the seam reports the line the sentence continues onto
+// rather than the one it left.
 func join(lines []string, from, to int, strip func(string) string) segment {
 	var seg segment
 	var b strings.Builder
@@ -317,36 +403,34 @@ func (seg segment) lineSpan(from, to int) (int, int) {
 	return first, last
 }
 
-// scanSource reads a source file's comment blocks. Findings whose lines lie outside `within` are
-// dropped where `within` is non-nil, which is how the comment profile reports only what a diff added.
-// A finding spanning several lines stays where any one of them was added: a sentence is the unit a
-// writer edits, and half of one is not a thing to report.
+// scanSource reads a source file's comment blocks. `within` is the set of lines this scan holds, nil
+// over a whole file; it scopes the scan by deciding what a block IS, so a block never reaches a check
+// carrying a line the diff did not add and nothing needs filtering afterwards.
 func (s scanner) scanSource(file string, lines []string, within map[int]bool) []Finding {
 	var found []Finding
-	for _, b := range commentBlocks(lines) {
-		if within != nil && !b.touches(within) {
-			continue
-		}
+	held := onlyAdded(within)
+	for _, b := range commentBlocksIn(lines, held) {
 		limit := voiceLongBlock
-		if b.isFileHeader(lines) {
+		if b.isFileHeader(lines, held) {
 			limit = voiceLongHeader
 		}
 		if n := b.textLines(lines); n > limit {
 			found = append(found, Finding{File: file, Line: b.start, Check: checkLongBlock,
 				Text: fmt.Sprintf("%d text lines, over %d", n, limit)})
 		}
-		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf), within)...)
+		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
 	}
-	return s.allowed.filter(found)
+	return s.filter(found)
 }
 
-func (b block) touches(within map[int]bool) bool {
-	for at := b.start; at <= b.end; at++ {
-		if within[at] {
-			return true
-		}
+// filter drops what the allowlist answers and counts it. A finding an entry answers is still a finding
+// the text carried, and a report saying nothing about it reads as text that matched nothing.
+func (s scanner) filter(found []Finding) []Finding {
+	kept := s.allowed.filter(found)
+	if s.suppressed != nil {
+		*s.suppressed += len(found) - len(kept)
 	}
-	return false
+	return kept
 }
 
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
@@ -363,7 +447,7 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 		if paragraph == 0 {
 			return
 		}
-		found = append(found, s.scanSegment(file, join(lines, paragraph, end, strings.TrimSpace), nil)...)
+		found = append(found, s.scanSegment(file, join(lines, paragraph, end, strings.TrimSpace))...)
 		paragraph = 0
 	}
 	for i, raw := range lines {
@@ -397,41 +481,61 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 		}
 	}
 	flush(len(lines))
-	return s.allowed.filter(found)
+	return s.filter(found)
 }
 
 // scanSegment is every check over one segment, and the only place a check runs. One function, so the
 // three profiles cannot drift into reading the same sentence differently.
-func (s scanner) scanSegment(file string, seg segment, within map[int]bool) []Finding {
+func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if seg.text == "" {
 		return nil
 	}
 	text := seg.text
 	var found []Finding
 	add := func(check string, from, to int) {
-		first, last := seg.lineSpan(from, to)
-		if within != nil && !spans(first, last, within) {
-			return
-		}
+		first, _ := seg.lineSpan(from, to)
 		found = append(found, Finding{File: file, Line: first, Check: check,
 			Text: strings.TrimSpace(text[from:to])})
 	}
 
-	// The coined check reads the segment as typed, and every other check reads it with its inline code
-	// spans blanked. A coined word inside backticks is an identifier built on the coined term, and that
-	// is the one thing a reader still has to have been in the room for.
+	// Every check reads the segment with its inline code spans blanked. Blanking replaces each span
+	// with as many spaces, so an offset into `prose` addresses the same byte of `text`, and every
+	// finding is echoed out of `text` so the writer reads what they typed.
 	//
-	// Blanking replaces each span with as many spaces, so an offset into `prose` addresses the same
-	// byte of `text`. Every finding is echoed out of `text`, so the writer reads what they typed.
+	// The comment profile is the exception, and only for `coined`: a coined word inside backticks
+	// there is an identifier built on the term, which is the rename the refactor lane owes. In a rule
+	// file or a body there are no identifiers, so a backticked word is a quoted literal — and a rule
+	// that names a coined word as a tell would otherwise report itself for naming it.
 	prose := reInlineCode.ReplaceAllStringFunc(text, func(span string) string {
 		return strings.Repeat(" ", len(span))
 	})
+	// A coined word is a codebase's invented vocabulary, so the check belongs where code and the text
+	// about a change are — not over a rule file, which is prose about writing and uses the ordinary
+	// English word a codebase may happen to have coined. A machine-level conf naming one project's
+	// terms would otherwise report every repository's rule files for using English.
+	coinedIn := prose
+	if s.profile == ProfileComment {
+		coinedIn = text
+	}
+	if s.profile == ProfileInstruction {
+		coinedIn = ""
+	}
 	for _, word := range s.coined {
-		for _, at := range coinedPattern(word).FindAllStringIndex(text, -1) {
-			add(checkCoined, at[0], at[1])
+		// Group 1 is the word itself; the pattern matches the characters either side of it so the
+		// boundary holds outside ASCII, and those are not part of what a reader is shown.
+		// Advanced to the end of the WORD rather than the end of the match. The pattern matches the
+		// characters either side of the word so the boundary holds outside ASCII, and a scan that
+		// resumed past them would swallow the separator — `rung rung` reporting once.
+		for from := 0; from < len(coinedIn); {
+			at := coinedPattern(word).FindStringSubmatchIndex(coinedIn[from:])
+			if at == nil {
+				break
+			}
+			add(checkCoined, from+at[2], from+at[3])
+			from += at[3]
 		}
 		if inIdentifier := coinedInIdentifier(word); inIdentifier != nil {
-			for _, at := range inIdentifier.FindAllStringIndex(text, -1) {
+			for _, at := range inIdentifier.FindAllStringIndex(coinedIn, -1) {
 				add(checkCoined, at[0], at[1])
 			}
 		}
@@ -447,6 +551,12 @@ func (s scanner) scanSegment(file string, seg segment, within map[int]bool) []Fi
 		for _, at := range re.FindAllStringIndex(prose, -1) {
 			add(checkContrast, at[0], at[1])
 		}
+	}
+	for _, at := range reAndNot.FindAllStringIndex(prose, -1) {
+		if reNegated.MatchString(prose[:at[0]]) {
+			continue
+		}
+		add(checkContrast, at[0], at[1])
 	}
 	for _, at := range reIntensifier.FindAllStringIndex(prose, -1) {
 		add(checkIntensifier, at[0], at[1])
@@ -469,16 +579,6 @@ func (s scanner) scanSegment(file string, seg segment, within map[int]bool) []Fi
 	return found
 }
 
-// spans says a finding reaches a line the diff added.
-func spans(first, last int, within map[int]bool) bool {
-	for at := first; at <= last; at++ {
-		if within[at] {
-			return true
-		}
-	}
-	return false
-}
-
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in
 // "Bring the choice to the human" or "String the calls together". Four letters is where the stem stops
 // being a word of its own — `Br`, `S`, `Cl`, `Sw` are not verbs, `Read`, `Count` and `Narrow` are.
@@ -495,21 +595,43 @@ func opensWithGerund(sentence string) bool {
 	return len(stem) >= 4 && !shortStems[stem] && !shortStems[strings.ToLower(match[0][:len(match[1])+3])]
 }
 
-// coinedPattern matches the word and anything built off it — `rung` also catches `rungs`, and `climb`
-// catches `climbs` and `climbing`, because a coined term is coined in every form it takes.
-func coinedPattern(word string) *regexp.Regexp {
-	return regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(word) + `[a-z]*\b`)
+// readAllCapped reads to the cap and REFUSES at it. io.LimitReader alone returns a short read with a
+// nil error, so a caller cannot tell a complete stream from a cut one, and the scan reports a clean
+// result over what it never saw. Reading one byte past the cap is what makes the two distinguishable.
+func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(from, cap+1))
+	if err != nil {
+		return nil, errors.New("could not be read")
+	}
+	if int64(len(body)) > cap {
+		return nil, fmt.Errorf("is larger than %d bytes, and a scan over part of it would report clean over the rest", cap)
+	}
+	return body, nil
 }
 
-// coinedInIdentifier matches the word as a camelCase segment: `playedRung`, `StreamRung`,
-// `readSoleRungDeclaring`. A coined term that became an identifier is the same word the reader does
-// not share, and the rename is what carries it away. Written as its own pattern because Go's regexp
-// has no lookbehind, so the segment's preceding lowercase run is matched rather than asserted.
+// coinedPattern matches the word and anything built off it — a coined noun also catches its plural,
+// and a coined verb its `-s` and `-ing` forms, because a term is coined in every shape it takes.
+func coinedPattern(word string) *regexp.Regexp {
+	// The word is captured, and its boundaries are matched rather than asserted, because Go's `\b` is
+	// an ASCII word boundary: a coined term opening on a letter outside ASCII has no boundary before
+	// it and `\b` never matches, so the pattern compiles and then finds nothing. A check that is
+	// silently inert is worse than one that refuses.
+	return regexp.MustCompile(`(?i)(?:^|[^\p{L}\p{N}_])(` + regexp.QuoteMeta(word) + `\p{L}*)(?:[^\p{L}\p{N}_]|$)`)
+}
+
+// coinedInIdentifier matches the word as a camelCase segment — `readSprocket`, `SprocketReader`,
+// `readSoleSprocketDeclaring`. A coined term that became an identifier is the same word the reader
+// does not share, and the rename is what carries it away. Written as its own pattern because Go's
+// regexp has no lookbehind, so the segment's preceding lowercase run is matched rather than asserted.
+//
+// The first character is taken as a rune. Taken as a byte, a coined word opening on a multi-byte one
+// leaves its trailing bytes orphaned, and regexp refuses a pattern holding invalid UTF-8.
 func coinedInIdentifier(word string) *regexp.Regexp {
 	if word == "" {
 		return nil
 	}
-	titled := strings.ToUpper(word[:1]) + word[1:]
+	first, size := utf8.DecodeRuneInString(word)
+	titled := string(unicode.ToUpper(first)) + word[size:]
 	return regexp.MustCompile(`\b[A-Za-z]*[a-z]` + regexp.QuoteMeta(titled) + `[A-Za-z]*\b`)
 }
 
@@ -539,34 +661,46 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 		args = args[1:]
 	}
 
-	coined, allowed, err := voiceConfig(cwd)
+	coined, allowed, conf, err := voiceConfig(cwd)
 	if err != nil {
 		return out.refuse(err)
 	}
-	s := scanner{profile: profile, coined: coined, allowed: allowed}
+	// A configuration that took effect says so, every run it changes. Silent, a conf a repository
+	// ships can allow every check and the run still reports `0 finding(s)` and `clean, which says the
+	// register was read` — a clean voice pass over text nothing read.
+	if conf != "" {
+		out.note("reading %s: %d coined word(s), %d allowlist entry(ies)",
+			shell.CutBytesMarked(shell.Oneline(conf), maxPathBytes), len(coined), len(allowed))
+	}
+	suppressed := 0
+	s := scanner{profile: profile, coined: coined, allowed: allowed, suppressed: &suppressed,
+		notice: func(line string) { out.note("%s", line) }}
+	over := scanned{conf: conf}
 
 	var found []Finding
 	if profile == ProfileComment {
-		found, err = s.scanChange(args, cwd, cfg)
+		found, err = s.scanChange(args, cwd, cfg, &over)
 	} else {
-		found, err = s.scanPaths(args, cwd, cfg)
+		found, err = s.scanPaths(args, cwd, cfg, &over)
 	}
 	if err != nil {
 		return out.refuse(err)
 	}
-	return reportVoice(out, profile, found)
+	over.suppressed = suppressed
+	return reportVoice(out, profile, found, over)
 }
 
 // scanChange reads the diff — git's, or one on stdin for a branch this checkout does not hold, which
 // is how the negative control runs over `gh pr diff`. Blocks are runs of ADDED comment lines, so the
-// scan needs no working tree: a block split by an untouched line is two blocks, which is what a
-// reviewer reading the diff sees too.
-func (s scanner) scanChange(args []string, cwd string, cfg Config) ([]Finding, error) {
+// scan needs no working tree: a block split by a line the diff did not touch is two blocks, which is
+// what a reviewer reading the diff sees too.
+func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
+	fromStdin := len(args) > 0 && args[0] == "-"
 	var diff []byte
 	var err error
-	if len(args) > 0 && args[0] == "-" {
-		if diff, err = io.ReadAll(os.Stdin); err != nil {
-			return nil, fmt.Errorf("could not read the diff on stdin — exit 2, the scan did NOT run")
+	if fromStdin {
+		if diff, err = readAllCapped(os.Stdin, maxStdinBytes); err != nil {
+			return nil, fmt.Errorf("the diff on stdin %v — exit 2, the scan did NOT run", err)
 		}
 	} else {
 		if err = diffscan.RefuseNonRevisions(args, cwd); err != nil {
@@ -577,83 +711,168 @@ func (s scanner) scanChange(args []string, cwd string, cfg Config) ([]Finding, e
 		}
 	}
 
-	// Added comment lines, per file, in the order the diff carries them.
-	type addedLine struct {
-		at   int
-		text string
-	}
-	byFile := map[string][]addedLine{}
-	var order []string
-	var result diffscan.Result
-	walkErr := result.WalkDiff(diff, func(a diffscan.AddedLine) {
-		if notThisRepositorysSource(a.File) || a.Line == 0 {
-			return
-		}
-		if _, seen := byFile[a.File]; !seen {
-			order = append(order, a.File)
-		}
-		byFile[a.File] = append(byFile[a.File], addedLine{at: a.Line, text: a.Text})
-	})
-	if walkErr != nil {
-		return nil, fmt.Errorf("the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.", walkErr)
+	added := newAddedLines()
+	if err := s.readDiff(added, diff); err != nil {
+		return nil, err
 	}
 
 	// The untracked half runs only with no revisions and no diff on stdin, the way the default mode's
 	// does: with revisions the caller named two commits, and a file in neither of them is not part of
 	// what they asked about. A new file is the commonest place a new comment lands, so a voice scan
 	// that skipped it would report clean over the change most worth reading.
-	fromStdin := len(args) > 0 && args[0] == "-"
 	named, _ := diffscan.RevisionsNamed(args)
 	if !fromStdin && len(named) == 0 {
-		untracked := func(a diffscan.AddedLine) {
-			if notThisRepositorysSource(a.File) || a.Line == 0 {
-				return
-			}
-			if _, seen := byFile[a.File]; !seen {
-				order = append(order, a.File)
-			}
-			byFile[a.File] = append(byFile[a.File], addedLine{at: a.Line, text: a.Text})
-		}
-		if err := result.WalkUntracked(cwd, diffscan.Options{MaxFileBytes: cfg.MaxFileBytes}, untracked); err != nil {
-			return nil, errors.New("could not list untracked files — exit 2, the scan did NOT run over them.")
+		if err := s.readUntracked(added, cwd, cfg); err != nil {
+			return nil, err
 		}
 	}
+	over.files = len(added.order)
+	over.declined = len(added.declined)
+	return s.scanAdded(added), nil
+}
 
+// addedLines is what a diff or an untracked walk contributed, per file, in the order the files
+// arrived. Held apart from the scan so the two arms fill one structure and the scan reads it once.
+type addedLines struct {
+	byFile   map[string][]addedLine
+	order    []string
+	declined map[string]bool
+}
+
+type addedLine struct {
+	at   int
+	text string
+}
+
+func newAddedLines() *addedLines {
+	return &addedLines{byFile: map[string][]addedLine{}, declined: map[string]bool{}}
+}
+
+// declineOnce records a file this scan will not read and says so, the first time only. A diff carries
+// many lines of one file, and a notice per line would bury the report it belongs to.
+func (a *addedLines) declineOnce(file string, say func()) {
+	if a.declined[file] {
+		return
+	}
+	a.declined[file] = true
+	say()
+}
+
+func (a *addedLines) take(file string, at int, text string) {
+	if _, seen := a.byFile[file]; !seen {
+		a.order = append(a.order, file)
+	}
+	a.byFile[file] = append(a.byFile[file], addedLine{at: at, text: text})
+}
+
+// skip says whether this file is one the scan reads at all. A line number past the cap is dropped on
+// its own: scanAdded sizes a slice by the highest one, and on the `-` arm that number comes off a diff
+// somebody else wrote.
+func (s scanner) skip(a *addedLines, line diffscan.AddedLine, result *diffscan.Result) bool {
+	if notThisRepositorysSource(line.File) {
+		return true
+	}
+	// Both ends. The ceiling bounds what scanAdded allocates; the floor catches a hunk header whose
+	// line number overflowed the counter that walks it, which arrives negative and would otherwise
+	// pass the ceiling and index a zero-length slice.
+	//
+	// A line refused here is ANNOUNCED and counted, never dropped quietly. Dropped, one crafted hunk
+	// header takes a file out of the scan and the run still closes on "clean, which says the register
+	// was read" — the tool asserting it read what it discarded.
+	if line.Line < 1 || line.Line > maxDiffLine {
+		a.declineOnce(line.File, func() {
+			s.announce(fmt.Sprintf("skipping '%s' — its diff claims line %d, which is outside the range this scan reads; it was NOT scanned.",
+				shell.CutBytesMarked(shell.Oneline(line.File), maxPathBytes), line.Line))
+		})
+		return true
+	}
+	// This scan echoes file CONTENT — up to 120 bytes of it per finding — so it takes the guard
+	// dup-literals takes and not the one the default density mode takes: that one reports paths and
+	// counts, and a sentence out of a `.env` printed here reaches the orchestrator's transcript and
+	// any body drafted from it. The untracked arm gets the same guard from Options.
+	if !diffscan.SecretNamed(line.File) {
+		return false
+	}
+	a.declineOnce(line.File, func() {
+		result.SkippedUnread++
+		s.announce(diffscan.SecretSkipNotice(line.File))
+	})
+	return true
+}
+
+func (s scanner) readDiff(a *addedLines, diff []byte) error {
+	var result diffscan.Result
+	err := result.WalkDiff(diff, func(line diffscan.AddedLine) {
+		if !s.skip(a, line, &result) {
+			a.take(line.File, line.Line, line.Text)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.", err)
+	}
+	return nil
+}
+
+func (s scanner) readUntracked(a *addedLines, cwd string, cfg Config) error {
+	var result diffscan.Result
+	options := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes, SkipSecretNamed: true, Announce: s.announce}
+	err := result.WalkUntracked(cwd, options, func(line diffscan.AddedLine) {
+		if !s.skip(a, line, &result) {
+			a.take(line.File, line.Line, line.Text)
+		}
+	})
+	if err != nil {
+		return errors.New("could not list untracked files — exit 2, the scan did NOT run over them.")
+	}
+	return nil
+}
+
+// scanAdded reads each file as a sparse one: the added lines at their own numbers, and a gap standing
+// in for every line the diff did not carry. `within` is what tells a gap from a blank line the diff
+// really added, which decides where a block ends and whether one is a file header.
+func (s scanner) scanAdded(a *addedLines) []Finding {
 	var found []Finding
-	for _, file := range order {
-		added := byFile[file]
-		// A sparse file: the added lines at their own numbers, everything else blank. Blanks end a
-		// block, which is what makes an added run its own block.
+	for _, file := range a.order {
 		highest := 0
 		within := map[int]bool{}
-		for _, a := range added {
-			if a.at > highest {
-				highest = a.at
+		for _, line := range a.byFile[file] {
+			if line.at > highest {
+				highest = line.at
 			}
-			within[a.at] = true
+			within[line.at] = true
 		}
 		lines := make([]string, highest)
-		for _, a := range added {
-			lines[a.at-1] = a.text
+		for _, line := range a.byFile[file] {
+			lines[line.at-1] = line.text
 		}
 		found = append(found, s.scanSource(file, lines, within)...)
 	}
-	return found, nil
+	return found
+}
+
+// scanDiff is the diff half on its own, for a caller holding the bytes.
+func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
+	added := newAddedLines()
+	if err := s.readDiff(added, diff); err != nil {
+		return nil, err
+	}
+	return s.scanAdded(added), nil
 }
 
 // scanPaths reads the named files, or stdin for `-`. The prose profile's caller usually holds the
 // text rather than a path — a PR body being drafted — so stdin is the common form there.
-func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, error) {
+func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)
 	}
 	var found []Finding
 	for _, arg := range args {
 		if arg == "-" {
-			body, err := io.ReadAll(os.Stdin)
+			body, err := readAllCapped(os.Stdin, maxStdinBytes)
 			if err != nil {
-				return nil, fmt.Errorf("could not read stdin — exit 2, the scan did NOT run")
+				return nil, fmt.Errorf("stdin %v — exit 2, the scan did NOT run", err)
 			}
+			over.files++
 			found = append(found, s.scanProse("-", shell.SplitLines(string(body)))...)
 			continue
 		}
@@ -661,15 +880,22 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, er
 		if !strings.HasPrefix(path, "/") {
 			path = shell.Join(cwd, path)
 		}
+		// Asked before the read, so the cap bounds what is loaded and not merely what is scanned.
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("cannot read %s — exit 2, the scan did NOT run",
+				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
+		}
+		if info.Size() > cfg.MaxFileBytes {
+			return nil, fmt.Errorf("%s is over DENSITY_MAX_FILE_BYTES — exit 2, the scan did NOT run",
+				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
+		}
 		body, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read %s — exit 2, the scan did NOT run",
 				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
 		}
-		if int64(len(body)) > cfg.MaxFileBytes {
-			return nil, fmt.Errorf("%s is over DENSITY_MAX_FILE_BYTES — exit 2, the scan did NOT run",
-				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
-		}
+		over.files++
 		found = append(found, s.scanProse(arg, shell.SplitLines(string(body)))...)
 	}
 	return found, nil
@@ -677,7 +903,16 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, er
 
 // reportVoice prints the findings sorted, then a denominator on stderr. Sorted rather than in scan
 // order so two runs over one tree print one report and a diff of two runs is the change.
-func reportVoice(out console, profile Profile, found []Finding) int {
+// scanned is what a run covered, so an empty report can be told from an empty scan. diffscan's own
+// header states the rule: the denominator is contract, not decoration.
+type scanned struct {
+	files      int
+	declined   int
+	suppressed int
+	conf       string
+}
+
+func reportVoice(out console, profile Profile, found []Finding, over scanned) int {
 	sort.SliceStable(found, func(i, j int) bool {
 		if found[i].File != found[j].File {
 			return found[i].File < found[j].File
@@ -708,7 +943,15 @@ func reportVoice(out console, profile Profile, found []Finding) int {
 			parts = append(parts, fmt.Sprintf("%s %d", name, byCheck[name]))
 		}
 	}
-	out.note("%s profile: %d finding(s)%s.", profile, len(found), tally(parts))
+	out.note("%s profile: %d finding(s)%s over %d file(s), %d declined unread.",
+		profile, len(found), tally(parts), over.files, over.declined)
+	if over.suppressed > 0 {
+		out.note("%d finding(s) suppressed by the allowlist in %s.", over.suppressed, over.conf)
+	}
+	if over.files == 0 {
+		out.note("nothing reached the scan, so this run says nothing about the text.")
+		return exitClean
+	}
 	if len(found) == 0 {
 		out.note("clean, which says the register was read and matched nothing — not that the text was not read.")
 		return exitClean

@@ -20,22 +20,45 @@ import (
 // ratio: a set can sit under its ratio and still spend the whole allowance on one module header.
 const longBlockLines = 4
 
+// A file header states the call order, lifecycle and error modes a published surface owes, and the
+// rule allows it twice a block's length. voice.go holds the same two numbers.
+const longHeaderLines = 8
+
 // statsOf counts one file's whole content. A blank line ends a block: two comments with one between them
 // are two things a reader meets, not one.
+//
+// A block's LENGTH is its prose lines, while its share of the file is its comment lines. The two counts
+// differ on a `/**`, a `*/` and a doc tag line, and they differ on purpose: those lines cost the reader
+// a line of screen, so they belong in the density ratio, and they carry no sentence, so they are not
+// what "a block over four lines" is about. The voice check's own long-block test counts the same way —
+// one rule stated in one place would be better still, but two instruments disagreeing about which
+// blocks are long is the thing that cannot stand.
 func statsOf(content string) stats {
 	var counted stats
-	run := 0
+	run, prose, opensAt := 0, 0, 0
+	at := 0
+	seen := false
 	closeRun := func() {
 		if run == 0 {
 			return
 		}
 		counted.blocks++
-		if run > longBlockLines {
+		// A file header is allowed what the rule allows it, here as in the voice check. Held to a
+		// block's limit, this package's own eight-line headers count as long blocks while the voice
+		// check and code-style.md both allow them — one rule, two verdicts, which is the thing a
+		// single instrument may not do.
+		limit := longBlockLines
+		if !seen {
+			limit = longHeaderLines
+		}
+		if prose > limit {
 			counted.longBlocks++
 		}
-		run = 0
+		run, prose, opensAt = 0, 0, 0
+		_ = opensAt
 	}
 	for _, raw := range shell.SplitLines(content) {
+		at++
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
 		switch {
 		case line == "":
@@ -43,9 +66,14 @@ func statsOf(content string) stats {
 		case isComment(line):
 			counted.comments++
 			run++
+			if isProseLine(stripMarker(line)) {
+				prose++
+				counted.prose++
+			}
 		default:
 			counted.code++
 			closeRun()
+			seen = true
 		}
 	}
 	closeRun()
