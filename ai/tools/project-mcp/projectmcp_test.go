@@ -12,20 +12,37 @@ import (
 	"kk-flavor/tools/repo/repotest"
 )
 
-// Nothing here runs a client, a package manager or git. The servers come from this repository's own
-// `ai/mcp.jsonc` — the file that actually ships, so a case cannot agree with a fixture while the real
-// declaration stops mapping — and git is the port's fake, so the ignore cases arrange an answer
+// Nothing here runs a client, a package manager or git. Every case builds its own declaration under
+// its own temporary directory, and git is the port's fake, so the ignore cases arrange an answer
 // instead of building a repository to get one.
 //
-// `ai/mcp.jsonc` is outside this Go module, so the gate keys its `gotest` unit on it by name
-// (`ai/tools/gate/units.go`). Without that, editing the declaration leaves this suite answering
-// `(cached)` over a file it never read.
-const shippedConfigsDir = "../.."
+// The declaration this repository actually ships stays out of this package: it is outside the Go
+// module, and Go keys a package's test cache on the module, so a case here that read it would answer
+// `ok (cached)` over a file that had changed underneath the run — measured on 2026-09-17.
+// `ai/tools/shipped_mcp_declaration_test.go` reads it instead. `testing.md` rule 11.
+const declarationFixture = `// A declaration of this shape, not the one that ships.
+{
+  "mcpServers": {
+    "alpha": {
+      "type": "stdio",
+      "command": "@CONFIGS@/mcp-env.sh",
+      "args": ["npx", "-y", "@example/alpha", "--flag=a b", "$value é"]
+    },
+    "beta": {
+      "type": "stdio",
+      "command": "@CONFIGS@/mcp-env.sh",
+      "args": ["beta-server"]
+    }
+  }
+}
+`
 
-// The servers that declaration ships. Written out rather than read back from it: every other case
-// here derives its expectation from the file under test, so on their own they stay green while the
-// declaration empties out. This literal is what goes red on that edit.
-var shippedServers = []string{"playwright", "chrome-devtools"}
+// The servers that fixture declares, in document order.
+var fixtureServers = []string{"alpha", "beta"}
+
+// An argument only a managed server carries, so an uninstall case can tell one from the project's own
+// settings without naming a file format.
+const managedServerArgument = "@example/alpha"
 
 // A project of its own, with a home of its own, both under this case's temporary directory.
 //
@@ -49,15 +66,19 @@ func newProject(t *testing.T, agent string) *project {
 	// Non-ASCII and a space, because a project directory is a name from outside this system.
 	dir := filepath.Join(root, "project é "+agent)
 	home := filepath.Join(root, "home")
-	for _, made := range []string{dir, home} {
+	configs := filepath.Join(root, "configs")
+	for _, made := range []string{dir, home, configs} {
 		if err := os.MkdirAll(made, 0o755); err != nil {
 			t.Fatalf("building the fixture %s: %v", made, err)
 		}
 		refuseOutside(t, root, made)
 	}
+	if err := os.WriteFile(filepath.Join(configs, "mcp.jsonc"), []byte(declarationFixture), 0o644); err != nil {
+		t.Fatalf("building the declaration fixture: %v", err)
+	}
 	return &project{
 		t: t, root: root, dir: dir, home: home, agent: agent,
-		configs: shippedConfigsDir,
+		configs: configs,
 		// No repository by default: most projects a human points this at are one, but arranging git's
 		// answer is the ignore cases' subject and every other case would be keying on it by accident.
 		git: notARepository(),
@@ -165,7 +186,7 @@ func TestInstallExportsEveryPublicServerPortably(t *testing.T) {
 			t.Fatalf("exit %d, want 0\n%s", outcome.code, outcome.stderr)
 		}
 		text := p.read()
-		for _, name := range shippedServers {
+		for _, name := range fixtureServers {
 			if !strings.Contains(text, name) {
 				t.Errorf("%s is missing from the project config, which is the whole deliverable\n%s", name, text)
 			}
@@ -217,7 +238,7 @@ func TestUninstallLeavesWhatThisToolDidNotWrite(t *testing.T) {
 			t.Errorf("uninstalling took the project's own settings with it — this tool owns its servers and "+
 				"nothing else in the file\n%s", text)
 		}
-		if strings.Contains(text, "@playwright/mcp") {
+		if strings.Contains(text, managedServerArgument) {
 			t.Errorf("uninstalling left a managed server behind\n%s", text)
 		}
 		// And back again, because an uninstall that cannot be undone is a one-way door.
@@ -244,9 +265,9 @@ func withUnrelatedSetting(t *testing.T, p *project) string {
 func TestAServerAlreadyThereUnderAnotherDefinitionIsRefused(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
-		text := `{"mcpServers":{"playwright":{"command":"mine"}}}`
+		text := `{"mcpServers":{"alpha":{"command":"mine"}}}`
 		if p.agent == codexAgent {
-			text = "[mcp_servers.playwright]\ncommand = \"mine\"\n"
+			text = "[mcp_servers.alpha]\ncommand = \"mine\"\n"
 		}
 		p.writeConfigFile(text)
 
@@ -343,7 +364,7 @@ func TestUninstallRunsEvenWhereTheConfigIsIgnored(t *testing.T) {
 		if outcome := p.run("--uninstall"); outcome.code != exitDone {
 			t.Fatalf("uninstalling from an ignored config exited %d\n%s", outcome.code, outcome.stderr)
 		}
-		if strings.Contains(p.read(), "@playwright/mcp") {
+		if strings.Contains(p.read(), managedServerArgument) {
 			t.Errorf("the servers are still there\n%s", p.read())
 		}
 	})
@@ -383,18 +404,11 @@ func TestTheHomeDirectoryIsNotAProject(t *testing.T) {
 // the project against an absolute home — so a spelling that stays relative matches nothing and the
 // run writes a project server list straight into the home directory.
 //
-// Not parallel, because it is the working directory that makes `.` mean the home directory. The
-// declaration is named absolutely for the same reason: the shared fixture reaches it relatively, and
-// a run that could not find it would refuse for that instead and the case would pass either way.
+// Not parallel, because it is the working directory that makes `.` mean the home directory.
 func TestTheHomeDirectoryIsNotAProjectHoweverItIsSpelled(t *testing.T) {
-	configs, err := filepath.Abs(shippedConfigsDir)
-	if err != nil {
-		t.Fatalf("naming this repository's own declaration: %v", err)
-	}
 	for _, agent := range agents {
 		p := newProject(t, agent)
 		p.dir = "."
-		p.configs = configs
 		t.Chdir(p.home)
 
 		outcome := p.run()
@@ -413,22 +427,11 @@ func TestTheHomeDirectoryIsNotAProjectHoweverItIsSpelled(t *testing.T) {
 func TestThePrivateDeclarationIsNeverReadHere(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
-		configs := filepath.Join(p.root, "configs")
-		if err := os.MkdirAll(configs, 0o755); err != nil {
-			t.Fatalf("building the fixture: %v", err)
-		}
-		shipped, err := os.ReadFile(filepath.Join(shippedConfigsDir, "mcp.jsonc"))
-		if err != nil {
-			t.Fatalf("reading this repository's own declaration: %v", err)
-		}
-		if err = os.WriteFile(filepath.Join(configs, "mcp.jsonc"), shipped, 0o644); err != nil {
-			t.Fatalf("building the fixture: %v", err)
-		}
 		// Not valid JSON, so a run that reads it at all fails loudly rather than quietly copying it.
-		if err = os.WriteFile(filepath.Join(configs, "mcp.private.jsonc"), []byte("INVALID PRIVATE SECRET"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(p.configs, "mcp.private.jsonc"),
+			[]byte("INVALID PRIVATE SECRET"), 0o644); err != nil {
 			t.Fatalf("building the fixture: %v", err)
 		}
-		p.configs = configs
 
 		if outcome := p.run(); outcome.code != exitDone {
 			t.Fatalf("a private declaration beside the public one stopped the run: exit %d\n%s",

@@ -5,7 +5,7 @@
 #
 #   usage: install-project.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--uninstall] <project>
 #
-# The recipe is Go, in `ai/tools/project-install/`.
+# The recipe is Go, in `ai/tools/project-setup/`.
 #
 # tested by: the Go suite in ai/tools/project-setup/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail

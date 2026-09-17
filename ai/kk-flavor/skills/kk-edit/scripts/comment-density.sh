@@ -3,9 +3,10 @@
 # comment-heavy; with `--bar` it holds the whole change set to the host repo's own comment rate; with
 # `--voice` it reads the comments instead of counting them.
 #
-#   usage: comment-density.sh [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]
+#   usage: comment-density.sh [--bar | --voice [--profile=comment]] [<git-diff revisions>] [-- <paths>] | comment-density.sh --voice --profile=prose|instruction <path|->...
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
-#          exit 2, never scanned, and paths after `--` narrow the scan to them
+#          exit 2, never scanned, and paths after `--` narrow the scan to them; the prose and
+#          instruction profiles take their paths bare, and refuse a `--` as a path they cannot read
 #   env:   COMMENT_MAX_RATIO — flag above this comments/(comments+code) share of added lines (default 0.3)
 #          COMMENT_MIN_LINES — ignore files with fewer added comment lines than this (default 5)
 #          DENSITY_MAX_FILE_BYTES — skip a file larger than this unread: only untracked files in the

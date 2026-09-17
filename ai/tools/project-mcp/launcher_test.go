@@ -41,7 +41,7 @@ func TestTheLauncherReachesTheWrapperThroughAHomeFullOfShellSyntax(t *testing.T)
 	if outcome := p.run(); outcome.code != exitDone {
 		t.Fatalf("the install exited %d\n%s", outcome.code, outcome.stderr)
 	}
-	entry := installedEntry(t, p, shippedServers[0])
+	entry := installedEntry(t, p, fixtureServers[0])
 
 	command := exec.Command(entry.Command, entry.Args...)
 	command.Env = append(os.Environ(), "HOME="+home)
@@ -51,7 +51,7 @@ func TestTheLauncherReachesTheWrapperThroughAHomeFullOfShellSyntax(t *testing.T)
 			"home directory holding shell syntax is what breaks one.", err)
 	}
 
-	want := strings.Join(declaredArgs(t, shippedServers[0]), "\n") + "\n"
+	want := strings.Join(declaredArgs(t, p, fixtureServers[0]), "\n") + "\n"
 	if string(out) != want {
 		t.Errorf("the wrapper was reached with\n  %q\nand the declaration says\n  %q\nAn argument lost or "+
 			"split here is a server launched with something the human never wrote.", out, want)
@@ -78,18 +78,18 @@ func installedEntry(t *testing.T, p *project, name string) installedServer {
 	return entry
 }
 
-// What the shipped declaration says the server's own arguments are — read out of the file rather than
-// written out here, so the expectation follows the declaration instead of pinning a copy of it.
+// What the declaration says the server's own arguments are — read out of the file rather than written
+// out here, so the expectation follows the declaration instead of pinning a copy of it.
 //
 // Read from the declaration and NEVER from readPublicServers, whose answer is what this case is
 // measuring. Taken from there, the expectation moved with the mapping: dropping the `$0` word made
 // `sh` swallow the first argument, and the case agreed with the mapping about which arguments were
 // left.
-func declaredArgs(t *testing.T, name string) []string {
+func declaredArgs(t *testing.T, p *project, name string) []string {
 	t.Helper()
-	document, err := mcp.ReadDocument(filepath.Join(shippedConfigsDir, "mcp.jsonc"), mcp.ConfigsToken)
+	document, err := mcp.ReadDocument(filepath.Join(p.configs, "mcp.jsonc"), mcp.ConfigsToken)
 	if err != nil {
-		t.Fatalf("reading this repository's own declaration: %v", err)
+		t.Fatalf("reading the declaration fixture: %v", err)
 	}
 	for _, server := range document.Servers {
 		if server.Name != name {
@@ -103,6 +103,6 @@ func declaredArgs(t *testing.T, name string) []string {
 		}
 		return declared.Args
 	}
-	t.Fatalf("%s is not in this repository's own declaration", name)
+	t.Fatalf("%s is not in the declaration fixture", name)
 	return nil
 }

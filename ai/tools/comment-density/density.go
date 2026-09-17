@@ -45,9 +45,15 @@ const (
 // changes with how the binary was reached leaves it nothing stable to compare.
 const stubName = "comment-density.sh"
 
-// Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
-// refused where a revision belongs, and one after `--` narrows the scan to it.
-const usage = "usage: " + stubName + " [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]"
+// Every form the binary takes, in the order it takes them. Two forms and not one, because the prose
+// and instruction profiles read the files a caller names rather than a diff: their positional
+// arguments are paths, and a `--` among them is a path that cannot be read. Everywhere else the
+// pathspec half is real — a bare path is refused where a revision belongs, and one after `--` narrows
+// the scan to it.
+//
+// One line, because `stub_usage_test.go` holds it against the stub's own header byte for byte.
+const usage = "usage: " + stubName + " [--bar | --voice [--profile=comment]] [<git-diff revisions>] [-- <paths>] | " +
+	stubName + " --voice --profile=prose|instruction <path|->..."
 
 // console is the tool's name and its two streams. Findings go to stdout bare; a note on stderr opens
 // with the name, and nothing else in the package writes there. The default mode's denominator is a

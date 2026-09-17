@@ -168,9 +168,9 @@ func (g *gate) resolveRoot(root string) int {
 // is keyed on the MODULE, not on the package, so a file outside `ai/tools` is invisible to it — break
 // `ai/kk-flavor/standards/records.md` and a plain `go test` still says `ok (cached)`. Every case that
 // reads the checkout is gathered in the `ai/tools` root package for exactly that reason, so forcing
-// that one package closes the hole for those. It is not yet all of them: `mcp-sync` and `project-mcp`
-// read `ai/mcp.jsonc` from their own packages, and both were measured answering `ok (cached)` over an
-// edit to it on 2026-09-17. `testing.md` rule 11.
+// that one package closes the hole. No package under `ai/tools/` reads a file above it any more —
+// `mcp-sync` and `project-mcp` were the last two, and both were measured answering `ok (cached)` over
+// an edit to `ai/mcp.jsonc` on 2026-09-17. `testing.md` rule 11.
 //
 // The Go suite is two checks rather than one command chaining two runs. `./...` already holds the
 // root, so the forced run and the sweep were paying for the most expensive package in the module
