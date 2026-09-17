@@ -144,7 +144,7 @@ func (f *fixture) routerWordsFromCheck() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, &out, io.Discard)
+	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, ecocheck.InstalledBash{}, &out, io.Discard)
 	return firstSubmatch(checkRouterWords, out.String())
 }
 
@@ -153,7 +153,7 @@ func (f *fixture) checkOutput() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, &out, &out)
+	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, ecocheck.InstalledBash{}, &out, &out)
 	return out.String()
 }
 

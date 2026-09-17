@@ -122,7 +122,7 @@ func TestTheGateRefusalStillNamesGitsReasonUnderALongRoot(t *testing.T) {
 func refusalFrom(t *testing.T, git repo.Git, args ...string) string {
 	t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run(args, git, &output, &output); status != 2 {
+	if status := ecocheck.Run(args, git, noBash, &output, &output); status != 2 {
 		t.Fatalf("Run %q exited %d, so it wrote no refusal\n%s", args, status, indent(output.String()))
 	}
 	return output.String()

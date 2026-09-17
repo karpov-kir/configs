@@ -82,9 +82,9 @@ type checker struct {
 	// and found nothing, which is what exit 0 says — see exitCode.
 	unrunnable []string
 
-	// How the parse scan finds the bash binaries to fork. A field so a case can hand it an empty
-	// list; installedBashBinaries says why that needed a seam.
-	bashBinaries func() []string
+	// Where the parse scan reaches bash. It is the only thing here that forks, and bash.go says what a
+	// case gains by handing it something that does not.
+	bash Bash
 }
 
 // Run requires --agent=claude|codex and accepts an optional root and --gate in any order.
@@ -92,7 +92,7 @@ type checker struct {
 // and --gate narrows the walk to what a commit can carry (gate.go). It returns the process exit code:
 // 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan. A check that
 // did not run is not a clean one, which is why the last is not folded into either of the others.
-func Run(args []string, git repo.Git, out, errOut io.Writer) int {
+func Run(args []string, git repo.Git, bash Bash, out, errOut io.Writer) int {
 	agent, rest, err := ecoroot.AgentArgs(args)
 	if err != nil {
 		return refuseToRun(errOut, err.Error())
@@ -101,7 +101,7 @@ func Run(args []string, git repo.Git, out, errOut io.Writer) int {
 	if !ok {
 		return refuseToRun(errOut, "usage: check.sh --agent=claude|codex ["+gateFlag+"] [<root>]")
 	}
-	c, found := newChecker(root, agent, git)
+	c, found := newChecker(root, agent, git, bash)
 	if !found {
 		named := root
 		if named == "" {
@@ -144,7 +144,7 @@ func Run(args []string, git repo.Git, out, errOut io.Writer) int {
 
 // The root and the flag, in either order. Only the exact flag is a flag and everything else is a path,
 // because a root may legitimately be spelled `-r` and this tool opens the paths it is handed rather
-// than parsing them — TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption is that rule.
+// than parsing them — the dash-leading root in TestTheParseScanRunsARealBash is that rule.
 //
 // So a mistyped flag lands as the root and reports that no checkout is there, which is loud and never
 // a run that quietly went unfiltered. A second path is refused instead of overwriting the first: two
@@ -203,12 +203,12 @@ func (c *checker) cannotRun(reason string) {
 	c.unrunnable = append(c.unrunnable, reason)
 }
 
-func newChecker(root, agent string, git repo.Git) (*checker, bool) {
+func newChecker(root, agent string, git repo.Git, bash Bash) (*checker, bool) {
 	resolved, ok := ecoroot.New(root, agent)
 	if !ok {
 		return nil, false
 	}
-	return &checker{root: resolved, git: git, trees: map[string]*tree{}, bashBinaries: installedBashBinaries}, true
+	return &checker{root: resolved, git: git, bash: bash, trees: map[string]*tree{}}, true
 }
 
 func (c *checker) add(finding string) {

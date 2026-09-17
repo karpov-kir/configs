@@ -243,7 +243,7 @@ func TestTheFlagRefusesWhereGitCannotAnswer(t *testing.T) {
 	f.isolate()
 
 	var output bytes.Buffer
-	if status := ecocheck.Run([]string{"--agent=claude", "--gate", f.root}, f.git, &output, &output); status != 2 {
+	if status := ecocheck.Run([]string{"--agent=claude", "--gate", f.root}, f.git, f.bash, &output, &output); status != 2 {
 		f.t.Fatalf("expected exit 2 where git could not answer, got %d\n%s", status, indent(output.String()))
 	}
 	f.assertHolds("the refusal names what could not answer", output.String(), unanswerable)
@@ -259,7 +259,7 @@ func TestAnUnknownArgumentIsRefused(t *testing.T) {
 
 	for _, args := range [][]string{{"--tracked-only", f.root}, {f.root, f.root}} {
 		var output bytes.Buffer
-		if status := ecocheck.Run(append([]string{"--agent=claude"}, args...), f.git, &output, &output); status != 2 {
+		if status := ecocheck.Run(append([]string{"--agent=claude"}, args...), f.git, f.bash, &output, &output); status != 2 {
 			f.t.Errorf("expected exit 2 for %q, got %d\n%s", args, status, indent(output.String()))
 		}
 		f.assertHolds("the refusal names the usage", output.String(), gateUsage)
@@ -433,7 +433,7 @@ func assertGatedMatchesBare(t *testing.T, git *repotest.Fake, root string) {
 
 func runLines(t *testing.T, git *repotest.Fake, args ...string) []string {
 	t.Helper()
-	output := runChecker(t, git, append([]string{"--agent=claude"}, args...)...)
+	output := runChecker(t, git, newFakeBash(t), append([]string{"--agent=claude"}, args...)...)
 	var kept []string
 	for _, line := range strings.Split(strings.TrimRight(output, "\n"), "\n") {
 		if !strings.HasPrefix(line, "gate: ") {

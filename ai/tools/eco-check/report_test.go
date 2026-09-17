@@ -45,8 +45,7 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 
 	t.Run("shows a syntax error under a flood of its own priority tier", func(t *testing.T) {
 		f := newRoot(t)
-		f.write(f.root+"/kk-flavor/skills/broken.sh", "if then\n")
-		f.chmod(f.root+"/kk-flavor/skills/broken.sh", 0o755)
+		f.newUnparsableScript("broken.sh", "if then", unexpectedThen(1))
 		for i := 1; i <= 300; i++ {
 			path := fmt.Sprintf("%s/kk-flavor/skills/notexec%d.sh", f.root, i)
 			f.write(path, "#!/bin/sh\necho ok\n")
@@ -400,6 +399,7 @@ func TestACutFindingLineSaysThatItWasCut(t *testing.T) {
 func newGravestClassFlood(t *testing.T) *fixture {
 	t.Helper()
 	f := newRootWithSymlinkedFlavor(t)
+	f.bash.Refuse("if then\n", unexpectedThen(1))
 	for i := 1; i <= 120; i++ {
 		path := fmt.Sprintf("%s/kk-flavor/skills/broken%d.sh", f.root, i)
 		f.write(path, "if then\n")

@@ -73,6 +73,10 @@ type fixture struct {
 	// The repository --gate puts its one question to. Every fixture carries one so a case reaching for
 	// the flag needs no builder of its own; a bare run never asks it anything.
 	git *repotest.Fake
+
+	// The bash the parse scan reads its answers off. Every fixture carries one, so no case pays a fork
+	// for a script it wrote to be walked rather than to be parsed.
+	bash *ecocheck.FakeBash
 }
 
 // The least tree ecoroot.New accepts — `kk-flavor/` with `skills/` inside it, and nothing else.
@@ -93,13 +97,24 @@ func newBareRoot(t *testing.T) *fixture {
 func newFixture(t *testing.T, base string) *fixture {
 	t.Helper()
 	root := base + "/r"
-	return &fixture{t: t, base: base, root: root, git: repotest.New(root)}
+	return &fixture{t: t, base: base, root: root, git: repotest.New(root), bash: newFakeBash(t)}
+}
+
+// Two binaries, under names only this case uses. A script is parsed once per binary, so one name would
+// leave the per-binary loop unexercised; and scripts.go's memo is keyed on the binary and held for the
+// process, so a name two cases share lets one case's parses answer the other's.
+func newFakeBash(t *testing.T) *ecocheck.FakeBash {
+	t.Helper()
+	return ecocheck.NewFakeBash(t.Name()+"/bash-5", t.Name()+"/bash-3.2")
 }
 
 // What a case hands a run it expects to refuse before any scan. Nothing on that path asks a
-// repository anything, and a run that started to would panic here rather than pass on an answer the
-// case never arranged.
-var noRepository repo.Git
+// repository or a bash anything, and a run that started to would panic here rather than pass on an
+// answer the case never arranged.
+var (
+	noRepository repo.Git
+	noBash       ecocheck.Bash
+)
 
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
@@ -157,6 +172,15 @@ func (f *fixture) newScript(name, body string) {
 	if err := os.Chmod(path, 0o755); err != nil {
 		f.t.Fatalf("chmod %s: %v", path, err)
 	}
+}
+
+// A script that does not parse, and the lines `bash -n` refuses one with — each led by the script's own
+// path, and each becoming a finding of its own. Written as a table because the parse scan is the only
+// thing here that forks, and TestTheParseScanRunsARealBash is the one case that lets it.
+func (f *fixture) newUnparsableScript(name, body string, complaints ...string) {
+	f.t.Helper()
+	f.newScript(name, body)
+	f.bash.Refuse(body+"\n", complaints...)
 }
 
 func (f *fixture) newLaneWithScript() {
@@ -371,13 +395,13 @@ func (f *fixture) check() string {
 // Which spelling a caller used is not meant to change a finding, which is what those cases assert.
 func (f *fixture) checkWith(args ...string) string {
 	f.t.Helper()
-	return runChecker(f.t, f.git, append([]string{"--agent=claude"}, args...)...)
+	return runChecker(f.t, f.git, f.bash, append([]string{"--agent=claude"}, args...)...)
 }
 
-func runChecker(t *testing.T, git repo.Git, args ...string) string {
+func runChecker(t *testing.T, git repo.Git, bash ecocheck.Bash, args ...string) string {
 	t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run(args, git, &output, &output); status == 2 {
+	if status := ecocheck.Run(args, git, bash, &output, &output); status == 2 {
 		t.Fatalf("Run %v exited 2 — nothing was checked, so this case cannot be trusted\n%s", args, indent(output.String()))
 	}
 	return output.String()
@@ -425,7 +449,7 @@ func (f *fixture) refuses(needles ...string) string {
 	f.t.Helper()
 	f.isolate()
 	var output bytes.Buffer
-	if status := ecocheck.Run([]string{"--agent=claude", f.root}, f.git, &output, &output); status != 2 {
+	if status := ecocheck.Run([]string{"--agent=claude", f.root}, f.git, f.bash, &output, &output); status != 2 {
 		f.t.Fatalf("expected exit 2, got %d\n%s", status, indent(output.String()))
 	}
 	f.found(output.String(), needles...)
@@ -448,6 +472,17 @@ func (f *fixture) absent(output string, needles ...string) {
 			f.t.Errorf("expected no finding containing %q\n%s", needle, indent(output))
 		}
 	}
+}
+
+// What each of two checks of the same tree asked its bash for. The first is the control: a tree the
+// first run never parsed says nothing about what the second one skipped.
+func (f *fixture) parseCounts() (first, second int) {
+	f.t.Helper()
+	f.isolate()
+	f.check()
+	first = f.bash.Parses()
+	f.check()
+	return first, f.bash.Parses() - first
 }
 
 // The same two assertions against a second check of the same tree — what the run before it left

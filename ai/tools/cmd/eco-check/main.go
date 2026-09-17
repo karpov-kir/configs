@@ -13,5 +13,5 @@ import (
 )
 
 func main() {
-	os.Exit(ecocheck.Run(os.Args[1:], repo.Exec{}, os.Stdout, os.Stderr))
+	os.Exit(ecocheck.Run(os.Args[1:], repo.Exec{}, ecocheck.InstalledBash{}, os.Stdout, os.Stderr))
 }
