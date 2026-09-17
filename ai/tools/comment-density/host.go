@@ -84,7 +84,7 @@ func (h hostRepo) listSources(dir string, args ...string) ([]string, error) {
 	}
 	var paths []string
 	for _, name := range strings.Split(string(out), "\x00") {
-		if name != "" && !isProseOrData(name) {
+		if name != "" && !notThisRepositorysSource(name) {
 			paths = append(paths, name)
 		}
 	}
