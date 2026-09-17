@@ -44,7 +44,18 @@ type fixture struct {
 // measurement.
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
-	base := t.TempDir()
+	return rootUnder(t, t.TempDir())
+}
+
+// The same fixture under a root the case chose. Only the cases about a bounded message need one; see
+// shortRoot for why.
+func newShortRoot(t *testing.T) *fixture {
+	t.Helper()
+	return rootUnder(t, shortRoot(t))
+}
+
+func rootUnder(t *testing.T, base string) *fixture {
+	t.Helper()
 	f := &fixture{t: t, base: base, root: base + "/r"}
 	f.mkdirAll(f.root + "/kk-flavor/standards")
 	f.mkdirAll(f.root + "/kk-flavor/skills")
@@ -243,4 +254,22 @@ func indent(text string) string {
 		fmt.Fprintf(&out, "          %s\n", line)
 	}
 	return out.String()
+}
+
+// A fixture root short enough that the machine's own temp path cannot decide a case about a BOUNDED
+// message. `t.TempDir()` is about 140 bytes of ambient prefix on a macOS runner — `/var/folders/<two>/
+// <28 random>/T/<the test's own name>/001` — and around 60 on Linux, so where a 200-byte bound falls
+// is a property of the machine before it is a property of the code. Measured: the two cases below pass
+// on one macOS temp path and fail on another, with nothing else changed.
+//
+// `/tmp` rather than TMPDIR, because TMPDIR is exactly what is too long. Removed on the way out, like
+// t.TempDir's own.
+func shortRoot(t *testing.T) string {
+	t.Helper()
+	base, err := os.MkdirTemp("/tmp", "e")
+	if err != nil {
+		t.Fatalf("building a short fixture root: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	return base
 }

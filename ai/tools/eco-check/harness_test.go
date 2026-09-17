@@ -88,7 +88,29 @@ type fixture struct {
 // review.
 func newBareRoot(t *testing.T) *fixture {
 	t.Helper()
-	base := t.TempDir()
+	return bareRootUnder(t, t.TempDir())
+}
+
+// A fixture root short enough that the machine's own temp path cannot decide a case about a BOUNDED
+// message. `t.TempDir()` is about 140 bytes of ambient prefix on a macOS runner — `/var/folders/<two>/
+// <28 random>/T/<the test's own name>/001` — and around 60 on Linux, so where a 500-byte bound falls is
+// a property of the machine before it is a property of the code. Measured: the flag-name case below
+// passes on one macOS temp path and fails on another, with nothing else changed.
+//
+// `/tmp` rather than TMPDIR, because TMPDIR is exactly what is too long. Removed on the way out, like
+// t.TempDir's own.
+func newShortBareRoot(t *testing.T) *fixture {
+	t.Helper()
+	base, err := os.MkdirTemp("/tmp", "e")
+	if err != nil {
+		t.Fatalf("building a short fixture root: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	return bareRootUnder(t, base)
+}
+
+func bareRootUnder(t *testing.T, base string) *fixture {
+	t.Helper()
 	f := newFixture(t, base)
 	f.mkdirAll(f.root + "/kk-flavor/skills")
 	return f
@@ -118,7 +140,18 @@ var (
 
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
-	f := newBareRoot(t)
+	return flavoured(t, newBareRoot(t))
+}
+
+// The same tree under a root the case chose; only a case about a bounded message needs one, and
+// newShortBareRoot carries why.
+func newShortRoot(t *testing.T) *fixture {
+	t.Helper()
+	return flavoured(t, newShortBareRoot(t))
+}
+
+func flavoured(t *testing.T, f *fixture) *fixture {
+	t.Helper()
 	f.mkdirAll(f.root + "/kk-flavor/standards")
 	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n")
 	return f
