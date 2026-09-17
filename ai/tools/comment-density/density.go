@@ -118,7 +118,13 @@ type stats struct {
 	// prose is the comment lines carrying words. A `/**`, a `*/` and a doc tag line are comment lines
 	// a reader pays for, so they count in comments; they carry no sentence, so a block's LENGTH is
 	// measured without them.
-	prose      int
+	prose int
+	// notes is the prose lines after the first in each block. The first is the summary, and the rule
+	// requires one wherever a name leaves something to say and forbids it paying the bar — so counting
+	// it makes a mandate inflate the very number it is judged by. A module of small exported functions
+	// is summary-dense by construction, and a ceiling that counted them would charge it for the shape
+	// the rule asked for. Both sides are measured this way, so the comparison stays like for like.
+	notes      int
 	code       int
 	blocks     int
 	longBlocks int
@@ -126,11 +132,22 @@ type stats struct {
 
 func (s stats) total() int { return s.comments + s.code }
 
+// ratio is every comment line against the lines around it, which is what the default mode ranks: it
+// counts added lines and has no blocks, so it has no summary to tell from a note.
 func (s stats) ratio() float64 {
 	if s.total() == 0 {
 		return 0
 	}
 	return float64(s.comments) / float64(s.total())
+}
+
+// noteRatio is what the BAR compares: note lines against code, with summaries out of it on both sides.
+// Whole files, where a block is a thing and its first prose line is its summary.
+func (s stats) noteRatio() float64 {
+	if s.notes+s.code == 0 {
+		return 0
+	}
+	return float64(s.notes) / float64(s.notes+s.code)
 }
 
 func (s stats) meanBlock() float64 {
@@ -150,6 +167,7 @@ func (s stats) longShare() float64 {
 func (s *stats) add(other stats) {
 	s.comments += other.comments
 	s.prose += other.prose
+	s.notes += other.notes
 	s.code += other.code
 	s.blocks += other.blocks
 	s.longBlocks += other.longBlocks

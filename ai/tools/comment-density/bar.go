@@ -9,6 +9,7 @@ package density
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -34,11 +35,13 @@ const longHeaderLines = 8
 // one rule stated in one place would be better still, but two instruments disagreeing about which
 // blocks are long is the thing that cannot stand.
 func statsOf(content string) stats {
+	lines := shell.SplitLines(content)
 	var counted stats
-	run, prose, opensAt := 0, 0, 0
-	at := 0
+	run, prose := 0, 0
 	seen := false
-	closeRun := func() {
+	// past is the index just after the block that is closing, which is where the declaration it might
+	// sit on begins.
+	closeRun := func(past int) {
 		if run == 0 {
 			return
 		}
@@ -54,20 +57,29 @@ func statsOf(content string) stats {
 		if prose > limit {
 			counted.longBlocks++
 		}
-		run, prose, opensAt = 0, 0, 0
-		_ = opensAt
+		// Every prose line is a note, except the first of a block that sits on a declaration, which is
+		// its summary. The rule requires a summary wherever a name leaves something to say and forbids
+		// it paying the bar, so counting it would let a mandate inflate the number it is judged by — a
+		// module of small exported functions is summary-dense by construction. A block that sits on a
+		// statement has no summary to exempt, and its first line is a note like the rest.
+		notes := prose
+		if prose > 0 && sitsOnDeclaration(lines, past) {
+			notes--
+		}
+		counted.notes += notes
+		run, prose = 0, 0
 	}
-	for _, raw := range shell.SplitLines(content) {
-		at++
+	for i, raw := range lines {
+		at := i + 1
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
 		switch {
 		case isShebang(at, line):
 			// An interpreter directive is not a comment, here as in the voice check. It stands above
 			// the file header rather than displacing it, so `seen` stays false and the header below
 			// keeps the allowance the voice check gives it.
-			closeRun()
+			closeRun(i)
 		case line == "":
-			closeRun()
+			closeRun(i)
 		case isComment(line):
 			counted.comments++
 			run++
@@ -77,13 +89,41 @@ func statsOf(content string) stats {
 			}
 		default:
 			counted.code++
-			closeRun()
+			closeRun(i)
 			seen = true
 		}
 	}
-	closeRun()
+	closeRun(len(lines))
 	return counted
 }
+
+// sitsOnDeclaration says the block ending just before `from` is attached to a declaration: its next
+// non-blank line opens with a declaration keyword, is a name followed by `:`, is a name and parameter
+// list followed by a return type or a body, or ends in `{`.
+// A further comment line ends the search — a block with only another comment under it declares nothing.
+//
+// A heuristic, and shaped by the languages this tool reads. It will call some lines declarations that
+// are not, and miss some that are; what it decides is whether one line of a block is a summary or a
+// note, so a misjudgement moves the bar by one line either way.
+func sitsOnDeclaration(lines []string, from int) bool {
+	for at := from; at < len(lines); at++ {
+		line := strings.TrimSpace(lines[at])
+		if line == "" {
+			continue
+		}
+		if isComment(strings.TrimLeft(lines[at], shell.SpaceBytes)) {
+			return false
+		}
+		return reDeclaration.MatchString(line)
+	}
+	return false
+}
+
+var reDeclaration = regexp.MustCompile(
+	`^(?:export|func|type|const|let|var|class|interface|enum|public|private|protected|static|async|def|function|readonly)\b` +
+		`|^[A-Za-z_$][\w$]*\s*:` +
+		`|^[A-Za-z_$][\w$]*\s*\([^)]*\)\s*[:{]` +
+		`|\{\s*$`)
 
 type rate struct {
 	numerator   int
@@ -103,15 +143,25 @@ func (r rate) allowance(size int) int {
 
 // cutToRatio counts the comment lines that have to go. code is the fixed side: deleting comments never
 // moves it. A baseline of only comments runs at a rate nothing exceeds.
+// cutAcrossClasses sums each class's own overage against its own rate. One number over the whole set
+// would let a class under its rate pay for one over it, which is the averaging this change removes.
+func cutAcrossClasses(set changeSet, base baselines) int {
+	total := 0
+	for class, holds := range set.byClass {
+		total += cutToRatio(holds, base.forClass(class).stats)
+	}
+	return total
+}
+
 func cutToRatio(set, base stats) int {
 	if base.code == 0 {
 		return 0
 	}
-	allowed := rate{numerator: base.comments, denominator: base.code}.allowance(set.code)
-	if set.comments <= allowed {
+	allowed := rate{numerator: base.notes, denominator: base.code}.allowance(set.code)
+	if set.notes <= allowed {
 		return 0
 	}
-	return set.comments - allowed
+	return set.notes - allowed
 }
 
 // baseline is the host repo's own shape, measured over the files this change does not touch. ceiling is
@@ -121,6 +171,31 @@ type baseline struct {
 	stats   stats
 	ceiling float64
 	files   int
+}
+
+// classOf is the top-level directory a file sits in, and the population it is compared against. A
+// library file and a test suite are written to different rates by every repository that has both, so
+// one whole-repo number holds a library to a suite tree's density and asks it to cut what the comment
+// rule requires. The comparison is like with like or it is not a comparison.
+func classOf(rel string) string {
+	if at := strings.IndexByte(rel, '/'); at >= 0 {
+		return rel[:at]
+	}
+	return "."
+}
+
+// baselines is the repo's rate as a whole and per directory class. A class with no untouched file has
+// no rate of its own, and its files fall back to the whole — measured, never invented.
+type baselines struct {
+	whole   baseline
+	byClass map[string]baseline
+}
+
+func (b baselines) forClass(class string) baseline {
+	if own, ok := b.byClass[class]; ok && own.files > 0 && own.stats.code > 0 {
+		return own
+	}
+	return b.whole
 }
 
 func percentile(values []float64, p float64) float64 {
@@ -160,11 +235,19 @@ func (h hostRepo) measure(paths []string, visit func(rel string, file stats)) (t
 // carried are files this change touched but did not create. They stay in the baseline at their
 // pre-change content: that content is the repo's, and dropping it lets one edit to a comment-heavy file
 // lower the very rate the change is then held to.
-func (h hostRepo) measureBaseline(paths, carried []string, rev string) baseline {
+func (h hostRepo) measureBaseline(paths, carried []string, rev string) baselines {
 	ratios := make([]float64, 0, len(paths)+len(carried))
-	whole, _ := h.measure(paths, func(_ string, file stats) {
-		ratios = append(ratios, file.ratio())
-	})
+	perClass := map[string][]float64{}
+	classStats := map[string]stats{}
+	take := func(rel string, file stats) {
+		ratios = append(ratios, file.noteRatio())
+		class := classOf(rel)
+		perClass[class] = append(perClass[class], file.noteRatio())
+		holds := classStats[class]
+		holds.add(file)
+		classStats[class] = holds
+	}
+	whole, _ := h.measure(paths, take)
 	for _, rel := range carried {
 		content, ok := h.readCappedAt(rev, rel)
 		if !ok {
@@ -172,25 +255,37 @@ func (h hostRepo) measureBaseline(paths, carried []string, rev string) baseline 
 		}
 		file := statsOf(content)
 		whole.add(file)
-		ratios = append(ratios, file.ratio())
+		take(rel, file)
 	}
-	return baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)}
+	built := baselines{
+		whole:   baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)},
+		byClass: map[string]baseline{},
+	}
+	for class, values := range perClass {
+		built.byClass[class] = baseline{stats: classStats[class], ceiling: percentile(values, 0.9), files: len(values)}
+	}
+	return built
 }
 
 // perFileCeiling is the ratio a file new since the diff's base may not exceed on its own. A file the
 // repo already carried is not held to it: its density is the repo's own.
 type perFileCeiling struct {
 	isNew map[string]bool
-	ratio float64
+	base  baselines
 }
 
 func (c perFileCeiling) isOver(rel string, file stats) bool {
-	return c.isNew[rel] && file.ratio() > c.ratio
+	return c.isNew[rel] && file.noteRatio() > c.base.forClass(classOf(rel)).ceiling
+}
+
+func (c perFileCeiling) ratioFor(rel string) float64 {
+	return c.base.forClass(classOf(rel)).ceiling
 }
 
 type fileOverCeiling struct {
-	rel   string
-	ratio float64
+	rel     string
+	ratio   float64
+	ceiling float64
 }
 
 type changeSet struct {
@@ -206,11 +301,20 @@ type changeSet struct {
 	// comment-heavy file.
 	chargeable stats
 	read       int
+	// byClass is the set's own shape per directory class, so each part is held to the rate of the
+	// population it belongs to rather than to one number for the whole repository.
+	byClass map[string]stats
+	// untouched counts files this change touched without adding a comment line. Their blocks are the
+	// repository's, not the change's, so they are reported and never counted: one import edit to a
+	// comment-heavy file would otherwise bring its whole mass into the numerator.
+	untouched int
 }
 
 type fileMass struct {
 	rel      string
 	comments int
+	notes    int
+	code     int
 	// written is the share of this file's landed comment lines that this change wrote. Authorship is
 	// measured over the population being graded: a comment-only rewrite touches almost no code, so a
 	// whole-file share would call it inherited and charge nothing for a mass entirely the change's own.
@@ -220,9 +324,21 @@ type fileMass struct {
 
 func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) changeSet {
 	var set changeSet
-	set.stats, set.read = h.measure(paths, func(rel string, file stats) {
+	set.byClass = map[string]stats{}
+	_, set.read = h.measure(paths, func(rel string, file stats) {
+		// A file this change touched by no comment line contributes nothing. Its comments are the
+		// repository's and it is already in the baseline; counting it here charges the change for
+		// prose it did not write.
+		if !ceiling.isNew[rel] && authored[rel] == 0 {
+			set.untouched++
+			return
+		}
+		set.stats.add(file)
+		holds := set.byClass[classOf(rel)]
+		holds.add(file)
+		set.byClass[classOf(rel)] = holds
 		if ceiling.isOver(rel, file) {
-			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.ratio()})
+			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.noteRatio(), ceiling: ceiling.ratioFor(rel)})
 		}
 		// A file the change created carries no older line, and an untracked one has no diff to read at
 		// all, so its whole comment mass is this change's by construction rather than by counting.
@@ -235,7 +351,7 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, autho
 			code:     int(float64(file.code)*written + 0.5),
 		})
 		if file.comments > 0 {
-			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, written: written})
+			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, notes: file.notes, code: file.code, written: written})
 		}
 	})
 	return set
@@ -332,16 +448,16 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 	}
 	base := host.measureBaseline(without(tracked, changed), carried, baseRev)
 	// No baseline is refused, never defaulted: a number invented here reads exactly like one measured.
-	if base.files == 0 {
+	if base.whole.files == 0 {
 		return out.refuse(refusal("no file outside this change set carried countable lines, so the repo has no rate to hold it to"))
 	}
 	authored, err := host.authoredComments(revisions, changed)
 	if err != nil {
 		return out.refuse(err)
 	}
-	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling}, authored)
+	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, base: base}, authored)
 	out.note("%d changed source file(s), %d read, %d skipped unread; %d file(s) in the baseline.",
-		len(changed), set.read, len(changed)-set.read, base.files)
+		len(changed), set.read, len(changed)-set.read, base.whole.files)
 	if set.total() == 0 {
 		return out.refuse(refusal("no changed source file could be read, so this run says nothing about the change set"))
 	}
@@ -351,21 +467,36 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 // Exit 1 means over the bar, and the report says how many lines: a share tells nobody what to delete. At
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
-func (c console) reportBar(base baseline, set changeSet) int {
+func (c console) reportBar(base baselines, set changeSet) int {
 	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", toolBuild(), toolTree())
-	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
-		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
-	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
-		set.ratio()*100, set.comments, set.code, set.meanBlock(), set.longShare()*100, longBlockLines)
+	// Note lines, not comment lines: the first prose line of a block that sits on a declaration is its
+	// summary, and the rule requires one where a name leaves something to say and forbids it paying
+	// the bar. Both sides are measured the same way, so what the percentages compare is like with like.
+	fmt.Fprintf(c.stdout, "host repo: %.1f%% note lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
+		base.whole.stats.noteRatio()*100, base.whole.stats.meanBlock(), base.whole.stats.longShare()*100, longBlockLines, base.whole.files)
+	fmt.Fprintf(c.stdout, "change set: %.1f%% note lines (%d note / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
+		set.noteRatio()*100, set.notes, set.code, set.meanBlock(), set.longShare()*100, longBlockLines)
+	if set.untouched > 0 {
+		fmt.Fprintf(c.stdout, "not counted: %d changed file(s) this change added no comment line to\n", set.untouched)
+	}
+	// One line per class the change touches, so a reader can see which population each part was held
+	// to. Printed only where the change spans more than one, since otherwise it restates the line above.
+	for _, class := range set.classes() {
+		own := base.forClass(class)
+		holds := set.byClass[class]
+		if len(set.byClass) > 1 {
+			fmt.Fprintf(c.stdout, "  %s/: %.1f%% against %.1f%% (%d file(s) in that part of the baseline)\n",
+				shell.CutBytesMarked(shell.Oneline(class), maxPathBytes), holds.noteRatio()*100, own.stats.noteRatio()*100, own.files)
+		}
+	}
 
 	findings := len(set.over)
-	if cut := cutToRatio(set.stats, base.stats); cut > 0 {
+	cut := cutAcrossClasses(set, base)
+	if cut > 0 {
 		findings++
-		fmt.Fprintf(c.stdout, "over on lines: cut %d comment line(s) to reach %.1f%%\n", cut, base.stats.ratio()*100)
-	}
-	if cutToRatio(set.stats, base.stats) > 0 {
-		if owed := cutToRatio(set.chargeable, base.stats); owed > 0 {
-			fmt.Fprintf(c.stdout, "chargeable: %d comment line(s), in the files this change wrote\n", owed)
+		fmt.Fprintf(c.stdout, "over on lines: cut %d note line(s)\n", cut)
+		if owed := cutAcrossClasses(changeSet{byClass: chargeableByClass(set)}, base); owed > 0 {
+			fmt.Fprintf(c.stdout, "chargeable: %d note line(s), in the files this change wrote\n", owed)
 		} else {
 			fmt.Fprintf(c.stdout, "chargeable: nothing chargeable — the overage is in files this change did not write\n")
 		}
@@ -378,7 +509,7 @@ func (c console) reportBar(base baseline, set changeSet) int {
 				shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.comments, file.written*100, note)
 		}
 	}
-	if allowed := (rate{numerator: base.stats.longBlocks, denominator: base.stats.blocks}).allowance(set.blocks); set.longBlocks > allowed {
+	if allowed := (rate{numerator: base.whole.stats.longBlocks, denominator: base.whole.stats.blocks}).allowance(set.blocks); set.longBlocks > allowed {
 		findings++
 		fmt.Fprintf(c.stdout, "over on blocks: %d block(s) over %d lines against %d allowed\n", set.longBlocks, longBlockLines, allowed)
 	}
@@ -387,13 +518,38 @@ func (c console) reportBar(base baseline, set changeSet) int {
 			fmt.Fprintf(c.stdout, "… and %d further file(s) over the ceiling, not shown\n", len(set.over)-maxShown)
 			break
 		}
-		fmt.Fprintf(c.stdout, "%s: %.0f%% against a %.0f%% ceiling\n",
-			shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.ratio*100, base.ceiling*100)
+		// Its own test, and named as one: a file can sit under its class's rate and still be the
+		// densest file in it. "nothing chargeable" beside this line otherwise reads as a contradiction.
+		fmt.Fprintf(c.stdout, "%s: %.0f%% against a %.0f%% per-file ceiling\n",
+			shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.ratio*100, file.ceiling*100)
 	}
 	if findings == 0 {
 		return exitClean
 	}
 	return exitFound
+}
+
+// classes is the directory classes this change touches, in a fixed order so two runs over one tree
+// print one report.
+func (c changeSet) classes() []string {
+	names := make([]string, 0, len(c.byClass))
+	for class := range c.byClass {
+		names = append(names, class)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// chargeableByClass weights each class's mass by how much of it this change wrote, so the figure a
+// reader acts on is held to the same per-class rates as the overage it explains.
+func chargeableByClass(set changeSet) map[string]stats {
+	weighted := map[string]stats{}
+	for _, file := range set.mass {
+		holds := weighted[classOf(file.rel)]
+		holds.add(stats{notes: int(float64(file.notes)*file.written + 0.5), code: int(float64(file.code)*file.written + 0.5)})
+		weighted[classOf(file.rel)] = holds
+	}
+	return weighted
 }
 
 // Reported unknown rather than omitted: a line that vanishes with the identity leaves its absence

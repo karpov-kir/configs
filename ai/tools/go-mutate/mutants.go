@@ -980,6 +980,12 @@ var mutants = []mutant{
 		`return file == "testdata" || strings.HasPrefix(file, "testdata/") || strings.Contains(file, "/testdata/")`,
 		`return strings.Contains(file, "testdata")`},
 
+	{"bar: every block's first line is exempted, on a declaration or not", "../comment-density/bar.go", "./comment-density/", "TestOnlyABlockOnADeclarationHasASummaryToExempt",
+		"\t\tif prose > 0 && sitsOnDeclaration(lines, past) {", "\t\tif prose > 0 {"},
+	{"bar: no block's first line is exempted", "../comment-density/bar.go", "./comment-density/", "TestOnlyABlockOnADeclarationHasASummaryToExempt",
+		"\t\tif prose > 0 && sitsOnDeclaration(lines, past) {", "\t\tif prose > 0 && false {"},
+	{"bar: a comment below a block counts as the declaration it sits on", "../comment-density/bar.go", "./comment-density/", "TestWhatTheHeuristicReadsAsADeclaration",
+		"\t\tif isComment(strings.TrimLeft(lines[at], shell.SpaceBytes)) {\n\t\t\treturn false\n\t\t}", "\t\tif false {\n\t\t\treturn false\n\t\t}"},
 	{"bar: a shebang marks the file as begun and displaces its header", "../comment-density/bar.go", "./comment-density/", "TestAHeaderUnderAShebangKeepsTheHeadersAllowance",
 		"\t\t\t// keeps the allowance the voice check gives it.\n\t\t\tcloseRun()",
 		"\t\t\t// keeps the allowance the voice check gives it.\n\t\t\tcloseRun()\n\t\t\tseen = true"},

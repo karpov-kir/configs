@@ -111,7 +111,7 @@ func TestCutToRatioIsZeroWhenAlreadyUnder(t *testing.T) {
 // 100 code lines at 9 comments per 91 code allow 9 comment lines, so a set holding 50 cuts 41. The wrong
 // answer is 50 minus 9% of 150: the share of the total, where the bar wants the code that stays.
 func TestCutToRatioLeavesTheAllowanceAgainstTheCodeThatStays(t *testing.T) {
-	if cut := cutToRatio(stats{comments: 50, code: 100}, stats{comments: 9, code: 91}); cut != 41 {
+	if cut := cutToRatio(stats{notes: 50, code: 100}, stats{notes: 9, code: 91}); cut != 41 {
 		t.Fatalf("cut %d, want 41", cut)
 	}
 }
@@ -119,13 +119,13 @@ func TestCutToRatioLeavesTheAllowanceAgainstTheCodeThatStays(t *testing.T) {
 // At one comment per two code lines, 4 code lines allow exactly 2. Through ratio() as a float that is
 // 1.999…, which truncates to 1 and asks for one cut more than the bar needs.
 func TestCutToRatioUsesTheBaselinesOwnCounts(t *testing.T) {
-	if cut := cutToRatio(stats{comments: 3, code: 4}, stats{comments: 1, code: 2}); cut != 1 {
+	if cut := cutToRatio(stats{notes: 3, code: 4}, stats{notes: 1, code: 2}); cut != 1 {
 		t.Fatalf("cut %d, want 1", cut)
 	}
 }
 
 func TestCutToRatioCutsNothingAgainstABaselineWithoutCode(t *testing.T) {
-	if cut := cutToRatio(stats{comments: 50, code: 1}, stats{comments: 5, code: 0}); cut != 0 {
+	if cut := cutToRatio(stats{notes: 50, code: 1}, stats{notes: 5, code: 0}); cut != 0 {
 		t.Fatalf("a baseline of only comments cut %d", cut)
 	}
 }
@@ -755,5 +755,45 @@ func TestAHeaderUnderAShebangKeepsTheHeadersAllowance(t *testing.T) {
 	}
 	if counted := statsOf(eight + "# Line 9.\ncode\n"); counted.longBlocks != 1 {
 		t.Fatalf("a nine-line header under a shebang counted as %d long block(s); want 1", counted.longBlocks)
+	}
+}
+
+// One case each side of the declaration heuristic, which is what decides whether a block's first prose
+// line is its summary or a note. A summary is exempt because the rule requires one and forbids it
+// paying the bar; a note above a statement is charged like any other.
+func TestOnlyABlockOnADeclarationHasASummaryToExempt(t *testing.T) {
+	onDeclaration := statsOf("// Returns the total.\nexport function total() {}\n")
+	if onDeclaration.notes != 0 {
+		t.Errorf("a one-line summary above a declaration counted %d note(s); a summary does not pay the bar", onDeclaration.notes)
+	}
+	onStatement := statsOf("func f() {\n\t// The service rejects an empty body.\n\ttotal += 1\n}\n")
+	if onStatement.notes != 1 {
+		t.Errorf("a one-line note above a statement counted %d note(s); want 1", onStatement.notes)
+	}
+	// A multi-line block on a declaration keeps its notes and loses only the summary.
+	both := statsOf("// Returns the total.\n// The service rejects an empty body.\nexport function total() {}\n")
+	if both.notes != 1 {
+		t.Errorf("a summary and a note above a declaration counted %d note(s); want 1", both.notes)
+	}
+}
+
+// The shapes the heuristic reads as a declaration, and one it does not.
+func TestWhatTheHeuristicReadsAsADeclaration(t *testing.T) {
+	declarations := []string{"export function f() {}", "func f() {}", "type T struct {", "const a = 1",
+		"class C {", "interface I {", "bitrate: number;", "keepsRepresentation(a: Element): boolean;", "if (ok) {"}
+	for _, line := range declarations {
+		if !sitsOnDeclaration([]string{line}, 0) {
+			t.Errorf("%q was not read as a declaration", line)
+		}
+	}
+	statements := []string{"total += 1", "return total", "}", "await save()", "code()", "doThing(a, b)"}
+	for _, line := range statements {
+		if sitsOnDeclaration([]string{line}, 0) {
+			t.Errorf("%q was read as a declaration", line)
+		}
+	}
+	// A further comment below ends the search: a block with only a comment under it declares nothing.
+	if sitsOnDeclaration([]string{"// another block"}, 0) {
+		t.Error("a comment below was read as a declaration")
 	}
 }
