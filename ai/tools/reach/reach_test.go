@@ -1,6 +1,9 @@
 // Cases for the layer that puts a Go binary within reach of a checkout holding none: `resolve.sh`,
-// `source-stamp.sh` and `install.sh` beside this package, and the `# --- shared:tool-stub ---` region
-// every skill script carries to call the first of them.
+// `source-stamp.sh` and `install.sh` beside this package. The `# --- shared:tool-stub ---` region every
+// skill script carries to call the first of them is covered by `ai/tools/stub_reach_test.go` instead:
+// every one of those cases reads a stub outside `ai/tools`, and Go keys its test cache on the module,
+// so from here they would answer `ok (cached)` over a stub that moved. Nothing in this package reads
+// outside the module, which is what lets its cache entry be trusted.
 //
 // Those three stay shell and cannot become anything else. They run before there is a binary to run, so
 // a Go build of them could not execute until after it had executed. Their cases live here for the
@@ -12,8 +15,8 @@
 //
 // What that replaces: four shell suites, 280 assertions, 247 seconds and 1,887 commands, nearly all of
 // it fixture plumbing — a real `go build` per staleness case, a 22-tool release per install case, and a
-// process for each of the sourced-function rows. This package answers 127 cases in about 15 seconds and
-// 469 commands, counted through the same PATH shim.
+// process for each of the sourced-function rows. This package and the stub cases named above answer 127
+// cases in about 15 seconds and 469 commands, counted through the same PATH shim.
 //
 // The floor under that number is one launch per claim: what a script did on a machine shaped a
 // particular way can only be measured by running it there, and the rest of each launch's cost is the
