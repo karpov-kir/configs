@@ -3,10 +3,12 @@ package bloatjudge
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	modelpolicy "kk-flavor/tools/model-policy"
@@ -15,6 +17,12 @@ import (
 type Configuration struct {
 	Deadline   time.Duration
 	PolicyPath string
+	// OverridePath is where this machine's roll bound is set, from ResolveRollDeadline. Carried so a
+	// roll that times out can name it; empty when there is nowhere for an override to sit.
+	OverridePath string
+	// Progress is where a roll says it is still waiting. Nil is silent, which is what the suite and
+	// the eval want; the command passes stderr.
+	Progress io.Writer
 }
 type Configured struct {
 	Call          Caller
@@ -47,20 +55,70 @@ func Configure(configuration Configuration) (Configured, error) {
 	if provider == "codex" {
 		call = CodexCaller(configuration.Deadline, decision.Requested)
 	}
-	call = namingWhatChoseTheModel(call, configuration.PolicyPath)
+	call = namingTheFileThatDecides(call, configuration.PolicyPath, configuration.OverridePath)
+	call = announcingASlowRoll(call, configuration.Deadline, rollSilence, configuration.Progress)
 	return Configured{Call: call, Decision: decision, CacheIdentity: decision.PolicyDigest + "/" + decision.Client + "/" + decision.Requested.Model + "/" + decision.Requested.Effort}, nil
 }
 
-// namingWhatChoseTheModel puts the policy file into a refusal, since that is the one roll failure
-// whose repair is an edit to a file. A wrapper and not the caller constructors: they are handed a
-// model and never its source, and --config means the path is no constant to hard-code either.
-func namingWhatChoseTheModel(call Caller, policyPath string) Caller {
+// namingTheFileThatDecides puts a file into the two roll failures whose repair is an edit to one: the
+// name the provider would not run is in the policy, and the bound that cut a roll off is in the
+// override. Neither error can name its own file — the deadline reaches runBounded as a duration and
+// the model reaches it as a string in argv — so the naming happens once, here, where both paths are
+// in hand. A wrapper and not the caller constructors: they are handed a model and never its source,
+// and --config means neither path is a constant to hard-code.
+func namingTheFileThatDecides(call Caller, policyPath, overridePath string) Caller {
 	return func(prompt, view string) (string, error) {
 		reply, err := call(prompt, view)
 		var refused *ModelRefused
 		if errors.As(err, &refused) {
 			return "", fmt.Errorf("%w, which the bloat-judge task in %s names", err, policyPath)
 		}
+		// Only when there is a path to name. A machine with no absolute config home has nowhere an
+		// override could sit, and pointing at the empty string would be worse than the bare bound.
+		var cutOff *RollTimedOut
+		if errors.As(err, &cutOff) && overridePath != "" {
+			return "", fmt.Errorf("%w — raise it with a `%s <seconds>` line in %s, or run the judge over less at once",
+				err, overrideKey, overridePath)
+		}
+		return reply, err
+	}
+}
+
+// rollSilence is how long a roll may say nothing before it says it is still there. Measured
+// 2026-09-16: two runs stalled at about 343 seconds with nothing on either stream, which reads from
+// the outside exactly like the hang the deadline exists to end. A minute is well past the 19 to 45
+// seconds a roll takes when the provider is answering, so a healthy run stays silent.
+const rollSilence = time.Minute
+
+// announcingASlowRoll makes a stall visible while it happens rather than only in the error that ends
+// it, and names the bound, since a reader watching this is deciding whether to wait or to kill the
+// run. One decorator wraps the caller a vote then calls once per roll, so the lock is shared and the
+// lines cannot interleave; nil is silent, and the interval is a parameter so a case need not wait out
+// a real minute to see one line.
+func announcingASlowRoll(call Caller, deadline, silence time.Duration, progress io.Writer) Caller {
+	if progress == nil {
+		return call
+	}
+	var speaking sync.Mutex
+	return func(prompt, view string) (string, error) {
+		started, done := time.Now(), make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(silence)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					speaking.Lock()
+					fmt.Fprintf(progress, "bloat-judge: a roll is still waiting, %s of its %s\n",
+						time.Since(started).Round(time.Second), deadline)
+					speaking.Unlock()
+				}
+			}
+		}()
+		reply, err := call(prompt, view)
+		close(done)
 		return reply, err
 	}
 }

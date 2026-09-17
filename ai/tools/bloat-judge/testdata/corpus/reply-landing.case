@@ -1,0 +1,27 @@
+kind: reply
+cut: 12
+keep: 1 2 5 6 7 8 9 10 11
+---
+**Landed. `origin/main` is `9593c49`** — a fast-forward from `ca21c9c`, six commits.
+
+```bash
+git push --force-with-lease=main:9593c494 origin ca21c9ca:main
+```
+
+That is the undo, if you want it.
+
+**What landed:**
+
+- The judge answers your three questions: codex judges, a positive thinking cap is not a lever the CLI honours, and rolls load no client settings.
+- A prose unit is the markdown block, not the line — the mechanism that ate your paragraph — with a commit's subject and trailers shown but never offered.
+- `judge.go` 818 to 300 lines, split four ways; every file in the package under the bar.
+
+**Verification at the point it landed:** gate 49 units 0 failed, all 22 Go packages green, wiring clean, comment bar clear, and the eval re-run on the final tree.
+
+**One thing I had to do four times:** main moved under me at every step — 41 commits, then 10, then 8, then 3 while the gate was running. The last merge is the only one that did not get a full gate run; I ran build, vet and the three suites its files touched, and its content reaches nothing this branch owns.
+
+**Still open, all recorded in `IDEAS.md`:** a managed policy setting still reaches a roll and nothing here can refuse it; the corpus says codex's weak spot is a residue list; `defaultRollDeadline` is still 420s on small-payload evidence only.
+
+I found no new request beyond this one. If something was meant to come with it, it did not arrive.
+
+Let me know if you would like me to take any of those further.

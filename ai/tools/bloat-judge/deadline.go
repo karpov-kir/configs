@@ -18,15 +18,20 @@ import (
 // defaultRollDeadline bounds one roll of the model. A vote rolls every roll at once, so a judge run is
 // bounded at one of these whatever its roll count, and can no longer block forever.
 //
-// Flat, not scaled by the text or by the load: a roll is spent waiting on the API, and neither
-// predicts it. Over thirteen timed rolls, 13KB cost 104 seconds where 53KB cost 85, and a roll that
-// took 119 seconds held 7% of a CPU.
+// Flat, not scaled by the text: what is judged barely moves the clock. Measured 2026-09-16 over
+// twenty runs of the shipped path — codex, gpt-5.6-luna at low effort, three rolls a run — against
+// 9KB to 53KB of this repo's own standards, memo defeated each time, on a machine already carrying
+// three other gate runs at load 5 to 8. Eighteen finished in 19 to 45 seconds, six times the text
+// buying about twice the clock.
 //
-// 420 is 2.8 times the slowest of those rolls, 150 seconds. Generous deliberately: this exists so a
-// run ends, not so it ends soon, and a bound that clips an honest roll costs the whole gate. The 120
-// it replaces sat inside the distribution and refused honest rolls at exit 2. Concurrency is what
-// makes 420 affordable: one roll at a time, it would bound a run at 21 minutes.
-const defaultRollDeadline = 420 * time.Second
+// The other two are why this is 900 and not 45. Two consecutive runs, different payloads, took 344
+// and 342 seconds — silent throughout, and each went on to answer correctly. That is an honest roll,
+// which is the one thing a bound may not clip, since clipping one costs the whole gate at exit 2.
+//
+// 420 was 2.8 times the slowest roll then known; against 343 it had become 1.22 while still calling
+// itself generous. 900 restores the ratio. Concurrency is what makes it affordable, every roll of a
+// vote waiting at once — one at a time it would bound a run at 45 minutes.
+const defaultRollDeadline = 900 * time.Second
 
 const overrideKey = "roll-timeout"
 
@@ -49,16 +54,20 @@ func overridePath(configHome, home string) string {
 	return filepath.Join(configHome, "kk-flavor", "bloat-judge.conf")
 }
 
-func ResolveRollDeadline(self, configHome, home string, stderr io.Writer) (time.Duration, bool) {
+// The path is returned alongside the bound, and not only when an override set it: a roll that times
+// out is the one failure whose repair is a line in that file, and the file is worth naming whether it
+// exists yet or not. Empty when there is nowhere for one to sit, which overridePath explains.
+func ResolveRollDeadline(self, configHome, home string, stderr io.Writer) (time.Duration, string, bool) {
+	path := overridePath(configHome, home)
 	deadline, announcement, err := rollDeadline(configHome, home)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
-		return 0, false
+		return 0, "", false
 	}
 	if announcement != "" {
 		fmt.Fprintf(stderr, "%s: %s\n", self, announcement)
 	}
-	return deadline, true
+	return deadline, path, true
 }
 
 // rollDeadline answers how long one roll gets, plus the line to announce when an override decided it —
@@ -196,7 +205,7 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 		// Asked only once the call failed, so a call that answered just as the clock ran out is
 		// reported as the answer it is.
 		if ctx.Err() != nil {
-			return "", fmt.Errorf("the model did not answer within %s", deadline)
+			return "", &RollTimedOut{Deadline: deadline}
 		}
 		// Ahead of the catch-all below, which is what used to swallow this: a name the provider will
 		// not run came back as "did not answer".
