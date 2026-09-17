@@ -22,7 +22,7 @@ func TestAMountWhoseSourceIsGoneIsDropped(t *testing.T) {
 	f.mountSkills([]string{"kk-build", "kk-was-renamed"}, installer.RunOptions{})
 	f.expectLinkTo(f.skillsMount()+"/kk-was-renamed", f.repo+"/skills/kk-was-renamed")
 
-	f.removeAll(f.repo + "/skills/kk-was-renamed")
+	f.RemoveAll(f.repo + "/skills/kk-was-renamed")
 	run := f.mountSkills([]string{"kk-build"}, installer.RunOptions{})
 
 	if code := run.Report(); code != 0 {
@@ -42,18 +42,18 @@ func TestTheSweepLeavesEverythingItCannotProveItWrote(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.newSkill("kk-build")
-	f.mkdirAll(f.skillsMount())
+	f.MkdirAll(f.skillsMount())
 	// A relative link, which this package never writes: resolved against this process's working
 	// directory instead of against the link that holds it, `skills/kk-relative` would name some other
 	// tree's skills and be swept with the mount beside it.
-	f.symlink("skills/kk-relative", f.skillsMount()+"/kk-relative")
+	f.Symlink("skills/kk-relative", f.skillsMount()+"/kk-relative")
 	// A dangling link the human made themselves, pointing nowhere near the source root.
-	f.symlink(f.base+"/a-skill-of-my-own", f.skillsMount()+"/hand-made")
+	f.Symlink(f.base+"/a-skill-of-my-own", f.skillsMount()+"/hand-made")
 	// A dangling mount from another checkout — theirs to sweep, not this run's.
-	f.mkdirAll(f.base + "/another-checkout/skills")
-	f.symlink(f.base+"/another-checkout/skills/kk-gone", f.skillsMount()+"/kk-gone")
+	f.MkdirAll(f.base + "/another-checkout/skills")
+	f.Symlink(f.base+"/another-checkout/skills/kk-gone", f.skillsMount()+"/kk-gone")
 	// And a real directory somebody copied in.
-	f.mkdirAll(f.skillsMount() + "/copied-in-by-hand")
+	f.MkdirAll(f.skillsMount() + "/copied-in-by-hand")
 
 	run := f.mountSkills([]string{"kk-build"}, installer.RunOptions{})
 
@@ -71,8 +71,8 @@ func TestADryRunOverAStaleMountRemovesNothing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.newSkill("kk-build")
-	f.mkdirAll(f.skillsMount())
-	f.symlink(f.repo+"/skills/kk-was-renamed", f.skillsMount()+"/kk-was-renamed")
+	f.MkdirAll(f.skillsMount())
+	f.Symlink(f.repo+"/skills/kk-was-renamed", f.skillsMount()+"/kk-was-renamed")
 
 	run := f.mountSkills([]string{"kk-build"}, installer.RunOptions{DryRun: true})
 
@@ -94,8 +94,8 @@ func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 	t.Parallel()
 	newHomeWithAStaleMount := func(t *testing.T) *fixture {
 		f := newFixture(t)
-		f.mkdirAll(f.skillsMount())
-		f.symlink(f.repo+"/skills/kk-was-renamed", f.skillsMount()+"/kk-was-renamed")
+		f.MkdirAll(f.skillsMount())
+		f.Symlink(f.repo+"/skills/kk-was-renamed", f.skillsMount()+"/kk-was-renamed")
 		return f
 	}
 
@@ -110,7 +110,7 @@ func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 
 	t.Run("and one that resolves and holds nothing does too", func(t *testing.T) {
 		f := newHomeWithAStaleMount(t)
-		f.mkdirAll(f.repo + "/skills")
+		f.MkdirAll(f.repo + "/skills")
 
 		f.mountSkills(nil, installer.RunOptions{})
 
@@ -151,7 +151,7 @@ func TestAMountWhoseNameCarriesAControlByteStillReportsAsOneLine(t *testing.T) {
 	// a run that never mounted the name, and the case would be measuring nothing.
 	f.expectSymlink(f.skillsMount() + "/" + gone)
 
-	f.removeAll(f.repo + "/skills/" + gone)
+	f.RemoveAll(f.repo + "/skills/" + gone)
 	run := f.mountSkills([]string{"kk-stays"}, installer.RunOptions{})
 
 	if code := run.Report(); code != 0 {

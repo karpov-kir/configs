@@ -10,6 +10,7 @@ import (
 
 	"kk-flavor/tools/machine"
 	projectsetup "kk-flavor/tools/project-setup"
+	gitrepo "kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -35,9 +36,11 @@ func main() {
 		Home:       home,
 		ConfigHome: configHome,
 		Machine:    machine.New(),
-		Git:        projectsetup.NewGit(),
-		Mcp:        projectsetup.NewMcp(self, repo, home, os.Stdout, os.Stderr),
-		Out:        os.Stdout,
-		Err:        os.Stderr,
+		// The location variables dropped: GIT_DIR and GIT_COMMON_DIR override `-C`, and the sync this
+		// shares a port with runs from inside a post-checkout hook, which is given them.
+		Git: gitrepo.Exec{Env: gitrepo.WithoutGitLocation(os.Environ())},
+		Mcp: projectsetup.NewMcp(self, repo, home, os.Stdout, os.Stderr),
+		Out: os.Stdout,
+		Err: os.Stderr,
 	}))
 }

@@ -27,7 +27,7 @@ func TestTheOwnerTierInstallsAnIndependentCopy(t *testing.T) {
 // destructive in a way a region never is.
 func TestTheOwnerTierRefusesToOverwriteAFileItDidNotWrite(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
+	f.Write(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 1)
 
@@ -68,8 +68,8 @@ func TestAnUpgradedTemplateReplacesTheCopyAndBacksTheOldOneUp(t *testing.T) {
 // through it, which would have edited the checkout.
 func TestALegacyOwnerSymlinkBecomesAnIndependentCopy(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
-	f.symlink(f.repo+"/CLAUDE.md", f.home+"/.claude/CLAUDE.md")
+	f.Write(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
+	f.Symlink(f.repo+"/CLAUDE.md", f.home+"/.claude/CLAUDE.md")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
 
@@ -82,7 +82,7 @@ func TestALegacyOwnerSymlinkBecomesAnIndependentCopy(t *testing.T) {
 // RTK note that sat under it. Both are this repository's writing, so both migrate.
 func TestAGeneratedCodexInstructionFileMigratesToTheOwnerCopy(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.codexHome+"/AGENTS.md",
+	f.Write(f.codexHome+"/AGENTS.md",
 		flavor.RegionOpen+"\n"+flavor.RegionBody+"\n"+flavor.RegionClose+"\n")
 
 	f.expectCode(f.install("--agent=codex", "--owner"), 0)
@@ -95,7 +95,7 @@ func TestAGeneratedCodexInstructionFileMigratesToTheOwnerCopy(t *testing.T) {
 
 func TestAGeneratedCodexFileCarryingTheOldRtkNoteMigratesToo(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.codexHome+"/AGENTS.md",
+	f.Write(f.codexHome+"/AGENTS.md",
 		flavor.RegionOpen+"\n"+flavor.RegionBody+"\n"+flavor.RegionClose+"\n\n"+
 			"@"+f.codexHome+"/RTK.md\n\n"+
 			flavor.LegacyRtkRegionOpen+"\n"+
@@ -113,7 +113,7 @@ func TestAGeneratedCodexFileCarryingTheOldRtkNoteMigratesToo(t *testing.T) {
 func TestADryRunOverTheOwnerMigrationLeavesTheFileAlone(t *testing.T) {
 	f := newFixture(t)
 	generated := flavor.RegionOpen + "\n" + flavor.RegionBody + "\n" + flavor.RegionClose + "\n"
-	f.write(f.codexHome+"/AGENTS.md", generated)
+	f.Write(f.codexHome+"/AGENTS.md", generated)
 
 	f.expectCode(f.install("--agent=codex", "--owner", "--dry-run"), 0)
 
@@ -220,7 +220,7 @@ func backupsOf(t *testing.T, directory, prefix string) []string {
 // created, and the file it created would be empty.
 func TestOwnerMemoryWrittenAtTheOldPathIsMoved(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
+	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
 
@@ -234,8 +234,8 @@ func TestOwnerMemoryWrittenAtTheOldPathIsMoved(t *testing.T) {
 // A directory the human put something else in is theirs, whatever this run emptied beside it.
 func TestTheOldMemoryDirectoryIsKeptWhenItHoldsAnythingElse(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n")
-	f.write(f.home+"/Document/AI/notes.md", "mine\n")
+	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n")
+	f.Write(f.home+"/Document/AI/notes.md", "mine\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
 
@@ -246,8 +246,8 @@ func TestTheOldMemoryDirectoryIsKeptWhenItHoldsAnythingElse(t *testing.T) {
 // either, and cannot know which entry is the newer one.
 func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
-	f.write(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
+	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
+	f.Write(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 1)
 
@@ -260,7 +260,7 @@ func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
 // at the destination is two lines that cannot both hold, about the one file this exists to protect.
 func TestADryRunSaysItWouldMoveAndCreatesNothing(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
+	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
 
 	f.install("--agent=claude", "--owner", "--dry-run")
 

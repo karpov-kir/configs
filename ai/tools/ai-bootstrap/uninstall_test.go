@@ -47,8 +47,8 @@ func TestAPlainUninstallRemovesWhatMaintainerInstalled(t *testing.T) {
 func TestUninstallNamesTheProjectsThatStillNeedThisCheckout(t *testing.T) {
 	f := newFixture(t)
 	project := f.base + "/a-project"
-	f.mkdirAll(project)
-	f.write(f.home+"/.config/kk-flavor/installs", project+"\n")
+	f.MkdirAll(project)
+	f.Write(f.home+"/.config/kk-flavor/installs", project+"\n")
 
 	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
 

@@ -24,8 +24,10 @@ import (
 	"strings"
 	"testing"
 
+	"kk-flavor/tools/installertest"
 	"kk-flavor/tools/machine/fake"
 	projectsetup "kk-flavor/tools/project-setup"
+	"kk-flavor/tools/repo/repotest"
 )
 
 // What the second-checkout guard looks for under a candidate root. The installer's own name, and the
@@ -40,13 +42,14 @@ var (
 )
 
 type fixture struct {
+	*installertest.Writer
 	t       *testing.T
 	base    string
 	repo    string
 	home    string
 	project string
 	machine *fake.Machine
-	git     *fakeGit
+	git     *repotest.Fake
 	mcp     *fakeMcp
 	out     strings.Builder
 	err     strings.Builder
@@ -54,12 +57,17 @@ type fixture struct {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	base := physical(t, t.TempDir())
+	writer := installertest.New(t)
+	base := writer.Base()
 	f := &fixture{
-		t: t, base: base, repo: base + "/checkout/ai", home: base + "/home", project: base + "/project",
-		machine: fake.New().Add("mise", "brew"), git: newFakeGit(), mcp: &fakeMcp{},
+		Writer: writer,
+		t:      t, base: base, repo: base + "/checkout/ai", home: base + "/home", project: base + "/project",
+		machine: fake.New().Add("mise", "brew"), mcp: &fakeMcp{},
+		// Per directory, so a project no case declared is no repository — the ordinary shape for a
+		// directory someone is merely trying this out in, and the one a single Root cannot express.
+		git: repotest.New(base + "/project").PerDirectory(),
 	}
-	f.mkdirAll(f.home)
+	f.MkdirAll(f.home)
 	f.newCheckout(f.repo)
 	f.newProject(f.project)
 	return f
@@ -69,7 +77,13 @@ func newFixture(t *testing.T) *fixture {
 // and the skills beside it.
 func (f *fixture) newCheckout(root string) {
 	f.t.Helper()
-	f.write(root+"/"+guardScriptName, "#!/usr/bin/env bash\n")
+	f.Write(root+"/"+guardScriptName, "#!/usr/bin/env bash\n")
+	// What the post-checkout hook runs, and what that stub reaches its binary through. Both are here
+	// because the hook is only written when both are, and a fixture checkout missing them would make
+	// every worktree case measure the guard instead of what it named.
+	f.Write(root+"/project-skills.sh", "#!/usr/bin/env bash\n")
+	f.MkdirAll(root + "/tools")
+	f.rewrite(root+"/tools/resolve.sh", "#!/usr/bin/env bash\n")
 	for _, name := range publicSkills {
 		f.newSkill(root, name, "")
 	}
@@ -80,7 +94,7 @@ func (f *fixture) newCheckout(root string) {
 
 func (f *fixture) newSkill(root, name, audience string) {
 	f.t.Helper()
-	f.write(root+"/kk-flavor/skills/"+name+"/SKILL.md",
+	f.Write(root+"/kk-flavor/skills/"+name+"/SKILL.md",
 		"---\nname: "+name+"\ndescription: a skill\n"+audience+"---\n")
 }
 
@@ -88,8 +102,8 @@ func (f *fixture) newSkill(root, name, audience string) {
 // that the project's own content survives is comparing against something.
 func (f *fixture) newProject(project string) {
 	f.t.Helper()
-	f.write(project+"/CLAUDE.md", "# project\n\nHow this project works.\n")
-	f.write(project+"/.gitignore", "node_modules/\n")
+	f.Write(project+"/CLAUDE.md", "# project\n\nHow this project works.\n")
+	f.Write(project+"/.gitignore", "node_modules/\n")
 }
 
 func (f *fixture) run(args ...string) int {
@@ -267,71 +281,12 @@ func (f *fixture) mounted(directory string) []string {
 
 // --- the fixture writers ------------------------------------------------------------------------
 
-// The nearest existing directory above what a fixture is about to write, resolved physically.
-// Anything landing outside the case's own tree fails the case as a guard rather than as a result.
-func (f *fixture) containedParent(path string) {
-	f.t.Helper()
-	dir := filepath.Dir(path)
-	for {
-		parent, err := filepath.EvalSymlinks(dir)
-		if err == nil {
-			if parent != f.base && !strings.HasPrefix(parent, f.base+"/") {
-				f.t.Fatalf("refusing to write %s — its nearest existing parent resolves to %s, outside %s\n"+
-					"this is the containment guard, not a failing case", path, parent, f.base)
-			}
-			return
-		}
-		next := filepath.Dir(dir)
-		if next == dir {
-			f.t.Fatalf("refusing to write %s — no directory above it resolves\n"+
-				"this is the containment guard, not a failing case", path)
-		}
-		dir = next
-	}
-}
-
-func (f *fixture) mkdirAll(dir string) {
-	f.t.Helper()
-	f.containedParent(dir)
-	f.refuseExistingSymlink(dir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create %s: %v", dir, err)
-	}
-}
-
-func (f *fixture) write(path, body string) {
-	f.t.Helper()
-	f.containedParent(path)
-	// The parent being contained says nothing about the last component. A write follows a symlink, and
-	// the links these cases produce point into a checkout, so a fixture write at one of those paths
-	// afterwards lands in the real file.
-	f.refuseExistingSymlink(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create the parent of %s: %v", path, err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		f.t.Fatalf("the fixture could not write %s: %v", path, err)
-	}
-}
-
-func (f *fixture) symlink(source, target string) {
-	f.t.Helper()
-	f.containedParent(target)
-	f.refuseExistingSymlink(target)
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create the parent of %s: %v", target, err)
-	}
-	if err := os.Symlink(source, target); err != nil {
-		f.t.Fatalf("the fixture could not link %s at %s: %v", target, source, err)
-	}
-}
-
 // A second name for one file, which is neither a symlink nor a missing file — so nothing but a link
 // count catches a write about to land in a file this run was never told about.
 func (f *fixture) hardlink(source, target string) {
 	f.t.Helper()
-	f.containedParent(target)
-	f.refuseExistingSymlink(target)
+	f.ContainedParent(target)
+	f.RefuseExistingSymlink(target)
 	if err := os.Link(source, target); err != nil {
 		f.t.Fatalf("the fixture could not hard link %s at %s: %v", target, source, err)
 	}
@@ -339,8 +294,8 @@ func (f *fixture) hardlink(source, target string) {
 
 func (f *fixture) rewrite(path, body string) {
 	f.t.Helper()
-	f.containedParent(path)
-	f.refuseExistingSymlink(path)
+	f.ContainedParent(path)
+	f.RefuseExistingSymlink(path)
 	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 		f.t.Fatalf("the fixture could not rewrite %s: %v", path, err)
 	}
@@ -352,7 +307,7 @@ func (f *fixture) rewrite(path, body string) {
 // is what ~/.kk-flavor/standards/testing.md asks of a fixture that denies access.
 func (f *fixture) closeToNewFiles(directory string) {
 	f.t.Helper()
-	f.containedParent(directory)
+	f.ContainedParent(directory)
 	if err := os.Chmod(directory, 0o555); err != nil {
 		f.t.Fatalf("the fixture could not close %s: %v", directory, err)
 	}
@@ -365,109 +320,6 @@ func (f *fixture) closeToNewFiles(directory string) {
 			"filesystem that drops the bit — so the refusal this case names could not be built")
 	}
 }
-
-func (f *fixture) removeAll(path string) {
-	f.t.Helper()
-	f.containedParent(path)
-	if err := os.RemoveAll(path); err != nil {
-		f.t.Fatalf("the fixture could not remove %s: %v", path, err)
-	}
-}
-
-func (f *fixture) refuseExistingSymlink(path string) {
-	f.t.Helper()
-	if value, err := os.Readlink(path); err == nil {
-		f.t.Fatalf("refusing to write %s — it already exists as a symlink to %s\n"+
-			"this is the containment guard, not a failing case", path, value)
-	}
-}
-
-// t.TempDir hands back /var/folders/… on macOS while /var is itself a symlink to /private/var.
-func physical(t *testing.T, dir string) string {
-	t.Helper()
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		t.Fatalf("the case's own temp directory does not resolve, so nothing could be contained: %v", err)
-	}
-	return resolved
-}
-
-// --- git, as a working fake -----------------------------------------------------------------------
-
-// A repository this fixture describes rather than builds. Working, not canned: the worktree listing,
-// the shared git directory and each tree's own root are held as data a case sets, and every answer is
-// derived from them the way git derives its own.
-//
-// A project with no entry here is not a repository at all, which is what a directory someone is trying
-// this out in looks like.
-type fakeGit struct {
-	// commonDir is the shared git directory every worktree of the clone answers with.
-	commonDir string
-	// roots maps a directory to the worktree root git would answer for it, and commons to the shared git
-	// directory it belongs to. A directory with no entry is not a worktree. Two maps rather than one
-	// answer for every root, because a forged `.git/worktrees/` entry naming an unrelated repository is
-	// exactly a root git answers for with a DIFFERENT shared directory, and that difference is the tell.
-	roots   map[string]string
-	commons map[string]string
-	// worktrees is the listing, keyed by the root asked from.
-	worktrees   []projectsetup.Worktree
-	hooksPath   string
-	isHooksPath bool
-	// listingError makes `worktree list` fail, which is the one way this installer learns it cannot see
-	// the clone at all.
-	listingError error
-}
-
-func newFakeGit() *fakeGit {
-	return &fakeGit{roots: map[string]string{}, commons: map[string]string{}}
-}
-
-// Declare one worktree: the directory, the root git answers for it, and the shared git dir.
-func (g *fakeGit) worktreeAt(path string) *fakeGit {
-	g.roots[path] = path
-	g.commons[path] = g.commonDir
-	g.worktrees = append(g.worktrees, projectsetup.Worktree{Path: path})
-	return g
-}
-
-// A directory git answers for, belonging to a different clone. What a forged `.git/worktrees/` entry
-// naming an unrelated repository looks like from here.
-func (g *fakeGit) foreignWorktreeAt(path, common string) *fakeGit {
-	g.roots[path] = path
-	g.commons[path] = common
-	g.worktrees = append(g.worktrees, projectsetup.Worktree{Path: path})
-	return g
-}
-
-func (g *fakeGit) TopLevel(dir string) (string, error) {
-	root, isWorktree := g.roots[dir]
-	if !isWorktree {
-		return "", errNotARepository
-	}
-	return root, nil
-}
-
-func (g *fakeGit) CommonDir(dir string) (string, error) {
-	common, isWorktree := g.commons[dir]
-	if !isWorktree || common == "" {
-		return "", errNotARepository
-	}
-	return common, nil
-}
-
-func (g *fakeGit) HooksPath(string) (string, bool) {
-	return g.hooksPath, g.isHooksPath
-}
-
-func (g *fakeGit) Worktrees(string) ([]projectsetup.Worktree, error) {
-	return g.worktrees, g.listingError
-}
-
-type gitError string
-
-func (e gitError) Error() string { return string(e) }
-
-const errNotARepository = gitError("not a git repository")
 
 // --- the MCP tool, as a fake ------------------------------------------------------------------------
 

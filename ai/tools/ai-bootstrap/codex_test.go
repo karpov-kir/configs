@@ -19,7 +19,7 @@ func TestCodexInstallsIntoItsOwnDiscoveryDirectoryAndProfile(t *testing.T) {
 // leave the tree installed and nothing loading it. Refused before anything is written.
 func TestCodexRefusesAShadowedInstructionFileBeforeWritingAnything(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.codexHome+"/AGENTS.override.md", "custom override\n")
+	f.Write(f.codexHome+"/AGENTS.override.md", "custom override\n")
 
 	f.expectCode(f.install("--agent=codex"), 1)
 
@@ -32,7 +32,7 @@ func TestCodexRefusesAShadowedInstructionFileBeforeWritingAnything(t *testing.T)
 // interrupted migration leaves Codex with a working mount rather than none.
 func TestCodexDropsALegacyMountOnceItsReplacementIsThere(t *testing.T) {
 	f := newFixture(t)
-	f.symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
+	f.Symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
 
 	f.expectCode(f.install("--agent=codex"), 0)
 
@@ -44,7 +44,7 @@ func TestCodexDropsALegacyMountOnceItsReplacementIsThere(t *testing.T) {
 // glob. It names the same skill, so it migrates like any other — and compared raw it would not.
 func TestCodexMigratesALegacyLinkEndingInASlash(t *testing.T) {
 	f := newFixture(t)
-	f.symlink(f.repo+"/kk-flavor/skills/kk-build/", f.codexHome+"/skills/kk-build")
+	f.Symlink(f.repo+"/kk-flavor/skills/kk-build/", f.codexHome+"/skills/kk-build")
 
 	f.expectCode(f.install("--agent=codex"), 0)
 
@@ -55,8 +55,8 @@ func TestCodexMigratesALegacyLinkEndingInASlash(t *testing.T) {
 // would leave Codex with a directory nobody wrote and no skill behind it.
 func TestCodexKeepsALegacyMountWhoseDestinationIsOccupied(t *testing.T) {
 	f := newFixture(t)
-	f.symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
-	f.mkdirAll(f.skillsMount("codex") + "/kk-build")
+	f.Symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
+	f.MkdirAll(f.skillsMount("codex") + "/kk-build")
 
 	f.expectCode(f.install("--agent=codex"), 1)
 
@@ -68,8 +68,8 @@ func TestCodexKeepsALegacyMountWhoseDestinationIsOccupied(t *testing.T) {
 // them into.
 func TestAProfileAliasOfTheDiscoveryDirectoryIsNotASecondMountDirectory(t *testing.T) {
 	f := newFixture(t)
-	f.mkdirAll(f.home + "/.agents")
-	f.symlink(f.home+"/.agents", f.home+"/profile")
+	f.MkdirAll(f.home + "/.agents")
+	f.Symlink(f.home+"/.agents", f.home+"/profile")
 	f.codexHome = f.home + "/profile"
 
 	f.expectCode(f.install("--agent=codex"), 0)
@@ -97,8 +97,8 @@ func TestUninstallingOneClientKeepsTheBucketTheOtherStillNeeds(t *testing.T) {
 // counted, the bucket would be kept for a client that is itself being removed.
 func TestTheLastClientOutRemovesTheBucket(t *testing.T) {
 	f := newFixture(t)
-	f.mkdirAll(f.home + "/.agents")
-	f.symlink(f.home+"/.agents", f.home+"/profile")
+	f.MkdirAll(f.home + "/.agents")
+	f.Symlink(f.home+"/.agents", f.home+"/profile")
 	f.codexHome = f.home + "/profile"
 	f.expectCode(f.install("--agent=codex"), 0)
 

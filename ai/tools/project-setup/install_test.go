@@ -66,8 +66,8 @@ func TestARelativeProjectIsRecordedByTheDirectoryItReallyNames(t *testing.T) {
 
 func TestAProjectWithNeitherFileGetsBothCreated(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.project + "/CLAUDE.md")
-	f.removeAll(f.project + "/.gitignore")
+	f.RemoveAll(f.project + "/CLAUDE.md")
+	f.RemoveAll(f.project + "/.gitignore")
 
 	f.expectCode(f.install("--agent=claude"), 0)
 
@@ -80,7 +80,7 @@ func TestAProjectWithNeitherFileGetsBothCreated(t *testing.T) {
 // client settings alike, so what to do about it is a decision for the human whose repository it is.
 func TestAProjectAlreadyIgnoringTheAgentDirectoryIsReportedNotAppendedTo(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.project+"/.gitignore", "node_modules/\n.claude/\n")
+	f.Write(f.project+"/.gitignore", "node_modules/\n.claude/\n")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -94,9 +94,9 @@ func TestAProjectAlreadyIgnoringTheAgentDirectoryIsReportedNotAppendedTo(t *test
 // trusted input.
 func TestASymlinkedIgnoreFileIsRefusedRatherThanWrittenThrough(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.project + "/.gitignore")
-	f.write(f.base+"/outside.txt", "do not touch\n")
-	f.symlink(f.base+"/outside.txt", f.project+"/.gitignore")
+	f.RemoveAll(f.project + "/.gitignore")
+	f.Write(f.base+"/outside.txt", "do not touch\n")
+	f.Symlink(f.base+"/outside.txt", f.project+"/.gitignore")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -106,8 +106,8 @@ func TestASymlinkedIgnoreFileIsRefusedRatherThanWrittenThrough(t *testing.T) {
 
 func TestADanglingInstructionSymlinkDoesNotCreateTheFileItNames(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.project + "/CLAUDE.md")
-	f.symlink(f.base+"/never-created.txt", f.project+"/CLAUDE.md")
+	f.RemoveAll(f.project + "/CLAUDE.md")
+	f.Symlink(f.base+"/never-created.txt", f.project+"/CLAUDE.md")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -119,7 +119,7 @@ func TestADanglingInstructionSymlinkDoesNotCreateTheFileItNames(t *testing.T) {
 // the write refused the project would be half installed.
 func TestAnIncompleteRegionIsRefusedBeforeAnythingIsMounted(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.project+"/CLAUDE.md", "# project\n\n<!-- kk-flavor:begin -->\nhalf a region\n")
+	f.Write(f.project+"/CLAUDE.md", "# project\n\n<!-- kk-flavor:begin -->\nhalf a region\n")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -158,7 +158,7 @@ func TestAProjectMountedFromAnotherCheckoutIsRefusedWithItsOwnScope(t *testing.T
 	f := newFixture(t)
 	stranger := f.base + "/stranger/ai"
 	f.newCheckout(stranger)
-	f.symlink(stranger+"/kk-flavor/skills/kk-build", f.skillsMount("claude")+"/kk-build")
+	f.Symlink(stranger+"/kk-flavor/skills/kk-build", f.skillsMount("claude")+"/kk-build")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -173,7 +173,7 @@ func TestRelocateMovesAProjectsMountsOntoThisCheckout(t *testing.T) {
 	f := newFixture(t)
 	stranger := f.base + "/stranger/ai"
 	f.newCheckout(stranger)
-	f.symlink(stranger+"/kk-flavor/skills/kk-build", f.skillsMount("claude")+"/kk-build")
+	f.Symlink(stranger+"/kk-flavor/skills/kk-build", f.skillsMount("claude")+"/kk-build")
 
 	f.expectCode(f.install("--agent=claude", "--relocate"), 0)
 
@@ -186,8 +186,8 @@ func TestRelocateMovesAProjectsMountsOntoThisCheckout(t *testing.T) {
 func TestAMountWhoseSkillIsGoneIsSweptAndAStrangersIsNot(t *testing.T) {
 	f := newFixture(t)
 	f.expectCode(f.install("--agent=claude"), 0)
-	f.symlink(f.home+"/.kk-flavor/skills/kk-was-renamed", f.skillsMount("claude")+"/kk-was-renamed")
-	f.symlink(f.base+"/another-checkout/kk-flavor/skills/kk-stranger", f.skillsMount("claude")+"/kk-stranger")
+	f.Symlink(f.home+"/.kk-flavor/skills/kk-was-renamed", f.skillsMount("claude")+"/kk-was-renamed")
+	f.Symlink(f.base+"/another-checkout/kk-flavor/skills/kk-stranger", f.skillsMount("claude")+"/kk-stranger")
 
 	f.expectCode(f.install("--agent=claude"), 0)
 
@@ -199,7 +199,7 @@ func TestAMountWhoseSkillIsGoneIsSweptAndAStrangersIsNot(t *testing.T) {
 func TestADryRunOverARetiredMountRemovesNothing(t *testing.T) {
 	f := newFixture(t)
 	f.expectCode(f.install("--agent=claude"), 0)
-	f.symlink(f.home+"/.kk-flavor/skills/kk-was-renamed", f.skillsMount("claude")+"/kk-was-renamed")
+	f.Symlink(f.home+"/.kk-flavor/skills/kk-was-renamed", f.skillsMount("claude")+"/kk-was-renamed")
 
 	f.expectCode(f.install("--agent=claude", "--dry-run"), 0)
 

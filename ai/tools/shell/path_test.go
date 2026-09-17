@@ -209,3 +209,84 @@ func TestFnmatchStarBacktracks(t *testing.T) {
 		}
 	}
 }
+
+// CanonicalDir answers the same question RealPath does, narrowed to a directory, so it has to answer
+// it the same way. The `..` row is the whole case: a bucket link into a checkout, stepped back out of
+// with `..`, names the checkout's own parent and nothing else — while cleaning that `..` against the
+// name the path was reached by names the home directory, which is a real directory and the wrong one.
+// A containment test comparing against the wrong real directory refuses what it should admit.
+func TestCanonicalDirFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
+	base := checkoutThroughABucket(t)
+	t.Chdir(base + "/home")
+
+	for _, c := range []struct {
+		path, want string
+	}{
+		{".kk-flavor/..", base + "/checkout/ai"},
+		{base + "/home/.kk-flavor/..", base + "/checkout/ai"},
+		{".kk-flavor", base + "/checkout/ai/kk-flavor"},
+		{".", base + "/home"},
+		{base + "/checkout/ai/project-skills.sh", ""},
+		{base + "/home/nothing-here", ""},
+	} {
+		if got := shell.CanonicalDir(c.path); got != c.want {
+			t.Errorf("CanonicalDir(%q) = %q, want %q", c.path, got, c.want)
+		}
+	}
+}
+
+// IsWithin is the one containment test these tools make, and every copy of it answered the equality
+// case differently until they were folded together. Both sides arrive already resolved, so nothing
+// here cleans or follows anything: this is the comparison, not the resolution.
+//
+// The empty rows are the bug a single copy prevents. A resolver that could not answer hands back the
+// empty string, and `strings.HasPrefix(path, ""+"/")` is true for EVERY absolute path — so a guard
+// written that way admits the whole filesystem at exactly the moment it knows least.
+func TestIsWithinHoldsTheRootItselfAndRefusesWhatOnlySharesAPrefix(t *testing.T) {
+	for _, c := range []struct {
+		path, root string
+		want       bool
+	}{
+		{"/a/b", "/a", true},
+		{"/a/b/c", "/a", true},
+		{"/a", "/a", true},
+		{"/ab", "/a", false},
+		{"/a-b", "/a", false},
+		{"/a", "/a/b", false},
+		{"/b", "/a", false},
+		{"/a/b", "/", true},
+		{"/", "/", true},
+		{"/a", "", false},
+		{"", "/a", false},
+		{"", "", false},
+	} {
+		if got := shell.IsWithin(c.path, c.root); got != c.want {
+			t.Errorf("IsWithin(%q, %q) = %v, want %v", c.path, c.root, got, c.want)
+		}
+	}
+}
+
+// The ancestor a write is judged by: the deepest thing above a path that a symlink could still
+// redirect, since the names below it do not exist yet and redirect nothing.
+//
+// A DIRECTORY, never merely a name that resolves. A regular file resolves perfectly well, and a walk
+// stopping there judges the write by something no write can ever land under — which is how a test
+// fixture guarding the same bound as the code can guard a different one.
+func TestNearestExistingParentClimbsToADirectoryAndResolvesIt(t *testing.T) {
+	base := checkoutThroughABucket(t)
+
+	for _, c := range []struct {
+		path, want string
+	}{
+		{base + "/home/anything", base + "/home"},
+		{base + "/home/one/two/three", base + "/home"},
+		{base + "/home/.kk-flavor/skills/a", base + "/checkout/ai/kk-flavor"},
+		{base + "/checkout/ai/project-skills.sh/below", base + "/checkout/ai"},
+		{base + "/checkout/ai/project-skills.sh", base + "/checkout/ai"},
+		{base + "/home/.kk-flavor/../anything", base + "/checkout/ai"},
+	} {
+		if got := shell.NearestExistingParent(c.path); got != c.want {
+			t.Errorf("NearestExistingParent(%q) = %q, want %q", c.path, got, c.want)
+		}
+	}
+}

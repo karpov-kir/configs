@@ -23,7 +23,7 @@ func newRegionFixture(t *testing.T, body string) (*fixture, string) {
 	t.Helper()
 	f := newBareFixture(t)
 	file := f.base + "/CLAUDE.md"
-	f.write(file, body)
+	f.Write(file, body)
 	return f, file
 }
 
@@ -158,7 +158,7 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 	t.Run("a symlinked target refuses and the file behind it is untouched", func(t *testing.T) {
 		f, real := newRegionFixture(t, "real\n")
 		link := f.base + "/link.md"
-		f.symlink(real, link)
+		f.Symlink(real, link)
 		run := f.newRun(installer.RunOptions{})
 
 		run.WriteRegion(link, openFence, closeFence, "BODY")
@@ -182,7 +182,7 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 
 	t.Run("and a directory at the path refuses", func(t *testing.T) {
 		f, _ := newRegionFixture(t, "unused\n")
-		f.mkdirAll(f.base + "/a-directory")
+		f.MkdirAll(f.base + "/a-directory")
 		run := f.newRun(installer.RunOptions{})
 
 		run.WriteRegion(f.base+"/a-directory", openFence, closeFence, "BODY")
@@ -233,7 +233,7 @@ func TestAReplacementThatCannotLandIsCountedAsARefusal(t *testing.T) {
 	t.Parallel()
 	f, file := newRegionFixture(t, "Theirs.\n\n"+openFence+"\nOLD\n"+closeFence+"\n")
 	locked := f.base + "/locked"
-	f.mkdirAll(locked)
+	f.MkdirAll(locked)
 	moved := locked + "/CLAUDE.md"
 	if err := os.Rename(file, moved); err != nil {
 		t.Fatalf("the fixture could not move the file into the locked directory: %v", err)

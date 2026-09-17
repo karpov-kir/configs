@@ -2,6 +2,7 @@ package projectsetup
 
 import (
 	"os"
+	"syscall"
 
 	"kk-flavor/tools/shell"
 )
@@ -67,7 +68,10 @@ func (run *invocation) enableWorktrees() {
 	if !run.storageWritable(paths) {
 		return
 	}
-	canHook := run.hookIsOursToWrite(paths)
+	// Both asked, neither short-circuited: a checkout that cannot run the hook and a repository whose
+	// hook is somebody else's are separate findings, and a reader needs whichever applies.
+	canRun := run.hookCanRun()
+	canHook := run.hookIsOursToWrite(paths) && canRun
 	run.syncOtherWorktrees(paths)
 	if run.isDryRun {
 		if canHook {
@@ -81,6 +85,42 @@ func (run *invocation) enableWorktrees() {
 	run.writeHook(paths)
 }
 
+// Whether there is anything for the hook to run, asked before it is written rather than discovered on
+// somebody's next checkout.
+//
+// The hook runs this checkout's project-skills.sh through the shared bucket, and that stub reaches a
+// Go binary through ai/tools/resolve.sh — where it once needed bash and nothing else. An incomplete
+// checkout therefore buys the project a hook that fires on every checkout and can only fail.
+// install-project.sh refused before writing anything when its four helpers were missing; the helpers
+// are now these two, and this is that refusal.
+//
+// It withholds the HOOK and not the install. The skills this pass mounts are already in place and
+// reachable; what is lost is the future worktrees the hook would have served, and refusing those too
+// would leave a project with no skills over a file it never had to read.
+func (run *invocation) hookCanRun() bool {
+	stub := run.Repo + "/" + syncStubPath
+	if !shell.IsRegularFile(stub) {
+		run.mounting.Refuse(stub + " is missing, so no post-checkout hook was written — worktrees made " +
+			"later will have no skill links until this checkout is complete")
+		return false
+	}
+	// The resolver is asked for EXECUTABILITY, because that is what the stub asks of it and a stub that
+	// cannot run it says so and exits without running the tool. access(2) rather than the mode bits,
+	// since root ignores them and a capability grants them without one.
+	resolver := run.Repo + "/tools/resolve.sh"
+	switch {
+	case !shell.IsRegularFile(resolver):
+		run.mounting.Refuse(resolver + " is missing, so the hook would reach no binary and no " +
+			"post-checkout hook was written — worktrees made later will have no skill links")
+		return false
+	case syscall.Access(resolver, 0x1) != nil:
+		run.mounting.Refuse(resolver + " cannot be run, so the hook would reach no binary and no " +
+			"post-checkout hook was written — chmod +x it and install again")
+		return false
+	}
+	return true
+}
+
 // Whether this run may write the hook at all. Anything already there that this did not write is left
 // alone and reported with the command that does the same job by hand — the alternative is overwriting
 // somebody's hook, and a hook is code they run on every checkout.
@@ -89,9 +129,9 @@ func (run *invocation) enableWorktrees() {
 // this installer puts one never runs, and a run reporting success would be promising links that never
 // arrive.
 func (run *invocation) hookIsOursToWrite(paths gitPaths) bool {
-	_, isSet := run.Git.HooksPath(run.project)
+	_, isSet := run.Git.ConfigValue(run.project, "core.hooksPath")
 	existing, err := os.ReadFile(paths.hook)
-	isForeign := isSet || shell.IsSymlink(paths.hook) || (err == nil && string(existing) != hookBody())
+	isForeign := isSet || shell.IsSymlink(paths.hook) || (err == nil && !isOurHookBody(string(existing)))
 	if !isForeign {
 		return true
 	}
@@ -171,7 +211,7 @@ func (run *invocation) disableWorktrees() {
 	if shell.PathExists(paths.state+"/"+claudeAgent) || shell.PathExists(paths.state+"/"+codexAgent) {
 		return
 	}
-	if body, err := os.ReadFile(paths.hook); err == nil && !shell.IsSymlink(paths.hook) && string(body) == hookBody() {
+	if body, err := os.ReadFile(paths.hook); err == nil && !shell.IsSymlink(paths.hook) && isOurHookBody(string(body)) {
 		os.Remove(paths.hook)
 	}
 	// Only when empty, which is what Remove answers for a directory: a state file this run did not write
@@ -189,7 +229,7 @@ func (run *invocation) syncOtherWorktrees(paths gitPaths) {
 	for _, worktree := range listed {
 		// Neither a bare repository nor an entry git itself calls stale is a tree to write into, and a
 		// run that wrote into a prunable one would be acting on metadata git is about to drop.
-		if worktree.IsBare || worktree.IsPrunable {
+		if worktree.Bare || worktree.Prunable {
 			continue
 		}
 		if !shell.IsDir(worktree.Path) || worktree.Path == run.project {

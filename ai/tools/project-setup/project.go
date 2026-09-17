@@ -133,14 +133,52 @@ func (run *invocation) writeInstructions(file, body string) bool {
 	return run.mounting.WriteRegion(file, flavor.RegionOpen, flavor.RegionClose, body)
 }
 
-// The hook body, spelled exactly as it is written into a repository. It reaches this installer through
-// the bucket rather than through an absolute path into a checkout, so a hook survives the checkout
-// moving — and it is compared byte for byte when deciding whether a hook is one this wrote, so the
-// spelling is load-bearing rather than cosmetic.
+// The hook body, spelled exactly as it is written into a repository. It reaches this installer
+// through the bucket rather than through an absolute path into a checkout, so a hook survives the
+// checkout moving — and it is compared byte for byte when deciding whether a hook is one this wrote,
+// so the spelling is load-bearing rather than cosmetic.
+//
+// `cd -P` and not the path alone. `~/.kk-flavor` is a link INTO a checkout, so `..` beside it means
+// that checkout's ai/ directory and only a physical resolution says so; cleaned against the name it
+// was reached by it means the home, where no stub has ever been. shell.RealPath is the same rule on
+// the Go side. It is also what lets the refusal below print the checkout's real path rather than the
+// three-segment spelling nobody can act on.
+//
+// The refusal is the whole of what this adds over `exec`. The hook fires in somebody else's
+// repository, on every checkout, and the thing that can go missing is not in that repository at all.
+// Handed straight to bash, an absent stub reads as `<hook>: No such file or directory` under the
+// project's own name, which sends the reader to the wrong repository. Non-zero afterwards because the
+// hook did not do its job: git ignores a post-checkout hook's status, so saying so costs nothing, and
+// a status that lies is worth less than one nobody reads.
 func hookBody() string {
 	return strings.Join([]string{
 		"#!/usr/bin/env bash",
 		"# kk-flavor project skills",
-		`exec bash "$HOME/.kk-flavor/../project-skills.sh" --sync .`,
+		`flavor="$(CDPATH= cd -P -- "$HOME/.kk-flavor/.." 2>/dev/null && pwd -P)"`,
+		`[ -n "$flavor" ] && [ -r "$flavor/project-skills.sh" ] || {`,
+		`  printf 'kk-flavor: %s holds no project-skills.sh, so project skills were not restored. That checkout is incomplete; this repository is not at fault.\n' "${flavor:-$HOME/.kk-flavor/..}" >&2`,
+		`  exit 1`,
+		`}`,
+		`exec bash "$flavor/project-skills.sh" --sync .`,
 	}, "\n") + "\n"
 }
+
+// Whether a hook already in a repository is one this installer wrote, and therefore one it may
+// replace or remove. Every spelling this has ever written, newest first.
+//
+// The older one is here because a hook is compared byte for byte: without it, every repository
+// installed before the guard above was added holds a hook this no longer recognises — so an install
+// would refuse to touch it and an uninstall would leave it behind, running on every checkout of a
+// project nothing is installed in. It can go once no machine still carries that spelling.
+func isOurHookBody(body string) bool {
+	for _, known := range []string{hookBody(), supersededHookBody} {
+		if body == known {
+			return true
+		}
+	}
+	return false
+}
+
+// The body written before the hook learned to name the checkout behind ~/.kk-flavor.
+const supersededHookBody = "#!/usr/bin/env bash\n# kk-flavor project skills\n" +
+	`exec bash "$HOME/.kk-flavor/../project-skills.sh" --sync .` + "\n"

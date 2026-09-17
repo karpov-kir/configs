@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	aibootstrap "kk-flavor/tools/ai-bootstrap"
+	"kk-flavor/tools/installertest"
 	"kk-flavor/tools/machine"
 	"kk-flavor/tools/machine/fake"
 )
@@ -41,6 +42,7 @@ var (
 
 // One case's tree: a checkout in ai/'s shape, a home, a machine, and everything the run printed.
 type fixture struct {
+	*installertest.Writer
 	t    *testing.T
 	base string
 	repo string
@@ -58,10 +60,12 @@ type fixture struct {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	base := physical(t, t.TempDir())
-	f := &fixture{t: t, base: base, repo: base + "/checkout/ai", home: base + "/home", machine: newBrewMachine()}
+	writer := installertest.New(t)
+	base := writer.Base()
+	f := &fixture{Writer: writer, t: t, base: base, repo: base + "/checkout/ai",
+		home: base + "/home", machine: newBrewMachine()}
 	f.codexHome = f.home + "/.codex"
-	f.mkdirAll(f.home)
+	f.MkdirAll(f.home)
 	f.newCheckout(f.repo)
 	return f
 }
@@ -70,11 +74,11 @@ func newFixture(t *testing.T) *fixture {
 // and everything a run reaches for beside it.
 func (f *fixture) newCheckout(root string) {
 	f.t.Helper()
-	f.write(root+"/"+scriptName, "#!/usr/bin/env bash\n")
-	f.write(root+"/owner-instructions.md", ownerTemplate)
-	f.write(root+"/tools/install.sh", "#!/usr/bin/env bash\n")
-	f.write(root+"/mcp-sync.sh", "#!/usr/bin/env bash\n")
-	f.write(root+"/gate.sh", "#!/usr/bin/env bash\n")
+	f.Write(root+"/"+scriptName, "#!/usr/bin/env bash\n")
+	f.Write(root+"/owner-instructions.md", ownerTemplate)
+	f.Write(root+"/tools/install.sh", "#!/usr/bin/env bash\n")
+	f.Write(root+"/mcp-sync.sh", "#!/usr/bin/env bash\n")
+	f.Write(root+"/gate.sh", "#!/usr/bin/env bash\n")
 	// The three scripts the steps reach through the machine port. Declared here rather than in a case,
 	// because a run whose installer, sync or gate could not start is a machine fault and not a step's
 	// decision — the cases about that take one away again.
@@ -89,7 +93,7 @@ func (f *fixture) newCheckout(root string) {
 
 func (f *fixture) newSkill(root, name, audience string) {
 	f.t.Helper()
-	f.write(root+"/kk-flavor/skills/"+name+"/SKILL.md",
+	f.Write(root+"/kk-flavor/skills/"+name+"/SKILL.md",
 		"---\nname: "+name+"\ndescription: a skill\n"+audience+"---\n")
 }
 
@@ -250,102 +254,6 @@ func (f *fixture) mounted(directory string) []string {
 }
 
 // --- the fixture writers ------------------------------------------------------------------------
-
-// The nearest existing directory above what a fixture is about to write, resolved physically.
-// Anything landing outside the case's own tree fails the case as a guard rather than as a result.
-//
-// Climbed rather than asked of the immediate parent, because a fixture creates the missing
-// directories under it — so that ancestor is the deepest thing a symlink could still redirect.
-func (f *fixture) containedParent(path string) {
-	f.t.Helper()
-	dir := filepath.Dir(path)
-	for {
-		parent, err := filepath.EvalSymlinks(dir)
-		if err == nil {
-			if parent != f.base && !strings.HasPrefix(parent, f.base+"/") {
-				f.t.Fatalf("refusing to write %s — its nearest existing parent resolves to %s, outside %s\n"+
-					"this is the containment guard, not a failing case", path, parent, f.base)
-			}
-			return
-		}
-		next := filepath.Dir(dir)
-		if next == dir {
-			f.t.Fatalf("refusing to write %s — no directory above it resolves\n"+
-				"this is the containment guard, not a failing case", path)
-		}
-		dir = next
-	}
-}
-
-func (f *fixture) mkdirAll(dir string) {
-	f.t.Helper()
-	f.containedParent(dir)
-	f.refuseExistingSymlink(dir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create %s: %v", dir, err)
-	}
-}
-
-func (f *fixture) write(path, body string) {
-	f.t.Helper()
-	f.containedParent(path)
-	// The parent being contained says nothing about the last component. A write follows a symlink, and
-	// the links these cases produce point into a checkout — a run leaves $home/.kk-flavor pointing at
-	// $repo/kk-flavor, and a fixture write under that path afterwards lands in the real tree. That is
-	// the incident in this file's header, reached by the one door the parent check does not cover.
-	f.refuseExistingSymlink(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create the parent of %s: %v", path, err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		f.t.Fatalf("the fixture could not write %s: %v", path, err)
-	}
-}
-
-func (f *fixture) symlink(source, target string) {
-	f.t.Helper()
-	f.containedParent(target)
-	// `ln -s X Y` where Y already exists as a symlink to a directory creates the link INSIDE Y rather
-	// than replacing it, which is how a stray link ends up in a checkout. Refused rather than forced:
-	// every fixture link here is meant to be the first thing at its path.
-	f.refuseExistingSymlink(target)
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create the parent of %s: %v", target, err)
-	}
-	if err := os.Symlink(source, target); err != nil {
-		f.t.Fatalf("the fixture could not link %s at %s: %v", target, source, err)
-	}
-}
-
-// A whole fixture directory deleted. Through the containment guard too: this is a recursive delete
-// built from a variable, and the suite this replaces destroyed files in the working tree once already.
-func (f *fixture) removeAll(path string) {
-	f.t.Helper()
-	f.containedParent(path)
-	if err := os.RemoveAll(path); err != nil {
-		f.t.Fatalf("the fixture could not remove %s: %v", path, err)
-	}
-}
-
-func (f *fixture) refuseExistingSymlink(path string) {
-	f.t.Helper()
-	if value, err := os.Readlink(path); err == nil {
-		f.t.Fatalf("refusing to write %s — it already exists as a symlink to %s\n"+
-			"this is the containment guard, not a failing case", path, value)
-	}
-}
-
-// t.TempDir hands back /var/folders/… on macOS while /var is itself a symlink to /private/var.
-// Comparing an unresolved root against resolved paths would make every containment check refuse
-// everything, and a guard that always fires gets deleted.
-func physical(t *testing.T, dir string) string {
-	t.Helper()
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		t.Fatalf("the case's own temp directory does not resolve, so nothing could be contained: %v", err)
-	}
-	return resolved
-}
 
 // --- the machine, as a working fake -----------------------------------------------------------------
 

@@ -92,7 +92,7 @@ func TestTwoForeignCheckoutsAreBothNamed(t *testing.T) {
 	f, other := newHomeMountedElsewhere(t)
 	third := f.newCheckout(f.base + "/third-repo")
 	f.removeLink(f.home + "/.gitconfig")
-	f.symlink(third+"/git/.gitconfig", f.home+"/.gitconfig")
+	f.Symlink(third+"/git/.gitconfig", f.home+"/.gitconfig")
 
 	run := f.mount(installer.RunOptions{})
 
@@ -111,7 +111,7 @@ func TestTwoForeignCheckoutsAreBothNamed(t *testing.T) {
 func TestAMountFromACheckoutThatIsGoneIsRepairedRatherThanRefused(t *testing.T) {
 	t.Parallel()
 	f, other := newHomeMountedElsewhere(t)
-	f.removeAll(other)
+	f.RemoveAll(other)
 
 	run := f.mount(installer.RunOptions{})
 
@@ -132,9 +132,9 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 	// and never reaches this test.
 	t.Run("a mount into an unrelated real directory is repointed", func(t *testing.T) {
 		f := newFixture(t)
-		f.mkdirAll(f.home + "/.config")
-		f.mkdirAll(f.base + "/old-dotfiles/nvim")
-		f.symlink(f.base+"/old-dotfiles/nvim", f.home+"/.config/nvim")
+		f.MkdirAll(f.home + "/.config")
+		f.MkdirAll(f.base + "/old-dotfiles/nvim")
+		f.Symlink(f.base+"/old-dotfiles/nvim", f.home+"/.config/nvim")
 
 		run := f.mount(installer.RunOptions{})
 
@@ -149,8 +149,8 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 	t.Run("and one naming a checkout directory rather than a file in it is repointed too", func(t *testing.T) {
 		f := newFixture(t)
 		other := f.newCheckout(f.base + "/other-repo")
-		f.mkdirAll(f.home + "/.config")
-		f.symlink(other, f.home+"/.config/nvim")
+		f.MkdirAll(f.home + "/.config")
+		f.Symlink(other, f.home+"/.config/nvim")
 
 		run := f.mount(installer.RunOptions{})
 
@@ -163,8 +163,8 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 	// the link's own. The link itself dangles, which is what makes it merely stale.
 	t.Run("and a relative link is repointed like any other stale link", func(t *testing.T) {
 		f := newFixture(t)
-		f.mkdirAll(f.home + "/.config")
-		f.symlink("other-repo/nvim", f.home+"/.config/nvim")
+		f.MkdirAll(f.home + "/.config")
+		f.Symlink("other-repo/nvim", f.home+"/.config/nvim")
 
 		run := f.mount(installer.RunOptions{})
 
@@ -180,8 +180,8 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 func TestAMountNamingTheRunningCheckoutThroughASymlinkedPathIsNotForeign(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.symlink(f.repo, f.base+"/alias-to-checkout")
-	f.symlink(f.base+"/alias-to-checkout/zsh/.zshrc", f.home+"/.zshrc")
+	f.Symlink(f.repo, f.base+"/alias-to-checkout")
+	f.Symlink(f.base+"/alias-to-checkout/zsh/.zshrc", f.home+"/.zshrc")
 
 	run := f.mount(installer.RunOptions{})
 
@@ -199,8 +199,8 @@ func TestABulkMountTakesPartInTheCountTheGuardReports(t *testing.T) {
 	f := newFixture(t)
 	other := f.newCheckout(f.base + "/other-repo")
 	for _, checkout := range []string{f.repo, other} {
-		f.mkdirAll(checkout + "/skills/kk-build")
-		f.mkdirAll(checkout + "/skills/kk-ship")
+		f.MkdirAll(checkout + "/skills/kk-build")
+		f.MkdirAll(checkout + "/skills/kk-ship")
 	}
 	mountedFrom := func(repo string, options installer.RunOptions) *installer.Run {
 		options.Repo = repo

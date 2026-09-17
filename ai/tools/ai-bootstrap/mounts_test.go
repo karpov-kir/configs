@@ -54,7 +54,7 @@ func TestMaintainerMountsAMarkedSkillLikeAnyOther(t *testing.T) {
 func TestATreeWithNoMarkedSkillSaysItExcludedNothing(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range maintainerSkills {
-		f.removeAll(f.repo + "/kk-flavor/skills/" + name)
+		f.RemoveAll(f.repo + "/kk-flavor/skills/" + name)
 	}
 
 	f.expectCode(f.install("--agent=claude"), 0)
@@ -69,7 +69,7 @@ func TestATreeWithNoMarkedSkillSaysItExcludedNothing(t *testing.T) {
 func TestATreeWhoseEverySkillIsMarkedSaysTheTierExcludedThem(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range publicSkills {
-		f.removeAll(f.repo + "/kk-flavor/skills/" + name)
+		f.RemoveAll(f.repo + "/kk-flavor/skills/" + name)
 	}
 
 	f.expectCode(f.install("--agent=claude"), 1)
@@ -80,7 +80,7 @@ func TestATreeWhoseEverySkillIsMarkedSaysTheTierExcludedThem(t *testing.T) {
 
 func TestATreeWithNoSkillAtAllRefusesRatherThanMountingNothing(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.repo + "/kk-flavor/skills")
+	f.RemoveAll(f.repo + "/kk-flavor/skills")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -93,7 +93,7 @@ func TestATreeWithNoSkillAtAllRefusesRatherThanMountingNothing(t *testing.T) {
 func TestTheSameTreeWithMaintainerMountsWhatTheDefaultExcluded(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range publicSkills {
-		f.removeAll(f.repo + "/kk-flavor/skills/" + name)
+		f.RemoveAll(f.repo + "/kk-flavor/skills/" + name)
 	}
 
 	f.expectCode(f.install("--agent=claude", "--maintainer"), 0)
@@ -106,8 +106,8 @@ func TestTheSameTreeWithMaintainerMountsWhatTheDefaultExcluded(t *testing.T) {
 // marked it, on a machine where nothing looks wrong.
 func TestAnAudienceNoReaderKnowsIsReportedRatherThanInstalledQuietly(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.repo + "/kk-flavor/skills/kk-build/SKILL.md")
-	f.write(f.repo+"/kk-flavor/skills/kk-build/SKILL.md",
+	f.RemoveAll(f.repo + "/kk-flavor/skills/kk-build/SKILL.md")
+	f.Write(f.repo+"/kk-flavor/skills/kk-build/SKILL.md",
 		"---\nname: kk-build\ndescription: a skill\naudience: maintainr\n---\n")
 
 	f.expectCode(f.install("--agent=claude"), 1)

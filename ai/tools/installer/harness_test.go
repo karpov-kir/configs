@@ -26,11 +26,11 @@ package installer_test
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"kk-flavor/tools/installer"
+	"kk-flavor/tools/installertest"
 )
 
 // What the calling installer is called, and what the guard therefore looks for under a candidate root.
@@ -40,6 +40,7 @@ const label = "env bootstrap"
 
 // One case's tree: a checkout, a home, and the account the run printed.
 type fixture struct {
+	*installertest.Writer
 	t    *testing.T
 	base string
 	repo string
@@ -60,10 +61,11 @@ func newFixture(t *testing.T) *fixture {
 // of now that nothing spawns.
 func newBareFixture(t *testing.T) *fixture {
 	t.Helper()
-	base := physical(t, t.TempDir())
-	f := &fixture{t: t, base: base, repo: base + "/checkout"}
+	writer := installertest.New(t)
+	base := writer.Base()
+	f := &fixture{Writer: writer, t: t, base: base, repo: base + "/checkout"}
 	f.home = base + "/home"
-	f.mkdirAll(f.home)
+	f.MkdirAll(f.home)
 	return f
 }
 
@@ -75,16 +77,16 @@ func newBareFixture(t *testing.T) *fixture {
 // directory, and a file whose parent directory does not exist yet.
 func (f *fixture) newCheckout(root string) string {
 	f.t.Helper()
-	f.mkdirAll(root)
-	f.mkdirAll(root + "/zsh")
-	f.mkdirAll(root + "/git")
-	f.mkdirAll(root + "/nvim")
-	f.mkdirAll(root + "/starship")
-	f.write(root+"/"+scriptName, "#!/usr/bin/env bash\n")
-	f.write(root+"/zsh/.zshrc", "the shell config\n")
-	f.write(root+"/git/.gitconfig", "the git identity\n")
-	f.write(root+"/nvim/init.lua", "the editor config\n")
-	f.write(root+"/starship/starship.toml", "the prompt\n")
+	f.MkdirAll(root)
+	f.MkdirAll(root + "/zsh")
+	f.MkdirAll(root + "/git")
+	f.MkdirAll(root + "/nvim")
+	f.MkdirAll(root + "/starship")
+	f.Write(root+"/"+scriptName, "#!/usr/bin/env bash\n")
+	f.Write(root+"/zsh/.zshrc", "the shell config\n")
+	f.Write(root+"/git/.gitconfig", "the git identity\n")
+	f.Write(root+"/nvim/init.lua", "the editor config\n")
+	f.Write(root+"/starship/starship.toml", "the prompt\n")
 	return root
 }
 
@@ -158,8 +160,8 @@ func (f *fixture) skillsMount() string {
 
 func (f *fixture) newSkill(name string) {
 	f.t.Helper()
-	f.mkdirAll(f.repo + "/skills/" + name)
-	f.write(f.repo+"/skills/"+name+"/SKILL.md", "---\nname: "+name+"\ndescription: a skill\n---\n")
+	f.MkdirAll(f.repo + "/skills/" + name)
+	f.Write(f.repo+"/skills/"+name+"/SKILL.md", "---\nname: "+name+"\ndescription: a skill\n---\n")
 }
 
 func (f *fixture) expectContained(run *installer.Run) {
@@ -172,98 +174,14 @@ func (f *fixture) expectContained(run *installer.Run) {
 
 // --- the fixture writers ----------------------------------------------------------------------
 
-// The nearest existing directory above what a fixture is about to write, resolved physically.
-// Anything landing outside the case's own tree fails the case as a guard rather than as a result.
-//
-// Climbed rather than asked of the immediate parent, because a fixture creates the missing
-// directories under it — so that ancestor is the deepest thing a symlink could still redirect.
-func (f *fixture) containedParent(path string) {
-	f.t.Helper()
-	dir := filepath.Dir(path)
-	for {
-		parent, err := filepath.EvalSymlinks(dir)
-		if err == nil {
-			if parent != f.base && !strings.HasPrefix(parent, f.base+"/") {
-				f.t.Fatalf("refusing to write %s — its nearest existing parent resolves to %s, outside %s\n"+
-					"this is the containment guard, not a failing case", path, parent, f.base)
-			}
-			return
-		}
-		next := filepath.Dir(dir)
-		if next == dir {
-			f.t.Fatalf("refusing to write %s — no directory above it resolves\n"+
-				"this is the containment guard, not a failing case", path)
-		}
-		dir = next
-	}
-}
-
-func (f *fixture) mkdirAll(dir string) {
-	f.t.Helper()
-	f.containedParent(dir)
-	// The parent being contained says nothing about dir itself, and MkdirAll follows a symlink there
-	// the same way a file write does — the door the two writers below each shut on their own last
-	// component.
-	f.refuseExistingSymlink(dir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create %s: %v", dir, err)
-	}
-}
-
-func (f *fixture) write(path, body string) {
-	f.t.Helper()
-	f.containedParent(path)
-	// The parent being contained says nothing about the last component. A write follows a symlink, and
-	// the links these cases produce point into a checkout — a run leaves $home/.zshrc pointing at
-	// $repo/zsh/.zshrc, and a fixture write at that path afterwards lands in the real file. That is the
-	// incident in this file's header, reached by the one door the parent check does not cover.
-	f.refuseExistingSymlink(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		f.t.Fatalf("the fixture could not create the parent of %s: %v", path, err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		f.t.Fatalf("the fixture could not write %s: %v", path, err)
-	}
-}
-
-func (f *fixture) symlink(source, target string) {
-	f.t.Helper()
-	f.containedParent(target)
-	// `ln -s X Y` where Y already exists as a symlink to a directory creates the link INSIDE Y rather
-	// than replacing it, which is how a stray link ends up in a checkout. Refused rather than forced:
-	// every fixture link here is meant to be the first thing at its path.
-	f.refuseExistingSymlink(target)
-	if err := os.Symlink(source, target); err != nil {
-		f.t.Fatalf("the fixture could not link %s at %s: %v", target, source, err)
-	}
-}
-
 // A fixture link dropped so another can take its place. Through the containment guard, because
 // refuseExistingSymlink deliberately will not let one be overwritten and that refusal is not a rule to
 // be worked around by reaching for os directly.
 func (f *fixture) removeLink(path string) {
 	f.t.Helper()
-	f.containedParent(path)
+	f.ContainedParent(path)
 	if err := os.Remove(path); err != nil {
 		f.t.Fatalf("the fixture could not drop %s: %v", path, err)
-	}
-}
-
-// A whole fixture checkout deleted. Through the containment guard too: this is a recursive delete
-// built from a variable, and the suite this replaces destroyed files in the working tree once already.
-func (f *fixture) removeAll(path string) {
-	f.t.Helper()
-	f.containedParent(path)
-	if err := os.RemoveAll(path); err != nil {
-		f.t.Fatalf("the fixture could not remove %s: %v", path, err)
-	}
-}
-
-func (f *fixture) refuseExistingSymlink(path string) {
-	f.t.Helper()
-	if value, err := os.Readlink(path); err == nil {
-		f.t.Fatalf("refusing to write %s — it already exists as a symlink to %s\n"+
-			"this is the containment guard, not a failing case", path, value)
 	}
 }
 
@@ -350,16 +268,4 @@ func (f *fixture) expectFileBody(path, want string) {
 	if string(got) != want {
 		f.t.Errorf("%s holds %q, wanted %q", path, got, want)
 	}
-}
-
-// t.TempDir hands back /var/folders/… on macOS while /var is itself a symlink to /private/var.
-// Comparing an unresolved root against resolved paths would make every containment check refuse
-// everything, and a guard that always fires gets deleted.
-func physical(t *testing.T, dir string) string {
-	t.Helper()
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		t.Fatalf("the case's own temp directory does not resolve, so nothing could be contained: %v", err)
-	}
-	return resolved
 }

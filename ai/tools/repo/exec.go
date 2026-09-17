@@ -97,6 +97,16 @@ func (e Exec) Prefix(dir string) (string, error) {
 	return e.line(dir, "rev-parse", "--show-prefix")
 }
 
+// git exits non-zero when the key is unset, which is the whole of what separates "unset" from "set to
+// the empty string" — and those two mean opposite things to the caller.
+func (e Exec) ConfigValue(dir, key string) (string, bool) {
+	value, err := e.line(dir, "config", "--get", key)
+	if err != nil {
+		return "", false
+	}
+	return value, true
+}
+
 // `--quiet`, so a revision naming nothing is the empty answer git gives rather than an error. An
 // unborn HEAD reaches here on every fresh repository, and the callers all read it as "no commit yet".
 // `--end-of-options` so a revision beginning with a dash is a revision and not a flag.
@@ -412,6 +422,9 @@ func (e Exec) Worktrees(dir string) ([]Worktree, error) {
 				one.Head = strings.TrimPrefix(line, "HEAD ")
 			case line == "bare":
 				one.Bare = true
+			// git writes `prunable <reason>`, so the prefix and not the whole word.
+			case strings.HasPrefix(line, "prunable"):
+				one.Prunable = true
 			}
 		}
 		if found {

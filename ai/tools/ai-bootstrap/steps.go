@@ -111,13 +111,12 @@ func (run *invocation) verify() {
 	switch status {
 	case 0:
 	case 2:
-		// The gate's "nothing is known": a unit that could not run, one whose input set resolved to
-		// nothing, or one that ran and then refused its own result because the checkout moved underneath
-		// it. None of them is a finding about the code, and a refusal saying otherwise sends the reader
-		// to the wrong place.
+		// The gate's "nothing is known": a check that could not run, or one whose input set resolved to
+		// nothing. Neither is a finding about the code, and a refusal saying otherwise sends the reader to
+		// the wrong place — so this points at the gate's own output, where the check that never measured
+		// has already printed its reason.
 		run.mounting.Refuse(gate + " could not measure every check — unproven is not disproven, and it is " +
-			"not passing either. If it says a check refused its own result, re-run once nothing else is " +
-			"writing in this checkout")
+			"not passing either. The gate named the checks it could not measure and each said why above")
 	default:
 		run.mounting.Refuse(gate + " reported a failing check")
 	}

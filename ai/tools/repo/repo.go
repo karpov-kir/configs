@@ -23,6 +23,10 @@ type Worktree struct {
 	Head string
 	// Bare says the entry is the bare repository rather than a checkout.
 	Bare bool
+	// Prunable is git's own verdict that the entry is stale — its directory is gone, or its lock has
+	// expired — and that `worktree prune` would drop it. Neither this nor Bare is a tree to write
+	// into: a run that wrote into a prunable one would be acting on metadata git is about to discard.
+	Prunable bool
 }
 
 // Git is every question this repository's tools ask of a git repository. Each method takes the
@@ -46,6 +50,15 @@ type Git interface {
 	// Prefix is `rev-parse --show-prefix`: dir's path below the working tree root, "" at the root and
 	// otherwise slash-terminated as git prints it.
 	Prefix(dir string) (string, error)
+	// ConfigValue is `config --get <key>`, and whether the key is set at all.
+	//
+	// The second answer is not a refusal in disguise, which is why this method alone returns no error:
+	// git spells "unset" as a non-zero exit with nothing on stdout, indistinguishable from a failure,
+	// so an error here would be a lie either way. Set to the EMPTY STRING is still set, and the two
+	// mean opposite things to the caller that asks — core.hooksPath set empty sends git looking for
+	// hooks in the worktree root, so a hook written where an installer puts one never runs, and an
+	// installer reporting success would be promising links that never arrive.
+	ConfigValue(dir, key string) (value string, isSet bool)
 
 	// Resolve is `rev-parse --verify --quiet <rev>`: the object id, or "" with a nil error where the
 	// revision names nothing. An unborn HEAD and a typo are the same answer here, which is git's own.

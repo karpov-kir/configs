@@ -171,6 +171,11 @@ func TestAFailingGateAndAnUnmeasuredOneAreDifferentRefusals(t *testing.T) {
 	f.expectNotSaid("could not measure every check")
 }
 
+// The refusal points at the gate's own output. It once told the reader to re-run "if it says a check
+// refused its own result" — an exit 3 the shell runner this replaced produced when the checkout moved
+// while the suites ran. The gate has no such code: 0, 1 and 2, where 2 is a check that never measured
+// and printed its own reason. Advice for a state nothing can reach sends a reader hunting for a line
+// no tool prints.
 func TestAGateThatCouldNotMeasureIsNotBlamedOnTheCode(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/gate.sh", func(machine.Command) int { return 2 })
@@ -178,7 +183,8 @@ func TestAGateThatCouldNotMeasureIsNotBlamedOnTheCode(t *testing.T) {
 	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
 
 	f.expectSaid("could not measure every check")
-	f.expectSaid("re-run once nothing else is writing in this checkout")
+	f.expectSaid("each said why above")
+	f.expectNotSaid("refused its own result")
 	f.expectNotSaid("reported a failing check")
 }
 
@@ -188,7 +194,7 @@ func TestAGateThatCouldNotMeasureIsNotBlamedOnTheCode(t *testing.T) {
 // work is the same lie one step earlier.
 func TestACheckoutWithoutTheGateIsARefusalInBothModes(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.repo + "/gate.sh")
+	f.RemoveAll(f.repo + "/gate.sh")
 
 	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
 	f.expectSaid("is not in this checkout")

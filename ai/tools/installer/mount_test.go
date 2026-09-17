@@ -63,8 +63,8 @@ func TestASecondRunOverAFinishedHomeRelinksNothing(t *testing.T) {
 func TestALinkDifferingOnlyByATrailingSlashIsLeftAlone(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.mkdirAll(f.home + "/.config")
-	f.symlink(f.repo+"/nvim/", f.home+"/.config/nvim")
+	f.MkdirAll(f.home + "/.config")
+	f.Symlink(f.repo+"/nvim/", f.home+"/.config/nvim")
 
 	f.mount(installer.RunOptions{})
 
@@ -77,8 +77,8 @@ func TestALinkDifferingOnlyByATrailingSlashIsLeftAlone(t *testing.T) {
 func TestAStaleSymlinkIsRepointedRatherThanRefused(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.mkdirAll(f.home + "/.config")
-	f.symlink(f.base+"/somewhere-else", f.home+"/.config/nvim")
+	f.MkdirAll(f.home + "/.config")
+	f.Symlink(f.base+"/somewhere-else", f.home+"/.config/nvim")
 
 	run := f.mount(installer.RunOptions{})
 
@@ -94,8 +94,8 @@ func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 	// fail here.
 	t.Run("a real directory at a target is refused and its contents survive", func(t *testing.T) {
 		f := newFixture(t)
-		f.mkdirAll(f.home + "/.config/nvim")
-		f.write(f.home+"/.config/nvim/init.lua", "my real config")
+		f.MkdirAll(f.home + "/.config/nvim")
+		f.Write(f.home+"/.config/nvim/init.lua", "my real config")
 
 		run := f.mount(installer.RunOptions{})
 
@@ -111,8 +111,8 @@ func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 	// test.
 	t.Run("and a real file at a target survives too", func(t *testing.T) {
 		f := newFixture(t)
-		f.mkdirAll(f.home + "/.config")
-		f.write(f.home+"/.config/starship.toml", "hand-written prompt")
+		f.MkdirAll(f.home + "/.config")
+		f.Write(f.home+"/.config/starship.toml", "hand-written prompt")
 
 		run := f.mount(installer.RunOptions{})
 
@@ -130,7 +130,7 @@ func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 func TestASourceMissingFromTheCheckoutIsRefused(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.removeAll(f.repo + "/nvim")
+	f.RemoveAll(f.repo + "/nvim")
 
 	run := f.mount(installer.RunOptions{})
 

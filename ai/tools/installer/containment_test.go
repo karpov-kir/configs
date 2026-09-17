@@ -15,12 +15,13 @@ import (
 	"testing"
 
 	"kk-flavor/tools/installer"
+	"kk-flavor/tools/installertest"
 )
 
 // A run bounded to base/sandbox, with a source to link and a place outside the bound to aim at.
 func newBoundedRun(t *testing.T) (base string, run *installer.Run, out *strings.Builder) {
 	t.Helper()
-	base = physical(t, t.TempDir())
+	base = installertest.Physical(t, t.TempDir())
 	for _, dir := range []string{base + "/sandbox", base + "/outside", base + "/checkout"} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("the fixture could not create %s: %v", dir, err)
@@ -101,7 +102,7 @@ func TestTheBoundRefusesAWriteOutsideTheTreeItWasGiven(t *testing.T) {
 // otherwise the field that exists for the suites would change what production does.
 func TestAnUnboundedRunRecordsNoBreach(t *testing.T) {
 	t.Parallel()
-	base := physical(t, t.TempDir())
+	base := installertest.Physical(t, t.TempDir())
 	if err := os.MkdirAll(base+"/checkout", 0o755); err != nil {
 		t.Fatalf("the fixture could not create the checkout: %v", err)
 	}

@@ -3,7 +3,6 @@ package installer
 import (
 	"errors"
 	"os"
-	"strings"
 	"syscall"
 
 	"kk-flavor/tools/shell"
@@ -42,28 +41,14 @@ func (t *tree) contained(path string) error {
 	if t.writeRoot == "" {
 		return nil
 	}
-	parent := nearestExistingParent(path)
+	parent := shell.NearestExistingParent(path)
 	if parent == "" {
 		return t.breach(path, "no directory above it resolves")
 	}
-	if parent != t.writeRoot && !strings.HasPrefix(parent, t.writeRoot+"/") {
+	if !shell.IsWithin(parent, t.writeRoot) {
 		return t.breach(path, "its nearest existing parent resolves to "+parent)
 	}
 	return nil
-}
-
-// The nearest directory above path that exists, resolved physically. Climbed rather than asked of the
-// immediate parent, because a write creates the missing directories under it — so that ancestor is the
-// deepest thing a symlink could still redirect, and the missing names below it redirect nothing.
-func nearestExistingParent(path string) string {
-	for dir := shell.DirName(path); ; dir = shell.DirName(dir) {
-		if resolved := realDir(dir); resolved != "" {
-			return resolved
-		}
-		if dir == "/" || dir == "." {
-			return ""
-		}
-	}
 }
 
 func (t *tree) breach(path, reason string) error {

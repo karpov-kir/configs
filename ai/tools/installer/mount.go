@@ -308,7 +308,7 @@ func (r *Run) UnmountTarget(target string) bool {
 	// empty and falls through to the refusal, which is right: its target is unknown, so its ownership
 	// is too.
 	resolved := realDir(shell.DirName(current))
-	if resolved == "" || (resolved != r.repo && !strings.HasPrefix(resolved, r.repo+"/")) {
+	if !shell.IsWithin(resolved, r.repo) {
 		r.Refuse(target + " points at " + current + ", which is not in this checkout — left alone")
 		return false
 	}

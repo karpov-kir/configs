@@ -85,6 +85,8 @@ func TestTheAdapterAnswersGit(t *testing.T) {
 	t.Run("many files at one revision", f.batchContent)
 	t.Run("ignores and status", f.ignores)
 	t.Run("worktrees", f.worktreeList)
+	t.Run("a config value", f.configValue)
+	t.Run("a worktree git means to prune", f.prunableWorktree)
 	t.Run("a refusal carries what git said", f.refusal)
 	// Last, because it writes to the index every case above reads.
 	t.Run("staging", f.staging)
@@ -422,6 +424,69 @@ func (f fixture) worktreeList(t *testing.T) {
 			t.Errorf("Worktrees did not name %s: %v", want, paths)
 		}
 	}
+}
+
+// Prunable is git's own verdict on an entry, not a guess from the filesystem: an installer writing
+// into a worktree git is about to drop would be acting on metadata rather than on a checkout. The
+// directory is removed here and `worktree prune` deliberately not run, which is exactly the window a
+// post-checkout sync runs in.
+func (f fixture) prunableWorktree(t *testing.T) {
+	gone := filepath.Join(filepath.Dir(f.root), "throwaway")
+	mustRun(t, f.root, "git", "worktree", "add", "-q", gone, "-b", "throwaway")
+	if err := os.RemoveAll(gone); err != nil {
+		t.Fatalf("removing the worktree directory: %v", err)
+	}
+	var found bool
+	for _, one := range f.worktrees(f.git.Worktrees(f.root)) {
+		if !sameName(one.Path, gone) {
+			if one.Prunable {
+				t.Errorf("%s came back prunable, and it is a checkout git still has", one.Path)
+			}
+			continue
+		}
+		found = true
+		if !one.Prunable {
+			t.Errorf("%s came back with Prunable false, and its directory is gone", one.Path)
+		}
+	}
+	if !found {
+		t.Errorf("Worktrees stopped naming %s once its directory went, so nothing could be flagged", gone)
+	}
+	mustRun(t, f.root, "git", "worktree", "prune")
+}
+
+// Unset and set-to-empty are different answers, and they mean opposite things to the one caller that
+// asks: core.hooksPath set empty sends git looking for hooks in the worktree root, so a hook written
+// where an installer puts one never runs. git spells both as a non-zero exit with nothing on stdout,
+// so only `--get`'s exit code separates them.
+func (f fixture) configValue(t *testing.T) {
+	if value, isSet := f.git.ConfigValue(f.root, "core.hooksPath"); isSet || value != "" {
+		t.Errorf("ConfigValue over an unset key = (%q, %v), wanted (%q, false)", value, isSet, "")
+	}
+	mustRun(t, f.root, "git", "config", "core.hooksPath", "")
+	if value, isSet := f.git.ConfigValue(f.root, "core.hooksPath"); !isSet || value != "" {
+		t.Errorf("ConfigValue over a key set to the empty string = (%q, %v), wanted (%q, true)", value, isSet, "")
+	}
+	mustRun(t, f.root, "git", "config", "core.hooksPath", ".githooks")
+	if value, isSet := f.git.ConfigValue(f.root, "core.hooksPath"); !isSet || value != ".githooks" {
+		t.Errorf("ConfigValue = (%q, %v), wanted (%q, true)", value, isSet, ".githooks")
+	}
+	mustRun(t, f.root, "git", "config", "--unset", "core.hooksPath")
+}
+
+// Two spellings of one directory, which is what /var being a symlink to /private/var on macOS makes of
+// every path here. Compared by identity where both exist; a worktree whose directory is gone has no
+// identity left, so its name is compared after the one resolution that can still be made.
+func sameName(left, right string) bool {
+	if left == right {
+		return true
+	}
+	leftReal, leftErr := filepath.EvalSymlinks(filepath.Dir(left))
+	rightReal, rightErr := filepath.EvalSymlinks(filepath.Dir(right))
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	return filepath.Join(leftReal, filepath.Base(left)) == filepath.Join(rightReal, filepath.Base(right))
 }
 
 func (f fixture) staging(t *testing.T) {

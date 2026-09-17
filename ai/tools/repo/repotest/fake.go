@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"kk-flavor/tools/repo"
+	"kk-flavor/tools/shell"
 )
 
 // WorkTree is the revision name for what is on disk rather than in a commit. Spelt as the empty
@@ -49,6 +50,16 @@ type Fake struct {
 	// PrefixByDir is what a directory's path below Root is, for a case that spells its directories some
 	// way prefixOf cannot read. Left empty, every directory under Root places itself.
 	PrefixByDir map[string]string
+	// Trees is what git answers PER DIRECTORY, for a suite driving more than one of them: a sibling
+	// worktree, a subdirectory that answers its worktree's root, a forged `.git/worktrees/` entry
+	// naming an unrelated clone. NIL, which is how New leaves it, means every directory is the one
+	// repository Root and Common describe — what all but one suite drives. PerDirectory below turns it
+	// on, and a directory then ABSENT from it is no repository at all, which is the failure
+	// `rev-parse` gives and the only way a case says so about one directory and not another.
+	Trees map[string]Tree
+	// Config answers ConfigValue. A key PRESENT here is set whatever its value, including the empty
+	// string; a key absent is unset. The two are opposite answers rather than degrees of one.
+	Config map[string]string
 
 	// Revs maps a revision name to the files it holds. Revs[WorkTree] is the working tree.
 	Revs map[string]map[string]string
@@ -92,6 +103,14 @@ type Fake struct {
 	Asked []string
 }
 
+// Tree is what git answers about one directory: the working tree root it sits in, and the store its
+// clone shares. Both are spelled out — a tree that inherited either would make the one case this
+// exists for, a directory belonging to a DIFFERENT clone, unable to say so.
+type Tree struct {
+	Root   string
+	Common string
+}
+
 var _ repo.Git = (*Fake)(nil)
 
 // New is an empty repository rooted at root with one commit, so the common case — a tool that refuses
@@ -101,12 +120,64 @@ func New(root string) *Fake {
 		Root:        root,
 		Git:         path.Join(root, ".git"),
 		PrefixByDir: map[string]string{},
+		Config:      map[string]string{},
 		Revs:        map[string]map[string]string{WorkTree: {}},
 		Refs:        map[string]string{},
 		Bases:       map[string]string{},
 		Sources:     map[string]string{},
 		Fail:        map[string]error{},
 	}
+}
+
+// PerDirectory makes every answer about a directory a declared one. From here a directory none of the
+// builders below has named is NO repository, which is what a project someone is merely trying a tool
+// out in looks like — and a suite driving several trees has no way to say that while one Root answers
+// for every directory it is asked about.
+func (f *Fake) PerDirectory() *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Trees == nil {
+		f.Trees = map[string]Tree{}
+	}
+	return f
+}
+
+// WorktreeAt declares one worktree of this clone: git answers for the directory, it shares this
+// fake's store, and `worktree list` names it. Called after Common is set, since that is the store it
+// records.
+func (f *Fake) WorktreeAt(dir string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.treeAt(dir, dir, f.sharedDir())
+	f.WorktreeList = append(f.WorktreeList, repo.Worktree{Path: dir})
+	return f
+}
+
+// ForeignWorktreeAt is a directory git answers for that belongs to a DIFFERENT clone, listed among
+// this one's worktrees — what a forged `.git/worktrees/` entry naming an unrelated repository looks
+// like from here. The store it names is the whole tell, so it is the caller's to spell.
+func (f *Fake) ForeignWorktreeAt(dir, common string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.treeAt(dir, dir, common)
+	f.WorktreeList = append(f.WorktreeList, repo.Worktree{Path: dir})
+	return f
+}
+
+// TreeAt is a directory INSIDE a worktree, which `rev-parse` answers that worktree's root for. Not
+// added to the listing: git lists worktrees, never the directories under them.
+func (f *Fake) TreeAt(dir, root string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.treeAt(dir, root, f.sharedDir())
+	return f
+}
+
+func (f *Fake) treeAt(dir, root, common string) {
+	if f.Trees == nil {
+		f.Trees = map[string]Tree{}
+	}
+	f.Trees[dir] = Tree{Root: root, Common: common}
 }
 
 // Diff sets what Patch answers, for every revision spelling a case does not name on its own.
@@ -195,7 +266,8 @@ func (f *Fake) TopLevel(dir string) (string, error) {
 	if err := f.note("TopLevel"); err != nil {
 		return "", err
 	}
-	return f.Root, nil
+	tree, err := f.treeOf(dir)
+	return tree.Root, err
 }
 
 func (f *Fake) CommonDir(dir string) (string, error) {
@@ -204,10 +276,37 @@ func (f *Fake) CommonDir(dir string) (string, error) {
 	if err := f.note("CommonDir"); err != nil {
 		return "", err
 	}
-	if f.Common != "" {
-		return f.Common, nil
+	tree, err := f.treeOf(dir)
+	return tree.Common, err
+}
+
+func (f *Fake) ConfigValue(dir, key string) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// No error to give: "unset" is an answer here, and Fail has nothing to say about it.
+	_ = f.note("ConfigValue")
+	value, isSet := f.Config[key]
+	return value, isSet
+}
+
+// What git answers about dir, or the failure it gives for a directory that is no repository.
+func (f *Fake) treeOf(dir string) (Tree, error) {
+	if f.Trees == nil {
+		return Tree{Root: f.Root, Common: f.sharedDir()}, nil
 	}
-	return f.Git, nil
+	tree, known := f.Trees[dir]
+	if !known {
+		return Tree{}, fmt.Errorf("the fake holds no worktree at %s", dir)
+	}
+	return tree, nil
+}
+
+// The store this clone shares, which is the git dir itself unless a case gave the clone one.
+func (f *Fake) sharedDir() string {
+	if f.Common != "" {
+		return f.Common
+	}
+	return f.Git
 }
 
 func (f *Fake) GitDir(dir string) (string, error) {
@@ -618,7 +717,7 @@ func (f *Fake) isIgnored(name string) bool {
 		return false
 	}
 	for _, rule := range f.IgnoredPaths {
-		if name == rule || strings.HasPrefix(name, rule+"/") {
+		if shell.IsWithin(name, rule) {
 			return true
 		}
 	}
@@ -643,7 +742,7 @@ func matchesPathspec(name string, pathspec []string) bool {
 	}
 	for _, spec := range pathspec {
 		spec = strings.TrimSuffix(spec, "/")
-		if spec == "" || spec == "." || name == spec || strings.HasPrefix(name, spec+"/") {
+		if spec == "" || spec == "." || shell.IsWithin(name, spec) {
 			return true
 		}
 	}

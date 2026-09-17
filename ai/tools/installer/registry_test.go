@@ -16,8 +16,8 @@ import (
 func newRegistryFixture(t *testing.T) (*fixture, *installer.Run) {
 	t.Helper()
 	f := newBareFixture(t)
-	f.mkdirAll(f.base + "/p1")
-	f.mkdirAll(f.base + "/p2")
+	f.MkdirAll(f.base + "/p1")
+	f.MkdirAll(f.base + "/p2")
 	return f, f.newRun(installer.RunOptions{ConfigHome: f.base + "/cfg"})
 }
 
@@ -56,7 +56,7 @@ func TestAReadPrunesTheProjectsThatAreGone(t *testing.T) {
 	f, run := newRegistryFixture(t)
 	run.RecordInstall(f.base + "/p1")
 	run.RecordInstall(f.base + "/p2")
-	f.removeAll(f.base + "/p2")
+	f.RemoveAll(f.base + "/p2")
 
 	live := run.LiveInstalls()
 
@@ -75,8 +75,8 @@ func TestACommentIsNotReadBackAsAProjectAndSurvivesThePrune(t *testing.T) {
 	f, run := newRegistryFixture(t)
 	run.RecordInstall(f.base + "/p1")
 	run.RecordInstall(f.base + "/p2")
-	f.write(run.RegistryFile(), registryBody(t, run)+"# a note someone left\n")
-	f.removeAll(f.base + "/p2")
+	f.Write(run.RegistryFile(), registryBody(t, run)+"# a note someone left\n")
+	f.RemoveAll(f.base + "/p2")
 
 	live := run.LiveInstalls()
 
@@ -128,7 +128,7 @@ func TestAMachineWithNoRegistryReadsCleanAndForgetsCleanly(t *testing.T) {
 func TestADryRunWritesNoRegistry(t *testing.T) {
 	t.Parallel()
 	f := newBareFixture(t)
-	f.mkdirAll(f.base + "/p1")
+	f.MkdirAll(f.base + "/p1")
 	run := f.newRun(installer.RunOptions{ConfigHome: f.base + "/cfg", DryRun: true})
 
 	run.RecordInstall(f.base + "/p1")

@@ -45,7 +45,7 @@ func TestCodexRtkIsInitialisedInAStagingProfileAndOnlyItsDocumentIsKept(t *testi
 // write over it.
 func TestAnExistingCodexRtkDocumentIsKeptAndTheCliIsNotRun(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.codexHome+"/RTK.md", "Personal RTK instructions\n")
+	f.Write(f.codexHome+"/RTK.md", "Personal RTK instructions\n")
 
 	f.expectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
@@ -59,7 +59,7 @@ func TestAnExistingCodexRtkDocumentIsKeptAndTheCliIsNotRun(t *testing.T) {
 // the CLI is reached, so nothing is written through it.
 func TestASymlinkedCodexRtkDocumentIsRefusedBeforeTheCliRuns(t *testing.T) {
 	f := newFixture(t)
-	f.symlink(f.home+"/elsewhere", f.codexHome+"/RTK.md")
+	f.Symlink(f.home+"/elsewhere", f.codexHome+"/RTK.md")
 
 	f.expectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
 
@@ -113,7 +113,7 @@ func TestSkipRtkSaysSoAndRunsNothing(t *testing.T) {
 // is never told about a leftover this repository never wrote there, and never has rtk initialised.
 func TestADefaultTierLeavesRtkAloneAndSaysWhose(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/RTK.md", "not ours to remove\n")
+	f.Write(f.home+"/.claude/RTK.md", "not ours to remove\n")
 
 	f.expectCode(f.run("--agent=claude", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
@@ -128,7 +128,7 @@ func TestADefaultTierLeavesRtkAloneAndSaysWhose(t *testing.T) {
 // back. Every machine already set up from this repository is holding one.
 func TestTheLeftoverClaudeRtkDocumentIsRemoved(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/RTK.md", "the copy an earlier bootstrap left here\n")
+	f.Write(f.home+"/.claude/RTK.md", "the copy an earlier bootstrap left here\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
 
@@ -140,8 +140,8 @@ func TestTheLeftoverClaudeRtkDocumentIsRemoved(t *testing.T) {
 // points at must not, because a removal that followed it would take a file this never wrote.
 func TestASymlinkAtTheLeftoverPathGoesWithoutFollowingIt(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/pointed-at.md", "the file the link named\n")
-	f.symlink(f.home+"/.claude/pointed-at.md", f.home+"/.claude/RTK.md")
+	f.Write(f.home+"/.claude/pointed-at.md", "the file the link named\n")
+	f.Symlink(f.home+"/.claude/pointed-at.md", f.home+"/.claude/RTK.md")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
 
@@ -153,7 +153,7 @@ func TestASymlinkAtTheLeftoverPathGoesWithoutFollowingIt(t *testing.T) {
 // be the data loss this whole installer promises not to be.
 func TestADirectoryAtTheLeftoverPathIsRefusedAndItsContentsSurvive(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/RTK.md/notes.md", "somebody else put this here\n")
+	f.Write(f.home+"/.claude/RTK.md/notes.md", "somebody else put this here\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner"), 1)
 
@@ -163,7 +163,7 @@ func TestADirectoryAtTheLeftoverPathIsRefusedAndItsContentsSurvive(t *testing.T)
 
 func TestADryRunOverTheLeftoverLeavesItAlone(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/RTK.md", "still here afterwards\n")
+	f.Write(f.home+"/.claude/RTK.md", "still here afterwards\n")
 
 	f.expectCode(f.install("--agent=claude", "--owner", "--dry-run"), 0)
 
@@ -175,7 +175,7 @@ func TestADryRunOverTheLeftoverLeavesItAlone(t *testing.T) {
 // printed nothing reads exactly like one that was never reached.
 func TestCodexSaysTheClaudeCleanupDoesNotApply(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.home+"/.claude/RTK.md", "Claude's own\n")
+	f.Write(f.home+"/.claude/RTK.md", "Claude's own\n")
 
 	f.expectCode(f.install("--agent=codex", "--owner"), 0)
 

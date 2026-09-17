@@ -9,8 +9,8 @@ func TestASyncMountsTheTierEachClientWasInstalledWith(t *testing.T) {
 	paths := f.asRepository()
 	f.expectCode(f.install("--agent=claude", "--maintainer"), 0)
 	f.expectCode(f.install("--agent=codex"), 0)
-	f.removeAll(f.skillsMount("claude"))
-	f.removeAll(f.skillsMount("codex"))
+	f.RemoveAll(f.skillsMount("claude"))
+	f.RemoveAll(f.skillsMount("codex"))
 
 	f.expectCode(f.sync(f.project), 0)
 
@@ -28,7 +28,7 @@ func TestASyncWritesNoInstructionsAndNoIgnoreRules(t *testing.T) {
 	f.asRepository()
 	f.expectCode(f.install("--agent=claude"), 0)
 	instructions := f.read(f.project + "/AGENTS.md")
-	f.removeAll(f.project + "/.gitignore")
+	f.RemoveAll(f.project + "/.gitignore")
 
 	f.expectCode(f.sync(f.project), 0)
 
@@ -74,11 +74,10 @@ func TestASyncFromInsideTheWorktreeStillMountsAtItsRoot(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
 	f.expectCode(f.install("--agent=claude"), 0)
-	f.removeAll(f.skillsMount("claude"))
+	f.RemoveAll(f.skillsMount("claude"))
 	inside := f.project + "/somewhere/deep"
-	f.mkdirAll(inside)
-	f.git.roots[inside] = f.project
-	f.git.commons[inside] = f.git.commonDir
+	f.MkdirAll(inside)
+	f.git.TreeAt(inside, f.project)
 
 	f.expectCode(f.sync(inside), 0)
 

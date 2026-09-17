@@ -20,8 +20,8 @@ func newSkillTree(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture(t)
 	f.newSkill("kk-build")
-	f.mkdirAll(f.repo + "/skills/kk-ecosystem")
-	f.write(f.repo+"/skills/kk-ecosystem/SKILL.md", markedSkill)
+	f.MkdirAll(f.repo + "/skills/kk-ecosystem")
+	f.Write(f.repo+"/skills/kk-ecosystem/SKILL.md", markedSkill)
 	return f
 }
 
@@ -96,8 +96,8 @@ func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 func TestAnAudienceNoReaderKnowsIsReportedAndStillMounted(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.mkdirAll(f.repo + "/skills/kk-typo")
-	f.write(f.repo+"/skills/kk-typo/SKILL.md",
+	f.MkdirAll(f.repo + "/skills/kk-typo")
+	f.Write(f.repo+"/skills/kk-typo/SKILL.md",
 		"---\nname: kk-typo\ndescription: a skill\naudience: maintainr\n---\n")
 
 	run, found := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
@@ -133,9 +133,9 @@ func TestTheSameTreeWithTheMarkerSpelledRightRefusesNothing(t *testing.T) {
 func TestARawCsiInAnAudienceValueNeverReachesTheTerminal(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.mkdirAll(f.repo + "/skills/kk-typo")
+	f.MkdirAll(f.repo + "/skills/kk-typo")
 	const csi = "\x9b"
-	f.write(f.repo+"/skills/kk-typo/SKILL.md",
+	f.Write(f.repo+"/skills/kk-typo/SKILL.md",
 		"---\nname: kk-typo\ndescription: a skill\naudience: maintainr"+csi+"[2K\n---\n")
 
 	run, _ := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
@@ -157,7 +157,7 @@ func TestDiscoveryTellsAnEmptyTreeFromATierThatExcludedEverything(t *testing.T) 
 	t.Parallel()
 	t.Run("a tree holding no skill finds none", func(t *testing.T) {
 		f := newFixture(t)
-		f.mkdirAll(f.repo + "/skills")
+		f.MkdirAll(f.repo + "/skills")
 
 		_, found := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
 
@@ -169,8 +169,8 @@ func TestDiscoveryTellsAnEmptyTreeFromATierThatExcludedEverything(t *testing.T) 
 
 	t.Run("while a tree whose every skill is marked finds them and skips them", func(t *testing.T) {
 		f := newFixture(t)
-		f.mkdirAll(f.repo + "/skills/kk-ecosystem")
-		f.write(f.repo+"/skills/kk-ecosystem/SKILL.md", markedSkill)
+		f.MkdirAll(f.repo + "/skills/kk-ecosystem")
+		f.Write(f.repo+"/skills/kk-ecosystem/SKILL.md", markedSkill)
 
 		_, found := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
 

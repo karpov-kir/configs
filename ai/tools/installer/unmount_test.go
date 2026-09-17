@@ -58,7 +58,7 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 	// A real file at the target: not this run's to remove, and the refusal says who should.
 	t.Run("a target that is not a symlink is left for the human", func(t *testing.T) {
 		f := newFixture(t)
-		f.write(f.home+"/.zshrc", "hand-written")
+		f.Write(f.home+"/.zshrc", "hand-written")
 
 		run := f.unmount(installer.RunOptions{})
 
@@ -74,7 +74,7 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 	// would resolve under the checkout and be deleted.
 	t.Run("and a relative link, which this never writes, is left alone", func(t *testing.T) {
 		f := newFixture(t)
-		f.symlink("zsh/.zshrc", f.home+"/.zshrc")
+		f.Symlink("zsh/.zshrc", f.home+"/.zshrc")
 
 		run := f.unmount(installer.RunOptions{})
 
@@ -88,7 +88,7 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 	t.Run("and a link into another checkout is left where it is", func(t *testing.T) {
 		f := newFixture(t)
 		other := f.newCheckout(f.base + "/other-repo")
-		f.symlink(other+"/zsh/.zshrc", f.home+"/.zshrc")
+		f.Symlink(other+"/zsh/.zshrc", f.home+"/.zshrc")
 
 		run := f.unmount(installer.RunOptions{})
 
@@ -101,7 +101,7 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 	// its target is unknown, so its ownership is too.
 	t.Run("and one resolving nowhere is left alone too", func(t *testing.T) {
 		f := newFixture(t)
-		f.symlink(f.base+"/gone/zsh/.zshrc", f.home+"/.zshrc")
+		f.Symlink(f.base+"/gone/zsh/.zshrc", f.home+"/.zshrc")
 
 		run := f.unmount(installer.RunOptions{})
 

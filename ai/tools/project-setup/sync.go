@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"kk-flavor/tools/repo"
 )
 
 // The post-checkout entry point: restore the skill links one worktree should have, for whichever
@@ -24,7 +26,7 @@ type SyncOptions struct {
 	// ConfigHome is where the install registry lives. Unread by the sync and taken anyway, because the
 	// machinery reads it and a run built without it would reach the developer's own.
 	ConfigHome string
-	Git        Git
+	Git        repo.Git
 	Out        io.Writer
 	Err        io.Writer
 	WriteRoot  string

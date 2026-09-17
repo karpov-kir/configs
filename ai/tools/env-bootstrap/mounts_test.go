@@ -31,7 +31,7 @@ func TestAMachineMountedFromAnotherCheckoutInstallsNothingEither(t *testing.T) {
 	f := newFixture(t)
 	stranger := f.base + "/stranger/env"
 	f.newCheckout(stranger)
-	f.symlink(stranger+"/zsh/.zshrc", f.home+"/.zshrc")
+	f.Symlink(stranger+"/zsh/.zshrc", f.home+"/.zshrc")
 
 	f.expectCode(f.run(), 1)
 

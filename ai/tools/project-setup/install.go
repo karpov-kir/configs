@@ -25,6 +25,7 @@ import (
 	"kk-flavor/tools/flavor"
 	"kk-flavor/tools/installer"
 	"kk-flavor/tools/machine"
+	"kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -62,7 +63,10 @@ type Options struct {
 	// lives.
 	ConfigHome string
 	Machine    machine.Machine
-	Git        Git
+	// Git is ai/tools/repo's port, the one place these tools ask a git repository a question. This
+	// installer asks four of them — where a worktree's root is, which store its clone shares, what
+	// core.hooksPath says, and what `worktree list` names.
+	Git repo.Git
 	// Mcp configures the project's own MCP client files. A port, because it is a whole tool of its own
 	// and what this installer decides is only what to do with the code it answers.
 	Mcp       Mcp
@@ -397,8 +401,7 @@ func (run *invocation) otherClientMounted() bool {
 		if err != nil || !strings.HasPrefix(value, "/") {
 			continue
 		}
-		resolved := shell.CanonicalDir(shell.DirName(value))
-		if resolved == run.Repo || strings.HasPrefix(resolved, run.Repo+"/") {
+		if shell.IsWithin(shell.CanonicalDir(shell.DirName(value)), run.Repo) {
 			return true
 		}
 	}

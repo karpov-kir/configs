@@ -6,7 +6,7 @@ import "testing"
 // file of its own carrying an import, so a project's two clients read one set of instructions.
 func TestACodexInstallUsesItsOwnDirectoryAndTheSharedInstructions(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.project+"/AGENTS.md", "Project instructions.\n")
+	f.Write(f.project+"/AGENTS.md", "Project instructions.\n")
 
 	f.expectCode(f.install("--agent=codex"), 0)
 
@@ -21,7 +21,7 @@ func TestACodexInstallUsesItsOwnDirectoryAndTheSharedInstructions(t *testing.T) 
 // leave the project installed and nothing loading them.
 func TestCodexRefusesAShadowedProjectInstructionFile(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.project+"/AGENTS.override.md", "Project override instructions.\n")
+	f.Write(f.project+"/AGENTS.override.md", "Project override instructions.\n")
 
 	f.expectCode(f.install("--agent=codex"), 1)
 
@@ -31,7 +31,7 @@ func TestCodexRefusesAShadowedProjectInstructionFile(t *testing.T) {
 
 func TestCodexRefusesItsOwnBroadIgnoreRule(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.project+"/.gitignore", "node_modules/\n.agents/\n")
+	f.Write(f.project+"/.gitignore", "node_modules/\n.agents/\n")
 
 	f.expectCode(f.install("--agent=codex"), 1)
 
@@ -78,8 +78,8 @@ func TestTheLastClientUninstalledTakesTheSharedInstructionsAndTheEntry(t *testin
 // reading two copies.
 func TestALegacyClaudeOnlyRegionMigratesToTheSharedFile(t *testing.T) {
 	f := newFixture(t)
-	f.write(f.project+"/AGENTS.md", "# Shared standards\n\nKeep this shared rule.\n")
-	f.write(f.project+"/CLAUDE.md", "# project\n\nHow this project works.\n\n"+
+	f.Write(f.project+"/AGENTS.md", "# Shared standards\n\nKeep this shared rule.\n")
+	f.Write(f.project+"/CLAUDE.md", "# project\n\nHow this project works.\n\n"+
 		"<!-- kk-flavor:begin -->\n### KK Flavor\n\n"+
 		"Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.\n"+
 		"<!-- kk-flavor:end -->\n")
@@ -97,7 +97,7 @@ func TestALegacyClaudeOnlyRegionMigratesToTheSharedFile(t *testing.T) {
 // files all run ahead of the first mount, so a run cannot leave a project half installed.
 func TestASymlinkedSharedFileIsRefusedBeforeEitherFileIsWritten(t *testing.T) {
 	f := newFixture(t)
-	f.symlink(f.base+"/untouched-shared-target", f.project+"/AGENTS.md")
+	f.Symlink(f.base+"/untouched-shared-target", f.project+"/AGENTS.md")
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
@@ -111,12 +111,12 @@ func TestASymlinkedSharedFileIsRefusedBeforeEitherFileIsWritten(t *testing.T) {
 // every other failure is caught by the checks above, before the first mount.
 func TestAnUnwritableSharedFileLeavesNoImportBehind(t *testing.T) {
 	f := newFixture(t)
-	f.removeAll(f.project + "/CLAUDE.md")
+	f.RemoveAll(f.project + "/CLAUDE.md")
 	f.expectCode(f.install("--agent=claude"), 0)
 	// Both files back out, and the project closed to new ones. A later run then has the mounts already
 	// and reaches the instruction step, which is the only path this case can take.
-	f.removeAll(f.project + "/AGENTS.md")
-	f.removeAll(f.project + "/CLAUDE.md")
+	f.RemoveAll(f.project + "/AGENTS.md")
+	f.RemoveAll(f.project + "/CLAUDE.md")
 	f.closeToNewFiles(f.project)
 
 	f.expectCode(f.install("--agent=claude"), 1)
