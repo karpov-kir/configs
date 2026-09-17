@@ -526,6 +526,12 @@ fresh_home
 out=$(HOME="$home" bash "$script" --agent=claude --help 2>&1)
 status=$?
 expect_status "--help exits 0" 0
+# The defect this pins: the range used to start on the header's spacer lines, so help opened with four
+# blank lines before saying anything. Reading the first printed line is the only assertion that catches
+# it — every needle below matches anywhere in the output and passes whatever precedes it.
+[ -n "$(printf '%s\n' "$out" | head -1)" ] &&
+  record_pass "--help opens with a line carrying text" ||
+  record_fail "--help opens with a line carrying text" "the output begins with a blank line"
 expect_out "and prints the header's opening line, so the range still starts where it should" "$help_first"
 expect_out "and reaches the usage line, so it still ends where it should" "$help_usage"
 expect_not_out "and stops before the notes under it" "Safe to re-run"

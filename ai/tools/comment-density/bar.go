@@ -1,9 +1,9 @@
 // The bar half of the detector: what the host repo's own comment rate is, and how far over it a change
 // set sits. It counts each changed file whole, so a second run over the same tree reproduces its verdict.
 //
-// A comment's bar is a ratio to the code it sits in. A PR body's is not: measured over player-testing's
-// merged PRs, body length does not scale with the diff (words per changed line 3 at p50, 36 at p90), so a
-// body takes an absolute bar read off the repo's own bodies. That thermometer is not built yet.
+// A comment's bar is a ratio to the code it sits in. A PR body's is not: body length does not scale with
+// the diff, so a body takes an absolute bar read off the repo's own bodies. Measured over one repository's
+// merged PRs, words per changed line ran 3 at p50 and 36 at p90. That thermometer is not built yet.
 package density
 
 import (

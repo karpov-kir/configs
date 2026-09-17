@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Install the maintainer tier, RTK, and shared owner instructions for either client.
-# Owner memory lives separately in ~/Document/AI/MEMORY.md.
+# Owner memory lives separately; ai/README.md names the store and what an install does with it.
 #
 #   usage: ai/bootstrap-owner.sh --agent=claude|codex [--uninstall] [other ai/bootstrap.sh options]
 #
