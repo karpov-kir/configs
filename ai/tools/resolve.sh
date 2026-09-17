@@ -63,6 +63,13 @@ serve() {
 # build does and costs one file read where hashing the binary on every invocation would not. Never the
 # stub: that file barely changes and would name nothing.
 #
+# The stamp is one of two facts a stub exports, and they answer different questions. This one says what
+# the binary was built from; ECO_TOOL_TREE says which commit the checkout serving it sits on. A tree can
+# hold a stamp that matches its own source perfectly and still be a commit nobody else has — the mount
+# resolves to one checkout's working tree, so a session reading source, running a binary or loading a
+# skill through it gets whatever that tree currently holds. Observed: a skill appeared in a live
+# session's list and vanished two turns later as that checkout moved and moved back.
+#
 # It names the SOURCE, not the bytes: identical source built under two Go toolchains stamps the same and
 # can still behave differently. Narrow, and stated rather than built for — but do not read a matching
 # stamp as a bytes-identical guarantee.

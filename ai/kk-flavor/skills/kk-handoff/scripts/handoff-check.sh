@@ -9,11 +9,11 @@
 # names, a licence that was paraphrased instead of quoted, or a sentence pointing back at the
 # conversation the receiver was never in.
 #
-# The title line is two slots — `[<repo name>] <one imperative line: the work>` — and each is read on
+# The title line is two slots — `[<repo abbrev>] <one imperative line: the work>` — and each is read on
 # its own. Either one still holding its `<…>` placeholder is refused, and so is a bracketed opening
-# word that is not what `repo-key.sh --name` prints for <repo>. The prefix itself is optional: a title
-# that does not open with a bracketed word passes, because the gate checks which name stands in that
-# slot, not whether one stands there at all.
+# word that is not what `repo-key.sh --abbrev` prints for <repo>. The prefix itself is optional: a
+# title that does not open with a bracketed word passes, because the gate checks which abbreviation
+# stands in that slot, not whether one stands there at all.
 #
 # Findings print one per line. Two other kinds print alongside them, and neither fails the draft: a
 # `declared None:` line per slot the draft empties on purpose, and a `note:` when the repository is
@@ -66,6 +66,11 @@ binary="$("$resolver" "$tool")" || exit 2
 # The build about to answer, handed to the tool rather than printed: a stub's own output is a value
 # callers parse. Empty when nothing stamped it. `ai/tools/resolve.sh` carries why.
 export ECO_TOOL_BUILD="$(cat "$binary.stamp" 2>/dev/null || true)"
+
+# The checkout that answered, which the build stamp does not name: the stamp hashes source, so it moves
+# when the source does and says nothing about which commit the tree sits on. `ai/tools/resolve.sh`
+# carries why the two are both needed.
+export ECO_TOOL_TREE="$(git -C "${resolver%/*}" rev-parse HEAD 2>/dev/null || true)"
 
 # `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
 # it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.

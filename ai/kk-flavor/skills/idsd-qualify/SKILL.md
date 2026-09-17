@@ -64,7 +64,7 @@ Run `report.sh layout check` to validate the layout. For an old layout, explicit
 
 It is an appended record, so `~/.kk-flavor/standards/records.md` is the whole delta. Its two sections are `## Promotion candidates` and `## Decisions`, sharing the record's cap. Candidates are settled decisions worth proposing as project-wide invariants; open human questions remain in the report.
 
-Classify an existing entry with `report.sh record --intent <NNN-slug> classify local-decisions "<selector>" candidate|decision` (for the project log, use `project-decisions` and omit `--intent <NNN-slug>`). Classification preserves the entry and its count; it neither edits the charter nor grants promotion approval.
+Classify an existing entry with `report.sh record --intent <NNN-slug> classify local-decisions "<selector>" candidate|decision` (for the project log, use `project-decisions` and omit `--intent <NNN-slug>`). Classification preserves the entry and its count; it neither edits the charter nor grants promotion approval. A `project-decisions` write exits 4 while another ship holds the merge slot, naming the holder — classify the local entry instead and leave the project log to whoever is landing.
 
 **Write it only through `report.sh record --intent <NNN-slug> {append|bump|revise|evict|admit} local-decisions "<text>"`** — this ship's own log, which finalize merges upward. Two hand-run read-modify-writes leave the file holding whichever landed second, with nothing in any diff to say the other's entries went. In external mode every worktree of the clone races for that one copy (**Report**).
 

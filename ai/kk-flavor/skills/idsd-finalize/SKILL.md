@@ -1,7 +1,6 @@
 ---
 name: idsd-finalize
 description: Land an already qualified intent through a direct merge or a PR, and archive its records. Use for "finalize the intent" or an explicit final checkpoint. Waits for verified landing; the broader ship lifecycle belongs to idsd-ship.
-disable-model-invocation: true
 argument-hint: "<NNN-slug>"
 ---
 
@@ -10,13 +9,13 @@ argument-hint: "<NNN-slug>"
 **Extends:** idsd-qualify — step 1, where no pass has stamped this tree or one had to be re-run
 **Extends:** idsd-charter — step 1, to rewrite a promotion candidate as a charter constraint
 
-An explicit request to finalize invokes this skill directly; the invocation marker disables automatic selection, not a human's natural-language request.
-
 The last stage of a ship: what its own records learned goes up into the project's, and the ship moves to `archive/`. You orchestrate under `~/.kk-flavor/standards/skill-protocol.md`, and step 3 is `~/.kk-flavor/standards/records.md` applied rather than restated — read it whole first.
 
 **Every `.idsd/` path here hangs off the resolved idsd root** (`~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**).
 
 **Finalizing is serial across the whole clone**, because it writes records every ship shares. Use `report.sh merge-slot` for record mutation and landing. Settle human decisions outside the slot; release it before a new question or a PR wait. Step 2 covers requalification while holding it.
+
+**The tool enforces that on the project records, not on `git merge`.** A `report.sh record project-*` write exits 4 while another worktree of this clone holds the slot, so the entries you merge upward cannot land beside another ship's. The merge itself is your own command and no slot reaches it — verify the target again before landing, as step 2 says.
 
 ## 1. Clear what can still refuse or ask
 
@@ -46,7 +45,7 @@ Before retiring the report, preserve the report, stage evidence and active inten
 
 **Refresh the target and rerun `report.sh gate <NNN-slug>` before the record/archive mutation.** Integrate target changes and requalify affected work. Hold the slot through that pass and the authorized landing attempt; release it if the pass needs a human decision. The local slot cannot freeze remote merges: verify the target again before landing and honor required repository checks and reviews. A failed gate stops the attempt.
 
-**Establishing that is yours, and the refusal cannot do it for you** — the tool started no process it could ask about. Look for a session working in the worktree it names; none, and the slot outlived its holder. **Release only a slot this run acquired.** A session that dies while holding it leaves one nobody else frees without checking the holder.
+**Establishing that a holder is gone is not yours alone: ask your coordinator, or the human — whoever can see the live sessions.** Never infer it from the worktree's name or from a process list. **Release only a slot this run acquired.** A session that dies while holding it leaves one nobody else frees without checking the holder.
 
 **Revalidate the record inputs after acquiring the slot**, before any record mutation. If they changed, release the slot and settle the new merge outside it. Revalidate on every acquisition; retain completed record operations so a retry never bumps or appends them twice.
 

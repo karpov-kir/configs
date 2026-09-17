@@ -309,6 +309,48 @@ func TestIsSpaceByteIsTheCLocaleSpaceClass(t *testing.T) {
 	}
 }
 
+// Every byte, because this is a character class and a class is its whole table. `tr -dc '[:alnum:]'`
+// under LC_ALL=C keeps exactly these 62 and no byte of the high half.
+func TestIsAlnumByteIsTheCLocaleAlnumClass(t *testing.T) {
+	kept := 0
+	for b := 0; b < 0x100; b++ {
+		want := b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+		if got := shell.IsAlnumByte(byte(b)); got != want {
+			t.Errorf("IsAlnumByte(0x%02x) = %v, want %v", b, got, want)
+		}
+		if want {
+			kept++
+		}
+	}
+	if kept != 62 {
+		t.Fatalf("the case counted %d alphanumeric bytes, not 62 — the table it asserts against is wrong", kept)
+	}
+	// A space is the neighbouring class, and the two predicates may never both claim a byte.
+	for b := 0; b < 0x100; b++ {
+		if shell.IsAlnumByte(byte(b)) && shell.IsSpaceByte(byte(b)) {
+			t.Errorf("0x%02x reads as both alphanumeric and space", b)
+		}
+	}
+}
+
+// The rune form over the whole of Unicode, because the bytes above 0x7f are exactly where it differs
+// from a truncating caller. `\u0663` and `\u0130` are the runes that make the difference visible:
+// `byte(r)` lands them on `'c'` and `'0'`.
+func TestIsAlnumRuneRejectsEverythingAboveASCII(t *testing.T) {
+	// -159 and -976 truncate onto `'a'` and `'0'`: a rune is signed, so the range test has to be
+	// unsigned or the class reopens underneath zero.
+	for _, r := range []rune{'\u0663', '\u0130', '\u00e9', '\u65e5', 0x10FFFF, 0x80, utf8.RuneError, -159, -976, -1} {
+		if shell.IsAlnumRune(r) {
+			t.Errorf("IsAlnumRune(%#U) is true — a rune above ASCII is not in the C-locale alnum class", r)
+		}
+	}
+	for r := rune(0); r < 0x80; r++ {
+		if got, want := shell.IsAlnumRune(r), shell.IsAlnumByte(byte(r)); got != want {
+			t.Errorf("IsAlnumRune(%#U) = %v, but IsAlnumByte(0x%02x) = %v — the two forms disagree on ASCII", r, got, r, want)
+		}
+	}
+}
+
 func TestSplitLinesCountsLinesTheWayALineOrientedToolDoes(t *testing.T) {
 	cases := []struct {
 		name string

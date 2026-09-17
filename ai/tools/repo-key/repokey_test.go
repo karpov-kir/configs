@@ -316,50 +316,89 @@ func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
 	}
 }
 
-// The name is the key with its digest cut off, not a second reading of the same directory. Two
-// derivations of one clone's readable name drift the moment either is touched. Sessions titled from
-// the drifted one stop grouping with their siblings.
-func TestTheNameIsTheKeyWithoutItsDigest(t *testing.T) {
+// The abbreviation is taken from the key's own readable half, not from a second reading of the same
+// directory. Two derivations of one clone's name drift the moment either is touched, and sessions
+// titled from the drifted one stop grouping with their siblings.
+func TestTheAbbreviationIsTheKeysReadableHalfAbbreviated(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "project")
-	name, err := nameFromSharedGitDir(filepath.Join(dir, ".git"))
+	dir := newBareRepo(t, "invest-tasks")
+	abbrev, err := abbrevFromSharedGitDir(filepath.Join(dir, ".git"))
 	if err != nil {
-		t.Fatalf("naming %s: %v", dir, err)
+		t.Fatalf("abbreviating %s: %v", dir, err)
 	}
 	key := bareKey(t, dir)
-	if head := name + "-"; !strings.HasPrefix(key, head) || len(key) != len(head)+digestLength {
-		t.Fatalf("the clone names %q and keys %q — the name is not the key's readable half", name, key)
+	if len(key) <= digestLength+1 {
+		t.Fatalf("the clone keyed %q, which is too short to hold a readable half and a %d-character digest", key, digestLength)
+	}
+	name := key[:len(key)-digestLength-1]
+	if want := abbrevOf(name); abbrev != want {
+		t.Fatalf("the clone keys %q and abbreviates to %q, which is not %q — the two readings have drifted", key, abbrev, want)
 	}
 }
 
-// What the name is for: every session in one clone titles itself the same word, whichever worktree it
-// stands in. `--show-toplevel` hands each worktree a name of its own, which is the inconsistency the
-// tool exists to remove.
-func TestEveryWorktreeOfOneCloneNamesTheSame(t *testing.T) {
+// Every row of the rule: the initial of each run, a run carrying a digit kept whole, and the cap on
+// what reaches a title.
+func TestTheAbbreviationTable(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ name, want string }{
+		{"player-testing-codec-compatibility", "PTCC"},
+		{"invest-tasks", "IT"},
+		{"github-action-deploy-k8s", "GADK8s"},
+		{"bitmovin-k8s", "BK8s"},
+		{"configs", "C"},
+		{"dashboard", "D"},
+		{"my_repo", "MR"},
+		{"open.api.spec", "OAS"},
+		// A run is digit-carrying wherever the digit sits, so this one keeps its spelling as `k8s` does.
+		{"2fa-tool", "2faT"},
+		// A space separates two runs like any other non-alphanumeric byte.
+		{"a b", "AB"},
+		// A rune whose low byte is itself alphanumeric — `byte('\u0663')` is `'c'`. Only the range test
+		// inside shell.IsAlnumRune keeps it a separator; without it `run[:1]` cuts the rune in two and
+		// answers an invalid-UTF-8 byte. safeName never lets one this far, so this is the only case
+		// that can see the guard at all.
+		{"\u0663abc", "A"},
+		// Nothing alphanumeric to take an initial from: `___` is left whole by safeName.
+		{"___", "R"},
+		// Eight runs is one more than a title takes.
+		{"a-b-c-d-e-f-g-h", "ABCDEFG"},
+		// A digit-carrying run spends the whole budget on its own.
+		{"kubernetes123456-deploy", "Kuberne"},
+	} {
+		if got := abbrevOf(c.name); got != c.want {
+			t.Errorf("%q abbreviates to %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// What the abbreviation is for: every session in one clone titles itself the same word, whichever
+// worktree it stands in. `--show-toplevel` hands each worktree a name of its own, which is the
+// inconsistency the tool exists to remove.
+func TestEveryWorktreeOfOneCloneAbbreviatesTheSame(t *testing.T) {
 	t.Parallel()
 	main := newRepo(t, "invest-tasks")
 	worktree := filepath.Join(filepath.Dir(main), "wt-one")
 	run(t, main, "worktree", "add", "-q", "-b", "one", worktree)
 
 	for _, where := range []string{main, worktree} {
-		got, err := ResolveName(where)
+		got, err := ResolveAbbrev(where)
 		if err != nil {
-			t.Fatalf("naming %s: %v", where, err)
+			t.Fatalf("abbreviating %s: %v", where, err)
 		}
-		if got != "invest-tasks" {
-			t.Errorf("%s names %q, not the clone's own directory name", where, got)
+		if got != "IT" {
+			t.Errorf("%s abbreviates to %q, not the abbreviation of the clone's own directory name", where, got)
 		}
 	}
 }
 
-// A name refuses wherever a key does. A prefix is read by a human and spliced into a title, so a
-// plausible name for a directory nobody meant is worse than no name at all.
-func TestANameRefusesWhereAKeyWould(t *testing.T) {
+// An abbreviation refuses wherever a key does. A prefix is read by a human and spliced into a title,
+// so a plausible one for a directory nobody meant is worse than none at all.
+func TestAnAbbreviationRefusesWhereAKeyWould(t *testing.T) {
 	t.Parallel()
 	dir := newBareRepo(t, "project")
-	got, err := nameFromSharedGitDir(dir)
+	got, err := abbrevFromSharedGitDir(dir)
 	if err == nil {
-		t.Fatalf("the worktree root named %q instead of refusing — a caller passing the wrong path gets a plausible answer", got)
+		t.Fatalf("the worktree root abbreviated to %q instead of refusing — a caller passing the wrong path gets a plausible answer", got)
 	}
 	if got != "" {
 		t.Fatalf("refused and still returned %q — a caller reading the value would use it", got)
@@ -384,10 +423,10 @@ func TestTheCommandsArgumentTable(t *testing.T) {
 		want   string
 	}{
 		{"a path alone prints the key", []string{dir}, 0, key},
-		{"--name before the path prints the name", []string{"--name", dir}, 0, "project"},
+		{"--abbrev before the path prints the abbreviation", []string{"--abbrev", dir}, 0, "P"},
 		{"two paths are refused", []string{dir, dir}, 2, usage},
-		{"--name with two paths is refused", []string{"--name", dir, dir}, 2, usage},
-		{"a flag after the path is refused", []string{dir, "--name"}, 2, usage},
+		{"--abbrev with two paths is refused", []string{"--abbrev", dir, dir}, 2, usage},
+		{"a flag after the path is refused", []string{dir, "--abbrev"}, 2, usage},
 		{"an unreadable path refuses without the usage line", []string{filepath.Join(dir, "nowhere")}, 2, ""},
 		{"a dash-leading argument is a path, not a flag", []string{"-rf"}, 2, ""},
 	} {
@@ -437,7 +476,7 @@ func TestWithNoPathItAnswersForTheWorkingDirectory(t *testing.T) {
 		want string
 	}{
 		{"no argument at all", nil, key},
-		{"--name and nothing else", []string{"--name"}, "project"},
+		{"--abbrev and nothing else", []string{"--abbrev"}, "P"},
 	} {
 		var out, errOut bytes.Buffer
 		if status := Run(c.args, &out, &errOut); status != 0 {
@@ -450,22 +489,84 @@ func TestWithNoPathItAnswersForTheWorkingDirectory(t *testing.T) {
 	}
 }
 
-// The name is spliced into a session title and, through the stub, into whatever command line a caller
-// builds around it. Asserted through the name's own entry point rather than through the key: a name
-// re-derived on its own stops being covered by the key's table, and nothing turns red when it does.
-func TestANameIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
+// The abbreviation is spliced into a session title and, through the stub, into whatever command line
+// a caller builds around it. Asserted through its own entry point rather than through the key: an
+// abbreviation re-derived on its own stops being covered by the key's table, and nothing turns red
+// when it does.
+func TestAnAbbreviationIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {
 		dir := newBareRepo(t, name)
-		got, err := nameFromSharedGitDir(filepath.Join(dir, ".git"))
+		got, err := abbrevFromSharedGitDir(filepath.Join(dir, ".git"))
 		if err != nil {
-			t.Fatalf("naming %s: %v", dir, err)
+			t.Fatalf("abbreviating %s: %v", dir, err)
 		}
 		if !safeCharacters.MatchString(got) {
-			t.Errorf("directory %q named %q, which is not confined to characters that survive a path or a command line", name, got)
+			t.Errorf("directory %q abbreviated to %q, which is not confined to characters that survive a path or a command line", name, got)
 		}
 		if strings.HasPrefix(got, "-") {
-			t.Errorf("directory %q named %q, which reads as an option wherever the name reaches a command", name, got)
+			t.Errorf("directory %q abbreviated to %q, which reads as an option wherever the abbreviation reaches a command", name, got)
+		}
+	}
+}
+
+// The eight-name case above proves the reduction on the shapes a person types. This one proves the
+// class, because the class is what safeName promises and safeName no longer spells it out: the
+// alphanumeric half is shell.IsAlnumRune now, and widening that one predicate in a general-purpose
+// text package would put a `;` or a backtick into a key — spliced into a path and into the `git
+// worktree add` line a human runs — with nothing in this package saying so. A directory name may
+// hold every byte but NUL and `/`, so every one of them is a case.
+func TestSafeNameAdmitsNoByteOutsideTheClassItPromises(t *testing.T) {
+	t.Parallel()
+	for i := 1; i < 0x100; i++ {
+		if byte(i) == '/' {
+			continue
+		}
+		b := string(byte(i))
+		for _, name := range []string{b, "a" + b + "z", b + "tail", "head" + b, "a" + b + "1"} {
+			got := safeName(name)
+			if !safeCharacters.MatchString(got) {
+				t.Errorf("directory %q reduced to %q, which is not confined to characters that survive a path or a command line", name, got)
+			}
+			if strings.HasPrefix(got, "-") {
+				t.Errorf("directory %q reduced to %q, which reads as an option wherever the name reaches a command", name, got)
+			}
+			if strings.HasPrefix(got, ".") {
+				t.Errorf("directory %q reduced to %q, which names a hidden directory", name, got)
+			}
+		}
+	}
+	// A rune the range loop yields as several bytes, and a byte sequence that is not UTF-8 at all.
+	// `\u0663` and `\u0130` are the discriminating ones: `byte(r)` truncates them onto `'c'` and `'0'`,
+	// so only the range test inside shell.IsAlnumRune keeps them out of the name — the rest of this list
+	// truncates onto bytes that are not alphanumeric and cannot see that half at all.
+	for _, name := range []string{"café", "日本", "\U0001F600", "\xff\xfe", "\xed\xa0\x80", "..", "\u0663abc", "\u0130stanbul-tools"} {
+		if got := safeName(name); !safeCharacters.MatchString(got) || strings.HasPrefix(got, "-") || strings.HasPrefix(got, ".") {
+			t.Errorf("directory %q reduced to %q", name, got)
+		}
+	}
+}
+
+// The abbreviation is spliced into a session title and compared against a written-down prefix, and
+// initialsOf takes `run[:1]` off a run isSeparator bounded — so a run holding anything but an ASCII
+// alphanumeric would both widen the answer and cut a multi-byte rune in half.
+func TestAnAbbreviationAdmitsNoByteOutsideTheClassItPromises(t *testing.T) {
+	t.Parallel()
+	alnumOnly := regexp.MustCompile(`^[A-Za-z0-9]*$`)
+	for i := 1; i < 0x100; i++ {
+		if byte(i) == '/' {
+			continue
+		}
+		b := string(byte(i))
+		for _, name := range []string{b, "a" + b + "z", "k8s" + b, b + "v2"} {
+			if got := abbrevOf(safeName(name)); !alnumOnly.MatchString(got) {
+				t.Errorf("directory %q abbreviated to %q, which is not confined to characters that survive a path or a command line", name, got)
+			}
+		}
+	}
+	for _, name := range []string{"café", "日本", "\xff\xfe", "a;rm -rf /", "$(id)"} {
+		if got := abbrevOf(safeName(name)); !alnumOnly.MatchString(got) {
+			t.Errorf("directory %q abbreviated to %q", name, got)
 		}
 	}
 }

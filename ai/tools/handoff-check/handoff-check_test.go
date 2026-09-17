@@ -25,13 +25,16 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// The fixture clone's own directory name, which is therefore the name `repo-key` answers for it and
-// the only repository prefix a title may carry in this suite. Written out rather than asked of
+// The fixture clone's own directory name, and the abbreviation `repo-key` answers for it — which is
+// the only repository prefix a title may carry in this suite. Both written out rather than asked of
 // `repo-key`, so a case comparing the two is not comparing that package with itself.
 //
 // Distinctive, not "repo": the gate refuses a draft naming the repository by basename, and a fixture
 // called "repo" would make that case pass on the word "repo" appearing anywhere.
-const fixtureName = "handoff-fixture"
+const (
+	fixtureName   = "handoff-fixture"
+	fixtureAbbrev = "HF"
+)
 
 // The one repository every case runs against, its resolved path, and its commit. Built once in
 // TestMain: `git init` plus a commit is the expensive part of a case, and nothing here changes what a
@@ -307,13 +310,13 @@ func TestStructure(t *testing.T) {
 		},
 		{
 			name:     "the template's repository prefix left unfilled",
-			mutate:   func(d *draft) { d.title = "[<repo name>] Cut the mutation run down" },
+			mutate:   func(d *draft) { d.title = "[<repo abbrev>] Cut the mutation run down" },
 			want:     1,
 			contains: []string{"repository prefix is still the template placeholder"},
 		},
 		{
 			name:   "a filled repository prefix",
-			mutate: func(d *draft) { d.title = "[" + fixtureName + "] Cut the mutation run down" },
+			mutate: func(d *draft) { d.title = "[" + fixtureAbbrev + "] Cut the mutation run down" },
 			want:   0,
 		},
 		{
@@ -321,7 +324,7 @@ func TestStructure(t *testing.T) {
 			// half reads as a done line, and the work slot nobody wrote went unreported. The finding
 			// names that half rather than the line, because the line's other slot is filled.
 			name:     "a filled prefix in front of an unfilled work half",
-			mutate:   func(d *draft) { d.title = "[" + fixtureName + "] <one imperative line: the work>" },
+			mutate:   func(d *draft) { d.title = "[" + fixtureAbbrev + "] <one imperative line: the work>" },
 			want:     1,
 			contains: []string{"the title's work half is still the template placeholder"},
 		},
@@ -337,7 +340,7 @@ func TestStructure(t *testing.T) {
 		},
 		{
 			name:   "a filled prefix on a title holding an angle bracket",
-			mutate: func(d *draft) { d.title = "[" + fixtureName + "] Cut the mutation run to <10 minutes" },
+			mutate: func(d *draft) { d.title = "[" + fixtureAbbrev + "] Cut the mutation run to <10 minutes" },
 			want:   0,
 		},
 		{
@@ -346,7 +349,7 @@ func TestStructure(t *testing.T) {
 			name:     "an opening bracket naming a repository this is not",
 			mutate:   func(d *draft) { d.title = "[invest-tasks] Cut the mutation run down" },
 			want:     1,
-			contains: []string{"the title opens with [invest-tasks]", "is named " + fixtureName},
+			contains: []string{"the title opens with [invest-tasks]", "abbreviates to " + fixtureAbbrev},
 			absent:   []string{"still the template placeholder"},
 		},
 		{
@@ -380,7 +383,7 @@ func TestStructure(t *testing.T) {
 			// Only the FIRST `]` cuts, so a second bracketed word stays in the work half where its
 			// author put it.
 			name:   "a second bracketed word after a filled prefix",
-			mutate: func(d *draft) { d.title = "[" + fixtureName + "] [flaky] resolver test — cut it from the run" },
+			mutate: func(d *draft) { d.title = "[" + fixtureAbbrev + "] [flaky] resolver test — cut it from the run" },
 			want:   0,
 		},
 		{
@@ -388,7 +391,7 @@ func TestStructure(t *testing.T) {
 			// The work half is absent rather than a placeholder, and the line used to pass whole
 			// because the split wanted a space it never found.
 			name:     "a title that is only a filled prefix",
-			mutate:   func(d *draft) { d.title = "[" + fixtureName + "]" },
+			mutate:   func(d *draft) { d.title = "[" + fixtureAbbrev + "]" },
 			want:     1,
 			contains: []string{"the title's work half is still the template placeholder"},
 		},
@@ -754,7 +757,7 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 	d.title = "[" + long + "] Cut the mutation run down"
 	got, code := gateOver(t, d.text(), fixtureRepo)
 	expect(t, "a very long opening bracketed word", got, code, 1,
-		[]string{shell.CutMarker, "use [" + fixtureName + "]"}, nil)
+		[]string{shell.CutMarker, "use [" + fixtureAbbrev + "]"}, nil)
 
 	d = cleanDraft()
 	d.extra = "\n## " + strings.Repeat("y", 900) + "\nwhatever else I felt like adding"
@@ -767,9 +770,13 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 	}
 
 	// The path is the other field standing before the repair, and the tree rather than the draft
-	// chooses how long it is. Long enough that the line bound alone would take `use [repo]` off the
-	// end: cut only at 500, the repair is what the path pushes past it.
-	deep := filepath.Join(t.TempDir(), strings.Repeat("d", 150), strings.Repeat("e", 150), strings.Repeat("f", 150), "repo")
+	// chooses how long it is. Long enough that the line bound alone would take `use [DR]` off the end:
+	// cut only at 500, the repair is what the path pushes past it.
+	//
+	// The leaf is not called `repo`: that is fallbackName, which abbreviates to the same `R` a clone
+	// named `repo` does, so the assertion could not tell the repository it built from the degenerate
+	// answer a name with nothing in it falls back to.
+	deep := filepath.Join(t.TempDir(), strings.Repeat("d", 150), strings.Repeat("e", 150), strings.Repeat("f", 150), "deep-repo")
 	repo, path, sha, err := newRepo(deep)
 	if err != nil {
 		t.Skipf("could not build a repository at %q, so this proves nothing: %v", deep, err)
@@ -779,7 +786,7 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 	d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
 	got, code = gateOver(t, d.text(), repo)
 	expect(t, "a repository path longer than its bound", got, code, 1,
-		[]string{shell.CutMarker, "use [repo]"}, nil)
+		[]string{shell.CutMarker, "use [DR]"}, nil)
 }
 
 // The name in hand belongs to the repository this process was pointed at, which is the draft's own
@@ -791,23 +798,23 @@ func TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository(t *testing.T) {
 		t.Fatalf("building the second repository: %v — nothing was tested", err)
 	}
 	d := cleanDraft()
-	d.title = "[" + fixtureName + "] Cut the mutation run down"
+	d.title = "[" + fixtureAbbrev + "] Cut the mutation run down"
 	got, code := gateOver(t, d.text(), other)
 	expect(t, "a correct title weighed from another checkout", got, code, 1,
 		[]string{"no repository named in: Where it starts"}, []string{"the title opens with"})
 }
 
-// The prefix is held against a name only where there is one. A directory the gate is told is a work
-// tree but that `repo-key` cannot name leaves the prefix unread, rather than refusing a draft on a
-// comparison the gate could not make.
+// The prefix is held against an abbreviation only where there is one. A directory the gate is told is
+// a work tree but that `repo-key` cannot name leaves the prefix unread, rather than refusing a draft
+// on a comparison the gate could not make.
 //
 // This is the one case that fakes git, and the divergence is the point: what the gate is told about
 // the repository and what `repo-key` finds out for itself are two different questions, and a real
 // repository answers both the same way. An inherited GIT_DIR is how they come apart in the field.
-func TestAPrefixIsUnreadWhereTheRepositoryHasNoName(t *testing.T) {
+func TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation(t *testing.T) {
 	dir := t.TempDir()
-	if _, err := repokey.ResolveName(dir); err == nil {
-		t.Skip("the temporary directory sits inside a clone, so this case would measure a named repository")
+	if _, err := repokey.ResolveAbbrev(dir); err == nil {
+		t.Skip("the temporary directory sits inside a clone, so this case would measure a repository that abbreviates")
 	}
 	path, err := filepath.EvalSymlinks(dir)
 	if err != nil {
@@ -822,7 +829,7 @@ func TestAPrefixIsUnreadWhereTheRepositoryHasNoName(t *testing.T) {
 	}
 	var out, errOut bytes.Buffer
 	code := run("handoff-check.sh", file, dir, &out, &errOut, answersEveryQuestion)
-	expect(t, "a prefix over a repository with no name", out.String()+errOut.String(), code, 0,
+	expect(t, "a prefix over a repository with no abbreviation", out.String()+errOut.String(), code, 0,
 		nil, []string{"prefix is", "still the template placeholder"})
 }
 

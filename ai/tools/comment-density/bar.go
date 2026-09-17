@@ -319,7 +319,7 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
 func (c console) reportBar(base baseline, set changeSet) int {
-	fmt.Fprintf(c.stdout, "measured by: comment-density build %s\n", toolBuild())
+	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", toolBuild(), toolTree())
 	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
 		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
 	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
@@ -366,6 +366,16 @@ func (c console) reportBar(base baseline, set changeSet) int {
 // Reported unknown rather than omitted: a line that vanishes with the identity leaves its absence
 // meaning either no stamp or an older binary, and the reader cannot tell which. `resolve.sh` carries
 // what the stamp is and why it, rather than the binary's bytes.
+// The checkout the stub resolved through, reported unknown rather than omitted for the reason toolBuild
+// gives. A different fact from the build: source can hash identically to its own tree and that tree
+// still be a commit nobody else has, which is what makes two readings taken apart incomparable.
+func toolTree() string {
+	if tree := os.Getenv("ECO_TOOL_TREE"); tree != "" {
+		return tree
+	}
+	return "unknown"
+}
+
 func toolBuild() string {
 	if stamp := os.Getenv("ECO_TOOL_BUILD"); stamp != "" {
 		return stamp

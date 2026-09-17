@@ -2,10 +2,12 @@
 # Print a stable name for this clone — `<basename>-<digest>` — so the idsd scratch dir under a
 # machine-local override root and the owner's worktree directory key one repository the same way.
 #
-#   usage: repo-key.sh [--name] [<repo path>]   # <repo path> defaults to .
+#   usage: repo-key.sh [--abbrev] [<repo path>]   # <repo path> defaults to .
 #
-# `--name` prints the clone's own directory name — the key without its digest, and the same from
-# every worktree of the clone. That is what a session title's prefix takes.
+# `--abbrev` prints the clone's abbreviation instead — `GADK8s` for a clone in
+# `github-action-deploy-k8s`. It is the same from every worktree of the clone, and it is what a session
+# title's prefix takes. Two repositories can abbreviate alike, so a directory keys off the name above,
+# never this.
 #
 # Exits 2 with a reason where it cannot name the clone.
 #
@@ -54,6 +56,11 @@ binary="$("$resolver" "$tool")" || exit 2
 # The build about to answer, handed to the tool rather than printed: a stub's own output is a value
 # callers parse. Empty when nothing stamped it. `ai/tools/resolve.sh` carries why.
 export ECO_TOOL_BUILD="$(cat "$binary.stamp" 2>/dev/null || true)"
+
+# The checkout that answered, which the build stamp does not name: the stamp hashes source, so it moves
+# when the source does and says nothing about which commit the tree sits on. `ai/tools/resolve.sh`
+# carries why the two are both needed.
+export ECO_TOOL_TREE="$(git -C "${resolver%/*}" rev-parse HEAD 2>/dev/null || true)"
 
 # `-a "$0"` keeps argv[0] as the path this was invoked by. The tools derive their skill directory from
 # it, so a skill reached through its symlink mount still finds its own ledger, template and siblings.

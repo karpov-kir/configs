@@ -107,6 +107,9 @@ var rankTable = []struct {
 
 	{scriptNotExecutable, 3},
 	{skillNameDirMismatch, 3},
+	// Beside skillNameDirMismatch because it is the same defect one caller out: that one leaves a skill
+	// nothing can reach by name, this one leaves a stage its own orchestrator cannot reach at all.
+	{stageNothingCanInvoke, 3},
 
 	{importRefused, 4},
 
