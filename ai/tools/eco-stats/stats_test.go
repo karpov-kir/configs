@@ -431,24 +431,16 @@ func modeDeniesDirList(t *testing.T) bool {
 // went short. eco-stats.go carries the measured cost at the guard that acts on it. `--append` would
 // write those figures into stats.md, where every later delta is taken off them.
 func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
-	buildUnder := func(t *testing.T, f *fixture) *fixture {
+	build := func(t *testing.T) *fixture {
 		t.Helper()
+		skipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
+		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two three\n")
 		f.mkdirAll(f.root + "/kk-flavor/shut")
 		f.write(f.root+"/kk-flavor/shut/hidden.md", "alpha beta gamma delta epsilon\n")
 		f.chmod(f.root+"/kk-flavor/shut", 0o000)
 		t.Cleanup(func() { _ = os.Chmod(f.root+"/kk-flavor/shut", 0o755) })
 		return f
-	}
-	build := func(t *testing.T) *fixture {
-		t.Helper()
-		skipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
-		return buildUnder(t, newRoot(t))
-	}
-	buildShort := func(t *testing.T) *fixture {
-		t.Helper()
-		skipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
-		return buildUnder(t, newShortRoot(t))
 	}
 
 	t.Run("exits 2 rather than reporting the reachable part as the tree", func(t *testing.T) {
@@ -469,11 +461,10 @@ func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
 		}
 	})
 
-	// Under a short root, because the refusal quotes the path and is bounded: on a machine whose temp
-	// path is long enough, the bound falls inside the prefix and the name this case is looking for is
-	// cut off. shortRoot carries the measurement.
+	// The refusal quotes the path and is bounded, so `shut` survives only while the prefix in front of
+	// it does not spend the bound. newBase in harness_test.go is what keeps that prefix out of it.
 	t.Run("and names the path it could not read", func(t *testing.T) {
-		f := buildShort(t)
+		f := build(t)
 		_, stderr, _ := f.run(f.root)
 		if !strings.Contains(stderr, "could not read") || !strings.Contains(stderr, "shut") {
 			t.Errorf("%s", indent(stderr))
@@ -674,12 +665,13 @@ func TestACutMessageSaysThatItWasCut(t *testing.T) {
 		}
 	})
 
-	// Under a short root, so the padding below is what pushes the message past the bound. On a machine
-	// whose temp path is long enough, the cut falls inside that prefix instead and the marker never
-	// lands where this case looks for it — shortRoot carries the measurement.
+	// The padding below is what has to push the message past the bound. Let a prefix spend the bound
+	// first and the cut falls inside it, the trailing `s` never reaches the message, and the case goes
+	// red over a checker that did exactly the right thing — newBase in harness_test.go is what keeps
+	// the prefix out of it.
 	t.Run("an unreadable path whose message runs past the bound is marked", func(t *testing.T) {
 		skipUnlessModeDeniesDirList(t, "a path it cannot read cannot be built here")
-		f := newShortRoot(t)
+		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two three\n")
 		shut := f.root + "/kk-flavor/" + strings.Repeat("s", overEveryMessageBound)
 		f.mkdirAll(shut)

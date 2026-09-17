@@ -339,9 +339,11 @@ func TestACitationSpelledNonCanonicallyStillHitsTheGate(t *testing.T) {
 // root's spelling can either.
 //
 // Its own fixture rather than the shared one: a relative spelling needs t.Chdir, t.Chdir bars
-// t.Parallel, and isolate() decides parallelism once per case.
+// t.Parallel, and isolate() decides parallelism once per case. Still newBase rather than t.TempDir,
+// because this case and the one below compare two runs line for line — and a root long enough for the
+// printer's bound to cut both sides alike makes that comparison hold over nothing at all.
 func TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed(t *testing.T) {
-	base := t.TempDir()
+	base := newBase(t)
 	git := newSpellingTree(t, base)
 
 	t.Chdir(base)
@@ -402,7 +404,7 @@ func newSpellingTree(t *testing.T, base string) *repotest.Fake {
 // because the suffix index held only the tails after each `/` and `*/` had nothing to consume; and a
 // trailing slash doubled the separator in every walked path, so `r/` matched nothing that `r` did.
 func TestTheFindingsAreTheSameHoweverTheRootIsNamed(t *testing.T) {
-	base := t.TempDir()
+	base := newBase(t)
 	git := newSpellingTree(t, base)
 	t.Chdir(base)
 

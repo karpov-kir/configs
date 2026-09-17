@@ -88,32 +88,78 @@ type fixture struct {
 // review.
 func newBareRoot(t *testing.T) *fixture {
 	t.Helper()
-	return bareRootUnder(t, t.TempDir())
+	f := newFixture(t, newBase(t))
+	f.mkdirAll(f.root + "/kk-flavor/skills")
+	return f
 }
 
-// A fixture root short enough that the machine's own temp path cannot decide a case about a BOUNDED
-// message. `t.TempDir()` is about 140 bytes of ambient prefix on a macOS runner — `/var/folders/<two>/
-// <28 random>/T/<the test's own name>/001` — and around 60 on Linux, so where a 500-byte bound falls is
-// a property of the machine before it is a property of the code. Measured: the flag-name case below
-// passes on one macOS temp path and fails on another, with nothing else changed.
+// The scratch directory every fixture below is built under, and short by a length this suite fixes
+// rather than one the machine hands it.
+//
+// report.go cuts EVERY finding line at lineWidthCap before printing it, and most of these cases assert
+// a finding that quotes a fixture path. Such a case is therefore reading the root's length as much as
+// the code's: whatever the root spends, the case's own content cannot. `t.TempDir()` makes that length
+// ambient — about 140 bytes on a macOS runner (`/var/folders/<two>/<28 random>/T/<the test's own
+// name>/001`) against around 60 on Linux — so a case passes on one machine and fails on another with
+// nothing else changed. Three did on the first macOS leg this repository ran, and three more went the
+// same way under a temp path longer still.
+//
+// This is 14 to 16 bytes wherever it runs — `/tmp/e` and the eight-to-ten digit run os.MkdirTemp
+// appends — which leaves the whole of every bound to be spent by what the case itself writes. A case
+// that wants a root long enough to spend a bound grows one itself —
+// TestTheGateRefusalStillNamesGitsReasonUnderALongRoot pads until the root outruns the cap whatever
+// this machine's temp path costs, and TestARefusalCarriesNoControlBytesFromTheRootItEchoes goes the
+// other way and runs from inside the parent so the name it echoes fits.
 //
 // `/tmp` rather than TMPDIR, because TMPDIR is exactly what is too long. Removed on the way out, like
 // t.TempDir's own.
-func newShortBareRoot(t *testing.T) *fixture {
+func newBase(t *testing.T) string {
 	t.Helper()
 	base, err := os.MkdirTemp("/tmp", "e")
 	if err != nil {
-		t.Fatalf("building a short fixture root: %v", err)
+		t.Fatalf("building a fixture root: %v", err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(base) })
-	return bareRootUnder(t, base)
+	return base
 }
 
-func bareRootUnder(t *testing.T, base string) *fixture {
-	t.Helper()
-	f := newFixture(t, base)
-	f.mkdirAll(f.root + "/kk-flavor/skills")
-	return f
+// What a fixture root may spend of a bounded finding before the case writes a byte. newBase builds a
+// base of 14 to 16 bytes and every fixture puts `/r` on the end of it, so this leaves room to rename the
+// prefix and none at all to go back to a path the machine picked: `t.TempDir()` costs upwards of 35
+// bytes on the shortest Linux runner and about 160 on a macOS one.
+const maxFixtureRootBytes = 24
+
+// The property newBase exists for. Held as a case because a comment on each affected fixture only
+// works while the next author reads it: without this, a helper reaching back for `t.TempDir()` shows
+// up as a handful of unrelated cases going red on one runner and green on another, which is how this
+// class was found in the first place and cost a CI leg to find.
+//
+// The bound is checked under a LONG TMPDIR as well as the ambient one, and that second leg is the
+// whole point: a root read once tells you nothing about whether the machine chose its length, and the
+// machine this runs on is exactly the one whose temp path is short enough to hide the defect. Length
+// rather than sameness between the two legs, because os.MkdirTemp appends a run of eight to ten
+// digits and a root that wobbles by two bytes inside a 24-byte budget is not what any case here reads.
+func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
+	// Built without t.TempDir, which would defeat the leg it is for: that call creates ONE directory
+	// per test and numbers the rest inside it, so a newBase reaching for it would answer out of a tree
+	// already pinned to the ambient TMPDIR and the moved one would never be read.
+	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
+	if err != nil {
+		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(long) })
+
+	for _, leg := range []struct{ what, tmpdir string }{
+		{"under a TMPDIR as long as a macOS runner's", long},
+		{"under a short TMPDIR", "/tmp"},
+	} {
+		t.Setenv("TMPDIR", leg.tmpdir)
+		if root := newRoot(t).root; len(root) > maxFixtureRootBytes {
+			t.Errorf("a fixture root %s is %d bytes, past the %d this suite allows itself — that much of "+
+				"every bounded finding is spent before the case writes anything: %s",
+				leg.what, len(root), maxFixtureRootBytes, root)
+		}
+	}
 }
 
 func newFixture(t *testing.T, base string) *fixture {
@@ -140,18 +186,7 @@ var (
 
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
-	return flavoured(t, newBareRoot(t))
-}
-
-// The same tree under a root the case chose; only a case about a bounded message needs one, and
-// newShortBareRoot carries why.
-func newShortRoot(t *testing.T) *fixture {
-	t.Helper()
-	return flavoured(t, newShortBareRoot(t))
-}
-
-func flavoured(t *testing.T, f *fixture) *fixture {
-	t.Helper()
+	f := newBareRoot(t)
 	f.mkdirAll(f.root + "/kk-flavor/standards")
 	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n")
 	return f
@@ -166,7 +201,7 @@ func flavoured(t *testing.T, f *fixture) *fixture {
 // which is what the symlink then points at.
 func newRootWithSymlinkedFlavor(t *testing.T) *fixture {
 	t.Helper()
-	base := t.TempDir()
+	base := newBase(t)
 	f := newFixture(t, base)
 	f.mkdirAll(f.root + "/real-flavor/standards")
 	f.mkdirAll(f.root + "/real-flavor/skills")

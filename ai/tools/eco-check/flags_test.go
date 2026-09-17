@@ -40,18 +40,7 @@ func (f *fixture) newFlagSuiteScript() {
 
 func newFlagScript(t *testing.T, usage string) *fixture {
 	t.Helper()
-	return flagScriptUnder(t, newRoot(t), usage)
-}
-
-// The same fixture under a short root, for the one case whose subject is where a bounded message is
-// cut. newShortBareRoot carries the measurement.
-func newShortFlagScript(t *testing.T, usage string) *fixture {
-	t.Helper()
-	return flagScriptUnder(t, newShortRoot(t), usage)
-}
-
-func flagScriptUnder(t *testing.T, f *fixture, usage string) *fixture {
-	t.Helper()
+	f := newRoot(t)
 	f.newScript("toy.sh", "#!/usr/bin/env bash\n"+usage+"\n# tested by: toy-test.sh\ntrue")
 	f.newFlagSuiteScript()
 	return f
@@ -295,8 +284,11 @@ func TestTheFlagScanStaysWithinItsBounds(t *testing.T) {
 	// The flag name is the instruction file's own text and nothing bounds its length. Uncut, its tail
 	// takes the printer's 500-byte bound and the sentence naming the defect goes with it. Marked,
 	// because an unmarked cut leaves a shorter wrong flag name reading as a whole one.
+	//
+	// The 400 below is what has to spend that bound, and newBase in harness_test.go is why nothing
+	// ambient spends it first.
 	t.Run("and marks a flag name the instruction file made too long to print", func(t *testing.T) {
-		f := newShortFlagScript(t, "#   usage: toy.sh [--gate]")
+		f := newFlagScript(t, "#   usage: toy.sh [--gate]")
 		f.newCallSites("toy.sh --" + strings.Repeat("a", 400))
 		f.reports(shell.CutMarker + " is passed to " + f.root + "/kk-flavor/skills/toy.sh, whose usage line")
 	})
