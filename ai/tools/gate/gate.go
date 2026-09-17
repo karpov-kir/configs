@@ -263,8 +263,7 @@ func safeToken(what, value string) error {
 	}
 	for i := 0; i < len(value); i++ {
 		c := value[i]
-		ok := c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' ||
-			c == '.' || c == '_' || c == '/' || c == '-'
+		ok := shell.IsAlnumByte(c) || c == '.' || c == '_' || c == '/' || c == '-'
 		if !ok {
 			return fmt.Errorf("%s '%s' holds a byte the gate cannot safely put in a command, so it refuses to build one — nothing ran", what, value)
 		}
@@ -431,8 +430,7 @@ func recordStem(id string) string {
 	var b strings.Builder
 	for i := 0; i < len(id); i++ {
 		c := id[i]
-		ok := c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' ||
-			c == '.' || c == '_' || c == '-'
+		ok := shell.IsAlnumByte(c) || c == '.' || c == '_' || c == '-'
 		if ok {
 			b.WriteByte(c)
 		} else {
