@@ -21,9 +21,11 @@ guide. It fails a run over 100 seconds, which is the bound
 [`testing.md`](ai/kk-flavor/standards/testing.md) rule 6 sets. `--full` defeats Go's own test cache,
 and that is what the bound is measured against.
 
-There are no shell suites. The installers and the MCP tools are Go; the three scripts that stay
-shell — `ai/tools/resolve.sh`, `install.sh` and `source-stamp.sh`, which exist to reach a Go binary
-from a checkout that has none yet — are covered by Go suites inside the module.
+There are no shell suites. The installers and the MCP tools are Go, and every other script here is a
+stub that execs a Go binary. Four scripts hold real shell, all of them covered by Go suites inside the
+module: `ai/tools/resolve.sh`, `install.sh` and `source-stamp.sh`, which exist to reach a Go binary
+from a checkout that has none yet, and `ai/mcp-env.sh`, which an MCP client launches from a path
+written into its config.
 
-GitHub Actions runs the same checks for pushes to `main` and pull requests, in
-`.github/workflows/gates.yml`.
+GitHub Actions runs these checks for pushes to `main` and pull requests, in
+`.github/workflows/gates.yml`. It leaves out the field guide and adds an 80% coverage floor.

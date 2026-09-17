@@ -5,7 +5,7 @@
 `~/.kk-flavor/models.json` assigns a model to every skill and every dispatch site, and is the only
 place to change one. Skills name a task; they never embed a model.
 
-Every model name this file holds *can* be asked of its provider, by `~/.kk-flavor/scripts/model-check.sh`, and a name no account can run then fails at this file rather than at the next judge run. **Nothing asks on a schedule.** It is a network call to a CLI only a developer's machine has, so it gates nothing: a person edits this file and runs the check. **Nor does one run cover the file.** A client whose CLI that machine lacks leaves its names unresolved and the check still exits 0, so a run that reached one provider says what a run that reached both says. **Read a clean run as no provider reachable from one developer's machine having refused a name, never as every name running** — and a `model` pin in that developer's client can even carry a probe for a name nothing would select (**What the policy can and cannot reach** below). With neither CLI it exits 2, which is a check that did not run.
+Every model name this file holds *can* be asked of its provider, by `~/.kk-flavor/scripts/model-check.sh`, and a name no account can run then fails at this file rather than at the next judge run. **Run it by hand after an edit to this file.** It is a network call to a CLI only a developer's machine has, so no gate and no schedule can run it. **Nor does one run cover the file.** A client whose CLI that machine lacks leaves its names unresolved and the check still exits 0, so a run that reached one provider says what a run that reached both says. **Read a clean run as no provider reachable from one developer's machine having refused a name, never as every name running** — and a `model` pin in that developer's client can even carry a probe for a name nothing would select (**What the policy can and cannot reach** below). With neither CLI it exits 2, which is a check that did not run.
 
 **Two of its maps assign models, because there are two kinds of assignment.** `workers` is the model a dispatch
 actually sets. `sessions` is the tier a human should start that session at, since nothing can change
@@ -144,9 +144,9 @@ Two kinds of control, and the difference decides where effort is worth spending:
 - **Required input** — a Go tool under `ai/tools/` loads the policy and cannot run without it. Two do,
   and they read it for different things. `bloat-judge` takes its model, its effort and its roll count
   from the `bloat-judge` task, and refuses to vote when the roll count is missing. `model-check` owns
-  no row: it reads every selection the file holds and asks each provider whether it will run one,
-  which is the `models` unit above. **That the policy is required does not make the model it names the
-  one that runs** — see the paragraph below.
+  no row: it reads every selection the file holds and asks each provider whether it will run one.
+  **That the policy is required does not make the model it names the one that runs** — see the
+  paragraph below.
 - **Declared** — an agent reads the assignment and dispatches accordingly: the leaf skills the quality
   pass dispatches, and every declared dispatch site. Nothing verifies the model that actually ran, so
   these rows are a convention the agent keeps rather than a gate — but a model *is* selected.

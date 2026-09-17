@@ -39,7 +39,7 @@ Project setup requires mise. It reuses a working installation or installs only m
 existing Homebrew installation. If neither is available, it reports the prerequisite and stops;
 follow [mise's installation instructions](https://mise.jdx.dev/installing-mise.html) and rerun.
 It does not install RTK, sync user MCP settings, prebuild every Go tool, or run
-repository tests.
+the repository gate.
 Go tools resolve on first use; that requires Go if a verified binary is not already available.
 
 For agents performing a project install: use the requested client and project, inspect the resulting
@@ -126,7 +126,7 @@ coordinator, which dispatches bounded leaf workers and waits on completion. Inde
 and security reviews keep separate contexts; fixes reopen affected evidence.
 
 `kk-edit` combines the former concision and humanization passes for prose and comments. It preserves
-meaning and stops at an edited artifact. the skillcraft worker remains the focused skill-structure lane;
+meaning and stops at an edited artifact. The skillcraft worker remains the focused skill-structure lane;
 `kk-ecosystem` owns instruction semantics and applies its ordered checks within one worker. A full
 ecosystem audit requires an explicit request. The editor never deletes agent obligations.
 
@@ -153,7 +153,7 @@ Use `rtk proxy <command>` when exact output is needed, including every diff read
 - `--dry-run`: report changes without writing them.
 - `--relocate`: authorize moving mounts from another checkout; otherwise the installer refuses before writing.
 - `--skip-tools`, `--skip-brew`, `--skip-mcp`, `--skip-rtk`: skip the corresponding machine step.
-- `--skip-verify`: skip the repository suites, which bootstrap runs last by default.
+- `--skip-verify`: skip `ai/gate.sh`, which bootstrap runs last by default.
 
 Re-runs preserve correct links and unchanged owned regions. A target owned by somebody else or a
 modified fenced region is refused. Bootstrap also removes its stale skill links after a skill disappears.
