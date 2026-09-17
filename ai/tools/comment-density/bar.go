@@ -63,6 +63,11 @@ func statsOf(content string) stats {
 		at++
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
 		switch {
+		case isShebang(at, line):
+			// An interpreter directive is not a comment, here as in the voice check. It stands above
+			// the file header rather than displacing it, so `seen` stays false and the header below
+			// keeps the allowance the voice check gives it.
+			closeRun()
 		case line == "":
 			closeRun()
 		case isComment(line):

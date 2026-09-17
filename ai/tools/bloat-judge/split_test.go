@@ -237,3 +237,32 @@ func TestASubjectOnlyMessageIsStillJudged(t *testing.T) {
 		t.Fatalf("the subject block is %v, want line 1", withheld)
 	}
 }
+
+// A unit is a thing the model may delete, and Apply drops every line of one. A script's interpreter
+// directive reads as a `#` comment, so it would join the header below it — and a vote against that
+// header would take `#!/usr/bin/env bash` with it and leave a file the kernel will not run.
+func TestAShebangIsNeverOfferedAsAUnit(t *testing.T) {
+	lines := []string{"#!/usr/bin/env bash", "# What this script does.", "# A second line.", "set -euo pipefail"}
+	units := commentBlocks(lines)
+	for _, unit := range units {
+		if unit.Line == 1 {
+			t.Fatalf("the shebang was offered as a unit: %+v", unit)
+		}
+	}
+	if len(units) != 1 || units[0].Line != 2 || units[0].Span != 2 {
+		t.Fatalf("want one unit over lines 2-3; got %+v", units)
+	}
+	// Deleting everything on offer leaves the script runnable.
+	if kept := Apply(lines, units, []int{1}); !strings.HasPrefix(kept, "#!/usr/bin/env bash\n") {
+		t.Fatalf("a vote against the header took the shebang with it:\n%s", kept)
+	}
+}
+
+// Only at the top of the file. A `#!` further down is an ordinary comment and stays offerable.
+func TestAHashBangBelowTheFirstLineIsAnOrdinaryComment(t *testing.T) {
+	lines := []string{"code", "#!not-a-shebang", "more code"}
+	units := commentBlocks(lines)
+	if len(units) != 1 || units[0].Line != 2 {
+		t.Fatalf("want the line-2 comment offered; got %+v", units)
+	}
+}

@@ -1114,3 +1114,35 @@ func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
 		}
 	}
 }
+
+// A shell script opens on an interpreter directive, which `#` makes look like a comment. Counted as
+// one it joins the file header below it and spends a line of that header's allowance, so a script
+// whose header sits exactly at the limit reports long for saying which interpreter runs it.
+func TestAShebangIsNotPartOfTheFileHeader(t *testing.T) {
+	header := []string{"#!/usr/bin/env bash"}
+	for i := 1; i <= 8; i++ {
+		header = append(header, "# Line "+strconv.Itoa(i)+".")
+	}
+	header = append(header, "set -euo pipefail")
+	s := scanner{profile: ProfileComment}
+	if hasCheck(s.scanSource("stub.sh", header, nil), checkLongBlock) {
+		t.Error("an eight-line header under a shebang was reported long")
+	}
+	nine := append(append([]string{}, header[:9]...), "# Line 9.", "set -euo pipefail")
+	if !hasCheck(s.scanSource("stub.sh", nine, nil), checkLongBlock) {
+		t.Error("a nine-line header was not reported long, so the shebang rule cut too much")
+	}
+	// Only on line one. A `#!` further down is an ordinary comment.
+	if !isShebang(1, "#!/bin/sh") || isShebang(2, "#!/bin/sh") {
+		t.Error("the shebang rule does not hold to the first line")
+	}
+}
+
+// The bar counts whole files, so it has to agree: a shebang is not a comment line there either.
+func TestTheBarDoesNotCountAShebangAsAComment(t *testing.T) {
+	withBang := statsOf("#!/usr/bin/env bash\n# One.\ncode\n")
+	plain := statsOf("# One.\ncode\n")
+	if withBang.comments != plain.comments {
+		t.Fatalf("the shebang added %d comment line(s) to the count", withBang.comments-plain.comments)
+	}
+}

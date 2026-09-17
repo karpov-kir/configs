@@ -56,6 +56,15 @@ func commentBlocks(lines []string) []Unit {
 	inBlock, inStar := false, false
 	for i, raw := range lines {
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
+		// A script's interpreter directive is a `#` line, so it reads as a comment and would join the
+		// header below it — and a unit is a thing the model may delete, with Apply dropping every line
+		// of it. A vote against that header would take `#!/usr/bin/env bash` with it and leave a file
+		// the kernel will not run. It is never offered, on the same reasoning Kind.Subject withholds a
+		// commit's subject line.
+		if i == 0 && strings.HasPrefix(line, "#!") {
+			inBlock, inStar = false, false
+			continue
+		}
 		// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it starts
 		// with: a continuation without a leading `*` is still the same comment, and ending the block
 		// there would delete its first line alone and leave the tail to break the file.
