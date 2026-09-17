@@ -8,6 +8,11 @@
 //
 // This file and gates.yml are a unit and must land in the same commit: with only one workflow
 // carrying a Gate step, they have nothing to hold to account and fail deliberately.
+//
+// That the LOCAL gate bounds its own `go test` is not here any more. It was a scan of gate.go's source
+// lines for the literal, which said nothing about the commands that file actually builds and went red
+// on the refactor that named the bound once. `gate/gate_test.go`'s
+// TestEveryGoCommandIsBoundedAboveTheBudget reads those commands instead.
 package tools_test
 
 import (
@@ -30,7 +35,7 @@ const gateSource = "gate/gate.go"
 // on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
 // covers a package that fails, and without `./...` the gate runs a subset of the module.
 //
-// The bound is deliberately not in this list. It has one home, `budgetSeconds` in
+// The bound is deliberately not in this list. It has one home, `suiteTimeoutSeconds` in
 // ai/tools/gate/gate.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
 // Pinned here too, raising it would mean one more file to edit, with this case red until that edit
 // lands.
@@ -69,34 +74,6 @@ func hasField(fields []string, want string) bool {
 		}
 	}
 	return false
-}
-
-// The local gate runs the same suite, so it is held to the same bound. It cannot carry
-// `goSuiteFlags` verbatim: it selects packages rather than running `./...`, and it forces some with
-// `-count=1` because the Go cache cannot see the fixtures' external inputs. So only the timeout is
-// held here, for the reason TestEveryWorkflowGateBoundsGoTestLikeTheGate below gives.
-func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
-	body, err := os.ReadFile(gateSource)
-	if err != nil {
-		t.Fatalf("reading %s: %v", gateSource, err)
-	}
-	var found int
-	for _, line := range strings.Split(string(body), "\n") {
-		trimmed := strings.TrimSpace(line)
-		// The invocations only, never the prose about them: a comment naming `go test` is not a run.
-		if strings.HasPrefix(trimmed, "//") || !strings.Contains(trimmed, "go test") {
-			continue
-		}
-		found++
-		if !strings.Contains(trimmed, "-timeout") {
-			t.Errorf("%s runs the Go suite with no -timeout: %s", gateSource, trimmed)
-		}
-	}
-	// Zero invocations means this case is holding nothing to account — the runner moved, or the suite
-	// did, and either way the assertion above passed over nothing.
-	if found == 0 {
-		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", gateSource)
-	}
 }
 
 func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
@@ -150,21 +127,23 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// `budgetSeconds` in ai/tools/gate/gate.go is the bound's one home, and it is the same number
-// `testing.md` rule 6 states: the whole suite runs cold under it, and the gate fails a run over it.
-// Each workflow's Gate step has to spell that number into its own `-timeout`, so a suite that hangs
-// on a runner fails as the thing it is rather than after Go's ten-minute default. A pointer is only
-// as good as something checking it still points at the same number, and this is that check.
+// `suiteTimeoutSeconds` in ai/tools/gate/gate.go is the bound's one home: the backstop every `go test`
+// carries, so a suite that hangs on a runner fails in minutes rather than after Go's ten-minute
+// default. It is NOT the 100 seconds `testing.md` rule 6 states — that number is a budget over the
+// whole gate and gate.go's own wall clock is what enforces it, because a `go test` carrying it killed
+// the package before the gate could report which one was slow. A pointer is only as good as something
+// checking it still points at the same number, and this is that check.
 func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	gateBody, err := os.ReadFile(gateSource)
 	if err != nil {
 		t.Fatalf("reading %s: %v", gateSource, err)
 	}
-	want := constSecondsIn(string(gateBody), "budgetSeconds")
+	const bound = "suiteTimeoutSeconds"
+	want := constSecondsIn(string(gateBody), bound)
 	if want == "" {
-		t.Fatalf("%s no longer declares budgetSeconds at the start of a line, so this case has nothing to "+
+		t.Fatalf("%s no longer declares %s at the start of a line, so this case has nothing to "+
 			"hold the workflows to and would pass over any value they carry. Restore the declaration, or "+
-			"retire this case deliberately — do not leave it green over nothing.", gateSource)
+			"retire this case deliberately — do not leave it green over nothing.", gateSource, bound)
 	}
 
 	checked := 0
@@ -176,18 +155,18 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 				name)
 			continue
 		}
-		for i, bound := range bounds {
+		for i, carried := range bounds {
 			checked++
 			switch {
-			case bound == "":
+			case carried == "":
 				t.Errorf("`go test` invocation %d in %s's Gate step carries no -timeout, so Go's 10m "+
 					"default applies there while %s uses %s. Overrunning prints a goroutine dump that "+
 					"reads as a hang rather than as a suite over its budget, and this repository has "+
 					"twice reported one as a red gate that was not one.", i+1, name, gateSource, want)
-			case bound != want:
+			case carried != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
-					"goSuiteTimeout=%s — the two drifted, so the same suite is bounded differently "+
-					"depending on who runs it.", i+1, name, bound, gateSource, want)
+					"%s=%s — the two drifted, so the same suite is bounded differently "+
+					"depending on who runs it.", i+1, name, carried, gateSource, bound, want)
 			}
 		}
 	}

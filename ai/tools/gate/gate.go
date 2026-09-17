@@ -14,7 +14,7 @@
 // gate fails a run over that. A cache that exists to hide a slow suite hides a slow suite from the
 // one check that would have forced it to be fixed.
 //
-// Five checks, in this order, because each is cheaper than the one after it and a failure in an
+// Six checks, in this order, because each is cheaper than the one after it and a failure in an
 // earlier one makes a later one's output hard to read. They run concurrently all the same — the
 // ordering is what gets PRINTED, and the machine has cores to spare while `go test` waits on I/O.
 //
@@ -46,7 +46,7 @@ type Env struct {
 	// Budget replaces budgetSeconds, so the suite can drive the over-budget refusal without spending
 	// a hundred seconds to reach it. GATE_BUDGET_SECONDS.
 	Budget int
-	// Checks replaces the five real ones with a table read from a file — id, command, one per line,
+	// Checks replaces the six real ones with a table read from a file — id, command, one per line,
 	// tab-separated. GATE_CHECKS_FILE. It is how the suite reaches the run loop, the report and every
 	// refusal in milliseconds rather than by running the real checks, which is the work this exists
 	// not to do twice.
@@ -54,9 +54,26 @@ type Env struct {
 }
 
 // The whole suite, cold, on the slowest machine that gates on it. testing.md rule 6 states the number
-// and this enforces it; the two have to move together. `go test` is given the same bound, so a suite
-// that hangs is reported as the budget rather than as Go's ten-minute default.
+// and this enforces it; the two have to move together. This gate's own wall clock is the only thing
+// enforcing it — see suiteTimeoutSeconds for why `go test` must not be handed this number.
 const budgetSeconds = 100
+
+// What `go test` carries as its own -timeout, ABOVE the budget on purpose. Handed the budget itself,
+// Go killed the package first and printed a goroutine dump, so the gate's slowest-first report — the
+// thing that names what has to get faster — could never run for the check that would earn it. Above
+// the budget, a merely slow suite finishes and is reported as slow, and this number is left as the
+// backstop against a genuine hang, which is where Go's ten-minute default is the thing worth escaping.
+//
+// Both workflows spell this number into their own `go test`, and ai/tools/workflows_test.go holds them
+// to it.
+const suiteTimeoutSeconds = 300
+
+// Every package in the module but the root, as the shell substitution the ordinary run is given.
+// Derived rather than written down: a package list to keep in step with the module is the machinery
+// this gate deleted. `-F` because a module path holds dots and `grep` would read them as any
+// character. `grep` exits 1 on an empty result, so a listing that broke fails the check it stands in
+// rather than quietly narrowing the run to nothing.
+const restOfTheModule = `$(go list ./... | grep -vxF "$(go list .)")`
 
 // A check the gate runs, and what it cost.
 type check struct {
@@ -142,36 +159,48 @@ func (g *gate) resolveRoot(root string) int {
 	return 0
 }
 
-// The five, or a table a suite handed over. `go test` carries the budget as its own timeout: a suite
-// that hangs then fails as the thing it is, rather than after Go's ten-minute default with a
-// goroutine dump that reads like a deadlock.
+// The six, or a table a suite handed over.
 //
 // `--full` is `-count=1` over everything, and the budget is a claim about a COLD run, so the run that
 // measures it must not answer out of Go's cache at all.
 //
-// An ordinary run lets that cache answer, with one package forced. Measured 2026-09-17: the cache is
-// keyed on the MODULE, not on the package, so a file outside `ai/tools` is invisible to it — break
+// An ordinary run lets that cache answer, with the root package forced. Measured 2026-09-17: the cache
+// is keyed on the MODULE, not on the package, so a file outside `ai/tools` is invisible to it — break
 // `ai/kk-flavor/standards/records.md` and a plain `go test` still says `ok (cached)`. Every case that
 // reads the checkout is gathered in the `ai/tools` root package for exactly that reason, so forcing
-// that one package closes the hole, and it costs about ten seconds. The root therefore runs twice on a
-// cold ordinary run: naming the other packages instead would mean a list to keep in step with the
-// module, which is the machinery this gate just deleted. `testing.md` rule 11.
+// that one package closes the hole for those. It is not yet all of them: `mcp-sync` and `project-mcp`
+// read `ai/mcp.jsonc` from their own packages, and both were measured answering `ok (cached)` over an
+// edit to it on 2026-09-17. `testing.md` rule 11.
+//
+// The Go suite is two checks rather than one command chaining two runs. `./...` already holds the
+// root, so the forced run and the sweep were paying for the most expensive package in the module
+// twice; naming the root and the rest separately pays once. Two checks and not one `&&` chain because
+// the report is what this gate is for: chained, the root failing hides every other package's findings,
+// and one duration covers both halves where the slowest-first report has to name a half.
 func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if env.Checks != "" {
 		return g.checksFromFile(env.Checks)
 	}
-	if _, err := exec.LookPath("go"); err != nil {
-		return nil, g.fail("no go on this machine, so nothing here can be built or run — nothing ran")
+	// gofmt as well as go, because a check that cannot find its binary is not a check: `test -z
+	// "$(gofmt -l .)"` is green on a machine with no gofmt, the complaint having gone to stderr.
+	for _, tool := range []string{"go", "gofmt"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			return nil, g.fail("no %s on this machine, so the Go checks cannot run — nothing ran", tool)
+		}
 	}
-	bound := fmt.Sprintf("%ds", int(g.budget.Seconds()))
-	suite := "go test -timeout " + bound + " ./... && go test -count=1 -timeout " + bound + " ."
+	bound := fmt.Sprintf("-timeout %ds", suiteTimeoutSeconds)
+	rest := "go test " + bound + " " + restOfTheModule
 	if full {
-		suite = "go test -count=1 -timeout " + bound + " ./..."
+		rest = "go test -count=1 " + bound + " " + restOfTheModule
 	}
 	return []check{
-		{id: "gofmt", cmd: "cd ai/tools && test -z \"$(gofmt -l .)\" || { gofmt -l . >&2; exit 1; }"},
+		// gofmt's own exit status and not just its listing: handed a file it cannot parse it prints to
+		// stderr and lists nothing, and a check reading the listing alone calls that formatted.
+		{id: "gofmt", cmd: "cd ai/tools && unformatted=$(gofmt -l .) && test -z \"$unformatted\" || " +
+			"{ printf '%s\\n' \"$unformatted\" >&2; exit 1; }"},
 		{id: "vet", cmd: "cd ai/tools && go vet ./..."},
-		{id: "gotest", cmd: "cd ai/tools && " + suite},
+		{id: "gotest-root", cmd: "cd ai/tools && go test -count=1 " + bound + " ."},
+		{id: "gotest-rest", cmd: "cd ai/tools && " + rest},
 		{id: "wiring", cmd: "ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && " +
 			"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate"},
 		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},
@@ -266,7 +295,7 @@ func (g *gate) overBudget(checks []check, wall time.Duration) {
 	fmt.Fprintln(g.errOut, "`ai/kk-flavor/standards/testing.md` rule 6 states the bound and why no other rule buys time against it.")
 	fmt.Fprintln(g.errOut, "slowest first:")
 	for _, c := range slowest {
-		fmt.Fprintf(g.errOut, "    %-8s %ds\n", c.id, int(c.took.Round(time.Second).Seconds()))
+		fmt.Fprintf(g.errOut, "    %-12s %ds\n", c.id, int(c.took.Round(time.Second).Seconds()))
 	}
 }
 
@@ -290,7 +319,7 @@ func (g *gate) execute(cmd string) (string, int) {
 }
 
 func (g *gate) line(state, id, detail string) {
-	fmt.Fprintf(g.out, "  %-11s %-10s %s\n", state, id, detail)
+	fmt.Fprintf(g.out, "  %-11s %-12s %s\n", state, id, detail)
 }
 
 func (g *gate) tail(output string, n int) {

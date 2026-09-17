@@ -7,17 +7,20 @@
 //   - a run over the time budget must exit 1, because the budget is the one check that forces every
 //     other one to stay fast, and a gate that reports it as a warning has no budget.
 //
-// Every case drives the gate through its checks-file seam rather than the real five: that reaches the
-// run loop, the report and every refusal in milliseconds, where running the real checks means running
-// the suite this file is part of.
+// No case here runs a real check. The cases about the run loop, the report and the refusals drive the
+// gate through its checks-file seam, which reaches all three in milliseconds; the cases about the six
+// themselves read the commands `plan` builds and never execute them. Running the real ones means
+// running the suite this file is part of.
 package gate
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fixture struct {
@@ -87,6 +90,187 @@ func (f *fixture) runCount(name string) int {
 		return 0
 	}
 	return len(body)
+}
+
+// The real six, as plan builds them for this machine. The cases below read a command out of these and
+// never run one.
+func (f *fixture) planned(full bool) []check {
+	f.t.Helper()
+	g := &gate{root: f.root, budget: time.Duration(budgetSeconds) * time.Second, out: &f.out, errOut: &f.errOut}
+	checks, code := g.plan(Env{}, full)
+	if code != 0 {
+		f.t.Fatalf("plan refused on this machine, so these cases held nothing to account: %s", f.errOut.String())
+	}
+	return checks
+}
+
+// A PATH holding the named tools and nothing else, so a case can take one binary away from the plan
+// without taking the rest. Symlinked rather than copied, and to the real binary this machine resolves,
+// so `go` still finds its own toolchain through GOROOT.
+func (f *fixture) onlyOnPath(tools ...string) {
+	f.t.Helper()
+	dir := f.t.TempDir()
+	for _, tool := range tools {
+		real, err := exec.LookPath(tool)
+		if err != nil {
+			f.t.Skipf("no %s on this machine, so the case that takes one away cannot be arranged", tool)
+		}
+		if err := os.Symlink(real, filepath.Join(dir, tool)); err != nil {
+			f.t.Fatalf("linking %s into a PATH of this case's own: %v", tool, err)
+		}
+	}
+	f.t.Setenv("PATH", dir)
+}
+
+// gofmt missing is a gate that did not run, and the shape the check was written in could not say so:
+// `test -z "$(gofmt -l .)"` is green on a machine with no gofmt, because the shell's complaint goes to
+// stderr and the substitution comes back empty. The pair is the control — the same plan with gofmt on
+// PATH builds its checks.
+func TestThePlanRefusesWhereGofmtIsMissing(t *testing.T) {
+	f := newFixture(t)
+	f.onlyOnPath("go")
+
+	g := &gate{root: f.root, out: &f.out, errOut: &f.errOut}
+	checks, code := g.plan(Env{}, false)
+	if code != 2 {
+		t.Errorf("plan answered %d with no gofmt on PATH and built %d check(s) — a missing tool is a gate "+
+			"that did not run, never a clean one", code, len(checks))
+	}
+	f.expectSaid("no gofmt")
+}
+
+func TestThePlanBuildsItsChecksWhereGofmtIsThere(t *testing.T) {
+	f := newFixture(t)
+	f.onlyOnPath("go", "gofmt")
+
+	if checks := f.planned(false); len(checks) == 0 {
+		t.Errorf("plan built no check with both tools on PATH")
+	}
+}
+
+// Two things about the bound every `go test` in the plan carries, and each has cost this repository a
+// red gate that was not one. It has to be there at all, or that run hangs for Go's ten-minute default.
+// And it has to sit ABOVE the budget, or no gotest check can ever reach the gate's own over-budget
+// report: Go kills the package at the budget and prints a goroutine dump, so the run is reported as a
+// failure rather than as a suite that has to get faster. Driven at GATE_BUDGET_SECONDS=5, the gotest
+// check died that way and the slowest-first report never ran.
+func TestEveryGoCommandIsBoundedAboveTheBudget(t *testing.T) {
+	for _, full := range []bool{false, true} {
+		t.Run(map[bool]string{false: "an ordinary run", true: "--full"}[full], func(t *testing.T) {
+			f := newFixture(t)
+			checked := 0
+			for _, c := range f.planned(full) {
+				for _, bound := range goTestBounds(c.cmd) {
+					checked++
+					switch {
+					case bound == 0:
+						t.Errorf("a `go test` in the %s check carries no -timeout, so it hangs for Go's "+
+							"ten-minute default: %s", c.id, c.cmd)
+					case bound <= budgetSeconds:
+						t.Errorf("the %s check bounds `go test` at %ds and the budget is %ds, so Go kills the "+
+							"suite before the gate's wall clock can report it: %s", c.id, bound, budgetSeconds, c.cmd)
+					}
+				}
+			}
+			if checked == 0 {
+				t.Fatalf("the plan runs no `go test` at all, so this case held nothing to account and the " +
+					"Go suite is not what this gate gates")
+			}
+		})
+	}
+}
+
+// One entry per `go test` in a command, holding the seconds its own -timeout names and zero where it
+// carries none. Per invocation and not per flag: a command running `go test` twice with a bound on only
+// one of them would otherwise be vouched for by the half that carries it.
+func goTestBounds(cmd string) []int {
+	var bounds []int
+	fields := strings.Fields(cmd)
+	for i := 0; i+1 < len(fields); i++ {
+		if fields[i] == "go" && fields[i+1] == "test" {
+			bounds = append(bounds, boundIn(fields[i+2:]))
+		}
+	}
+	return bounds
+}
+
+// The seconds one invocation's own flags name, or zero. Reading stops at the shell operator that ends
+// the invocation, so a later command's bound cannot stand in for this one's.
+func boundIn(flags []string) int {
+	for i, field := range flags {
+		switch field {
+		case "&&", "||", ";", "|":
+			return 0
+		case "-timeout":
+			if i+1 == len(flags) {
+				return 0
+			}
+			seconds, err := strconv.Atoi(strings.TrimSuffix(flags[i+1], "s"))
+			if err != nil {
+				return 0
+			}
+			return seconds
+		}
+	}
+	return 0
+}
+
+// `./...` holds the root package, so the pair `go test ./...` and `go test -count=1 .` paid for it
+// twice — and the root is where every case reading the checkout lives, which makes it the most
+// expensive package in the module. The rest is derived from the module rather than written down, and
+// this drives that derivation against the module itself: a list that quietly dropped a package would
+// leave those packages untested with the gate still green.
+func TestTheRestOfTheModuleIsEveryPackageButTheRoot(t *testing.T) {
+	all := listedByShell(t, "go list ./...")
+	rest := listedByShell(t, "echo "+restOfTheModule)
+	root := listedByShell(t, "go list .")
+
+	if len(root) != 1 {
+		t.Fatalf("`go list .` named %v in the module directory, so this case cannot say which package the "+
+			"root is", root)
+	}
+	if len(all) < 2 {
+		t.Fatalf("`go list ./...` named %d package(s), so a case about excluding one of them holds nothing "+
+			"to account", len(all))
+	}
+	for _, pkg := range all {
+		inRest := contains(rest, pkg)
+		switch {
+		case pkg == root[0] && inRest:
+			t.Errorf("%s is the root package and the derived rest names it too, so an ordinary run tests it "+
+				"twice — once forced and once out of the cache", pkg)
+		case pkg != root[0] && !inRest:
+			t.Errorf("%s is in the module and the derived rest leaves it out, so an ordinary run never tests "+
+				"it at all", pkg)
+		}
+	}
+	if len(rest) != len(all)-1 {
+		t.Errorf("the module holds %d package(s) and the derived rest names %d, so the two lists disagree "+
+			"about more than the root", len(all), len(rest))
+	}
+}
+
+// What one shell command prints in the module directory, as fields. Through a shell because the
+// derivation under test IS shell, and in the module directory because that is where the gate's Go
+// checks cd to.
+func listedByShell(t *testing.T, command string) []string {
+	t.Helper()
+	run := exec.Command("sh", "-c", command)
+	run.Dir = ".."
+	out, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("`%s` in the module directory: %v\n%s", command, err, out)
+	}
+	return strings.Fields(string(out))
+}
+
+func contains(list []string, want string) bool {
+	for _, have := range list {
+		if have == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestACleanRunExitsZeroAndRunsEveryCheck(t *testing.T) {

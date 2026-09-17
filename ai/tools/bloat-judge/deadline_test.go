@@ -17,8 +17,8 @@ import (
 
 // notTheSubject is what a case bounds its roll at when the deadline is not what the case asks about,
 // which is nearly every case here and in provider_test.go. An hour, and the hour is the point: the
-// gate and both workflows give each package `-timeout 30m` (gate/run.go, goSuiteTimeout), so this sits
-// past the bound that already stops a hang and can never be the one that fires.
+// gate gives the suite a timeout of its own (gate/gate.go, budgetSeconds), so this sits past the bound
+// that already stops a hang and can never be the one that fires.
 //
 // A roll deadline exists so a run ends, not so it ends soon; deadline.go carries the production figure
 // and the measurements behind it. A case driving a fake that answers and exits is already certain to

@@ -13,6 +13,10 @@
 // One guard has no case and is named rather than quietly absent. "could not resolve" sits behind a
 // successful IsDir, so reaching it needs the directory to disappear between two statements, and no
 // fixture worth building does that.
+//
+// Nothing here reads outside the module. The case that ran this gate over the shipped handoff template
+// is `ai/tools/shipped_handoff_template_test.go`, in the package `ai/gate.sh` forces: Go keys its test
+// cache on the module, so a case here would have answered `ok (cached)` over a template that changed.
 package handoffcheck
 
 import (
@@ -823,18 +827,4 @@ func TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation(t *testing.T) {
 	got, code := gateOver(t, d.text(), dir, git)
 	expect(t, "a prefix over a repository with no abbreviation", got, code, 0,
 		nil, []string{"the title opens with", "prefix is", "still the template placeholder"})
-}
-
-// The template and the gate each hold the seven headings, and nothing else compares them. Rename one
-// in either and every future draft is refused, with the drift surfacing only at the next real handoff.
-// Running the gate over the shipped template is that comparison: the leftover comments prove the scan
-// reached the slots, and neither drift finding may appear.
-func TestShippedTemplateMatchesTheHeadingsTheGateRequires(t *testing.T) {
-	template := filepath.Join("..", "..", "kk-flavor", "skills", "kk-handoff", "handoff-prompt.md")
-	if _, err := os.Stat(template); err != nil {
-		t.Fatalf("cannot reach %s, so the drift case did not run: %v", template, err)
-	}
-	got, code := gateFile(template, fixtureRepo, fixtureGit)
-	expect(t, "the shipped template", got, code, 1,
-		[]string{"template comment left"}, []string{"missing section:", "unknown section:"})
 }
