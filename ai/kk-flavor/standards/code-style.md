@@ -18,7 +18,7 @@
 
 A comment is one of two kinds, and each kind has one shape.
 
-A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". Every exported symbol has one. A private symbol has one when its name does not say what it does. A summary may say in words what the signature says in types. It does not say why.
+A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". A symbol has one where its name and signature leave something to say: a return case, a unit, an ordering, a side effect, a precondition. A summary that only restates the identifier in words is deleted, exported or not. A summary may say in words what the signature says in types when that is the thing left to say. It does not say why.
 
 A **note** says something the code cannot say: a fact about the outside world the code relies on, or an edit that looks right and breaks something. It states the fact first, in a sentence with a subject, and the consequence second. It is at most two sentences. A note that needs more is one of three other things: a test whose name states it, a line in the PR body, or a shape the refactor lane changes.
 
