@@ -31,7 +31,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/diffscan"
-	gitrepo "kk-flavor/tools/repo"
+	"kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -110,8 +110,7 @@ type scan struct {
 	announce func(string)
 }
 
-func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
-	git := gitrepo.Exec{}
+func Run(self string, args []string, cwd string, git repo.Git, cfg Config, stdout, stderr io.Writer) int {
 	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		// The grammar goes with this refusal and with no other. Every other exit 2 below is a sound
 		// invocation the scan could not carry out — a revision git would not resolve, a diff line past

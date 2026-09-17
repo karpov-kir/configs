@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -79,8 +78,8 @@ var kinds = map[string]Kind{
 	"record-entry": {Reader: "an agent reading this record before acting, paying for each entry in context"},
 }
 
-func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
-	return RunIn(self, args, ".", stdin, stdout, stderr, call, memo)
+func Run(self string, args []string, git repo.Git, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
+	return RunIn(self, args, ".", git, stdin, stdout, stderr, call, memo)
 }
 
 // The grammar, in one place, because two copies of it drift and `ai/tools/stub_usage_test.go` holds
@@ -131,7 +130,7 @@ func RefuseIfNotTheGrammar(self string, args []string, stderr io.Writer) bool {
 }
 
 // RunIn is Run with the working directory named, which --changed needs to find the repository.
-func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
+func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
 	numbersOnly, changed, revisions, rest, refusal := grammarRefusal(self, args)
 	if refusal != "" {
 		fmt.Fprintln(stderr, refusal)
@@ -169,7 +168,7 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 	lines := shell.SplitLines(content)
 	offer := offerFor(lines, kind)
 	if changed {
-		added, err := addedLines(cwd, args[1], revisions)
+		added, err := addedLines(git, cwd, args[1], revisions)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
 			return exitDidNotRun
@@ -260,12 +259,11 @@ func Prompt(kind Kind) string {
 // addedLines is the set of 1-based lines the diff added to one file, that file named as the caller
 // typed it and resolved against the repository root. With no revisions it is `git diff HEAD` plus, for
 // an untracked file, every line.
-func addedLines(cwd, path string, revisions []string) (map[int]bool, error) {
-	git := repo.Exec{}
+func addedLines(git repo.Git, cwd, path string, revisions []string) (map[int]bool, error) {
 	if err := diffscan.RefuseNonRevisions(git, revisions, cwd); err != nil {
 		return nil, err
 	}
-	rel, err := repoRelative(cwd, path)
+	rel, err := repoRelative(git, cwd, path)
 	if err != nil {
 		return nil, err
 	}
@@ -291,18 +289,17 @@ func addedLines(cwd, path string, revisions []string) (map[int]bool, error) {
 	return added, nil
 }
 
-func repoRelative(cwd, path string) (string, error) {
-	out, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-prefix").Output()
+func repoRelative(git repo.Git, cwd, path string) (string, error) {
+	prefix, err := git.Prefix(cwd)
 	if err != nil {
 		return "", fmt.Errorf("%s is not inside a git repository", cwd)
 	}
-	prefix := strings.TrimSpace(string(out))
 	if filepath.IsAbs(path) {
-		top, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel").Output()
+		top, err := git.TopLevel(cwd)
 		if err != nil {
 			return "", fmt.Errorf("%s is not inside a git repository", cwd)
 		}
-		rel, err := filepath.Rel(strings.TrimSpace(string(top)), path)
+		rel, err := filepath.Rel(top, path)
 		if err != nil {
 			return "", err
 		}

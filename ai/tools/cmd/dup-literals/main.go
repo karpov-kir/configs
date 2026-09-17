@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	duplicates "kk-flavor/tools/dup-literals"
+	"kk-flavor/tools/repo"
 )
 
 func main() {
@@ -21,5 +22,5 @@ func main() {
 		os.Stderr.WriteString(self + ": " + err.Error() + "\n")
 		os.Exit(2)
 	}
-	os.Exit(duplicates.Run(self, os.Args[1:], cwd, cfg, os.Stdout, os.Stderr))
+	os.Exit(duplicates.Run(self, os.Args[1:], cwd, repo.Exec{}, cfg, os.Stdout, os.Stderr))
 }

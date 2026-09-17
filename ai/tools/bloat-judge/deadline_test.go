@@ -199,7 +199,7 @@ func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
 	path := write(t, source)
 	var out, errOut strings.Builder
 	fakeClaude(t, "sleep 30")
-	code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
+	code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
