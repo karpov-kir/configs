@@ -3,7 +3,9 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -55,13 +57,20 @@ func ParseObject(raw []byte) (*Object, error) {
 	if _, err = decoder.Token(); err != nil {
 		return nil, err
 	}
-	// Whatever follows the object is not part of it, and a document with a second value after the
-	// first is malformed rather than truncated at the brace.
+	// Whatever follows the object is not part of it. The test is that the decoder is at EOF, NOT that a
+	// second value decodes: a decode error means something is there and does not parse, which is the
+	// same document-is-not-one-object defect wearing a different hat. Read the other way round,
+	// `THIS IS NOT JSONC` appended to a declaration was accepted and the file read as the object above
+	// it, with every suite over it green.
 	var trailing json.RawMessage
-	if err = decoder.Decode(&trailing); err == nil {
+	switch err = decoder.Decode(&trailing); {
+	case errors.Is(err, io.EOF):
+		return object, nil
+	case err == nil:
 		return nil, fmt.Errorf("expected one JSON object, found another value after it")
+	default:
+		return nil, fmt.Errorf("expected one JSON object, and what follows it is not JSON: %w", err)
 	}
-	return object, nil
 }
 
 // NewObject is an empty object, filled in whatever order the caller wants it written.

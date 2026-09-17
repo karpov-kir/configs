@@ -105,3 +105,27 @@ func TestSomethingThatIsNotAnObjectIsRefused(t *testing.T) {
 		})
 	}
 }
+
+// Anything after the closing brace is a document that is not one object, whether or not that
+// something is itself JSON. The check used to be `Decode` into a second value, which only fires when
+// what follows PARSES — so `THIS IS NOT JSONC` appended to `ai/mcp.jsonc` was accepted, the file read
+// as the object above it, and every suite over it stayed green.
+func TestAnythingAfterTheObjectIsRefusedWhetherOrNotItIsJSON(t *testing.T) {
+	for _, trailing := range []string{
+		`{"one":1} {"two":2}`,
+		`{"one":1} THIS IS NOT JSONC`,
+		`{"one":1} 7`,
+		`{"one":1} ]`,
+	} {
+		if _, err := ParseObject([]byte(trailing)); err == nil {
+			t.Errorf("ParseObject(%q) accepted a document holding more than one object", trailing)
+		}
+	}
+	// The control. Whitespace and a trailing newline are what a well-formed file ends with, and a
+	// refusal there would refuse every file this tool reads.
+	for _, clean := range []string{`{"one":1}`, "{\"one\":1}\n", "  {\"one\":1}  \n\n"} {
+		if _, err := ParseObject([]byte(clean)); err != nil {
+			t.Errorf("ParseObject(%q) refused a well-formed object: %v", clean, err)
+		}
+	}
+}
