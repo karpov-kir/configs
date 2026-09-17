@@ -30,7 +30,8 @@ for arg in "$@"; do
     --maintainer) maintainer=true ;;
     --uninstall) uninstall=true ;;
     -h | --help)
-      sed -n '3,5p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      # Anchored on content, not line numbers — see ai/mcp-sync.sh for why.
+      sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;/^#$/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     -*)

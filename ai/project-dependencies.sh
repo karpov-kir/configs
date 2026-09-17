@@ -8,7 +8,9 @@ for argument in "$@"; do
   case "$argument" in
     --dry-run) isDryRun=true ;;
     -h | --help)
-      printf 'usage: ai/project-dependencies.sh [--dry-run]\n'
+      # Read from the header rather than restated here, so there is no second copy to drift
+      # from it — see ai/mcp-sync.sh for why the anchors are content and not line numbers.
+      sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;/^#$/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     *)

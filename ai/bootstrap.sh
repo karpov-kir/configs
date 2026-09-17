@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-#
-#
-#
+# Install the kk-flavor skills, instruction file and tooling into one client's user scope.
+# The default tier installs the smaller skill set; --maintainer adds this tree's own maintenance
+# skills, and --owner adds those plus RTK and the personal instruction file.
 #
 #   usage: ai/bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew]
 #                          [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--uninstall]
@@ -51,7 +51,10 @@ for arg in "$@"; do
       ;;
     --uninstall) uninstall=true ;;
     -h | --help)
-      sed -n '3,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      # Anchored on content, not line numbers — see ai/mcp-sync.sh for why.
+      #
+      # Inlined rather than shared from lib/: the arg loop runs before the libraries are sourced.
+      sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;/^#$/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     *)
