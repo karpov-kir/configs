@@ -6,10 +6,9 @@
 # the two against each other. Every subcommand that reads a report takes the intent last; omit it when
 # only one is open.
 #
-# Two sibling files are found from argv[0] and one from $HOME, so this must stay in the skill's
-# scripts/ directory: ./todo-gate.sh, ../templates/qualify-report-template.md, and
-# `~/.kk-flavor/scripts/tree-fingerprint.sh`. Both installs symlink into the same repo, so they ship
-# together or not at all.
+# The report template is found from argv[0], so this must stay in the skill's scripts/ directory:
+# ../templates/qualify-report-template.md. `~/.kk-flavor/scripts/tree-fingerprint.sh` is found from
+# $HOME. Both installs symlink into the same repo, so they ship together or not at all.
 #
 # tested by: the Go suite beside the tool, `ai/tools/eco-report/`; the shared stub region below by
 # tool-stub-test.sh, and the resolver it calls by resolve-test.sh.

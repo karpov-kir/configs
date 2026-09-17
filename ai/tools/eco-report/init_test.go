@@ -95,7 +95,7 @@ func TestAnExistingReportIsNotSilentlyReplaced(t *testing.T) {
 
 	f.appendTo(f.reportPath(""), "- [ ] an open item nobody has routed\n")
 	f.runReport("init", "review: third", "--force")
-	// The listing comes from todo-gate.sh, and it is now the only record of what --force discarded: no
+	// The listing comes from the open-item scan, and it is the only record of what --force discarded: no
 	// copy is kept beside the report. A --force that replaces a report while printing none of its open
 	// items is how routed work silently disappears.
 	f.assertReports("an open item nobody has routed", "--force lists the open items it discards")

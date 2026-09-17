@@ -1,14 +1,12 @@
 package ecoreport_test
 
 // The fixture builders and the assertions the cases are written against. This is the only suite over
-// these gates, so a case removed here is coverage gone rather than coverage moved. It is also the only
-// coverage of `todo-gate.sh`'s caller side: newSkillCopy writes a scanner of the same shape, and one
-// case stubs it to exit 3.
+// these gates, so a case removed here is coverage gone rather than coverage moved.
 //
-// Every input this suite gives the tool it writes itself — the template, the open-item scanner, the
-// tree. Nothing is read from outside the module, and that is a cache property before it is a style
-// one: `go test` keys its cache on the module, so a suite reading the shipped skill answers
-// `ok (cached)` over a template that has changed under it.
+// Every input this suite gives the tool it writes itself — the template, the tree. Nothing is read
+// from outside the module, and that is a cache property before it is a style one: `go test` keys its
+// cache on the module, so a suite reading the shipped skill answers `ok (cached)` over a template that
+// has changed under it.
 //
 // The repository is a table, not a checkout. `ai/tools/repo` names the questions this tool asks of one
 // and `repotest.Fake` answers them, so no case forks git to have something to drive. What a repository
@@ -59,9 +57,6 @@ type fixture struct {
 	// How this fixture's tree is fingerprinted. newTreeFingerprint by default; countFingerprints wraps
 	// it to count, and one case swaps in a failing one.
 	fingerprint func(root string) (string, error)
-	// How this fixture's reports are scanned for open items. newOpenItemScan by default; nil spawns the
-	// script, which is what scansWithTheScript arranges and what the script's own cases need.
-	openItems func(path string) (string, int)
 	// What the tool's repository questions are answered from. Never nil: the scope fixtures put this
 	// table over a real seed repository, since applicability.go still runs one git command itself, but
 	// every question still comes through here.
@@ -71,9 +66,9 @@ type fixture struct {
 	base string // scratch the case may write outside the repo into
 	repo string // the fixture repository, and the directory every run acts from
 	// A per-case copy of the skill directory: scripts beside templates, the layout the tool derives
-	// its template and todo-gate paths from. So a case can break either without touching this
-	// checkout's own, and one copy per case means no mutation carries. It holds no report.sh —
-	// nothing reads that path, only the directory above it.
+	// its template path from. So a case can break it without touching this checkout's own, and one
+	// copy per case means no mutation carries. It holds no report.sh — nothing reads that path, only
+	// the directory above it.
 	skill string
 	// The HOME the tool runs against, built by newFlavorHome. Never the machine's own: see there.
 	home string
@@ -117,7 +112,6 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	f.newSkillCopy()
 	f.newWorkingTree()
 	f.fingerprint = f.newTreeFingerprint()
-	f.openItems = f.newOpenItemScan()
 	return f
 }
 
@@ -214,7 +208,6 @@ func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
 		ConfigHome:  f.configHome,
 		Out:         out,
 		Err:         errOut,
-		OpenItems:   f.openItems,
 		Fingerprint: f.fingerprint,
 	}.Exec()
 }
@@ -471,34 +464,19 @@ func (f *fixture) fingerprintScriptIn(home string) string {
 	return home + "/.kk-flavor/scripts/tree-fingerprint.sh"
 }
 
-// The skill dir the tool resolves its two neighbours from, written by the fixture: scripts beside
-// templates, the layout the tool derives its template and todo-gate paths from. So a case can break
-// either without touching this checkout's own, and one per case means no mutation carries.
+// The skill dir the tool resolves its template from, written by the fixture: scripts beside templates,
+// the layout the tool derives that path from. So a case can break the template without touching this
+// checkout's own, and one per case means no mutation carries.
 func (f *fixture) newSkillCopy() {
 	f.t.Helper()
 	f.skill = f.base + "/skill"
 	f.mkdirAll(f.skill + "/scripts")
 	f.mkdirAll(f.skill + "/templates")
-	f.write(f.todoGatePath(), todoGateScript)
-	f.chmod(f.todoGatePath(), 0o755)
 	f.write(f.templatePath(), reportTemplate)
 }
 
 func (f *fixture) templatePath() string {
 	return f.skill + "/templates/qualify-report-template.md"
-}
-
-// Send this fixture's scans back through the script, for the cases whose subject IS the child process
-// — that it is located from the tool's own path, that it must be executable, and that an exit above 1
-// is never read as nothing open. Everything else drives newOpenItemScan, which
-// TestTheOpenItemScanReadsTheSameEitherWay holds to this script.
-func (f *fixture) scansWithTheScript() {
-	f.t.Helper()
-	f.openItems = nil
-}
-
-func (f *fixture) todoGatePath() string {
-	return f.skill + "/scripts/todo-gate.sh"
 }
 
 // Take read permission off a fixture file for the cases that need one. False means chmod did not

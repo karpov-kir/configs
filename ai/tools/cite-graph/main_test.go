@@ -104,10 +104,88 @@ func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
 	}
 }
 
-func TestNoRootIsARefusalWithTheUsageGrammar(t *testing.T) {
-	code, _, errOut := runOver(t)
-	if code != 2 || !strings.Contains(errOut, "usage: cite-graph.sh <root>") {
-		t.Errorf("exit %d, stderr %q — want 2 and the usage grammar", code, errOut)
+// This tool takes exactly one root, and the two ways an argument list can fail to name one. A second
+// root silently measuring the first would report a tree nobody asked about at exit 0.
+func TestAnArgumentListThatNamesNoSingleRootIsARefusalWithTheUsageGrammar(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "caller.md", "# C\n")
+	for _, args := range [][]string{{}, {root, root}} {
+		code, out, errOut := runOver(t, args...)
+		if code != 2 || !strings.Contains(errOut, "usage: cite-graph.sh <root>") {
+			t.Errorf("%v: exit %d, stderr %q — want 2 and the usage grammar", args, code, errOut)
+		}
+		if out != "" {
+			t.Errorf("%v: a refusal printed a report:\n%s", args, out)
+		}
+	}
+}
+
+// A root that is not there reads nothing, and reading nothing is not a flat tree. Exit 0 here would
+// hand three skills a depth of 0 for a tree this never opened.
+func TestARootThatDoesNotExistRefuses(t *testing.T) {
+	code, out, errOut := runOver(t, filepath.Join(t.TempDir(), "absent"))
+	if code != 2 {
+		t.Errorf("exit %d over a root that does not exist, want 2", code)
+	}
+	if out != "" {
+		t.Errorf("a refusal printed a report:\n%s", out)
+	}
+	if !strings.Contains(errOut, "NOT read") {
+		t.Errorf("stderr %q does not say the tree went unread", errOut)
+	}
+}
+
+// Markdown with no citation between any of it. The tool measures that tree as flat and says so at
+// exit 0 — the same status a report exits with, which is why the depth figure and not the status is
+// what a caller reads. Told apart from the refusal above only by the number.
+func TestATreeWithNoCitationIsMeasuredAsFlatRatherThanRefused(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "plain.md", "# Plain\n\n## A section nobody cites\n")
+
+	code, out, errOut := runOver(t, root)
+	if code != 0 {
+		t.Fatalf("exit %d over a flat tree, want 0; stderr was %q", code, errOut)
+	}
+	if !strings.Contains(out, "1 file(s), 0 citation edge(s)") {
+		t.Errorf("report does not measure the fixture:\n%s", out)
+	}
+	if want := "\ndepth 0, "; !strings.Contains(out, want) {
+		t.Errorf("report is missing %q, so nothing says the tree is flat:\n%s", want, out)
+	}
+}
+
+// DEPTH is the longest path through the graph, so a chain of two hops has to come back as 2 and not
+// as the 1 a single edge gives. The paragraph above the figure has already been rewritten once; the
+// number is what survives that.
+func TestAChainOfTwoHopsReportsDepthTwo(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "consumer.md", "# C\n\n## Doing the work\n\nFollow `middle.md` → **Handing off**.\n")
+	write(t, root, "middle.md", "# M\n\n## Handing off\n\nRead `deep.md` → **The last rule**.\n")
+	write(t, root, "deep.md", "# D\n\n## The last rule\n\nApply it.\n")
+
+	code, out, errOut := runOver(t, root)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q — want a report", code, errOut)
+	}
+	if want := "\ndepth 2, "; !strings.Contains(out, want) {
+		t.Errorf("report is missing %q:\n%s", want, out)
+	}
+}
+
+// A root path a human really wrote: a space in it, and a character outside ASCII. Every path the tool
+// builds hangs off this one, so a root it mangles is measured somewhere else — and that reads as a
+// report of the tree it was given.
+func TestARootPathHoldingASpaceAndANonAsciiCharacterIsMeasuredWhole(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "rôot with spaces")
+	write(t, root, "std/proto.md", "# P\n\n## Caller\n")
+	write(t, root, "caller.md", "see `std/proto.md` → **Caller**\n")
+
+	code, out, errOut := runOver(t, root)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr %q — want a report", code, errOut)
+	}
+	if !strings.Contains(out, "2 file(s), 1 citation edge(s)") {
+		t.Errorf("report does not measure the tree under that root:\n%s", out)
 	}
 }
 

@@ -48,7 +48,7 @@ func (r *run) cmdInit(args []string) {
 	replacing, carried := "", ""
 	if present {
 		replacing = r.openItemsPhrase()
-		carried, _ = r.runTodoGate()
+		carried, _ = r.reportOpenItems()
 	}
 
 	// 0700, and this is the one place in this tool that creates the scratch tree — MkdirAll builds every

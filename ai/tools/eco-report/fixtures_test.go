@@ -538,58 +538,10 @@ func canonical(path string) string {
 	return path
 }
 
-// The open-item scanner the tool execs, written by the fixture rather than copied from the installed
-// skill. `ai/kk-flavor/skills/idsd-qualify/scripts/todo-gate.sh` is the shipped one and
-// `todo-gate-test.sh` pins its scan; what the cases here pin is the CALLER's side — that a status above
-// 1 is never read as "nothing open". Reading the shipped script from outside this module is what made a
-// plain `go test` answer `(cached)` over a changed template, so the suite supplies its own inputs.
-//
-// Pure shell, no awk: a second child per scan is the cost this whole port exists to remove.
-const todoGateScript = `#!/bin/sh
-export LC_ALL=C
-file="${1:-}"
-[ -n "$file" ] || { echo "usage: todo-gate.sh <file>" >&2; exit 2; }
-[ -f "$file" ] || { echo "error: no such file: $file" >&2; exit 2; }
-found=
-section=
-in_fence=
-in_comment=
-while IFS= read -r line || [ -n "$line" ]; do
-  trimmed=$line
-  while :; do
-    case $trimmed in
-      ' '*) trimmed=${trimmed# } ;;
-      '	'*) trimmed=${trimmed#	} ;;
-      *) break ;;
-    esac
-  done
-  case $trimmed in
-    '` + "```" + `'*|'~~~'*)
-      if [ -n "$in_fence" ]; then in_fence=; else in_fence=1; fi
-      continue ;;
-  esac
-  [ -z "$in_fence" ] || continue
-  case $line in *'<!--'*) in_comment=1 ;; esac
-  if [ -n "$in_comment" ]; then
-    case $line in *'-->'*) in_comment= ;; esac
-    continue
-  fi
-  case $line in
-    '# '*|'## '*|'### '*|'#### '*|'##### '*|'###### '*) section=$line; continue ;;
-  esac
-  case $trimmed in
-    '- [ ]'*) found="$found$section | $trimmed
-" ;;
-  esac
-done < "$file"
-[ -n "$found" ] || exit 0
-printf '%s' "$found"
-exit 1
-`
-
-// The report template, written by the fixture for the reason todoGateScript is. Four placeholder
-// frontmatter lines and a body: `init` refuses a template missing any of them, and every case that
-// drifts one edits this copy. The shipped one is
+// The report template, written by the fixture rather than read from the installed skill: reading it
+// from outside this module is what made a plain `go test` answer `(cached)` over a changed one. Four
+// placeholder frontmatter lines and a body: `init` refuses a template missing any of them, and every
+// case that drifts one edits this copy. The shipped one is
 // `ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md`; nothing here reads it.
 const reportTemplate = `---
 intent: <NNN-slug or "review: <description>">
@@ -648,62 +600,4 @@ func (f *fixture) gitignoreSourceFor(full string) (source string, matched bool) 
 		return ".gitignore", true
 	}
 	return "", false
-}
-
-// The open-item scan, in process. Every case but the few whose subject is the child process itself
-// drives this: the script is one `/bin/sh` per scan, and 116 of them was the largest single cost left
-// in this package once the repository questions came off git.
-//
-// A second implementation of the same rules, which is exactly what testing.md rule 5 warns about — so
-// TestTheOpenItemScanReadsTheSameEitherWay drives both over the shapes the scan has to get right and
-// requires one answer. The rules themselves are todoGateScript's, beside this.
-func (f *fixture) newOpenItemScan() func(string) (string, int) {
-	return func(path string) (string, int) {
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return "", 2
-		}
-		var found []string
-		section, inFence, inComment := "", false, false
-		for _, line := range strings.Split(strings.TrimSuffix(string(body), "\n"), "\n") {
-			trimmed := strings.TrimLeft(line, " \t")
-			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-				inFence = !inFence
-				continue
-			}
-			if inFence {
-				continue
-			}
-			if strings.Contains(line, "<!--") {
-				inComment = true
-			}
-			if inComment {
-				if strings.Contains(line, "-->") {
-					inComment = false
-				}
-				continue
-			}
-			if isMarkdownHeading(line) {
-				section = line
-				continue
-			}
-			if strings.HasPrefix(trimmed, "- [ ]") {
-				found = append(found, section+" | "+trimmed)
-			}
-		}
-		if len(found) == 0 {
-			return "", 0
-		}
-		return strings.Join(found, "\n"), 1
-	}
-}
-
-// `^#{1,6} ` — the heading forms todoGateScript lists one by one, since a POSIX `case` pattern has no
-// repetition operator and the two must answer alike.
-func isMarkdownHeading(line string) bool {
-	hashes := 0
-	for hashes < len(line) && line[hashes] == '#' {
-		hashes++
-	}
-	return hashes > 0 && hashes <= 6 && hashes < len(line) && line[hashes] == ' '
 }

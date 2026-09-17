@@ -17,8 +17,9 @@
 # the tree and never refuses one, so 0 is a report to read, never a verdict that the tree is flat.
 # A root holding no `.md` exits 2 for the same reason: reading nothing is not a flat tree.
 #
-# tested by: cite-graph-test.sh and the Go suite beside the tool, `ai/tools/cite-graph/`; the shared
-# stub region below by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# tested by: the Go suite in ai/tools/cite-graph/, which drives the tool in process — every figure
+# above, and each of the two ways a root can fail to name one tree. The shared stub region below is
+# covered by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 

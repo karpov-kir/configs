@@ -184,31 +184,12 @@ func visibleResultReport(body []byte) error {
 	return err
 }
 
-// Match todo-gate's fence/comment visibility so stored checkboxes cannot pass while hidden from it.
+// The same walk the open-item scan reads the report by, so a stored checkbox cannot pass here while
+// hidden from that one. Refused rather than reported where a fence is left open, because the line it
+// hides is a finding someone submitted.
 func resultVisibleLines(body []byte) ([]string, error) {
-	var visible []string
-	inFence, inComment := false, false
-	for _, line := range strings.Split(string(body), "\n") {
-		trimmed := strings.TrimLeft(line, " \t\r\v\f")
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
-			continue
-		}
-		if inFence {
-			continue
-		}
-		if strings.Contains(line, "<!--") {
-			inComment = true
-		}
-		if inComment {
-			if strings.Contains(line, "-->") {
-				inComment = false
-			}
-			continue
-		}
-		visible = append(visible, line)
-	}
-	if inFence || inComment {
+	visible, leftOpen := visibleMarkdownLines(string(body))
+	if leftOpen {
 		return nil, fmt.Errorf("report has an unclosed fence or comment hiding findings")
 	}
 	return visible, nil

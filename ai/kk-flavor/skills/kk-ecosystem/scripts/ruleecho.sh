@@ -7,8 +7,9 @@
 # what did not happen: this is the only cross-file restatement detector we have, and a scan that
 # could not run must never be mistaken for one that found nothing.
 #
-# tested by: ruleecho-test.sh and the Go suite beside the tool, `ai/tools/rule-echo/`; the shared stub
-# region below by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# tested by: the Go suite in ai/tools/rule-echo/, which drives the tool in process — the matcher, and
+# all three exit codes above. The shared stub region below is covered by tool-stub-test.sh, and the
+# resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 

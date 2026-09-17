@@ -4,7 +4,6 @@ package ecoreport_test
 // carry list. The gate has four block reasons and one clean line.
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -42,31 +41,6 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 	f.record("and on a report carrying no stage line at all",
 		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), f.evidence())
 
-	// A scan that did not run is not a scan that found nothing: read as one, a report still holding
-	// unrouted items passes the merge gate. This arm and the one below it are about the child process,
-	// so they send the scan back through the script.
-	f.write(f.todoGatePath(), "#!/bin/sh\nexit 3\n")
-	f.chmod(f.todoGatePath(), 0o755)
-	f.scansWithTheScript()
-	f.runReport("gate", "001-gating")
-	f.record("gate blocks when the open-item scan did not run",
-		f.status == 1 && strings.Contains(f.out, "todo-gate.sh exited 3"), f.evidence())
-
-	// The seam is checked before it is run, the way the fingerprint script's is: both are located from
-	// this program's own path, so a slash-less argv[0] resolves either against the invocation's
-	// directory instead of the skill's. Asserted on the phrase rather than the exit, because the
-	// unchecked path also blocks — it just blocks quoting whatever exec returned, with no name in it.
-	f.chmod(f.todoGatePath(), 0o644)
-	if info, err := os.Stat(f.todoGatePath()); err == nil && info.Mode()&0o111 != 0 {
-		// A filesystem holding no execute bit to drop leaves the script runnable, and the assertion
-		// below would go red for the fixture rather than for the tool.
-		t.Logf("skip  this filesystem does not hold the execute bit — the unexecutable case cannot run")
-	} else {
-		f.runReport("gate", "001-gating")
-		f.record("gate names an open-item scan that is there but not executable",
-			f.status == 1 && strings.Contains(f.out, "is missing or not executable"), f.evidence())
-	}
-	f.chmod(f.todoGatePath(), 0o755)
 }
 
 // The ICE's own `## Follow-ups` are the build's loose ends, and they live outside the report. Nothing
@@ -95,6 +69,23 @@ func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
 	f.runReport("state", "001-follow-ups")
 	f.record("the routing token sees an item the report does not hold",
 		f.status == 0 && strings.TrimSpace(f.out) == "decide", f.evidence())
+
+	// A scan that did not run is not a scan that found nothing: read as one, a ship whose ICE still
+	// holds unrouted items passes the merge gate. The intent file is where the scan can still fail —
+	// the report is probed for readability before any reader reaches it, while intentFilePath asks only
+	// that this one is a regular file and not a symlink.
+	if f.madeUnreadable(f.shipDir("001-follow-ups")+"/intent.md", "the unreadable-intent case") {
+		f.runReport("gate", "001-follow-ups")
+		f.record("gate blocks when the open-item scan of the intent did not run",
+			f.status == 1 && strings.Contains(f.out, "the scan of the intent did not run"), f.evidence())
+		// The routing token never reaches that scan, and does not need to: an intent it cannot read is
+		// an intent it cannot see approved, and that arm already routes back to build rather than to a
+		// merge. Asserted so the day it starts answering `ready` here is a red case and not a merge.
+		f.runReport("state", "001-follow-ups")
+		f.record("and the routing token sends an unreadable intent back to build",
+			f.status == 0 && strings.TrimSpace(f.out) == "resume", f.evidence())
+	}
+	f.chmod(f.shipDir("001-follow-ups")+"/intent.md", 0o644)
 
 	// With no intent file the three intent arms have nothing to read, and the clean line must not claim
 	// they did — "approved intent" over a ship whose ICE is still being authored is the one sentence a
@@ -214,40 +205,53 @@ func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
 		f.status == 0 && strings.TrimSpace(f.out) == "ready", f.evidence())
 }
 
-// The scanner the rest of this suite drives, held to the script the tool ships with.
+// Every markdown shape the open-item scan has to get right, and what it reads out of each. The scan
+// has one implementation and this is the whole contract it is held to.
 //
-// `carry` is the reader that prints what the scan found, so running it both ways over one report
-// compares the whole answer — the items, their sections and the order — rather than a count. Each row
-// is a shape the scan has to get right, and the `- [ ]` inside a fence or a comment is the one that
-// decides whether an EXAMPLE in a report blocks a merge.
-func TestTheOpenItemScanReadsTheSameEitherWay(t *testing.T) {
+// `carry` is the reader that prints what the scan found, so driving it over one report pins the whole
+// answer — the items, their sections and the order — rather than a count. The `- [ ]` inside a fence or
+// a comment is the row that decides whether an EXAMPLE in a report blocks a merge.
+func TestTheOpenItemScanReadsEachMarkdownShapeAReportCanTake(t *testing.T) {
 	t.Parallel()
 	// One ship, its report rewritten per row: what varies is the markdown, and building a fresh ship
-	// for each would be eleven scaffolds to compare eleven strings.
+	// for each would be thirteen scaffolds to compare thirteen strings.
 	f := newShip(t, "001-scanning")
-	inProcess := f.openItems
-	for _, body := range []struct{ name, report string }{
-		{"nothing open", "# Decide\n\nAll settled.\n"},
-		{"one item under its section", "# Decide\n\n- [ ] Route the finding.\n"},
-		{"items under two sections", "# Decide\n\n- [ ] First.\n\n## Follow-ups\n\n- [ ] Second.\n"},
-		{"a closed item beside an open one", "# Decide\n\n- [x] Done.\n- [ ] Not done.\n"},
-		{"an example inside a fence", "# Decide\n\n```\n- [ ] an example\n```\n\n- [ ] a real one\n"},
-		{"an example inside a tilde fence", "# Decide\n\n~~~\n- [ ] an example\n~~~\n"},
-		{"an example inside a comment", "# Decide\n\n<!--\n- [ ] an example\n-->\n\n- [ ] a real one\n"},
-		{"a comment opened and closed on one line", "# Decide\n\n<!-- - [ ] an example -->\n- [ ] a real one\n"},
-		{"an indented item", "# Decide\n\n  - [ ] Indented under nothing.\n"},
-		{"a deeper heading", "# Decide\n\n### Deep\n\n- [ ] Under the deep one.\n"},
-		{"no trailing newline", "# Decide\n\n- [ ] Last line, unterminated."},
+	for _, body := range []struct{ name, report, carried string }{
+		{"nothing open", "# Decide\n\nAll settled.\n", ""},
+		{"one item under its section", "# Decide\n\n- [ ] Route the finding.\n",
+			"# Decide | - [ ] Route the finding."},
+		{"items under two sections", "# Decide\n\n- [ ] First.\n\n## Follow-ups\n\n- [ ] Second.\n",
+			"# Decide | - [ ] First.\n## Follow-ups | - [ ] Second."},
+		{"a closed item beside an open one", "# Decide\n\n- [x] Done.\n- [ ] Not done.\n",
+			"# Decide | - [ ] Not done."},
+		// A report whose every box is ticked. Separate from the row above because a scan matching `- [`
+		// would answer that one correctly off the open item beside it and this one wrongly.
+		{"a closed item alone", "# Decide\n\n- [x] Done.\n", ""},
+		{"an example inside a fence", "# Decide\n\n```\n- [ ] an example\n```\n\n- [ ] a real one\n",
+			"# Decide | - [ ] a real one"},
+		// A fence nobody closed swallows the rest of the report, so a real item behind one goes
+		// unreported and the merge is not blocked. Pinned as the behaviour it has, so a change to it is
+		// a decision rather than a surprise met at a merge. Nothing is lost silently: a stage result
+		// submitted into such a report is refused outright, by the reader that shares this walk.
+		{"a fence nobody closed", "# Decide\n\n```\n- [ ] an example\n\n- [ ] a real one\n", ""},
+		{"an example inside a tilde fence", "# Decide\n\n~~~\n- [ ] an example\n~~~\n", ""},
+		{"an example inside a comment", "# Decide\n\n<!--\n- [ ] an example\n-->\n\n- [ ] a real one\n",
+			"# Decide | - [ ] a real one"},
+		{"a comment opened and closed on one line", "# Decide\n\n<!-- - [ ] an example -->\n- [ ] a real one\n",
+			"# Decide | - [ ] a real one"},
+		{"an indented item", "# Decide\n\n  - [ ] Indented under nothing.\n",
+			"# Decide | - [ ] Indented under nothing."},
+		{"a deeper heading", "# Decide\n\n### Deep\n\n- [ ] Under the deep one.\n",
+			"### Deep | - [ ] Under the deep one."},
+		{"no trailing newline", "# Decide\n\n- [ ] Last line, unterminated.",
+			"# Decide | - [ ] Last line, unterminated."},
 	} {
 		t.Run(body.name, func(t *testing.T) {
 			row := f.inSubtest(t)
 			row.write(row.reportPath("001-scanning"), "---\nintent: 001-scanning\n---\n\n"+body.report)
-			row.openItems = inProcess
-			fromScan := row.runReportStdout("carry", "001-scanning")
-			row.scansWithTheScript()
-			fromScript := row.runReportStdout("carry", "001-scanning")
-			row.record("both scans read the same open items out of this report",
-				fromScan == fromScript, "in process:\n"+fromScan+"\nfrom the script:\n"+fromScript)
+			carried := row.runReportStdout("carry", "001-scanning")
+			row.record("the scan reads this report's open items and the section each sits under",
+				carried == body.carried, "carried:\n"+carried+"\nwanted:\n"+body.carried)
 		})
 	}
 }

@@ -5,7 +5,7 @@
 // answers to neither.
 //
 // It reads its skill directory from argv[0], as the shell version read it from $0, so a copied skill
-// directory resolves its own template and todo-gate.sh.
+// directory resolves its own report template.
 package main
 
 import (

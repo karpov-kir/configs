@@ -10,9 +10,9 @@
 // the Invocation carries and returns the code the command exits on — and nothing here holds state
 // between calls, so two runs in one process cannot see each other's caches.
 //
-// Two seams stay out of this package, and must: `ai/tools/tree-fingerprint/` owns the
-// tree-fingerprint recipe, imported and run in process, and `todo-gate.sh` owns the open-item scan,
-// which is spawned. Neither is reimplemented here — newRun says what recomputing the first one costs.
+// One seam stays out of this package, and must: `ai/tools/tree-fingerprint/` owns the
+// tree-fingerprint recipe, imported and run in process. It is not reimplemented here — newRun says
+// what recomputing it costs. Nothing here spawns a child.
 //
 // This tool deletes files (discard) and writes to the git index (promote). Every refusal below is
 // load-bearing: read the comment before removing one.
@@ -131,15 +131,6 @@ type Invocation struct {
 	// what the command wires in; the suite hands a `repotest.Fake` instead, so no case has to build a
 	// repository to have something to ask.
 	Git repo.Git
-	// The open-item scan of one markdown file: its items on stdout, and the status every caller here
-	// routes on — 0 nothing open, 1 items, anything else the scan did NOT run. Nil spawns the sibling
-	// `todo-gate.sh`, which is what the command does.
-	//
-	// A seam for the same reason Fingerprint is one, and one reason more: the answer every caller turns
-	// on is the STATUS, and the status that matters most is the one a report file cannot produce. A
-	// suite arranging "the scan did not run" by breaking the script is arranging it once, for one
-	// reason, at a cost of one process per case.
-	OpenItems func(path string) (items string, status int)
 	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS rather than
 	// spawned as `tree-fingerprint.sh`.
 	//
@@ -191,15 +182,12 @@ type run struct {
 
 	// The fingerprint recipe, in process. Never nil once Exec has built the run.
 	fingerprint func(root string) (string, error)
-	// The open-item scan. Never nil once Exec has built the run.
-	openItems func(path string) (string, int)
 
 	args                  []string
 	dir, home, configHome string
 	out, errOut           io.Writer
 	skillDir              string
 	template              string
-	todoGate              string
 	fingerprintBin        string
 
 	root string
@@ -249,7 +237,6 @@ func newRun(inv Invocation) *run {
 		out:         inv.Out,
 		errOut:      inv.Err,
 		fingerprint: inv.Fingerprint,
-		openItems:   inv.OpenItems,
 	}
 	if r.fingerprint == nil {
 		r.fingerprint = treefingerprint.Fingerprint
@@ -278,15 +265,10 @@ func newRun(inv Invocation) *run {
 	scripts := r.absPath(shell.DirName(self))
 	r.skillDir = filepath.Clean(scripts + "/..")
 	r.template = r.skillDir + "/templates/qualify-report-template.md"
-	r.todoGate = scripts + "/todo-gate.sh"
 	// The one script that fingerprints a tree. Never recompute the recipe here: get it half right,
 	// with a throwaway index but no throwaway object store, and every untracked file's content lands
 	// in the human's own .git/objects for good, referenced by no ref and so collected by nothing.
 	r.fingerprintBin = r.home + "/.kk-flavor/scripts/tree-fingerprint.sh"
-	// After todoGate is resolved, since the default scan is the spawn of that path.
-	if r.openItems == nil {
-		r.openItems = r.scanWithTodoGate
-	}
 	return r
 }
 

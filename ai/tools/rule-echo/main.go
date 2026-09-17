@@ -290,23 +290,27 @@ func (r report) writeTo(w io.Writer) {
 	fmt.Fprintln(w)
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: ruleecho.sh <root> [file ...]")
-		os.Exit(2)
+// One run, its three exit codes and everything printed on the way to them: 0 with no restatement, 1
+// with one, 2 whenever the scan was shown less than the tree. Written against writers and a status
+// rather than os.Stdout and os.Exit so a case can read the whole answer back — the codes ARE the
+// interface here, since every caller reads them and nothing else tells 1 from 2.
+func run(args []string, out, errOut io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(errOut, "usage: ruleecho.sh <root> [file ...]")
+		return 2
 	}
-	root := os.Args[1]
+	root := args[0]
 	found, err := collect(root)
 	spans := found.spans
 	if err != nil || len(spans) == 0 {
-		fmt.Fprintf(os.Stderr, "ruleecho: nothing read under %s — exit 2, which is not the same as nothing to report.\n", root)
-		os.Exit(2)
+		fmt.Fprintf(errOut, "ruleecho: nothing read under %s — exit 2, which is not the same as nothing to report.\n", root)
+		return 2
 	}
 
 	// The scope decides which side of a pair is reported, never which pairs exist: the whole tree is
 	// always read, or this tool would reproduce the blindness it is here to remove.
 	inScope := map[string]bool{}
-	for _, arg := range os.Args[2:] {
+	for _, arg := range args[1:] {
 		if abs, err := filepath.Abs(arg); err == nil {
 			inScope[abs] = true
 		}
@@ -350,21 +354,26 @@ func main() {
 	sort.Slice(naming, byShared(naming))
 	sort.Slice(citing, byShared(citing))
 
-	report{read: len(spans), pairs: pairs, naming: naming, citing: citing, unread: found.unread}.writeTo(os.Stdout)
+	report{read: len(spans), pairs: pairs, naming: naming, citing: citing, unread: found.unread}.writeTo(out)
 	// A partial read outranks the pair count, and takes the exit with it. The pairs above are real and
 	// stay printed; what cannot be claimed is the absence of the others, and exit 0 or 1 would claim
 	// exactly that. This is the only cross-file restatement detector there is, so a scan that was
 	// shown less than the tree must never be mistaken for one that found nothing in it.
 	if found.unread > 0 {
-		fmt.Fprintf(os.Stderr, "ruleecho: %d path(s) under %s could not be read — exit 2. The pairs above are real; the ones in what went unread are not ruled out.\n",
+		fmt.Fprintf(errOut, "ruleecho: %d path(s) under %s could not be read — exit 2. The pairs above are real; the ones in what went unread are not ruled out.\n",
 			found.unread, shell.Oneline(root))
-		os.Exit(2)
+		return 2
 	}
 	// Only a restatement fails the run. A pair that shares nothing but a cited name is reported for
 	// the reader, never held against the tree.
 	if len(pairs) > 0 {
-		os.Exit(1)
+		return 1
 	}
+	return 0
+}
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
 // A rule as a report line quotes it: sanitised like every other text the tree chose, then truncated.
