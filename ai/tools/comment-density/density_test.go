@@ -177,9 +177,9 @@ func TestTheVoiceScanLeavesTheUntrackedHalfOutWhenRevisionsAreNamed(t *testing.T
 	r.expectStdoutLacks("fresh.go")
 }
 
-// A fixture is another repository's source, copied in to be read by a test. Counted as this
-// repository's, it measures that repository through this one — and the voice check's own host corpus
-// is 131 TypeScript files, enough on its own to move a Go repo's comment rate.
+// A fixture is written to be read by a test rather than to be this repository's source, and it is
+// routinely in another language. Counted as the repository's, it measures the fixture through the
+// repository: a handful of TypeScript fixtures moves a Go repository's comment rate on its own.
 func TestAFixtureUnderTestdataIsNotThisRepositorysSource(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")

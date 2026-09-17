@@ -151,6 +151,31 @@ func loadCorpus(dir string) ([]evalCase, error) {
 
 const corpusDir = "testdata/corpus"
 
+// A kind this corpus measured and the tree does not carry.
+//
+// `comment-read` put each comment block to the model on its own, with the file withheld, and asked
+// whether a cold reader could restate what the declaration did. It shipped or died by a numeric rule
+// fixed before it was written: flag at least 10 of 12 blocks a reviewer had labelled, and at most 3 of
+// 26 unlabelled ones. Two prompt iterations scored 8 of 12 with 8 false, then 4 of 12 with 2 false, so
+// it was deleted before landing and the deterministic voice check stands alone.
+//
+// Recorded here because the corpus is where a measured configuration belongs, and because the numbers
+// are the reason not to build it again: the two bounds are not jointly reachable by that question. A
+// third of the labelled blocks were comments a reader could follow perfectly well and that were wanted
+// in another form, which is a finding about form and not about clarity. No prompt separates those from
+// prose nobody asked to change.
+//
+// The second bound as measured used 26 blocks of the labelled corpus. The rule as first written named
+// a directory of the host repository instead; the denominator differs and the outcome does not.
+const deletedKindRecord = "comment-read: 8/12 and 8/26, then 4/12 and 2/26, against a bar of >=10 and <=3"
+
+// The record above names a kind, and a kind that came back without its eval would make it a lie.
+func TestTheDeletedKindStaysDeleted(t *testing.T) {
+	if _, present := kinds["comment-read"]; present {
+		t.Fatalf("comment-read is a kind again, and %q is now false — restore its eval case with it", deletedKindRecord)
+	}
+}
+
 func TestEveryCorpusCaseParsesAndLabelsARealUnit(t *testing.T) {
 	corpus, err := loadCorpus(corpusDir)
 	if err != nil {

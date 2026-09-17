@@ -22,18 +22,25 @@ const longBlockLines = 4
 
 // statsOf counts one file's whole content. A blank line ends a block: two comments with one between them
 // are two things a reader meets, not one.
+//
+// A block's LENGTH is its prose lines, while its share of the file is its comment lines. The two counts
+// differ on a `/**`, a `*/` and a doc tag line, and they differ on purpose: those lines cost the reader
+// a line of screen, so they belong in the density ratio, and they carry no sentence, so they are not
+// what "a block over four lines" is about. The voice check's own long-block test counts the same way —
+// one rule stated in one place would be better still, but two instruments disagreeing about which
+// blocks are long is the thing that cannot stand.
 func statsOf(content string) stats {
 	var counted stats
-	run := 0
+	run, prose := 0, 0
 	closeRun := func() {
 		if run == 0 {
 			return
 		}
 		counted.blocks++
-		if run > longBlockLines {
+		if prose > longBlockLines {
 			counted.longBlocks++
 		}
-		run = 0
+		run, prose = 0, 0
 	}
 	for _, raw := range shell.SplitLines(content) {
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
@@ -43,6 +50,9 @@ func statsOf(content string) stats {
 		case isComment(line):
 			counted.comments++
 			run++
+			if isProseLine(stripMarker(line)) {
+				prose++
+			}
 		default:
 			counted.code++
 			closeRun()

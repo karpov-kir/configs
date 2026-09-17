@@ -700,3 +700,27 @@ func TestBarNamesAnUnknownTreeRatherThanOmittingIt(t *testing.T) {
 	r.runBar()
 	r.expectStdoutHas("build deadbeefcafe, tree unknown")
 }
+
+// The bar and the voice check both enforce "a block is at most four lines", so they have to mean the
+// same thing by it. They did not: the bar counted every comment line, the voice check counted prose
+// lines, and one tool reported a block long and clean at the same time.
+func TestTheBarAndTheVoiceCheckAgreeOnBlockLength(t *testing.T) {
+	// One summary sentence over a five-line doc-tag list: eight comment lines, two prose lines.
+	tagged := "/**\n * Returns the book's total.\n * @param book the book\n * @param currency the currency\n" +
+		" * @returns the total\n * @throws when two currencies are declared\n */\nfunc f() {}\n"
+	if counted := statsOf(tagged); counted.longBlocks != 0 {
+		t.Errorf("the bar reported a one-sentence summary over a tag list as %d long block(s)", counted.longBlocks)
+	}
+	lines := strings.Split(strings.TrimSuffix(tagged, "\n"), "\n")
+	if found := (scanner{profile: ProfileComment}).scanSource("f.go", lines, nil); hasCheck(found, checkLongBlock) {
+		t.Error("the voice check reported the same block long, so the two disagree")
+	}
+
+	prose := "const a = 1;\n/**\n * One.\n * Two.\n * Three.\n * Four.\n * Five.\n */\nfunc f() {}\n"
+	if counted := statsOf(prose); counted.longBlocks != 1 {
+		t.Errorf("the bar reported %d long block(s) over five prose lines, want 1", counted.longBlocks)
+	}
+	if found := (scanner{profile: ProfileComment}).scanSource("f.go", strings.Split(strings.TrimSuffix(prose, "\n"), "\n"), nil); !hasCheck(found, checkLongBlock) {
+		t.Error("the voice check did not report five prose lines long, so the two disagree")
+	}
+}

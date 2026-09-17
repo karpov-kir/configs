@@ -6,8 +6,9 @@
 // `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. The repository's own copy comes before
 // the machine's because a coined word is a property of the codebase, not of who is typing.
 //
-// A missing file is not an error: the scan runs with no coined words and no allowlist, which is the
-// setting every repository starts at.
+// No conf on the search path is not an error: the scan runs with no coined words and no allowlist,
+// which is the setting every repository starts at. A conf NAMED by COMMENT_VOICE_CONF and then absent
+// is an error, because the caller asked for a file and did not get it.
 package density
 
 import (
@@ -56,25 +57,39 @@ func (a allowlist) covers(f Finding) bool {
 	return false
 }
 
-// voiceConfig reads the conf, returning the coined words and the allowlist. A conf that does not parse
-// refuses the run: a scan that silently ignored half its own allowlist would report findings a human
-// already answered, and the writer would learn to ignore the report.
-func voiceConfig(cwd string) ([]string, allowlist, error) {
+// The conf is a settings file, not a corpus. A file over this is not one somebody typed.
+const maxVoiceConfBytes = 64 * 1024
+
+// voiceConfig reads the conf, returning the coined words, the allowlist, and the path it read so the
+// run can name it. A conf that does not parse refuses the run: a scan that silently ignored half its
+// own allowlist would report findings a human already answered, and the writer would learn to ignore
+// the report.
+//
+// The file is stat-ed before it is read, and a non-regular one is declined. A repository can ship this
+// path, so it can ship a symlink pointing anywhere the agent can read — and a refusal that echoed what
+// it found there would print the first line of the file it was aimed at.
+func voiceConfig(cwd string) ([]string, allowlist, string, error) {
 	path, ok := voiceConfPath(cwd)
 	if !ok {
-		return nil, nil, nil
+		return nil, nil, "", nil
+	}
+	named := shell.CutBytesMarked(shell.Oneline(path), maxPathBytes)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, nil, "", fmt.Errorf("%s is not a regular file this scan will read — exit 2, the scan did NOT run", named)
+	}
+	if info.Size() > maxVoiceConfBytes {
+		return nil, nil, "", fmt.Errorf("%s is larger than a settings file — exit 2, the scan did NOT run", named)
 	}
 	body, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read %s — exit 2, the scan did NOT run",
-			shell.CutBytesMarked(shell.Oneline(path), maxPathBytes))
+		return nil, nil, "", fmt.Errorf("cannot read %s — exit 2, the scan did NOT run", named)
 	}
 	coined, allowed, err := parseVoiceConf(string(body))
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w — exit 2, the scan did NOT run",
-			shell.CutBytesMarked(shell.Oneline(path), maxPathBytes), err)
+		return nil, nil, "", fmt.Errorf("%s: %w — exit 2, the scan did NOT run", named, err)
 	}
-	return coined, allowed, nil
+	return coined, allowed, path, nil
 }
 
 func voiceConfPath(cwd string) (string, bool) {
@@ -126,8 +141,7 @@ func parseVoiceConf(body string) ([]string, allowlist, error) {
 			}
 			allowed = append(allowed, entry)
 		default:
-			return nil, nil, fmt.Errorf("line %d starts with %q, which is neither `coined` nor `allow`",
-				number+1, shell.CutBytesMarked(shell.Oneline(keyword), 40))
+			return nil, nil, fmt.Errorf("line %d starts with a word that is neither `coined` nor `allow`", number+1)
 		}
 	}
 	return coined, allowed, nil
@@ -139,17 +153,17 @@ func parseAllowLine(rest string, number int) (allowEntry, error) {
 		return allowEntry{}, fmt.Errorf("line %d allows nothing: an entry is `allow <check> <matched text> # <reason>`", number)
 	}
 	if !slices.Contains(AllChecks, check) {
-		return allowEntry{}, fmt.Errorf("line %d allows check %q, which is not one this scan runs. Checks: %s",
-			number, shell.CutBytesMarked(shell.Oneline(check), 40), strings.Join(AllChecks, " "))
+		return allowEntry{}, fmt.Errorf("line %d allows a check this scan does not run. Checks: %s",
+			number, strings.Join(AllChecks, " "))
 	}
 	text, reason, hasReason := strings.Cut(remainder, " # ")
 	text = strings.TrimSpace(text)
 	reason = strings.TrimSpace(reason)
 	if text == "" {
-		return allowEntry{}, fmt.Errorf("line %d allows check %q with no matched text to match against", number, check)
+		return allowEntry{}, fmt.Errorf("line %d allows a check with no matched text to match against", number)
 	}
 	if !hasReason || reason == "" {
-		return allowEntry{}, fmt.Errorf("line %d allows %q with no reason after ` # `; an entry with no reason is refused", number, check)
+		return allowEntry{}, fmt.Errorf("line %d allows a check with no reason after ` # `; an entry with no reason is refused", number)
 	}
 	return allowEntry{check: check, text: text, reason: reason}, nil
 }
