@@ -150,6 +150,38 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r.expectStderrLacks("not a bar")
 }
 
+// A fixture is another repository's source, copied in to be read by a test. Counted as this
+// repository's, it measures that repository through this one — and the voice check's own host corpus
+// is 131 TypeScript files, enough on its own to move a Go repo's comment rate.
+func TestAFixtureUnderTestdataIsNotThisRepositorysSource(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	for _, name := range []string{"testdata/a.go", "pkg/testdata/deep/b.go", "testdata/c.ts"} {
+		r.write(name, heavy(9, 0))
+	}
+	r.write("counted.go", heavy(9, 0))
+	r.run()
+	r.expectCode(1)
+	r.expectStdoutHas("counted.go")
+	r.expectStdoutLacks("testdata")
+	r.expectStderrHas("4 file(s) reached the scan, 1 with countable added lines")
+}
+
+// A fixture NAMED on the command line is still read: naming one is asking for it, and the voice
+// check's prose and instruction profiles are handed paths by a human.
+func TestNamingAFixtureIsAskingForIt(t *testing.T) {
+	if !notThisRepositorysSource("pkg/testdata/x.go") {
+		t.Error("a discovered fixture was treated as this repository's source")
+	}
+	if isFixture("pkg/testdataish/x.go") {
+		t.Error("a directory merely starting with testdata was read as Go's reserved one")
+	}
+	if !isFixture("testdata/x.go") || !isFixture("a/b/testdata/x.go") {
+		t.Error("testdata was not matched as a path segment at every depth")
+	}
+}
+
 func TestATwoRevisionRangeIsScanned(t *testing.T) {
 	r := newRepo(t)
 	r.write("ranged.go", "package fixture\n")

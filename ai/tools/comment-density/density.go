@@ -1,6 +1,7 @@
 // Comment-density detector. By default Run flags changed source files whose ADDED lines are
 // comment-heavy. With `--bar` it holds the whole change set to the host repo's own comment rate
-// (bar.go). The command-line contract (arguments, environment, exit codes) is the stub's:
+// (bar.go). With `--voice` it reads the comments instead of counting them (voice.go). The
+// command-line contract (arguments, environment, exit codes) is the stub's:
 // ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh.
 //
 // The default mode states its own standing in its report: a targeting aid, not a bar.
@@ -45,7 +46,7 @@ const stubName = "comment-density.sh"
 
 // Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
 // refused where a revision belongs, and one after `--` narrows the scan to it.
-const usage = "usage: " + stubName + " [--bar] [<git-diff revisions>] [-- <paths>]"
+const usage = "usage: " + stubName + " [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. Findings go to stdout bare; a note on stderr opens
 // with the name, and nothing else in the package writes there. The default mode's denominator is a
@@ -162,12 +163,16 @@ type scan struct {
 	outliers  int
 }
 
-// `--bar` selects the mode only as the first argument. Later in the arguments it is an option like
-// any other, and refused as one.
+// `--bar` and `--voice` select a mode only as the first argument. Later in the arguments either is an
+// option like any other, and refused as one. The two are exclusive: the bar says how many comment
+// lines a change set may carry, the voice check says whether the lines it carries can be read.
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--bar" {
 		return bar(out, args[1:], cwd, cfg)
+	}
+	if len(args) > 0 && args[0] == "--voice" {
+		return voice(out, args[1:], cwd, cfg)
 	}
 	return scanAddedLines(out, args, cwd, cfg)
 }
@@ -202,7 +207,7 @@ func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
 
 func (s *scan) count(file, raw string) {
 	line := strings.TrimLeft(raw, shell.SpaceBytes)
-	if line == "" || isProseOrData(file) {
+	if line == "" || notThisRepositorysSource(file) {
 		return
 	}
 	entry, seen := s.files[file]
@@ -216,6 +221,22 @@ func (s *scan) count(file, raw string) {
 	} else {
 		entry.code++
 	}
+}
+
+// notThisRepositorysSource is every reason a discovered file is none of this repository's business.
+// One function, so the diff scan, the bar's baseline and the voice check cannot disagree about what a
+// run covers. A file NAMED on the command line is not put through it: naming a fixture is asking for it.
+func notThisRepositorysSource(file string) bool {
+	return isProseOrData(file) || isFixture(file)
+}
+
+// isFixture is Go's own reserved directory for a test's material. A file under it is another
+// repository's source copied in to be read by a test, so counting it measures that repository through
+// this one: the voice check's host corpus alone is 131 TypeScript files, and a `--bar` run that read
+// them would hold this repo's Go and shell to a foreign language's comment rate. Matched as a path
+// segment, so `testdata/` at any depth is skipped.
+func isFixture(file string) bool {
+	return file == "testdata" || strings.HasPrefix(file, "testdata/") || strings.Contains(file, "/testdata/")
 }
 
 // Lockfiles are matched by name as well as extension: the yaml ones are generated, and nobody's comments.

@@ -22,7 +22,7 @@ func TestRunOnASourceFileCutsOnlyComments(t *testing.T) {
 	path := write(t, source)
 	var out, errOut strings.Builder
 	call := func(prompt, view string) (string, error) {
-		if !strings.Contains(prompt, "a later reader of this source file") {
+		if !strings.Contains(prompt, "opening this file for the first time") {
 			t.Fatalf("the comment kind's reader is missing from the prompt:\n%s", prompt)
 		}
 		return "1, 2, 3", nil

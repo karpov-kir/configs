@@ -18,6 +18,8 @@ These rules bind any edit, however small. **Run the instruction lane after a bat
 
 Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "observed:", and the like. **Density's ban on justification lifts only for a rule an agent would otherwise override.**
 
+A rule about form may carry one before-and-after pair. The pair is the rule's statement of the shape it requires, not evidence that the shape is better.
+
 ## One home
 
 Every rule lives in exactly one file; everywhere else cross-references it by path.

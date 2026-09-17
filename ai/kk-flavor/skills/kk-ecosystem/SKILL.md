@@ -17,6 +17,8 @@ Resolve the requested files or diff. If no scope is named, use the current chang
 
 Run `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent="${ECO_AGENT:?choose claude or codex explicitly}"` over the ecosystem root. Repair findings in scope; return findings outside it. Follow inbound references when a change can affect their claims.
 
+Run `kk-edit`'s voice check in its `instruction` profile over each changed file under `standards/`, `workers/`, `skills/` and `templates/`. **A file's count may only go down**: `~/.kk-flavor/voice-baseline.txt` holds what each file reported when the check landed, and a file above its line is a finding you repair in scope. Take a file you rewrite to zero. The register to write in is one obligation per sentence, the agent as its subject, an imperative verb, bold only on a defined term where it is defined, no contrast as a sentence's spine, no colon-chained justification, and no metaphor for mechanism.
+
 ## 2. Cut, or move
 
 Reconcile contradictions within changed passages and across their callers. Keep one authoritative home for each rule. Before deletion, apply `~/.kk-flavor/standards/ecosystem.md` → **Move it before you cut it**. Check that consumers can still reach the surviving instruction.
