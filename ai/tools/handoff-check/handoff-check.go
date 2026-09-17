@@ -10,12 +10,13 @@
 // code the command exits on, and every counter lives on the scan Run builds, so two runs in one
 // process cannot see each other's.
 //
-// Three things reach outside the draft, all read-only and all against the repository the caller names:
-// whether the base commit resolves, whether the tree is dirty, and how `repo-key` abbreviates that
-// clone. The first two are git calls; the SHA handed to git is re-checked for its hex-only shape at the
-// call, because that shape is the whole reason a token lifted out of a draft is safe to pass. The third
-// goes through repokey rather than git, so the prefix the title is held against is the same string
-// `repo-key.sh --abbrev` prints.
+// Four things reach outside the draft, all read-only and all against the repository the caller names:
+// that the directory is a work tree, whether the base commit resolves, whether the tree is dirty, and
+// how `repo-key` abbreviates that clone. All four go through the one `repo.Git` Run is handed, so the
+// four answers are about one repository. The SHA handed to the port is re-checked for its hex-only
+// shape at the call, because that shape is the whole reason a token lifted out of a draft is safe to
+// pass. The abbreviation goes through repokey, so the prefix the title is held against is the same
+// string `repo-key.sh --abbrev` prints.
 //
 // `handoff-check.sh` in kk-handoff's scripts/ is the stub that reaches this binary.
 package handoffcheck
@@ -24,10 +25,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 
+	"kk-flavor/tools/repo"
 	repokey "kk-flavor/tools/repo-key"
 	"kk-flavor/tools/shell"
 )
@@ -92,16 +93,6 @@ func compileDangling() []*regexp.Regexp {
 var hexRun = regexp.MustCompile(`(^|[^0-9A-Za-z])([0-9a-f]{7,})([^0-9A-Za-z]|$)`)
 
 var edgeTrim = regexp.MustCompile(`^[^0-9A-Za-z]+|[^0-9A-Za-z]+$`)
-
-// git runs the read-only git commands this gate needs. Held as a field so the suite can drive the
-// scan without a repository where the scan is what is under test.
-type runner func(dir string, args ...string) (string, error)
-
-func runGit(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	out, err := cmd.Output()
-	return string(out), err
-}
 
 // One draft's accumulated state. Nothing here is package-level, so two runs in one process cannot see
 // each other's counts.
@@ -168,11 +159,10 @@ func printLine(w io.Writer, text string) {
 // None:` line per slot the draft empties on purpose, and a `note:` when the repository is dirty.
 // Returns 1 with findings, 0 when clean, and 2 when it could not run and said why on errOut. A 2
 // prints no findings, so a caller must never read it as a clean draft.
-func Run(prog, draft, repo string, out, errOut io.Writer) int {
-	return run(prog, draft, repo, out, errOut, runGit)
-}
-
-func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
+//
+// git answers about repoDir and about nothing else, so the command has to hand it an adapter no
+// environment can redirect — `cmd/handoff-check/main.go` says why.
+func Run(prog, draft, repoDir string, git repo.Git, out, errOut io.Writer) int {
 	die := func(format string, args ...any) int {
 		printLine(errOut, prog+": "+fmt.Sprintf(format, args...))
 		return 2
@@ -181,40 +171,45 @@ func run(prog, draft, repo string, out, errOut io.Writer, git runner) int {
 	if draft == "" {
 		return die("usage: %s <draft.md> [<repo>]", prog)
 	}
-	if repo == "" {
-		repo = "."
+	if repoDir == "" {
+		repoDir = "."
 	}
 	body, code := readDraft(draft, die)
 	if code != 0 {
 		return code
 	}
-	if !shell.IsDir(repo) {
-		return die("not a directory: %s", repo)
+	if !shell.IsDir(repoDir) {
+		return die("not a directory: %s", repoDir)
 	}
-	if _, err := git(repo, "rev-parse", "--git-dir"); err != nil {
-		return die("not a git work tree: %s — pass the repository as the second argument, or the base commit goes unverified", repo)
+	if _, err := git.GitDir(repoDir); err != nil {
+		return die("not a git work tree: %s — pass the repository as the second argument, or the base commit goes unverified", repoDir)
 	}
 	// The chip carries the working directory; a pasted prompt carries nothing, so the draft has to
 	// name the repository itself. Resolved rather than trusted as typed, because "." and a relative
 	// path both have to match what a draft would sensibly write down.
-	repoPath := shell.CanonicalDir(repo)
+	repoPath := shell.CanonicalDir(repoDir)
 	if repoPath == "" {
-		return die("could not resolve: %s", repo)
+		return die("could not resolve: %s", repoDir)
 	}
 
-	// `repo` and not the working directory: the drafting session is often standing in another checkout.
-	// An error is no abbreviation and no finding — reportTitlePrefix says why.
-	repoAbbrev, _ := repokey.ResolveAbbrev(repokey.CommandGit(), repo)
+	// `repoDir` and not the working directory: the drafting session is often standing in another
+	// checkout. An error is no abbreviation and no finding — reportTitlePrefix says why.
+	//
+	// The gate's own port, never one repokey builds for itself. Two adapters can answer about two
+	// repositories, and the title would then be weighed against one clone while the base commit and
+	// the dirty count came from another. ResolveAbbrev wants an environment that cannot relocate git,
+	// which is why Run's doc puts that on whoever wires the port rather than on this call.
+	repoAbbrev, _ := repokey.ResolveAbbrev(git, repoDir)
 
 	s := newScan(repoPath, repoAbbrev)
 	s.read(shell.SplitLines(body))
 	s.report()
-	s.resolveBase(repo, git)
+	s.resolveBase(git, repoDir)
 
 	for _, line := range s.declared {
 		printLine(out, line)
 	}
-	if note := dirtyNote(repo, git); note != "" {
+	if note := dirtyNote(git, repoDir); note != "" {
 		printLine(out, note)
 	}
 	if len(s.findings) == 0 {
@@ -491,7 +486,7 @@ func (s *scan) reportSubstance(name string) {
 
 // resolveBase asks the repository about every hex-shaped token the slot held. One that resolves is
 // enough; reporting the first candidate rather than "no commit" tells the human which token was tried.
-func (s *scan) resolveBase(repo string, git runner) {
+func (s *scan) resolveBase(git repo.Git, repoDir string) {
 	if len(s.shas) == 0 {
 		s.flag("no base commit named in: Where it starts")
 		return
@@ -502,27 +497,26 @@ func (s *scan) resolveBase(repo string, git runner) {
 		if !isHex(sha) {
 			continue
 		}
-		if _, err := git(repo, "cat-file", "-e", sha+"^{commit}"); err == nil {
+		// `^{commit}`, so a hex run naming a blob or a tree is not taken as a base. Both halves of the
+		// condition are load-bearing: the port answers a revision that names nothing with the empty
+		// string and no error, so `err == nil` alone would accept every hex token the draft held.
+		if id, err := git.Resolve(repoDir, sha+"^{commit}"); err == nil && id != "" {
 			return
 		}
 	}
-	s.flag(fmt.Sprintf("base commit does not resolve in %s: %s", repo, s.shas[0]))
+	s.flag(fmt.Sprintf("base commit does not resolve in %s: %s", repoDir, s.shas[0]))
 }
 
 // dirtyNote is advisory, never a finding: some handoffs deliberately start from a committed base and
-// leave the caller's tree alone. The receiver cannot tell the two apart, and the human can. `-uall`,
-// because the default collapses an untracked directory into one status line and this is printed as a
-// file count.
-func dirtyNote(repo string, git runner) string {
-	out, err := git(repo, "status", "--porcelain", "-uall")
-	if err != nil {
+// leave the caller's tree alone. The receiver cannot tell the two apart, and the human can. What is
+// printed is a file count, which is why it comes off `Status` — that listing is `-uall`, where git's
+// default collapses a whole untracked directory into one line.
+func dirtyNote(git repo.Git, repoDir string) string {
+	entries, err := git.Status(repoDir)
+	if err != nil || len(entries) == 0 {
 		return ""
 	}
-	dirty := len(shell.SplitLines(out))
-	if dirty == 0 {
-		return ""
-	}
-	return fmt.Sprintf("note: %s has %d uncommitted file(s) — work not in the base commit does not travel", repo, dirty)
+	return fmt.Sprintf("note: %s has %d uncommitted file(s) — work not in the base commit does not travel", repoDir, len(entries))
 }
 
 // isPlaceholder is a title half still holding its template `<…>`, anchored at both ends. A real half
