@@ -23,6 +23,7 @@ import (
 	"io"
 
 	ecoroot "kk-flavor/tools/eco-root"
+	"kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 )
 
@@ -54,6 +55,10 @@ type checker struct {
 	// The paths --gate takes out of every walk, or nil with the flag off. gate.go holds what the flag
 	// answers and why the default is off.
 	gate *gateFilter
+
+	// Where --gate's one question goes. Nothing else in this package asks a repository anything, so a
+	// bare run never reaches it.
+	git repo.Git
 
 	// Which file holds each heading in the tree, built on the first dangling citation and never for
 	// a clean tree. It names the one dangling variant the cited file's own contents cannot: the
@@ -87,7 +92,7 @@ type checker struct {
 // and --gate narrows the walk to what a commit can carry (gate.go). It returns the process exit code:
 // 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan. A check that
 // did not run is not a clean one, which is why the last is not folded into either of the others.
-func Run(args []string, out, errOut io.Writer) int {
+func Run(args []string, git repo.Git, out, errOut io.Writer) int {
 	agent, rest, err := ecoroot.AgentArgs(args)
 	if err != nil {
 		return refuseToRun(errOut, err.Error())
@@ -96,7 +101,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	if !ok {
 		return refuseToRun(errOut, "usage: check.sh --agent=claude|codex ["+gateFlag+"] [<root>]")
 	}
-	c, found := newChecker(root, agent)
+	c, found := newChecker(root, agent, git)
 	if !found {
 		named := root
 		if named == "" {
@@ -198,12 +203,12 @@ func (c *checker) cannotRun(reason string) {
 	c.unrunnable = append(c.unrunnable, reason)
 }
 
-func newChecker(root, agent string) (*checker, bool) {
+func newChecker(root, agent string, git repo.Git) (*checker, bool) {
 	resolved, ok := ecoroot.New(root, agent)
 	if !ok {
 		return nil, false
 	}
-	return &checker{root: resolved, trees: map[string]*tree{}, bashBinaries: installedBashBinaries}, true
+	return &checker{root: resolved, git: git, trees: map[string]*tree{}, bashBinaries: installedBashBinaries}, true
 }
 
 func (c *checker) add(finding string) {

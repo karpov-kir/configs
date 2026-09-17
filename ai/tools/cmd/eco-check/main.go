@@ -9,8 +9,9 @@ import (
 	"os"
 
 	ecocheck "kk-flavor/tools/eco-check"
+	"kk-flavor/tools/repo"
 )
 
 func main() {
-	os.Exit(ecocheck.Run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(ecocheck.Run(os.Args[1:], repo.Exec{}, os.Stdout, os.Stderr))
 }

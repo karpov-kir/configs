@@ -379,7 +379,7 @@ func TestEveryAgentsBudgetLineSaysWhatItLeavesOut(t *testing.T) {
 		f.write(f.root+"/owner-instructions.md", "a template no session reads from where it sits\n")
 
 		var out bytes.Buffer
-		ecocheck.Run([]string{"--agent=" + agent, f.root}, &out, &out)
+		ecocheck.Run([]string{"--agent=" + agent, f.root}, f.git, &out, &out)
 		line := lineWith(out.String(), "always-loaded: ")
 		if !strings.HasPrefix(line, wantFigure) {
 			t.Errorf("%s: the budget counted a set this case did not build\n got %q\nwant %q...", agent, line, wantFigure)

@@ -17,6 +17,7 @@ import (
 
 	ecocheck "kk-flavor/tools/eco-check"
 	ecostats "kk-flavor/tools/eco-stats"
+	"kk-flavor/tools/repo"
 )
 
 // The figures a case reads back out of the report, and the two forms of the always-loaded line the
@@ -135,11 +136,15 @@ func (f *fixture) routerWordsFromStats() string {
 	return firstSubmatch(statsRouterWords, stdout)
 }
 
+// Neither run below passes `--gate`, which is the only thing in check.sh that puts a question to a
+// repository — so there is nothing here for one to answer.
+var noRepository repo.Git
+
 func (f *fixture) routerWordsFromCheck() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{"--agent=claude", f.root}, &out, io.Discard)
+	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, &out, io.Discard)
 	return firstSubmatch(checkRouterWords, out.String())
 }
 
@@ -148,7 +153,7 @@ func (f *fixture) checkOutput() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{"--agent=claude", f.root}, &out, &out)
+	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, &out, &out)
 	return out.String()
 }
 

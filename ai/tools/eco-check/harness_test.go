@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	ecocheck "kk-flavor/tools/eco-check"
+	"kk-flavor/tools/repo"
+	"kk-flavor/tools/repo/repotest"
 	"kk-flavor/tools/shell"
 )
 
@@ -68,6 +70,9 @@ type fixture struct {
 	base string
 	root string
 	home string
+	// The repository --gate puts its one question to. Every fixture carries one so a case reaching for
+	// the flag needs no builder of its own; a bare run never asks it anything.
+	git *repotest.Fake
 }
 
 // The least tree ecoroot.New accepts — `kk-flavor/` with `skills/` inside it, and nothing else.
@@ -80,10 +85,21 @@ type fixture struct {
 func newBareRoot(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
-	f := &fixture{t: t, base: base, root: base + "/r"}
+	f := newFixture(t, base)
 	f.mkdirAll(f.root + "/kk-flavor/skills")
 	return f
 }
+
+func newFixture(t *testing.T, base string) *fixture {
+	t.Helper()
+	root := base + "/r"
+	return &fixture{t: t, base: base, root: root, git: repotest.New(root)}
+}
+
+// What a case hands a run it expects to refuse before any scan. Nothing on that path asks a
+// repository anything, and a run that started to would panic here rather than pass on an answer the
+// case never arranged.
+var noRepository repo.Git
 
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
@@ -103,7 +119,7 @@ func newRoot(t *testing.T) *fixture {
 func newRootWithSymlinkedFlavor(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
-	f := &fixture{t: t, base: base, root: base + "/r"}
+	f := newFixture(t, base)
 	f.mkdirAll(f.root + "/real-flavor/standards")
 	f.mkdirAll(f.root + "/real-flavor/skills")
 	f.write(f.root+"/real-flavor/inject.md", "# Flavor\n")
@@ -355,13 +371,13 @@ func (f *fixture) check() string {
 // Which spelling a caller used is not meant to change a finding, which is what those cases assert.
 func (f *fixture) checkWith(args ...string) string {
 	f.t.Helper()
-	return runChecker(f.t, append([]string{"--agent=claude"}, args...)...)
+	return runChecker(f.t, f.git, append([]string{"--agent=claude"}, args...)...)
 }
 
-func runChecker(t *testing.T, args ...string) string {
+func runChecker(t *testing.T, git repo.Git, args ...string) string {
 	t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run(args, &output, &output); status == 2 {
+	if status := ecocheck.Run(args, git, &output, &output); status == 2 {
 		t.Fatalf("Run %v exited 2 — nothing was checked, so this case cannot be trusted\n%s", args, indent(output.String()))
 	}
 	return output.String()
@@ -409,7 +425,7 @@ func (f *fixture) refuses(needles ...string) string {
 	f.t.Helper()
 	f.isolate()
 	var output bytes.Buffer
-	if status := ecocheck.Run([]string{"--agent=claude", f.root}, &output, &output); status != 2 {
+	if status := ecocheck.Run([]string{"--agent=claude", f.root}, f.git, &output, &output); status != 2 {
 		f.t.Fatalf("expected exit 2, got %d\n%s", status, indent(output.String()))
 	}
 	f.found(output.String(), needles...)

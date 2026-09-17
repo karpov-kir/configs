@@ -39,7 +39,7 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 	}
 	t.Chdir(base)
 
-	return root, runChecker(t, "--agent=claude", root)
+	return root, runChecker(t, noRepository, "--agent=claude", root)
 }
 
 func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) {
