@@ -15,12 +15,12 @@
 #
 # Every attempted roll is bounded. Cancellation supplies no verdict.
 # `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/reader-judge.conf` retunes the bound on this machine
-# with a `roll-timeout <seconds>` line; `ai/tools/reader-judge/deadline.go` holds the figure it replaces.
+# with a `roll-timeout <seconds>` line. `ai/tools/reader-judge/deadline.go` holds the figure it replaces.
 #
 # What the model may do, and why it is safe, is the package doc in `ai/tools/reader-judge/judge.go`.
 #
-# tested by: the Go suite beside the tool, `ai/tools/reader-judge/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# tested by: the Go suite beside the tool, `ai/tools/reader-judge/`. The shared stub region in this
+# file is tested by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 

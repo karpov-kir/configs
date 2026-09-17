@@ -8,7 +8,7 @@ import (
 
 func TestSplitSourceOffersWholeBlocks(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
-	units, view := Split(lines, commentBlocks(lines), all)
+	units, view := Split(lines, CommentBlocks(lines), all)
 	if len(units) != 3 {
 		t.Fatalf("got %d units, want 3 (header block, on a(), trailing)", len(units))
 	}
@@ -39,7 +39,7 @@ func TestSplitProseHoldsAFenceAsOneUnit(t *testing.T) {
 
 func TestApplyDeletesTheWholeSpanAndKeepsTheTrailingNewline(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
-	units, _ := Split(lines, commentBlocks(lines), all)
+	units, _ := Split(lines, CommentBlocks(lines), all)
 	got := Apply(lines, units, []int{1})
 	want := "\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
 	if got != want {
@@ -52,7 +52,7 @@ func TestApplyDeletesTheWholeSpanAndKeepsTheTrailingNewline(t *testing.T) {
 // the file.
 func TestSplitSourceHoldsABlockCommentWhole(t *testing.T) {
 	lines := []string{"/* Legacy block comment", "   kept for history. */", "code()", "/* one-liner */", "code()", "// after"}
-	units, view := Split(lines, commentBlocks(lines), all)
+	units, view := Split(lines, CommentBlocks(lines), all)
 	if len(units) != 3 || units[0].Span != 2 || units[1].Span != 1 || units[2].Span != 1 {
 		t.Fatalf("got %d units with spans %v, want 3 with spans 2, 1, 1", len(units), spansOf(units))
 	}
@@ -243,7 +243,7 @@ func TestASubjectOnlyMessageIsStillJudged(t *testing.T) {
 // header would take `#!/usr/bin/env bash` with it and leave a file the kernel will not run.
 func TestAShebangIsNeverOfferedAsAUnit(t *testing.T) {
 	lines := []string{"#!/usr/bin/env bash", "# What this script does.", "# A second line.", "set -euo pipefail"}
-	units := commentBlocks(lines)
+	units := CommentBlocks(lines)
 	for _, unit := range units {
 		if unit.Line == 1 {
 			t.Fatalf("the shebang was offered as a unit: %+v", unit)
@@ -261,7 +261,7 @@ func TestAShebangIsNeverOfferedAsAUnit(t *testing.T) {
 // Only at the top of the file. A `#!` further down is an ordinary comment and stays offerable.
 func TestAHashBangBelowTheFirstLineIsAnOrdinaryComment(t *testing.T) {
 	lines := []string{"code", "#!not-a-shebang", "more code"}
-	units := commentBlocks(lines)
+	units := CommentBlocks(lines)
 	if len(units) != 1 || units[0].Line != 2 {
 		t.Fatalf("want the line-2 comment offered; got %+v", units)
 	}

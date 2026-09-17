@@ -14,8 +14,7 @@ import (
 
 func main() {
 	self := filepath.Base(os.Args[0])
-	// An unreadable home leaves nowhere for an override to sit, which reads as no override rather
-	// than as a broken one.
+	// An unreadable home leaves nowhere for an override to sit, so it reads as no override at all.
 	home, _ := os.UserHomeDir()
 	deadline, overridePath, ok := readerjudge.ResolveRollDeadline(self, os.Getenv("XDG_CONFIG_HOME"), home, os.Stderr)
 	if !ok {
@@ -32,9 +31,9 @@ func main() {
 		args = args[2:]
 	}
 	// Before the policy and the provider, so an invocation error is answered with the grammar on a
-	// machine that can reach no model at all. Resolving first made `reader-judge.sh` with no arguments
-	// refuse with "no provider" wherever no CLI is installed — green here, red in CI, and the reader
-	// sent to install something rather than to fix the command they typed.
+	// machine that can reach no model at all. The earlier order resolved the provider first, so a bare
+	// `reader-judge.sh` refused with "no provider" on a machine missing the CLI. It passed here and
+	// failed in CI, and it sent the reader to install software when their command was the thing to fix.
 	if readerjudge.RefuseIfNotTheGrammar(self, args, os.Stderr) {
 		os.Exit(2)
 	}

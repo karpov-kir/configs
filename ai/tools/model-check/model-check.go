@@ -56,9 +56,8 @@ const (
 const maxSelections = 24
 
 // maxReportedSelectionBytes bounds the name part of one reported line, the way every tool here bounds
-// a name it echoes. 120 rather than the 80 reader-judge's echoable uses, because a line here names
-// where a selection comes from, a client, a model and an effort where that one names a single
-// argument.
+// a name it echoes. 120, against the 80 in reader-judge's echoable. A line here names a selection's
+// source, a client, a model and an effort. That one names a single argument.
 const maxReportedSelectionBytes = 120
 
 // Probe asks one provider whether it will run one selection — the whole selection rather than the

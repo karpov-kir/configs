@@ -21,12 +21,12 @@
 #
 # `--density` counts each changed file as it will land, against the rate the repo's untouched files run at,
 # and says how far over it sits and which files carry it. Two runs over one tree print one report. How
-# The figure is reported and nothing acts on it. It always exits 0, because the bar that used to gate
+# The figure is reported and gates no edit. It always exits 0, because the bar that used to gate
 # on it is what drove comments into compression, and a compressed comment is what this tool catches.
 # Files are read as they sit in the working tree; revisions only choose which files. Only a file new
 # since the diff's base is held to the per-file ceiling: one the repo already carried has the repo's own
-# density. It exits 2 when no file outside the change set carries countable lines, because then the
-# repository has no rate to report against.
+# density. It exits 2 when every file outside the change set is free of countable lines, because the
+# repository then has no rate to report against.
 #
 # The default mode prints one finding per line as `<file>:<line>: <check>: <matched text>`, exit 1 with
 # findings, 0 clean, 2 when the scan did not run. It counts nothing: each check names a shape a reader
@@ -51,8 +51,8 @@
 # `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. An allow entry with no reason is
 # refused, and a missing file is no error.
 #
-# tested by: the Go suite beside the tool, `ai/tools/voice-check/`; the shared stub region below
-# by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# tested by: the Go suite beside the tool, `ai/tools/voice-check/`. The shared stub region in this
+# file is tested by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 

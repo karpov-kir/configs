@@ -51,7 +51,7 @@ func Split(lines []string, candidates []Unit, offer func(Unit) bool) ([]Unit, st
 	return units, view.String()
 }
 
-func commentBlocks(lines []string) []Unit {
+func CommentBlocks(lines []string) []Unit {
 	var found []Unit
 	inBlock, inStar := false, false
 	for i, raw := range lines {
@@ -213,7 +213,7 @@ func subjectLines(lines []string) map[int]bool {
 	return withheld
 }
 
-func narrowToDiff(offer func(Unit) bool, added map[int]bool) func(Unit) bool {
+func NarrowToDiff(offer func(Unit) bool, added map[int]bool) func(Unit) bool {
 	return func(u Unit) bool {
 		if !offer(u) {
 			return false

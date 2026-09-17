@@ -82,7 +82,7 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	path := write(t, source)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
 	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
-	units, _ := Split(lines, commentBlocks(lines), all)
+	units, _ := Split(lines, CommentBlocks(lines), all)
 	memo.record("comment\n"+offeredKey(units), source, []int{len(units) + 1})
 	calls := 0
 	call := func(string, string) (string, error) { calls++; return "1", nil }

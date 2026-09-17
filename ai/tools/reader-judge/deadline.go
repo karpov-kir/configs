@@ -40,10 +40,10 @@ const overrideKey = "roll-timeout"
 // the checkout, so a value tuned there would travel to everyone on the next commit.
 //
 // A config home that is not absolute is treated as unset, which is what the XDG spec says to do with
-// one. Taken as given, a checkout shipping `cfg/kk-flavor/reader-judge.conf` would set the bound for
-// every run made from inside it, and the tree under review does not get to decide how long its own
-// judge waits. Empty when neither path is absolute: there is then no location an override could sit
-// at, so there is none to miss.
+// one. A relative config home taken as given would let a checkout shipping
+// `cfg/kk-flavor/reader-judge.conf` set the bound for every run made from inside it. The tree under
+// review does not get to decide how long its own judge waits. Empty when both paths are relative: an
+// override has nowhere to sit, so a run has nowhere to look.
 func overridePath(configHome, home string) string {
 	if !filepath.IsAbs(configHome) {
 		if !filepath.IsAbs(home) {

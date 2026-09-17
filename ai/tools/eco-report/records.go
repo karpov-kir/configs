@@ -87,9 +87,9 @@ const capLadderRungs = "delete what is no longer true, promote what must not be 
 // rung two agents can read two ways.
 //
 // Exit 2 earns a line of its own because from where the agent stands it looks exactly like exit 0:
-// `reader-judge.sh` prints nothing and exits 2 when it did NOT run — an unknown kind, a missed
-// deadline, an answer that was not numbers. Read as exit 0, that silence says the judge named nothing
-// and the cap holds, which is a verdict nothing reached.
+// `reader-judge.sh` stays silent and exits 2 when the run failed — an unknown kind, a missed
+// deadline, an answer that was not numbers. An agent who reads that silence as exit 0 takes it for a
+// clean artifact under a cap that holds, which is a verdict no run produced.
 func judgeRung() []string {
 	return []string{
 		"    " + judgeCommand,

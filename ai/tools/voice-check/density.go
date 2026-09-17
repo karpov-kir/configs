@@ -2,7 +2,7 @@
 //
 // Two modes, one question each. Bare arguments read the comments a change set added and report which
 // sentences are written in the register the rule forbids (voice.go). `--density` reports how many
-// comment lines the set carries beside the host repository's own rate (bar.go), and acts on nothing.
+// comment lines the set carries beside the host repository's own rate (bar.go). No lane reads it.
 package voicecheck
 
 import (
@@ -17,9 +17,9 @@ const (
 	defaultMaxFileBytes = 262144
 )
 
-// Both the path and the outlier count are bounded, because under kk-pr they come from a branch
-// somebody else wrote. A suppressed outlier is announced, never dropped, and that holds only while this
-// cap and the one in the announcement stay the same number.
+// The path and the file count are bounded, because under kk-pr they come from a branch somebody else
+// wrote. The tool announces each suppressed line. That holds only while this cap and the cap in the
+// announcement stay the same number.
 const (
 	maxShown     = 200
 	maxPathBytes = 200
@@ -30,18 +30,18 @@ const (
 	exitDidNotRun = 2
 )
 
-// The stub this command runs behind, written out rather than read from argv[0]. `stub_usage_test.go`
-// compares the usage line below against the one the stub's own header documents, and a name that
-// changes with how the binary was reached leaves it nothing stable to compare.
+// The stub this command runs behind. The name is spelled here instead of read from argv[0].
+// `stub_usage_test.go` compares this file's usage line against the stub's own header. A name that
+// changed with how the binary was reached would leave that test no fixed text to compare.
 const stubName = "voice-check.sh"
 
 // Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
 // refused where a revision belongs, and one after `--` narrows the scan to it.
 const usage = "usage: " + stubName + " [--density | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
 
-// console is the tool's name and its two streams. Findings go to stdout bare; a note on stderr opens
-// with the name, and nothing else in the package writes there. The default mode's denominator is a
-// note too, so its stdout is exactly the outliers; the bar prints its two shape lines on stdout.
+// console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
+// stderr under the tool's name, and the rest of the package writes there through this type alone. The
+// density mode prints its two shape lines on stdout and its denominator as a note.
 type console struct {
 	self   string
 	stdout io.Writer
@@ -57,10 +57,11 @@ func (c console) refuse(err error) int {
 	return exitDidNotRun
 }
 
-// An argument this tool will not take, answered with the grammar as well as the complaint. Held apart
-// from refuse because every other exit 2 here is a sound invocation the tool could not carry out — a
-// repository with no baseline, a revision git would not resolve — and printing the grammar there sends
-// the caller to fix an argument that was already right.
+// An argument this tool will not take. The refusal states the grammar as well as the complaint.
+//
+// It is held apart from refuse. Every other exit 2 here is a sound invocation the tool failed to
+// carry out, such as a repository missing a baseline or a revision git could not resolve. A grammar
+// printed there would point the caller at an argument that was already right.
 func (c console) refuseArguments(err error) int {
 	c.note("%v", err)
 	c.note("%s", usage)
@@ -71,9 +72,9 @@ type Config struct {
 	MaxFileBytes int64
 }
 
-// ConfigFromEnv reads the one override. A value that does not parse is not silently replaced by the
-// default: a caller who set it asked for something, and answering with the default reports a scan
-// against a bound they did not choose.
+// ConfigFromEnv reads the only override. A value that does not parse refuses the run. A caller who set
+// it asked for a bound, and falling back to the default would report a scan against a bound they did
+// not pick.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxFileBytes: defaultMaxFileBytes}
 	if raw, ok := lookup("DENSITY_MAX_FILE_BYTES"); ok && raw != "" {
@@ -86,13 +87,12 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return cfg, nil
 }
 
-// The default mode counts a file's added lines alone, so its blocks stay at zero; the bar counts whole
-// files, blocks included.
+// The density mode counts whole files, blocks included.
 type stats struct {
 	comments int
-	// prose is the comment lines carrying words. A `/**`, a `*/` and a doc tag line are comment lines
-	// a reader pays for, so they count in comments; they carry no sentence, so a block's LENGTH is
-	// measured without them.
+	// prose is the comment lines carrying words. A `/**`, a `*/` and a doc tag line are comment lines a
+	// reader pays for, so they count in comments. They carry no sentence, so a block's LENGTH leaves
+	// them out.
 	prose      int
 	code       int
 	blocks     int
@@ -130,16 +130,10 @@ func (s *stats) add(other stats) {
 	s.longBlocks += other.longBlocks
 }
 
-// scan is one run's accumulating state. Held together because every arm reads the config and writes
-// the counts, and a file that reached `files` without reaching `countable` is the one inconsistency
-// they must not be able to express.
-
 // Two modes, one question each. Bare is the register check and exits 1 on findings. `--density`
-// reports how many comment lines a change set carries beside the host repository's rate, and always
-// exits 0, because nothing acts on that figure.
-//
-// `--density` selects the mode only as the first argument. Later in the arguments it is an option
-// like any other, and refused as one.
+// reports a change set's comment lines beside the host repository's rate, and always exits 0,
+// because no edit turns on that figure. `--density` selects the mode only as the first argument.
+// Later in the arguments it is an option like any other, and refused as one.
 func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--density" {
@@ -152,16 +146,16 @@ func notThisRepositorysSource(file string) bool {
 	return isProseOrData(file) || isFixture(file)
 }
 
-// isFixture is Go's own reserved directory for a test's material. A file under it is written to be
-// read by a test rather than to be this repository's source, and it is routinely in another language
-// — so counted, it measures the fixture through the repository. A handful of TypeScript fixtures is
-// enough to hold a Go and shell repository to a foreign language's comment rate. Matched as a path
-// segment, so `testdata/` at any depth is skipped.
+// isFixture is Go's own reserved directory for a test's material. A file under it is a test's
+// material, and it is routinely in another language, so counting it measures the fixture through the
+// repository. A handful of TypeScript fixtures holds a Go repository to a foreign comment rate. The
+// match is on a path segment, so `testdata/` at any depth is skipped.
 func isFixture(file string) bool {
 	return file == "testdata" || strings.HasPrefix(file, "testdata/") || strings.Contains(file, "/testdata/")
 }
 
-// Lockfiles are matched by name as well as extension: the yaml ones are generated, and nobody's comments.
+// Lockfiles are matched by name as well as extension. The yaml ones are generated, so their lines
+// belong to no author.
 func isProseOrData(file string) bool {
 	base := path.Base(file)
 	switch strings.ToLower(path.Ext(base)) {
@@ -173,9 +167,9 @@ func isProseOrData(file string) bool {
 	return false
 }
 
-// A continuation `*` or a closing `*/` counts only where a space or the end of the line follows. That is
-// what keeps `*ptr = 1` and `*/2` counted as code: a bare `*` opening a dereference or a multiplication
-// is not a comment, and counting it as one flags dense arithmetic as dense prose.
+// A continuation `*` or a closing `*/` counts only where a space or the end of the line follows. That
+// keeps `*ptr = 1` and `*/2` counted as code. A bare `*` opens a dereference or a multiplication, and
+// counting it as a comment would flag dense arithmetic as dense prose.
 func isComment(line string) bool {
 	switch {
 	case strings.HasPrefix(line, "//"), strings.HasPrefix(line, "/*"), strings.HasPrefix(line, "#"):

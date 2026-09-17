@@ -1,6 +1,8 @@
-// Cases for the voice-check detector. Don't weaken "a path argument is refused with exit 2, never
-// scanned": `git diff <path>` is legal and diffs against the index, so a path quietly accepted scans
-// the wrong change set and exits 0 — indistinguishable from a clean tree.
+// Cases for the voice-check detector.
+//
+// Keep the rule that a path argument is refused with exit 2 and never scanned. `git diff <path>` is
+// legal and diffs against the index, so a path quietly accepted scans the wrong change set and exits
+// 0. A caller cannot tell that from a clean tree.
 package voicecheck
 
 import (
@@ -8,8 +10,8 @@ import (
 	"testing"
 )
 
-// A bare `*` opening a dereference or a multiplication is code, not a comment continuation. Counting
-// it as a comment flags dense arithmetic as dense prose.
+// A bare `*` opens a dereference or a multiplication, so it is code. A tool that counted it as a
+// comment continuation would flag dense arithmetic as dense prose.
 func TestAStarThatIsNotAComment(t *testing.T) {
 	r := newRepo(t)
 	r.write("math.c", "int x;\n")
@@ -21,8 +23,8 @@ func TestAStarThatIsNotAComment(t *testing.T) {
 }
 
 // A new file is the commonest place a new comment lands, so a voice scan that read only the tracked
-// diff would report clean over the change most worth reading. The default mode and the bar both walk
-// the untracked half with no revisions named; this holds --voice to the same.
+// diff would report clean over the change most worth reading. The density mode walks the untracked
+// half with no revisions named, and this holds the register check to the same.
 func TestTheVoiceScanReadsAnUntrackedFileWithNoRevisionsNamed(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
@@ -34,8 +36,8 @@ func TestTheVoiceScanReadsAnUntrackedFileWithNoRevisionsNamed(t *testing.T) {
 	r.expectStdoutHas("no-subject")
 }
 
-// With revisions named the caller asked about two commits, and a file in neither of them is not part
-// of the question. Answering with it would report a finding the named range does not carry.
+// With revisions named the caller asked about two commits, so a file in neither of them falls outside
+// the question. A finding from it would belong to no part of the named range.
 func TestTheVoiceScanLeavesTheUntrackedHalfOutWhenRevisionsAreNamed(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
@@ -47,9 +49,9 @@ func TestTheVoiceScanLeavesTheUntrackedHalfOutWhenRevisionsAreNamed(t *testing.T
 	r.expectStdoutLacks("fresh.go")
 }
 
-// A fixture is written to be read by a test rather than to be this repository's source, and it is
-// routinely in another language. Counted as the repository's, it measures the fixture through the
-// repository: a handful of TypeScript fixtures moves a Go repository's comment rate on its own.
+// A fixture is a test's material, and it is routinely in another language. A scan that counts it as
+// the repository's own source measures the fixture through the repository. A handful of TypeScript
+// fixtures moves a Go repository's comment rate on its own.
 
 // A fixture NAMED on the command line is still read: naming one is asking for it, and the voice
 // check's prose and instruction profiles are handed paths by a human.
@@ -127,11 +129,11 @@ func TestAThresholdOverrideTakesEffect(t *testing.T) {
 	})
 }
 
-// The clean run needs the note most: no outlier otherwise reads as nothing to cut.
+// The clean run needs the note most. A silent report reads as a change set with no cut to make.
 
-// The classifiers the density report and the voice scan both read. Tested directly rather than through
-// a report, because the report that used to exercise them was the per-file outlier mode and that mode
-// is gone. The line arrives trimmed, which is what every caller passes.
+// The classifiers the density report and the register scan both read. They are tested directly here.
+// The report that used to exercise them was the per-file outlier mode, and that mode is gone. The line
+// arrives trimmed, which is what every caller passes.
 func TestWhatCountsAsAComment(t *testing.T) {
 	for _, line := range []string{"// line", "/* block", "* star", "*/", "# hash"} {
 		if !isComment(line) {

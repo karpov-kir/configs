@@ -390,9 +390,9 @@ func (c console) reportBar(base baseline, set changeSet) int {
 		fmt.Fprintf(c.stdout, "%s: %.0f%% against a %.0f%% ceiling\n",
 			shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.ratio*100, base.ceiling*100)
 	}
-	// Always clean. The figure is reported and nothing acts on it: the density bar stopped gating when
-	// it turned out to be what drove comments into compression, and a compressed comment is the thing
-	// this tool exists to catch.
+	// Always clean. The figure is reported and gates no edit. The density bar stopped gating
+	// once it turned out to drive comments into compression, and a compressed comment is the thing this
+	// tool exists to catch.
 	return exitClean
 }
 

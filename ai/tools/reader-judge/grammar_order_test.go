@@ -8,7 +8,7 @@
 // rather than to fix the command they had typed.
 // No go-mutate entry stands behind this case, and the reason is a property of the harness rather than
 // a judgement about the guard. go-mutate swaps a file through `go build -overlay` and runs the suite
-// in process, without touching the tree; this case builds `../cmd/reader-judge` as a subprocess, which
+// in process, without touching the tree. This case builds `../cmd/reader-judge` as a subprocess, which
 // compiles the file on disk. A mutant of the ordering is therefore invisible to the very case that
 // would catch it, and reports "proved nothing" rather than surviving. Declaring it unreachable would
 // be false — it is observable, just not through this harness — so it is left unregistered and named

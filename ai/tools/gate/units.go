@@ -158,6 +158,12 @@ func (g *gate) addGoChecks() {
 	// the stale green this whole thing exists not to serve. Blind to the module's test files for a
 	// reason of its own: eco-check reads Go sources only to find subcommand dispatches, and skips
 	// `_test.go` by name, because a test file's fixtures hold dispatch switches of their own.
+	// The baseline is the instruction tree's ratchet, and it only goes down. The unit is keyed on the
+	// tree it measures and on the tool that measures it, because a check that moves either moves the
+	// counts.
+	g.add("baseline", "check", []string{"ai/kk-flavor", "ai/tools/voice-check"},
+		"ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh")
+
 	g.addBlindToGoTests("wiring", "check", []string{"ai/kk-flavor", "ai/tools", "lib", ".gitignore"},
 		"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate")
 }

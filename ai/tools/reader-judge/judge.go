@@ -59,7 +59,7 @@ type Kind struct {
 // a flag passed down to Split would put the same branch at each of its callers instead.
 func (k Kind) candidates(lines []string) []Unit {
 	if k.Source {
-		return commentBlocks(lines)
+		return CommentBlocks(lines)
 	}
 	return proseBlocks(lines)
 }
@@ -168,12 +168,12 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 	lines := shell.SplitLines(content)
 	offer := offerFor(lines, kind)
 	if changed {
-		added, err := addedLines(cwd, args[1], revisions)
+		added, err := AddedLines(cwd, args[1], revisions)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
 			return exitDidNotRun
 		}
-		offer = narrowToDiff(offer, added)
+		offer = NarrowToDiff(offer, added)
 	}
 	units, view := Split(lines, kind.candidates(lines), offer)
 	if len(units) == 0 {
@@ -262,10 +262,10 @@ func Prompt(kind Kind) string {
 		"restates the name is a unit you delete."
 }
 
-// addedLines is the set of 1-based lines the diff added to one file, that file named as the caller
+// AddedLines is the set of 1-based lines the diff added to one file, that file named as the caller
 // typed it and resolved against the repository root. With no revisions it is `git diff HEAD` plus, for
 // an untracked file, every line.
-func addedLines(cwd, path string, revisions []string) (map[int]bool, error) {
+func AddedLines(cwd, path string, revisions []string) (map[int]bool, error) {
 	if err := diffscan.RefuseNonRevisions(revisions, cwd); err != nil {
 		return nil, err
 	}

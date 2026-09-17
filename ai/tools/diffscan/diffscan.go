@@ -100,7 +100,7 @@ func resolvesAsRevision(cwd, arg string) bool {
 func Diff(cwd string, revisions []string) ([]byte, error) {
 	args := []string{
 		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/",
+		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames",
 	}
 	named, paths := RevisionsNamed(revisions)
 	if len(named) == 0 {

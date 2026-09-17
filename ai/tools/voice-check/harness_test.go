@@ -205,8 +205,8 @@ func (r *repo) densityWith(cfg Config, args ...string) {
 	r.runWith(cfg, append([]string{"--density"}, args...)...)
 }
 
-// housey is a file the register scan reports, so a test about which FILE was reached can observe the
-// scan through its findings. `rather than` is the contrast spine, which the check has always caught.
+// housey is a file the register scan reports. A test about which FILE was reached can then observe
+// the scan through its findings. The spine it carries is `rather than`, caught since the first check.
 func housey(lines int) string {
 	var b strings.Builder
 	for i := 0; i < lines; i++ {

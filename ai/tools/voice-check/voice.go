@@ -745,9 +745,8 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 		args = args[1:]
 	}
 
-	// The arguments are read before anything else, and refused with the grammar. Left to the scan, a
-	// path passed where a revision belongs reaches the caller as a git failure with no statement of
-	// what this tool does take.
+	// The arguments are read before anything else, and refused with the grammar. The scan would instead
+	// hand the caller a git failure, which is silent about what this tool takes.
 	if profile == ProfileComment && len(args) > 0 && args[0] != "-" {
 		if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
 			return out.refuseArguments(err)
