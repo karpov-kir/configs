@@ -1,7 +1,6 @@
 package ecoreport
 
 import (
-	"bytes"
 	"os"
 	"slices"
 	"strconv"
@@ -256,38 +255,39 @@ func (r *run) cmdFinalize(args []string) {
 // directory pathspec sweeps in strays, and exits 0 having staged nothing when all its files are ignored.
 func (r *run) stageArchivedShip(stem string) string {
 	target := r.archiveDir(stem)
+	// The ship folder as a pathspec has to be root-relative: this only runs in committed mode, where the
+	// folder is inside the tree, and an absolute pathspec names a path outside a linked worktree's own.
+	vacated := strings.TrimPrefix(r.shipDir(stem), r.root+"/")
 	// One read, two answers: whether the vacated path needs staging at all, and which files the removal
-	// it stages will cover. `-z`, because the second answer is parsed and git quotes a path holding a
-	// newline or a quote — a quoted name handed back as a pathspec matches nothing.
-	tracked, status := r.captureGit(nil, "ls-files", "-z", "--", r.shipDir(stem))
+	// it stages will cover.
+	tracked, err := r.git.Tracked(r.root, vacated)
 	// A failed read answers the same as "nothing tracked", and here the two are not interchangeable: it
 	// says which files the removal must be matched against, so guessing stages a removal with no
 	// addition and the commit drops them.
-	if status != 0 {
+	if err != nil {
 		r.refuse("error: "+stem+" is archived at "+target+", but the index could not be read (git ls-files "+r.shipDir(stem)+") — nothing was staged.",
 			"  Nothing needs re-running: stage "+target+" and the vacated path yourself, then commit.")
 	}
 	var paths []string
-	for _, path := range archivedShipFiles(target, shipRelativeTrackedFiles(tracked, r.root, r.shipDir(stem))) {
+	for _, path := range archivedShipFiles(target, shipRelativeTrackedFiles(tracked, vacated)) {
 		if shell.IsRegularFile(path) {
 			paths = append(paths, path)
 		}
 	}
 	// Named only when the index still holds something under it: one unmatched pathspec fails the whole
 	// add, and a ship whose intent.md was never committed matches nothing there.
-	if tracked != "" {
+	if len(tracked) != 0 {
 		paths = append(paths, r.shipDir(stem))
 	}
 	if len(paths) == 0 {
 		return ""
 	}
-	// Captured rather than passed through: git's account of a failure names the paths it could not stage,
-	// and those are the ship folder's own bytes. git leaves a newline alone, so one of them forges a whole
-	// line — and what reads this output is another agent.
-	var reported bytes.Buffer
-	if _, status := r.captureGit(&reported, append([]string{"add", "--"}, paths...)...); status != 0 {
+	// git's account of a failure names the paths it could not stage, and those are the ship folder's own
+	// bytes. git leaves a newline alone, so one of them forges a whole line — and what reads this output
+	// is another agent.
+	if err := r.git.Add(r.root, paths); err != nil {
 		r.refuse("error: "+stem+" is archived at "+target+", but staging it failed — its records are untracked there, and a commit that stages by path will leave them behind.",
-			"  git said: "+shell.Oneline(reported.String()),
+			"  git said: "+shell.Oneline(err.Error()),
 			"  Nothing needs re-running: stage "+target+" yourself, then commit.")
 	}
 	return " and staged"
@@ -312,12 +312,12 @@ func archivedShipFiles(target string, trackedRelative []string) []string {
 	return files
 }
 
-// The ship-folder-relative form of every path the index holds under it. `ls-files` answers relative to
-// the root it was asked from, and the ship folder is under that root whenever this runs.
-func shipRelativeTrackedFiles(lsFiles, root, shipDir string) []string {
-	prefix := strings.TrimPrefix(shipDir, root+"/") + "/"
+// The ship-folder-relative form of every path the index holds under it. `Tracked` answers relative to
+// the working tree root, and the ship folder is under that root whenever this runs.
+func shipRelativeTrackedFiles(tracked []string, vacated string) []string {
+	prefix := vacated + "/"
 	var relative []string
-	for _, path := range strings.Split(lsFiles, "\x00") {
+	for _, path := range tracked {
 		if rest, found := strings.CutPrefix(path, prefix); found && rest != "" {
 			relative = append(relative, rest)
 		}

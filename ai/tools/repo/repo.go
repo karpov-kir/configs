@@ -98,10 +98,21 @@ type Git interface {
 	Add(dir string, paths []string) error
 }
 
-// Change is one entry of a raw diff: git's status letter, the path, and the blob the path holds on the
-// right-hand side ("" where the letter is a deletion).
+// Change is one entry of a raw diff: git's status letter, the path, and both sides of what changed.
+//
+// Both MODES are carried, and they are not decoration. A file that was executable or a symlink at the
+// base and is a regular file now has the same content on both sides, so no content check recovers
+// that it changed — eco-report's scope scan turns on exactly this. Both BLOBS for the same reason in
+// the other direction: `Show` is no substitute for reading the old content, because it applies
+// `--textconv`, which is a thing the reader's own git config can turn on.
+//
+// A mode or a blob is empty where that side does not exist: an addition has no source, a deletion no
+// destination.
 type Change struct {
-	Status string
-	Path   string
-	Blob   string
+	Status  string
+	Path    string
+	OldMode string
+	NewMode string
+	OldBlob string
+	Blob    string
 }

@@ -1,18 +1,69 @@
 package ecoreport
 
 import (
+	"bytes"
+	"errors"
 	"io"
+	"os"
+	"os/exec"
 	"strconv"
+	"strings"
 )
+
+// The two seams this package does not own: the open-item scan, which `todo-gate.sh` owns and which is
+// the only child process left here, and the tree fingerprint, which `ai/tools/tree-fingerprint/` owns
+// and which runs in process. Neither is reimplemented below, and newRun says what recomputing the
+// second one costs.
+
+// One child process, with the invocation's directory and HOME. HOME matters to more than the
+// fingerprint path: a child reading git's global config out of it must be pointed at the run's own,
+// or it answers from a config the caller replaced.
+func (r *run) command(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = r.dir
+	if r.home != os.Getenv("HOME") {
+		cmd.Env = append(os.Environ(), "HOME="+r.home)
+	}
+	return cmd
+}
+
+// `$(cmd)`: stdout captured with its trailing newlines stripped, plus the exit status. A nil stderr
+// is `2>/dev/null`; r.errOut is the inherited stderr, where the child's own account of a failure is
+// part of what the caller reports.
+func (r *run) capture(stderr io.Writer, name string, args ...string) (string, int) {
+	cmd := r.command(name, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = stderr
+	status := exitStatus(cmd.Run())
+	return strings.TrimRight(out.String(), "\n"), status
+}
+
+// 127 for anything that never ran, which is the status a shell reports for a command it could not
+// execute — and, like every non-zero here, one no caller reads as a result.
+func exitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode()
+	}
+	return 127
+}
 
 // The open-item scan over this run's own report. 0 = nothing open, 1 = items on stdout, anything else
 // = the scan did not run, and its output is then empty — which read as "nothing open" would pass the
 // merge gate on a scan that never happened.
 func (r *run) runTodoGate() (string, int) {
-	return r.runTodoGateOn(r.report)
+	return r.openItems(r.report)
 }
 
-func (r *run) runTodoGateOn(path string) (string, int) {
+// What Invocation.OpenItems defaults to: the sibling script, spawned. The guard is about the install
+// being complete rather than about the scan — the script is located from this program's own path, so
+// an invocation that renamed argv[0] resolves it somewhere else entirely, and a missing one must
+// answer 2 rather than the empty output that reads as nothing open.
+func (r *run) scanWithTodoGate(path string) (string, int) {
 	if !isExecutable(r.todoGate) {
 		errLinesTo(r.errOut,
 			"error: "+r.todoGate+" is missing or not executable — the open-item scan did not run.",
@@ -45,7 +96,7 @@ func (r *run) anyOpenItemsBeforeMerge(consequence string) bool {
 	if intent == "" {
 		return false
 	}
-	items, status := r.runTodoGateOn(intent)
+	items, status := r.openItems(intent)
 	if status > 1 {
 		r.refuse("error: the open-item scan of " + intent + " did not run — todo-gate.sh exited " + strconv.Itoa(status) + "; " + consequence)
 	}

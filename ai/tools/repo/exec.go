@@ -171,7 +171,17 @@ func parseRawDiff(out string) ([]Change, error) {
 		if len(parts) < 5 {
 			return nil, fmt.Errorf("git printed a raw diff record of %d field(s), wanted 5: %q", len(parts), record)
 		}
-		changes = append(changes, Change{Status: parts[4], Path: fields[i], Blob: parts[3]})
+		// git spells "this side does not exist" as an all-zero mode and an all-zero object id, which
+		// reads as a value rather than as an absence. Emptied here so a caller cannot mistake one for a
+		// real mode or ask for an object that is not there.
+		changes = append(changes, Change{
+			Status:  parts[4],
+			Path:    fields[i],
+			OldMode: presentOrEmpty(parts[0]),
+			NewMode: presentOrEmpty(parts[1]),
+			OldBlob: presentOrEmpty(parts[2]),
+			Blob:    presentOrEmpty(parts[3]),
+		})
 	}
 	return changes, nil
 }
@@ -190,6 +200,14 @@ func (e Exec) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
 		"--text", "--src-prefix=a/", "--dst-prefix=b/"}
 	args = append(args, revisions...)
 	return e.run(dir, append(args, pathspecArgs(pathspec)...)...)
+}
+
+// An all-zero mode or object id is git's way of saying the side is absent, not a value to use.
+func presentOrEmpty(field string) string {
+	if strings.Trim(field, "0") == "" {
+		return ""
+	}
+	return field
 }
 
 func (e Exec) Status(dir string) ([]string, error) {

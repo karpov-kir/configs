@@ -123,7 +123,7 @@ func (r *run) blocksOnOpenTodos() bool {
 func (r *run) blocksOnOpenTodosIn(path, which string) bool {
 	// 0 = nothing open, 1 = items printed. Anything else yields empty output, which the test below
 	// would read as "no open TODOs" and pass the merge gate on a scan that never ran.
-	todos, status := r.runTodoGateOn(path)
+	todos, status := r.openItems(path)
 	switch {
 	case status > 1:
 		r.errLines("BLOCK (open TODOs): the scan of " + which + " did not run — todo-gate.sh exited " + strconv.Itoa(status) + ". Fix the invocation; this one cannot be overridden.")

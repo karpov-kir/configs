@@ -5,40 +5,20 @@ package ecoreport_test
 // what a case *says* is there; what puts a tree on disk is here.
 
 import (
-	"bytes"
+	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
-	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
-	"testing"
-)
 
-// Every git spawn here goes to whatever PATH names first. Most of them are the tool's own, and it
-// resolves `git` through PATH the same way. On macOS that first name is `/usr/bin/git`, an xcrun
-// shim. Going through the shim costs 2.06x the real git behind it: 37.9ms a spawn against 18.4ms.
-//
-// This package makes about 4300 spawns, and the shim had pushed it past `go test`'s 600s default:
-// a FAIL at 603.4s on a loaded machine.
-//
-// Resolved once, because `xcrun` is itself a spawn. No-op wherever xcrun is absent, which is every
-// Linux runner.
-func TestMain(m *testing.M) {
-	if out, err := exec.Command("xcrun", "-f", "git").Output(); err == nil {
-		resolved := strings.TrimSpace(string(out))
-		if info, statErr := os.Stat(resolved); statErr == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			dir := filepath.Dir(resolved)
-			path := os.Getenv("PATH")
-			if !strings.HasPrefix(path, dir+string(os.PathListSeparator)) {
-				os.Setenv("PATH", dir+string(os.PathListSeparator)+path)
-			}
-		}
-	}
-	os.Exit(m.Run())
-}
+	"kk-flavor/tools/repo/repotest"
+)
 
 // Fixture I/O. The builders fail the case rather than returning an error: a fixture that did not get
 // built leaves its assertions passing against a tree they were never given. The queries answer
@@ -105,17 +85,6 @@ func (f *fixture) remove(path string) {
 	}
 }
 
-func (f *fixture) copyIn(from, to string, mode os.FileMode) {
-	f.t.Helper()
-	content, err := os.ReadFile(from)
-	if err != nil {
-		f.t.Fatalf("read %s: %v", from, err)
-	}
-	if err := os.WriteFile(to, content, mode); err != nil {
-		f.t.Fatalf("write %s: %v", to, err)
-	}
-}
-
 func (f *fixture) exists(path string) bool {
 	_, err := os.Lstat(path)
 	return err == nil
@@ -149,42 +118,83 @@ func (f *fixture) entries(dir string) []string {
 	return names
 }
 
-func (f *fixture) git(args ...string) (string, int) {
+// What the repository holds, as a case states it. The fake answers the tool from this table, so a case
+// says "the index holds this" rather than running a command to make it so — and nothing forks.
+
+// Put paths in the index and at HEAD, with whatever is on disk at each. What `git add` followed by
+// `git commit` gave the old fixtures, which every case using it wanted only as a starting state.
+func (f *fixture) track(paths ...string) {
 	f.t.Helper()
-	return f.gitIn(f.repo, args...)
+	committed := map[string]string{}
+	for name, body := range f.fake.Revs[repotest.WorkTree] {
+		committed[name] = body
+	}
+	for _, name := range paths {
+		body := f.read(f.repo + "/" + name)
+		f.fake.Write(name, body)
+		committed[name] = body
+	}
+	f.commitNamed("HEAD", committed)
 }
 
-// The same question asked from another directory, for the linked-worktree cases: a worktree is its
-// own root, and what git answers there — its git dir above all — is not what it answers in the repo
-// that created it.
-func (f *fixture) gitIn(dir string, args ...string) (string, int) {
+// A commit under a name a case can use, holding the given content, and the object id it resolves to.
+//
+// Both spellings, because the tool resolves a base-ref to an id and then diffs against THAT: a
+// revision the table knows only by name is one it cannot diff, and git answers about either spelling.
+func (f *fixture) commitNamed(rev string, files map[string]string) string {
 	f.t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	status := 0
-	if err := cmd.Run(); err != nil {
-		status = 1
-		if exit, ok := err.(*exec.ExitError); ok {
-			status = exit.ExitCode()
+	f.fake.Commit(rev, files)
+	id := f.fake.Refs[rev]
+	f.fake.Revs[id] = f.fake.Revs[rev]
+	f.fake.Refs[id] = id
+	return id
+}
+
+// Whether the index holds anything under a path — the question `scratch` and the committed-mode
+// assertions ask.
+func (f *fixture) isTracked(prefix string) bool {
+	for name := range f.fake.Revs[repotest.WorkTree] {
+		if name == prefix || strings.HasPrefix(name, prefix+"/") {
+			return true
 		}
 	}
-	return strings.TrimRight(out.String(), "\n"), status
+	return false
 }
 
-func (f *fixture) mustGit(args ...string) string {
-	f.t.Helper()
-	out, status := f.git(args...)
-	if status != 0 {
-		f.t.Fatalf("git %s failed in %s — stopping before any destructive case runs", strings.Join(args, " "), f.repo)
+// What the tool staged, in the form `git diff --cached --name-only` used to answer: one path per line,
+// root-relative, sorted. Both the pathspecs it named and the files under them, because git expands a
+// directory pathspec and every case here reads this as that expansion.
+func (f *fixture) staged() string {
+	seen := map[string]bool{}
+	var names []string
+	for _, staged := range append(append([]string{}, f.fake.Added...), f.stagedFiles...) {
+		name := strings.TrimPrefix(staged, f.canonicalRepo()+"/")
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
 	}
-	return out
+	sort.Strings(names)
+	return strings.Join(names, "\n")
 }
 
-// Identity is passed per-commit: the machine running this need not have one configured.
-func (f *fixture) commit(message string) {
+// Say that git ignores these paths, and which file said so. `source` is what `check-ignore -v` names —
+// `.gitignore` is the only answer that travels with the repository, and the tool turns on that
+// difference.
+func (f *fixture) ignore(source string, paths ...string) {
+	f.fake.Ignore(source, paths...)
+}
+
+// The commit HEAD names. A case that needs the tree to have moved on sets a new one.
+func (f *fixture) head() string { return f.fake.Refs["HEAD"] }
+
+// Move HEAD to another commit, holding the content it holds now. An object id resolves to itself,
+// which is git's own answer and what a case naming a revision by its id depends on.
+func (f *fixture) setHead(commit string) {
 	f.t.Helper()
-	f.mustGit("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", message)
+	f.fake.Refs["HEAD"] = commit
+	f.fake.Refs[commit] = commit
+	f.fake.Revs[commit] = f.fake.Revs["HEAD"]
 }
 
 // `grep -qx` — the whole line, never a substring, which is what several cases mean by "prints this".
@@ -399,4 +409,301 @@ func (f *fixture) stageResultsPath(intent string) string {
 		f.t.Fatal(err)
 	}
 	return fmt.Sprintf("%s/.git/idsd-stage-results/%x.json", f.repo, sha256.Sum256([]byte(report)))
+}
+
+// The tree fingerprint every fixture runs on. The RECIPE belongs to `ai/tools/tree-fingerprint/`,
+// which owns its own suite; what the cases here need of it is the one property they all turn on — a
+// value that moves when the tree's content moves and stands still otherwise — and the shipped recipe
+// pays five git spawns per reading to deliver it.
+//
+// Ignorable report files are skipped for the same reason git's own ignore rules skip them: a report
+// written inside the tree it fingerprints makes every stamp stale on arrival, and assertReportIsIgnored
+// is the guard that exists because of it. `.git` is skipped because git's own recipe never reads it.
+//
+// Forty hex characters, because `gate` prints the value and index_test.go matches it as one.
+func (f *fixture) newTreeFingerprint() func(string) (string, error) {
+	return func(root string) (string, error) {
+		sum := sha1.New()
+		err := filepath.Walk(root, func(full string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			name, relErr := filepath.Rel(root, full)
+			if relErr != nil {
+				return relErr
+			}
+			// A linked worktree's `.git` is a FILE, and SkipDir on one skips the REST of the directory
+			// holding it — which here is the whole worktree, since `.git` sorts first. The tree then
+			// fingerprints as empty and every freshness case passes on a reading of nothing.
+			if name == ".git" {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if info.IsDir() || fingerprintSkips(name) {
+				return nil
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				target, linkErr := os.Readlink(full)
+				fmt.Fprintf(sum, "%s\x00link\x00%s\x00", name, target)
+				return linkErr
+			}
+			body, readErr := os.ReadFile(full)
+			fmt.Fprintf(sum, "%s\x00%04o\x00%s\x00", name, info.Mode().Perm(), body)
+			return readErr
+		})
+		if err != nil {
+			return "", err
+		}
+		return hex.EncodeToString(sum.Sum(nil)), nil
+	}
+}
+
+// The ship working files `.gitignore` covers, by the same patterns the tool writes — ignoreEntries()
+// mirrors ignoreSurface(), so the fixture and the tool cannot disagree about which files a fingerprint
+// must not see.
+func fingerprintSkips(name string) bool {
+	for _, entry := range ignoreEntries() {
+		if matched, _ := path.Match(entry, filepath.ToSlash(name)); matched {
+			return true
+		}
+	}
+	return false
+}
+
+// A linked worktree, built the way git builds one: a directory whose `.git` is a FILE naming a git dir
+// under the main repository's `worktrees/`, and a `commondir` in that git dir pointing back at the
+// shared store. layout.go reads exactly this shape, so nothing has to run `git worktree add`.
+//
+// The two properties every case using this turns on come straight from the layout: the worktree's own
+// git dir is its own, which is where its identity token is minted, and its common dir is the clone's,
+// which is where the one scratch directory lives.
+func (f *fixture) newLinkedWorktree(name string) string {
+	f.t.Helper()
+	linked := f.base + "/" + name
+	// Canonical, because the pointer is what layoutGitDir reads and what layoutCommonDir then resolves
+	// against: a `/var` spelling here resolves one location and the main tree's `/private/var` another,
+	// and two worktrees of one clone would answer two scratch directories while both looked right.
+	gitDir := f.canonicalRepo() + "/.git/worktrees/" + name
+	f.mkdirAll(gitDir)
+	f.write(gitDir+"/commondir", "../..\n")
+	f.write(gitDir+"/HEAD", "ref: refs/heads/"+name+"\n")
+	f.mkdirAll(linked)
+	f.write(linked+"/.git", "gitdir: "+gitDir+"\n")
+	// Its own git dir, the clone's common dir, and the same history and ignore answers as the tree it
+	// was added from — which is what a real linked worktree answers, and what `repo/exec_test.go` holds
+	// git to. Shared maps rather than copies, so a case that tracks or ignores something afterwards is
+	// answered the same from both.
+	sibling := repotest.New(canonical(linked))
+	sibling.Git, sibling.Common = gitDir, f.canonicalRepo()+"/.git"
+	sibling.Revs, sibling.Refs, sibling.Sources, sibling.Fail = f.fake.Revs, f.fake.Refs, f.fake.Sources, f.fake.Fail
+	f.worktrees[canonical(linked)] = sibling
+	// The tracked file the main tree has, so the two trees fingerprint alike — which is the state a
+	// freshly added worktree is in and the precondition several cases state for themselves.
+	f.write(linked+"/tracked.txt", f.read(f.repo+"/tracked.txt"))
+	return linked
+}
+
+// `git worktree remove`: the checkout and the private git dir git deletes with it. The token minted in
+// that git dir goes too, which is the whole mechanism a recreated worktree reads as a different one.
+func (f *fixture) removeLinkedWorktree(name string) {
+	f.t.Helper()
+	delete(f.worktrees, canonical(f.base+"/"+name))
+	f.remove(f.base + "/" + name)
+	f.remove(f.repo + "/.git/worktrees/" + name)
+}
+
+// `git worktree move`: the checkout changes place and keeps its git dir, so it keeps its identity.
+func (f *fixture) moveLinkedWorktree(from, to string) {
+	f.t.Helper()
+	// Keyed before the rename: canonical() resolves a path that exists, and after the move the old one
+	// does not, so the entry would be looked up under a spelling nothing holds.
+	was := canonical(from)
+	if err := os.Rename(from, to); err != nil {
+		f.t.Fatalf("move %s to %s: %v", from, to, err)
+	}
+	moved := f.worktrees[was]
+	delete(f.worktrees, was)
+	moved.Root = canonical(to)
+	f.worktrees[canonical(to)] = moved
+}
+
+// A path as the tool will resolve it: physically, the way layoutRoot answers and the way git's own
+// `--show-toplevel` does. A path that does not exist yet keeps whatever it was given.
+func canonical(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return path
+}
+
+// The open-item scanner the tool execs, written by the fixture rather than copied from the installed
+// skill. `ai/kk-flavor/skills/idsd-qualify/scripts/todo-gate.sh` is the shipped one and
+// `todo-gate-test.sh` pins its scan; what the cases here pin is the CALLER's side — that a status above
+// 1 is never read as "nothing open". Reading the shipped script from outside this module is what made a
+// plain `go test` answer `(cached)` over a changed template, so the suite supplies its own inputs.
+//
+// Pure shell, no awk: a second child per scan is the cost this whole port exists to remove.
+const todoGateScript = `#!/bin/sh
+export LC_ALL=C
+file="${1:-}"
+[ -n "$file" ] || { echo "usage: todo-gate.sh <file>" >&2; exit 2; }
+[ -f "$file" ] || { echo "error: no such file: $file" >&2; exit 2; }
+found=
+section=
+in_fence=
+in_comment=
+while IFS= read -r line || [ -n "$line" ]; do
+  trimmed=$line
+  while :; do
+    case $trimmed in
+      ' '*) trimmed=${trimmed# } ;;
+      '	'*) trimmed=${trimmed#	} ;;
+      *) break ;;
+    esac
+  done
+  case $trimmed in
+    '` + "```" + `'*|'~~~'*)
+      if [ -n "$in_fence" ]; then in_fence=; else in_fence=1; fi
+      continue ;;
+  esac
+  [ -z "$in_fence" ] || continue
+  case $line in *'<!--'*) in_comment=1 ;; esac
+  if [ -n "$in_comment" ]; then
+    case $line in *'-->'*) in_comment= ;; esac
+    continue
+  fi
+  case $line in
+    '# '*|'## '*|'### '*|'#### '*|'##### '*|'###### '*) section=$line; continue ;;
+  esac
+  case $trimmed in
+    '- [ ]'*) found="$found$section | $trimmed
+" ;;
+  esac
+done < "$file"
+[ -n "$found" ] || exit 0
+printf '%s' "$found"
+exit 1
+`
+
+// The report template, written by the fixture for the reason todoGateScript is. Four placeholder
+// frontmatter lines and a body: `init` refuses a template missing any of them, and every case that
+// drifts one edits this copy. The shipped one is
+// `ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md`; nothing here reads it.
+const reportTemplate = `---
+intent: <NNN-slug or "review: <description>">
+reviewed-tree: <hash>
+reviewed-worktree: <worktree>
+reviewed-stages: <stages>
+---
+
+# Decide
+`
+
+// A second clone of this repository: another checkout with a git dir of its own. What makes it a
+// second CLONE rather than a second worktree is that its git dir is not the first's — which is the
+// whole of what a repo key is taken from, and the reason two clones must never share a scratch
+// directory.
+func (f *fixture) newSecondClone(name string) string {
+	f.t.Helper()
+	clone := f.base + "/" + name
+	f.mkdirAll(clone + "/.git")
+	f.write(clone+"/.git/HEAD", "ref: refs/heads/main\n")
+	f.write(clone+"/tracked.txt", f.read(f.repo+"/tracked.txt"))
+	return clone
+}
+
+// What the tree's own .gitignore says about a path, read at the moment of the question — `promote`
+// writes that file mid-run and then asks whether the write took effect, so an answer arranged before
+// the run could only ever say yes. The bool is whether any rule matched at all.
+//
+// Only literal glob matching with git's last-match-wins negation is modelled. An implementation of
+// gitignore here would be the fake agreeing with itself about a question `repo/exec_test.go` holds
+// real git to; a case wanting any other rule — `.git/info/exclude`, a global excludesFile — states the
+// answer with f.ignore, and .gitignore is consulted first because that is git's own precedence.
+func (f *fixture) gitignoreSourceFor(full string) (source string, matched bool) {
+	// Relative to whichever working tree holds it: a committed `.idsd/` is checked out into every linked
+	// worktree, and the rules that cover it are the same tracked .gitignore.
+	name := strings.TrimPrefix(full, f.canonicalRepo()+"/")
+	for root := range f.worktrees {
+		if rest, inside := strings.CutPrefix(full, root+"/"); inside {
+			name = rest
+		}
+	}
+	negated := false
+	for _, line := range strings.Split(f.read(f.repo+"/.gitignore"), "\n") {
+		rule := strings.TrimSpace(line)
+		if rule == "" || strings.HasPrefix(rule, "#") {
+			continue
+		}
+		if hit, _ := path.Match(strings.TrimPrefix(rule, "!"), name); hit {
+			matched, negated = true, strings.HasPrefix(rule, "!")
+		}
+	}
+	switch {
+	case negated:
+		return "", true
+	case matched:
+		return ".gitignore", true
+	}
+	return "", false
+}
+
+// The open-item scan, in process. Every case but the few whose subject is the child process itself
+// drives this: the script is one `/bin/sh` per scan, and 116 of them was the largest single cost left
+// in this package once the repository questions came off git.
+//
+// A second implementation of the same rules, which is exactly what testing.md rule 5 warns about — so
+// TestTheOpenItemScanReadsTheSameEitherWay drives both over the shapes the scan has to get right and
+// requires one answer. The rules themselves are todoGateScript's, beside this.
+func (f *fixture) newOpenItemScan() func(string) (string, int) {
+	return func(path string) (string, int) {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return "", 2
+		}
+		var found []string
+		section, inFence, inComment := "", false, false
+		for _, line := range strings.Split(strings.TrimSuffix(string(body), "\n"), "\n") {
+			trimmed := strings.TrimLeft(line, " \t")
+			if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+				inFence = !inFence
+				continue
+			}
+			if inFence {
+				continue
+			}
+			if strings.Contains(line, "<!--") {
+				inComment = true
+			}
+			if inComment {
+				if strings.Contains(line, "-->") {
+					inComment = false
+				}
+				continue
+			}
+			if isMarkdownHeading(line) {
+				section = line
+				continue
+			}
+			if strings.HasPrefix(trimmed, "- [ ]") {
+				found = append(found, section+" | "+trimmed)
+			}
+		}
+		if len(found) == 0 {
+			return "", 0
+		}
+		return strings.Join(found, "\n"), 1
+	}
+}
+
+// `^#{1,6} ` — the heading forms todoGateScript lists one by one, since a POSIX `case` pattern has no
+// repetition operator and the two must answer alike.
+func isMarkdownHeading(line string) bool {
+	hashes := 0
+	for hashes < len(line) && line[hashes] == '#' {
+		hashes++
+	}
+	return hashes > 0 && hashes <= 6 && hashes < len(line) && line[hashes] == ' '
 }

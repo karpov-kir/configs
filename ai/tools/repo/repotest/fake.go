@@ -51,6 +51,10 @@ type Fake struct {
 	// IgnoredPaths are what git would ignore, and Sources says which rule said so.
 	IgnoredPaths []string
 	Sources      map[string]string
+	// Changes answers ChangedWithStatus for one spelling of the revisions, verbatim, where a case's
+	// subject is something the derived comparison below cannot know: a mode, or which blob a side held.
+	// The key is the revisions joined by a space.
+	Changes map[string][]repo.Change
 	// PatchText is what Patch answers, verbatim — the diff a case says git would print. NOT derived
 	// from Revs: deriving it would put a diff implementation in this fake, and a suite driven by that
 	// would be agreeing with the fake rather than with git.
@@ -275,9 +279,12 @@ func (f *Fake) ChangedWithStatus(dir string, revisions, pathspec []string) ([]re
 	if err := f.note("ChangedWithStatus"); err != nil {
 		return nil, err
 	}
-	changes, err := f.diff(revisions)
-	if err != nil {
-		return nil, err
+	changes, found := f.Changes[strings.Join(revisions, " ")]
+	if !found {
+		var err error
+		if changes, err = f.diff(revisions); err != nil {
+			return nil, err
+		}
 	}
 	var kept []repo.Change
 	for _, one := range changes {
@@ -287,6 +294,11 @@ func (f *Fake) ChangedWithStatus(dir string, revisions, pathspec []string) ([]re
 	}
 	return kept, nil
 }
+
+// What a derived change calls a file. A case whose subject is a mode — a `.md` that was executable at
+// the base, a symlink that became a regular file — states the change itself through Changes rather
+// than letting this derive one, because this fake holds content and knows nothing about modes.
+const ordinaryFileMode = "100644"
 
 // Two revisions' file maps compared, which is all a diff is to the code under test: a status letter
 // per path. `a..b` and `a b` name the same pair, and the empty list means HEAD against the tree.
@@ -324,14 +336,18 @@ func (f *Fake) diff(revisions []string) ([]repo.Change, error) {
 		seen[name] = true
 		switch was, held := from[name]; {
 		case !held:
-			changes = append(changes, repo.Change{Status: "A", Path: name, Blob: objectID(to[name])})
+			changes = append(changes, repo.Change{Status: "A", Path: name,
+				NewMode: ordinaryFileMode, Blob: objectID(to[name])})
 		case was != to[name]:
-			changes = append(changes, repo.Change{Status: "M", Path: name, Blob: objectID(to[name])})
+			changes = append(changes, repo.Change{Status: "M", Path: name,
+				OldMode: ordinaryFileMode, NewMode: ordinaryFileMode,
+				OldBlob: objectID(was), Blob: objectID(to[name])})
 		}
 	}
 	for _, name := range sortedKeys(from) {
 		if !seen[name] {
-			changes = append(changes, repo.Change{Status: "D", Path: name})
+			changes = append(changes, repo.Change{Status: "D", Path: name,
+				OldMode: ordinaryFileMode, OldBlob: objectID(from[name])})
 		}
 	}
 	return changes, nil

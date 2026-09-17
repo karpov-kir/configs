@@ -36,25 +36,19 @@ func (r *run) treeIdsdDir() string { return r.root + "/.idsd" }
 // Absolute path to <name> in the git dir SHARED by every worktree of this clone. The sibling of
 // gitPath, and the difference between them is the whole point of this file: gitPath is per-worktree,
 // which is right for a ship's own stage markers and wrong for everything else here.
-//
-// Absolutized against the root, because `--git-common-dir` answers relative to the caller in an
-// ordinary repo — a bare `.git` from the root — so a relative answer would resolve against whatever
-// directory the next caller happened to stand in.
 func (r *run) gitCommonPath(name string) string {
 	path, ok := "", false
 	if gitDir, found := layoutGitDir(r.root); found {
 		path, ok = layoutCommonDir(gitDir)
 	}
-	status := 0
+	var err error
 	if !ok {
-		path, status = r.memoGit(r.errOut, "rev-parse", "--git-common-dir")
+		path, err = r.askOnce("git-common-dir", func() (string, error) { return r.git.CommonDir(r.root) })
 	}
-	if status != 0 || path == "" {
+	if err != nil || path == "" {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: could not resolve this repository's shared git dir (git rev-parse --git-common-dir) —",
 			"  the idsd location is unknown, so nothing was read and nothing was written.")
-	}
-	if !filepath.IsAbs(path) {
-		path = r.root + "/" + path
 	}
 	path = filepath.Clean(path)
 	if name == "" {

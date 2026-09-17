@@ -199,6 +199,30 @@ func (f fixture) changes_(t *testing.T) {
 	if got := byPath["gone.txt"]; got.Status != "D" {
 		t.Errorf("ChangedWithStatus calls gone.txt %q, wanted D", got.Status)
 	}
+	// An absent side is git's all-zero mode and all-zero object id, and a caller reading either as a
+	// value asks for an object that is not there or records a mode no file had.
+	if got := byPath["added.txt"]; got.OldMode != "" || got.OldBlob != "" {
+		t.Errorf("an added file came back with the base-side mode %q and blob %q, and it has no base "+
+			"side: git spells that all-zero, which reads as a value", got.OldMode, got.OldBlob)
+	}
+	if got := byPath["gone.txt"]; got.NewMode != "" || got.Blob != "" {
+		t.Errorf("a deleted file came back with the new-side mode %q and blob %q", got.NewMode, got.Blob)
+	}
+	// Both modes, because a file that was executable at the base and is a regular file now holds the
+	// same bytes on both sides — no content check recovers that it changed.
+	mustRun(t, f.root, "git", "update-index", "--chmod=+x", "kept.txt")
+	mode := f.changes(f.git.ChangedWithStatus(f.root, []string{"--cached"}, []string{"kept.txt"}))
+	if len(mode) != 1 || mode[0].OldMode == mode[0].NewMode {
+		t.Errorf("flipping the executable bit came back as %+v, and the two modes have to differ or a "+
+			"caller cannot see a mode-only change at all", mode)
+	}
+	// Both blobs, in the other direction: reading the base content through Show is no substitute,
+	// because Show applies `--textconv` and the reader's own git config can turn one on.
+	if got := byPath["pkg/moved.txt"]; got.OldBlob == "" || got.OldBlob == got.Blob {
+		t.Errorf("a modified file came back with base blob %q and new blob %q, so the base content is "+
+			"unreachable", got.OldBlob, got.Blob)
+	}
+	mustRun(t, f.root, "git", "update-index", "--chmod=-x", "kept.txt")
 	// The blob is what makes one call enough: a caller reads the new content without a second listing.
 	body, size, err := f.git.Blob(f.root, byPath["added.txt"].Blob)
 	if err != nil {

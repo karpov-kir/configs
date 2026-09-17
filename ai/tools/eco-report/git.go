@@ -1,125 +1,73 @@
 package ecoreport
 
 import (
-	"bytes"
-	"errors"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"kk-flavor/tools/shell"
 )
 
-// Every git call the tool makes, and the one ignore mechanism it writes through — `.gitignore`, via
-// appendLine, for `promote`. Every `.git/info/exclude` mention below is a READ that classifies an
-// ignore source; what removes a stale entry lives in migrate.go.
+// Every repository question the tool asks, and the one ignore mechanism it writes through —
+// `.gitignore`, via appendLine, for `promote`. Every `.git/info/exclude` mention below is a READ that
+// classifies an ignore source; what removes a stale entry lives in migrate.go.
 
-// git is asked rather than reimplemented everywhere it answers a question about ignoring, tracking or
-// worktrees: the answer has to be the one git will give the human's next command, not this tool's
-// model of it.
-
-// One child process, with the invocation's directory and HOME. HOME matters to more than the
-// fingerprint path: git reads its global config out of it, so a run pointed at another HOME has to
-// point its children there too or they answer from a config the caller replaced.
-func (r *run) command(name string, args ...string) *exec.Cmd {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = r.dir
-	if r.home != os.Getenv("HOME") {
-		cmd.Env = append(os.Environ(), "HOME="+r.home)
-	}
-	return cmd
-}
-
-// `$(cmd)`: stdout captured with its trailing newlines stripped, plus the exit status. A nil stderr
-// is `2>/dev/null`; r.errOut is the inherited stderr, where the child's own account of a failure is
-// part of what the caller reports.
-func (r *run) capture(stderr io.Writer, name string, args ...string) (string, int) {
-	cmd := r.command(name, args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = stderr
-	status := exitStatus(cmd.Run())
-	return strings.TrimRight(out.String(), "\n"), status
-}
-
-func (r *run) captureGit(stderr io.Writer, args ...string) (string, int) {
-	return r.capture(stderr, "git", append([]string{"-C", r.root}, args...)...)
-}
+// The repository is asked rather than reimplemented everywhere it answers a question about ignoring,
+// tracking or worktrees: the answer has to be the one git will give the human's next command, not this
+// tool's model of it. `ai/tools/repo` names those questions; r.git answers them.
 
 type gitAnswer struct {
-	out    string
-	status int
+	value string
+	err   error
 }
 
 // The repository questions that cannot change while one invocation runs, asked once each.
-//
-// Keyed on the arguments and not on the stderr writer, which differs between callers. A cached answer
-// therefore re-emits nothing on stderr — harmless here because every caller that passes a real writer
-// refuses on a non-zero status, so a failed call ends the run before a second could read it.
 //
 // ONE of them can move under us after all, and that is why this is a memo rather than a package
 // cache: `git add` changes the index, so `stagedIndex` clears the entry instead of leaving a stale
 // "external" behind a tree that is now committed. `discard` reads that answer before deleting, so a
 // stale one is not a slow report — it is the wrong one, over a tracked .idsd/.
-func (r *run) memoGit(stderr io.Writer, args ...string) (string, int) {
-	key := strings.Join(args, "\x00")
-	if hit, ok := r.gitMemo[key]; ok {
-		return hit.out, hit.status
+func (r *run) askOnce(question string, ask func() (string, error)) (string, error) {
+	if hit, ok := r.gitMemo[question]; ok {
+		return hit.value, hit.err
 	}
-	out, status := r.captureGit(stderr, args...)
+	value, err := ask()
 	if r.gitMemo == nil {
 		r.gitMemo = map[string]gitAnswer{}
 	}
-	r.gitMemo[key] = gitAnswer{out, status}
-	return out, status
+	r.gitMemo[question] = gitAnswer{value, err}
+	return value, err
 }
 
 func (r *run) forgetIndexAnswers() {
 	r.gitMemo = nil
 }
 
-// A child whose output is the caller's: `git add` reports what it could not stage, and that account
-// is the whole of what the human gets when staging fails.
-func (r *run) passThrough(name string, args ...string) int {
-	cmd := r.command(name, args...)
-	cmd.Stdout = r.out
-	cmd.Stderr = r.errOut
-	return exitStatus(cmd.Run())
-}
-
-// 127 for anything that never ran, which is the status a shell reports for a command it could not
-// execute — and, like every non-zero here, one no caller reads as a result.
-func exitStatus(err error) int {
-	if err == nil {
-		return 0
-	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return exit.ExitCode()
-	}
-	return 127
-}
-
-// Absolute path to <name> in this worktree's git dir. --git-path answers relative for an ordinary
-// repo, absolute in a linked worktree; an empty answer would build a bare "$root/" in the tree.
+// Absolute path to <name> in this worktree's git dir. An empty answer would build a bare "$root/" in
+// the tree, so it is refused rather than joined.
 func (r *run) gitPath(name string) string {
 	if gitDir, ok := layoutGitDir(r.root); ok {
 		return filepath.Join(gitDir, name)
 	}
-	path, status := r.memoGit(r.errOut, "rev-parse", "--git-path", name)
-	if status != 0 || path == "" {
+	path, err := r.askOnce("git-path "+name, func() (string, error) { return r.git.GitPath(r.root, name) })
+	if err != nil || path == "" {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: could not resolve '" + name + "' inside the git dir (git rev-parse --git-path)")
 	}
-	if strings.HasPrefix(path, "/") {
-		return path
-	}
-	return r.root + "/" + path
+	return path
+}
+
+// Whether the index holds anything under .idsd/, memoized: it is what decides the repo mode, and
+// several callers read it in one run.
+func (r *run) trackedIdsd() (string, error) {
+	return r.askOnce("tracked .idsd", func() (string, error) {
+		tracked, err := r.git.Tracked(r.root, ".idsd")
+		return strings.Join(tracked, "\n"), err
+	})
 }
 
 func (r *run) repoMode() string {
-	tracked, _ := r.memoGit(nil, "ls-files", ".idsd")
+	tracked, _ := r.trackedIdsd()
 	if tracked != "" {
 		return "committed"
 	}
@@ -130,8 +78,18 @@ func (r *run) repoMode() string {
 // through to `external` deletes a tracked .idsd/. That is why this is a separate assertion rather
 // than a refusal inside repoMode, which every call site reads as a value.
 func (r *run) assertRepoModeReadable() {
-	if _, status := r.memoGit(nil, "ls-files", ".idsd"); status != 0 {
+	if _, err := r.trackedIdsd(); err != nil {
 		r.refuse("error: could not read the index (git ls-files .idsd) — the repo mode is unknown, and it decides whether .idsd/ is tracked in the repo or kept outside it")
+	}
+}
+
+// git's own account of a failure, beside the refusal that follows it. The child used to inherit
+// stderr, so what git said reached the human; the port hands it back as an error instead, and these
+// are the call sites that used to let it through. One line, because a path git quotes back carries the
+// tree's own bytes and a newline in one would forge a second — and what reads these is another agent.
+func (r *run) sayWhatGitSaid(err error) {
+	if err != nil {
+		r.errLines("  git said: " + shell.Oneline(err.Error()))
 	}
 }
 
@@ -145,7 +103,7 @@ func (r *run) assertRepoModeReadable() {
 // caller here reads that as "ignored, and by something that travels". The pattern is read for that
 // reason, not merely the source.
 func (r *run) ignoreSourceOf(path string) string {
-	answer, _ := r.captureGit(nil, "check-ignore", "-v", path)
+	answer, _ := r.git.IgnoreSource(r.root, path)
 	first, _, _ := strings.Cut(answer, "\n")
 	// `<source>:<line>:<pattern>\t<pathname>`.
 	source, afterSource, _ := strings.Cut(first, ":")

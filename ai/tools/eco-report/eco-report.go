@@ -108,6 +108,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"kk-flavor/tools/repo"
 	"kk-flavor/tools/shell"
 	treefingerprint "kk-flavor/tools/tree-fingerprint"
 )
@@ -126,6 +127,19 @@ type Invocation struct {
 	// a fixture instead of the developer's own.
 	ConfigHome string
 	Out, Err   io.Writer
+	// Where this run's repository questions go. Nil is `repo.Exec` against the Home above, which is
+	// what the command wires in; the suite hands a `repotest.Fake` instead, so no case has to build a
+	// repository to have something to ask.
+	Git repo.Git
+	// The open-item scan of one markdown file: its items on stdout, and the status every caller here
+	// routes on — 0 nothing open, 1 items, anything else the scan did NOT run. Nil spawns the sibling
+	// `todo-gate.sh`, which is what the command does.
+	//
+	// A seam for the same reason Fingerprint is one, and one reason more: the answer every caller turns
+	// on is the STATUS, and the status that matters most is the one a report file cannot produce. A
+	// suite arranging "the scan did not run" by breaking the script is arranging it once, for one
+	// reason, at a cost of one process per case.
+	OpenItems func(path string) (items string, status int)
 	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS rather than
 	// spawned as `tree-fingerprint.sh`.
 	//
@@ -170,11 +184,15 @@ func (inv Invocation) Exec() (code int) {
 type stop struct{ code int }
 
 type run struct {
-	// The repository answers already asked, per invocation. git.go → memoGit owns it.
+	// Where this run's repository questions go. Never nil once Exec has built the run.
+	git repo.Git
+	// The repository answers already asked, per invocation. git.go → askOnce owns it.
 	gitMemo map[string]gitAnswer
 
 	// The fingerprint recipe, in process. Never nil once Exec has built the run.
 	fingerprint func(root string) (string, error)
+	// The open-item scan. Never nil once Exec has built the run.
+	openItems func(path string) (string, int)
 
 	args                  []string
 	dir, home, configHome string
@@ -225,11 +243,13 @@ func newRun(inv Invocation) *run {
 	r := &run{
 		args:        inv.Args,
 		dir:         inv.Dir,
+		git:         inv.Git,
 		home:        inv.Home,
 		configHome:  inv.ConfigHome,
 		out:         inv.Out,
 		errOut:      inv.Err,
 		fingerprint: inv.Fingerprint,
+		openItems:   inv.OpenItems,
 	}
 	if r.fingerprint == nil {
 		r.fingerprint = treefingerprint.Fingerprint
@@ -241,6 +261,12 @@ func newRun(inv Invocation) *run {
 	}
 	if inv.Home == "" {
 		r.home = os.Getenv("HOME")
+	}
+	// Built here rather than by the command, because it needs the HOME resolved just above: git reads
+	// its global config out of HOME, so a run pointed at another one has to point git there too or it
+	// answers from a config the caller replaced.
+	if r.git == nil {
+		r.git = repo.Exec{Env: repo.Environ(r.home)}
 	}
 	if inv.ConfigHome == "" {
 		r.configHome = os.Getenv("XDG_CONFIG_HOME")
@@ -257,6 +283,10 @@ func newRun(inv Invocation) *run {
 	// with a throwaway index but no throwaway object store, and every untracked file's content lands
 	// in the human's own .git/objects for good, referenced by no ref and so collected by nothing.
 	r.fingerprintBin = r.home + "/.kk-flavor/scripts/tree-fingerprint.sh"
+	// After todoGate is resolved, since the default scan is the spawn of that path.
+	if r.openItems == nil {
+		r.openItems = r.scanWithTodoGate
+	}
 	return r
 }
 
@@ -280,9 +310,9 @@ func (r *run) resolveRoot() {
 	root, ok := layoutRoot(r.dir)
 	if !ok {
 		// The layout could not answer — an environment override, or a shape it does not know. git can.
-		var status int
-		root, status = r.capture(nil, "git", "rev-parse", "--show-toplevel")
-		if status != 0 {
+		var err error
+		root, err = r.git.TopLevel(r.dir)
+		if err != nil || root == "" {
 			r.refuse("error: not a git repo")
 		}
 	}

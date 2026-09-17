@@ -43,9 +43,11 @@ func TestGateBlocksOnEachOfItsReasonsAndClearsOnNone(t *testing.T) {
 		f.status == 1 && strings.Contains(f.out, "no reviewed-stages record"), f.evidence())
 
 	// A scan that did not run is not a scan that found nothing: read as one, a report still holding
-	// unrouted items passes the merge gate.
+	// unrouted items passes the merge gate. This arm and the one below it are about the child process,
+	// so they send the scan back through the script.
 	f.write(f.todoGatePath(), "#!/bin/sh\nexit 3\n")
 	f.chmod(f.todoGatePath(), 0o755)
+	f.scansWithTheScript()
 	f.runReport("gate", "001-gating")
 	f.record("gate blocks when the open-item scan did not run",
 		f.status == 1 && strings.Contains(f.out, "todo-gate.sh exited 3"), f.evidence())
@@ -210,4 +212,42 @@ func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
 	f.runReport("state", "001-gating")
 	f.record("and answers ready once it is approved, matching the gate it stands in front of",
 		f.status == 0 && strings.TrimSpace(f.out) == "ready", f.evidence())
+}
+
+// The scanner the rest of this suite drives, held to the script the tool ships with.
+//
+// `carry` is the reader that prints what the scan found, so running it both ways over one report
+// compares the whole answer — the items, their sections and the order — rather than a count. Each row
+// is a shape the scan has to get right, and the `- [ ]` inside a fence or a comment is the one that
+// decides whether an EXAMPLE in a report blocks a merge.
+func TestTheOpenItemScanReadsTheSameEitherWay(t *testing.T) {
+	t.Parallel()
+	// One ship, its report rewritten per row: what varies is the markdown, and building a fresh ship
+	// for each would be eleven scaffolds to compare eleven strings.
+	f := newShip(t, "001-scanning")
+	inProcess := f.openItems
+	for _, body := range []struct{ name, report string }{
+		{"nothing open", "# Decide\n\nAll settled.\n"},
+		{"one item under its section", "# Decide\n\n- [ ] Route the finding.\n"},
+		{"items under two sections", "# Decide\n\n- [ ] First.\n\n## Follow-ups\n\n- [ ] Second.\n"},
+		{"a closed item beside an open one", "# Decide\n\n- [x] Done.\n- [ ] Not done.\n"},
+		{"an example inside a fence", "# Decide\n\n```\n- [ ] an example\n```\n\n- [ ] a real one\n"},
+		{"an example inside a tilde fence", "# Decide\n\n~~~\n- [ ] an example\n~~~\n"},
+		{"an example inside a comment", "# Decide\n\n<!--\n- [ ] an example\n-->\n\n- [ ] a real one\n"},
+		{"a comment opened and closed on one line", "# Decide\n\n<!-- - [ ] an example -->\n- [ ] a real one\n"},
+		{"an indented item", "# Decide\n\n  - [ ] Indented under nothing.\n"},
+		{"a deeper heading", "# Decide\n\n### Deep\n\n- [ ] Under the deep one.\n"},
+		{"no trailing newline", "# Decide\n\n- [ ] Last line, unterminated."},
+	} {
+		t.Run(body.name, func(t *testing.T) {
+			row := f.inSubtest(t)
+			row.write(row.reportPath("001-scanning"), "---\nintent: 001-scanning\n---\n\n"+body.report)
+			row.openItems = inProcess
+			fromScan := row.runReportStdout("carry", "001-scanning")
+			row.scansWithTheScript()
+			fromScript := row.runReportStdout("carry", "001-scanning")
+			row.record("both scans read the same open items out of this report",
+				fromScan == fromScript, "in process:\n"+fromScan+"\nfrom the script:\n"+fromScript)
+		})
+	}
 }

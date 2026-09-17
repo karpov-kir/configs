@@ -124,8 +124,11 @@ func (r *run) cmdPromote() {
 	// The index moves here, so the memoized `ls-files .idsd` answer goes with it: it is what decides
 	// committed from external, and `discard` reads that before deleting.
 	r.forgetIndexAnswers()
-	if r.passThrough("git", "-C", r.root, "add", ".idsd", ".gitignore") != 0 {
-		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.")
+	// git's account of a failed add is what the human gets: it names the paths it could not stage, and
+	// it is collapsed to one line for the reason sayWhatGitSaid states.
+	if err := r.git.Add(r.root, []string{".idsd", ".gitignore"}); err != nil {
+		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.",
+			"  git said: "+shell.Oneline(err.Error()))
 	}
 	// `git add` on a directory whose every file is ignored stages nothing and still exits 0, and
 	// every ignorable file is covered by the entries just written — so with nothing else under .idsd/, the add

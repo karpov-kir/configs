@@ -751,9 +751,8 @@ func TestARecordIsNeverWrittenWhereGitCanReachIt(t *testing.T) {
 	// entries land in the human's own `git add -A`.
 	f.runReport("record", "append", "project-decisions", "this must not reach the working tree")
 	f.assertRefused("and record refuses that layout rather than writing into it")
-	status, _ := f.git("status", "--porcelain")
-	f.record("so nothing of the record reaches git",
-		!strings.Contains(status, "inside-the-tree"), "git status --porcelain:\n"+status)
+	f.record("so nothing of the record reaches the working tree at all",
+		!f.exists(f.repo+"/inside-the-tree"), joinLines(f.entries(f.repo)))
 }
 
 func TestAnEvictLeavesNoTailOfWhatItRemoved(t *testing.T) {

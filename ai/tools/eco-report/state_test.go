@@ -154,6 +154,7 @@ func TestAScanThatDidNotRunIsNeverReadAsNothingOpen(t *testing.T) {
 
 	f.write(f.todoGatePath(), "#!/bin/sh\nexit 3\n")
 	f.chmod(f.todoGatePath(), 0o755)
+	f.scansWithTheScript()
 	for _, scanReader := range []string{"state", "carry", "close"} {
 		f.runReport(scanReader, "001-scan-fails")
 		f.assertRefused(scanReader + " refuses when the open-item scan exits 3")

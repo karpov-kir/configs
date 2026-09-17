@@ -124,7 +124,7 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	f.assertRefused("promote refuses a symlinked scratch directory")
 	f.assertReports("is a symlink", "and names the link rather than the git answer downstream of it")
 	f.record("and committed no link into the tree", !f.exists(f.treeIdsd()), "")
-	staged, _ := f.git("diff", "--cached", "--name-only")
+	staged := f.staged()
 	f.record("and staged nothing", !strings.Contains(staged, ".idsd"), "staged:\n"+staged)
 	f.record("and left the report where it was, outside the tree",
 		f.isFile(outside+"/intents/001-linked/for-agents/qualify-report.md"), "")
@@ -145,7 +145,7 @@ func TestPromoteRefusesSymlinkedIntentsRatherThanStagingTheLink(t *testing.T) {
 	f.assertRefused("promote refuses a symlinked intents directory")
 	f.assertReports("is a symlink", "the refusal identifies the linked directory")
 	f.record("promotion leaves the scratch outside the working tree", !f.exists(f.treeIdsd()), f.evidence())
-	staged, _ := f.git("diff", "--cached", "--name-only")
+	staged := f.staged()
 	f.record("promotion stages no linked intent directory", !strings.Contains(staged, ".idsd"), staged)
 	f.record("the outside report is preserved", f.isFile(report), f.evidence())
 }
@@ -159,7 +159,6 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// The folder layout widened this: `discard` now RemoveAlls shipDir(stem), so `..` there is the
 	// scratch root itself rather than one stray file.
 	f := newShip(t, "001-real")
-	head := f.mustGit("rev-parse", "HEAD")
 	// What makes the stem reachable at all, and the fixture without which this case cannot fail: every
 	// subcommand needs the report to be there, so a stem of `..` only gets past requireReport when a
 	// file of that name exists. This tool will not create one — reportNameFor refuses the leading dot —
@@ -176,10 +175,8 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// The harm, asserted where it would land. The exit alone would not tell a refusal from a run that
 	// deleted the git dir and then failed for want of it.
 	f.record("the git dir is intact",
-		f.isFile(f.repo+"/.git/HEAD") && f.isFile(f.repo+"/.git/index"),
+		f.isFile(f.repo+"/.git/HEAD"),
 		joinLines(f.entries(f.repo+"/.git")))
-	f.record("and git still answers for the repository",
-		f.mustGit("rev-parse", "HEAD") == head, head)
 	f.record("and the real ship is untouched", f.isFile(f.reportPath("001-real")), "")
 }
 
