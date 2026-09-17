@@ -67,14 +67,30 @@ func TestStatsOfCountsDereferenceAsCode(t *testing.T) {
 	}
 }
 
+// The blocks here sit BELOW a line of code, so they are blocks in the body. A block opening the file
+// is a file header and is allowed twice the length — the case below this one.
 func TestStatsOfLongBlockBoundary(t *testing.T) {
-	four := statsOf("// a\n// b\n// c\n// d\ncode()\n")
+	four := statsOf("code()\n// a\n// b\n// c\n// d\ncode()\n")
 	if four.longBlocks != 0 {
 		t.Fatalf("a 4-line block counted as long")
 	}
-	five := statsOf("// a\n// b\n// c\n// d\n// e\ncode()\n")
+	five := statsOf("code()\n// a\n// b\n// c\n// d\n// e\ncode()\n")
 	if five.longBlocks != 1 {
 		t.Fatalf("a 5-line block did not count as long")
+	}
+}
+
+// A file header is allowed eight lines here, as it is in the voice check and in the rule. Held to a
+// block's four, this package's own headers count as long blocks while the other two instruments allow
+// them, which is one rule giving two verdicts.
+func TestStatsOfAllowsAFileHeaderMoreThanABlockInTheBody(t *testing.T) {
+	header := statsOf("// a\n// b\n// c\n// d\n// e\ncode()\n")
+	if header.longBlocks != 0 {
+		t.Fatalf("a five-line file header counted as long")
+	}
+	tooLong := statsOf("// a\n// b\n// c\n// d\n// e\n// f\n// g\n// h\n// i\ncode()\n")
+	if tooLong.longBlocks != 1 {
+		t.Fatalf("a nine-line file header did not count as long")
 	}
 }
 
@@ -298,7 +314,7 @@ func TestBarReportsTheOverageAndRepeats(t *testing.T) {
 
 func TestBarReportsLongBlocks(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("wall.go", "// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 60))
+	r.write("wall.go", "code()\n// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 60))
 
 	r.runBar()
 	r.expectCode(exitFound)
@@ -442,7 +458,7 @@ func TestBarHoldsBlocksAgainstABaselineWithoutAny(t *testing.T) {
 	r.write("a.go", strings.Repeat("code()\n", 10))
 	r.write("b.go", strings.Repeat("code()\n", 10))
 	r.commit("code only")
-	r.write("wall.go", "// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 5))
+	r.write("wall.go", "code()\n// a\n// b\n// c\n// d\n// e\n"+strings.Repeat("code()\n", 5))
 
 	r.runBar()
 	r.expectCode(exitFound)
@@ -706,7 +722,7 @@ func TestBarNamesAnUnknownTreeRatherThanOmittingIt(t *testing.T) {
 // lines, and one tool reported a block long and clean at the same time.
 func TestTheBarAndTheVoiceCheckAgreeOnBlockLength(t *testing.T) {
 	// One summary sentence over a five-line doc-tag list: eight comment lines, two prose lines.
-	tagged := "/**\n * Returns the book's total.\n * @param book the book\n * @param currency the currency\n" +
+	tagged := "func g() {}\n/**\n * Returns the book's total.\n * @param book the book\n * @param currency the currency\n" +
 		" * @returns the total\n * @throws when two currencies are declared\n */\nfunc f() {}\n"
 	if counted := statsOf(tagged); counted.longBlocks != 0 {
 		t.Errorf("the bar reported a one-sentence summary over a tag list as %d long block(s)", counted.longBlocks)

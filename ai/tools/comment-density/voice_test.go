@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"kk-flavor/tools/diffscan"
 	"kk-flavor/tools/shell"
 )
 
@@ -473,9 +474,9 @@ func TestTheRepositorysOwnConfComesBeforeTheMachines(t *testing.T) {
 	}
 	t.Setenv("XDG_CONFIG_HOME", dir+"/machine")
 	t.Setenv("COMMENT_VOICE_CONF", "")
-	got, ok := voiceConfPath(dir)
-	if !ok || got != repoConf {
-		t.Fatalf("resolved %q (found %v), want the repository's own conf at %q", got, ok, repoConf)
+	got, origin, ok := voiceConfPath(dir)
+	if !ok || got != repoConf || origin != confRepository {
+		t.Fatalf("resolved %q as %q (found %v), want the repository's own conf at %q", got, origin, ok, repoConf)
 	}
 }
 
@@ -918,5 +919,182 @@ func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
 	s.profile = ProfileProse
 	if found := s.scanProse("b.md", []string{"The rename is `readSprocket`, landing next."}); hasCheck(found, checkCoined) {
 		t.Error("a body reported a coined word inside a quoted identifier")
+	}
+}
+
+// A bound that truncates is worse than no bound: the scan reports clean over the half it never saw,
+// and git orders a diff by path, so padding an early file pushes a hostile one past the cut. The
+// documented entry point pipes `gh pr diff` in, where a diff over any per-file cap is ordinary.
+func TestAStreamOverTheCapIsRefusedRatherThanTruncated(t *testing.T) {
+	under := strings.Repeat("x", 16)
+	if _, err := readAllCapped(strings.NewReader(under), 32); err != nil {
+		t.Fatalf("a stream inside the cap was refused: %v", err)
+	}
+	at := strings.Repeat("x", 32)
+	if _, err := readAllCapped(strings.NewReader(at), 32); err != nil {
+		t.Fatalf("a stream exactly at the cap was refused: %v", err)
+	}
+	over := strings.Repeat("x", 33)
+	body, err := readAllCapped(strings.NewReader(over), 32)
+	if err == nil {
+		t.Fatalf("a stream over the cap was truncated to %d bytes and read as complete", len(body))
+	}
+	if !strings.Contains(err.Error(), "report clean over the rest") {
+		t.Fatalf("the refusal does not say what truncation would have cost: %v", err)
+	}
+}
+
+// A hunk header's line number is walked by a counter that can overflow, so it arrives negative. A
+// negative number passes a ceiling test and then indexes a zero-length slice.
+func TestALineNumberBelowOneIsRefusedLikeOneAboveTheCap(t *testing.T) {
+	for _, at := range []int{-1, 0, maxDiffLine + 1} {
+		added := newAddedLines()
+		var said []string
+		s := voiceScanner()
+		s.notice = func(line string) { said = append(said, line) }
+		var result diffscan.Result
+		if !s.skip(added, diffscan.AddedLine{File: "f.go", Line: at, Text: "// Otherwise."}, &result) {
+			t.Errorf("line %d was taken", at)
+		}
+		if at != 0 && len(said) == 0 {
+			t.Errorf("line %d was dropped with nothing said, so the run closes on `clean` over what it discarded", at)
+		}
+	}
+	added := newAddedLines()
+	s := voiceScanner()
+	var result diffscan.Result
+	if s.skip(added, diffscan.AddedLine{File: "f.go", Line: 1, Text: "// Otherwise."}, &result) {
+		t.Error("line 1 was refused, so the floor cuts real lines")
+	}
+}
+
+// A file the scan declines says so once, however many of its lines the diff carried. A notice per line
+// buries the report it belongs to.
+func TestADeclinedFileIsAnnouncedOnceNotPerLine(t *testing.T) {
+	added := newAddedLines()
+	said := 0
+	s := voiceScanner()
+	s.notice = func(string) { said++ }
+	var result diffscan.Result
+	for at := 1; at <= 5; at++ {
+		s.skip(added, diffscan.AddedLine{File: "deploy.env", Line: at, Text: "// Otherwise."}, &result)
+	}
+	if said != 1 {
+		t.Fatalf("a five-line decline said %d thing(s); want one", said)
+	}
+}
+
+// A coined word twice over, parted by one byte, is two findings. Matched rather than asserted
+// boundaries consume the separator, so a scan resuming past the match swallows the second.
+func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
+	s := scanner{profile: ProfileComment, coined: []string{"rung"}}
+	for _, line := range []string{"// rung rung", "// The rung. Rung again."} {
+		found := s.scanSource("f.ts", []string{line}, nil)
+		coined := 0
+		for _, f := range found {
+			if f.Check == checkCoined {
+				coined++
+			}
+		}
+		if coined != 2 {
+			t.Errorf("%q reported %d coined finding(s); want 2", line, coined)
+		}
+	}
+}
+
+// The contrast spine with the comma dropped and a conjunction in its place.
+func TestTheContrastSpineIsCaughtWithAConjunction(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	for _, line := range []string{
+		"// It is logged and not believed.",
+		"// The string is thrown and not the object.",
+		"// It is a survey and no verdict.",
+	} {
+		if !hasCheck(s.scanSource("f.ts", []string{line}, nil), checkContrast) {
+			t.Errorf("%q produced no contrast finding", line)
+		}
+	}
+	plain := "// The string is thrown and the object is kept."
+	if hasCheck(s.scanSource("f.ts", []string{plain}, nil), checkContrast) {
+		t.Errorf("%q produced a contrast finding, and it names two real things", plain)
+	}
+}
+
+// A conf line that is not valid UTF-8 reaches a regular expression, and regexp refuses invalid UTF-8.
+// Through MustCompile that is a panic printing the conf's own bytes and a stack trace of host paths —
+// which undoes the refusal-without-echoing the rest of the conf handling was written for.
+func TestAConfLineThatIsNotUTF8IsRefusedWithoutEchoingIt(t *testing.T) {
+	_, _, err := parseVoiceConf("coined API\xffKEY\n")
+	if err == nil {
+		t.Fatal("a conf line holding invalid UTF-8 was accepted")
+	}
+	if strings.Contains(err.Error(), "API") || strings.Contains(err.Error(), "KEY") {
+		t.Fatalf("the refusal echoed the line: %v", err)
+	}
+	if !strings.Contains(err.Error(), "line 1") {
+		t.Fatalf("the refusal does not name the line: %v", err)
+	}
+}
+
+// A conf present but unusable refuses rather than falling back. A dangling symlink at either searched
+// path would otherwise leave the scan running with no coined words and no allowlist, reporting clean —
+// and a default quietly restored cannot be told from the override working.
+func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".kk-flavor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	conf := filepath.Join(dir, ".kk-flavor", voiceConfName)
+	if err := os.Symlink(filepath.Join(dir, "absent"), conf); err != nil {
+		t.Skipf("this filesystem does not take symlinks: %v", err)
+	}
+	t.Setenv("COMMENT_VOICE_CONF", "")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "machine"))
+	if _, _, _, err := voiceConfig(dir); err == nil {
+		t.Fatal("a dangling conf symlink was treated as no conf at all")
+	}
+}
+
+// A finding the allowlist answers is still a finding the text carried. Uncounted, a conf a repository
+// ships silences every check and the run still reports `0 finding(s)` and `clean`.
+func TestASuppressedFindingIsCounted(t *testing.T) {
+	_, allowed, err := parseVoiceConf("allow contrast rather than # the fixture's own phrase, quoted\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suppressed := 0
+	s := scanner{profile: ProfileComment, allowed: allowed, suppressed: &suppressed}
+	if found := s.scanSource("f.ts", []string{"// Read the book rather than the entry."}, nil); len(found) != 0 {
+		t.Fatalf("want the finding suppressed; got %s", render(found))
+	}
+	if suppressed != 1 {
+		t.Fatalf("suppressed %d finding(s); want 1", suppressed)
+	}
+}
+
+// Two prohibitions in one sentence are not the contrast spine. "Use no nesting and no preamble"
+// forbids two things; "It is logged and not believed" defines one thing against another the reader
+// did not ask about. Told apart by whether what stands before the conjunction is already a negation.
+func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	spine := []string{
+		"// It is logged and not believed.",
+		"// The string is thrown and not the object.",
+		"// It is a survey and no verdict.",
+	}
+	both := []string{
+		"// Use no nesting and no preamble above the items.",
+		"// Write no speculative abstraction and no flexibility the task did not ask for.",
+		"// Use no headings, and no bold lead-in restating its own line.",
+	}
+	for _, line := range spine {
+		if !hasCheck(s.scanSource("f.ts", []string{line}, nil), checkContrast) {
+			t.Errorf("%q is the spine and produced no finding", line)
+		}
+	}
+	for _, line := range both {
+		if hasCheck(s.scanSource("f.ts", []string{line}, nil), checkContrast) {
+			t.Errorf("%q forbids two things and was read as the spine", line)
+		}
 	}
 }

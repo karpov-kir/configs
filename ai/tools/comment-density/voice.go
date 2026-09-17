@@ -38,7 +38,12 @@ const (
 const (
 	maxFindings   = 500
 	maxMatchBytes = 120
-	// The highest line number a hunk header may claim before the line is dropped. scanChange sizes a
+	// What a whole diff or body on stdin may be. Held apart from DENSITY_MAX_FILE_BYTES, which is a
+	// per-FILE number: a diff is many files, and `gh pr diff` over an ordinary change set is larger
+	// than any file in it. Read to a cap and TRUNCATED, a scan reports clean over the half it never
+	// saw — and git orders a diff by path, so padding an early file pushes a hostile one past the cut.
+	maxStdinBytes = 64 * 1024 * 1024
+	// The highest line number a hunk header may claim before the line is dropped. scanAdded sizes a
 	// slice by it, and on the `-` arm the header comes off a diff somebody else wrote: `@@ +10000000`
 	// for one added line measured 166 MB resident, and a 2^31 line number asks for tens of gigabytes.
 	// A source file reaching this many lines has other problems.
@@ -99,7 +104,13 @@ var (
 	// after is the one that opens on the alternative in order to pre-refute it.
 	reRatherThan = regexp.MustCompile(`\brather than\b`)
 	reNeverNot   = regexp.MustCompile(`,\s+never\s+[a-z]|,\s+not\s+(?:a|an|the|its|his|her|their|our|your|[a-z]+s\b)`)
-	reInsteadOf  = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
+	// The same spine with the comma dropped and a conjunction in its place. "It is logged and not
+	// believed", "a survey and no verdict" — the reader is still being told about the thing they did
+	// not ask about.
+	reAndNot = regexp.MustCompile(`\s+and\s+(?:not|no)\s+(?:a|an|the|its|his|her|their|our|your|[a-z]+)`)
+	// What stands before the conjunction, asked whether it is already a negation.
+	reNegated   = regexp.MustCompile(`(?i)\b(?:no|not|never|nothing|nobody|none)\b`)
+	reInsteadOf = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
 
 	// A sentence opening on the wrong implementation, which the reader has to imagine before they can
 	// read the right one.
@@ -326,6 +337,9 @@ type scanner struct {
 	profile Profile
 	coined  []string
 	allowed allowlist
+	// suppressed counts what the allowlist dropped. A finding answered by an entry is still a finding
+	// the text carried, and a report that said nothing about it would read as text that matched nothing.
+	suppressed *int
 	// notice writes a line to the run's stderr. A file this scan declines to read has to say so, or
 	// the report claims a denominator it never covered. Nil in a caller that only wants the findings.
 	notice func(string)
@@ -406,7 +420,17 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool) []
 		}
 		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
 	}
-	return s.allowed.filter(found)
+	return s.filter(found)
+}
+
+// filter drops what the allowlist answers and counts it. A finding an entry answers is still a finding
+// the text carried, and a report saying nothing about it reads as text that matched nothing.
+func (s scanner) filter(found []Finding) []Finding {
+	kept := s.allowed.filter(found)
+	if s.suppressed != nil {
+		*s.suppressed += len(found) - len(kept)
+	}
+	return kept
 }
 
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
@@ -457,7 +481,7 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 		}
 	}
 	flush(len(lines))
-	return s.allowed.filter(found)
+	return s.filter(found)
 }
 
 // scanSegment is every check over one segment, and the only place a check runs. One function, so the
@@ -499,8 +523,16 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	for _, word := range s.coined {
 		// Group 1 is the word itself; the pattern matches the characters either side of it so the
 		// boundary holds outside ASCII, and those are not part of what a reader is shown.
-		for _, at := range coinedPattern(word).FindAllStringSubmatchIndex(coinedIn, -1) {
-			add(checkCoined, at[2], at[3])
+		// Advanced to the end of the WORD rather than the end of the match. The pattern matches the
+		// characters either side of the word so the boundary holds outside ASCII, and a scan that
+		// resumed past them would swallow the separator — `rung rung` reporting once.
+		for from := 0; from < len(coinedIn); {
+			at := coinedPattern(word).FindStringSubmatchIndex(coinedIn[from:])
+			if at == nil {
+				break
+			}
+			add(checkCoined, from+at[2], from+at[3])
+			from += at[3]
 		}
 		if inIdentifier := coinedInIdentifier(word); inIdentifier != nil {
 			for _, at := range inIdentifier.FindAllStringIndex(coinedIn, -1) {
@@ -519,6 +551,12 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		for _, at := range re.FindAllStringIndex(prose, -1) {
 			add(checkContrast, at[0], at[1])
 		}
+	}
+	for _, at := range reAndNot.FindAllStringIndex(prose, -1) {
+		if reNegated.MatchString(prose[:at[0]]) {
+			continue
+		}
+		add(checkContrast, at[0], at[1])
 	}
 	for _, at := range reIntensifier.FindAllStringIndex(prose, -1) {
 		add(checkIntensifier, at[0], at[1])
@@ -555,6 +593,20 @@ func opensWithGerund(sentence string) bool {
 	}
 	stem := strings.ToLower(match[1])
 	return len(stem) >= 4 && !shortStems[stem] && !shortStems[strings.ToLower(match[0][:len(match[1])+3])]
+}
+
+// readAllCapped reads to the cap and REFUSES at it. io.LimitReader alone returns a short read with a
+// nil error, so a caller cannot tell a complete stream from a cut one, and the scan reports a clean
+// result over what it never saw. Reading one byte past the cap is what makes the two distinguishable.
+func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(from, cap+1))
+	if err != nil {
+		return nil, errors.New("could not be read")
+	}
+	if int64(len(body)) > cap {
+		return nil, fmt.Errorf("is larger than %d bytes, and a scan over part of it would report clean over the rest", cap)
+	}
+	return body, nil
 }
 
 // coinedPattern matches the word and anything built off it — a coined noun also catches its plural,
@@ -620,32 +672,35 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 		out.note("reading %s: %d coined word(s), %d allowlist entry(ies)",
 			shell.CutBytesMarked(shell.Oneline(conf), maxPathBytes), len(coined), len(allowed))
 	}
-	s := scanner{profile: profile, coined: coined, allowed: allowed,
+	suppressed := 0
+	s := scanner{profile: profile, coined: coined, allowed: allowed, suppressed: &suppressed,
 		notice: func(line string) { out.note("%s", line) }}
+	over := scanned{conf: conf}
 
 	var found []Finding
 	if profile == ProfileComment {
-		found, err = s.scanChange(args, cwd, cfg)
+		found, err = s.scanChange(args, cwd, cfg, &over)
 	} else {
-		found, err = s.scanPaths(args, cwd, cfg)
+		found, err = s.scanPaths(args, cwd, cfg, &over)
 	}
 	if err != nil {
 		return out.refuse(err)
 	}
-	return reportVoice(out, profile, found)
+	over.suppressed = suppressed
+	return reportVoice(out, profile, found, over)
 }
 
 // scanChange reads the diff — git's, or one on stdin for a branch this checkout does not hold, which
 // is how the negative control runs over `gh pr diff`. Blocks are runs of ADDED comment lines, so the
 // scan needs no working tree: a block split by a line the diff did not touch is two blocks, which is
 // what a reviewer reading the diff sees too.
-func (s scanner) scanChange(args []string, cwd string, cfg Config) ([]Finding, error) {
+func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
 	fromStdin := len(args) > 0 && args[0] == "-"
 	var diff []byte
 	var err error
 	if fromStdin {
-		if diff, err = io.ReadAll(io.LimitReader(os.Stdin, cfg.MaxFileBytes)); err != nil {
-			return nil, fmt.Errorf("could not read the diff on stdin — exit 2, the scan did NOT run")
+		if diff, err = readAllCapped(os.Stdin, maxStdinBytes); err != nil {
+			return nil, fmt.Errorf("the diff on stdin %v — exit 2, the scan did NOT run", err)
 		}
 	} else {
 		if err = diffscan.RefuseNonRevisions(args, cwd); err != nil {
@@ -671,6 +726,8 @@ func (s scanner) scanChange(args []string, cwd string, cfg Config) ([]Finding, e
 			return nil, err
 		}
 	}
+	over.files = len(added.order)
+	over.declined = len(added.declined)
 	return s.scanAdded(added), nil
 }
 
@@ -691,6 +748,16 @@ func newAddedLines() *addedLines {
 	return &addedLines{byFile: map[string][]addedLine{}, declined: map[string]bool{}}
 }
 
+// declineOnce records a file this scan will not read and says so, the first time only. A diff carries
+// many lines of one file, and a notice per line would bury the report it belongs to.
+func (a *addedLines) declineOnce(file string, say func()) {
+	if a.declined[file] {
+		return
+	}
+	a.declined[file] = true
+	say()
+}
+
 func (a *addedLines) take(file string, at int, text string) {
 	if _, seen := a.byFile[file]; !seen {
 		a.order = append(a.order, file)
@@ -702,7 +769,21 @@ func (a *addedLines) take(file string, at int, text string) {
 // its own: scanAdded sizes a slice by the highest one, and on the `-` arm that number comes off a diff
 // somebody else wrote.
 func (s scanner) skip(a *addedLines, line diffscan.AddedLine, result *diffscan.Result) bool {
-	if notThisRepositorysSource(line.File) || line.Line == 0 || line.Line > maxDiffLine {
+	if notThisRepositorysSource(line.File) {
+		return true
+	}
+	// Both ends. The ceiling bounds what scanAdded allocates; the floor catches a hunk header whose
+	// line number overflowed the counter that walks it, which arrives negative and would otherwise
+	// pass the ceiling and index a zero-length slice.
+	//
+	// A line refused here is ANNOUNCED and counted, never dropped quietly. Dropped, one crafted hunk
+	// header takes a file out of the scan and the run still closes on "clean, which says the register
+	// was read" — the tool asserting it read what it discarded.
+	if line.Line < 1 || line.Line > maxDiffLine {
+		a.declineOnce(line.File, func() {
+			s.announce(fmt.Sprintf("skipping '%s' — its diff claims line %d, which is outside the range this scan reads; it was NOT scanned.",
+				shell.CutBytesMarked(shell.Oneline(line.File), maxPathBytes), line.Line))
+		})
 		return true
 	}
 	// This scan echoes file CONTENT — up to 120 bytes of it per finding — so it takes the guard
@@ -712,11 +793,10 @@ func (s scanner) skip(a *addedLines, line diffscan.AddedLine, result *diffscan.R
 	if !diffscan.SecretNamed(line.File) {
 		return false
 	}
-	if !a.declined[line.File] {
-		a.declined[line.File] = true
+	a.declineOnce(line.File, func() {
 		result.SkippedUnread++
 		s.announce(diffscan.SecretSkipNotice(line.File))
-	}
+	})
 	return true
 }
 
@@ -781,17 +861,18 @@ func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
 
 // scanPaths reads the named files, or stdin for `-`. The prose profile's caller usually holds the
 // text rather than a path — a PR body being drafted — so stdin is the common form there.
-func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, error) {
+func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)
 	}
 	var found []Finding
 	for _, arg := range args {
 		if arg == "-" {
-			body, err := io.ReadAll(io.LimitReader(os.Stdin, cfg.MaxFileBytes))
+			body, err := readAllCapped(os.Stdin, maxStdinBytes)
 			if err != nil {
-				return nil, fmt.Errorf("could not read stdin — exit 2, the scan did NOT run")
+				return nil, fmt.Errorf("stdin %v — exit 2, the scan did NOT run", err)
 			}
+			over.files++
 			found = append(found, s.scanProse("-", shell.SplitLines(string(body)))...)
 			continue
 		}
@@ -814,6 +895,7 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, er
 			return nil, fmt.Errorf("cannot read %s — exit 2, the scan did NOT run",
 				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
 		}
+		over.files++
 		found = append(found, s.scanProse(arg, shell.SplitLines(string(body)))...)
 	}
 	return found, nil
@@ -821,7 +903,16 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, er
 
 // reportVoice prints the findings sorted, then a denominator on stderr. Sorted rather than in scan
 // order so two runs over one tree print one report and a diff of two runs is the change.
-func reportVoice(out console, profile Profile, found []Finding) int {
+// scanned is what a run covered, so an empty report can be told from an empty scan. diffscan's own
+// header states the rule: the denominator is contract, not decoration.
+type scanned struct {
+	files      int
+	declined   int
+	suppressed int
+	conf       string
+}
+
+func reportVoice(out console, profile Profile, found []Finding, over scanned) int {
 	sort.SliceStable(found, func(i, j int) bool {
 		if found[i].File != found[j].File {
 			return found[i].File < found[j].File
@@ -852,7 +943,15 @@ func reportVoice(out console, profile Profile, found []Finding) int {
 			parts = append(parts, fmt.Sprintf("%s %d", name, byCheck[name]))
 		}
 	}
-	out.note("%s profile: %d finding(s)%s.", profile, len(found), tally(parts))
+	out.note("%s profile: %d finding(s)%s over %d file(s), %d declined unread.",
+		profile, len(found), tally(parts), over.files, over.declined)
+	if over.suppressed > 0 {
+		out.note("%d finding(s) suppressed by the allowlist in %s.", over.suppressed, over.conf)
+	}
+	if over.files == 0 {
+		out.note("nothing reached the scan, so this run says nothing about the text.")
+		return exitClean
+	}
 	if len(found) == 0 {
 		out.note("clean, which says the register was read and matched nothing — not that the text was not read.")
 		return exitClean

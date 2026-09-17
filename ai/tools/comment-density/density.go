@@ -114,7 +114,11 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 // The default mode counts a file's added lines alone, so its blocks stay at zero; the bar counts whole
 // files, blocks included.
 type stats struct {
-	comments   int
+	comments int
+	// prose is the comment lines carrying words. A `/**`, a `*/` and a doc tag line are comment lines
+	// a reader pays for, so they count in comments; they carry no sentence, so a block's LENGTH is
+	// measured without them.
+	prose      int
 	code       int
 	blocks     int
 	longBlocks int
@@ -145,6 +149,7 @@ func (s stats) longShare() float64 {
 
 func (s *stats) add(other stats) {
 	s.comments += other.comments
+	s.prose += other.prose
 	s.code += other.code
 	s.blocks += other.blocks
 	s.longBlocks += other.longBlocks

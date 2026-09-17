@@ -27,7 +27,7 @@ Write so the reader understands the text on the first read, without backtracking
 
 ## Replying to a human
 
-Your own reply in the session, and not a message you compose for someone else. [human-writing.md](human-writing.md) → **AI tells** binds here as well, because a tell marks manufactured writing whoever reads it.
+Your own reply in the session. A message you compose for someone else is outward text and takes [human-writing.md](human-writing.md). [human-writing.md](human-writing.md) → **AI tells** binds here as well, because a tell marks manufactured writing whoever reads it.
 
 * Carry only what they must know, decide or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do. Edit the reply directly.
 * Use no headings, and no bold lead-in restating its own line. Render items as a `*` list.
