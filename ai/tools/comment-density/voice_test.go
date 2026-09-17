@@ -1130,3 +1130,58 @@ func TestTheBarDoesNotCountAShebangAsAComment(t *testing.T) {
 		t.Fatalf("the shebang added %d comment line(s) to the count", withBang.comments-plain.comments)
 	}
 }
+
+// The note pattern spends one connective on `so`, so a conforming note must not be a finding and the
+// check has to start at two. A threshold off by one here would report every note the rule asks for.
+func TestAConformingNoteIsNotAClauseDepthFinding(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	conforming := "// Some platforms reject a detached call, so the method is called on its object."
+	if hasCheck(s.scanSource("f.ts", []string{conforming}, nil), checkClauseDepth) {
+		t.Errorf("%q is the note pattern the rule asks for and it produced a clause-depth finding", conforming)
+	}
+	deep := "// The call is kept because the platform rejects it, which the older fleet does while it upgrades."
+	if !hasCheck(s.scanSource("f.ts", []string{deep}, nil), checkClauseDepth) {
+		t.Errorf("%q holds four connectives and produced no clause-depth finding", deep)
+	}
+}
+
+// One negation is how a fact is stated. Two is what the reader has to resolve against each other.
+func TestOneNegationIsNotADoubleNegativeFinding(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	single := "// The field is not set on an older export."
+	if hasCheck(s.scanSource("f.ts", []string{single}, nil), checkDoubleNeg) {
+		t.Errorf("%q carries one negation and produced a double-negative finding", single)
+	}
+	double := "// The code is not absent and it is not unknown."
+	if !hasCheck(s.scanSource("f.ts", []string{double}, nil), checkDoubleNeg) {
+		t.Errorf("%q carries two negations and produced no finding", double)
+	}
+}
+
+// `a; b` is a list. A semicolon with a clause after it is two sentences written as one, and the tail
+// length is what tells them apart.
+func TestASemicolonListIsNotASemicolonFinding(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	list := "// Reads three fields: owner; entry; book."
+	if hasCheck(s.scanSource("f.ts", []string{list}, nil), checkSemicolon) {
+		t.Errorf("%q is a list and produced a semicolon finding", list)
+	}
+	join := "// The platform rejects the call; the method is called on its object instead of the reference."
+	if !hasCheck(s.scanSource("f.ts", []string{join}, nil), checkSemicolon) {
+		t.Errorf("%q joins two clauses and produced no semicolon finding", join)
+	}
+}
+
+// A coined phrase is matched with its spacing loosened, because a comment wraps and the phrase then
+// spans two lines. Matched on the raw spacing alone, a wrapped phrase is invisible to the check.
+func TestACoinedPhraseIsMatchedAcrossAWrappedLine(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	wrapped := []string{"// A pairing that cannot occur has no", "// name in the catalogue."}
+	if !hasCheck(s.scanSource("f.ts", wrapped, nil), checkCoined) {
+		t.Errorf("a built-in coined phrase broken across two lines produced no finding")
+	}
+	plain := []string{"// A pairing that cannot occur is not listed in the catalogue."}
+	if hasCheck(s.scanSource("f.ts", plain, nil), checkCoined) {
+		t.Errorf("the plain form produced a coined finding")
+	}
+}

@@ -43,11 +43,13 @@
 # under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
 #
 # Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
-# coined. Three of them are scoped by profile. `long-block` is the comment profile's, since only there
+# coined, long-sentence, clause-depth, double-negative, semicolon. Three of them are scoped by profile. `long-block` is the comment profile's, since only there
 # is a block a thing. `bold` is not the instruction profile's: a rule file IS markdown, so its bold is
 # structure rather than the tell. `coined` is not the instruction profile's either: a coined word is a
 # codebase's invented vocabulary, and a rule file is prose about writing that uses the ordinary English
-# word a codebase may have coined. `comment-voice.conf` names the words this repository coined and the findings it has decided
+# word a codebase may have coined. `coined` also carries a built-in list of the phrases every
+# repository coins without meaning to, the house idiom of naming, so a conf does not have to restate
+# them. `comment-voice.conf` names the words this repository coined and the findings it has decided
 # to keep, looked for at COMMENT_VOICE_CONF, then `<repo>/.kk-flavor/comment-voice.conf`, then
 # `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. An allow entry with no reason is
 # refused, and a missing file is no error.

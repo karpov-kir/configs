@@ -31,6 +31,21 @@ import (
 const (
 	voiceLongBlock  = 4
 	voiceLongHeader = 8
+
+	// writing.md puts one idea in a sentence and keeps it under about 25 words. The check fires at 30
+	// so a sentence at the rule's own edge is not a finding, and only a sentence carrying a second
+	// idea is.
+	voiceLongSentence = 30
+
+	// Two subordinating connectives in one sentence. The note pattern spends one on `so`, so a
+	// conforming note sits at one and a finding starts above it.
+	voiceClauseDepth = 2
+
+	// Two negations in one sentence.
+	voiceNegations = 2
+
+	// Words after a semicolon before its tail is a clause rather than a list item.
+	voiceClauseTail = 4
 )
 
 // Findings and echoed text are bounded the same way the default mode's are: under kk-pr this text
@@ -87,11 +102,16 @@ const (
 	checkPositional    = "positional"
 	checkLongBlock     = "long-block"
 	checkCoined        = "coined"
+	checkLongSentence  = "long-sentence"
+	checkClauseDepth   = "clause-depth"
+	checkDoubleNeg     = "double-negative"
+	checkSemicolon     = "semicolon"
 )
 
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
-	checkIntensifier, checkPositional, checkLongBlock, checkCoined}
+	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkLongSentence,
+	checkClauseDepth, checkDoubleNeg, checkSemicolon}
 
 var (
 	// A bold span opening on a word or a backtick. `**` around a space is markdown that did not close.
@@ -111,6 +131,23 @@ var (
 	// What stands before the conjunction, asked whether it is already a negation.
 	reNegated   = regexp.MustCompile(`(?i)\b(?:no|not|never|nothing|nobody|none)\b`)
 	reInsteadOf = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
+
+	// Defining a symbol against another symbol is the contrast spine with a link in it: the sentence is
+	// about the thing the reader did not ask about, and the reader has to open the other symbol to learn
+	// what this one does.
+	reDefinedAgainst = regexp.MustCompile(`(?i)\ba different question from\b|\bthe other half of what\b|\bunlike \{@link\b`)
+
+	// The connectives a subordinate clause hangs off. The note pattern spends one on `so`, so a sentence
+	// is a finding at two: past that the reader is holding a clause open while reading another.
+	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
+
+	// Negation a reader has to carry. Two in a sentence and the reader resolves them against each other
+	// before learning what is so.
+	reNegation = regexp.MustCompile(`\b(?:no|not|never|neither|nor|nothing|nobody|without)\b`)
+
+	// A semicolon with a clause after it, not the `a; b` list shape. Four words is where the tail stops
+	// being an item and starts being a sentence that should have been written as one.
+	reSemicolon = regexp.MustCompile(`;\s`)
 
 	// A sentence opening on the wrong implementation, which the reader has to imagine before they can
 	// read the right one.
@@ -537,7 +574,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if s.profile == ProfileInstruction {
 		coinedIn = ""
 	}
-	for _, word := range s.coined {
+	for _, word := range s.coinedTerms() {
 		// Group 1 is the word itself; the pattern matches the characters either side of it so the
 		// boundary holds outside ASCII, and those are not part of what a reader is shown.
 		// Advanced to the end of the WORD rather than the end of the match. The pattern matches the
@@ -564,7 +601,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 			add(checkBold, at[0], at[1])
 		}
 	}
-	for _, re := range []*regexp.Regexp{reRatherThan, reNeverNot, reInsteadOf} {
+	for _, re := range []*regexp.Regexp{reRatherThan, reNeverNot, reInsteadOf, reDefinedAgainst} {
 		for _, at := range re.FindAllStringIndex(prose, -1) {
 			add(checkContrast, at[0], at[1])
 		}
@@ -591,6 +628,20 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		if at := rePositional.FindStringIndex(read); at != nil {
 			add(checkPositional, span[0]+at[0], span[0]+at[1])
+		}
+		// Counted over `text` rather than `read`, because blanking an inline code span leaves spaces:
+		// a backticked identifier is a word the reader reads, and counting the blanked form drops it.
+		if len(strings.Fields(text[span[0]:span[1]])) > voiceLongSentence {
+			add(checkLongSentence, span[0], span[1])
+		}
+		if len(reConnective.FindAllString(read, -1)) >= voiceClauseDepth {
+			add(checkClauseDepth, span[0], span[1])
+		}
+		if len(reNegation.FindAllString(read, -1)) >= voiceNegations {
+			add(checkDoubleNeg, span[0], span[1])
+		}
+		if at := reSemicolon.FindStringIndex(read); at != nil && len(strings.Fields(read[at[1]:])) >= voiceClauseTail {
+			add(checkSemicolon, span[0], span[1])
 		}
 	}
 	return found
@@ -626,8 +677,25 @@ func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
 	return body, nil
 }
 
-// coinedPattern matches the word and anything built off it — a coined noun also catches its plural,
+// defaultCoined are the phrases every repository coins without meaning to: the house idiom of naming,
+// where plain English says absent, not listed or not defined. They are built in rather than left to
+// each conf, because a tell the lane only reads for is a tell that reopens — this one reopened three
+// times before it was measured.
+var defaultCoined = []string{"has no name", "names no", "names nothing", "a name it does not hold"}
+
+// coinedTerms is a conf's own words followed by the built-in phrases. Read here rather than merged
+// into the scanner, because scanSegment is the only place a check runs: merged at a construction site
+// instead, any other construction of a scanner loses the built-in list without failing.
+func (s scanner) coinedTerms() []string {
+	return append(append([]string{}, s.coined...), defaultCoined...)
+}
+
+// coinedPattern matches the term and anything built off it — a coined noun also catches its plural,
 // and a coined verb its `-s` and `-ing` forms, because a term is coined in every shape it takes.
+//
+// A term of several words needs nothing added: QuoteMeta leaves a space alone, and a block's lines are
+// joined with one space before a check reads them, so a phrase broken across two comment lines is the
+// same phrase. The stem suffix lands on the last word, which is the word that inflects.
 func coinedPattern(word string) *regexp.Regexp {
 	// The word is captured, and its boundaries are matched rather than asserted, because Go's `\b` is
 	// an ASCII word boundary: a coined term opening on a letter outside ASCII has no boundary before
@@ -644,7 +712,7 @@ func coinedPattern(word string) *regexp.Regexp {
 // The first character is taken as a rune. Taken as a byte, a coined word opening on a multi-byte one
 // leaves its trailing bytes orphaned, and regexp refuses a pattern holding invalid UTF-8.
 func coinedInIdentifier(word string) *regexp.Regexp {
-	if word == "" {
+	if word == "" || strings.ContainsAny(word, " \t") {
 		return nil
 	}
 	first, size := utf8.DecodeRuneInString(word)
