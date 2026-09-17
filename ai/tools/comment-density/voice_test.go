@@ -1172,8 +1172,8 @@ func TestASemicolonListIsNotASemicolonFinding(t *testing.T) {
 	}
 }
 
-// A coined phrase is matched with its spacing loosened, because a comment wraps and the phrase then
-// spans two lines. Matched on the raw spacing alone, a wrapped phrase is invisible to the check.
+// A comment wraps, and the phrase then spans two lines. The check reads the joined block, so a wrapped
+// phrase is the same phrase.
 func TestACoinedPhraseIsMatchedAcrossAWrappedLine(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	wrapped := []string{"// A pairing that cannot occur has no", "// name in the catalogue."}

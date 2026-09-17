@@ -37,14 +37,14 @@ const (
 	// idea is.
 	voiceLongSentence = 30
 
-	// Two subordinating connectives in one sentence. The note pattern spends one on `so`, so a
-	// conforming note sits at one and a finding starts above it.
+	// Two subordinating connectives in one sentence. The note pattern spends one on `so`, which puts a
+	// conforming note at one. The check fires above that.
 	voiceClauseDepth = 2
 
 	// Two negations in one sentence.
 	voiceNegations = 2
 
-	// Words after a semicolon before its tail is a clause rather than a list item.
+	// Words after a semicolon before its tail reads as a clause. Below this it reads as a list item.
 	voiceClauseTail = 4
 )
 
@@ -132,21 +132,20 @@ var (
 	reNegated   = regexp.MustCompile(`(?i)\b(?:no|not|never|nothing|nobody|none)\b`)
 	reInsteadOf = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
 
-	// Defining a symbol against another symbol is the contrast spine with a link in it: the sentence is
-	// about the thing the reader did not ask about, and the reader has to open the other symbol to learn
-	// what this one does.
+	// A symbol defined against another symbol. The sentence is about a thing the reader did not ask
+	// about, and the reader opens the other symbol to learn what this one does.
 	reDefinedAgainst = regexp.MustCompile(`(?i)\ba different question from\b|\bthe other half of what\b|\bunlike \{@link\b`)
 
-	// The connectives a subordinate clause hangs off. The note pattern spends one on `so`, so a sentence
-	// is a finding at two: past that the reader is holding a clause open while reading another.
+	// The connectives a subordinate clause hangs off. A sentence is a finding at two. Past that the
+	// reader holds one clause open while reading another.
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
-	// Negation a reader has to carry. Two in a sentence and the reader resolves them against each other
-	// before learning what is so.
+	// Negation a reader has to carry. At two in a sentence the reader resolves them against each other
+	// before learning what the sentence says.
 	reNegation = regexp.MustCompile(`\b(?:no|not|never|neither|nor|nothing|nobody|without)\b`)
 
-	// A semicolon with a clause after it, not the `a; b` list shape. Four words is where the tail stops
-	// being an item and starts being a sentence that should have been written as one.
+	// A semicolon with a clause after it. Four words is where the tail stops reading as a list item and
+	// starts reading as a sentence of its own.
 	reSemicolon = regexp.MustCompile(`;\s`)
 
 	// A sentence opening on the wrong implementation, which the reader has to imagine before they can
@@ -629,8 +628,8 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		if at := rePositional.FindStringIndex(read); at != nil {
 			add(checkPositional, span[0]+at[0], span[0]+at[1])
 		}
-		// Counted over `text` rather than `read`, because blanking an inline code span leaves spaces:
-		// a backticked identifier is a word the reader reads, and counting the blanked form drops it.
+		// The count reads `text`, because blanking an inline code span leaves spaces behind. A backticked
+		// identifier is a word on the page, and the blanked form drops it.
 		if len(strings.Fields(text[span[0]:span[1]])) > voiceLongSentence {
 			add(checkLongSentence, span[0], span[1])
 		}
@@ -677,15 +676,15 @@ func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
 	return body, nil
 }
 
-// defaultCoined are the phrases every repository coins without meaning to: the house idiom of naming,
-// where plain English says absent, not listed or not defined. They are built in rather than left to
-// each conf, because a tell the lane only reads for is a tell that reopens — this one reopened three
-// times before it was measured.
+// defaultCoined are the phrases a repository coins by accident, the house idiom of naming, where plain
+// English says absent or unlisted. Each conf would otherwise have to restate them, and a
+// tell the lane only reads for is a tell that reopens. This one reopened three times before anyone
+// measured it.
 var defaultCoined = []string{"has no name", "names no", "names nothing", "a name it does not hold"}
 
-// coinedTerms is a conf's own words followed by the built-in phrases. Read here rather than merged
-// into the scanner, because scanSegment is the only place a check runs: merged at a construction site
-// instead, any other construction of a scanner loses the built-in list without failing.
+// coinedTerms is a conf's own words followed by the built-in phrases. It resolves here because
+// scanSegment is the only place a check runs. A construction site that merged them would leave every
+// other construction of a scanner short of the list, and the run would still pass.
 func (s scanner) coinedTerms() []string {
 	return append(append([]string{}, s.coined...), defaultCoined...)
 }
@@ -693,7 +692,7 @@ func (s scanner) coinedTerms() []string {
 // coinedPattern matches the term and anything built off it — a coined noun also catches its plural,
 // and a coined verb its `-s` and `-ing` forms, because a term is coined in every shape it takes.
 //
-// A term of several words needs nothing added: QuoteMeta leaves a space alone, and a block's lines are
+// A term of several words needs no extra pattern. QuoteMeta leaves a space alone. A block's lines are
 // joined with one space before a check reads them, so a phrase broken across two comment lines is the
 // same phrase. The stem suffix lands on the last word, which is the word that inflects.
 func coinedPattern(word string) *regexp.Regexp {
