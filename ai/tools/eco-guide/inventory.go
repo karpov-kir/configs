@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 // A skill as the page needs it, and nothing else. Every field is read off the skill's own frontmatter,

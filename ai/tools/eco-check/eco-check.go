@@ -3,7 +3,8 @@
 // declaring its layer, and no cycle of citations crossing one.
 //
 // It is a library with a thin command beside it, because the suite that proves it drives it once
-// per case and a process spawn per case is the cost that makes a mutation run take hours. Nothing
+// per case and a process spawn per case is what puts a suite over the time budget
+// testing.md sets. Nothing
 // here writes to os.Stdout or calls os.Exit: Run reports through the writers it is handed and returns
 // the code the command exits on. Every emit counter lives on the checker Run builds, so two runs in
 // one process cannot see each other's. The one thing held across them is scripts.go's `bash -n` memo,
@@ -13,16 +14,17 @@
 // stage over a branch that chose its own contents: NUL bytes in files, newlines in committed
 // filenames, symlinks at every path it touches, control bytes in anything echoed into a finding,
 // unbounded emit counts, and paths that resolve outside the root. A change here needs a case in the
-// suite beside it, and a scan you add needs one that fails without it — `ai/tools/go-mutate` is what
-// shows a case can fail. `check.sh` in kk-ecosystem's scripts/ is the stub that reaches this binary.
+// suite beside it, and a scan you add needs one seen to fail before the scan exists. `check.sh` in
+// kk-ecosystem's scripts/ is the stub that reaches this binary.
 package ecocheck
 
 import (
 	"fmt"
 	"io"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // The bound each shape of the direction scan emits under, and the bound the printer holds each rank
@@ -54,6 +56,10 @@ type checker struct {
 	// answers and why the default is off.
 	gate *gateFilter
 
+	// Where --gate's one question goes. Nothing else in this package asks a repository anything, so a
+	// bare run never reaches it.
+	git repo.Git
+
 	// Which file holds each heading in the tree, built on the first dangling citation and never for
 	// a clean tree. It names the one dangling variant the cited file's own contents cannot: the
 	// section is real and the file moved.
@@ -76,9 +82,9 @@ type checker struct {
 	// and found nothing, which is what exit 0 says — see exitCode.
 	unrunnable []string
 
-	// How the parse scan finds the bash binaries to fork. A field so a case can hand it an empty
-	// list; installedBashBinaries says why that needed a seam.
-	bashBinaries func() []string
+	// Where the parse scan reaches bash. It is the only thing here that forks, and bash.go says what a
+	// case gains by handing it something that does not.
+	bash Bash
 }
 
 // Run requires --agent=claude|codex and accepts an optional root and --gate in any order.
@@ -86,7 +92,7 @@ type checker struct {
 // and --gate narrows the walk to what a commit can carry (gate.go). It returns the process exit code:
 // 0 clean, 1 with findings, 2 when it could not run — as a whole, or in any one scan. A check that
 // did not run is not a clean one, which is why the last is not folded into either of the others.
-func Run(args []string, out, errOut io.Writer) int {
+func Run(args []string, git repo.Git, bash Bash, out, errOut io.Writer) int {
 	agent, rest, err := ecoroot.AgentArgs(args)
 	if err != nil {
 		return refuseToRun(errOut, err.Error())
@@ -95,7 +101,7 @@ func Run(args []string, out, errOut io.Writer) int {
 	if !ok {
 		return refuseToRun(errOut, "usage: check.sh --agent=claude|codex ["+gateFlag+"] [<root>]")
 	}
-	c, found := newChecker(root, agent)
+	c, found := newChecker(root, agent, git, bash)
 	if !found {
 		named := root
 		if named == "" {
@@ -138,7 +144,7 @@ func Run(args []string, out, errOut io.Writer) int {
 
 // The root and the flag, in either order. Only the exact flag is a flag and everything else is a path,
 // because a root may legitimately be spelled `-r` and this tool opens the paths it is handed rather
-// than parsing them — TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption is that rule.
+// than parsing them — the dash-leading root in TestTheParseScanRunsARealBash is that rule.
 //
 // So a mistyped flag lands as the root and reports that no checkout is there, which is loud and never
 // a run that quietly went unfiltered. A second path is refused instead of overwriting the first: two
@@ -197,12 +203,12 @@ func (c *checker) cannotRun(reason string) {
 	c.unrunnable = append(c.unrunnable, reason)
 }
 
-func newChecker(root, agent string) (*checker, bool) {
+func newChecker(root, agent string, git repo.Git, bash Bash) (*checker, bool) {
 	resolved, ok := ecoroot.New(root, agent)
 	if !ok {
 		return nil, false
 	}
-	return &checker{root: resolved, trees: map[string]*tree{}, bashBinaries: installedBashBinaries}, true
+	return &checker{root: resolved, git: git, bash: bash, trees: map[string]*tree{}}, true
 }
 
 func (c *checker) add(finding string) {

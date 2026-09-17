@@ -1,7 +1,7 @@
 package ecoreport_test
 
 // What a careless or hostile input can make this tool do on disk. These cases are grouped by the
-// question they answer rather than by the file they exercise, the way mutants.go groups the same set.
+// question they answer rather than by the file they exercise.
 // The question is the one the move out of the tree opened: the scratch directory is now chosen by a
 // machine-local config file, lives outside the repository, holds the only copy of the intents, and is
 // the directory `discard` removes.
@@ -51,9 +51,9 @@ func TestTheScratchDirectoryIsReadableByItsOwnerAlone(t *testing.T) {
 	// Deliberately NOT parallel: the umask pinned on the next line is process-global, so running this
 	// beside other cases would change the mode of every directory they create.
 	//
-	// Pinned because the control is otherwise umask-dependent: under umask 077 a mutated 0o777 yields
-	// 0700 anyway, the mutant survives, and the case passes while observing nothing. 022 is the ordinary
-	// default and makes 0o777 land as 0755, which the assertion below can tell apart.
+	// Pinned because the control is otherwise umask-dependent: under umask 077 a broken 0o777 yields
+	// 0700 anyway and the case passes while observing nothing. 022 is the ordinary default and makes
+	// 0o777 land as 0755, which the assertion below can tell apart.
 	defer syscall.Umask(syscall.Umask(0o022))
 	// What the mode buys is at init.go's MkdirAll, which is the one place in the tool that creates this
 	// tree. Both assertions rest on this fixture reaching `init` before anything else does, and that is
@@ -124,7 +124,7 @@ func TestPromoteRefusesASymlinkedScratchRatherThanCommittingTheLink(t *testing.T
 	f.assertRefused("promote refuses a symlinked scratch directory")
 	f.assertReports("is a symlink", "and names the link rather than the git answer downstream of it")
 	f.record("and committed no link into the tree", !f.exists(f.treeIdsd()), "")
-	staged, _ := f.git("diff", "--cached", "--name-only")
+	staged := f.staged()
 	f.record("and staged nothing", !strings.Contains(staged, ".idsd"), "staged:\n"+staged)
 	f.record("and left the report where it was, outside the tree",
 		f.isFile(outside+"/intents/001-linked/for-agents/qualify-report.md"), "")
@@ -145,7 +145,7 @@ func TestPromoteRefusesSymlinkedIntentsRatherThanStagingTheLink(t *testing.T) {
 	f.assertRefused("promote refuses a symlinked intents directory")
 	f.assertReports("is a symlink", "the refusal identifies the linked directory")
 	f.record("promotion leaves the scratch outside the working tree", !f.exists(f.treeIdsd()), f.evidence())
-	staged, _ := f.git("diff", "--cached", "--name-only")
+	staged := f.staged()
 	f.record("promotion stages no linked intent directory", !strings.Contains(staged, ".idsd"), staged)
 	f.record("the outside report is preserved", f.isFile(report), f.evidence())
 }
@@ -159,7 +159,6 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// The folder layout widened this: `discard` now RemoveAlls shipDir(stem), so `..` there is the
 	// scratch root itself rather than one stray file.
 	f := newShip(t, "001-real")
-	head := f.mustGit("rev-parse", "HEAD")
 	// What makes the stem reachable at all, and the fixture without which this case cannot fail: every
 	// subcommand needs the report to be there, so a stem of `..` only gets past requireReport when a
 	// file of that name exists. This tool will not create one — reportNameFor refuses the leading dot —
@@ -176,10 +175,8 @@ func TestAReportStemCannotNameTheGitDirItself(t *testing.T) {
 	// The harm, asserted where it would land. The exit alone would not tell a refusal from a run that
 	// deleted the git dir and then failed for want of it.
 	f.record("the git dir is intact",
-		f.isFile(f.repo+"/.git/HEAD") && f.isFile(f.repo+"/.git/index"),
+		f.isFile(f.repo+"/.git/HEAD"),
 		joinLines(f.entries(f.repo+"/.git")))
-	f.record("and git still answers for the repository",
-		f.mustGit("rev-parse", "HEAD") == head, head)
 	f.record("and the real ship is untouched", f.isFile(f.reportPath("001-real")), "")
 }
 

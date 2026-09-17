@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 type layoutMove struct {

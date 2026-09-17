@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 // The half of the flag finding that names the flag and the script, which is what a case asserting
@@ -116,7 +116,7 @@ func TestFlagCallSites(t *testing.T) {
 		f.reports(flagFinding("--full"))
 	})
 
-	// Lowercase, the spelling subcommands.go and tool-stub-test.sh already hold every script to. A
+	// Lowercase, the spelling subcommands.go and ai/tools/stub_usage_test.go hold every script to. A
 	// capitalised `Usage:` is a script with no usage line, which is the other finding and not a pass.
 	t.Run("reads a capitalised Usage: as no usage line at all", func(t *testing.T) {
 		f := newFlagScript(t, "#   Usage: toy.sh [--gate]")
@@ -284,6 +284,9 @@ func TestTheFlagScanStaysWithinItsBounds(t *testing.T) {
 	// The flag name is the instruction file's own text and nothing bounds its length. Uncut, its tail
 	// takes the printer's 500-byte bound and the sentence naming the defect goes with it. Marked,
 	// because an unmarked cut leaves a shorter wrong flag name reading as a whole one.
+	//
+	// The 400 below is what has to spend that bound, and newBase in harness_test.go is why nothing
+	// ambient spends it first.
 	t.Run("and marks a flag name the instruction file made too long to print", func(t *testing.T) {
 		f := newFlagScript(t, "#   usage: toy.sh [--gate]")
 		f.newCallSites("toy.sh --" + strings.Repeat("a", 400))

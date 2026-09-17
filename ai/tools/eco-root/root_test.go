@@ -7,7 +7,8 @@ import (
 	"os"
 	"testing"
 
-	ecoroot "kk-flavor/tools/eco-root"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {
@@ -136,5 +137,52 @@ func TestARouterWithNoReadAlwaysHeadingListsNothing(t *testing.T) {
 	lines := []string{"# Flavor", "", "- [core](standards/core.md)"}
 	if got := ecoroot.ReadAlwaysTargets(lines); len(got) != 0 {
 		t.Errorf("ReadAlwaysTargets = %v, want none", got)
+	}
+}
+
+// Contains and HoldsSkillFile ask the same question of the same root — is this file's directory at or
+// under the checkout — and they used to answer it differently. HoldsSkillFile left the equality case
+// out and left the unresolved root out with it, so the two rows below are one predicate's two ends.
+//
+// A file sitting AT the root is this tree's own. Nothing mounts a skill there today, which is why the
+// omission never showed; a predicate whose answer depends on that staying true is one nobody can read.
+func TestAFileAtTheRootItselfBelongsToTheTree(t *testing.T) {
+	_, dir := newCheckout(t, "")
+	file := dir + "/SKILL.md"
+	if err := os.WriteFile(file, []byte("---\nname: at-the-root\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root, ok := ecoroot.New(dir, "claude")
+	if !ok {
+		t.Fatalf("New(%q) refused a checkout holding both directories", dir)
+	}
+	if !root.HoldsSkillFile(file) {
+		t.Errorf("HoldsSkillFile(%q) says the checkout's own root is not part of the checkout", file)
+	}
+	if !root.Contains(file) {
+		t.Errorf("Contains(%q) disagrees with HoldsSkillFile about the same file", file)
+	}
+}
+
+// A Root that did not resolve holds NOTHING. It is the zero value New hands back when it refuses, so a
+// caller that read the answer and not the flag reaches it — and the containment test then compares
+// against the empty string, which every absolute path begins with. eco-stats counts a skill this
+// answers yes for as the checkout's own, so a root that resolved to nothing would silently report
+// that nothing is mounted from anywhere else.
+func TestAnUnresolvedRootHoldsNothing(t *testing.T) {
+	_, dir := newCheckout(t, "")
+	file := dir + "/kk-flavor/skills/elsewhere/SKILL.md"
+	if err := os.MkdirAll(shell.DirName(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("---\nname: elsewhere\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var unresolved ecoroot.Root
+	if unresolved.HoldsSkillFile(file) {
+		t.Errorf("HoldsSkillFile(%q) on a root that resolved to nothing claims the file as the tree's own", file)
+	}
+	if unresolved.Contains(file) {
+		t.Errorf("Contains(%q) on a root that resolved to nothing claims the file as the tree's own", file)
 	}
 }

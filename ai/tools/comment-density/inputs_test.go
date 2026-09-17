@@ -1,11 +1,13 @@
 package density
 
 import (
+	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/shell"
 )
 
 func TestARevisionIsNotAPath(t *testing.T) {
@@ -55,6 +57,7 @@ func TestARevisionIsNotAPath(t *testing.T) {
 
 	t.Run("a revision git cannot resolve exits 2 as git's rejection", func(t *testing.T) {
 		r := newRepo(t)
+		r.fake.Fail["Patch"] = errors.New("git diff no-such-rev --: fatal: bad revision 'no-such-rev'")
 		r.run("no-such-rev")
 		r.expectCode(2)
 		r.expectStderrHas("git rejected these arguments")
@@ -66,31 +69,33 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectNoStdout()
 	})
 
-	// Both a real revision and a real filename. git itself refuses the ambiguity, and this must arrive
-	// as git's rejection rather than as a path refusal that never consulted git.
-	t.Run("an argument that is both a revision and a filename exits 2 as git's rejection", func(t *testing.T) {
+	// Both a real revision and a real filename. A branch could otherwise switch this tool off for its
+	// own reviewers by committing a file called HEAD: the argument gate has to ask whether the name
+	// resolves rather than refuse it for sitting on disk, and the diff has to end in `--` so git does
+	// not call it ambiguous — `repo.Exec` → pathspecArgs carries that half.
+	t.Run("a file called HEAD does not switch the scan off", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("HEAD", "ambiguous\n")
 		r.commit("add a file called HEAD")
+		r.rewrote("kept.go", heavy(6, 1))
 		r.run("HEAD")
-		r.expectCode(2)
-		r.expectStderrHas("git rejected these arguments")
+		r.expectCode(1)
+		r.expectStdoutHas("kept.go")
 	})
 
 	t.Run("a pathspec after -- is scanned rather than refused", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("kept.go", "x := 1\n")
-		r.commit("base")
-		r.write("kept.go", heavy(6, 1))
+		r.rewrote("kept.go", heavy(6, 1))
 		r.run("HEAD", "--", "kept.go")
 		r.expectCode(1)
 		r.expectStdoutHas("kept.go")
 	})
 
+	// That the pathspec then narrows what git prints is git's own, held in `repo/exec_test.go`; that it
+	// reaches the port at all rather than being dropped is `diffscan.TestAPathspecScanStillDefaultsToHead`.
+	// What is comment-density's here is the exit code over a change set that came back empty.
 	t.Run("a pathspec after -- that selects nothing exits 0", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("kept.go", "x := 1\n")
-		r.commit("base")
 		r.write("kept.go", heavy(6, 1))
 		r.run("HEAD", "--", "no-such-path")
 		r.expectCode(0)
@@ -102,42 +107,31 @@ func TestARevisionIsNotAPath(t *testing.T) {
 // the file and every added line after it would be counted against a file that is not in the change.
 func TestAnAddedLineShapedLikeADiffHeader(t *testing.T) {
 	r := newRepo(t)
-	r.write("real.go", "package fixture\n")
-	r.commit("base")
 	// TWO plus signs, not three: the diff prefixes every added line with one, so a source line of
 	// `++ b/decoy.go` is what arrives as `+++ b/decoy.go` and can be mistaken for a real file header.
 	// Written with three, the line arrives as `++++ ` and matches nothing — a fixture that exercises
 	// the anchor is the only one that can fail when the anchor is removed.
-	r.write("real.go", "++ b/decoy.go\n"+heavy(8, 1))
+	r.diffs(patchAdding("real.go", append([]string{"++ b/decoy.go"}, bodyLines(heavy(8, 1))...)...))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("real.go")
 	r.expectStdoutLacks("decoy.go")
 }
 
-// core.quotePath=false, or the path arrives C-quoted and the `b/` test fails, dropping the file.
+// That the path arrives unquoted rather than C-quoted is `core.quotePath=false`, which the port passes
+// on every call and `repo/exec_test.go` holds against a real git over `sundæ.txt`. What is this tool's
+// is that the name survives to the report as the file is spelt on disk.
 func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
-	r.write("café.go", "package fixture\n")
-	r.commit("base")
-	r.write("café.go", heavy(8, 1))
+	r.diffs(patchOf("café.go", heavy(8, 1)))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("café.go")
 }
 
-// --text, or one `* -diff` in the branch author's .gitattributes collapses the body to
-// "Binary files … differ" and the scan exits 0 over a real outlier.
-func TestADiffAttributeDoesNotSuppressTheScan(t *testing.T) {
-	r := newRepo(t)
-	r.write("attr.go", "package fixture\n")
-	r.write(".gitattributes", "* -diff\n")
-	r.commit("base")
-	r.write("attr.go", heavy(8, 1))
-	r.run("HEAD")
-	r.expectCode(1)
-	r.expectStdoutHas("attr.go")
-}
+// TestADiffAttributeDoesNotSuppressTheScan was here. `--text` — one `* -diff` in the branch author's
+// .gitattributes collapsing a body to "Binary files … differ" — is the port's flag now, and
+// `repo/exec_test.go` drives it against a real repository over a file holding a NUL byte.
 
 func TestUntrackedFiles(t *testing.T) {
 	t.Run("scanned when no revision is given, not when one is", func(t *testing.T) {
@@ -228,9 +222,7 @@ func TestAnOverlongPathIsCutAndSaysSo(t *testing.T) {
 func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
 	name := "tab\there.go"
-	r.write(name, "package fixture\n")
-	r.commit("base")
-	r.write(name, heavy(8, 1))
+	r.diffs(patchHeaded(name, strconv.Quote("b/"+name), bodyLines(heavy(8, 1))...))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("tab here.go: 8 comment / 1 code")
@@ -243,12 +235,11 @@ func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 // case; at the real 16MB the fixture would have to be 16MB.
 func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r := newRepo(t)
-	r.write("a.go", "package fixture\n")
-	r.write("z.go", "package fixture\n")
-	r.commit("base")
-	// a.go sorts first, so the long line lands ahead of the outlier and hides it.
-	r.write("a.go", strings.Repeat("x", 70000)+"\n")
-	r.write("z.go", heavy(8, 1))
+	// a.go comes first in the diff, so the long line lands ahead of the outlier and hides it.
+	r.diffs(
+		patchAdding("a.go", strings.Repeat("x", 70000)),
+		patchOf("z.go", heavy(8, 1)),
+	)
 
 	realCap := diffscan.MaxDiffLineBytes
 	diffscan.MaxDiffLineBytes = 64 * 1024
@@ -259,7 +250,7 @@ func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r.expectStderrHas("Not a clean result")
 	r.expectNoStdout()
 
-	// The negative control for the assertions above: the same tree under the real cap reaches the
+	// The negative control for the assertions above: the same diff under the real cap reaches the
 	// outlier the long line was hiding, so the refusal was the cap firing and not a clean fixture.
 	r.run("HEAD")
 	r.expectCode(1)

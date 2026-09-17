@@ -200,25 +200,21 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	f.mkdirAll(f.treeIdsd() + "/intents")
 	f.write(f.treeIdsd()+"/intents/002-tracked/intent.md", "# intent\n")
 	f.write(f.repo+"/.gitignore", ignoreBlock())
-	f.mustGit("add", ".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked/intent.md")
-	f.commit("committed idsd")
+	f.track(".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked/intent.md")
 	// Built by hand rather than through the committed-repo builder, because this one needs the intent
-	// file tracked, so it owes the same assertion that builder carries. Checked before the index is made
-	// unreadable, since `repo-mode` cannot answer afterwards.
+	// file tracked, so it owes the same assertion that builder carries. Checked before the index read is
+	// broken, since `repo-mode` cannot answer afterwards.
 	f.assertFixtureIsCommitted()
-	if !f.madeUnreadable(f.repo+"/.git/index", "the unreadable-index case") {
-		t.Skip("this process reads a mode-0 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable index cannot be built here")
-	}
+	f.failsToAnswer("Tracked", "fatal: index file open failed: Permission denied")
 	f.runReport("discard", "002-tracked")
 	f.assertRefused("discard refuses when the repo mode cannot be read, rather than assuming external")
 	// The REASON, not just the exit. Without the mode assertion the run reads external, walks on, and is
 	// refused a few lines later for having no ship at the resolved location — also exit 2, from a guard
 	// that says nothing about the unreadable index. Asserting the code alone observes neither.
 	f.assertReports("could not read the index", "and names the unreadable index as why")
-	// Named directly rather than through f.scratch(): that asks git which mode this is, and the index it
-	// would ask is the very thing this case made unreadable.
+	// Named directly rather than through f.scratch(): that reads the index to tell which mode this is,
+	// and the index read is the very thing this case broke.
 	f.record("and the tracked intent file survives", f.isFile(f.treeIdsd()+"/intents/002-tracked/intent.md"), "")
-	f.chmod(f.repo+"/.git/index", 0o644)
 }
 
 func TestDiscardRefusesASymlinkedIdsdRatherThanDeletingThroughIt(t *testing.T) {

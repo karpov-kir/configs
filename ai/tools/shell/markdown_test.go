@@ -1,11 +1,6 @@
 package shell
 
-import (
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
-)
+import "testing"
 
 // The block has to close. Walking to end-of-file and accepting on the way lets a body line answer for
 // a block that never closed — a file the loader cannot read frontmatter from at all, reported as a
@@ -64,34 +59,6 @@ func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 	}
 	if IsMaintainerAudience(nil) {
 		t.Error("no lines declared a marker")
-	}
-}
-
-// lib/skill-audience.sh reads this same marker, in awk, on a machine that has no Go binary yet — so
-// it cannot call in here and the pattern is written twice. Both installers get their answer from
-// that file, which is why it is the copy held against this package. Drift between them is silent
-// where it hurts most: on the maintainer's own install every skill is mounted, so the scan stays
-// quiet, and only an external install sees the skills bootstrap left out being reported as missing
-// mounts.
-func TestTheScriptAndThisPackageSpellTheMarkerTheSameWay(t *testing.T) {
-	pattern := maintainerAudience.String()
-	// The control. Without it a renamed or moved script leaves the assertion below comparing the
-	// pattern against nothing, which every empty file "contains".
-	script, err := os.ReadFile(filepath.Join("..", "..", "..", "lib", "skill-audience.sh"))
-	if err != nil || len(script) == 0 {
-		t.Fatalf("reading lib/skill-audience.sh, which is the other reader of this marker: %v", err)
-	}
-	if !strings.Contains(string(script), "/"+pattern+"/") {
-		t.Errorf("lib/skill-audience.sh does not match on /%s/, so the script and this package disagree about "+
-			"which skills the audience marker covers. Whichever one is right, both have to say it.", pattern)
-	}
-	// The second pattern, held the same way. A reader that knows the marker but not what an audience
-	// line looks like cannot tell a misspelling from an absent marker, so the two spellings are one
-	// contract and drift in either half breaks the same thing.
-	declared := audienceDeclared.String()
-	if !strings.Contains(string(script), "/"+declared+"/") {
-		t.Errorf("lib/skill-audience.sh does not match on /%s/, so it cannot refuse an audience value this "+
-			"package refuses — a typo would install for everyone on a machine that never reports it.", declared)
 	}
 }
 

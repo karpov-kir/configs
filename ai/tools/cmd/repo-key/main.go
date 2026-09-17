@@ -5,9 +5,9 @@ package main
 import (
 	"os"
 
-	repokey "kk-flavor/tools/repo-key"
+	repokey "configs/ai/tools/repo-key"
 )
 
 func main() {
-	os.Exit(repokey.Run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(repokey.Run(os.Args[1:], repokey.CommandGit(), os.Stdout, os.Stderr))
 }

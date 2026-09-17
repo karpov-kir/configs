@@ -2,7 +2,7 @@
 #
 # What a run of `comment-density.sh --voice --profile=instruction` reports over
 # ai/kk-flavor/standards/, workers/, skills/ and templates/ today. A file may only go down.
-# The instruction lane's wiring check reads this file and repairs a file that rose.
+# The instruction lane reads this file and repairs a file that rose. No check enforces it.
 #
 # The file is deleted when every count here reaches zero, which is what the pass that rewrites
 # the register of the rest of the tree is for.

@@ -5,7 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	density "kk-flavor/tools/comment-density"
+	density "configs/ai/tools/comment-density"
+	"configs/ai/tools/repo"
 )
 
 func main() {
@@ -19,5 +20,5 @@ func main() {
 		os.Stderr.WriteString(self + ": " + err.Error() + "\n")
 		os.Exit(2)
 	}
-	os.Exit(density.Run(self, os.Args[1:], cwd, cfg, os.Stdout, os.Stderr))
+	os.Exit(density.Run(self, os.Args[1:], cwd, repo.Exec{}, cfg, os.Stdout, os.Stderr))
 }

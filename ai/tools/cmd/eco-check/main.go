@@ -8,9 +8,10 @@ package main
 import (
 	"os"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/repo"
 )
 
 func main() {
-	os.Exit(ecocheck.Run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(ecocheck.Run(os.Args[1:], repo.Exec{}, ecocheck.InstalledBash{}, os.Stdout, os.Stderr))
 }

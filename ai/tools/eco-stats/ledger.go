@@ -8,17 +8,21 @@ import (
 	"strings"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // stats.md owns the rules below — kk-reduce's SKILL.md says so, and its reader arrives at the file,
 // not at the skill — so a fresh one has to carry them or it begins life with none of the protection
 // the ledger exists to have.
 //
-// This and the live stats.md are a .md/source pair, which no drift check covers — the shared-region
-// scan reads `*.sh` — so a case in stats_test.go compares the two directly. It runs only where there
-// is no ledger yet, which is never the tree that would show it had drifted.
-const ledgerSeed = "# Ecosystem size\n" +
+// LedgerSeed and the live stats.md are a .md/source pair, which no drift check covers — the
+// shared-region scan reads `*.sh` — so a case compares the two directly. Exported because that case
+// lives in `ai/tools`: the live ledger is outside this module, and Go keys a package's test cache on
+// the module, so a case here that read it would answer `ok (cached)` over a ledger that had changed
+// underneath the run. The seed path itself runs only where there is no ledger yet, which is never the
+// tree that would show it had drifted, so this package holds the other half — that a first run writes
+// exactly this.
+const LedgerSeed = "# Ecosystem size\n" +
 	"\n" +
 	"Appended by `kk-reduce` alone, via `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent=\"${ECO_AGENT:?choose claude or codex explicitly}\" --append <note>`: one row before a\n" +
 	"campaign, whose note marks `, start`, and one after. **A delta across that pair is the campaign's own\n" +
@@ -114,7 +118,7 @@ func createLedger(path string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := file.WriteString(ledgerSeed); err != nil {
+	if _, err := file.WriteString(LedgerSeed); err != nil {
 		file.Close()
 		return err
 	}

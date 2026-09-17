@@ -16,8 +16,9 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const (
@@ -44,9 +45,15 @@ const (
 // changes with how the binary was reached leaves it nothing stable to compare.
 const stubName = "comment-density.sh"
 
-// Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
-// refused where a revision belongs, and one after `--` narrows the scan to it.
-const usage = "usage: " + stubName + " [--bar | --voice [--profile=comment|prose|instruction]] [<git-diff revisions>] [-- <paths>]"
+// Every form the binary takes, in the order it takes them. Two forms and not one, because the prose
+// and instruction profiles read the files a caller names rather than a diff: their positional
+// arguments are paths, and a `--` among them is a path that cannot be read. Everywhere else the
+// pathspec half is real — a bare path is refused where a revision belongs, and one after `--` narrows
+// the scan to it.
+//
+// One line, because `stub_usage_test.go` holds it against the stub's own header byte for byte.
+const usage = "usage: " + stubName + " [--bar | --voice [--profile=comment]] [<git-diff revisions>] [-- <paths>] | " +
+	stubName + " --voice --profile=prose|instruction <path|->..."
 
 // console is the tool's name and its two streams. Findings go to stdout bare; a note on stderr opens
 // with the name, and nothing else in the package writes there. The default mode's denominator is a
@@ -171,24 +178,28 @@ type scan struct {
 // `--bar` and `--voice` select a mode only as the first argument. Later in the arguments either is an
 // option like any other, and refused as one. The two are exclusive: the bar says how many comment
 // lines a change set may carry, the voice check says whether the lines it carries can be read.
-func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
+//
+// One port for the whole run, handed down to every seam rather than built at each: two adapters can
+// answer about two repositories, and the change set would then be weighed against one clone while the
+// baseline and the authorship came from another.
+func Run(self string, args []string, cwd string, git gitrepo.Git, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--bar" {
-		return bar(out, args[1:], cwd, cfg)
+		return bar(out, git, args[1:], cwd, cfg)
 	}
 	if len(args) > 0 && args[0] == "--voice" {
-		return voice(out, args[1:], cwd, cfg)
+		return voice(out, git, args[1:], cwd, cfg)
 	}
-	return scanAddedLines(out, args, cwd, cfg)
+	return scanAddedLines(out, git, args, cwd, cfg)
 }
 
-func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
-	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+func scanAddedLines(out console, git gitrepo.Git, args []string, cwd string, cfg Config) int {
+	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		return out.refuseArguments(err)
 	}
 	s := &scan{cfg: cfg, files: map[string]*stats{}}
 
-	diff, err := diffscan.Diff(cwd, args)
+	diff, err := diffscan.Diff(git, cwd, args)
 	if err != nil {
 		return out.refuse(err)
 	}
@@ -202,7 +213,7 @@ func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
 	named, _ := diffscan.RevisionsNamed(args)
 	if len(named) == 0 {
 		opts := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes}
-		if err := s.result.WalkUntracked(cwd, opts, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
+		if err := s.result.WalkUntracked(git, cwd, opts, func(added diffscan.AddedLine) { s.count(added.File, added.Text) }); err != nil {
 			return out.refuse(errors.New("could not list untracked files — exit 2, the scan did NOT run over them."))
 		}
 	}

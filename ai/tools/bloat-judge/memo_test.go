@@ -16,15 +16,15 @@ func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 		return "1", nil // always the first unit left, so unchecked it would empty the file
 	}
 	var first, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &first, &errOut, greedy, memo); code != exitCut {
+	if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &first, &errOut, greedy, memo); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	var second strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", write(t, first.String())}, nil, &second, &errOut, greedy, memo); code != exitClean {
+	if code := Run("bloat-judge.sh", []string{"comment", write(t, first.String())}, unasked(), nil, &second, &errOut, greedy, memo); code != exitClean {
 		t.Fatalf("the pruned text was judged again: exit %d, %q", code, second.String())
 	}
 	var replay strings.Builder
-	Run("bloat-judge.sh", []string{"comment", path}, nil, &replay, &errOut, greedy, memo)
+	Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &replay, &errOut, greedy, memo)
 	if replay.String() != first.String() {
 		t.Fatalf("the original drew a different verdict on replay")
 	}
@@ -38,7 +38,7 @@ func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	memo := &Memo{Dir: filepath.Join(write(t, "not a dir"), "judged")}
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "1", nil }
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 }
@@ -50,7 +50,7 @@ func TestMemoDoesNotReuseAnotherPolicy(t *testing.T) {
 	for _, policy := range []string{"first", "second", "second"} {
 		memo := &Memo{Dir: dir, Policy: policy}
 		var out, errOut strings.Builder
-		if code := Run("judge", []string{"reply"}, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
+		if code := Run("judge", []string{"reply"}, unasked(), strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
 			t.Fatalf("code=%d %s", code, errOut.String())
 		}
 	}
@@ -68,7 +68,7 @@ func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
 	for _, reader := range []string{"first reader", "new reader"} {
 		kinds["reply"] = Kind{Reader: reader}
 		var out, errOut strings.Builder
-		if code := Run("judge", []string{"reply"}, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
+		if code := Run("judge", []string{"reply"}, unasked(), strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
 			t.Fatalf("judge=%d %s", code, errOut.String())
 		}
 	}
@@ -87,7 +87,7 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	calls := 0
 	call := func(string, string) (string, error) { calls++; return "1", nil }
 	var out, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if calls != 1 {

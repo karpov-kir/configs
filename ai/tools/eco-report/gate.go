@@ -2,9 +2,8 @@ package ecoreport
 
 import (
 	"io"
-	"strconv"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // What the report is read for: the merge gate, the items a re-qualify must carry, and the routing
@@ -121,12 +120,12 @@ func (r *run) blocksOnOpenTodos() bool {
 }
 
 func (r *run) blocksOnOpenTodosIn(path, which string) bool {
-	// 0 = nothing open, 1 = items printed. Anything else yields empty output, which the test below
-	// would read as "no open TODOs" and pass the merge gate on a scan that never ran.
-	todos, status := r.runTodoGateOn(path)
+	// A file that could not be read yields no items, which the test below would take for "no open
+	// TODOs" and pass the merge gate on a scan that never ran.
+	todos, err := openItemsIn(path)
 	switch {
-	case status > 1:
-		r.errLines("BLOCK (open TODOs): the scan of " + which + " did not run — todo-gate.sh exited " + strconv.Itoa(status) + ". Fix the invocation; this one cannot be overridden.")
+	case err != nil:
+		r.errLines("BLOCK (open TODOs): the scan of " + which + " did not run — " + shell.Oneline(err.Error()) + ". Make it readable; this one cannot be overridden.")
 		return true
 	case todos != "":
 		r.errLines("BLOCK (open TODOs): clear each in " + which + " before merge; this one cannot be overridden.")

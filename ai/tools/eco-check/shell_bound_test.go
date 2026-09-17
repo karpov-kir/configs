@@ -7,7 +7,7 @@ package ecocheck_test
 import (
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // A markdown file the walk reaches and the read cannot open. Root reads a mode-000 file whatever the

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"sort"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 var headingPattern = regexp.MustCompile(`^#{2,}\s+(.+?)\s*$`)

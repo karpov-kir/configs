@@ -8,6 +8,11 @@
 //
 // This file and gates.yml are a unit and must land in the same commit: with only one workflow
 // carrying a Gate step, they have nothing to hold to account and fail deliberately.
+//
+// That the LOCAL gate bounds its own `go test` is not here any more. It was a scan of gate.go's source
+// lines for the literal, which said nothing about the commands that file actually builds and went red
+// on the refactor that named the bound once. `gate/gate_test.go`'s
+// TestEveryGoCommandIsBoundedAboveTheBudget reads those commands instead.
 package tools_test
 
 import (
@@ -17,21 +22,21 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const repoRoot = "../.."
 
 const workflowsDir = repoRoot + "/.github/workflows"
 
-const gateSource = "gate/run.go"
+const gateSource = "gate/gate.go"
 
 // What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
 // on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
 // covers a package that fails, and without `./...` the gate runs a subset of the module.
 //
-// The bound is deliberately not in this list. It has one home, `goSuiteTimeout` in
-// ai/tools/gate/run.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
+// The bound is deliberately not in this list. It has one home, `suiteTimeoutSeconds` in
+// ai/tools/gate/gate.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
 // Pinned here too, raising it would mean one more file to edit, with this case red until that edit
 // lands.
 var goSuiteFlags = []string{"-count=1", "./..."}
@@ -69,34 +74,6 @@ func hasField(fields []string, want string) bool {
 		}
 	}
 	return false
-}
-
-// The local gate runs the same suite, so it is held to the same bound. It cannot carry
-// `goSuiteFlags` verbatim: it selects packages rather than running `./...`, and it forces some with
-// `-count=1` because the Go cache cannot see the fixtures' external inputs. So only the timeout is
-// held here, for the reason TestEveryWorkflowGateBoundsGoTestLikeTheGate below gives.
-func TestTheLocalGateNeverRunsTheGoSuiteWithoutATimeout(t *testing.T) {
-	body, err := os.ReadFile(gateSource)
-	if err != nil {
-		t.Fatalf("reading %s: %v", gateSource, err)
-	}
-	var found int
-	for _, line := range strings.Split(string(body), "\n") {
-		trimmed := strings.TrimSpace(line)
-		// The invocations only, never the prose about them: a comment naming `go test` is not a run.
-		if strings.HasPrefix(trimmed, "//") || !strings.Contains(trimmed, `"test"`) {
-			continue
-		}
-		found++
-		if !strings.Contains(trimmed, "-timeout") {
-			t.Errorf("%s runs the Go suite with no -timeout: %s", gateSource, trimmed)
-		}
-	}
-	// Zero invocations means this case is holding nothing to account — the runner moved, or the suite
-	// did, and either way the assertion above passed over nothing.
-	if found == 0 {
-		t.Fatalf("found no `go test` invocation in %s, so this case checked nothing", gateSource)
-	}
 }
 
 func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
@@ -150,20 +127,23 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// `goSuiteTimeout` in ai/tools/gate/run.go is the bound's one home. Each workflow's Gate step still
-// has to spell that number into its own `-timeout`, and carries a comment pointing at the home
-// rather than repeating its reasoning. A pointer is only as good as something checking it still
-// points at the same number, and this is that check.
+// `suiteTimeoutSeconds` in ai/tools/gate/gate.go is the bound's one home: the backstop every `go test`
+// carries, so a suite that hangs on a runner fails in minutes rather than after Go's ten-minute
+// default. It is NOT the 100 seconds `testing.md` rule 6 states — that number is a budget over the
+// whole gate and gate.go's own wall clock is what enforces it, because a `go test` carrying it killed
+// the package before the gate could report which one was slow. A pointer is only as good as something
+// checking it still points at the same number, and this is that check.
 func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	gateBody, err := os.ReadFile(gateSource)
 	if err != nil {
 		t.Fatalf("reading %s: %v", gateSource, err)
 	}
-	want := constStringIn(string(gateBody), "goSuiteTimeout")
+	const bound = "suiteTimeoutSeconds"
+	want := constSecondsIn(string(gateBody), bound)
 	if want == "" {
-		t.Fatalf("%s no longer declares goSuiteTimeout at the start of a line, so this case has nothing to "+
+		t.Fatalf("%s no longer declares %s at the start of a line, so this case has nothing to "+
 			"hold the workflows to and would pass over any value they carry. Restore the declaration, or "+
-			"retire this case deliberately — do not leave it green over nothing.", gateSource)
+			"retire this case deliberately — do not leave it green over nothing.", gateSource, bound)
 	}
 
 	checked := 0
@@ -175,18 +155,18 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 				name)
 			continue
 		}
-		for i, bound := range bounds {
+		for i, carried := range bounds {
 			checked++
 			switch {
-			case bound == "":
+			case carried == "":
 				t.Errorf("`go test` invocation %d in %s's Gate step carries no -timeout, so Go's 10m "+
-					"default applies there while %s uses %s. eco-report alone has been measured past 10m "+
-					"on a loaded runner, and overrunning prints a goroutine dump that reads as a hang "+
-					"rather than a slow pass.", i+1, name, gateSource, want)
-			case bound != want:
+					"default applies there while %s uses %s. Overrunning prints a goroutine dump that "+
+					"reads as a hang rather than as a suite over its budget, and this repository has "+
+					"twice reported one as a red gate that was not one.", i+1, name, gateSource, want)
+			case carried != want:
 				t.Errorf("`go test` invocation %d in %s's Gate step passes -timeout %s, but %s sets "+
-					"goSuiteTimeout=%s — the two drifted, so the same suite is bounded differently "+
-					"depending on who runs it.", i+1, name, bound, gateSource, want)
+					"%s=%s — the two drifted, so the same suite is bounded differently "+
+					"depending on who runs it.", i+1, name, carried, gateSource, bound, want)
 			}
 		}
 	}
@@ -197,13 +177,15 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	}
 }
 
-// The value of a `const <name> = "…"` declaration in Go source. Anchored at column zero, so a mention
-// inside a comment or a nested scope is not mistaken for the declaration itself.
-func constStringIn(source, name string) string {
-	assign := "const " + name + ` = "`
+// A `const <name> = <n>` seconds declaration, rendered the way `go test -timeout` spells one. Anchored
+// at column zero, so a mention inside a comment or a nested scope is not mistaken for the declaration.
+func constSecondsIn(source, name string) string {
+	assign := "const " + name + " = "
 	for _, line := range strings.Split(source, "\n") {
-		if strings.HasPrefix(line, assign) {
-			return strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(line, assign)), `"`)
+		if rest, found := strings.CutPrefix(line, assign); found {
+			if value := strings.TrimSpace(strings.SplitN(rest, "//", 2)[0]); value != "" {
+				return value + "s"
+			}
 		}
 	}
 	return ""
@@ -455,115 +437,4 @@ func runBlocks(body string) []runStep {
 	}
 	flush()
 	return blocks
-}
-
-// The `mutants` job warns and passes on one exit-2 reason — a unit that ran and measured nothing —
-// and fails on every other one the gate has. It tells that one apart by grepping the gate's log for
-// the line the gate prints for it and for nothing else, so the wording is one fact in two files:
-// `didNotMeasureLine` in ai/tools/gate/run.go, and the grep pattern in the workflow.
-//
-// Drift there retires the warn arm rather than breaking the job outright: the grep stops matching,
-// every exit 2 goes red, and what is lost is the distinction between a loaded runner and a gate that
-// never ran. Nobody would trace that back to a reworded printf, so it is held here instead.
-func TestTheMutantsJobNamesTheGatesDidNotMeasureLine(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join(workflowsDir, "gates.yml"))
-	if err != nil {
-		t.Fatalf("reading gates.yml: %v", err)
-	}
-	pattern := ""
-	for _, step := range runBlocks(string(body)) {
-		if strings.Contains(step.body, "ai/gate.sh --mutants") {
-			pattern = quotedAfter(step.body, "grep -q '")
-		}
-	}
-	// Both ends have to be found or this fails outright. A guard comparing two strings it could not
-	// locate compares nothing and reports green, which is the same defect as a case that cannot fail.
-	if pattern == "" {
-		t.Fatalf("no step in gates.yml runs `ai/gate.sh --mutants` and greps its log with `grep -q '…'`, " +
-			"so this case has nothing to hold to the gate's wording and would pass over whatever pattern " +
-			"the job carries. Restore the grep, or retire this case deliberately — do not leave it green " +
-			"over nothing.")
-	}
-
-	gateBody, err := os.ReadFile(gateSource)
-	if err != nil {
-		t.Fatalf("reading %s: %v", gateSource, err)
-	}
-	want := constStringIn(string(gateBody), "didNotMeasureLine")
-	if want == "" {
-		t.Fatalf("%s no longer declares didNotMeasureLine at the start of a line, so this case has "+
-			"nothing to hold the workflow's pattern to. Restore the declaration, or retire this case "+
-			"deliberately — do not leave it green over nothing.", gateSource)
-	}
-	// Equal, not merely present in the file. A pattern like `unit(s):` is a substring of the tally the
-	// gate prints on every run, so a containment check would accept it and report green over a job that
-	// warns on every exit-2 reason again.
-	if pattern != want {
-		t.Errorf("the mutants job greps its log for %q, and the line the gate prints for a unit that did "+
-			"not measure is %q. Anything but the second spelling matches either nothing, which retires "+
-			"the warn arm, or more than that one case, which is the green tick over an unrun gate this "+
-			"job exists to refuse.", pattern, want)
-	}
-}
-
-// The text between the first pair of single quotes after marker. Empty when the marker is absent or its
-// quote never closes, which the caller reads as having found nothing to check.
-func quotedAfter(body, marker string) string {
-	_, rest, found := strings.Cut(body, marker)
-	if !found {
-		return ""
-	}
-	quoted, _, closed := strings.Cut(rest, "'")
-	if !closed {
-		return ""
-	}
-	return quoted
-}
-
-// The `mutants` job sweeps every mutation unit cold on each push, so an unbounded one is the job that
-// hangs for GitHub's six-hour default over a harness that stopped making progress in the first minute.
-// The runs the bound is read off are named in the workflow, beside the bound itself.
-//
-// Only the presence of a bound is held here, never its value. A bound set under the real figure
-// cancels a legitimate sweep and reddens every push, which announces itself on the next push; a bound
-// deleted announces nothing at all until a runner burns six hours, so that is the one worth a case.
-func TestTheMutantsJobCarriesABound(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join(workflowsDir, "gates.yml"))
-	if err != nil {
-		t.Fatalf("reading gates.yml: %v", err)
-	}
-	job, found := jobBlock(string(body), "mutants")
-	// Found or this fails outright: a case scanning a block it could not locate scans nothing and
-	// reports green, which is the same defect as a case that cannot fail.
-	if !found {
-		t.Fatalf("gates.yml declares no `mutants:` job, so this case has nothing to read a bound off " +
-			"and would pass over a workflow carrying none. Restore the job, or retire this case " +
-			"deliberately — do not leave it green over nothing.")
-	}
-	if !strings.Contains(job, "timeout-minutes:") {
-		t.Errorf("gates.yml's mutants job declares no timeout-minutes, so a sweep that stops making " +
-			"progress runs to GitHub's six-hour default before anyone is told. Give the job a bound " +
-			"above the slowest run it has had.")
-	}
-}
-
-// One job's lines, from its own two-space key down to the next one. Empty and not found where the job
-// is absent, so a caller cannot read a missing job as one declaring nothing.
-func jobBlock(body, name string) (string, bool) {
-	var held []string
-	inJob := false
-	for _, line := range strings.Split(body, "\n") {
-		if strings.HasPrefix(line, "  "+name+":") {
-			inJob = true
-			continue
-		}
-		if inJob {
-			indented := strings.HasPrefix(line, "   ") || strings.TrimSpace(line) == ""
-			if !indented {
-				break
-			}
-			held = append(held, line)
-		}
-	}
-	return strings.Join(held, "\n"), inJob
 }

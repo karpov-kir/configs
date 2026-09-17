@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The layering among the standards. The rule's home is ecosystem.md → **One home**: each standard

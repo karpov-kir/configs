@@ -3,12 +3,11 @@ package ecostats_test
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	ecostats "kk-flavor/tools/eco-stats"
+	ecoroot "configs/ai/tools/eco-root"
+	ecostats "configs/ai/tools/eco-stats"
 )
 
 // The ledger a case starts from when it needs one that already has its columns.
@@ -107,21 +106,18 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 		}
 	})
 
-	// The seed and the live ledger are a .md/source pair, which the shared-region scan cannot cover —
-	// it reads `*.sh` only. Drift between them costs a fresh install the rules the real file owns, and
-	// nothing but this case notices: the seed path runs only when there is no ledger, never on the tree
-	// that would show it.
-	t.Run("the seeded ledger says what the live one says", func(t *testing.T) {
+	// The other half of the .md/source pair no drift check covers. What the seed says is held against
+	// the live ledger by `ai/tools`, which is where a case may read that file; this is what makes the
+	// constant it reads the one a fresh install actually gets. Without it the two could agree with each
+	// other while neither was what a run writes.
+	t.Run("a first run writes the seed verbatim", func(t *testing.T) {
 		f := newRoot(t)
 		f.installStats()
 		f.run("--append", "seed, start", f.root)
-		seeded := ledgerProse(readFile(t, f.root+"/kk-flavor/skills/kk-reduce/stats.md"))
-		live, err := os.ReadFile(liveLedger)
-		if err != nil {
-			t.Fatalf("the live ledger is what this case compares against: %v", err)
-		}
-		if seeded == "" || seeded != ledgerProse(string(live)) {
-			t.Errorf("seeded:\n%slive:\n%s", indent(seeded), indent(ledgerProse(string(live))))
+		seeded := readFile(t, f.root+"/kk-flavor/skills/kk-reduce/stats.md")
+		if !strings.HasPrefix(seeded, ecostats.LedgerSeed) {
+			t.Errorf("the ledger a fresh install gets does not open with the seed, so a checkout that has "+
+				"never appended begins life without the rules the live one carries:\n%s", indent(seeded))
 		}
 	})
 }
@@ -189,9 +185,6 @@ func TestASelfNameThatDoesNotPlaceTheProgramAppendsNothing(t *testing.T) {
 		}
 	})
 }
-
-// The tree's own ledger, from the package directory `go test` runs in.
-const liveLedger = "../../kk-flavor/skills/kk-reduce/stats.md"
 
 func wordsCount(n int) string {
 	var note strings.Builder

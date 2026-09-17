@@ -2,13 +2,14 @@ package bloatjudge
 
 import (
 	"errors"
-	modelpolicy "kk-flavor/tools/model-policy"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	modelpolicy "configs/ai/tools/model-policy"
 )
 
 func TestProviderSelection(t *testing.T) {
@@ -140,21 +141,10 @@ func TestRetiredJudgeModelIsRejected(t *testing.T) {
 	}
 }
 
-func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
-	fakeCodex(t, "exit 0")
-	t.Setenv("JUDGE_PROVIDER", "codex")
-	t.Setenv("JUDGE_MODEL", "")
-	os.Unsetenv("JUDGE_MODEL")
-	configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/models.json"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if configured.Decision.Requested.Model != "gpt-5.6-luna" || configured.Decision.Requested.Effort != "low" {
-		t.Fatalf("central judge assignment = %+v", configured.Decision)
-	}
-	if configured.Decision.Rolls != 3 {
-		t.Fatalf("central judge roll count = %d", configured.Decision.Rolls)
-	}
+// Whatever the policy chose reaches the CLI as the model it will be billed for. The selection itself
+// is `ai/tools`'s — it has to read the shipped policy, which is outside this module — and this is the
+// half that carries it into an argv. Both callers, because neither derives its flags from the other.
+func TestBothCallersPassTheChosenModelToTheCLI(t *testing.T) {
 	for _, args := range [][]string{codexArgs("answer", testSettings()), claudeArgs("prompt", testSettings())} {
 		found := false
 		for i, arg := range args {
@@ -165,27 +155,6 @@ func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
 		if !found {
 			t.Fatalf("configured model was lost: %v", args)
 		}
-	}
-}
-
-func TestJudgeCacheSeparatesClientSelections(t *testing.T) {
-	fakeCodex(t, "exit 0")
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	identities := map[string]bool{}
-	for _, client := range []string{"codex", "claude"} {
-		t.Setenv("JUDGE_PROVIDER", client)
-		configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/models.json"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if configured.CacheIdentity == "" || identities[configured.CacheIdentity] {
-			t.Fatalf("judge cache did not distinguish %s selection: %q", client, configured.CacheIdentity)
-		}
-		identities[configured.CacheIdentity] = true
 	}
 }
 

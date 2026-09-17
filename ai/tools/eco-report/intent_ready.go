@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The intent-ready gate: the mechanical half of "is this ICE fit to build". The judgement half — a

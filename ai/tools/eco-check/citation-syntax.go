@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 var (

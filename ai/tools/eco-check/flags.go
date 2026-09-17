@@ -27,7 +27,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const (
@@ -263,8 +263,8 @@ func (c *checker) documentedFlagsOf(path string) documentedFlags {
 // is what keeps `# Run --help for …` from documenting a flag the grammar never names.
 //
 // Lowercase `usage:` only, the same anchor subcommands.go's usageSubcommands and
-// ai/tools/stub_usage_test.go both take, and the one tool-stub-test.sh already refuses a `Usage:`
-// against. One spelling per thing, or this scan and those two disagree about which line is the usage.
+// ai/tools/stub_usage_test.go both take, and the one that suite holds every stub's own header to.
+// One spelling per thing, or this scan and those two disagree about which line is the usage.
 //
 // Read out of leadingCommentBlock, so a `# usage:` written inside a function body is not one: that
 // helper stops at the first line the header does not hold, and bounds what it reads.

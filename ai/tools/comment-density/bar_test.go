@@ -1,9 +1,11 @@
 package density
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,9 +16,7 @@ func (r *repo) runBar(args ...string) {
 }
 
 func (r *repo) runBarIn(cwd string, cfg Config, args ...string) {
-	r.stdout.Reset()
-	r.stderr.Reset()
-	r.code = Run("comment-density.sh", append([]string{"--bar"}, args...), cwd, cfg, &r.stdout, &r.stderr)
+	r.runIn(cwd, cfg, append([]string{"--bar"}, args...)...)
 }
 
 func TestBarIsAModeOnlyAsTheFirstArgument(t *testing.T) {
@@ -169,8 +169,12 @@ func TestBaseRevisionNamesWhatTheDiffComparedAgainst(t *testing.T) {
 	}
 }
 
+// The grammar is this package's and the merge base is the repository's, so this drives the parsing
+// directly against a repository that holds one: a range's two sides reach MergeBase, and what comes
+// back is what the listings are then taken at.
 func TestBaseRevisionOfASymmetricRangeIsTheMergeBase(t *testing.T) {
-	host := hostRepo{root: newRepoWithLeanBaseline(t).dir}
+	seed := newRepoWithLeanBaseline(t)
+	host := hostRepo{git: seed.fake, root: seed.dir}
 	got, err := host.baseRevision([]string{"HEAD...HEAD"})
 	if err != nil {
 		t.Fatalf("merge base of HEAD with itself failed: %v", err)
@@ -186,8 +190,9 @@ func TestBaseRevisionOfASymmetricRangeIsTheMergeBase(t *testing.T) {
 	}
 }
 
-// RefuseNonRevisions tells a caller to put paths after `--`; read as a revision, `--` becomes the base
-// every later listing fails on, and the bar exits 2 printing git's ls-tree usage.
+// RefuseNonRevisions tells a caller to put paths after `--`; left among the revisions, `--` becomes the
+// base every later listing fails on and the bar exits 2 over a sound invocation. The exit code is what
+// holds that: a separator reaching the port as a revision resolves to nothing.
 func TestBarNarrowsToThePathspecAfterADoubleDash(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("pkg/heavy.go", "// a\n// b\n// c\ncode()\n")
@@ -195,28 +200,23 @@ func TestBarNarrowsToThePathspecAfterADoubleDash(t *testing.T) {
 
 	r.runBar("--", "pkg")
 	r.expectCode(exitFound)
-	r.expectStderrLacks("usage: git")
 	r.expectStdoutHas("(3 comment / 1 code)")
 	r.expectStdoutHas("pkg/heavy.go: 75% against a 10% ceiling")
 	r.expectStdoutLacks("other.go")
 	r.expectStdoutHas("(2 file(s) in the baseline)")
 }
 
+// A pathspec is relative to the directory git ran in, so a narrowed listing has to be asked from where
+// the caller stood. `-- heavy.go` from pkg/ names pkg/heavy.go; the same spec read from the root names
+// a file this repository does not hold, and the change set comes back empty.
 func TestBarPathspecIsRelativeToWhereTheCallerRan(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("pkg/heavy.go", "// a\n// b\n// c\ncode()\n")
-	r.write("other.go", "// a\n// b\n// c\n// d\ncode()\n")
-
-	r.runBar("--", "pkg/heavy.go")
-	r.expectCode(exitFound)
-	fromRoot := r.stdout.String()
 
 	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig(), "--", "heavy.go")
 	r.expectCode(exitFound)
-	r.expectStdoutLacks("other.go")
-	if fromSubdir := r.stdout.String(); fromSubdir != fromRoot {
-		t.Fatalf("a pathspec from a subdirectory reported differently:\nroot:\n%s\nsubdirectory:\n%s", fromRoot, fromSubdir)
-	}
+	r.expectStdoutHas("(3 comment / 1 code)")
+	r.expectStdoutHas("pkg/heavy.go: 75% against a 10% ceiling")
 }
 
 func TestBarPathspecWithRevisionsKeepsTheirBase(t *testing.T) {
@@ -234,23 +234,18 @@ func TestBarPathspecWithRevisionsKeepsTheirBase(t *testing.T) {
 
 func TestBarRefusesOutsideARepository(t *testing.T) {
 	r := newRepo(t)
-	r.runBarIn(t.TempDir(), baseConfig())
+	r.fake.Fail["TopLevel"] = errors.New("fatal: not a git repository (or any of the parent directories): .git")
+	r.runBar()
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("not inside a git repository")
 	r.expectNoStdout()
 }
 
 func TestBarInARepositoryWithNoCommitNamesThat(t *testing.T) {
-	r := newRepo(t)
-	unborn := t.TempDir()
-	if err := git(unborn, "init", "-q"); err != nil {
-		t.Fatalf("could not init the unborn repo: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(unborn, "heavy.go"), []byte("// a\n// b\n// c\ncode()\n"), 0o644); err != nil {
-		t.Fatalf("could not write the fixture: %v", err)
-	}
+	r := newUnbornRepo(t)
+	r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
 
-	r.runBarIn(unborn, baseConfig())
+	r.runBar()
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("this repository has no commit yet")
 	r.expectStderrLacks("rejected these arguments")
@@ -259,6 +254,7 @@ func TestBarInARepositoryWithNoCommitNamesThat(t *testing.T) {
 
 func TestBarCarriesGitsOwnAccountOfABadRevision(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
+	r.fake.Fail["Changed"] = errors.New("fatal: ambiguous argument 'no-such-revision': unknown revision or path not in the working tree")
 	r.runBar("no-such-revision")
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("git rejected these arguments")
@@ -323,26 +319,21 @@ func TestBarReportsLongBlocks(t *testing.T) {
 	r.expectStdoutLacks("over on lines")
 }
 
-// lib/new.go is untracked and outside the subdirectory the second run starts in: `git ls-files` with no
-// pathspec lists only under the directory it runs in, and the change set would lose the file there.
+// lib/new.go is untracked and outside the subdirectory this run starts in: a listing names only what
+// sits under the directory git ran in, so an unnarrowed one asked from pkg/ loses the file and every
+// figure below it shrinks. Asked at the root, as it must be, the run from pkg/ reports what a run from
+// the root reports.
 func TestBarRunFromASubdirectoryMatchesTheRoot(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("a.go", strings.Repeat("// more\n", 6)+"code()\n")
 	r.write("pkg/heavy.go", "// a\n// b\n// c\ncode()\n")
 	r.write("lib/new.go", "// x\n// y\ncode()\n")
 
-	r.runBar()
-	r.expectCode(exitFound)
-	fromRoot := r.stdout.String()
-	r.expectStdoutHas("(2 file(s) in the baseline)")
-	r.expectStdoutHas("(11 comment / 3 code)")
-
 	r.runBarIn(filepath.Join(r.dir, "pkg"), baseConfig())
 	r.expectCode(exitFound)
+	r.expectStdoutHas("(2 file(s) in the baseline)")
+	r.expectStdoutHas("(11 comment / 3 code)")
 	r.expectStdoutHas("lib/new.go: 67% against a 10% ceiling")
-	if fromSubdir := r.stdout.String(); fromSubdir != fromRoot {
-		t.Fatalf("run from a subdirectory reported differently:\nroot:\n%s\nsubdirectory:\n%s", fromRoot, fromSubdir)
-	}
 }
 
 func TestBarKeepsAFileTheChangeOnlyDeletedFrom(t *testing.T) {
@@ -385,6 +376,35 @@ func TestBarWithRevisionsJudgesOnlyThatDiff(t *testing.T) {
 	}
 }
 
+// What --bar over a range costs must not scale with the repository's size. Content at a revision was
+// once one git call per file, which put a 387-file checkout at 107 seconds of wall clock for 2.8
+// seconds of work — the spawns, not the counting, and the edit lane pays it on every pass over a
+// sizeable repository. Two repositories differing only in how many files sit outside the change have to
+// ask git the same questions in the same order.
+func TestBarOverARangeAsksTheSameQuestionsWhateverTheBaselineHolds(t *testing.T) {
+	questions := func(baselineFiles int) []string {
+		r := newRepo(t)
+		lean := strings.Repeat("code()\n", 9) + "// one\n"
+		for i := 0; i < baselineFiles; i++ {
+			r.write(fmt.Sprintf("base%03d.go", i), lean)
+		}
+		// Carried rather than new, so the read at the base revision is asked for too.
+		r.write("heavy.go", lean)
+		r.commit("the baseline")
+		r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
+		r.commit("the change")
+
+		r.fake.Asked = nil
+		r.runBar("HEAD~1..HEAD")
+		r.expectCode(exitFound)
+		return r.fake.Asked
+	}
+	small, large := questions(1), questions(40)
+	if !slices.Equal(small, large) {
+		t.Errorf("a 40-file baseline asked git\n  %v\nand a 1-file one asked\n  %v", large, small)
+	}
+}
+
 func TestBarPrintsItsDenominatorOnStderr(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
@@ -417,9 +437,7 @@ func TestBarSkipsASymlinkRatherThanFollowingIt(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("// a\n// b\n// c\ncode()\n"), 0o644); err != nil {
 		t.Fatalf("could not write the target outside the repo: %v", err)
 	}
-	if err := os.Symlink(outside, filepath.Join(r.dir, "link.go")); err != nil {
-		t.Fatalf("could not plant the symlink: %v", err)
-	}
+	r.symlink("link.go", outside)
 
 	r.runBar()
 	r.expectCode(exitDidNotRun)
@@ -442,14 +460,15 @@ func TestBarSkipsABinaryFileUnread(t *testing.T) {
 }
 
 // `git diff HEAD` is "ambiguous" once a file named HEAD sits in the working tree, and the branch under
-// review can commit one; the listings end in `--` whether a pathspec follows or not, so the bar runs.
+// review can commit one; the port ends every listing in `--` whether a pathspec follows or not, so the
+// bar runs — `repo.Exec` → pathspecArgs carries that. What is the bar's own is that it then measures the
+// file like any other rather than reading its name as a revision.
 func TestBarRunsWithAFileNamedHEADInTheTree(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("HEAD", "// a\n// b\n// c\ncode()\n")
 
 	r.runBar()
 	r.expectCode(exitFound)
-	r.expectStderrLacks("ambiguous argument")
 	r.expectStdoutHas("HEAD: 75% against a 10% ceiling")
 }
 
@@ -507,6 +526,9 @@ func TestTheOverageNamesTheFilesCarryingIt(t *testing.T) {
 		r.commit("legacy arrives")
 		r.write("legacy.go", heavy(60, 21))
 		r.write("mine.go", heavy(3, 20))
+		// One code line added to legacy.go and nothing else: mine.go is untracked, so `git diff HEAD`
+		// carries no line of it at all.
+		r.diffs(patchAdding("legacy.go", "x := 20"))
 		r.runBar()
 		r.expectCode(exitFound)
 		r.expectStdoutHas("over on lines:")
@@ -549,6 +571,7 @@ func TestTheReportSeparatesWhatIsChargeableFromTheOverage(t *testing.T) {
 	// Brush the legacy file, and write a small lean file of this change's own.
 	r.write("legacy.go", heavy(60, 21))
 	r.write("mine.go", strings.Repeat("code()\n", 30))
+	r.diffs(patchAdding("legacy.go", "x := 20"))
 	r.runBar()
 
 	r.expectStdoutHas("over on lines:")
@@ -569,8 +592,10 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 		}
 		r.write("rewritten.go", "// old one\n// old two\n"+strings.Repeat("code()\n", 8))
 		r.commit("the file arrives")
-		// Same code, every comment line replaced: the change wrote all of its comment mass.
+		// Same code, every comment line replaced: the change wrote all of its comment mass, and the diff
+		// carries all forty of them.
 		r.write("rewritten.go", heavy(40, 0)+strings.Repeat("code()\n", 8))
+		r.diffs(patchAdding("rewritten.go", bodyLines(heavy(40, 0))...))
 		r.runBar()
 		r.expectStdoutHas("rewritten.go: 40 comment line(s), 100% written here")
 	})
@@ -583,32 +608,49 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 		r.write("legacy.go", heavy(60, 20))
 		r.commit("legacy arrives")
 		r.write("legacy.go", heavy(60, 21))
+		// The same file, and the diff carries one code line and no comment: the mass is the repo's.
+		r.diffs(patchAdding("legacy.go", "x := 20"))
 		r.runBar()
 		r.expectStdoutHas("legacy.go: 60 comment line(s), 0% written here")
 	})
 }
 
-// Every report names the build that produced it, so two readings taken apart can be told apart. The
-// stub exports the stamp; run directly, as here, nothing does.
-func TestBarNamesTheBuildThatMeasured(t *testing.T) {
+// Every report names the build that produced it, so two readings taken apart can be told apart. Read
+// off the binary that is running rather than handed in by the stub, which is what lets a binary invoked
+// directly — as every case in this file does — still name what it was built from.
+func TestTheBuildIsTheStampBesideTheRunningBinary(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "deadbeefcafe\n")
 
-	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build deadbeefcafe")
+	if by := identityOf(r.git, binary); by.build != "deadbeefcafe" {
+		t.Errorf("the build reads %q where the stamp beside the binary says %q", by.build, "deadbeefcafe")
+	}
 }
 
 // An identity nobody stamped is reported, never omitted. A line that disappears when the build is
 // unknown leaves its absence meaning two things — no stamp, or an older binary that never printed one
-// — and the reader cannot tell which.
+// — and the reader cannot tell which. Driven end to end, because the test binary really is unstamped:
+// what this holds is the LINE, not just the value behind it.
 func TestBarNamesAnUnknownBuildRatherThanOmittingIt(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "")
 
 	r.runBar()
 	r.expectStdoutHas("measured by: comment-density build unknown")
+}
+
+// A stamp file that exists and holds nothing is the same answer as no stamp at all: a build written as
+// the empty string would print as `build , tree …` and read as a formatting bug rather than a gap.
+func TestAnEmptyStampReadsUnknownRatherThanEmpty(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "\n")
+
+	if by := identityOf(r.git, binary); by.build != unknownIdentity {
+		t.Errorf("an empty stamp reads as %q, which prints as a gap in the line rather than as a gap in "+
+			"what is known", by.build)
+	}
 }
 
 // Under the bar the attribution half prints nothing at all, so the identity must not ride on it: an
@@ -616,12 +658,11 @@ func TestBarNamesAnUnknownBuildRatherThanOmittingIt(t *testing.T) {
 func TestBarNamesTheBuildEvenWhenUnderTheBar(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "underbar99")
 
 	r.runBar()
 	r.expectCode(exitClean)
 	r.expectStdoutLacks("chargeable")
-	r.expectStdoutHas("measured by: comment-density build underbar99")
+	r.expectStdoutHas("measured by: comment-density build ")
 }
 
 // A closed range asks what its right-hand side holds, so content comes from there and not from a tree
@@ -663,9 +704,7 @@ func TestBarTakesItsBaselineListFromTheContentRevision(t *testing.T) {
 	r.commit("a file the range still had")
 	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
 	r.commit("the commit this range names")
-	if err := os.Remove(filepath.Join(r.dir, "gone.go")); err != nil {
-		t.Fatalf("could not delete the fixture: %v", err)
-	}
+	r.remove("gone.go")
 	r.commit("later work deletes it")
 
 	r.runBar("HEAD~2..HEAD~1")
@@ -695,27 +734,45 @@ func TestContentRevisionPinsOnlyClosedRanges(t *testing.T) {
 
 // The report names the checkout as well as the binary. They are different facts: a stamp hashes source,
 // so a tree can hash identically to its own source and still be a commit nobody else has — which is what
-// makes two readings taken apart incomparable when the mount moved between them.
-func TestBarNamesTheTreeItMeasuredOn(t *testing.T) {
+// makes two readings taken apart incomparable when the mount moved between them. The checkout asked
+// about is the BINARY's, not the tree under measurement, so the question is put at its directory.
+func TestTheTreeIsTheCheckoutTheBinarySitsIn(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
-	t.Setenv("ECO_TOOL_TREE", "feedfacedead")
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "deadbeefcafe\n")
 
-	r.runBar()
-	r.expectStdoutHas("measured by: comment-density build deadbeefcafe, tree feedfacedead")
+	by := identityOf(r.git, binary)
+	if want := r.fake.Refs["HEAD"]; by.tree != want {
+		t.Errorf("the tree reads %q where HEAD at the binary's own directory is %q", by.tree, want)
+	}
+	if by.build != "deadbeefcafe" {
+		t.Errorf("the build reads %q, so this case says nothing about the two being separate facts", by.build)
+	}
 }
 
 // An unnamed checkout is reported, never omitted — the same reason the build is. A line that drops the
-// tree when nothing named it leaves its absence meaning either no git or an older binary.
-func TestBarNamesAnUnknownTreeRatherThanOmittingIt(t *testing.T) {
+// tree when nothing named it leaves its absence meaning either no git or an older binary. A binary
+// installed outside any checkout is the ordinary way here, not a broken machine.
+func TestAnUnnamedCheckoutReadsUnknownRatherThanEmpty(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
-	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
-	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
-	t.Setenv("ECO_TOOL_TREE", "")
+	r.fake.Fail = map[string]error{"Resolve": errors.New("not a git repository")}
+	binary := filepath.Join(t.TempDir(), "comment-density")
+	writeIdentityFixture(t, binary, "deadbeefcafe\n")
 
-	r.runBar()
-	r.expectStdoutHas("build deadbeefcafe, tree unknown")
+	if by := identityOf(r.git, binary); by.tree != unknownIdentity {
+		t.Errorf("a directory git could not answer about reads as %q rather than as unknown", by.tree)
+	}
+}
+
+// One fixture binary with its stamp beside it, which is the pair resolve.sh and install.sh both leave.
+func writeIdentityFixture(t *testing.T, binary, stamp string) {
+	t.Helper()
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("writing the fixture binary: %v — nothing was measured", err)
+	}
+	if err := os.WriteFile(binary+".stamp", []byte(stamp), 0o644); err != nil {
+		t.Fatalf("writing the fixture stamp: %v — nothing was measured", err)
+	}
 }
 
 // The bar and the voice check both enforce "a block is at most four lines", so they have to mean the

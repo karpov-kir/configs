@@ -4,9 +4,8 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // True when a path's directory sits at or under rootCanon, which is shell.CanonicalDir of the root.
@@ -22,11 +21,7 @@ func containedInRoot(rootCanon, path string) bool {
 	if shell.IsSymlink(path) || !shell.IsRegularFile(path) || !isReadable(path) {
 		return false
 	}
-	dir := shell.CanonicalDir(shell.DirName(path))
-	if rootCanon == "" || dir == "" {
-		return false
-	}
-	return dir == rootCanon || strings.HasPrefix(dir, rootCanon+"/")
+	return shell.IsWithin(shell.CanonicalDir(shell.DirName(path)), rootCanon)
 }
 
 // Opened rather than access(2)'d, because opening is the question containment asks: access(2) says yes

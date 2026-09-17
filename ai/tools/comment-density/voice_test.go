@@ -1,6 +1,7 @@
 package density
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -8,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/shell"
 )
 
 // The words the corpus below treats as coined: a metaphor for a mechanism, and a word a reader would
@@ -504,8 +506,10 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 
 func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
 	var out, errs strings.Builder
+	// The port refuses everything: the profile is read before any repository is, so a run that reached
+	// one would be a run that got past the refusal this case is named for.
 	code := Run("comment-density.sh", []string{"--voice", "--profile=loud"}, t.TempDir(),
-		Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
+		refusingGit(), Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
@@ -666,6 +670,16 @@ func atMost(t *testing.T, what string, got int, variable string) {
 	if got > ceiling {
 		t.Errorf("%d %s, over the ceiling of %d", got, what, ceiling)
 	}
+}
+
+// A port that answers nothing, for a case whose subject is a refusal raised before any repository is
+// read. A real answer there would mean the run got past the refusal the case is named for.
+func refusingGit() *repotest.Fake {
+	fake := repotest.New("/nowhere")
+	for _, question := range []string{"TopLevel", "Resolve", "Tracked", "Untracked", "Changed", "Patch"} {
+		fake.Fail[question] = errors.New("the case's port answers nothing")
+	}
+	return fake
 }
 
 // Over a diff the scan holds only the added lines, and the rest of the file is a gap. A gap read as a
@@ -839,8 +853,10 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
 	var out, errs strings.Builder
+	// The port answers nothing: this case names a path directly, so no repository is read, and a port
+	// that answered would mean the run took a route this is not about.
 	Run("comment-density.sh", []string{"--voice", "--profile=prose", conf}, dir,
-		Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
+		refusingGit(), Config{MaxRatio: 0.3, MinLines: 5, MaxFileBytes: 1 << 18}, &out, &errs)
 	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
 		t.Fatalf("the run did not name the conf it read: %q", errs.String())
 	}

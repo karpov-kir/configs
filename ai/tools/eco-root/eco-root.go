@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const (
@@ -184,10 +184,10 @@ func (r Root) Contains(file string) bool {
 }
 
 // HoldsSkillFile reports whether a skill file found at the mount is one of this tree's own, so that
-// the skills a tool cannot shrink are counted apart from the ones it can. Strictly under the root:
-// the directory compared is the skill's own, which is never the root itself.
+// the skills a tool cannot shrink are counted apart from the ones it can. The same containment test
+// Contains makes, over the file's own directory — these two must not disagree about one file.
 func (r Root) HoldsSkillFile(file string) bool {
-	return strings.HasPrefix(shell.CanonicalDir(shell.DirName(file)), r.canon+"/")
+	return shell.IsWithin(shell.CanonicalDir(shell.DirName(file)), r.canon)
 }
 
 func (r Root) requireAgent() {

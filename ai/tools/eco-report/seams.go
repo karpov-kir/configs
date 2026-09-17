@@ -3,31 +3,30 @@ package ecoreport
 import (
 	"io"
 	"strconv"
+
+	"configs/ai/tools/shell"
 )
 
-// The open-item scan over this run's own report. 0 = nothing open, 1 = items on stdout, anything else
-// = the scan did not run, and its output is then empty — which read as "nothing open" would pass the
-// merge gate on a scan that never happened.
-func (r *run) runTodoGate() (string, int) {
-	return r.runTodoGateOn(r.report)
-}
+// The one seam this package does not own: the tree fingerprint, which `ai/tools/tree-fingerprint/`
+// owns and which runs in process. It is not reimplemented below, and newRun says what recomputing it
+// costs. The open-item scan is this package's own now — openitems.go.
 
-func (r *run) runTodoGateOn(path string) (string, int) {
-	if !isExecutable(r.todoGate) {
-		errLinesTo(r.errOut,
-			"error: "+r.todoGate+" is missing or not executable — the open-item scan did not run.",
-			"  It is located from this program's own path, so an invocation that renamed argv[0] resolves it somewhere else entirely.")
-		return "", 2
-	}
-	return r.capture(r.errOut, r.todoGate, path)
+// The open-item scan over this run's own report.
+func (r *run) reportOpenItems() (string, error) {
+	return openItemsIn(r.report)
 }
 
 // The report's open `- [ ]`, for every caller that must refuse rather than read a failed scan as
 // "nothing open". The consequence is the caller's, since what is then unknown differs at each one.
+//
+// Every one of those callers resolves its report through requireReport, which probes the file before
+// this runs, so this refusal stands behind that one rather than in front of it. It is kept because
+// deleting the probe would otherwise leave `carry` printing no items over a report it never opened,
+// which is what a report with nothing open looks like.
 func (r *run) readOpenTodos(consequence string) {
-	items, status := r.runTodoGate()
-	if status > 1 {
-		r.refuse("error: the open-item scan did not run — todo-gate.sh exited " + strconv.Itoa(status) + "; " + consequence)
+	items, err := r.reportOpenItems()
+	if err != nil {
+		r.refuse("error: the open-item scan did not run — " + shell.Oneline(err.Error()) + "; " + consequence)
 	}
 	r.openTodos = items
 }
@@ -45,22 +44,24 @@ func (r *run) anyOpenItemsBeforeMerge(consequence string) bool {
 	if intent == "" {
 		return false
 	}
-	items, status := r.runTodoGateOn(intent)
-	if status > 1 {
-		r.refuse("error: the open-item scan of " + intent + " did not run — todo-gate.sh exited " + strconv.Itoa(status) + "; " + consequence)
+	// Nothing upstream has opened the intent file — intentFilePath asks only that it is a regular file
+	// and not a symlink — so this is the one open-item refusal a caller can reach directly.
+	items, err := openItemsIn(intent)
+	if err != nil {
+		r.refuse("error: the open-item scan of " + intent + " did not run — " + shell.Oneline(err.Error()) + "; " + consequence)
 	}
 	return items != ""
 }
 
 func (r *run) openItemsPhrase() string {
-	items, status := r.runTodoGate()
-	switch status {
-	case 0:
+	items, err := r.reportOpenItems()
+	switch {
+	case err != nil:
+		return "an unknown number of open '- [ ]' — the scan did not run (" + shell.Oneline(err.Error()) + ")"
+	case items == "":
 		return "no open '- [ ]'"
-	case 1:
-		return strconv.Itoa(countPrintedLines(items)) + " open '- [ ]'"
 	}
-	return "an unknown number of open '- [ ]' — the scan did not run (todo-gate.sh exited " + strconv.Itoa(status) + ")"
+	return strconv.Itoa(countPrintedLines(items)) + " open '- [ ]'"
 }
 
 // The fingerprint the freshness gate compares. Fails loudly rather than printing an empty tree, which

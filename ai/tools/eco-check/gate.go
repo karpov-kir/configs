@@ -1,15 +1,13 @@
 package ecocheck
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // The commit gate's half of this check: judge only what a commit can carry.
@@ -37,7 +35,7 @@ const gateSkipNameCap = 5
 // is relative to that root and short enough to read beside a budget line.
 type gateFilter struct {
 	ignored  map[string]bool
-	relative []string
+	relative map[string]bool
 }
 
 // Whether the gate is on and holds this path — the one predicate every reach asks, so there is one
@@ -103,13 +101,9 @@ func (g *gateFilter) keepCommittable(walked *tree) *tree {
 // The ignored paths named apart from the ones under them: a wholly ignored directory is one line, not
 // one per file inside it. Sorted, so two runs over one tree print the same line.
 func (g *gateFilter) skippedRoots() []string {
-	ignored := map[string]bool{}
-	for _, path := range g.relative {
-		ignored[path] = true
-	}
 	var roots []string
-	for _, path := range g.relative {
-		if !ignored[shell.DirName(path)] {
+	for path := range g.relative {
+		if !g.relative[shell.DirName(path)] {
 			roots = append(roots, path)
 		}
 	}
@@ -124,51 +118,43 @@ func (c *checker) enableGate() error {
 	for _, entry := range walked.entries {
 		paths = append(paths, entry.path)
 	}
-	relative, err := newIgnoredPaths(c.root.Named(), paths)
+	relative, err := newIgnoredPaths(c.git, c.root.Named(), paths)
 	if err != nil {
 		return err
 	}
 	ignored := map[string]bool{}
-	for _, path := range relative {
+	for path := range relative {
 		ignored[filepath.Clean(shell.Join(c.root.Named(), path))] = true
 	}
 	c.gate = &gateFilter{ignored: ignored, relative: relative}
 	return nil
 }
 
-// Which of the walked paths git says this checkout ignores, from one spawn over all of them.
+// Which of the walked paths git says this checkout ignores, asked once over all of them.
 //
-// One spawn and never one per file. On a machine whose endpoint agent inspects every exec a spawn
+// One question and never one per file. On a machine whose endpoint agent inspects every exec a spawn
 // costs ~250ms against the 1-3ms an ordinary Unix charges, so a per-file call would price this flag
-// out of the gate it exists for — and the tree under review chooses how many files there are.
-//
-// -z on both ends, because a committed filename may hold a newline and this package's suite already
-// builds one. Line-delimited, git would read that one path as two and answer about neither.
+// out of the gate it exists for — and the tree under review chooses how many files there are. That is
+// why the port takes the whole list rather than a path.
 //
 // Paths go in relative to the root and come back the same way, so the answer is echoed rather than
 // re-derived: git's own spelling of a path it was handed cannot disagree with the walk's.
-func newIgnoredPaths(root string, walked []string) ([]string, error) {
+func newIgnoredPaths(git repo.Git, root string, walked []string) (map[string]bool, error) {
 	prefix := root + "/"
-	var stdin bytes.Buffer
+	var asked []string
 	for _, path := range walked {
 		// The root entry itself carries no prefix to cut, and git has no question to answer about
 		// the directory it is being run in.
 		if rel, ok := strings.CutPrefix(path, prefix); ok {
-			stdin.WriteString(rel)
-			stdin.WriteByte(0)
+			asked = append(asked, rel)
 		}
 	}
-	if stdin.Len() == 0 {
+	if len(asked) == 0 {
 		return nil, nil
 	}
 
-	command := exec.Command("git", "check-ignore", "-z", "--stdin")
-	command.Dir = root
-	command.Stdin = &stdin
-	var out, failure bytes.Buffer
-	command.Stdout = &out
-	command.Stderr = &failure
-	if err := command.Run(); !isAnswered(err) {
+	ignored, err := git.Ignored(root, asked)
+	if err != nil {
 		// The root is bounded because git's reason follows it on the one line refuseToRun prints, and a
 		// root long enough to spend that line takes the reason with it —
 		// TestTheGateRefusalStillNamesGitsReasonUnderALongRoot is that bound. Nothing follows git's own
@@ -178,27 +164,9 @@ func newIgnoredPaths(root string, walked []string) ([]string, error) {
 		// that guard only in a tree where this site has none, so putting one back blinds the arm it owns.
 		return nil, fmt.Errorf("git check-ignore could not answer for %s, so %s filtered nothing and no scan ran: %s",
 			shell.CutBytesMarked(root, 120), gateFlag,
-			shell.CutBytesMarked(strings.TrimSpace(failure.String()), 200))
-	}
-	var ignored []string
-	for _, rel := range strings.Split(out.String(), "\x00") {
-		if rel != "" {
-			ignored = append(ignored, rel)
-		}
+			shell.CutBytesMarked(strings.TrimSpace(err.Error()), 200))
 	}
 	return ignored, nil
-}
-
-// Whether git answered the question at all. Exit 1 is its way of saying none of these paths is
-// ignored, which is an answer; anything else — git missing, no repository, a rejected path — leaves
-// the question unanswered, and a filter that quietly kept everything would hand the gate back exactly
-// the verdict it is here to remove.
-func isAnswered(err error) bool {
-	if err == nil {
-		return true
-	}
-	var exit *exec.ExitError
-	return errors.As(err, &exit) && exit.ExitCode() == 1
 }
 
 // What the filter took out of the walk, above the two budget lines, because it decides what those

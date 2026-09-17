@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/shell"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 // evalCase is one labelled text. The units are resolved at parse time from the same Split the judge
@@ -220,7 +220,7 @@ func TestTheEvalOffersEachCaseTheUnitsARunDoes(t *testing.T) {
 				return "none", nil
 			}
 			var out, errs strings.Builder
-			if code := RunIn("j", []string{c.kind, write(t, c.text)}, ".", nil, &out, &errs, recording, nil); code != exitClean {
+			if code := RunIn("j", []string{c.kind, write(t, c.text)}, ".", unasked(), nil, &out, &errs, recording, nil); code != exitClean {
 				t.Fatalf("exit %d, stderr %s", code, errs.String())
 			}
 			if _, view := c.split(); view != seen {

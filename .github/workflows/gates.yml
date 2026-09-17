@@ -4,23 +4,27 @@
 # The Go step duplicates release-tools.yml's `Gate`, and that one must stay: it guards the
 # binaries a release attaches, and `resolve.sh` prefers a downloaded binary over the source beside
 # it, so a release built from unchecked code is worse than no release. Sharing them would mean a
-# reusable workflow, which is more machinery than three commands are worth.
+# reusable workflow, which is more machinery than four commands are worth.
 #
-# No suite list here: ai/run-tests.sh discovers every `*-test.sh`, so a suite added later is gated
-# without anyone remembering to register it, and finding none is a failure rather than an empty pass.
+# Two jobs, where there were four. The `suites` job ran every `*-test.sh` and there are none left —
+# the installers, the MCP scripts and every library they shared are Go, and the three scripts that
+# stay shell are covered by Go suites inside the module. The `mutants` job swept a hand-written table
+# of 526 deliberate breaks and is deleted: `ai/kk-flavor/standards/testing.md` rule 7 says a negative
+# control runs once, by hand, when the case is written, never as standing machinery.
 #
-# Both legs matter. macOS is where these suites are written and where /bin/bash is 3.2; Linux is where
-# they are unproven and where CI is cheap. fail-fast is off so one leg going red still reports the
-# other, since the delta between them is the portability signal.
+# The matrix stays on the Go job for one reason, and it is not portability of the tests: macOS is
+# where /bin/bash is 3.2, and `eco-check`'s parse scan asks every bash the machine carries, so the
+# macOS leg is the only place that arm of it runs at all. fail-fast is off so one leg going red still
+# reports the other.
 #
 # The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
 # it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
 # the day dependabot or renovate lands.
 #
-# Every setup-go step here sets `cache: false`, for one reason: setup-go looks for its cache key file
-# in the repo root only — go.mod now, go.sum before v6.3.0 — and this module is in ai/tools. Left
-# default it annotates every run with a miss that can never become a hit. cache-dependency-path would
-# point it here, but the only thing to cache is a build cache keyed on a go.mod that never changes.
+# Every setup-go step here sets `cache: false`. The module declares no dependencies, so there is no
+# module cache to restore and a build cache is the only thing a hit would carry. Turning that on is a
+# decision about CI wall clock, to be taken on its own evidence rather than inherited from a default.
+# Until v6.3.0 setup-go looked for its key file in the repo root only, which is where go.mod now is.
 name: gates
 
 on:
@@ -33,7 +37,18 @@ permissions:
   contents: read
 
 jobs:
-  suites:
+  # `-count=1` because this job's whole job is to measure the commit, and a runner's build cache is
+  # warm between steps — the Coverage step below runs the same suite, and without the flag it would
+  # report a number read out of the Gate step's cache. release-tools.yml's Gate step says the same.
+  #
+  # `-timeout 300s`, the backstop `ai/gate.sh` hands its own `go test` — `suiteTimeoutSeconds`, and
+  # the two numbers have to move together. A suite that hangs then fails in minutes rather than after
+  # Go's ten-minute default, with a goroutine dump that reads like a deadlock. It is NOT the 100
+  # seconds `testing.md` rule 6 states: that is a budget over the whole gate, and gate.go's own wall
+  # clock is what enforces it. There is no wall clock here, so this leg bounds hangs and nothing else.
+  #
+  # `-cover` for the one number `testing.md` asks for, printed per package.
+  go:
     strategy:
       fail-fast: false
       matrix:
@@ -42,43 +57,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Some suites cover scripts that build or resolve the Go tools. jq and gh, the other two
-      # binaries the suites reach for, are preinstalled on both images.
       - uses: actions/setup-go@v7
         with:
-          go-version-file: ai/tools/go.mod
-          cache: false
-
-      - name: Run every suite
-        run: ai/run-tests.sh
-
-  # `-count=1` because Go's test cache is keyed on the module, and several suites read files outside
-  # it: eco-report's fixtures copy in `ai/kk-flavor/skills/idsd-qualify`'s report template and
-  # todo-gate.sh, and `ai/kk-flavor`'s tree-fingerprint.sh. The cache cannot see those files, so a
-  # plain run answers out of cache over a tree one of them has changed, and this job would go green
-  # on exactly that.
-  # Measured: truncate that report template to one line and `go test -count=1 ./eco-report/` fails,
-  # while `go test ./eco-report/` says `ok (cached)` over the same corrupt tree.
-  #
-  # A cached failure is not the hole. A deliberately failing case appended to eco-root re-ran and
-  # re-failed on two consecutive runs, never once from cache. `.github/workflows/release-tools.yml`
-  # cites this paragraph rather than repeating it.
-  #
-  # `ai/gate.sh` is the developer-side answer to the same hole — it keys on those files itself and
-  # forces the packages that read them. This job stays as it is: the gate is a fast path beside the
-  # full sweep, never a substitute for it.
-  go:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: ai/tools/go.mod
+          go-version-file: go.mod
           cache: false
 
       - name: Gate
-        working-directory: ai/tools
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -87,74 +71,30 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/tools/gate/run.go states at goSuiteTimeout.
+          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at suiteTimeoutSeconds.
           # The two have to match.
-          go test -count=1 -timeout 30m ./...
+          go test -count=1 -timeout 300s ./...
 
-  # Proves the guards can actually fail. `ai/run-tests.sh` cannot cover this — it discovers `*-test.sh`
-  # and the mutation harnesses are not suites — so without this job, editing a guard retires the proof
-  # that its case can redden and nothing says so.
-  #
-  # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.
-  mutants:
-    runs-on: ubuntu-latest
-    # Read off twenty consecutive runs of this job, which swept all 526 mutants cold in 297s to 614s.
-    # The bound is three times the slowest of those, so a loaded runner still finishes inside it and a
-    # sweep that stops making progress is reported in half an hour rather than at GitHub's six-hour
-    # default. Raise it from another run's duration, never from a guess: a bound under the real figure
-    # cancels a legitimate sweep and reddens every push. TestTheMutantsJobCarriesABound holds the
-    # presence of a bound, not this number.
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: ai/tools/go.mod
-          cache: false
-
-      # exit 1 is a guard that did not redden, and it fails the job. exit 2 is the gate saying it cannot
-      # report, and only one thing reaching that is weather: a mutation suite the runner killed before
-      # it measured. Passing on any of the rest is a green tick over a run that never happened. The
-      # no-input case even outranks a failure inside the gate, so a guard that did not redden beside one
-      # comes out as 2.
+      # The one number `ai/kk-flavor/standards/testing.md` → **6. Coverage** asks for, and the floor it
+      # sets. Its own step rather than a flag on the Gate above, because that step is byte-identical to
+      # release-tools.yml's and `workflows_test.go` holds the two to each other — a flag here alone
+      # would be the drift that case exists to catch.
       #
-      # The grep below names the weather case by the line the gate prints for it and for nothing else.
-      # The rest are an open set, so a reason added later fails this job until someone decides it is
-      # weather. TestTheMutantsJobNamesTheGatesDidNotMeasureLine holds the pattern to the gate's wording.
-      #
-      # The warning also goes to the step summary, because an annotation alone lives inside a log fold.
-      # Nothing here catches a runner that never measures at all: no count crosses runs, so such a job
-      # warns every time and never escalates.
-      - name: Prove the guards can fail
+      # Linux only: the number is a property of the code, not of the runner, and two legs reporting
+      # two numbers invites someone to read the higher one.
+      - name: Coverage
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          log="$RUNNER_TEMP/mutants.log"
-          set +e
-          ai/gate.sh --mutants >"$log" 2>&1
-          status=$?
-          set -e
-          cat "$log"
+          go test -count=1 -timeout 300s -coverprofile=cover.out ./...
+          total=$(go tool cover -func=cover.out | awk '/^total:/ {print $3}')
+          echo "coverage: $total"
+          # awk rather than bash arithmetic: the figure is a percentage with one decimal, and bash has
+          # no floats. The comparison is `<`, so exactly 80.0 passes, which is what "≥ 80%" means.
+          awk -v got="${total%\%}" 'BEGIN { if (got < 80) { printf "coverage %s%% is under the 80%% floor testing.md sets\n", got > "/dev/stderr"; exit 1 } }'
 
-          if [ "$status" -ne 2 ]; then
-            exit "$status"
-          fi
-
-          if ! grep -q 'unit(s) exited 2 without measuring' "$log"; then
-            echo "::error::ai/gate.sh --mutants exited 2 for a reason other than a unit that ran without measuring, so this is not machine load and nothing here says the guards were proven. The reason is in this step's log."
-            exit 1
-          fi
-
-          note="ai/gate.sh --mutants exited 2: the gate ran and measured nothing, so this run says nothing about the guards it names. The reason is in this step's log."
-          echo "::warning::$note"
-          {
-            echo "### :warning: guards unproven on this run"
-            echo
-            echo "$note"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
-  # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file
-  # that does not exist reaches main with nothing looking at it.
+  # The instruction tree — standards, SKILL.md files, templates. The wiring check is not a Go suite,
+  # so without this job a citation pointing at a file that does not exist reaches main with nothing
+  # looking at it.
   #
   # `check.sh` exits 1 with findings and 2 when it could not run at all, and both fail the job:
   # a check that did not run is not a clean one, which is the rule the script's own header states.
@@ -167,10 +107,10 @@ jobs:
       # source beside it when no release binary is present — which is the case on a fresh runner.
       - uses: actions/setup-go@v7
         with:
-          go-version-file: ai/tools/go.mod
+          go-version-file: go.mod
           cache: false
 
-      # --gate, so this job and ai/gate.sh's wiring unit ask the same question of the same commit.
+      # --gate, so this job and ai/gate.sh's wiring check ask the same question of the same commit.
       # Not a no-op on a fresh runner: the build the step above provides for writes ai/tools/bin/eco-check
       # before the binary execs, so build output is in the tree by the time the walk runs, and without
       # the flag the check reads files it cannot judge.

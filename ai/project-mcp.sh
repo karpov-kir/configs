@@ -1,46 +1,39 @@
 #!/usr/bin/env bash
-# Configure public MCP servers in one project's client files; never user settings.
-# usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
-# tested by: project-mcp-test.sh
+#
+# Configure the public MCP servers in one project's own client files, and never in user settings.
+# ai/mcp.private.jsonc is never read here: a project file is committed and shared with everyone who
+# clones the project.
+#
+#   usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
+#
+# The recipe is Go, in `ai/tools/project-mcp/`.
+#
+# tested by: the Go suite in ai/tools/project-mcp/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
-here="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-agent=""
-project=""
-is_dry_run=false
-is_uninstall=false
-for arg in "$@"; do
-  case "$arg" in
-    --agent=claude | --agent=codex) agent="${arg#*=}" ;;
-    --dry-run) is_dry_run=true ;;
-    --uninstall) is_uninstall=true ;;
-    # Anchored on content, not line numbers — see ai/mcp-sync.sh for why.
-    -h | --help) sed -n '/^# ./,/^# tested by:/{/^# tested by:/q;/^#$/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"; exit 0 ;;
-    -*) echo "project MCP: unknown option $arg" >&2; exit 2 ;;
-    *)
-      [ -z "$project" ] || { echo 'project MCP: select one project' >&2; exit 2; }
-      project="$arg"
-      ;;
-  esac
-done
-[ -n "$agent" ] && [ -n "$project" ] && [ -d "$project" ] || {
-  echo 'project MCP: --agent=claude|codex and an existing project directory are required' >&2
+
+tool="project-mcp"
+# How far THIS file sits above the tools directory.
+tools_offset="."
+
+# --- shared:tool-stub ---
+# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
+# sourced because sourcing a file is executing it, and these run from whatever repo the human is in —
+# so only what cannot move is here: a stub has to find the resolver before the resolver can decide
+# anything. `ai/tools/resolve.sh` owns the rest, argv[0] included, and its header states why each line
+# below is the shape it is — the `cd -P`, the one declared offset, the two guards, the exec.
+die() {
+  printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
 }
-if command -v node >/dev/null 2>&1; then
-  exec node "$here/project-mcp.mjs" "$@"
-fi
-# Lookup and provisioning must not evaluate the caller's mise configuration or hooks.
-node_dir="$(MISE_NO_CONFIG=1 MISE_NO_ENV=1 MISE_NO_HOOKS=1 mise where node@lts 2>/dev/null || true)"
-if [ -x "$node_dir/bin/node" ]; then
-  exec "$node_dir/bin/node" "$here/project-mcp.mjs" "$@"
-fi
-if $is_dry_run; then
-  echo 'project MCP: would update public browser servers; validation deferred until Node is installed through mise'
-  exit 0
-fi
-if $is_uninstall; then
-  echo 'project MCP: Node is required to uninstall safely; install Node through mise, then retry' >&2
-  exit 1
-fi
-command -v mise >/dev/null 2>&1 || { echo 'project MCP: mise is required to provide Node' >&2; exit 1; }
-MISE_NO_CONFIG=1 MISE_NO_ENV=1 MISE_NO_HOOKS=1 exec mise exec node@lts -- node "$here/project-mcp.mjs" "$@"
+
+here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
+  die "cannot resolve my own directory, so $tool could not be located"
+
+resolver="$here/$tools_offset/tools/resolve.sh"
+[ -e "$resolver" ] ||
+  die "no resolver at $resolver — this skill is mounted from a checkout that does not ship ai/tools/, and $tool did NOT run"
+[ -x "$resolver" ] ||
+  die "$resolver is not executable, so $tool did NOT run — chmod +x it"
+
+exec "$resolver" --run "$tool" "$0" "$@"
+# --- end shared:tool-stub ---

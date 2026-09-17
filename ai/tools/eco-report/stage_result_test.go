@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	ecoreport "kk-flavor/tools/eco-report"
 )
 
 func (f *fixture) newTypedResult(stage, id string) map[string]any {
@@ -215,8 +213,8 @@ func TestTypedStageResultRejectsTreeAndHistoryMovement(t *testing.T) {
 			result := f.newTypedResult("code-review", "code-1")
 			if movement == "tree" {
 				f.write(f.repo+"/tracked.txt", "changed\n")
-			} else if out, status := f.git("commit", "--allow-empty", "-qm", "new head"); status != 0 {
-				t.Fatal(out)
+			} else {
+				f.setHead("cafe0000cafe0000cafe0000cafe0000cafe0000")
 			}
 			submitTypedResult(f, result)
 			if f.status == 0 || !strings.Contains(f.out, "stale") {
@@ -246,8 +244,7 @@ func TestTypedStageResultParallelSubmissionsPreserveBothFindings(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			var output bytes.Buffer
-			status := (ecoreport.Invocation{Args: []string{"stage-result", path, "001-parallel"}, Dir: f.repo, Self: f.skill + "/scripts/report.sh", Home: f.home, ConfigHome: f.configHome, Out: &output, Err: &output}).Exec()
-			if status != 0 {
+			if status := f.invoke(f.repo, &output, &output, []string{"stage-result", path, "001-parallel"}); status != 0 {
 				t.Errorf("parallel submission refused: %s", output.String())
 			}
 		}()
@@ -331,11 +328,7 @@ func TestTypedStageResultSiblingInvalidationCannotLoseFindings(t *testing.T) {
 	if f.status != 0 {
 		t.Fatal(f.out)
 	}
-	second := f.base + "/second"
-	f.mustGit("worktree", "add", "-q", second, "-b", "second")
-	if !f.exists(second + "/.git") {
-		t.Skip("git worktree add is unavailable")
-	}
+	second := f.newLinkedWorktree("second")
 	f.runReportIn(second, "invalidate", "001-sibling-result")
 	if f.status != 0 {
 		t.Fatalf("sibling could not start its own attempt: %s", f.out)

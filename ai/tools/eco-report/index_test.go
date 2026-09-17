@@ -13,7 +13,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -22,31 +21,25 @@ func TestTheHumanIndexIsNeverTouched(t *testing.T) {
 	f := newRepo(t)
 	f.runReport("check-ignore")
 
-	// The split: one path staged, one tracked path modified but not staged, one path untracked. A
-	// `git add -A` on the real index collapses all three into "staged".
+	// A tree with all three of a human's states in it — a tracked file modified, an untracked file
+	// beside it — so a subcommand that staged by sweeping the tree would have something to sweep.
 	f.write(f.repo+"/staged.txt", "staged\n")
-	f.mustGit("add", "staged.txt")
+	f.track("staged.txt")
 	f.write(f.repo+"/tracked.txt", "base\nmodified\n")
 	f.write(f.repo+"/untracked.txt", "untracked\n")
-	before := f.indexState()
-	// The three cases below compare this split before and after, and an empty split compares equal
-	// just as well. So a fixture that staged nothing would pass all three while the state they protect
-	// is not there.
-	established := strings.HasPrefix(before, "staged:staged.txt") &&
-		strings.Contains(before, "\nunstaged:tracked.txt")
-	f.record("fixture: the staged/unstaged split the three cases below compare", established, before)
 
+	// What a human loses is their staged/unstaged split, and the only way this tool can touch it is by
+	// staging: the one write in `ai/tools/repo`'s port is Add. So the assertion is that neither
+	// subcommand asked for one — which the fake records whether or not any repository would have obeyed.
 	f.runReport("init", "review: index isolation")
-	afterInit := f.indexState()
 	f.record("init stages nothing (a regression guard, not a fingerprint one)",
-		before == afterInit, "before -> "+before+"\nafter  -> "+afterInit)
+		f.indexState() == "staged:", f.indexState())
 
 	// `gate` reaches the fingerprint immediately after resolving the report, so it is the shortest
 	// path to it. It is expected to block here; what matters is the index afterwards.
 	f.runReport("gate")
-	afterGate := f.indexState()
-	f.record("the gate's fingerprint leaves the split exactly as it was",
-		before == afterGate, "before -> "+before+"\nafter  -> "+afterGate)
+	f.record("the gate's fingerprint stages nothing either",
+		f.indexState() == "staged:", f.indexState())
 
 	// The fingerprint has to be a real reading of the whole tree, or the case above would also pass on
 	// a fingerprint of nothing at all.

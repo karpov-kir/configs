@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Caller runs the model. Injected so the suite drives every path without a process or a network.

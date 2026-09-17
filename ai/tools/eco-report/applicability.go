@@ -6,11 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	"kk-flavor/tools/diffscan"
+	"configs/ai/tools/diffscan"
 )
 
 const scopeMarker = ".scope.json"
@@ -44,12 +43,14 @@ func (r *run) cmdScope() {
 	if r.reviewedTree() != "pending" {
 		r.refuse("error: invalidate before recording scope")
 	}
-	base, status := r.captureGit(r.errOut, "rev-parse", "--verify", "--end-of-options", r.arg(1)+"^{commit}")
-	if status != 0 || base == "" {
+	base, err := r.git.Resolve(r.root, r.arg(1)+"^{commit}")
+	if err != nil || base == "" {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: scope base did not resolve to a commit")
 	}
-	head, status := r.captureGit(r.errOut, "rev-parse", "--verify", "HEAD^{commit}")
-	if status != 0 || head == "" {
+	head, err := r.git.Resolve(r.root, "HEAD^{commit}")
+	if err != nil || head == "" {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: scope HEAD did not resolve to a commit")
 	}
 	tree, ok := r.currentTree(r.errOut)
@@ -62,8 +63,8 @@ func (r *run) cmdScope() {
 	}
 	stages := r.scopeStages(base)
 	after, ok := r.currentTree(r.errOut)
-	newHead, status := r.captureGit(r.errOut, "rev-parse", "--verify", "HEAD^{commit}")
-	if !ok || after != tree || status != 0 || newHead != head {
+	newHead, err := r.git.Resolve(r.root, "HEAD^{commit}")
+	if !ok || after != tree || err != nil || newHead != head {
 		r.refuse("error: tree moved while measuring scope; rerun scope")
 	}
 	receipt := scopeReceipt{Version: scopeVersion, Base: base, Head: head, Tree: tree, Worktree: token, Stages: stages}
@@ -80,48 +81,37 @@ func (r *run) cmdScope() {
 
 func (r *run) scopeStages(base string) map[string]string {
 	stages := map[string]string{"security-review": "not-applicable", "edit": "not-applicable", "refactor": "not-applicable"}
-	raw, status := r.captureGit(r.errOut, "diff", "--raw", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-relative", "--ignore-submodules=none", base, "--")
-	if status != 0 {
+	changed, err := r.git.ChangedWithStatus(r.root, []string{base}, nil)
+	if err != nil {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: scope diff could not be read")
 	}
-	fields := strings.Split(raw, "\x00")
-	for i := 0; i < len(fields)-1; i += 2 {
-		if i+1 >= len(fields)-1 {
-			r.refuse("error: malformed scope diff")
-		}
-		header := strings.Fields(fields[i])
-		if len(header) != 5 || !strings.HasPrefix(header[0], ":") {
-			r.refuse("error: malformed scope diff header")
-		}
-		name := fields[i+1]
-		if !isScopePath(name) {
+	for _, change := range changed {
+		if !isScopePath(change.Path) {
 			r.refuse("error: invalid path in scope diff")
 		}
-		oldMode := strings.TrimPrefix(header[0], ":")
-		if oldMode != "000000" {
-			// Inspect both sides: deleting code or renaming it as prose does not remove its review obligation.
-			if oldMode == "100644" && isPlainProse(name, nil) {
-				body, wasRead := r.readProseBlob(header[2])
-				classifyScopeFile(stages, scopeFile{name: name, mode: oldMode, body: body, wasRead: wasRead})
+		// Both sides, because deleting code or renaming it as prose does not remove its review
+		// obligation. An empty mode is the side that does not exist — an addition has no source — and
+		// the source MODE is what no reading of the content could recover: a `.md` that was executable
+		// or a symlink at the base is not prose whatever its bytes say.
+		if change.OldMode != "" {
+			if change.OldMode == "100644" && isPlainProse(change.Path, nil) {
+				body, wasRead := r.readProseBlob(change.OldBlob)
+				classifyScopeFile(stages, scopeFile{name: change.Path, mode: change.OldMode, body: body, wasRead: wasRead})
 			} else {
-				classifyScopeFile(stages, scopeFile{name: name, mode: oldMode})
+				classifyScopeFile(stages, scopeFile{name: change.Path, mode: change.OldMode})
 			}
 		}
-		if header[1] != "000000" {
-			r.classifyWorkingFile(stages, name)
+		if change.NewMode != "" {
+			r.classifyWorkingFile(stages, change.Path)
 		}
 	}
-	if len(fields) > 0 && fields[len(fields)-1] != "" {
-		r.refuse("error: incomplete scope diff")
-	}
-	untracked, status := r.captureGit(r.errOut, "ls-files", "--others", "--exclude-standard", "-z")
-	if status != 0 {
+	untracked, err := r.git.Untracked(r.root)
+	if err != nil {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: scope untracked files could not be read")
 	}
-	for _, name := range strings.Split(untracked, "\x00") {
-		if name == "" {
-			continue
-		}
+	for _, name := range untracked {
 		if !isScopePath(name) {
 			r.refuse("error: invalid untracked scope path")
 		}
@@ -131,13 +121,11 @@ func (r *run) scopeStages(base string) map[string]string {
 }
 
 func (r *run) readProseBlob(blob string) ([]byte, bool) {
-	size, status := r.captureGit(nil, "cat-file", "-s", blob)
-	count, err := strconv.ParseInt(size, 10, 64)
-	if status != 0 || err != nil || count < 0 || count > maxProseBytes {
+	body, size, err := r.git.Blob(r.root, blob)
+	if err != nil || size < 0 || size > maxProseBytes {
 		return nil, false
 	}
-	body, status := r.captureGit(nil, "cat-file", "blob", blob)
-	return []byte(body), status == 0
+	return body, true
 }
 
 func isScopePath(name string) bool {
@@ -257,7 +245,7 @@ func (r *run) readScopeReceipt() (scopeReceipt, bool) {
 	if !ok || tree != receipt.Tree {
 		return receipt, false
 	}
-	head, status := r.captureGit(nil, "rev-parse", "--verify", "HEAD^{commit}")
+	head, err := r.git.Resolve(r.root, "HEAD^{commit}")
 	token, ok := r.worktreeToken()
-	return receipt, ok && status == 0 && head == receipt.Head && token == receipt.Worktree
+	return receipt, ok && err == nil && head == receipt.Head && token == receipt.Worktree
 }

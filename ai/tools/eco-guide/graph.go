@@ -22,9 +22,9 @@ import (
 	"sort"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 // An edge is one file naming another by its `~/.kk-flavor/` path, or — for the Lanes table alone — by

@@ -21,8 +21,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // A block over this many text lines is a wall. A file header gets more, because a header carries the
@@ -664,7 +665,7 @@ func ScanFile(profile Profile, coined []string, allowed allowlist, file, content
 }
 
 // voice runs the mode. `--voice` selects it as the first argument only, the way `--bar` does.
-func voice(out console, args []string, cwd string, cfg Config) int {
+func voice(out console, git gitrepo.Git, args []string, cwd string, cfg Config) int {
 	profile := ProfileComment
 	for len(args) > 0 && strings.HasPrefix(args[0], "--profile=") {
 		named := Profile(strings.TrimPrefix(args[0], "--profile="))
@@ -696,7 +697,7 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 
 	var found []Finding
 	if profile == ProfileComment {
-		found, err = s.scanChange(args, cwd, cfg, &over)
+		found, err = s.scanChange(git, args, cwd, cfg, &over)
 	} else {
 		found, err = s.scanPaths(args, cwd, cfg, &over)
 	}
@@ -711,7 +712,7 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 // is how the negative control runs over `gh pr diff`. Blocks are runs of ADDED comment lines, so the
 // scan needs no working tree: a block split by a line the diff did not touch is two blocks, which is
 // what a reviewer reading the diff sees too.
-func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
+func (s scanner) scanChange(git gitrepo.Git, args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
 	fromStdin := len(args) > 0 && args[0] == "-"
 	var diff []byte
 	var err error
@@ -720,10 +721,10 @@ func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned
 			return nil, fmt.Errorf("the diff on stdin %v — exit 2, the scan did NOT run", err)
 		}
 	} else {
-		if err = diffscan.RefuseNonRevisions(args, cwd); err != nil {
+		if err = diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 			return nil, err
 		}
-		if diff, err = diffscan.Diff(cwd, args); err != nil {
+		if diff, err = diffscan.Diff(git, cwd, args); err != nil {
 			return nil, err
 		}
 	}
@@ -739,7 +740,7 @@ func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned
 	// that skipped it would report clean over the change most worth reading.
 	named, _ := diffscan.RevisionsNamed(args)
 	if !fromStdin && len(named) == 0 {
-		if err := s.readUntracked(added, cwd, cfg); err != nil {
+		if err := s.readUntracked(git, added, cwd, cfg); err != nil {
 			return nil, err
 		}
 	}
@@ -830,10 +831,10 @@ func (s scanner) readDiff(a *addedLines, diff []byte) error {
 	return nil
 }
 
-func (s scanner) readUntracked(a *addedLines, cwd string, cfg Config) error {
+func (s scanner) readUntracked(git gitrepo.Git, a *addedLines, cwd string, cfg Config) error {
 	var result diffscan.Result
 	options := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes, SkipSecretNamed: true, Announce: s.announce}
-	err := result.WalkUntracked(cwd, options, func(line diffscan.AddedLine) {
+	err := result.WalkUntracked(git, cwd, options, func(line diffscan.AddedLine) {
 		if !s.skip(a, line, &result) {
 			a.take(line.File, line.Line, line.Text)
 		}

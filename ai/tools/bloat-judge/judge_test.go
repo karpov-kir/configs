@@ -4,17 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
-	modelpolicy "kk-flavor/tools/model-policy"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/repo/repotest"
 )
 
 func all(Unit) bool { return true }
+
+// unasked is the repository handed to every case that does not name --changed. Those ask a repository
+// nothing, and an empty one holds nothing to find, so a case that quietly started asking would offer
+// no units rather than pass against a change set nobody arranged.
+func unasked() *repotest.Fake { return repotest.New("/unasked") }
 
 const source = "// file header\n// second line\n\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
 
@@ -27,7 +32,7 @@ func TestRunOnASourceFileCutsOnlyComments(t *testing.T) {
 		}
 		return "1, 2, 3", nil
 	}
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitCut {
+	if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d, want %d — %s", code, exitCut, errOut.String())
 	}
 	if got, want := out.String(), "\nfunc a() {}\n*ptr = 1\n"; got != want {
@@ -39,7 +44,7 @@ func TestRunNumbersPrintsFileLines(t *testing.T) {
 	path := write(t, source)
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "2", nil }
-	Run("bloat-judge.sh", []string{"--numbers", "comment", path}, nil, &out, &errOut, call, nil)
+	Run("bloat-judge.sh", []string{"--numbers", "comment", path}, unasked(), nil, &out, &errOut, call, nil)
 	if out.String() != "5\n" {
 		t.Fatalf("got %q, want the file line of unit 2", out.String())
 	}
@@ -56,11 +61,11 @@ func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
 		return "none", nil
 	}
 	var first, second, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &first, &errOut, call, nil); code != exitCut {
+	if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &first, &errOut, call, nil); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	again := write(t, first.String())
-	if code := Run("bloat-judge.sh", []string{"comment", again}, nil, &second, &errOut, call, nil); code != exitClean {
+	if code := Run("bloat-judge.sh", []string{"comment", again}, unasked(), nil, &second, &errOut, call, nil); code != exitClean {
 		t.Fatalf("second run exit %d, want clean — %s", code, errOut.String())
 	}
 	if second.String() != first.String() {
@@ -79,7 +84,7 @@ func TestRunRefusesARollThatReachedNoVerdict(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			path := write(t, source)
 			var out, errOut strings.Builder
-			if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitDidNotRun {
+			if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &out, &errOut, call, nil); code != exitDidNotRun {
 				t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 			}
 			if out.Len() != 0 {
@@ -130,7 +135,7 @@ func TestClaudeArgsWithNoEffortStillEndAtThePrompt(t *testing.T) {
 
 func TestRunRefusesAnUnknownKind(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"poem"}, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
+	if code := Run("bloat-judge.sh", []string{"poem"}, unasked(), strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 	if !strings.Contains(errOut.String(), "comment commit instruction pr-body record-entry reply report return review slack ticket") {
@@ -141,7 +146,7 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 // A path carrying a newline must not forge a second line in the refusal.
 func TestARefusalCarriesNoControlByteFromItsArgument(t *testing.T) {
 	var out, errOut strings.Builder
-	Run("bloat-judge.sh", []string{"comment", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
+	Run("bloat-judge.sh", []string{"comment", "no\x1b[31msuch\nfile"}, unasked(), nil, &out, &errOut, nil, nil)
 	if strings.ContainsAny(errOut.String()[:len(errOut.String())-1], "\n\x1b") {
 		t.Fatalf("the refusal carried a control byte through: %q", errOut.String())
 	}
@@ -154,7 +159,7 @@ func TestRunPassesThroughWithNoUnits(t *testing.T) {
 		t.Fatal("the model was called with nothing to judge")
 		return "", nil
 	}
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitClean {
+	if code := Run("bloat-judge.sh", []string{"comment", path}, unasked(), nil, &out, &errOut, call, nil); code != exitClean {
 		t.Fatalf("exit %d, want clean", code)
 	}
 	if out.String() != "func a() {}\n" {
@@ -171,7 +176,7 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 		return "2", nil
 	}
 	in := strings.NewReader("What changes.\n\nWhy the writer is right about it.\n")
-	if code := Run("bloat-judge.sh", []string{"pr-body"}, in, &out, &errOut, call, nil); code != exitCut {
+	if code := Run("bloat-judge.sh", []string{"pr-body"}, unasked(), in, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != "What changes.\n\n" {
@@ -180,29 +185,16 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 }
 
 func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
-	repo := t.TempDir()
-	git := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
-		// The machine's own git config must not reach this fixture: a global core.excludesFile
-		// matching `*.go` refuses the `git add` below, and commit.gpgsign refuses the commit —
-		// both on a machine where this tool is working perfectly.
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
-			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	git("init", "-q")
+	dir := t.TempDir()
 	committed := "// human one\nfunc a() {}\n// human two\nfunc b() {}\n"
-	if err := os.WriteFile(filepath.Join(repo, "f.go"), []byte(committed), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "f.go"), []byte(committed+"// agent three\nfunc c() {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	git("add", "f.go")
-	git("commit", "-qm", "base")
-	if err := os.WriteFile(filepath.Join(repo, "f.go"), []byte(committed+"// agent three\nfunc c() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	// The diff git would print for that third block arriving, spelt out rather than derived from the
+	// two sides: which lines a change added is git's answer, and a fixture that rebuilt it would be
+	// narrowing the offer to its own diff rather than to the one the reviewer is looking at.
+	git := repotest.New(dir).Diff("diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n@@ -4,0 +5,2 @@\n" +
+		"+// agent three\n+func c() {}\n")
 
 	var out, errOut strings.Builder
 	call := func(_, view string) (string, error) {
@@ -214,7 +206,7 @@ func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 		}
 		return "1", nil
 	}
-	if code := RunIn("bloat-judge.sh", []string{"--changed", "comment", "f.go"}, repo, nil, &out, &errOut, call, nil); code != exitCut {
+	if code := RunIn("bloat-judge.sh", []string{"--changed", "comment", "f.go"}, dir, git, nil, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != committed+"func c() {}\n" {
@@ -224,7 +216,7 @@ func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 
 func TestChangedRefusesWithoutAPath(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"--changed", "pr-body"}, strings.NewReader("x\n"), &out, &errOut, nil, nil); code != exitDidNotRun {
+	if code := Run("bloat-judge.sh", []string{"--changed", "pr-body"}, unasked(), strings.NewReader("x\n"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 }
@@ -323,7 +315,7 @@ func TestCommitTrailersAreShownAsContextAndNeverOffered(t *testing.T) {
 		}
 		return strings.Join(named, ","), nil
 	}
-	if code := RunIn("j", []string{"commit", path}, ".", nil, &out, &errs, greedy, nil); code != exitCut {
+	if code := RunIn("j", []string{"commit", path}, ".", unasked(), nil, &out, &errs, greedy, nil); code != exitCut {
 		t.Fatalf("exit %d, stderr %s", code, errs.String())
 	}
 	// The separators a deleted block sat between stay, which git's own `--cleanup` collapses and
@@ -361,7 +353,7 @@ func TestACommitSubjectIsShownButNeverOffered(t *testing.T) {
 		}
 		return strings.Join(named, ","), nil
 	}
-	if code := RunIn("j", []string{"commit", path}, ".", nil, &out, &errs, greedy, nil); code != exitCut {
+	if code := RunIn("j", []string{"commit", path}, ".", unasked(), nil, &out, &errs, greedy, nil); code != exitCut {
 		t.Fatalf("exit %d, stderr %s", code, errs.String())
 	}
 	if got := out.String(); !strings.HasPrefix(got, "Name the commit a scanner number was read off\n") {

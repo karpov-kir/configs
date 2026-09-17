@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The records every agent in the clone shares. What a record is, and what the count and the date on
@@ -73,13 +73,17 @@ const entryBound = 2000
 // the two. The notes name the judge by a full path for the same reason.
 const recordsStandard = "~/.kk-flavor/standards/records.md"
 
-// The judge the cap's last rung runs, and the one an over-cap prune uses — `records.md` → **The cap
-// evicts by what the record can afford to lose**. A constant, because two notes hand it over and they
-// must not offer different judges.
-const judgeCommand = `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin`
+// JudgeCommand is the command the cap's last rung runs, and the one an over-cap prune uses —
+// `records.md` → **The cap evicts by what the record can afford to lose**. A constant, because two
+// notes hand it over and they must not offer different judges.
+//
+// Exported so the repository-level suite can hold the standard's own copy of it to this one. That case
+// cannot live in this package: its subject is a file outside the module, which `go test` cannot key its
+// cache on, so a package reading one answers `ok (cached)` over a standard that has changed.
+const JudgeCommand = `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin`
 
 // The moves at the cap that free a slot at no loss, in `records.md`'s order. A constant for the same
-// reason judgeCommand is — the same two notes quote both.
+// reason JudgeCommand is — the same two notes quote both.
 const capLadderRungs = "delete what is no longer true, promote what must not be lost, fold two entries carrying one idea together"
 
 // The judge rung both notes hand over: the command, and how to read each answer it can come back
@@ -92,7 +96,7 @@ const capLadderRungs = "delete what is no longer true, promote what must not be 
 // and the cap holds, which is a verdict nothing reached.
 func judgeRung() []string {
 	return []string{
-		"    " + judgeCommand,
+		"    " + JudgeCommand,
 		"  It deletes what it names, and naming nothing (exit 0, output unchanged) is one of its answers.",
 		"  Exit 2 is not an answer: the judge did NOT run — an unknown kind, a missed deadline, an answer",
 		"  that was not numbers — so this rung is unmet. Nothing may go on it, and the append stays refused",

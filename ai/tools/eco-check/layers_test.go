@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 func (f *fixture) newStandard(name, declaration, body string) {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // A row hidden behind another silently rejoins the class it was written to leave. A rank whose rows

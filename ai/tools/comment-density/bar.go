@@ -9,11 +9,13 @@ package density
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // A block over this many lines reads as a wall, not a note. Their share is held apart from the line
@@ -137,44 +139,78 @@ func percentile(values []float64, p float64) float64 {
 	return sorted[index]
 }
 
+// measure counts these paths where this run's content lives: the working tree, or the revision a closed
+// range pinned it to, which contentRevision decides. Reading the tree under a range's file list would
+// measure today's files against yesterday's names and hand back a plausible number with no error.
+func (h hostRepo) measure(paths []string, visit func(rel string, file stats)) (stats, int, error) {
+	return h.measureAt(h.contentRev, paths, visit)
+}
+
+// measureAt is measure at one named revision, and an empty rev is the working tree.
+//
+// At a revision the whole list goes to git in one call, because asking per file costs a process per
+// file and over a checkout of a few hundred that bill, not the counting, is the mode's entire runtime.
+// A symlink there is a blob holding its target string, counted as one code line, so nothing outside the
+// repository is opened on this path either.
+//
 // An unreadable file is skipped, not an error: the set is a population, and one missing member does not
-// change what it says. read counts the files read at all, countable or not, so a caller can say how many
-// were not.
-func (h hostRepo) measure(paths []string, visit func(rel string, file stats)) (total stats, read int) {
-	for _, rel := range paths {
-		content, ok := h.readCapped(rel)
-		if !ok {
-			continue
+// change what it says. A call that fails outright is a different thing and is returned — the batch
+// either answered or did not, and swallowing that would leave a whole baseline silently empty. read
+// counts the files read at all, countable or not, so a caller can say how many were not.
+func (h hostRepo) measureAt(rev string, paths []string, visit func(rel string, file stats)) (stats, int, error) {
+	var total stats
+	read := 0
+	// A NUL byte marks the file binary whichever side it came from, and a binary file is not read at all
+	// rather than read and counted.
+	count := func(rel, content string) {
+		if strings.IndexByte(content, 0) >= 0 {
+			return
 		}
 		read++
 		file := statsOf(content)
 		if file.total() == 0 {
-			continue
+			return
 		}
 		total.add(file)
 		visit(rel, file)
 	}
-	return total, read
+	if rev == "" {
+		for _, rel := range paths {
+			if content, ok := h.readCappedInTree(rel); ok {
+				count(rel, content)
+			}
+		}
+		return total, read, nil
+	}
+	err := h.git.ContentsAt(h.root, rev, paths, h.maxBytes, func(rel string, content []byte) {
+		count(rel, string(content))
+	})
+	if err != nil {
+		return stats{}, 0, gitRefusal("could not read the files at "+rev, err)
+	}
+	return total, read, nil
 }
 
 // carried are files this change touched but did not create. They stay in the baseline at their
 // pre-change content: that content is the repo's, and dropping it lets one edit to a comment-heavy file
 // lower the very rate the change is then held to.
-func (h hostRepo) measureBaseline(paths, carried []string, rev string) baseline {
+func (h hostRepo) measureBaseline(paths, carried []string, rev string) (baseline, error) {
 	ratios := make([]float64, 0, len(paths)+len(carried))
-	whole, _ := h.measure(paths, func(_ string, file stats) {
-		ratios = append(ratios, file.ratio())
-	})
-	for _, rel := range carried {
-		content, ok := h.readCappedAt(rev, rel)
-		if !ok {
-			continue
-		}
-		file := statsOf(content)
-		whole.add(file)
+	collect := func(_ string, file stats) {
 		ratios = append(ratios, file.ratio())
 	}
-	return baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)}
+	whole, _, err := h.measure(paths, collect)
+	if err != nil {
+		return baseline{}, err
+	}
+	// At the base revision, not the run's content revision: these files are in the baseline for the
+	// content they had BEFORE the change, which is the only reading the change cannot move.
+	before, _, err := h.measureAt(rev, carried, collect)
+	if err != nil {
+		return baseline{}, err
+	}
+	whole.add(before)
+	return baseline{stats: whole, ceiling: percentile(ratios, 0.9), files: len(ratios)}, nil
 }
 
 // perFileCeiling is the ratio a file new since the diff's base may not exceed on its own. A file the
@@ -218,9 +254,10 @@ type fileMass struct {
 	written float64
 }
 
-func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) changeSet {
+func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) (changeSet, error) {
 	var set changeSet
-	set.stats, set.read = h.measure(paths, func(rel string, file stats) {
+	var err error
+	set.stats, set.read, err = h.measure(paths, func(rel string, file stats) {
 		if ceiling.isOver(rel, file) {
 			set.over = append(set.over, fileOverCeiling{rel: rel, ratio: file.ratio()})
 		}
@@ -238,27 +275,20 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, autho
 			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, written: written})
 		}
 	})
-	return set
+	return set, err
 }
 
 // authoredComments counts, per file, the comment lines this change added. Paired with the file's landed
 // comment count it gives authorship as a share of what is there, which is bounded whichever way the
 // change went — where a rate built from the diff alone inverts on a change that only deleted.
 func (h hostRepo) authoredComments(revisions, changed []string) (map[string]int, error) {
-	// Scoped to the files already resolved as changed, which both narrows the diff and supplies the `--`
-	// that keeps a tree holding a file named like a revision from making the command ambiguous. Diff's
-	// bare form must stay ambiguous there: it is how a path passed where a revision belongs is refused
-	// rather than silently scanned against the index.
+	// Scoped as a pathspec to the files already resolved as changed, so the patch covers the population
+	// being graded and nothing else.
 	named := revisions
 	if len(named) == 0 {
 		named = []string{"HEAD"}
 	}
-	args := append(append([]string{}, named...), "--")
-	args = append(args, changed...)
-	diff, err := gitOutput(h.root, append([]string{
-		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/",
-	}, args...)...)
+	diff, err := h.git.Patch(h.root, named, changed)
 	if err != nil {
 		return nil, gitRefusal("could not read which comment lines this change wrote", err)
 	}
@@ -294,11 +324,11 @@ func (c changeSet) carriers() []fileMass {
 	return ranked
 }
 
-func bar(out console, args []string, cwd string, cfg Config) int {
-	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+func bar(out console, git gitrepo.Git, args []string, cwd string, cfg Config) int {
+	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		return out.refuseArguments(err)
 	}
-	host, err := newHostRepo(cwd, cfg.MaxFileBytes)
+	host, err := newHostRepo(git, cwd, cfg.MaxFileBytes)
 	if err != nil {
 		return out.refuse(err)
 	}
@@ -330,7 +360,10 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 			carried = append(carried, rel)
 		}
 	}
-	base := host.measureBaseline(without(tracked, changed), carried, baseRev)
+	base, err := host.measureBaseline(without(tracked, changed), carried, baseRev)
+	if err != nil {
+		return out.refuse(err)
+	}
 	// No baseline is refused, never defaulted: a number invented here reads exactly like one measured.
 	if base.files == 0 {
 		return out.refuse(refusal("no file outside this change set carried countable lines, so the repo has no rate to hold it to"))
@@ -339,20 +372,23 @@ func bar(out console, args []string, cwd string, cfg Config) int {
 	if err != nil {
 		return out.refuse(err)
 	}
-	set := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling}, authored)
+	set, err := host.measureChangeSet(changed, perFileCeiling{isNew: isNew, ratio: base.ceiling}, authored)
+	if err != nil {
+		return out.refuse(err)
+	}
 	out.note("%d changed source file(s), %d read, %d skipped unread; %d file(s) in the baseline.",
 		len(changed), set.read, len(changed)-set.read, base.files)
 	if set.total() == 0 {
 		return out.refuse(refusal("no changed source file could be read, so this run says nothing about the change set"))
 	}
-	return out.reportBar(base, set)
+	return out.reportBar(base, set, toolIdentity(git))
 }
 
 // Exit 1 means over the bar, and the report says how many lines: a share tells nobody what to delete. At
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
-func (c console) reportBar(base baseline, set changeSet) int {
-	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", toolBuild(), toolTree())
+func (c console) reportBar(base baseline, set changeSet, by identity) int {
+	fmt.Fprintf(c.stdout, "measured by: comment-density build %s, tree %s\n", by.build, by.tree)
 	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
 		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
 	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
@@ -396,22 +432,53 @@ func (c console) reportBar(base baseline, set changeSet) int {
 	return exitFound
 }
 
-// Reported unknown rather than omitted: a line that vanishes with the identity leaves its absence
-// meaning either no stamp or an older binary, and the reader cannot tell which. `resolve.sh` carries
-// what the stamp is and why it, rather than the binary's bytes.
-// The checkout the stub resolved through, reported unknown rather than omitted for the reason toolBuild
-// gives. A different fact from the build: source can hash identically to its own tree and that tree
-// still be a commit nobody else has, which is what makes two readings taken apart incomparable.
-func toolTree() string {
-	if tree := os.Getenv("ECO_TOOL_TREE"); tree != "" {
-		return tree
+// What produced a reading: the build the running binary came from, and the checkout that binary sits
+// in. Two facts, not one — source can hash identically to its own tree and that tree still be a commit
+// nobody else has, which is what makes two readings taken apart incomparable.
+type identity struct{ build, tree string }
+
+// Either half is reported unknown rather than omitted: a field that vanishes leaves its absence meaning
+// either nothing named it or an older binary that never printed one, and the reader cannot tell which.
+const unknownIdentity = "unknown"
+
+// Read off the binary that is running, never handed in. The stubs used to export both as environment,
+// which cost all 23 of them a `cat` and a `git` per invocation to carry a line this tool alone prints;
+// worse, a binary run directly reported unknown for a build it could have named. `resolve.sh` carries
+// what the stamp is, and why it rather than the binary's own bytes.
+func toolIdentity(git gitrepo.Git) identity {
+	binary, err := os.Executable()
+	if err != nil {
+		return identity{build: unknownIdentity, tree: unknownIdentity}
 	}
-	return "unknown"
+	return identityOf(git, binary)
 }
 
-func toolBuild() string {
-	if stamp := os.Getenv("ECO_TOOL_BUILD"); stamp != "" {
+// Split from the call above so the suite can stand a fixture where `os.Executable()` names the test
+// binary, which sits beside no stamp and in no checkout.
+func identityOf(git gitrepo.Git, binary string) identity {
+	return identity{build: stampBeside(binary), tree: checkoutOf(git, filepath.Dir(binary))}
+}
+
+// The stamp whoever put the binary there wrote beside it — resolve.sh after a build, install.sh after a
+// download. Absent is the normal answer for a binary nobody stamped, so it is not an error here.
+func stampBeside(binary string) string {
+	body, err := os.ReadFile(binary + ".stamp")
+	if err != nil {
+		return unknownIdentity
+	}
+	if stamp := strings.TrimSpace(string(body)); stamp != "" {
 		return stamp
 	}
-	return "unknown"
+	return unknownIdentity
+}
+
+// The commit the checkout serving the binary sits on. A directory that is no checkout at all answers
+// the same way one with an unborn HEAD does, and neither is worth a refusal: this line describes the
+// instrument, and a measurement is not wrong because its instrument could not name itself.
+func checkoutOf(git gitrepo.Git, dir string) string {
+	head, err := git.Resolve(dir, "HEAD")
+	if err != nil || head == "" {
+		return unknownIdentity
+	}
+	return head
 }

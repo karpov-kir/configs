@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The tool reads whole files, and the tree supplying them is the tree under review. The bound and

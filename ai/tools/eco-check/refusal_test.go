@@ -12,8 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // Both refusals that echo text off the invocation: the root holding no checkout, and the root --gate
@@ -38,8 +39,8 @@ func TestARefusalCarriesNoControlBytesFromTheRootItEchoes(t *testing.T) {
 			t.Chdir(parent)
 
 			refusals := map[string]string{
-				"no checkout is there":   refusalFrom(t, "--agent=claude", "./nope-"+name),
-				"git could not be asked": refusalFrom(t, "--agent=claude", "--gate", "./real-"+name),
+				"no checkout is there":   refusalFrom(t, noRepository, "--agent=claude", "./nope-"+name),
+				"git could not be asked": refusalFrom(t, newRefusingGit("./real-"+name), "--agent=claude", "--gate", "./real-"+name),
 			}
 			for what, output := range refusals {
 				assertEchoesTheNameWithoutDrivingTheTerminal(t, what, name, output)
@@ -69,7 +70,7 @@ func assertEchoesTheNameWithoutDrivingTheTerminal(t *testing.T, what, name, outp
 // beside it is held to lineWidthCap, which is the bound a reader of this output already assumes.
 func TestARefusalIsBoundedHoweverLongTheRootItEchoes(t *testing.T) {
 	t.Parallel()
-	output := refusalFrom(t, "--agent=claude", "/nowhere/"+strings.Repeat("a", 4000))
+	output := refusalFrom(t, noRepository, "--agent=claude", "/nowhere/"+strings.Repeat("a", 4000))
 
 	if !strings.Contains(output, "no root holding both") {
 		t.Fatalf("the no-root refusal never fired, so this case observes nothing\n%s", indent(output))
@@ -88,6 +89,9 @@ func TestARefusalIsBoundedHoweverLongTheRootItEchoes(t *testing.T) {
 // The --gate refusal names the root first and git's own reason last, so the bound on the root decides
 // whether that reason survives the line bound above. A root here is a real directory rather than argv,
 // so PATH_MAX bounds it — but PATH_MAX is twice the width a refusal prints at, which is the whole gap.
+//
+// The reason is the port's error, which carries git's own words: `gitRefused` in gate_test.go is that
+// shape, and `repo/exec.go`'s gitError is where a real run makes it.
 func TestTheGateRefusalStillNamesGitsReasonUnderALongRoot(t *testing.T) {
 	t.Parallel()
 	// Grown until the root alone would spend the line, whatever this machine's temp path costs. A
@@ -100,7 +104,7 @@ func TestTheGateRefusalStillNamesGitsReasonUnderALongRoot(t *testing.T) {
 		t.Skipf("this filesystem refused a %d-byte path, so the case cannot run here: %v", len(deep), err)
 	}
 
-	output := refusalFrom(t, "--agent=claude", "--gate", deep)
+	output := refusalFrom(t, newRefusingGit(deep), "--agent=claude", "--gate", deep)
 	line := lineWith(output, "git check-ignore could not answer")
 	if line == "" {
 		t.Fatalf("the --gate refusal never fired, so this case observes nothing\n%s", indent(output))
@@ -115,10 +119,10 @@ func TestTheGateRefusalStillNamesGitsReasonUnderALongRoot(t *testing.T) {
 // One refusing run, and everything it wrote. Exit 2 is asserted here rather than left to each case: a
 // run that reached the scans wrote no refusal at all, and every assertion over its output would then
 // hold for a reason the case is not about.
-func refusalFrom(t *testing.T, args ...string) string {
+func refusalFrom(t *testing.T, git repo.Git, args ...string) string {
 	t.Helper()
 	var output bytes.Buffer
-	if status := ecocheck.Run(args, &output, &output); status != 2 {
+	if status := ecocheck.Run(args, git, noBash, &output, &output); status != 2 {
 		t.Fatalf("Run %q exited %d, so it wrote no refusal\n%s", args, status, indent(output.String()))
 	}
 	return output.String()
