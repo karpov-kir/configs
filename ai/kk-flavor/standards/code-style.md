@@ -16,13 +16,37 @@
 
 ## Comments
 
-Comment form is [human-writing.md](human-writing.md). **The default is no comment**: one earns existence only where the code would be misread or wrongly edited without it. **A warning against a wrong edit names that edit and what it breaks**, or any rationale becomes one by rewording; where a test fails on that edit, the test is the warning's home and the comment a pointer to it at most.
+A comment is one of two kinds, and each kind has one shape.
 
-**A change set's comment share and its block-length profile stay at or under the host repo's.** Where it is over, the weakest comments go until it is not, never a fixed fraction of what is there. **The host repo is the comparison, and a second one beside it discharges nothing** — not the rate at the change's own base, not the directory it lands in, not its sibling branches. Those files are often the same unlanded work, so the change measures itself and reads as house style at any multiple of the repo's rate. **A narrower baseline is the human's to name, never yours to pick** — that is the whole difference between a scope they set and a denominator you went looking for.
+A **summary** sits on a declaration and says what it does in one sentence, starting with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". Every exported symbol has one. A private symbol has one when its name does not say what it does. A summary may say in words what the signature says in types. It does not say why.
 
-**Delete a comment whole** when it narrates what the code says (`@param`/`@returns` restating the signature included), when a rename would carry it (flag the rename for the refactor lane), when it justifies a decision no reader would question, or when any other site in the change set covers it — **an invariant is stated once, at the construct that enforces it**, and referenced from everywhere else. **True, unique content goes too — anecdotes, alternatives considered, provenance a reader can get from `git log`.** Once a comment stays, shortening it never drops its constraint, invariant, or warning.
+A **note** says something the code cannot say: a fact about the outside world the code relies on, or an edit that looks right and breaks something. It states the fact first, in a sentence with a subject, and the consequence second. It is at most two sentences. A note that needs more is one of three other things: a test whose name states it, a line in the PR body, or a shape the refactor lane changes.
 
-**A published surface is the exception, and it runs the other way** — state the contract the types don't carry: call order, lifecycle, error modes, units, ranges, caller invariants. **That list is the whole of the exception**, and a file declaring itself published buys its members nothing beyond it.
+Inside a block the summary comes first, then the note. A block is at most four lines. A file header is at most eight.
+
+Use the identifier's name or the domain's own word. Where a specification names a thing and the code names it something else, a comment takes one of those two names and coins no third. A word the reader would need to have been in the room for does not go in a comment.
+
+No markdown in a comment: no bold, no bullets, no headings.
+
+The edit lane's bar measures a change set's comment share and its share of long blocks, and both stay at or under the host repository's. Compare against the host repository and against no other set. Over the bar, delete whole notes, weakest first. A summary does not pay the bar. Shorten no comment to pay the bar. A note that would have to be compressed to fit is a note that goes.
+
+Delete a note when a rename would carry it (flag the rename), when it justifies a decision no reader would question, when another note in the change set already says it, or when it is history a reader can get from `git log`.
+
+A published surface states in its summary block what the types do not carry: call order, lifecycle, error modes, units, ranges, caller invariants.
+
+One pair, so the shape is not in doubt:
+
+```ts
+// Before
+/**
+ * The ledger allows `currency` on the book or on its entries, so both are consulted. Read the book's own attribute
+ * alone and a book shaped the other way slips past totalling whole, rounding included.
+ */
+// After
+/** Checks whether a book is priced. The ledger allows `currency` on the book or on each entry, so both are read. */
+```
+
+Comment form is also [human-writing.md](human-writing.md), which binds every outward text.
 
 ## Type Safety
 
@@ -45,9 +69,9 @@ Where log lines belong and what they say; how you obtain a logger is [architectu
 - Every failure path that doesn't propagate must log: a caught-and-handled error, a retry, a fallback, a degraded mode.
 - Log an error where it's *handled*, once — never at every layer it passes through, and never log-and-rethrow at the same layer.
 - A message names the operation, its key identifiers, and the outcome with its cause — "failed to \<operation\> for \<entity\>: \<error\>". Prefer static text plus structured fields (ids, counts, durations) over interpolated prose. Carry enough correlating fields (request id, entity id, attempt) to follow one flow across lines.
-- Levels by the action needed — `error`, `warn`, `info`, `debug`. If nobody would act on it, it isn't `error`.
+- Choose the level by the action needed: `error`, `warn`, `info`, `debug`. A line the reader would not act on is not `error`.
 - No per-item logging at `info`+ inside loops — one aggregate line with counts, or drop to `debug`.
-- Keep secrets and PII out at the call site rather than redacting downstream — pass only what's safe to print.
+- Keep secrets and PII out at the call site, and do not redact them downstream. Pass only what is safe to print.
 
 ## Abstraction
 
@@ -58,12 +82,12 @@ Where log lines belong and what they say; how you obtain a logger is [architectu
 
 Reach for a class (or a `newX` factory over private state) when operations share state, configuration, or an injection boundary; plain functions for genuinely standalone logic. A class of only static methods is a module with extra syntax.
 
-**Share behaviour by composition, never by inheritance** — a collaborator each type holds and delegates to. Subclassing earns its place only where a framework or an external interface demands it. An abstract base with one subclass is that collaborator written longer.
+Share behaviour by **composition**: a collaborator each type holds and delegates to. Do not share it by inheritance. Subclass only where a framework or an external interface demands it. An abstract base with a single subclass is that collaborator written longer.
 
 ## Extraction & Size
 
 - Functions do one thing. Extract when concerns split, abstraction blurs (above), or length exceeds ~100 lines.
 - Tolerate duplication at 1–2 sites; extract a shared helper on the 3rd. Earlier abstraction risks the wrong shape.
-- Self-evident code stays inline; wrapping it hides nothing.
-- Keep files focused on a single responsibility — split when a file grows beyond ~450 lines or contains unrelated concepts. A flat command dispatch over one responsibility counts by its longest arm, not its total.
+- Leave self-evident code inline, because a wrapper around it hides no detail.
+- Keep files focused on a single responsibility, and split a file that grows beyond ~450 lines or carries unrelated concepts. Count a flat command dispatch over one responsibility by its longest arm and never by its total.
 - Avoid barrel/index files; import from the source module directly. A module's published surface file ([architecture/core.md](architecture/core.md) → **Module depth**) is not covered by this ban. Never re-export a symbol through a module that isn't its home — a symbol has one home; update importers if that home moves.

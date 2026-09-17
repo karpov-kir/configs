@@ -65,7 +65,7 @@ func (k Kind) candidates(lines []string) []Unit {
 }
 
 var kinds = map[string]Kind{
-	"comment":      {Reader: "a later reader of this source file, editing it with no knowledge of the change that introduced it", Source: true},
+	"comment":      {Reader: "an engineer opening this file for the first time to change something near this line, who has not read the rest of the file and does not know the change that introduced it", Source: true},
 	"instruction":  {Reader: "an agent loading this file at the start of every session, paying for each line in context"},
 	"pr-body":      {Reader: "a reviewer deciding whether to approve this change, with the diff in front of you"},
 	"review":       {Reader: "the author of this change deciding what to change, with the line in front of you"},
@@ -243,6 +243,9 @@ func kindNames() string {
 
 // Prompt is the whole of what the model is told besides the text. The reader line is the only part that
 // differs by kind; the tests are one list because a reader of any kind deletes for the same reasons.
+//
+// Prompt is part of the memo key, so every edit here invalidates every cached verdict with no version
+// bump to make. Say so in the commit that changes it.
 func Prompt(kind Kind) string {
 	return "You are " + kind.Reader + ". You read this once, quickly, and will not come back to it. " +
 		"Below is a text with some units numbered in the left margin; a `.` marks a line that continues the " +
@@ -252,8 +255,10 @@ func Prompt(kind Kind) string {
 		"Delete a unit when it restates what you can already see; when it justifies a choice you would not " +
 		"have questioned; when it argues that the writer is right rather than stating what is so; when it is " +
 		"provenance, an anecdote, or an alternative that was rejected; when it grades or hedges another " +
-		"unit; or when it is a fact that only makes sense beside a unit you are deleting. Keep a unit only " +
-		"where deleting it would make you edit or decide wrongly, and where it stands on its own."
+		"unit; when you could not restate it in your own words after one reading; or when it is a fact that " +
+		"only makes sense beside a unit you are deleting. Keep a unit only where deleting it would make you " +
+		"edit or decide wrongly, and where it stands on its own. Keep a one-sentence summary on a " +
+		"declaration, and delete only the sentences after it."
 }
 
 // addedLines is the set of 1-based lines the diff added to one file, that file named as the caller
