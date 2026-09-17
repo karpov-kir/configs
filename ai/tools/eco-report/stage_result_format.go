@@ -8,6 +8,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"kk-flavor/tools/shell"
 )
 
 const stageResultUsage = `usage: report.sh stage-result <json-file> [<intent>]
@@ -94,7 +96,7 @@ func isValidResultId(value string) bool {
 		return false
 	}
 	for index, letter := range []byte(value) {
-		if letter >= 'a' && letter <= 'z' || letter >= 'A' && letter <= 'Z' || letter >= '0' && letter <= '9' {
+		if shell.IsAlnumByte(letter) {
 			continue
 		}
 		if index == 0 || letter != '.' && letter != '_' && letter != '-' {
