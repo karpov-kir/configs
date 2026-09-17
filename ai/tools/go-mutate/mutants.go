@@ -980,6 +980,22 @@ var mutants = []mutant{
 		`return file == "testdata" || strings.HasPrefix(file, "testdata/") || strings.Contains(file, "/testdata/")`,
 		`return strings.Contains(file, "testdata")`},
 
+	{"bar: a shebang marks the file as begun and displaces its header", "../comment-density/bar.go", "./comment-density/", "TestAHeaderUnderAShebangKeepsTheHeadersAllowance",
+		"\t\t\t// keeps the allowance the voice check gives it.\n\t\t\tcloseRun()",
+		"\t\t\t// keeps the allowance the voice check gives it.\n\t\t\tcloseRun()\n\t\t\tseen = true"},
+	{"judge: a shebang is offered as a unit the model may delete", "../bloat-judge/split.go", "./bloat-judge/", "TestAShebangIsNeverOfferedAsAUnit",
+		"\t\tif i == 0 && strings.HasPrefix(line, \"#!\") {", "\t\tif i == 0 && strings.HasPrefix(line, \"#!\") && false {"},
+	{"judge: a hash-bang anywhere is withheld", "../bloat-judge/split.go", "./bloat-judge/", "TestAHashBangBelowTheFirstLineIsAnOrdinaryComment",
+		"\t\tif i == 0 && strings.HasPrefix(line, \"#!\") {", "\t\tif strings.HasPrefix(line, \"#!\") {"},
+	{"voice: a shebang is counted as part of the file header", "../comment-density/voice.go", "./comment-density/", "TestAShebangIsNotPartOfTheFileHeader",
+		"\t\tcase isShebang(at, line):\n\t\t\t// An interpreter directive, not a comment.", "\t\tcase isShebang(at, line) && false:\n\t\t\t// An interpreter directive, not a comment."},
+	{"voice: a shebang displaces the header it stands above", "../comment-density/voice.go", "./comment-density/", "TestAShebangIsNotPartOfTheFileHeader",
+		"\t\tif line == \"\" || isShebang(at, line) {", "\t\tif line == \"\" {"},
+	{"voice: a bang anywhere is read as a shebang", "../comment-density/voice.go", "./comment-density/", "TestAShebangIsNotPartOfTheFileHeader",
+		"\treturn at == 1 && strings.HasPrefix(line, \"#!\")", "\treturn strings.HasPrefix(line, \"#!\")"},
+	{"bar: a shebang counts as a comment line", "../comment-density/bar.go", "./comment-density/", "TestTheBarDoesNotCountAShebangAsAComment",
+		"\t\tcase isShebang(at, line):\n\t\t\t// An interpreter directive is not a comment", "\t\tcase isShebang(at, line) && false:\n\t\t\t// An interpreter directive is not a comment"},
+
 	// The second qualify round's guards: each closed a defect the first round's own fixes introduced.
 	{"voice: a stream over the cap is truncated rather than refused", "../comment-density/voice.go", "./comment-density/", "TestAStreamOverTheCapIsRefusedRatherThanTruncated",
 		"\tif int64(len(body)) > cap {", "\tif int64(len(body)) > cap && false {"},
@@ -1010,7 +1026,7 @@ var mutants = []mutant{
 
 	// The guards the qualify pass added, each one a defect that shipped.
 	{"voice: a block in a diff claims the file header's allowance", "../comment-density/voice.go", "./comment-density/", "TestABlockInADiffDoesNotInheritTheFileHeadersAllowance",
-		"\t\tif !held(at) || strings.TrimSpace(lines[at-1]) != \"\" {", "\t\tif strings.TrimSpace(lines[at-1]) != \"\" {"},
+		"\t\tif !held(at) {\n\t\t\treturn false\n\t\t}", "\t\tif false {\n\t\t\treturn false\n\t\t}"},
 	{"voice: a star run reads past a line the diff never added", "../comment-density/voice.go", "./comment-density/", "TestAStarRunDoesNotSwallowTheCommentsBelowAGap",
 		"\t\tcase !held(at):\n\t\t\tinBlock, inStar = false, false", "\t\tcase !held(at) \u0026\u0026 false:\n\t\t\tinBlock, inStar = false, false"},
 	{"voice: a lone star is stripped whatever follows it", "../comment-density/voice.go", "./comment-density/", "TestABoldSpanOpeningAStarlessLineSurvivesTheMarkerStrip",
