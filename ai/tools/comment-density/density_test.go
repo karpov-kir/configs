@@ -25,11 +25,7 @@ func TestAnUnchangedTree(t *testing.T) {
 func TestTheRatioAndItsFloors(t *testing.T) {
 	t.Run("a comment-heavy file exits 1 and prints its counts and ratio", func(t *testing.T) {
 		r := newRepo(t)
-		// A base sharing no line with heavy()'s output: `x := 0` would be matched as context and the
-		// fixture would claim an added line the diff does not carry.
-		r.write("dense.go", "package fixture\n")
-		r.commit("base")
-		r.write("dense.go", heavy(8, 2))
+		r.rewrote("dense.go", heavy(8, 2))
 		r.run("HEAD")
 		r.expectCode(1)
 		r.expectStdoutHas("dense.go: 8 comment / 2 code added lines (0.80)")
@@ -37,9 +33,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("four added comment lines are under the floor", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("few.go", "package fixture\n")
-		r.commit("base")
-		r.write("few.go", heavy(4, 0))
+		r.rewrote("few.go", heavy(4, 0))
 		r.run("HEAD")
 		r.expectCode(0)
 		r.expectNoStdout()
@@ -49,9 +43,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("five added comment lines reach the floor", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("five.go", "package fixture\n")
-		r.commit("base")
-		r.write("five.go", heavy(5, 0))
+		r.rewrote("five.go", heavy(5, 0))
 		r.run("HEAD")
 		r.expectCode(1)
 		r.expectStdoutHas("five.go")
@@ -59,9 +51,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("a ratio exactly at the bar is not an outlier", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("edge.go", "package fixture\n")
-		r.commit("base")
-		r.write("edge.go", heavy(6, 14))
+		r.rewrote("edge.go", heavy(6, 14))
 		r.run("HEAD")
 		r.expectCode(0)
 		r.expectNoStdout()
@@ -69,9 +59,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("a ratio above the bar is", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("over.go", "package fixture\n")
-		r.commit("base")
-		r.write("over.go", heavy(7, 13))
+		r.rewrote("over.go", heavy(7, 13))
 		r.run("HEAD")
 		r.expectCode(1)
 		r.expectStdoutHas("(0.35)")
@@ -79,9 +67,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("raising the ratio clears the outlier", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("over.go", "package fixture\n")
-		r.commit("base")
-		r.write("over.go", heavy(7, 13))
+		r.rewrote("over.go", heavy(7, 13))
 		cfg := baseConfig()
 		cfg.MaxRatio = 0.9
 		r.runWith(cfg, "HEAD")
@@ -90,9 +76,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("raising the floor clears it too", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("over.go", "package fixture\n")
-		r.commit("base")
-		r.write("over.go", heavy(7, 13))
+		r.rewrote("over.go", heavy(7, 13))
 		cfg := baseConfig()
 		cfg.MinLines = 100
 		r.runWith(cfg, "HEAD")
@@ -101,9 +85,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 	t.Run("blank added lines do not dilute the ratio", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("blanks.go", "package fixture\n")
-		r.commit("base")
-		r.write("blanks.go", "// a\n// b\n// c\n// d\n// e\n\n\n\n\n\n\n\n\n\n\ny := 1\n")
+		r.rewrote("blanks.go", "// a\n// b\n// c\n// d\n// e\n\n\n\n\n\n\n\n\n\n\ny := 1\n")
 		r.run("HEAD")
 		r.expectCode(1)
 		r.expectStdoutHas("5 comment / 1 code added lines (0.83)")
@@ -112,9 +94,7 @@ func TestTheRatioAndItsFloors(t *testing.T) {
 
 func TestTheCommentForms(t *testing.T) {
 	r := newRepo(t)
-	r.write("forms.go", "package fixture\n")
-	r.commit("base")
-	r.write("forms.go", "// line\n/* block\n * star\n */\n# hash\n   // indented\nreal := 1\n")
+	r.rewrote("forms.go", "// line\n/* block\n * star\n */\n# hash\n   // indented\nreal := 1\n")
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("6 comment / 1 code added lines")
@@ -124,9 +104,7 @@ func TestTheCommentForms(t *testing.T) {
 // it as a comment flags dense arithmetic as dense prose.
 func TestAStarThatIsNotAComment(t *testing.T) {
 	r := newRepo(t)
-	r.write("math.c", "int x;\n")
-	r.commit("base")
-	r.write("math.c", "*ptr = 1;\n*q = 2;\n*r = 3;\n*s = 4;\n*t = 5;\n*u = 6;\n")
+	r.rewrote("math.c", "*ptr = 1;\n*q = 2;\n*r = 3;\n*s = 4;\n*t = 5;\n*u = 6;\n")
 	r.run("HEAD")
 	r.expectCode(0)
 	r.expectNoStdout()
@@ -134,8 +112,6 @@ func TestAStarThatIsNotAComment(t *testing.T) {
 
 func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r := newRepo(t)
-	r.write("keep.go", "package fixture\n")
-	r.commit("base")
 	for _, name := range []string{"a.md", "b.markdown", "c.txt", "d.json", "e.lock", "pnpm-lock.yaml", "f.MD"} {
 		r.write(name, heavy(9, 0))
 	}
@@ -152,9 +128,7 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 
 func TestATwoRevisionRangeIsScanned(t *testing.T) {
 	r := newRepo(t)
-	r.write("ranged.go", "package fixture\n")
-	r.commit("base")
-	r.write("ranged.go", heavy(8, 1))
+	r.rewrote("ranged.go", heavy(8, 1))
 	r.commit("dense")
 	// Untracked, comment-heavy, and in neither commit the caller named — the only thing here that can
 	// show the untracked half staying out. Delete it and this case stops testing that.
@@ -168,8 +142,6 @@ func TestATwoRevisionRangeIsScanned(t *testing.T) {
 
 func TestPastTheDisplayCap(t *testing.T) {
 	r := newRepo(t)
-	r.write("base.go", "package fixture\n")
-	r.commit("base")
 	for i := 0; i < maxShown+1; i++ {
 		r.write(fmt.Sprintf("f%03d.go", i), heavy(8, 1))
 	}
@@ -182,18 +154,10 @@ func TestPastTheDisplayCap(t *testing.T) {
 	}
 }
 
-func TestAStagedChangeIsStillReported(t *testing.T) {
-	r := newRepo(t)
-	r.write("staged.go", "package fixture\n")
-	r.commit("base")
-	r.write("staged.go", heavy(8, 1))
-	if err := git(r.dir, "add", "staged.go"); err != nil {
-		t.Fatalf("could not stage the fixture: %v", err)
-	}
-	r.run("HEAD")
-	r.expectCode(1)
-	r.expectStdoutHas("staged.go")
-}
+// TestAStagedChangeIsStillReported was here. That a staged change reaches the scan is `git diff HEAD`'s
+// own behaviour, held against a real git in `repo/exec_test.go`; that this tool asks HEAD rather than
+// letting git default to the index is `diffscan.TestAPathspecScanStillDefaultsToHead`. Neither is
+// comment-density's, and a fixture here could only have re-asserted one of them through the other.
 
 func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	cases := []struct{ name, key, value string }{
@@ -235,8 +199,6 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 
 func TestTheReportIsOrdered(t *testing.T) {
 	r := newRepo(t)
-	r.write("base.go", "package fixture\n")
-	r.commit("base")
 	for _, name := range []string{"zeta.go", "alpha.go", "mid.go"} {
 		r.write(name, heavy(8, 1))
 	}
@@ -265,9 +227,7 @@ func TestAThresholdOverrideTakesEffect(t *testing.T) {
 	dense := func(t *testing.T) *repo {
 		t.Helper()
 		r := newRepo(t)
-		r.write("over.go", "package fixture\n")
-		r.commit("base")
-		r.write("over.go", heavy(7, 13))
+		r.rewrote("over.go", heavy(7, 13))
 		return r
 	}
 
@@ -320,9 +280,7 @@ func TestAThresholdOverrideTakesEffect(t *testing.T) {
 func TestTheDefaultReportDisownsTheBar(t *testing.T) {
 	t.Run("an outlier report says it is not the bar", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("dense.go", "package fixture\n")
-		r.commit("base")
-		r.write("dense.go", heavy(8, 2))
+		r.rewrote("dense.go", heavy(8, 2))
 		r.run("HEAD")
 		r.expectCode(1)
 		r.expectStderrHas("not a bar")
@@ -332,9 +290,7 @@ func TestTheDefaultReportDisownsTheBar(t *testing.T) {
 
 	t.Run("a clean run says it too", func(t *testing.T) {
 		r := newRepo(t)
-		r.write("lean.go", "package fixture\n")
-		r.commit("base")
-		r.write("lean.go", heavy(0, 9))
+		r.rewrote("lean.go", heavy(0, 9))
 		r.run("HEAD")
 		r.expectCode(0)
 		r.expectStderrHas("not a bar")

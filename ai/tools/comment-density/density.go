@@ -165,16 +165,19 @@ type scan struct {
 
 // `--bar` selects the mode only as the first argument. Later in the arguments it is an option like
 // any other, and refused as one.
-func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
+//
+// One port for the whole run, handed down to every seam rather than built at each: two adapters can
+// answer about two repositories, and the change set would then be weighed against one clone while the
+// baseline and the authorship came from another.
+func Run(self string, args []string, cwd string, git gitrepo.Git, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--bar" {
-		return bar(out, args[1:], cwd, cfg)
+		return bar(out, git, args[1:], cwd, cfg)
 	}
-	return scanAddedLines(out, args, cwd, cfg)
+	return scanAddedLines(out, git, args, cwd, cfg)
 }
 
-func scanAddedLines(out console, args []string, cwd string, cfg Config) int {
-	git := gitrepo.Exec{}
+func scanAddedLines(out console, git gitrepo.Git, args []string, cwd string, cfg Config) int {
 	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		return out.refuseArguments(err)
 	}

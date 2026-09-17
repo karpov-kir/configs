@@ -3,73 +3,30 @@ package density
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	gitrepo "kk-flavor/tools/repo"
+	"kk-flavor/tools/repo/repotest"
 )
 
-var seedRepo string
-
-func TestMain(m *testing.M) {
-	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	// NOSYSTEM covers /etc/gitconfig and the HOME override below covers ~/.gitconfig, but git
-	// reads $XDG_CONFIG_HOME/git/config as a global source too. A core.excludesFile there empties
-	// `ls-files --others --exclude-standard` and reddens every untracked case on a machine that is
-	// working perfectly. GIT_CONFIG_GLOBAL supersedes both files at once.
-	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-	base, err := os.MkdirTemp("", "density-seed")
-	if err != nil {
-		panic("density tests: no temp dir, so nothing was tested: " + err.Error())
-	}
-	defer os.RemoveAll(base)
-	os.Setenv("HOME", filepath.Join(base, "home"))
-	os.MkdirAll(os.Getenv("HOME"), 0o755)
-
-	seedRepo = filepath.Join(base, "seed")
-	if err := buildSeed(seedRepo); err != nil {
-		panic("density tests: could not build the seed repository, so nothing was tested: " + err.Error())
-	}
-	// Removed explicitly rather than left to the defer above: os.Exit runs no deferred call, so the
-	// defer covers only the panic path, and without this line every run leaves a seed repository
-	// behind in the temp directory.
-	code := m.Run()
-	os.RemoveAll(base)
-	os.Exit(code)
-}
-
-func buildSeed(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"config", "user.email", "t@t"},
-		{"config", "user.name", "t"},
-		{"config", "commit.gpgsign", "false"},
-	} {
-		if err := git(dir, args...); err != nil {
-			return err
-		}
-	}
-	if err := os.WriteFile(filepath.Join(dir, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
-		return err
-	}
-	if err := git(dir, "add", "seed.txt"); err != nil {
-		return err
-	}
-	return git(dir, "commit", "-qm", "base")
-}
-
-func git(dir string, args ...string) error {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	return cmd.Run()
-}
-
+// A repository the tool can be driven against without forking git. repotest.Fake answers every question
+// the port asks; the files also sit in a temp directory, because the working-tree half of the bar and
+// the untracked half of the scan open them with os.Lstat rather than through the port.
 type repo struct {
-	t      *testing.T
-	dir    string
+	t    *testing.T
+	dir  string
+	fake *repotest.Fake
+	// git is what Run is handed — the fake, unless a case wraps it to record which directory a question
+	// went to.
+	git gitrepo.Git
+	// history is the commits, newest first. Every commit re-points HEAD, HEAD~1, … so a case names
+	// revisions the way it would against git.
+	history []map[string]string
+	// onDisk is what each file holds, so a commit can snapshot the tree without reading it back.
+	onDisk map[string]string
 	stdout strings.Builder
 	stderr strings.Builder
 	code   int
@@ -77,34 +34,24 @@ type repo struct {
 
 func newRepo(t *testing.T) *repo {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "repo")
-	if err := copyTree(seedRepo, dir); err != nil {
-		t.Fatalf("could not build a fixture repo: %v — stopping, since every case reads one", err)
-	}
-	return &repo{t: t, dir: dir}
+	r := newUnbornRepo(t)
+	// One commit before any case starts, as the seed repository used to give: a repository with none is
+	// a refusal of its own, and TestBarInARepositoryWithNoCommitNamesThat is where that belongs.
+	r.write("seed.txt", "seed\n")
+	r.commit("base")
+	return r
 }
 
-func copyTree(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, info.Mode().Perm()|0o700)
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, body, info.Mode().Perm())
-	})
+// A repository with no commit at all, which is what a `git init` leaves behind.
+func newUnbornRepo(t *testing.T) *repo {
+	t.Helper()
+	dir := t.TempDir()
+	fake := repotest.New(dir)
+	return &repo{t: t, dir: dir, fake: fake, git: fake, onDisk: map[string]string{}}
 }
 
+// write puts a file in the working tree. A file the index does not hold yet is untracked, which is what
+// git would say of one written and not committed.
 func (r *repo) write(name, body string) {
 	r.t.Helper()
 	full := filepath.Join(r.dir, name)
@@ -114,16 +61,136 @@ func (r *repo) write(name, body string) {
 	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
 		r.t.Fatalf("could not write the fixture %s: %v", name, err)
 	}
+	r.onDisk[name] = body
+	if _, tracked := r.fake.Revs[repotest.WorkTree][name]; tracked {
+		r.fake.Write(name, body)
+		return
+	}
+	if !slices.Contains(r.fake.UntrackedPaths, name) {
+		r.fake.AddUntracked(name)
+	}
 }
 
+// symlink plants a link in the working tree and lists it untracked, as git would.
+func (r *repo) symlink(name, target string) {
+	r.t.Helper()
+	if err := os.Symlink(target, filepath.Join(r.dir, name)); err != nil {
+		r.t.Fatalf("could not plant the symlink %s: %v", name, err)
+	}
+	r.fake.AddUntracked(name)
+}
+
+// remove deletes a file from the tree and the index, which is what `git rm` leaves behind.
+func (r *repo) remove(name string) {
+	r.t.Helper()
+	if err := os.Remove(filepath.Join(r.dir, name)); err != nil {
+		r.t.Fatalf("could not delete the fixture %s: %v", name, err)
+	}
+	delete(r.onDisk, name)
+	delete(r.fake.Revs[repotest.WorkTree], name)
+	r.fake.UntrackedPaths = slices.DeleteFunc(r.fake.UntrackedPaths, func(held string) bool { return held == name })
+}
+
+// commit stages everything and snapshots it. message is carried so a case still says at its call site
+// what the commit is for; the fake names commits by their distance from HEAD and never by their message.
 func (r *repo) commit(message string) {
 	r.t.Helper()
-	if err := git(r.dir, "add", "-A"); err != nil {
-		r.t.Fatalf("could not stage the fixture: %v", err)
+	for _, name := range r.fake.UntrackedPaths {
+		r.fake.Write(name, r.onDisk[name])
 	}
-	if err := git(r.dir, "commit", "-qm", message); err != nil {
-		r.t.Fatalf("could not commit the fixture: %v", err)
+	r.fake.UntrackedPaths = nil
+	held := map[string]string{}
+	for name, body := range r.fake.Revs[repotest.WorkTree] {
+		held[name] = body
 	}
+	r.history = append([]map[string]string{held}, r.history...)
+	r.nameHistory()
+}
+
+// The fake models no revision grammar, so every name a case passes has to be one it holds: HEAD and
+// HEAD~n after each commit, plus the merge base of every pair, which on one line of history is the older
+// of the two. Each commit answers under its object id as well as its name, because a merge base comes
+// back as an id and the listing taken at it has to find the same tree.
+func (r *repo) nameHistory() {
+	names := make([]string, len(r.history))
+	for i, held := range r.history {
+		names[i] = "HEAD"
+		if i > 0 {
+			names[i] = fmt.Sprintf("HEAD~%d", i)
+		}
+		r.fake.Commit(names[i], held)
+		r.fake.Commit(r.fake.Refs[names[i]], held)
+	}
+	for i, newer := range names {
+		for _, older := range names[i:] {
+			r.fake.Bases[newer+"\x00"+older] = r.fake.Refs[older]
+		}
+	}
+}
+
+// diffs states the patch git would print for this change. Stated rather than derived from the fixture:
+// which lines a change added is git's own answer, and a suite deriving it would be agreeing with itself
+// — repotest.Fake answers patch text verbatim for exactly that reason. Unstated, the patch is empty,
+// which is what git prints for a change that only added untracked files.
+func (r *repo) diffs(patches ...string) {
+	r.fake.PatchText = strings.Join(patches, "")
+}
+
+// patchOf is the diff of a file every line of which the change added — one it created, or rewrote whole.
+func patchOf(file, body string) string {
+	return patchAdding(file, addedLines(body)...)
+}
+
+func patchAdding(file string, added ...string) string {
+	return patchHeaded(file, "b/"+file, added...)
+}
+
+// patchHeaded states the `+++ ` field apart from the name, so a case can drive the C-quoted form git
+// prints for a path holding a control character.
+func patchHeaded(file, header string, added ...string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "diff --git a/%s b/%s\n--- a/%s\n+++ %s\n@@ -1 +1,%d @@\n", file, file, file, header, len(added))
+	for _, line := range added {
+		fmt.Fprintf(&b, "+%s\n", line)
+	}
+	return b.String()
+}
+
+func addedLines(body string) []string {
+	return strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+}
+
+// rewrote writes a file and states the diff that landed it: every line added, which is what git prints
+// for a file the change created or rewrote whole.
+func (r *repo) rewrote(name, body string) {
+	r.t.Helper()
+	r.write(name, body)
+	r.fake.PatchText += patchOf(name, body)
+}
+
+// askedFrom records the directory each listing was asked about. Every directory of one repository
+// answers alike, here and in git, so the answer cannot show which one the question went to — and which
+// one it goes to is the whole of what a pathspec case holds.
+type askedFrom struct {
+	gitrepo.Git
+	changed   []string
+	untracked []string
+}
+
+func (a *askedFrom) Changed(dir string, revisions, pathspec []string) ([]string, error) {
+	a.changed = append(a.changed, dir)
+	return a.Git.Changed(dir, revisions, pathspec)
+}
+
+func (a *askedFrom) Untracked(dir string, pathspec ...string) ([]string, error) {
+	a.untracked = append(a.untracked, dir)
+	return a.Git.Untracked(dir, pathspec...)
+}
+
+func (r *repo) recordDirectories() *askedFrom {
+	recorder := &askedFrom{Git: r.fake}
+	r.git = recorder
+	return recorder
 }
 
 func baseConfig() Config {
@@ -135,9 +202,13 @@ func (r *repo) run(args ...string) {
 }
 
 func (r *repo) runWith(cfg Config, args ...string) {
+	r.runIn(r.dir, cfg, args...)
+}
+
+func (r *repo) runIn(cwd string, cfg Config, args ...string) {
 	r.stdout.Reset()
 	r.stderr.Reset()
-	r.code = Run("comment-density.sh", args, r.dir, cfg, &r.stdout, &r.stderr)
+	r.code = Run("comment-density.sh", args, cwd, r.git, cfg, &r.stdout, &r.stderr)
 }
 
 func (r *repo) expectCode(want int) {
