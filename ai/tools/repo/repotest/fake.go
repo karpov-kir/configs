@@ -224,7 +224,6 @@ func (f *Fake) Write(name, body string) *Fake {
 	return f
 }
 
-// AddUntracked puts a file in the working tree without tracking it.
 func (f *Fake) AddUntracked(names ...string) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()

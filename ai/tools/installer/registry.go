@@ -64,6 +64,7 @@ func (r *Run) LiveInstalls() []string {
 	return live
 }
 
+// RecordInstall adds project to the registry, answering false only where the write was refused.
 // Idempotent: a second install into the same directory leaves one line.
 func (r *Run) RecordInstall(project string) bool {
 	file := r.RegistryFile()
@@ -91,6 +92,7 @@ func (r *Run) RecordInstall(project string) bool {
 	})
 }
 
+// ForgetInstall drops project from the registry, answering false only where the write was refused.
 // Absent is success: an uninstall run twice has nothing to do the second time.
 func (r *Run) ForgetInstall(project string) bool {
 	file := r.RegistryFile()

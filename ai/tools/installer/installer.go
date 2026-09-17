@@ -66,7 +66,7 @@ type RunOptions struct {
 	// WriteRoot bounds every write this run makes to one directory tree, resolved physically so a
 	// symlink in the path cannot route one out of it. Empty is unbounded, which is what an installer
 	// on a real machine runs as — the bound is for a suite driving the real linking logic against a
-	// throwaway home. See the package comment for what its absence cost once.
+	// throwaway home.
 	WriteRoot string
 }
 
@@ -84,9 +84,6 @@ type Run struct {
 	out             io.Writer
 	tree            *tree
 
-	// Refusals are collected rather than fatal: a machine missing one cask should still get every
-	// link, and a human fixing three named problems in one pass beats discovering them one run at a
-	// time.
 	refusals []string
 	breaches []string
 
@@ -112,8 +109,7 @@ const machineScope = "this machine's configuration"
 // maxMessageBytes bounds one printed line. Half of what these messages quote is text the tree chose
 // rather than text this package wrote — a skill directory name off a branch, a symlink value read off
 // the machine — and a name long enough to fill a terminal buries the run's own account of what it
-// removed as surely as a control byte rewrites it. Every path this repository writes is well under
-// the bound, so reaching it says something about the name rather than about the paths growing.
+// removed as surely as a control byte rewrites it.
 const maxMessageBytes = 1024
 
 func NewRun(options RunOptions) *Run {
@@ -155,10 +151,6 @@ func (r *Run) noteBreach(message string) {
 // byte in a name the tree chose drives the terminal instead of printing, and `ESC[2K` erases the line
 // it lands in while `ESC[1A` moves to the line above — so a name carrying either can wipe the run's
 // own record of what it removed or refused.
-//
-// shell.Oneline rather than a substitution of this package's own, and it reaches one byte the shell
-// could not: a raw 0x9b is the CSI an 8-bit terminal acts on, and catching it needs the decoding
-// `[[:cntrl:]]` cannot do.
 func (r *Run) Say(message string) {
 	fmt.Fprintln(r.out, clean(message))
 }
@@ -177,9 +169,7 @@ func (r *Run) Refusals() []string {
 
 // Breaches is every write this run tried to make outside WriteRoot. Empty on a real machine, where
 // there is no bound; a suite fails its whole run on a non-empty one rather than reading the case that
-// noticed as merely red. The distinction is the incident in the package comment: a case failed saying
-// something had been written where nothing should be, and the report was read as a harness bug
-// without asking what the broken run had already written to disk.
+// noticed as merely red.
 func (r *Run) Breaches() []string {
 	return r.breaches
 }

@@ -7,6 +7,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
+// AddConfig declares one mount for Mount to write later.
+//
 // Two lists rather than one, because the guard reports them differently. A config is individually
 // consequential — a shell, a git identity, the instructions every agent session loads — so it is
 // named. A bulk set is homogeneous, so its count says all a list would.

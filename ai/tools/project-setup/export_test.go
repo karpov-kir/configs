@@ -21,10 +21,8 @@ func HookBody() string {
 	return hookBody()
 }
 
-// SupersededHookBody is the hook this installer wrote before the body above learned to name the
-// checkout behind ~/.kk-flavor. Exported for the cases that assert such a hook is still recognised as
-// this installer's own: they need the exact bytes, and a copy written into the suite would agree with
-// itself rather than with what is installed.
+// SupersededHookBody is the hook this installer wrote before HookBody learned to name the checkout
+// behind ~/.kk-flavor.
 func SupersededHookBody() string {
 	return supersededHookBody
 }

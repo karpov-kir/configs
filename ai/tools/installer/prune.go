@@ -13,6 +13,8 @@ type unmountScan struct {
 	sourceRoot string
 }
 
+// AddUnmountScan declares a directory Mount sweeps for links whose source under sourceRoot is gone.
+//
 // A skill renamed or deleted takes its source directory with it, and nothing in the mount table names
 // the old target any more — so link never sees it, and the link left under `~/.claude/skills/`
 // resolves into a directory no checkout has. Only the run that would have written it can notice.

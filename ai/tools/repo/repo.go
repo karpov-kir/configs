@@ -29,9 +29,7 @@ type Worktree struct {
 	Prunable bool
 }
 
-// Git is every question this repository's tools ask of a git repository. Each method takes the
-// directory to ask from, because git answers relative to where it runs and several of these tools ask
-// about more than one tree in a run.
+// Git is every question this repository's tools ask of a git repository.
 //
 // Small on purpose: a question is added here when production asks it, never in advance. The suites
 // drive repotest.Fake, so a method nobody calls is a fake nobody exercises.
@@ -80,11 +78,7 @@ type Git interface {
 	// prints for it and the destination blob, so a caller can read a file's new content without a
 	// second listing.
 	ChangedWithStatus(dir string, revisions, pathspec []string) ([]Change, error)
-	// Patch is the change set as unified diff TEXT. Held apart from the two listings above because a
-	// caller wanting the ADDED LINES has no other route: which lines a change added is the diff, so
-	// rebuilding it from the two sides' content would put a diff implementation in this repository and
-	// make its answers a property of that implementation rather than of the diff the reviewer is
-	// reading.
+	// Patch is the change set as unified diff text.
 	//
 	// The adapter pins the shape a parser keys off — `+++ b/<path>`, a leading `+` — against the things
 	// a reader's own git config can turn on.
