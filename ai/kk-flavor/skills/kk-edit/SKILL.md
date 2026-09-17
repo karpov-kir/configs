@@ -28,13 +28,13 @@ For code comments, write every block again from the code. A block refined in pla
 
 1. **Strip.** Run `~/.kk-flavor/scripts/bloat-judge.sh --strip=<dir> --changed=<the caller's revisions> comment <file>`, with `<dir>` a directory of your own under the scratch dir, empty. It removes every comment block the change set touched, writes each to a facts file headed by its site, and prints the sites. A comment the toolchain reads stays, and the strip names it on stderr.
 2. **Write.** Dispatch `~/.kk-flavor/workers/comment-writer.md` as `comment-writer` under `~/.kk-flavor/standards/model-policy.md`, with the stripped file, the printed sites and the facts directory. It writes a block from the code or `none` per site, and returns `stale`, `carried by`, `rename` and `for the PR body` lines. Count its `Block` lines against the sites.
-3. **Verdict.** Run `~/.kk-flavor/scripts/bloat-judge.sh --changed=<the same revisions> comment-verdict <file>`, `JUDGE_PROVIDER` set explicitly, over the written file. It prints one verdict per block, `<file>:<line>: <verdict>`, from the closed set `keep`, `obvious`, `unclear`, `coined`, `carried`, `stale`. Count its lines against the blocks. **Exit 2 is a judge that did not run**, and a run with no verdict lines is not a clean file. Act on each verdict once:
+3. **Verdict.** Run `~/.kk-flavor/scripts/bloat-judge.sh --changed=<the same revisions> comment-verdict <file>`, `JUDGE_PROVIDER` set explicitly, over the written file. It prints one verdict per block, `<file>:<line>: <verdict>`, from the closed set `keep`, `obvious`, `padded`, `unclear`, `coined`, `carried`, `stale`. Count its lines against the blocks. **Exit 2 is a judge that did not run**, and a run with no verdict lines is not a clean file. Act on each verdict once:
 
    | Verdict | Action |
    |---|---|
    | `keep` | leave it |
    | `obvious` | delete the block |
-   | `unclear`, `coined` | strip that block again and dispatch the writer for it once more; a second verdict other than `keep` deletes the block and returns its facts as `for the PR body` |
+   | `padded`, `unclear`, `coined` | strip that block again and dispatch the writer for it once more; a second verdict other than `keep` deletes the block and returns its facts as `for the PR body` |
    | `carried` | return `carried by` for the refactor lane, then delete the block |
    | `stale` | return the block as a correctness finding, then delete it |
 
