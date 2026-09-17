@@ -15,11 +15,11 @@ func (run *invocation) uninstall() int {
 	run.mounting.Unmount()
 	run.removeInstructions()
 	run.reportRemainingProjects()
-	// Said every time, because nothing records whether this machine had these before and a brew formula
-	// is shared and unrefcounted — so removing one could take it out from under something else.
+	// Hedged rather than conditioned on the tier: the tier a machine was installed with is written down
+	// nowhere, so an uninstall cannot tell whether this machine ever got rtk.
 	run.mounting.Say("")
-	run.mounting.Say("  jq is left installed: nothing records whether this machine had it already or what else")
-	run.mounting.Say("  needs it, and a brew formula is shared and unrefcounted. The same goes for rtk.")
+	run.mounting.Say("  rtk is left installed if this machine has it: nothing records whether it was already")
+	run.mounting.Say("  there or what else needs it, and a brew formula is shared and unrefcounted.")
 	return run.mounting.Report()
 }
 

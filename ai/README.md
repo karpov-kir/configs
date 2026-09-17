@@ -139,7 +139,7 @@ Qualification receipts use the `edit` stage. Existing receipts using the retired
 require requalification. A not-applicable skip needs a scope receipt for the exact review base and
 candidate; unknown paths and security surfaces keep their reviews.
 
-Machine bootstrap installs `jq` (`brew install jq`) and syncs `mcp.jsonc` plus the optional gitignored
+Machine bootstrap syncs `mcp.jsonc` plus the optional gitignored
 `mcp.private.jsonc` with `mcp-sync.sh --agent=codex` or `--agent=claude`. Codex stdio servers retain
 their command, arguments and environment; HTTP servers use Codex's streamable HTTP transport.
 Authenticate servers that require OAuth with `codex mcp login <name>` after syncing.

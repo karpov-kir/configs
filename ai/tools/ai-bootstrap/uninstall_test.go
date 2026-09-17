@@ -56,15 +56,14 @@ func TestUninstallNamesTheProjectsThatStillNeedThisCheckout(t *testing.T) {
 	f.expectSaid(project)
 }
 
-// Said every time, because nothing records whether this machine had these before and a brew formula is
-// shared and unrefcounted — so removing one could take it out from under something else.
+// Driven at the default tier, which never installs rtk: the tier a machine was installed with is
+// written down nowhere, so the line is hedged rather than conditioned on it and has to appear here too.
 func TestUninstallSaysWhatItLeavesInstalled(t *testing.T) {
 	f := newFixture(t)
 
 	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectSaid("jq is left installed")
-	f.expectSaid("The same goes for rtk.")
+	f.expectSaid("rtk is left installed if this machine has it")
 }
 
 // An instruction file that was never there is not a refusal: a machine that never had this client

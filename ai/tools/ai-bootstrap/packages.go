@@ -9,18 +9,17 @@ import (
 // The formulae this install needs, held against ai/README.md by this package's own suite: adding one
 // to the README alone would leave it documented and never installed, with every other case green.
 //
-// jq is everyone's. rtk compresses this machine's shell output for the agent — personal tooling, not
-// something the instruction tree needs — so it is the owner tier's and every other tier says so rather
-// than passing over it in silence.
+// rtk compresses this machine's shell output for the agent — personal tooling, not something the
+// instruction tree needs — so it is the owner tier's and the only formula here. The default tier then
+// installs nothing, and says so rather than passing over it in silence.
 var formulae = []struct {
 	name         string
 	isOwnersOnly bool
 }{
 	{name: "rtk", isOwnersOnly: true},
-	{name: "jq"},
 }
 
-// FormulaNames is every formula this installer installs, both tiers, in declared order.
+// FormulaNames is every formula this installer installs, whatever the tier, in declared order.
 //
 // Exported for the case in `ai/tools` that holds the list against ai/README.md. That case has to read
 // the shipped README, and the README sits outside this module: Go keys a package's test cache on the
