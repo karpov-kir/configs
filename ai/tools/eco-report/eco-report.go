@@ -194,7 +194,7 @@ type run struct {
 	intentsDir string
 	// Set when a machine-local override moved the idsd root, and printed by every command it affects.
 	overrideNote string
-	// The config that decided idsdDir, or empty when nothing did and the shared git dir answered. A
+	// The config that decided idsdDir, or empty when no config did and the shared git dir answered. A
 	// refusal telling the human which file to edit reads it, because naming the override when the
 	// tracked default set the root sends them to add a second file and leaves the first one live.
 	idsdConfigPath string

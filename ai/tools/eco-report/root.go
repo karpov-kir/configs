@@ -79,15 +79,9 @@ func (r *run) overrideConfigPath() string {
 	return config + "/kk-flavor/idsd.conf"
 }
 
-// The tracked default, shipped in the flavor tree this machine has installed. Read through the mount,
-// so an arbitrary repository being qualified does not get to choose where its own reports are written
-// or what `discard` removes.
-//
-// The flavor's own checkout is the exception, and it is not a hole: there the mount IS the working
-// tree, so editing this file does aim the next `discard`. Whoever can write that checkout already owns
-// every script and Go source the stubs rebuild at call time, so nothing is gained — and a config
-// another ACCOUNT could steer is still refused, by the two assertions below, which judge this source
-// exactly as they judge the override.
+// The tracked default the flavor tree on this machine ships. It is read through the mount, so an
+// arbitrary repository being qualified does not choose where its own reports are written or what
+// `discard` removes.
 func (r *run) defaultConfigPath() string {
 	if !filepath.IsAbs(r.home) {
 		return ""
@@ -95,14 +89,10 @@ func (r *run) defaultConfigPath() string {
 	return r.home + "/.kk-flavor/configs/idsd.conf"
 }
 
-// The root the config at path names, or empty when there is no such file.
-//
-// Strict: a file that is present but unusable refuses, and no path here falls back to the next source.
-// A silent fallback would write this clone's intents into a directory the human was never told about,
-// which is the one failure a config naming a location must not have. Absent is different from broken,
-// and only absent is quiet.
-// restores names what removing this file would fall back to, because the two sources fall back to
-// different things and the advice is worthless if it names the wrong one.
+// The root the config at path names, or empty when there is no such file. Absent is quiet, and a file
+// that is present but unusable refuses: no path here falls back to the next source, because a silent
+// fallback would write this clone's intents into a directory the human was never told about. restores
+// names what removing this file would fall back to, the two sources falling back to different things.
 func (r *run) configuredRoot(path, restores string) string {
 	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
 	// alone cannot see one.
@@ -369,8 +359,8 @@ func (r *run) resolveIdsdDir() {
 		r.overrideNote = "note: idsd location overridden by " + r.overrideConfigPath() + " — using " + r.idsdDir
 		return
 	}
-	// Silent, unlike the override above: the announcement exists so a tuned machine never looks like an
-	// untuned one, and a default that announced itself would erase that difference.
+	// The shipped default is silent where the override announces itself: the announcement exists so a
+	// tuned machine never looks like an untuned one.
 	if shipped := r.configuredRoot(r.defaultConfigPath(), "this repository's shared git dir"); shipped != "" {
 		r.idsdDir = shipped + "/" + r.repoKey()
 		r.idsdConfigPath = r.defaultConfigPath()

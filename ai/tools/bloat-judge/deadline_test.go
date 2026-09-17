@@ -431,8 +431,6 @@ func writeShippedDefault(t *testing.T, home, content string) {
 	}
 }
 
-// The tracked default is the bound on an installed machine, and it is silent: an announcement here
-// would erase the difference between a tuned machine and an untuned one.
 func TestTheShippedDefaultSetsTheBoundAndSaysNothing(t *testing.T) {
 	home := t.TempDir()
 	writeShippedDefault(t, home, "# the flavor's own\nroll-timeout 120\n")
@@ -442,8 +440,8 @@ func TestTheShippedDefaultSetsTheBoundAndSaysNothing(t *testing.T) {
 	}
 }
 
-// And the announcement offers the number that removing the override would actually restore — the
-// shipped default, never the constant behind it.
+// And the announcement offers the number that removing the override would actually restore, which is
+// the shipped default and not the constant behind it.
 func TestAnOverrideWinsOverTheShippedDefaultAndNamesIt(t *testing.T) {
 	home, config := t.TempDir(), t.TempDir()
 	writeShippedDefault(t, home, "roll-timeout 120\n")
@@ -458,7 +456,7 @@ func TestAnOverrideWinsOverTheShippedDefaultAndNamesIt(t *testing.T) {
 }
 
 // Present but unusable refuses here too. The fallback is the constant, which is a real number, so
-// every run would otherwise report success under a bound nobody chose.
+// every run would otherwise report success under a bound the human never chose.
 func TestAnUnusableShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
 	for _, c := range []struct{ name, content, says string }{
 		{"a line it does not understand", "timeout 45\n", "does not understand"},
@@ -480,10 +478,10 @@ func TestAnUnusableShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
 	}
 }
 
-// The file the flavor actually ships, read through the resolver an installed run uses. Nothing else
-// in this repository opens it, so a typo here is invisible until every judge run refuses at exit 2 —
-// and the equality below is what keeps the shipped number and the constant behind it from drifting
-// into two different bounds for the same thing.
+// The flavor ships this file, and this case is the only place in the repository that opens it through
+// the resolver an installed run uses: a typo is invisible until every judge run refuses at exit 2.
+// The case holds the shipped number to the constant behind it, so the two cannot become different
+// bounds for the same thing.
 func TestTheShippedJudgeConfigParsesAndMatchesTheConstant(t *testing.T) {
 	flavor, err := filepath.Abs("../../kk-flavor")
 	if err != nil {
@@ -506,9 +504,6 @@ func TestTheShippedJudgeConfigParsesAndMatchesTheConstant(t *testing.T) {
 	}
 }
 
-// A value that overflows the nanosecond conversion is refused rather than turned into a negative
-// duration, which would cancel every roll before it started and jam the judge at exit 2 — a failure
-// whose cause reads like an ordinary number in a config file. Both sources are bounded.
 func TestARollTimeoutThatWouldOverflowIsRefused(t *testing.T) {
 	for _, source := range []string{"override", "shipped default"} {
 		t.Run(source, func(t *testing.T) {
@@ -527,7 +522,7 @@ func TestARollTimeoutThatWouldOverflowIsRefused(t *testing.T) {
 			}
 		})
 	}
-	// The bound itself is usable, so the refusal above is about overflow rather than an off-by-one that
+	// The bound itself is usable, so those refusals are about overflow and not about an off-by-one that
 	// would reject a legitimate long timeout.
 	config := t.TempDir()
 	writeOverride(t, config, "roll-timeout 86400\n")

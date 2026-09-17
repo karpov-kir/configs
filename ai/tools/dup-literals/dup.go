@@ -66,8 +66,7 @@ const configName = "dup-literals.conf"
 var configKeys = []string{"min-length", "max-file-bytes"}
 
 // ConfigFromEnv resolves both thresholds: the tracked default under `~/.kk-flavor/configs/`, then
-// this run's environment over it. HOME comes through lookup rather than the process, so a suite can
-// point the mount at a fixture without touching anything process-global.
+// this run's environment over it.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MinLength: defaultMinLength, MaxFileBytes: defaultMaxFileBytes}
 	home, _ := lookup("HOME")
@@ -76,8 +75,6 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	if err != nil {
 		return cfg, fmt.Errorf("%w — the scan did NOT run", err)
 	}
-	// The source rides along with the value, so a refusal names the environment variable or the file
-	// line that set it.
 	setting := func(variable, key string) (string, string) {
 		if raw, ok := lookup(variable); ok && raw != "" {
 			return raw, variable

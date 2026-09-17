@@ -16,8 +16,6 @@ func write(t *testing.T, content string) string {
 	return path
 }
 
-// A tracked default sits in the installed mount, never in the tree under review. A home that is not
-// absolute is no mount, which the caller reads the same way as having no config at all.
 func TestPathResolvesInsideTheMountAndIsEmptyWithoutOne(t *testing.T) {
 	if got := Path("/home/someone", "idsd.conf"); got != "/home/someone/.kk-flavor/configs/idsd.conf" {
 		t.Fatalf("got %q", got)
@@ -27,7 +25,6 @@ func TestPathResolvesInsideTheMountAndIsEmptyWithoutOne(t *testing.T) {
 	}
 }
 
-// Absent is the one quiet outcome, and it is quiet for both shapes of nothing.
 func TestAnAbsentConfigIsQuiet(t *testing.T) {
 	for _, path := range []string{"", filepath.Join(t.TempDir(), "nothing.conf")} {
 		settings, err := Read(path, []string{"key"})
@@ -47,8 +44,6 @@ func TestCommentsAndBlankLinesAreSkippedAndTheRestParses(t *testing.T) {
 	}
 }
 
-// Present but unusable refuses, every way it can be unusable. A default quietly restored is
-// indistinguishable from the config working.
 func TestAnUnusableConfigRefusesRatherThanReadingAsAbsent(t *testing.T) {
 	for _, c := range []struct{ name, content, says string }{
 		{"a key this caller does not understand", "gamma 3\n", "does not understand"},
@@ -67,8 +62,6 @@ func TestAnUnusableConfigRefusesRatherThanReadingAsAbsent(t *testing.T) {
 	}
 }
 
-// The refusal names the lines this caller would have accepted, so the human fixing it does not have
-// to find the allowed set in the source.
 func TestTheRefusalNamesTheSupportedLines(t *testing.T) {
 	_, err := Read(write(t, "gamma 3\n"), []string{"alpha", "beta"})
 	if err == nil || !strings.Contains(err.Error(), "`alpha <value>`, `beta <value>`") {
@@ -86,10 +79,6 @@ func TestADirectoryWhereAFileBelongsRefuses(t *testing.T) {
 	}
 }
 
-// A link to a PERFECTLY GOOD file is refused too, and this is the case that needs saying: IsRegularFile
-// follows the link, so without an explicit test the link passes and whoever can repoint it chooses what
-// this reads on the next run. Only the final component is tested — the `~/.kk-flavor` mount is itself a
-// symlink, and refusing that would refuse every installed machine.
 func TestALinkToAGoodFileIsRefusedRatherThanFollowed(t *testing.T) {
 	real := write(t, "alpha 1\n")
 	link := filepath.Join(t.TempDir(), "thing.conf")
@@ -105,8 +94,6 @@ func TestALinkToAGoodFileIsRefusedRatherThanFollowed(t *testing.T) {
 	}
 }
 
-// A dangling link is not absent: an existence test alone cannot see one, so without the symlink check
-// a config whose target was moved away would restore the default in silence.
 func TestADanglingLinkRefusesInsteadOfReadingAsAbsent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "thing.conf")
 	if err := os.Symlink(filepath.Join(t.TempDir(), "gone"), path); err != nil {
@@ -117,8 +104,6 @@ func TestADanglingLinkRefusesInsteadOfReadingAsAbsent(t *testing.T) {
 	}
 }
 
-// The refusal echoes the offending line, and these files are hand-written: a line holding no newline
-// is as long as the file, so an unbounded echo buries the refusal it belongs to in its own evidence.
 func TestTheEchoedLineIsBounded(t *testing.T) {
 	_, err := Read(write(t, strings.Repeat("x", 5000)+"\n"), []string{"alpha"})
 	if err == nil {

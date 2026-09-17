@@ -2,16 +2,13 @@
 //
 // One shape for every tool with a tunable: `<key> <value>` a line, `#` comments, and the file read
 // through the installed mount, so an arbitrary repository being judged does not set the bounds it is
-// judged under (`~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins**). The flavor's
-// own checkout is the exception — there the mount is the working tree — and every value read here is
-// a bounded number, never a path, a deletion target or a subprocess argument.
+// judged under (`~/.kk-flavor/standards/ecosystem.md` → "Conventions a new file joins"). In the
+// flavor's own checkout the mount is the working tree.
 //
-// Parsing only. What a value means, whether a missing key is fatal, and what a refusal costs the run
-// are each caller's, because each states the consequence in its own vocabulary.
+// This package parses. What a value means and what a refusal costs the run are each caller's.
 //
-// A caller whose key names a path, a deletion target or a command needs more than this: the guards that
-// stop another account steering such a value live in `eco-report`'s own reader, which is why the one
-// value that reaches a RemoveAll does not come through here.
+// Every value read here is a bounded number; a key naming a path, a deletion target or a command
+// needs the guards in `eco-report`'s own reader instead.
 package flavorconfig
 
 import (
@@ -24,8 +21,8 @@ import (
 	"kk-flavor/tools/shell"
 )
 
-// Path is where the tracked default named name lives. Empty when home is not absolute: there is then
-// no mount for one to sit in, which the caller reads the same way as having none.
+// Path returns where the tracked default named name lives. Empty when home is not absolute: there is
+// then no mount for one to sit in, which the caller reads the same way as having none.
 func Path(home, name string) string {
 	if !filepath.IsAbs(home) {
 		return ""
@@ -36,10 +33,8 @@ func Path(home, name string) string {
 // Read returns the settings the file at path holds, or nil when there is no such file. allowed lists
 // every key the caller understands.
 //
-// Absent is quiet and everything else refuses, because a default quietly restored is
-// indistinguishable from the config working. A key outside allowed is refused rather than skipped for
-// the same reason one level down: a line the human meant as a setting, silently ignored, is a value
-// they believe they changed and did not.
+// Everything but an absent file refuses: a default quietly restored is indistinguishable from the
+// config working, and a key outside allowed is a setting the human believes they changed and did not.
 func Read(path string, allowed []string) (map[string]string, error) {
 	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
 	// alone cannot see one.
@@ -82,8 +77,7 @@ func Read(path string, allowed []string) (map[string]string, error) {
 	return settings, nil
 }
 
-// The link's target, or a stand-in when it cannot be read — the refusal names what it points at, and
-// an unreadable link is still a refusal rather than a reason to say nothing.
+// Returns the link's target, or a stand-in when it cannot be read.
 func readLink(path string) string {
 	target, err := os.Readlink(path)
 	if err != nil {

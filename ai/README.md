@@ -111,7 +111,7 @@ each `.conf` header says how to retune it without editing the checkout: a machin
 environment variable, or neither. [Ecosystem](kk-flavor/standards/ecosystem.md) → **Conventions a new
 file joins** holds what those files are held to.
 
-Every dispatch site's model lives in [models.json](kk-flavor/configs/models.json), which is the one place to
+Every dispatch site's model lives in [models.json](kk-flavor/configs/models.json) — the one place to
 tune what a run costs. It holds `workers` — the model a dispatch actually sets — and `sessions`, the
 tier a session should be started at, which nothing can enforce once it is running. A task the policy
 does not name is refused rather than run at the caller's tier. Read [model policy](kk-flavor/standards/model-policy.md) before changing an assignment: it says

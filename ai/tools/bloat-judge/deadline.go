@@ -102,11 +102,8 @@ func rollDeadline(configHome, home string) (time.Duration, string, error) {
 }
 
 // secondsIn reads the roll-timeout the config at path carries, or zero when there is no such file.
-// fallback is named in the refusal that asks for the file to be removed, so the number offered is the
-// one removing it would actually restore.
-//
-// A file that names no bound refuses rather than restoring one quietly, which would be
-// indistinguishable from the override working.
+// fallback is named in the refusal that asks for the file to be removed, so the number offered is what
+// removing it would actually restore.
 func secondsIn(path string, fallback time.Duration) (int, error) {
 	settings, err := flavorconfig.Read(path, []string{overrideKey})
 	if err != nil {
@@ -120,9 +117,9 @@ func secondsIn(path string, fallback time.Duration) (int, error) {
 		return 0, fmt.Errorf("%s sets no %s — add a `%s <seconds>` line, or remove the file to use the default of %s",
 			path, overrideKey, overrideKey, fallback)
 	}
-	// Bounded at both ends. Below one there is no roll; above a day, `time.Duration(seconds)` overflows
-	// int64 nanoseconds into a NEGATIVE duration, so every roll is cancelled before it starts and the
-	// judge jams at exit 2 — from a line that reads like an ordinary number.
+	// Both ends are bounded. Below one second there is no roll; above a day, `time.Duration(seconds)`
+	// overflows int64 nanoseconds into a NEGATIVE duration, so every roll is cancelled before it starts
+	// and the judge jams at exit 2 — from a line that reads like an ordinary number.
 	seconds, err := strconv.Atoi(raw)
 	if err != nil || seconds < 1 || seconds > maxRollSeconds {
 		return 0, fmt.Errorf("%s sets %s to %s, which is not a whole number of seconds between 1 and %d",

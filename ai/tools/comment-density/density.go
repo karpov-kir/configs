@@ -83,8 +83,6 @@ type Config struct {
 	MaxFileBytes int64
 }
 
-// The tracked default the flavor ships, and the keys it may hold. Keyed short because the file is
-// named for the tool; the shell stub's header pairs each with its environment variable.
 const configName = "comment-density.conf"
 
 var configKeys = []string{"max-ratio", "min-lines", "max-file-bytes"}
@@ -93,9 +91,6 @@ var configKeys = []string{"max-ratio", "min-lines", "max-file-bytes"}
 // then this run's environment over it. A value that does not parse is not silently replaced by the
 // built-in: a caller who set COMMENT_MAX_RATIO=0..3 asked for something, and answering with 0.3
 // reports a scan against a threshold they did not choose.
-//
-// HOME comes through lookup rather than the process, so a suite can point the mount at a fixture
-// without touching anything process-global.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
 	home, _ := lookup("HOME")
@@ -105,7 +100,7 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 		return cfg, fmt.Errorf("%w — the scan did NOT run", err)
 	}
 	// Names what set the value as well as the value, so a refusal sends the human to the environment
-	// or to the file rather than leaving them to find out which of the two they are fighting.
+	// or to the file it came from.
 	setting := func(variable, key string) (string, string) {
 		if raw, ok := lookup(variable); ok && raw != "" {
 			return raw, variable
@@ -266,10 +261,10 @@ func isFixture(file string) bool {
 
 // Lockfiles are matched by name as well as extension: the yaml ones are generated, and nobody's comments.
 //
-// `.conf` is settings data whose header IS its documentation — a file of two `<key> <value>` lines
-// under the paragraph explaining what tuning them costs. Counted as source it always reads
-// comment-heavy, and the only way to clear the bar would be to delete the explanation the flavor's own
-// rule requires it to carry (`~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins**).
+// `.conf` is settings data whose header IS its documentation — a few `<key> <value>` lines sitting
+// under the paragraph explaining what tuning them costs. Such a file always reads comment-heavy as
+// source, and clearing the bar would mean deleting the explanation the flavor's own rule requires it
+// to carry (`~/.kk-flavor/standards/ecosystem.md` → "Conventions a new file joins").
 func isProseOrData(file string) bool {
 	base := path.Base(file)
 	switch strings.ToLower(path.Ext(base)) {

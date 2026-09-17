@@ -386,11 +386,10 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	}
 }
 
-// The shipped defaults, read through `flavorconfig` rather than through ConfigFromEnv: the shipped
-// numbers equal the built-in ones, so a ConfigFromEnv that ignored the file would satisfy the
-// comparison below and this case would pass over a file it never opened. Whether ConfigFromEnv reads
-// it is the next case's subject. Nothing else in this repository opens the file, so a typo there is
-// invisible until every scan refuses.
+// This case goes through `flavorconfig` and never through ConfigFromEnv: the shipped numbers equal
+// the built-in ones, so a ConfigFromEnv that ignored the file would still satisfy what this case
+// asserts. It is also the only place in the repository that opens the file, so a typo there survives
+// until every scan refuses.
 func TestTheShippedConfigParsesAndMatchesTheBuiltInDefaults(t *testing.T) {
 	flavor, err := filepath.Abs("../../kk-flavor")
 	if err != nil {
@@ -413,8 +412,6 @@ func TestTheShippedConfigParsesAndMatchesTheBuiltInDefaults(t *testing.T) {
 	}
 }
 
-// The environment is the per-run override and wins over the shipped file; a broken shipped file
-// refuses rather than restoring the built-in silently.
 func TestTheEnvironmentWinsOverTheShippedConfigAndABrokenOneRefuses(t *testing.T) {
 	home := t.TempDir()
 	configs := filepath.Join(home, ".kk-flavor", "configs")
@@ -453,8 +450,8 @@ func TestTheEnvironmentWinsOverTheShippedConfigAndABrokenOneRefuses(t *testing.T
 		t.Fatal("a shipped config the tool cannot read was replaced by the built-in defaults in silence")
 	}
 
-	// A key `flavorconfig` accepts and this tool then rejects. The refusal has to name the file rather
-	// than the environment variable, or it sends the human to edit something they never set.
+	// A key `flavorconfig` accepts and this tool then rejects. The refusal has to name the file and
+	// not the environment variable, or it sends the human to edit something they never set.
 	if err := os.WriteFile(path, []byte("min-length nope\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

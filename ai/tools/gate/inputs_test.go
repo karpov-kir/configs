@@ -451,8 +451,7 @@ func TestTheGoTestUnitIsKeyedOnTheShippedConfigs(t *testing.T) {
 // Every package whose suite opens a shipped config through the real path must be forced when one
 // moves, or `go test` answers from a cache that cannot see the file it read. The forced list is read
 // out of run.go and the expected list is DERIVED from the suites, because a hand-copied oracle passes
-// for a package somebody forgot to add — which is the silent direction. A misspelled group is already
-// loud: `go test` refuses a package that does not exist.
+// for a package somebody forgot to add.
 func TestEveryShippedConfigReaderIsForcedWhenAConfigMoves(t *testing.T) {
 	forced := groupsForcedOn(t, "extConfigs")
 	for _, pkg := range shippedConfigReaders(t) {
@@ -467,8 +466,8 @@ func TestEveryShippedConfigReaderIsForcedWhenAConfigMoves(t *testing.T) {
 	}
 }
 
-// The group names one `changedSinceGreen` branch appends, read from the source rather than copied, so
-// this case cannot drift from the branch it describes.
+// The group names one `changedSinceGreen` branch appends. This reads it out of the source, so the case
+// cannot fall out of step with the branch it describes.
 func groupsForcedOn(t *testing.T, constName string) []string {
 	t.Helper()
 	body, err := os.ReadFile("run.go")
@@ -510,9 +509,9 @@ func shippedConfigReaders(t *testing.T) []string {
 	}
 	var readers []string
 	for _, entry := range entries {
-		// This package is the one doing the deriving, so its own source carries both signals verbatim
-		// — the tree literal and the `.conf` suffix are what the scan searches FOR. It opens no shipped
-		// config, and counting it would make this case demand that the gate force itself.
+		// This package does the deriving, so its own source carries both signals verbatim — the tree
+		// literal and the `.conf` suffix are what the scan searches FOR. It opens no shipped config, and
+		// counting it would make this case demand that the gate force itself.
 		if !entry.IsDir() || entry.Name() == "gate" {
 			continue
 		}

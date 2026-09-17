@@ -433,18 +433,18 @@ func (f *fixture) writeOverride(content string) {
 	f.write(f.configHome+"/kk-flavor/idsd.conf", content)
 }
 
-// The tracked default, as the installed flavor ships one. Written under the fixture's own HOME for the
-// reason writeOverride states, and absent unless a case asks for it — every other case is then still
-// measuring the git-dir fallback rather than this.
+// The tracked default, as the installed flavor ships one. It goes under the fixture's own HOME for the
+// reason writeOverride states, and is absent unless a case asks for it, so every other case is still
+// measuring the git-dir fallback.
 func (f *fixture) writeShippedDefault(content string) {
 	f.t.Helper()
 	f.mkdirAll(f.home + "/.kk-flavor/configs")
 	f.write(f.home+"/.kk-flavor/configs/idsd.conf", content)
 }
 
-// The configs this checkout actually ships, linked into the fixture's HOME so the tool reads the real
-// files through the real path. A link rather than a copy: a copy would let the shipped file change
-// without the case noticing, which is the one thing the case exists to notice.
+// The configs this checkout actually ships. They are linked into the fixture's HOME, so the tool reads
+// the real files through the real path; a copy would let the shipped file change without any case
+// noticing.
 func (f *fixture) mountShippedConfigs() {
 	f.t.Helper()
 	source, err := filepath.Abs(flavorSource + "/configs")

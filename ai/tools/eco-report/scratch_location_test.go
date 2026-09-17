@@ -740,7 +740,7 @@ func TestTheShippedDefaultDecidesTheRootWhenNothingOverridesIt(t *testing.T) {
 	t.Parallel()
 	// The tracked default is what carries the owner's layout to every clone without a per-machine file
 	// in each one. It resolves like an override — same parser, same guards, same per-clone key — and
-	// differs in one thing only: it is the default, so it says nothing.
+	// differs in staying silent, where an override announces itself.
 	f := newRepo(t)
 	shipped := f.base + "/shipped"
 	f.writeShippedDefault("root " + shipped + "\n")
@@ -778,9 +778,8 @@ func TestThisMachinesOverrideWinsOverTheShippedDefault(t *testing.T) {
 
 func TestABrokenShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
 	t.Parallel()
-	// The same failure TestABrokenOverrideRefusesRatherThanFallingBack names, one source down. A
-	// default quietly restored is indistinguishable from the config working, and here the fallback is
-	// the shared git dir — a real directory, so every command would report success from it.
+	// The same failure TestABrokenOverrideRefusesRatherThanFallingBack names, one source down. Here the
+	// fallback is the shared git dir, a real directory every command would report success from.
 	for _, c := range []struct {
 		name, content, needle string
 	}{
@@ -803,10 +802,10 @@ func TestABrokenShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
 
 func TestTheShippedIdsdConfigIsReadableByTheToolThatReadsIt(t *testing.T) {
 	t.Parallel()
-	// The file this checkout ships, read through the real path rather than a fixture's content. Nothing
-	// else here opens it, so a typo would first show up as every idsd command in every repo refusing at
-	// exit 2 — and a missing file would show up as nothing at all, the git-dir fallback being a real
-	// directory every command reports success from.
+	// This case opens the file this checkout ships, through the real path and not a fixture's content,
+	// and it is the only place here that opens it. A typo would first show up as every idsd command in
+	// every repo refusing at exit 2, and a missing file would not show up at all: the git-dir fallback
+	// is a real directory every command reports success from.
 	f := newRepo(t)
 	f.mountShippedConfigs()
 	root := f.runReportStdout("root")
