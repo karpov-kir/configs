@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"io"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // The bound each shape of the direction scan emits under, and the bound the printer holds each rank

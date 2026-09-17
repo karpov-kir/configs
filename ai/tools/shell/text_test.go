@@ -11,7 +11,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestOnelineReplacesEveryC0ByteAndDel(t *testing.T) {

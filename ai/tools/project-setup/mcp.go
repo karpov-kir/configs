@@ -3,8 +3,8 @@ package projectsetup
 import (
 	"io"
 
-	projectmcp "kk-flavor/tools/project-mcp"
-	"kk-flavor/tools/repo"
+	projectmcp "configs/ai/tools/project-mcp"
+	"configs/ai/tools/repo"
 )
 
 // The project MCP tool, called in process rather than exec'd through its own stub. It is a whole tool

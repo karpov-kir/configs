@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	gitrepo "kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // A repository the tool can be driven against without forking git. repotest.Fake answers every question

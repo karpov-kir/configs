@@ -28,8 +28,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo/repotest"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/shell"
 )
 
 // The fixture clone's own directory name, and the abbreviation `repo-key` answers for it — which is

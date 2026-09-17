@@ -5,7 +5,7 @@ import (
 	"os"
 	"syscall"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // tree is the filesystem a run writes through, and the one place a write is checked against the root

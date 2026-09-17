@@ -110,7 +110,7 @@ func TestABinaryNewerThanTheSourceItDisagreesWithIsServedWithTheDoubtOnStderr(t 
 func main() { _ = "edited" }
 `, 0o644)
 	backdate(t, filepath.Join(tools, tool, "main.go"))
-	backdate(t, filepath.Join(tools, "go.mod"))
+	backdate(t, filepath.Join(moduleIn(tools), "go.mod"))
 	now := time.Now()
 	if err := os.Chtimes(binary, now, now); err != nil {
 		t.Fatalf("touching the fixture binary: %v — the newer-binary case was never set up", err)
@@ -118,7 +118,7 @@ func main() { _ = "edited" }
 	// The control: the binary really is newer than every source beside it. Were it not, a timestamp check
 	// would catch this case too and the case would no longer be about content at all.
 	newest := modified(t, binary)
-	for _, source := range []string{filepath.Join(tools, tool, "main.go"), filepath.Join(tools, "go.mod")} {
+	for _, source := range []string{filepath.Join(tools, tool, "main.go"), filepath.Join(moduleIn(tools), "go.mod")} {
 		if !modified(t, source).Before(newest) {
 			t.Fatalf("%s is not older than the binary, so this case would pass against a resolver comparing "+
 				"timestamps and says nothing about content", source)

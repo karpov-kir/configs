@@ -3,7 +3,7 @@ package ecoreport
 import (
 	"os"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // `init` — the only subcommand that creates a report, and the one every symlink guard exists for.

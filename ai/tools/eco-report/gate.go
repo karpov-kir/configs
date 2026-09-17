@@ -3,7 +3,7 @@ package ecoreport
 import (
 	"io"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // What the report is read for: the merge gate, the items a re-qualify must carry, and the routing

@@ -31,7 +31,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 type span struct {

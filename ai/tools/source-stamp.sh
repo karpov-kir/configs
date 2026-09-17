@@ -17,6 +17,12 @@
 # much costs only a rebuild the next run would make anyway. `_test.go` is the one exclusion, because
 # no test file reaches a binary.
 #
+# go.mod is at the repository root, above this directory, so the walk starts there and not here. One
+# declared offset rather than a search upward, for the reason resolve.sh gives about the stubs: a walk
+# finds whatever ancestor happens to carry a go.mod, which on a machine that keeps checkouts inside one
+# another is a different module. `.git` is pruned with bin/ and dist/ — it holds no Go source and
+# walking it costs a few thousand stats per invocation.
+#
 # tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
 set -euo pipefail
 
@@ -28,6 +34,10 @@ die() {
 # `CDPATH=` and `pwd -P` for the reasons resolve.sh states over the same two lines.
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no source can be found"
+
+# How far the module root sits above this directory. resolve.sh declares the same offset, and the two
+# have to move together.
+module="$tools/../.."
 
 [ $# -eq 1 ] || die "usage: source-stamp.sh <tool>"
 tool="$1"
@@ -52,24 +62,25 @@ fi
 [ -d "$tools/$tool" ] || [ -d "$tools/cmd/$tool" ] ||
   die "no source for $tool under $tools, so there is nothing to stamp"
 
-[ -f "$tools/go.mod" ] || die "no go.mod at $tools, so the source of $tool cannot be stamped"
+[ -f "$module/go.mod" ] || die "no go.mod at $module, so the source of $tool cannot be stamped"
 
-# Sorted under LC_ALL=C and named relatively, so the same source stamps the same on the release runner
-# and on the machine that installs what it built. bin/ and dist/ are pruned because they hold the
-# binaries, and walking them would stat a few megabytes per run for files that cannot match.
+# Sorted under LC_ALL=C and named relatively to the module root, so the same source stamps the same on
+# the release runner and on the machine that installs what it built. bin/ and dist/ are pruned because
+# they hold the binaries, and `.git` because it holds no Go at all — walking any of the three would
+# stat a few thousand files per run that cannot match.
 sources=()
 while IFS= read -r path; do
   sources+=("$path")
 done < <(
-  CDPATH= cd "$tools" &&
+  CDPATH= cd "$module" &&
     {
       printf './go.mod\n'
-      find . \( -name bin -o -name dist \) -prune -o \
+      find . \( -name .git -o -name bin -o -name dist \) -prune -o \
         -type f -name '*.go' ! -name '*_test.go' -print
     } | LC_ALL=C sort
 )
-[ ${#sources[@]} -gt 1 ] || die "found no Go source for $tool under $tools, so the stamp would say nothing"
+[ ${#sources[@]} -gt 1 ] || die "found no Go source for $tool under $module, so the stamp would say nothing"
 
 # One digest over every file's digest and name, so a file added, removed or renamed moves the stamp
 # as surely as an edited one.
-(CDPATH= cd "$tools" && "${hasher[@]}" "${sources[@]}") | "${hasher[@]}" | cut -d' ' -f1
+(CDPATH= cd "$module" && "${hasher[@]}" "${sources[@]}") | "${hasher[@]}" | cut -d' ' -f1

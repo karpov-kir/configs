@@ -24,10 +24,10 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installertest"
-	"kk-flavor/tools/machine/fake"
-	projectsetup "kk-flavor/tools/project-setup"
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/installertest"
+	"configs/ai/tools/machine/fake"
+	projectsetup "configs/ai/tools/project-setup"
+	"configs/ai/tools/repo/repotest"
 )
 
 // What the second-checkout guard looks for under a candidate root. The installer's own name, and the

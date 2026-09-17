@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/repo"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/repo"
 )
 
 // Main is the whole of the command, held here rather than in `cmd/bloat-judge` because the ORDER of

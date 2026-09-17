@@ -14,7 +14,7 @@
 // every delta a later pass reads is taken off the rows below it.
 //
 // What it once held byte-identical with check.sh through a shared region now lives in
-// kk-flavor/tools/shell and kk-flavor/tools/eco-root, one copy for both tools. A change here needs a
+// ai/tools/shell and ai/tools/eco-root, one copy for both tools. A change here needs a
 // case in stats_test.go beside it, seen to fail before the change that makes it pass.
 // `stats.sh` in kk-reduce's scripts/ is the stub that reaches this binary.
 package ecostats
@@ -24,8 +24,8 @@ import (
 	"io"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 // The most a row's note takes. A note is read by the next pass off a table cell, not by a human

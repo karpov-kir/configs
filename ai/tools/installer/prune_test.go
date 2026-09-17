@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installer"
+	"configs/ai/tools/installer"
 )
 
 func TestAMountWhoseSourceIsGoneIsDropped(t *testing.T) {

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 // The half of the flag finding that names the flag and the script, which is what a case asserting

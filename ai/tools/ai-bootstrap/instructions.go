@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/flavor"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/flavor"
+	"configs/ai/tools/shell"
 )
 
 // The owner tier's memory store, and where an owner install before this one put it. The spelling was

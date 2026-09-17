@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/repo/repotest"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/repo/repotest"
 )
 
 func all(Unit) bool { return true }

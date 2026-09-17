@@ -3,9 +3,8 @@
 // either installer's package still green.
 //
 // Read from the shipped READMEs rather than from a fixture, so the files people actually edit are the
-// ones held here. They live in this package because both are outside the module: Go keys a package's
-// test cache on the module, so a case that opened one from `ai/tools/<installer>/` would answer
-// `ok (cached)` over a README that had changed underneath the run.
+// ones held here. They live in this package rather than in `ai/tools/<installer>/` for the reason
+// shipped_tree_test.go's cases do.
 package tools_test
 
 import (
@@ -14,8 +13,8 @@ import (
 	"slices"
 	"testing"
 
-	aibootstrap "kk-flavor/tools/ai-bootstrap"
-	envbootstrap "kk-flavor/tools/env-bootstrap"
+	aibootstrap "configs/ai/tools/ai-bootstrap"
+	envbootstrap "configs/ai/tools/env-bootstrap"
 )
 
 const (

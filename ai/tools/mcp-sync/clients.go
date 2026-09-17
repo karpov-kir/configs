@@ -7,7 +7,7 @@ import (
 	"io"
 	"os/exec"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // NewCLIClient is the production half of the Client seam: each agent's own command-line interface,

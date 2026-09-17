@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	repokey "kk-flavor/tools/repo-key"
-	"kk-flavor/tools/shell"
+	repokey "configs/ai/tools/repo-key"
+	"configs/ai/tools/shell"
 )
 
 // Where the idsd directory lives, and the only place that decides it. Committed mode keeps it in

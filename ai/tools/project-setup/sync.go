@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/repo"
+	"configs/ai/tools/repo"
 )
 
 // The post-checkout entry point: restore the skill links one worktree should have, for whichever

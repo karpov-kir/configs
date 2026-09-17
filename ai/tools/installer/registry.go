@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Which projects this machine installed the agent tree into. One fact, written by the project

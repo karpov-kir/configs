@@ -1,6 +1,6 @@
 package ecocheck
 
-import "kk-flavor/tools/shell"
+import "configs/ai/tools/shell"
 
 const (
 	FindingCap       = findingCap

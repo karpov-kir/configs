@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
-	modelpolicy "kk-flavor/tools/model-policy"
+	bloatjudge "configs/ai/tools/bloat-judge"
+	modelpolicy "configs/ai/tools/model-policy"
 )
 
 // Two rows and one model per client that the order ranks and no row names, so a case can refuse

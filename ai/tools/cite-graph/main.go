@@ -29,7 +29,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Every name this report prints is one the tree chose — a path it named a file with, a heading it

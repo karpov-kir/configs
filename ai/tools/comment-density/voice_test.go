@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/repo/repotest"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/shell"
 )
 
 // The words the corpus below treats as coined: a metaphor for a mechanism, and a word a reader would

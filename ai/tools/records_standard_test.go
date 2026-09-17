@@ -2,18 +2,14 @@ package tools_test
 
 // The standards this module's tools quote back to an agent, held to what the tools actually hand over.
 //
-// It lives here rather than beside the tool because `kk-flavor/standards/` is outside the module: Go
-// keys its test cache on the module, so a package that reads a standard answers `ok (cached)` over one
-// that has changed under it. This package is where every case that reads the checkout is gathered, so
-// that one package is the only one a run has to defeat the cache for; every workflow gate already does
-// (`go test -count=1`), and `ai/gate.sh --full` is the local spelling of it.
+// It lives here rather than beside the tool for the reason shipped_tree_test.go's cases do.
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	ecoreport "kk-flavor/tools/eco-report"
+	ecoreport "configs/ai/tools/eco-report"
 )
 
 const recordsStandardSource = repoRoot + "/ai/kk-flavor/standards/records.md"

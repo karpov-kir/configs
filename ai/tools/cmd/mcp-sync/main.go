@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	mcpsync "kk-flavor/tools/mcp-sync"
-	"kk-flavor/tools/shell"
+	mcpsync "configs/ai/tools/mcp-sync"
+	"configs/ai/tools/shell"
 )
 
 func main() {

@@ -21,10 +21,10 @@
 # it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
 # the day dependabot or renovate lands.
 #
-# Every setup-go step here sets `cache: false`, for one reason: setup-go looks for its cache key file
-# in the repo root only — go.mod now, go.sum before v6.3.0 — and this module is in ai/tools. Left
-# default it annotates every run with a miss that can never become a hit. cache-dependency-path would
-# point it here, but the only thing to cache is a build cache keyed on a go.mod that never changes.
+# Every setup-go step here sets `cache: false`. The module declares no dependencies, so there is no
+# module cache to restore and a build cache is the only thing a hit would carry. Turning that on is a
+# decision about CI wall clock, to be taken on its own evidence rather than inherited from a default.
+# Until v6.3.0 setup-go looked for its key file in the repo root only, which is where go.mod now is.
 name: gates
 
 on:
@@ -38,9 +38,8 @@ permissions:
 
 jobs:
   # `-count=1` because this job's whole job is to measure the commit, and a runner's build cache is
-  # warm between steps. It would also answer wrongly: Go keys the test cache on the MODULE, and
-  # `mcp-sync` and `project-mcp` both read `ai/mcp.jsonc` from outside it, so each answers `ok (cached)`
-  # over an edit to that file. release-tools.yml's Gate step says the same.
+  # warm between steps — the Coverage step below runs the same suite, and without the flag it would
+  # report a number read out of the Gate step's cache. release-tools.yml's Gate step says the same.
   #
   # `-timeout 300s`, the backstop `ai/gate.sh` hands its own `go test` — `suiteTimeoutSeconds`, and
   # the two numbers have to move together. A suite that hangs then fails in minutes rather than after
@@ -60,11 +59,10 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: ai/tools/go.mod
+          go-version-file: go.mod
           cache: false
 
       - name: Gate
-        working-directory: ai/tools
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -86,7 +84,6 @@ jobs:
       # two numbers invites someone to read the higher one.
       - name: Coverage
         if: matrix.os == 'ubuntu-latest'
-        working-directory: ai/tools
         run: |
           go test -count=1 -timeout 300s -coverprofile=cover.out ./...
           total=$(go tool cover -func=cover.out | awk '/^total:/ {print $3}')
@@ -110,7 +107,7 @@ jobs:
       # source beside it when no release binary is present — which is the case on a fresh runner.
       - uses: actions/setup-go@v7
         with:
-          go-version-file: ai/tools/go.mod
+          go-version-file: go.mod
           cache: false
 
       # --gate, so this job and ai/gate.sh's wiring check ask the same question of the same commit.

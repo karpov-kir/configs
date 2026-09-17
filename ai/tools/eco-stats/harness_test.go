@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	ecostats "kk-flavor/tools/eco-stats"
-	"kk-flavor/tools/repo"
+	ecocheck "configs/ai/tools/eco-check"
+	ecostats "configs/ai/tools/eco-stats"
+	"configs/ai/tools/repo"
 )
 
 // The figures a case reads back out of the report, and the two forms of the always-loaded line the

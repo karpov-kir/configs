@@ -16,10 +16,10 @@ import (
 	"strings"
 	"testing"
 
-	envbootstrap "kk-flavor/tools/env-bootstrap"
-	"kk-flavor/tools/installertest"
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/machine/fake"
+	envbootstrap "configs/ai/tools/env-bootstrap"
+	"configs/ai/tools/installertest"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/machine/fake"
 )
 
 // What the guard looks for under a candidate root, and what a refusal leads with. The stub's own

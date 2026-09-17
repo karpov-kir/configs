@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // The transport Codex registers as a URL rather than as a child process.

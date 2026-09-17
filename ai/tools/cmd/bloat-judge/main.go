@@ -7,7 +7,7 @@ package main
 import (
 	"os"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
+	bloatjudge "configs/ai/tools/bloat-judge"
 )
 
 func main() {

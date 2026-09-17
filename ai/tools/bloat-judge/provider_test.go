@@ -2,13 +2,14 @@ package bloatjudge
 
 import (
 	"errors"
-	modelpolicy "kk-flavor/tools/model-policy"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	modelpolicy "configs/ai/tools/model-policy"
 )
 
 func TestProviderSelection(t *testing.T) {

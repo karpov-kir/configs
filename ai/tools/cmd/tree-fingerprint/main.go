@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	treefingerprint "kk-flavor/tools/tree-fingerprint"
+	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
 func main() {

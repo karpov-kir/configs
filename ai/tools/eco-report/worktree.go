@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Which worktree this is, what the report records about the one that reviewed it, and whether the two

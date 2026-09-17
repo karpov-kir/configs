@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Writer builds a case's fixture inside one tree and refuses anything that would land outside it.

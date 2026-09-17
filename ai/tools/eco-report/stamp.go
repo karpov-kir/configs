@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The pass's own bookkeeping: what invalidate clears, what a stage's return records, and what the

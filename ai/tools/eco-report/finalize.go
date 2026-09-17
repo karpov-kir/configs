@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Finalizing one ship: the deterministic tail of a merge, taken under a slot no two ships share.

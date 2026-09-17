@@ -3,7 +3,7 @@ package aibootstrap
 import (
 	"strings"
 
-	"kk-flavor/tools/machine"
+	"configs/ai/tools/machine"
 )
 
 // The formulae this install needs, held against ai/README.md by this package's own suite: adding one

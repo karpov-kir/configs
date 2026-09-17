@@ -3,7 +3,7 @@ package projectsetup_test
 import (
 	"testing"
 
-	projectsetup "kk-flavor/tools/project-setup"
+	projectsetup "configs/ai/tools/project-setup"
 )
 
 // There is no default client, in either direction: an install that guessed would configure the one the

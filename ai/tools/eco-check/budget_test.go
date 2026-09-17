@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 func TestImportResolvedAtTheMount(t *testing.T) {

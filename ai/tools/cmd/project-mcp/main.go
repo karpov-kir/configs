@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	projectmcp "kk-flavor/tools/project-mcp"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	projectmcp "configs/ai/tools/project-mcp"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 func main() {

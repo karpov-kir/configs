@@ -9,7 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const stageResultUsage = `usage: report.sh stage-result <json-file> [<intent>]

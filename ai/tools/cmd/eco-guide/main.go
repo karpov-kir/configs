@@ -11,7 +11,7 @@ package main
 import (
 	"os"
 
-	ecoguide "kk-flavor/tools/eco-guide"
+	ecoguide "configs/ai/tools/eco-guide"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/flavor"
+	"configs/ai/tools/flavor"
 )
 
 // The owner tier gets a copy of ai/owner-instructions.md rather than a region inside their own file,

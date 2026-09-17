@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // Exit codes on the tools' shared vocabulary. 1 is "this machine or this declaration is not in a

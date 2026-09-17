@@ -7,7 +7,7 @@ package ecocheck_test
 import (
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // An installed checkout: $HOME/.kk-flavor resolves to this tree's kk-flavor, which is what makes the

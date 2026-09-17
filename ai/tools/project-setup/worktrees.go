@@ -4,7 +4,7 @@ import (
 	"os"
 	"syscall"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Skill links are local and ignored, so git cannot carry them into a new worktree. An install

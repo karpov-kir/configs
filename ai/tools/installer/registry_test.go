@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installer"
+	"configs/ai/tools/installer"
 )
 
 // Two project directories and a run whose registry lives under the case's own tree.

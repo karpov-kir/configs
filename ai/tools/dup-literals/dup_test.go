@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestAnUnchangedTree(t *testing.T) {

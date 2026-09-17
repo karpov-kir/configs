@@ -23,10 +23,10 @@ import (
 	"strings"
 	"testing"
 
-	aibootstrap "kk-flavor/tools/ai-bootstrap"
-	"kk-flavor/tools/installertest"
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/machine/fake"
+	aibootstrap "configs/ai/tools/ai-bootstrap"
+	"configs/ai/tools/installertest"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/machine/fake"
 )
 
 // What the second-checkout guard looks for under a candidate root, and what a refusal leads with. The

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installer"
-	"kk-flavor/tools/installertest"
+	"configs/ai/tools/installer"
+	"configs/ai/tools/installertest"
 )
 
 // A run bounded to base/sandbox, with a source to link and a place outside the bound to aim at.

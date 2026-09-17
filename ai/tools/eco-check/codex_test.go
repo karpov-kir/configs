@@ -2,7 +2,7 @@ package ecocheck_test
 
 import (
 	"bytes"
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 	"strings"
 	"testing"
 )

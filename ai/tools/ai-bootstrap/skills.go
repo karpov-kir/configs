@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/installer"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/installer"
+	"configs/ai/tools/shell"
 )
 
 // The bucket every client shares, and the one mount that is not a skill. On an uninstall it is

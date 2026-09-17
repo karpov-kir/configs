@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The idsd directory's whole life: excluded, moved into the repo, or torn down. Two of the three

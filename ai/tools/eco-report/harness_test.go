@@ -30,9 +30,9 @@ import (
 	"sync"
 	"testing"
 
-	ecoreport "kk-flavor/tools/eco-report"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
+	ecoreport "configs/ai/tools/eco-report"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // The entries `promote` writes and `check-ignore` verifies, mirroring ignoreSurface() so a case and

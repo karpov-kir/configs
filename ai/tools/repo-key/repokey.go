@@ -20,8 +20,8 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // How much of the realpath digest goes into a key. Six hex is 16.7M values over the handful of clones

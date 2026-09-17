@@ -3,7 +3,7 @@ package aibootstrap_test
 import (
 	"testing"
 
-	"kk-flavor/tools/machine"
+	"configs/ai/tools/machine"
 )
 
 // The flags every step case but its own passes, so what an exit status reports is one step alone.

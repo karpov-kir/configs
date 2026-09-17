@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // A link target is written by the branch under review, and `..` is in its charset, so the scan used

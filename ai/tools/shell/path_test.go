@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // A checkout reached through the bucket link, which is the shape every stub is invoked in: the

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Every repository question the tool asks, and the one ignore mechanism it writes through —

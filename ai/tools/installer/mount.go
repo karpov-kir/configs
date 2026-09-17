@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // AddConfig declares one mount for Mount to write later.

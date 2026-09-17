@@ -1,7 +1,7 @@
 package main
 
 import (
-	modelpolicy "kk-flavor/tools/model-policy"
+	modelpolicy "configs/ai/tools/model-policy"
 	"os"
 )
 

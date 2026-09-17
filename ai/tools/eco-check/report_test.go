@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 func TestTheGravestFindingSurvivesAFlood(t *testing.T) {

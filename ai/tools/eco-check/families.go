@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Direction inside the lane trees. The rule's home is ecosystem.md → **Family direction**: the any-repo

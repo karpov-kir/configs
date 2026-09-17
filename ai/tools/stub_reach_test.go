@@ -3,11 +3,9 @@
 // copies are still identical is the wiring check's shared-region scan, and that each stub's documented
 // usage line matches what its binary prints is `stub_usage_test.go`.
 //
-// They sit in this package and not beside the resolver's own cases in `reach/` because every one of
-// them reads a file outside `ai/tools`: the stubs themselves, the tree they walk, and the two real
-// files the ledger case compares. Go keys its test cache on the MODULE, so a subpackage reading any of
-// those answers `ok (cached)` over a stub that moved, and a moved stub is exactly what these cases are
-// here to catch. `ai/gate.sh` forces this package with `-count=1` on every run. `testing.md` rule 11.
+// They sit in this package and not beside the resolver's own cases in `reach/` for the reason
+// shipped_tree_test.go's cases do: every one of them reads the checkout rather than a fixture — the
+// stubs themselves, the tree they walk, and the two real files the ledger case compares.
 //
 // Two of these must not be weakened. Reaching the tool from an unrelated cwd is the defect the region
 // exists for, and it fails silently: a stub that resolved nothing prints nothing, and a check that

@@ -10,7 +10,7 @@
 // policy resolves for it. A worker declares no frontmatter, so those two are its only sources, and
 // neither can be edited to flatter the other.
 //
-// The frontmatter is read through `kk-flavor/tools/shell`, the same parser eco-check routes on, so the
+// The frontmatter is read through `ai/tools/shell`, the same parser eco-check routes on, so the
 // page cannot describe a skill differently from the way it is actually reached. What that parser
 // returns is the raw YAML scalar; unquoting it for a reader is this package's, in inventory.go.
 //
@@ -43,9 +43,9 @@ import (
 	"slices"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 const (

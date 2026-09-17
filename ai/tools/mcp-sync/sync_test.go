@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // Nothing here runs a client CLI. The seam is `Client`, and what the suite drives is the REAL

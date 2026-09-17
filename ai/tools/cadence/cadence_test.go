@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 var fixedNow = time.Date(2026, 9, 3, 14, 30, 0, 0, time.UTC)

@@ -1,9 +1,6 @@
 // The shipped `ai/mcp.jsonc`, held to what the two tools that read it depend on.
 //
-// Here rather than beside those tools because the declaration is outside the module: Go keys a
-// package's test cache on the module, so a case under `ai/tools/mcp-sync/` or `ai/tools/project-mcp/`
-// answers `ok (cached)` over a declaration that changed underneath the run — both were measured doing
-// that on 2026-09-17. `ai/gate.sh` forces this package with `-count=1`. `testing.md` rule 11.
+// Here rather than beside `mcp-sync` and `project-mcp` for the reason shipped_tree_test.go's are.
 //
 // Each tool's own cases stay beside it and run over a declaration they build. What they cannot say is
 // anything about the file this repository actually ships.
@@ -19,9 +16,9 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/mcp"
-	projectmcp "kk-flavor/tools/project-mcp"
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/mcp"
+	projectmcp "configs/ai/tools/project-mcp"
+	"configs/ai/tools/repo/repotest"
 )
 
 // This repository's own `ai/`, and the committed half of the declaration in it.

@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so nothing

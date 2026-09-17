@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	handoffcheck "kk-flavor/tools/handoff-check"
-	"kk-flavor/tools/repo"
+	handoffcheck "configs/ai/tools/handoff-check"
+	"configs/ai/tools/repo"
 )
 
 func main() {

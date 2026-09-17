@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	projectsetup "kk-flavor/tools/project-setup"
-	gitrepo "kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	projectsetup "configs/ai/tools/project-setup"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 func main() {

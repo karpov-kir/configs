@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	ecostats "kk-flavor/tools/eco-stats"
+	ecoroot "configs/ai/tools/eco-root"
+	ecostats "configs/ai/tools/eco-stats"
 )
 
 // The ledger a case starts from when it needs one that already has its columns.

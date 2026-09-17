@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // Nothing here forks git. What this package does with a shared git dir is the whole of it, and where

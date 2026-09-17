@@ -1,8 +1,8 @@
 package aibootstrap
 
 import (
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/shell"
 )
 
 // --- the repository's own tools -------------------------------------------------------------------

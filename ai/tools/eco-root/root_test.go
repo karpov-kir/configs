@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 func TestANamedRootIsTakenExactlyAsItWasSpelled(t *testing.T) {

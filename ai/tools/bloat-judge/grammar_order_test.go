@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
+	bloatjudge "configs/ai/tools/bloat-judge"
 )
 
 func TestBloatJudgeNamesItsGrammarWithNoProviderReachable(t *testing.T) {

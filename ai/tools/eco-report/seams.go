@@ -4,7 +4,7 @@ import (
 	"io"
 	"strconv"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The one seam this package does not own: the tree fingerprint, which `ai/tools/tree-fingerprint/`

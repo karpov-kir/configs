@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	duplicates "kk-flavor/tools/dup-literals"
-	"kk-flavor/tools/repo"
+	duplicates "configs/ai/tools/dup-literals"
+	"configs/ai/tools/repo"
 )
 
 func main() {

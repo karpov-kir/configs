@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	aibootstrap "kk-flavor/tools/ai-bootstrap"
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/shell"
+	aibootstrap "configs/ai/tools/ai-bootstrap"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/shell"
 )
 
 func main() {

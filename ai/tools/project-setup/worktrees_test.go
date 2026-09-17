@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"testing"
 
-	projectsetup "kk-flavor/tools/project-setup"
-	"kk-flavor/tools/repo"
+	projectsetup "configs/ai/tools/project-setup"
+	"configs/ai/tools/repo"
 )
 
 // A project that is a git repository, with its shared git directory where this installer keeps its

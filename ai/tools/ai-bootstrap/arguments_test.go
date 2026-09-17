@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	aibootstrap "kk-flavor/tools/ai-bootstrap"
+	aibootstrap "configs/ai/tools/ai-bootstrap"
 )
 
 // An option nobody understood must stop the run rather than ride along: this writes into $HOME, so a

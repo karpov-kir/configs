@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // Both refusals that echo text off the invocation: the root holding no checkout, and the root --gate

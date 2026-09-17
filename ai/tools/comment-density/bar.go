@@ -13,9 +13,9 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/diffscan"
-	gitrepo "kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // A block over this many lines reads as a wall, not a note. Their share is held apart from the line

@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	waitreap "kk-flavor/tools/wait-reap"
+	waitreap "configs/ai/tools/wait-reap"
 )
 
 func main() {

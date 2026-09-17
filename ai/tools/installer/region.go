@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // An idempotent region a run owns inside a file it does not: write it, detect it, remove it, and

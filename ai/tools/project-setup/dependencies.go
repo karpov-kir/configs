@@ -1,6 +1,6 @@
 package projectsetup
 
-import "kk-flavor/tools/machine"
+import "configs/ai/tools/machine"
 
 // mise is the one prerequisite a project install has. It reuses a working installation or installs
 // only mise through an existing Homebrew; with neither, it says what to do and stops rather than

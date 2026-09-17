@@ -21,9 +21,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"kk-flavor/tools/diffscan"
-	gitrepo "kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // A block over this many text lines is a wall. A file header gets more, because a header carries the

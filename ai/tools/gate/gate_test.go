@@ -215,64 +215,6 @@ func boundIn(flags []string) int {
 	return 0
 }
 
-// `./...` holds the root package, so the pair `go test ./...` and `go test -count=1 .` paid for it
-// twice — and the root is where every case reading the checkout lives, which makes it the most
-// expensive package in the module. The rest is derived from the module rather than written down, and
-// this drives that derivation against the module itself: a list that quietly dropped a package would
-// leave those packages untested with the gate still green.
-func TestTheRestOfTheModuleIsEveryPackageButTheRoot(t *testing.T) {
-	all := listedByShell(t, "go list ./...")
-	rest := listedByShell(t, "echo "+restOfTheModule)
-	root := listedByShell(t, "go list .")
-
-	if len(root) != 1 {
-		t.Fatalf("`go list .` named %v in the module directory, so this case cannot say which package the "+
-			"root is", root)
-	}
-	if len(all) < 2 {
-		t.Fatalf("`go list ./...` named %d package(s), so a case about excluding one of them holds nothing "+
-			"to account", len(all))
-	}
-	for _, pkg := range all {
-		inRest := contains(rest, pkg)
-		switch {
-		case pkg == root[0] && inRest:
-			t.Errorf("%s is the root package and the derived rest names it too, so an ordinary run tests it "+
-				"twice — once forced and once out of the cache", pkg)
-		case pkg != root[0] && !inRest:
-			t.Errorf("%s is in the module and the derived rest leaves it out, so an ordinary run never tests "+
-				"it at all", pkg)
-		}
-	}
-	if len(rest) != len(all)-1 {
-		t.Errorf("the module holds %d package(s) and the derived rest names %d, so the two lists disagree "+
-			"about more than the root", len(all), len(rest))
-	}
-}
-
-// What one shell command prints in the module directory, as fields. Through a shell because the
-// derivation under test IS shell, and in the module directory because that is where the gate's Go
-// checks cd to.
-func listedByShell(t *testing.T, command string) []string {
-	t.Helper()
-	run := exec.Command("sh", "-c", command)
-	run.Dir = ".."
-	out, err := run.CombinedOutput()
-	if err != nil {
-		t.Fatalf("`%s` in the module directory: %v\n%s", command, err, out)
-	}
-	return strings.Fields(string(out))
-}
-
-func contains(list []string, want string) bool {
-	for _, have := range list {
-		if have == want {
-			return true
-		}
-	}
-	return false
-}
-
 func TestACleanRunExitsZeroAndRunsEveryCheck(t *testing.T) {
 	f := newFixture(t)
 	f.table("one\t"+marker("one.log", 0), "two\t"+marker("two.log", 0))

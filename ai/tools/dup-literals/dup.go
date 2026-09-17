@@ -30,9 +30,9 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const (

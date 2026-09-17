@@ -22,8 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/repo/repotest"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/repo/repotest"
 )
 
 const (

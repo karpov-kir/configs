@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // The only case in this package that forks. Every other one hands the checker a bash that answers from

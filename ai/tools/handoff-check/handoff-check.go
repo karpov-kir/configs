@@ -28,9 +28,9 @@ import (
 	"regexp"
 	"strings"
 
-	"kk-flavor/tools/repo"
-	repokey "kk-flavor/tools/repo-key"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	repokey "configs/ai/tools/repo-key"
+	"configs/ai/tools/shell"
 )
 
 // The template's seven headings, in the order the report walks them, and the three that may not be

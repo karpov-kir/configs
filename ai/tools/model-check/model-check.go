@@ -33,9 +33,9 @@ import (
 	"os/exec"
 	"time"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/shell"
+	bloatjudge "configs/ai/tools/bloat-judge"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 // Long enough that a slow API does not read as a bad name, short enough that a handful cannot hold a

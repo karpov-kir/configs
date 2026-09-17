@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/shell"
 )
 
 // The finding substrings the cases match on. Each head is bound to the constant the emit site and

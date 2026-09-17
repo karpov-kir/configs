@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // How much of a script's head is read as its test-position declaration, and how many suite names are

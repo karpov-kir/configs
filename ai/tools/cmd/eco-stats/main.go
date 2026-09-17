@@ -12,7 +12,7 @@ package main
 import (
 	"os"
 
-	ecostats "kk-flavor/tools/eco-stats"
+	ecostats "configs/ai/tools/eco-stats"
 )
 
 func main() {

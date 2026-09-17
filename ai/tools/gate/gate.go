@@ -14,7 +14,7 @@
 // gate fails a run over that. A cache that exists to hide a slow suite hides a slow suite from the
 // one check that would have forced it to be fixed.
 //
-// Six checks, in this order, because each is cheaper than the one after it and a failure in an
+// Five checks, in this order, because each is cheaper than the one after it and a failure in an
 // earlier one makes a later one's output hard to read. They run concurrently all the same — the
 // ordering is what gets PRINTED, and the machine has cores to spare while `go test` waits on I/O.
 //
@@ -36,7 +36,7 @@ import (
 	"sync"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Env is what a caller supplies that this cannot work out for itself.
@@ -67,13 +67,6 @@ const budgetSeconds = 100
 // Both workflows spell this number into their own `go test`, and ai/tools/workflows_test.go holds them
 // to it.
 const suiteTimeoutSeconds = 300
-
-// Every package in the module but the root, as the shell substitution the ordinary run is given.
-// Derived rather than written down: a package list to keep in step with the module is the machinery
-// this gate deleted. `-F` because a module path holds dots and `grep` would read them as any
-// character. `grep` exits 1 on an empty result, so a listing that broke fails the check it stands in
-// rather than quietly narrowing the run to nothing.
-const restOfTheModule = `$(go list ./... | grep -vxF "$(go list .)")`
 
 // A check the gate runs, and what it cost.
 type check struct {
@@ -159,24 +152,21 @@ func (g *gate) resolveRoot(root string) int {
 	return 0
 }
 
-// The six, or a table a suite handed over.
+// The five, or a table a suite handed over.
 //
 // `--full` is `-count=1` over everything, and the budget is a claim about a COLD run, so the run that
 // measures it must not answer out of Go's cache at all.
 //
-// An ordinary run lets that cache answer, with the root package forced. Measured 2026-09-17: the cache
-// is keyed on the MODULE, not on the package, so a file outside `ai/tools` is invisible to it — break
-// `ai/kk-flavor/standards/records.md` and a plain `go test` still says `ok (cached)`. Every case that
-// reads the checkout is gathered in the `ai/tools` root package for exactly that reason, so forcing
-// that one package closes the hole. No package under `ai/tools/` reads a file above it any more —
-// `mcp-sync` and `project-mcp` were the last two, and both were measured answering `ok (cached)` over
-// an edit to `ai/mcp.jsonc` on 2026-09-17. `testing.md` rule 11.
+// An ordinary run lets that cache answer, and nothing is forced past it. Go keys the test cache on the
+// MODULE and hashes every file a case opens inside that root, skipping only what lies above it — so
+// the module file sits at the repository root, where nothing a case reads is above it. Break
+// `ai/kk-flavor/standards/records.md` or `.github/workflows/gates.yml` and the package reading it goes
+// red on the next plain `go test`. Measured both ways before and after the module moved. `testing.md`
+// rule 11.
 //
-// The Go suite is two checks rather than one command chaining two runs. `./...` already holds the
-// root, so the forced run and the sweep were paying for the most expensive package in the module
-// twice; naming the root and the rest separately pays once. Two checks and not one `&&` chain because
-// the report is what this gate is for: chained, the root failing hides every other package's findings,
-// and one duration covers both halves where the slowest-first report has to name a half.
+// `go test ./...` is one check and not two. It was split while the root package was forced with
+// `-count=1` and `./...` paid for that package a second time out of the cache; with nothing forced
+// there is one run and one duration for the slowest-first report to name.
 func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if env.Checks != "" {
 		return g.checksFromFile(env.Checks)
@@ -189,18 +179,17 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 		}
 	}
 	bound := fmt.Sprintf("-timeout %ds", suiteTimeoutSeconds)
-	rest := "go test " + bound + " " + restOfTheModule
+	suite := "go test " + bound + " ./..."
 	if full {
-		rest = "go test -count=1 " + bound + " " + restOfTheModule
+		suite = "go test -count=1 " + bound + " ./..."
 	}
 	return []check{
 		// gofmt's own exit status and not just its listing: handed a file it cannot parse it prints to
 		// stderr and lists nothing, and a check reading the listing alone calls that formatted.
-		{id: "gofmt", cmd: "cd ai/tools && unformatted=$(gofmt -l .) && test -z \"$unformatted\" || " +
+		{id: "gofmt", cmd: "unformatted=$(gofmt -l .) && test -z \"$unformatted\" || " +
 			"{ printf '%s\\n' \"$unformatted\" >&2; exit 1; }"},
-		{id: "vet", cmd: "cd ai/tools && go vet ./..."},
-		{id: "gotest-root", cmd: "cd ai/tools && go test -count=1 " + bound + " ."},
-		{id: "gotest-rest", cmd: "cd ai/tools && " + rest},
+		{id: "vet", cmd: "go vet ./..."},
+		{id: "gotest", cmd: suite},
 		{id: "wiring", cmd: "ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && " +
 			"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate"},
 		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},

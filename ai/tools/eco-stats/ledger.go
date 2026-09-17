@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // stats.md owns the rules below — kk-reduce's SKILL.md says so, and its reader arrives at the file,

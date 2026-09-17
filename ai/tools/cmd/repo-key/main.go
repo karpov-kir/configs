@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	repokey "kk-flavor/tools/repo-key"
+	repokey "configs/ai/tools/repo-key"
 )
 
 func main() {

@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // defaultRollDeadline bounds one roll of the model. A vote rolls every roll at once, so a judge run is

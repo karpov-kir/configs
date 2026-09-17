@@ -40,16 +40,14 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: ai/tools/go.mod
-          # Off for the reason `.github/workflows/gates.yml` states in its header: setup-go looks for
-          # its cache key file in the repo root, and this module is in ai/tools.
+          go-version-file: go.mod
+          # Off for the reason `.github/workflows/gates.yml` states in its header: this module has no
+          # dependencies, so a hit would carry a build cache and nothing else.
           cache: false
 
-      # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: the test
-      # cache is keyed on the module, and several suites read files from outside it. The measurement
-      # and the negative control are there.
+      # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: this job
+      # exists to measure the commit, and a runner's cache is warm between steps.
       - name: Gate
-        working-directory: ai/tools
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then

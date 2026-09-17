@@ -17,7 +17,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo/repotest"
 )
 
 // Fixture I/O. The builders fail the case rather than returning an error: a fixture that did not get

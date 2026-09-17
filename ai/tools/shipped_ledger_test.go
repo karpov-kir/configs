@@ -2,17 +2,15 @@ package tools_test
 
 // The live kk-reduce ledger, held against the seed a fresh checkout is given.
 //
-// Here rather than in `ai/tools/eco-stats/` because the ledger is outside the module: Go keys a
-// package's test cache on the module, so a case there would answer `ok (cached)` over a ledger whose
-// opening rules had changed underneath the run. That a first run writes the seed verbatim is that
-// package's own case — the two together are what hold the pair.
+// Here rather than in `ai/tools/eco-stats/` for the reason shipped_tree_test.go's cases are. That a
+// first run writes the seed verbatim is that package's own case — the two together hold the pair.
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	ecostats "kk-flavor/tools/eco-stats"
+	ecostats "configs/ai/tools/eco-stats"
 )
 
 const liveLedger = repoRoot + "/ai/kk-flavor/skills/kk-reduce/stats.md"

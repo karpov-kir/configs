@@ -26,8 +26,8 @@ import (
 	"strings"
 	"sync"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // WorkTree is the revision name for what is on disk rather than in a commit. Spelt as the empty

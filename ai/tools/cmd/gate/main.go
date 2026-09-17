@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"kk-flavor/tools/gate"
+	"configs/ai/tools/gate"
 )
 
 func main() {

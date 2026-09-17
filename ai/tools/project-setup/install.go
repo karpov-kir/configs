@@ -22,11 +22,11 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/flavor"
-	"kk-flavor/tools/installer"
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/flavor"
+	"configs/ai/tools/installer"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so nothing

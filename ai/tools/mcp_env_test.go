@@ -12,10 +12,9 @@
 // about a bash script without running it. Cases share a launch wherever two of them read the same
 // child.
 //
-// They live in this package because `ai/mcp-env.sh` sits outside the module, and Go keys a package's
-// test cache on the module: a package of their own under `ai/tools/` would answer `ok (cached)` over a
-// wrapper that had changed underneath the run — and for a child process it could not do better, since
-// nothing the child opens reaches the cache at all.
+// They live in this package rather than in one of their own for the reason shipped_tree_test.go's
+// cases do. Note what no placement fixes: these cases run the wrapper as a child process, and nothing
+// a child opens reaches the runner's cache at all.
 package tools_test
 
 import (

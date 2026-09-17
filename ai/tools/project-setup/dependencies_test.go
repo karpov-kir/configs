@@ -3,7 +3,7 @@ package projectsetup_test
 import (
 	"testing"
 
-	"kk-flavor/tools/machine"
+	"configs/ai/tools/machine"
 )
 
 // A mise on PATH is verified rather than assumed: one that cannot answer `--version` is a broken

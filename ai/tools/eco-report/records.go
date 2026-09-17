@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The records every agent in the clone shares. What a record is, and what the count and the date on

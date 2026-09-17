@@ -47,15 +47,17 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 	}{
 		{
 			name:  "an edit to the tool's own source moves the stamp",
-			edit:  func(t *testing.T, module string) { appendLine(t, filepath.Join(module, ownMain, "main.go")) },
+			edit:  func(t *testing.T, module string) { appendLine(t, filepath.Join(toolsIn(module), ownMain, "main.go")) },
 			moves: true,
 		},
 		{
 			// A library that cmd/ backs is still one this tool may import — eco-report imports
 			// tree-fingerprint, which cmd/tree-fingerprint also backs — so a stamp that skipped it would
 			// serve the old binary and say nothing.
-			name:  "an edit to a package outside the tool's own directory moves it",
-			edit:  func(t *testing.T, module string) { appendLine(t, filepath.Join(module, sharedPkg, sharedPkg+".go")) },
+			name: "an edit to a package outside the tool's own directory moves it",
+			edit: func(t *testing.T, module string) {
+				appendLine(t, filepath.Join(toolsIn(module), sharedPkg, sharedPkg+".go"))
+			},
 			moves: true,
 		},
 		{
@@ -64,21 +66,25 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 			moves: true,
 		},
 		{
-			name:  "an edit to another tool's main under cmd/ moves it",
-			edit:  func(t *testing.T, module string) { appendLine(t, filepath.Join(module, "cmd", cmdMain, "main.go")) },
+			name: "an edit to another tool's main under cmd/ moves it",
+			edit: func(t *testing.T, module string) {
+				appendLine(t, filepath.Join(toolsIn(module), "cmd", cmdMain, "main.go"))
+			},
 			moves: true,
 		},
 		{
 			// A digest over file contents alone would miss this, so the stamp folds in the names too.
 			name: "a source file added to the tool moves it",
 			edit: func(t *testing.T, module string) {
-				writeFile(t, filepath.Join(module, ownMain, "added.go"), "package main\n\nvar Added = 1\n", 0o644)
+				writeFile(t, filepath.Join(toolsIn(module), ownMain, "added.go"), "package main\n\nvar Added = 1\n", 0o644)
 			},
 			moves: true,
 		},
 		{
-			name:  "a test file leaves it alone, since none of them reaches a binary",
-			edit:  func(t *testing.T, module string) { appendLine(t, filepath.Join(module, ownMain, ownMain+"_test.go")) },
+			name: "a test file leaves it alone, since none of them reaches a binary",
+			edit: func(t *testing.T, module string) {
+				appendLine(t, filepath.Join(toolsIn(module), ownMain, ownMain+"_test.go"))
+			},
 			moves: false,
 		},
 		{
@@ -198,7 +204,7 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 			if scenario.path != nil {
 				path = scenario.path(t, sandbox)
 			}
-			refused := launch(t, newLaunch(t, filepath.Join(module, "source-stamp.sh"), path, scenario.asked...))
+			refused := launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), path, scenario.asked...))
 			expectRefusal(t, refused, scenario.refusal)
 			if refused.stdout != "" {
 				t.Errorf("the refusal printed %q on stdout, which resolve.sh would compare against a stamp",
@@ -208,18 +214,20 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 	}
 }
 
-// A module shaped like this repository's, with the stamper under test in it. The `_test.go` file is here
+// A module shaped like this repository's: go.mod at the root, every tool's source under the tools
+// directory below it, and the stamper under test beside that source. The `_test.go` file is here
 // because one row turns on its absence from the stamp.
 func newModule(t *testing.T, sandbox, name string) string {
 	t.Helper()
 	module := sandboxed(t, sandbox, filepath.Join(sandbox, name))
+	tools := toolsIn(module)
 	writeFile(t, filepath.Join(module, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
-	writeFile(t, filepath.Join(module, ownMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
-	writeFile(t, filepath.Join(module, ownMain, ownMain+"_test.go"), "package main\n", 0o644)
-	writeFile(t, filepath.Join(module, "cmd", cmdMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
-	writeFile(t, filepath.Join(module, cmdMain, cmdMain+".go"), "package "+cmdMain+"\n\nvar Value = 1\n", 0o644)
-	writeFile(t, filepath.Join(module, sharedPkg, sharedPkg+".go"), "package "+sharedPkg+"\n\nvar Value = 1\n", 0o644)
-	writeFile(t, filepath.Join(module, "source-stamp.sh"), read(t, runnable(t, stampScript)), 0o755)
+	writeFile(t, filepath.Join(tools, ownMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
+	writeFile(t, filepath.Join(tools, ownMain, ownMain+"_test.go"), "package main\n", 0o644)
+	writeFile(t, filepath.Join(tools, "cmd", cmdMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
+	writeFile(t, filepath.Join(tools, cmdMain, cmdMain+".go"), "package "+cmdMain+"\n\nvar Value = 1\n", 0o644)
+	writeFile(t, filepath.Join(tools, sharedPkg, sharedPkg+".go"), "package "+sharedPkg+"\n\nvar Value = 1\n", 0o644)
+	writeFile(t, filepath.Join(tools, "source-stamp.sh"), read(t, runnable(t, stampScript)), 0o755)
 	return module
 }
 
@@ -228,7 +236,7 @@ func newModule(t *testing.T, sandbox, name string) string {
 func stampOf(t *testing.T, module, name string) string {
 	t.Helper()
 	sandbox := filepath.Dir(module)
-	stamped := launch(t, newLaunch(t, filepath.Join(module, "source-stamp.sh"), newStampPath(t, sandbox), name))
+	stamped := launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), newStampPath(t, sandbox), name))
 	if stamped.code != 0 {
 		t.Fatalf("stamping %s exited %d, so nothing this case compares is a stamp\n%v", name, stamped.code, stamped)
 	}
@@ -241,7 +249,7 @@ func stampOf(t *testing.T, module, name string) string {
 
 func stampOn(t *testing.T, module, path string) outcome {
 	t.Helper()
-	return launch(t, newLaunch(t, filepath.Join(module, "source-stamp.sh"), path, ownMain))
+	return launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), path, ownMain))
 }
 
 func newStampPath(t *testing.T, sandbox string) string {

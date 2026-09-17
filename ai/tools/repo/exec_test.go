@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo"
+	"configs/ai/tools/repo"
 )
 
 // One repository, one linked worktree, one commit and a dirty tree over it: the shapes every method

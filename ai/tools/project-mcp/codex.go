@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // The fences around the region this tool owns in a project's `.codex/config.toml`. Everything between

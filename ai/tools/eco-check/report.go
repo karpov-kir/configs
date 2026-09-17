@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The width and the count a finding is bounded to before anything is printed. A finding quotes text

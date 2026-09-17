@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installer"
+	"configs/ai/tools/installer"
 )
 
 const markedSkill = "---\nname: kk-ecosystem\ndescription: maintains this tree\naudience: maintainer\n---\n"

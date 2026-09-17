@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo/repotest"
 )
 
 type fixture struct {

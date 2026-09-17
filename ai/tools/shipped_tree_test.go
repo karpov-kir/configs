@@ -1,11 +1,14 @@
 // The shipped instruction tree, held against the shipped policy. These checks read directories under
 // kk-flavor/ and fail on what the two disagree about.
 //
-// They live in this package rather than beside `model-policy` because the tree is outside the module:
-// Go keys a package's test cache on the module it belongs to, so a case under `ai/tools/model-policy/`
-// that walked kk-flavor/skills/ would answer `ok (cached)` over a tree that had changed underneath the
-// run — and a merge or a checkout is exactly when that tree has moved. `ai/kk-flavor/standards/
-// testing.md` rule 11 states it.
+// They live in this package because it is where the cases reading the shipped checkout are gathered,
+// and the other nine files doing that point here for why. That gathering was once the only way to key
+// them: go.mod sat at `ai/tools`, Go keys a package's test cache on the module and skips a file above
+// its root rather than hashing it, so a case under `ai/tools/model-policy/` that walked
+// kk-flavor/skills/ answered `ok (cached)` over a tree that had moved — and a merge or a checkout is
+// exactly when it has. go.mod is at the repository root now, so a case is keyed on what it opens
+// wherever it sits, and this is a grouping rather than a constraint. `ai/kk-flavor/standards/
+// testing.md` rule 11 states the rule that made it one.
 //
 // What is left in model-policy is every check a checkout could not make truer: the parser, Resolve,
 // and the ceiling derivation run against a fixture tree that has the defect the shipped one does not.
@@ -19,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The shipped tree these checks read, from the repository root — and the policy beside it, which

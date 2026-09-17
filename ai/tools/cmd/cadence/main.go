@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"kk-flavor/tools/cadence"
-	"kk-flavor/tools/repo"
+	"configs/ai/tools/cadence"
+	"configs/ai/tools/repo"
 )
 
 func main() {

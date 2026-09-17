@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	envbootstrap "kk-flavor/tools/env-bootstrap"
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/shell"
+	envbootstrap "configs/ai/tools/env-bootstrap"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/shell"
 )
 
 func main() {

@@ -26,7 +26,7 @@ import (
 	"io"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // RunOptions is everything a run needs that it must not go looking for itself.

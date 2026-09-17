@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestAgreementWithCheck(t *testing.T) {

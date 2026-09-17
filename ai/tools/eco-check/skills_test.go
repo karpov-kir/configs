@@ -3,7 +3,7 @@ package ecocheck_test
 import (
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 func TestSkillDirectory(t *testing.T) {

@@ -4,7 +4,7 @@
 package main
 
 import (
-	modelcheck "kk-flavor/tools/model-check"
+	modelcheck "configs/ai/tools/model-check"
 	"os"
 )
 

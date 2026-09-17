@@ -29,8 +29,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installer"
-	"kk-flavor/tools/installertest"
+	"configs/ai/tools/installer"
+	"configs/ai/tools/installertest"
 )
 
 // What the calling installer is called, and what the guard therefore looks for under a candidate root.

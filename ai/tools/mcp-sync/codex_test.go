@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 func server(config string) mcp.Server {

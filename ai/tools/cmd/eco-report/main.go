@@ -11,7 +11,7 @@ package main
 import (
 	"os"
 
-	ecoreport "kk-flavor/tools/eco-report"
+	ecoreport "configs/ai/tools/eco-report"
 )
 
 func main() {

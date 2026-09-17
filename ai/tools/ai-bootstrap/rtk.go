@@ -4,8 +4,8 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/machine"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/machine"
+	"configs/ai/tools/shell"
 )
 
 // The rtk step: take out the file this repository used to write, then let rtk configure itself.

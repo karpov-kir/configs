@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"kk-flavor/tools/machine"
+	"configs/ai/tools/machine"
 )
 
 // rtk writes into the client's own configuration, so it is handed the client's native arguments. The

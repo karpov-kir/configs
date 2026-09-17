@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/shell"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 // evalCase is one labelled text. The units are resolved at parse time from the same Split the judge

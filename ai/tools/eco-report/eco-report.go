@@ -108,9 +108,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
-	treefingerprint "kk-flavor/tools/tree-fingerprint"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
+	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
 // Invocation is one run of the tool. The three fields it would otherwise read from its own process —

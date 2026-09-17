@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const repoRoot = "../.."

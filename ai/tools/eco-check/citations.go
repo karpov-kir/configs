@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The other half of a `<file> → <Section>` citation: the heading it names must still be there. An

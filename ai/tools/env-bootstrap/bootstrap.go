@@ -26,8 +26,8 @@ import (
 	"slices"
 	"strings"
 
-	"kk-flavor/tools/installer"
-	"kk-flavor/tools/machine"
+	"configs/ai/tools/installer"
+	"configs/ai/tools/machine"
 )
 
 // Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so nothing

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"kk-flavor/tools/repo"
+	"configs/ai/tools/repo"
 )
 
 const intervalDays = 7

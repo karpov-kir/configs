@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	gitrepo "kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const barDidNotRun = " — the bar did NOT run"

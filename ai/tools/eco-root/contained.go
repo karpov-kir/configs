@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"os"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // True when a path's directory sits at or under rootCanon, which is shell.CanonicalDir of the root.

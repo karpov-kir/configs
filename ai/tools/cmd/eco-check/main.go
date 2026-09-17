@@ -8,8 +8,8 @@ package main
 import (
 	"os"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/repo"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/repo"
 )
 
 func main() {

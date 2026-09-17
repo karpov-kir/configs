@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // Claude's project file is JSON, and it is the project's file rather than this tool's: it holds

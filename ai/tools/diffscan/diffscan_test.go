@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo/repotest"
 )
 
 const crlfBody = "// one\r\n// two\r\nx := 1\r\n"

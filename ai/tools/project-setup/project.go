@@ -6,9 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	"kk-flavor/tools/flavor"
-	"kk-flavor/tools/installer"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/flavor"
+	"configs/ai/tools/installer"
+	"configs/ai/tools/shell"
 )
 
 // A project already ignoring the whole agent directory, and the line that does it. Reported rather

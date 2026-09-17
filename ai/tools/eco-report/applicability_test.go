@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // The change set the table derives, with one path's SOURCE MODE replaced by one a table of content

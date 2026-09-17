@@ -1,9 +1,8 @@
 // Cases for the layer that puts a Go binary within reach of a checkout holding none: `resolve.sh`,
 // `source-stamp.sh` and `install.sh` beside this package. The `# --- shared:tool-stub ---` region every
-// skill script carries to call the first of them is covered by `ai/tools/stub_reach_test.go` instead:
-// every one of those cases reads a stub outside `ai/tools`, and Go keys its test cache on the module,
-// so from here they would answer `ok (cached)` over a stub that moved. Nothing in this package reads
-// outside the module, which is what lets its cache entry be trusted.
+// skill script carries to call the first of them is covered by `ai/tools/stub_reach_test.go` instead,
+// for the reason that file's header gives. Nothing here reads the checkout at all: every case builds
+// its own fixture, so what one measures is the shape it declared and not the tree it ran in.
 //
 // Those three stay shell and cannot become anything else. They run before there is a binary to run, so
 // a Go build of them could not execute until after it had executed. Their cases live here for the
@@ -252,23 +251,39 @@ func sandboxed(t *testing.T, sandbox, path string) string {
 	return path
 }
 
-// A tools directory shaped like the real one: both scripts under test, a go.mod, and one tool's source.
-// Copied and never linked, because resolve.sh resolves its own directory physically — through a link it
-// would find the real ai/tools and build into the checkout's own bin/.
+// Where the scripts sit inside a fixture checkout, the same distance below the module root that
+// `ai/tools` sits below this repository's. The depth is part of the subject and not decoration: both
+// scripts reach go.mod by a declared offset, so a fixture holding it beside them would measure a shape
+// nothing ships and stay green over an offset that no longer points at anything.
+func toolsIn(root string) string {
+	return filepath.Join(root, "ai", "tools")
+}
+
+// The module root above a fixture's tools directory — what that declared offset reaches.
+func moduleIn(tools string) string {
+	return filepath.Dir(filepath.Dir(tools))
+}
+
+// A checkout shaped like the real one: go.mod at its root, and under it a tools directory holding both
+// scripts under test and one tool's source. Copied and never linked, because resolve.sh resolves its own
+// directory physically — through a link it would find the real ai/tools and build into the checkout's
+// own bin/.
 func newToolsDir(t *testing.T, sandbox, name string) string {
 	t.Helper()
-	dir := sandboxed(t, sandbox, filepath.Join(sandbox, name))
-	writeFile(t, filepath.Join(dir, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
+	root := sandboxed(t, sandbox, filepath.Join(sandbox, name))
+	writeFile(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
+	dir := toolsIn(root)
 	writeFile(t, filepath.Join(dir, tool, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
 	copyScripts(t, dir)
 	return dir
 }
 
 // A checkout that ships binaries and no Go source, which is the shape a skill mounted from a
-// source-less checkout has. The resolver is still here, or there would be nothing to run.
+// source-less checkout has. No go.mod above it either, which is what tells that shape apart from a
+// checkout holding an orphan binary. The resolver is still here, or there would be nothing to run.
 func newSourcelessDir(t *testing.T, sandbox, name string) string {
 	t.Helper()
-	dir := sandboxed(t, sandbox, filepath.Join(sandbox, name))
+	dir := toolsIn(sandboxed(t, sandbox, filepath.Join(sandbox, name)))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("building the source-less fixture: %v — nothing was measured", err)
 	}

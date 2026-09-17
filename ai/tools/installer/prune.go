@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // unmountScan is one directory of mounts and the source root a mount of this checkout's comes from.

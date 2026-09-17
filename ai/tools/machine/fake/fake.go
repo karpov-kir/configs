@@ -10,7 +10,7 @@ package fake
 import (
 	"strings"
 
-	"kk-flavor/tools/machine"
+	"configs/ai/tools/machine"
 )
 
 // Machine records every command it was asked to run and answers each one the way its case said to.

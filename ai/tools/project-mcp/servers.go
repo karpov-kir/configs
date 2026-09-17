@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // The program a project entry runs instead of naming this checkout. `$HOME/.kk-flavor` is the one

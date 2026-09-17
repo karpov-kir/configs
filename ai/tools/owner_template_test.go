@@ -2,17 +2,15 @@ package tools_test
 
 // The shipped owner template, held against the region every other tier is given.
 //
-// It lives here rather than beside the installer because ai/owner-instructions.md is outside the
-// module: Go keys a package's test cache on the module, so a case that opened it from
-// `ai/tools/ai-bootstrap/` would answer `ok (cached)` over a template that had changed underneath the
-// run. What the installer does WITH the template is that package's own suite's.
+// It lives here rather than in `ai/tools/ai-bootstrap/` for the reason shipped_tree_test.go's cases
+// do. What the installer does WITH the template is that package's own suite's.
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/flavor"
+	"configs/ai/tools/flavor"
 )
 
 // The template the owner tier copies and the region every other tier is given say the same thing and

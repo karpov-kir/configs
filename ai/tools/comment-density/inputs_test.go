@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/shell"
 )
 
 func TestARevisionIsNotAPath(t *testing.T) {

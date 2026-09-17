@@ -3,7 +3,7 @@ package installer
 import (
 	"os"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // SkillMountOptions is one discovery pass over a skills directory.

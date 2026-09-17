@@ -1,7 +1,5 @@
-// The shipped kk-flavor/models.json, held to what the tools resolving it depend on. The policy file
-// is outside the module, so these live here for the reason shipped_tree_test.go's do: Go keys a
-// package's test cache on the module, and a case under `ai/tools/model-policy/` that loaded the real
-// policy would answer `ok (cached)` over a file that had changed underneath the run.
+// The shipped kk-flavor/models.json, held to what the tools resolving it depend on. These live here
+// rather than under `ai/tools/model-policy/` for the reason shipped_tree_test.go's do.
 //
 // The parser's own cases stay beside it and read a fixture document. What they cannot say is anything
 // about the file this repository actually ships.
@@ -11,7 +9,7 @@ import (
 	"maps"
 	"testing"
 
-	modelpolicy "kk-flavor/tools/model-policy"
+	modelpolicy "configs/ai/tools/model-policy"
 )
 
 // The shipped policy is the cost control surface, so every task in it must resolve for both clients.

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // The commit gate's half of this check: judge only what a commit can carry.

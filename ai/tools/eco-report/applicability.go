@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"kk-flavor/tools/diffscan"
+	"configs/ai/tools/diffscan"
 )
 
 const scopeMarker = ".scope.json"

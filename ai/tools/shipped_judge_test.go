@@ -2,10 +2,9 @@
 // own, so what the central file assigns it is the whole of its cost control, and these are the cases
 // that read that file rather than a fixture.
 //
-// Here rather than in `ai/tools/bloat-judge/` because kk-flavor/models.json is outside the module: Go
-// keys a package's test cache on the module, so a case there would answer `ok (cached)` over a policy
-// that had changed underneath the run. Everything the judge does with a decision once it has one is
-// that package's own suite's, against a fixture.
+// Here rather than in `ai/tools/bloat-judge/` for the reason shipped_tree_test.go's cases are.
+// Everything the judge does with a decision once it has one is that package's own suite's, against a
+// fixture.
 package tools_test
 
 import (
@@ -14,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
+	bloatjudge "configs/ai/tools/bloat-judge"
 )
 
 func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {

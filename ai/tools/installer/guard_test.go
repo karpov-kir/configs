@@ -14,7 +14,7 @@ package installer_test
 import (
 	"testing"
 
-	"kk-flavor/tools/installer"
+	"configs/ai/tools/installer"
 )
 
 // A home already mounted from a second checkout, and where that checkout is.

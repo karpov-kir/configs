@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/installer"
+	"configs/ai/tools/installer"
 )
 
 func TestAFreshMachineGetsEveryLink(t *testing.T) {

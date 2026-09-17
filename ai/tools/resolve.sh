@@ -60,6 +60,13 @@ die() {
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no tool can be located"
 
+# How far the module root sits above this directory. go.mod is at the repository root rather than here,
+# so that Go's test cache hashes every file a case opens: that cache is keyed on the module, and a file
+# above the module root is skipped rather than hashed, which is how a suite reading the checkout used to
+# answer `ok (cached)` over an edit it should have gone red on. source-stamp.sh declares the same
+# offset, and the two have to move together.
+module="$tools/../.."
+
 # `exec` is the mode a stub takes and `print` the one a human or another script takes. Held in a word of
 # its own rather than inferred from argv0 being set: read that way, `--run <tool> ""` would quietly fall
 # back to printing a path to a caller that is waiting to be replaced, and exit 0 having run nothing.
@@ -142,7 +149,7 @@ built_from_this_source() {
   # one way a binary nobody can account for keeps being exec'd over the human's repositories. Report
   # it as the unknown it is instead, and let the caller below rebuild it or warn.
   if [ ! -d "$tools/$tool" ] && [ ! -d "$tools/cmd/$tool" ]; then
-    if [ -f "$tools/go.mod" ]; then
+    if [ -f "$module/go.mod" ]; then
       return 2
     fi
     return 0

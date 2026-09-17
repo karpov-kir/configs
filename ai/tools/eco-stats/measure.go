@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 // One run's figures. Every one of them is a count of something read, never an estimate, and the

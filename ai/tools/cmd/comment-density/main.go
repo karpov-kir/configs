@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	density "kk-flavor/tools/comment-density"
-	"kk-flavor/tools/repo"
+	density "configs/ai/tools/comment-density"
+	"configs/ai/tools/repo"
 )
 
 func main() {

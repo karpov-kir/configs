@@ -1,9 +1,6 @@
 // The shipped handoff prompt template, run through the gate that reads a draft written from it.
 //
-// Here rather than in `ai/tools/handoff-check/` because the template is outside the module: Go keys a
-// package's test cache on the module, so a case there answers `ok (cached)` over a template that
-// changed underneath the run — and a template drifting from the gate is exactly what this catches.
-// `ai/gate.sh` forces this package with `-count=1` on every run. `testing.md` rule 11.
+// Here rather than in `ai/tools/handoff-check/` for the reason shipped_tree_test.go's cases are.
 //
 // The gate's own cases stay beside it and run over drafts they build. What they cannot say is anything
 // about the file this repository actually ships.
@@ -16,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	handoffcheck "kk-flavor/tools/handoff-check"
-	"kk-flavor/tools/repo/repotest"
+	handoffcheck "configs/ai/tools/handoff-check"
+	"configs/ai/tools/repo/repotest"
 )
 
 const shippedHandoffTemplate = repoRoot + "/ai/kk-flavor/skills/kk-handoff/handoff-prompt.md"

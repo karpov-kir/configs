@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/repo"
-	"kk-flavor/tools/repo/repotest"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // Nothing here runs a client, a package manager or git. Every case builds its own declaration under

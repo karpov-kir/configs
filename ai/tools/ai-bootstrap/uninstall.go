@@ -3,8 +3,8 @@ package aibootstrap
 import (
 	"fmt"
 
-	"kk-flavor/tools/flavor"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/flavor"
+	"configs/ai/tools/shell"
 )
 
 // Uninstall, over the same table an install declares. The unmount comes first and nothing links on the

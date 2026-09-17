@@ -3,7 +3,7 @@ package aibootstrap
 import (
 	"os"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Where one client keeps what this installs. Resolved once, at the top of a run, because every step

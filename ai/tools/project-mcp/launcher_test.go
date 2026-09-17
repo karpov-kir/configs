@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/mcp"
+	"configs/ai/tools/mcp"
 )
 
 // The one case in this package that starts a process, and the only one that could not be anything
