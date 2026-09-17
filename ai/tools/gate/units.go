@@ -18,6 +18,8 @@ import (
 // and cannot see them, so a plain `go test` reports a cached pass over a changed template; the gate
 // keys on them itself. Named file by file, from the suites' own `../../` constants: keying on all of
 // kk-flavor made editing tree-fingerprint.sh force eco-report — 233s for a package that cannot read it.
+// `extConfigs` is the one directory, and pays a bounded version of that price: a scanner's `.conf`
+// forces eco-report, which reads only idsd.conf.
 const (
 	goTree = "ai/tools"
 	// The main package `ai/guide.sh --check` builds and runs — resolve.sh picks `./cmd/<tool>/` first.
@@ -30,7 +32,12 @@ const (
 	extAudience  = "lib/skill-audience.sh"
 	extReduce    = "ai/kk-flavor/skills/kk-reduce/stats.md"
 	extWorkflows = ".github/workflows"
-	extModels    = "ai/kk-flavor/models.json"
+	extModels    = "ai/kk-flavor/configs/models.json"
+	// The whole directory, not the files in it one by one: the Go suites read the shipped configs from
+	// outside their own module, so `go test` keys on none of them, and a config added later would
+	// inherit the stale green rather than the key. `extModels` stays beside it because the guide and
+	// models units key on that one file by name; an edit to it now forces the config readers too.
+	extConfigs = "ai/kk-flavor/configs"
 )
 
 // The marker opening the shared stub region. It is what actually defines this input set:
@@ -147,7 +154,7 @@ func (g *gate) addGoChecks() {
 	g.add("gofmt", "check", []string{goTree}, "@gofmt")
 	g.add("vet", "check", []string{goTree}, "cd ai/tools && go vet ./...")
 	gotestInputs := append([]string{goTree, extFlavor}, extQualify...)
-	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels)
+	gotestInputs = append(gotestInputs, extAudience, extReduce, extWorkflows, extModels, extConfigs)
 	gotestInputs = append(gotestInputs, extStubs...)
 	g.add("gotest", "check", gotestInputs, "@gotest")
 	// --gate, because this unit's verdict has to be about the commit and nothing else. Without it the

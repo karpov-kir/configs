@@ -141,7 +141,7 @@ func TestAGuideWithNoUsablePolicyRefuses(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := newRoot(t, fixtureTemplate, shipped)
-			if err := wreck(filepath.Join(root, "kk-flavor", "models.json")); err != nil {
+			if err := wreck(policyPath(root)); err != nil {
 				t.Fatalf("wrecking the fixture policy: %v", err)
 			}
 
@@ -262,7 +262,7 @@ func TestARowStillPointingAtASkillReadsThatSkill(t *testing.T) {
 	policy := strings.Replace(fixturePolicy, `"workers": {`,
 		`"workers": {
     "kk-edit": { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },`, 1)
-	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(policy), 0o644); err != nil {
+	if err := os.WriteFile(policyPath(root), []byte(policy), 0o644); err != nil {
 		t.Fatalf("fixture policy: %v", err)
 	}
 

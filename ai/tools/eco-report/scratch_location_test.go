@@ -735,3 +735,86 @@ func TestTheGateClaimsIdenticalTreesOnlyWhenTheyAre(t *testing.T) {
 	same.record("while identical trees still get the sentence that explains them",
 		same.status != 0 && strings.Contains(same.out, "fingerprints match"), same.evidence())
 }
+
+func TestTheShippedDefaultDecidesTheRootWhenNothingOverridesIt(t *testing.T) {
+	t.Parallel()
+	// The tracked default is what carries the owner's layout to every clone without a per-machine file
+	// in each one. It resolves like an override — same parser, same guards, same per-clone key — and
+	// differs in one thing only: it is the default, so it says nothing.
+	f := newRepo(t)
+	shipped := f.base + "/shipped"
+	f.writeShippedDefault("root " + shipped + "\n")
+	f.runReport("check-ignore")
+	f.assertReports(shipped, "check-ignore names the location the shipped default set")
+	f.record("and does not call it an override, which would erase the difference from a tuned machine",
+		!strings.Contains(f.out, "overridden by"), f.evidence())
+
+	root := f.runReportStdout("root")
+	f.record("the root lands under the shipped default, keyed by this clone",
+		strings.HasPrefix(root, shipped+"/"), root)
+	f.runReport("init", "001-shipped")
+	f.record("and init wrote the report there",
+		f.status == 0 && f.isFile(root+"/intents/001-shipped/for-agents/qualify-report.md"), f.evidence())
+	f.record("and nothing was created under the shared git dir", !f.exists(f.sharedIdsd()), "")
+}
+
+func TestThisMachinesOverrideWinsOverTheShippedDefault(t *testing.T) {
+	t.Parallel()
+	// The whole point of keeping both: the tracked default travels with the checkout, and a machine
+	// that wants a different location says so without making that checkout dirty.
+	f := newRepo(t)
+	f.writeShippedDefault("root " + f.base + "/shipped\n")
+	elsewhere := f.base + "/elsewhere"
+	f.writeOverride("root " + elsewhere + "\n")
+	f.runReport("check-ignore")
+	f.assertReports("overridden by", "says this machine's override is what moved it")
+
+	root := f.runReportStdout("root")
+	f.record("the root lands under the override, not the shipped default",
+		strings.HasPrefix(root, elsewhere+"/"), root)
+	f.record("and nothing was created under the shipped default",
+		!f.exists(f.base+"/shipped"), "")
+}
+
+func TestABrokenShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
+	t.Parallel()
+	// The same failure TestABrokenOverrideRefusesRatherThanFallingBack names, one source down. A
+	// default quietly restored is indistinguishable from the config working, and here the fallback is
+	// the shared git dir — a real directory, so every command would report success from it.
+	for _, c := range []struct {
+		name, content, needle string
+	}{
+		{"a line the tool does not understand", "rooot /tmp/x\n", "does not understand"},
+		{"no root at all", "# just a comment\n", "sets no `root`"},
+		{"root set twice", "root /tmp/a\nroot /tmp/b\n", "more than once"},
+		{"a relative root", "root ../sideways\n", "relative root"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := newRepo(t)
+			f.writeShippedDefault(c.content)
+			f.runReport("check-ignore")
+			f.assertRefused("refuses rather than falling back to the shared git dir")
+			f.assertReports(c.needle, "and names what is wrong with the shipped default")
+			f.record("and created no scratch directory anywhere",
+				!f.exists(f.sharedIdsd()) && f.treeIsFreeOfScratch(), f.evidence())
+		})
+	}
+}
+
+func TestTheShippedIdsdConfigIsReadableByTheToolThatReadsIt(t *testing.T) {
+	t.Parallel()
+	// The file this checkout ships, read through the real path rather than a fixture's content. Nothing
+	// else here opens it, so a typo would first show up as every idsd command in every repo refusing at
+	// exit 2 — and a missing file would show up as nothing at all, the git-dir fallback being a real
+	// directory every command reports success from.
+	f := newRepo(t)
+	f.mountShippedConfigs()
+	root := f.runReportStdout("root")
+	f.record("the shipped idsd.conf resolves a root under HOME, so its `~/` expanded and it was read",
+		strings.HasPrefix(root, f.home+"/"), "root: "+root+"\nHOME: "+f.home)
+	f.record("and not the shared git dir, which is what an unread config would have left",
+		root != f.sharedIdsd(), "root: "+root)
+	f.runReport("check-ignore")
+	f.record("and says nothing about an override, being the default",
+		!strings.Contains(f.out, "overridden by"), f.evidence())
+}

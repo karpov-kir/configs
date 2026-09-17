@@ -5,6 +5,10 @@ package density
 
 import (
 	"fmt"
+	"os"
+
+	"kk-flavor/tools/flavorconfig"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -136,13 +140,13 @@ func TestProseDataAndLockfilesAreNotCounted(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
 	r.commit("base")
-	for _, name := range []string{"a.md", "b.markdown", "c.txt", "d.json", "e.lock", "pnpm-lock.yaml", "f.MD"} {
+	for _, name := range []string{"a.md", "b.markdown", "c.txt", "d.json", "e.lock", "pnpm-lock.yaml", "f.MD", "g.conf"} {
 		r.write(name, heavy(9, 0))
 	}
 	r.run()
 	r.expectCode(0)
 	r.expectNoStdout()
-	r.expectStderrHas("7 file(s) reached the scan, 0 with countable added lines")
+	r.expectStderrHas("8 file(s) reached the scan, 0 with countable added lines")
 	// Files were reached, so the empty-scan note stays silent; nothing was ranked, so the note that
 	// disowns the bar must stay silent too rather than claim a ranking this run never made.
 	r.expectStderrHas("ranks nothing")
@@ -350,4 +354,89 @@ func TestTheDefaultReportDisownsTheBar(t *testing.T) {
 		r.expectStdoutHas("host repo:")
 		r.expectStderrLacks("not a bar")
 	})
+}
+
+// The shipped defaults, read through the resolver a real run uses. Nothing else in this repository
+// opens the file, so a typo there is invisible until every scan refuses — and the equality is what
+// stops the shipped numbers and the built-in ones behind them becoming two different bars.
+func TestTheShippedConfigParsesAndMatchesTheBuiltInDefaults(t *testing.T) {
+	flavor, err := filepath.Abs("../../kk-flavor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	if err := os.Symlink(flavor, filepath.Join(home, ".kk-flavor")); err != nil {
+		t.Fatal(err)
+	}
+	// Read through `flavorconfig` rather than through ConfigFromEnv: the shipped numbers equal the
+	// built-in ones, so a ConfigFromEnv that ignored the file entirely would satisfy the comparison
+	// below and this case would pass over a file it never opened. Whether ConfigFromEnv reads it is
+	// the next case's subject.
+	settings, err := flavorconfig.Read(flavorconfig.Path(home, configName), configKeys)
+	if err != nil {
+		t.Fatalf("the shipped comment-density.conf does not parse: %v", err)
+	}
+	if len(settings) != len(configKeys) {
+		t.Fatalf("the shipped comment-density.conf sets %v, and this tool reads %v", settings, configKeys)
+	}
+	if settings["max-ratio"] != fmt.Sprint(defaultMaxRatio) ||
+		settings["min-lines"] != fmt.Sprint(defaultMinLines) ||
+		settings["max-file-bytes"] != fmt.Sprint(defaultMaxFileBytes) {
+		t.Fatalf("the shipped config holds %v and the built-in defaults are %v/%d/%d — a run that cannot reach the mount would scan against different thresholds",
+			settings, defaultMaxRatio, defaultMinLines, defaultMaxFileBytes)
+	}
+}
+
+// The environment is the per-run override and wins over the shipped file; a broken shipped file
+// refuses rather than restoring the built-in silently.
+func TestTheEnvironmentWinsOverTheShippedConfigAndABrokenOneRefuses(t *testing.T) {
+	home := t.TempDir()
+	configs := filepath.Join(home, ".kk-flavor", "configs")
+	if err := os.MkdirAll(configs, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lookup := func(extra map[string]string) func(string) (string, bool) {
+		return func(asked string) (string, bool) {
+			if asked == "HOME" {
+				return home, true
+			}
+			value, ok := extra[asked]
+			return value, ok
+		}
+	}
+	path := filepath.Join(configs, "comment-density.conf")
+	if err := os.WriteFile(path, []byte("max-ratio 0.5\nmin-lines 9\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := ConfigFromEnv(lookup(nil))
+	if err != nil || cfg.MaxRatio != 0.5 || cfg.MinLines != 9 {
+		t.Fatalf("got %v %d %v, want the shipped file's 0.5 and 9", cfg.MaxRatio, cfg.MinLines, err)
+	}
+	if cfg.MaxFileBytes != defaultMaxFileBytes {
+		t.Fatalf("a key the file leaves out took %d rather than the built-in default", cfg.MaxFileBytes)
+	}
+	cfg, err = ConfigFromEnv(lookup(map[string]string{"COMMENT_MAX_RATIO": "0.9"}))
+	if err != nil || cfg.MaxRatio != 0.9 {
+		t.Fatalf("got %v %v, want the environment's 0.9 over the file's 0.5", cfg.MaxRatio, err)
+	}
+
+	if err := os.WriteFile(path, []byte("maxratio 0.5\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ConfigFromEnv(lookup(nil)); err == nil {
+		t.Fatal("a shipped config the tool cannot read was replaced by the built-in defaults in silence")
+	}
+
+	// A key `flavorconfig` accepts and this tool then rejects. The refusal has to name the file rather
+	// than the environment variable, or it sends the human to edit something they never set.
+	if err := os.WriteFile(path, []byte("max-ratio 4\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ConfigFromEnv(lookup(nil))
+	if err == nil {
+		t.Fatal("a share above 1 was accepted from the shipped config")
+	}
+	if !strings.Contains(err.Error(), path) || strings.Contains(err.Error(), "COMMENT_MAX_RATIO is") {
+		t.Fatalf("the refusal blames the environment for a value the file set: %v", err)
+	}
 }

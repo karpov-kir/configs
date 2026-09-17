@@ -7,13 +7,8 @@
 // that otherwise differ. A space is one of those delimiters (isDelimiter below holds the list), so a
 // long string with a space inside it is found only when its whole line repeats.
 //
-//	usage: dup-literals.sh [<git-diff revisions>] [-- <paths>]   # revisions default to HEAD (all
-//	       uncommitted changes); a bare path argument is refused with exit 2, never scanned
-//	env:   DUP_MIN_LEN — minimum literal length in chars (default 100)
-//	       DUP_MAX_FILE_BYTES — skip untracked files larger than this (default 262144)
-//
-// Prints each duplicate (count, length, 60-char prefix). Exits 1 when any found, 0 when clean, 2 when
-// the scan did not run.
+// The command-line contract (arguments, environment, exit codes) is the stub's:
+// ai/kk-flavor/workers/refactor/dup-literals.sh.
 //
 // Because it echoes 60 bytes of every duplicate, the untracked scan skips secret-bearing names rather
 // than print what is in them — `diffscan.Options.SkipSecretNamed`, and the reasoning lives there.
@@ -31,6 +26,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/diffscan"
+	"kk-flavor/tools/flavorconfig"
 	"kk-flavor/tools/shell"
 )
 
@@ -65,19 +61,40 @@ type Config struct {
 	MaxFileBytes int64
 }
 
+const configName = "dup-literals.conf"
+
+var configKeys = []string{"min-length", "max-file-bytes"}
+
+// ConfigFromEnv resolves both thresholds: the tracked default under `~/.kk-flavor/configs/`, then
+// this run's environment over it. HOME comes through lookup rather than the process, so a suite can
+// point the mount at a fixture without touching anything process-global.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MinLength: defaultMinLength, MaxFileBytes: defaultMaxFileBytes}
-	if raw, ok := lookup("DUP_MIN_LEN"); ok && raw != "" {
+	home, _ := lookup("HOME")
+	path := flavorconfig.Path(home, configName)
+	shipped, err := flavorconfig.Read(path, configKeys)
+	if err != nil {
+		return cfg, fmt.Errorf("%w — the scan did NOT run", err)
+	}
+	// The source rides along with the value, so a refusal names the environment variable or the file
+	// line that set it.
+	setting := func(variable, key string) (string, string) {
+		if raw, ok := lookup(variable); ok && raw != "" {
+			return raw, variable
+		}
+		return shipped[key], path + "'s `" + key + "`"
+	}
+	if raw, source := setting("DUP_MIN_LEN", "min-length"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 1 {
-			return cfg, fmt.Errorf("DUP_MIN_LEN is '%s', which is no positive whole number — the scan did NOT run", shell.Oneline(raw))
+			return cfg, fmt.Errorf("%s is '%s', which is no positive whole number — the scan did NOT run", source, shell.Oneline(raw))
 		}
 		cfg.MinLength = n
 	}
-	if raw, ok := lookup("DUP_MAX_FILE_BYTES"); ok && raw != "" {
+	if raw, source := setting("DUP_MAX_FILE_BYTES", "max-file-bytes"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || n < 0 {
-			return cfg, fmt.Errorf("DUP_MAX_FILE_BYTES is '%s', which is no whole number — the scan did NOT run", shell.Oneline(raw))
+			return cfg, fmt.Errorf("%s is '%s', which is no whole number — the scan did NOT run", source, shell.Oneline(raw))
 		}
 		cfg.MaxFileBytes = n
 	}

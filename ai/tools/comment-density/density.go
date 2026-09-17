@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"kk-flavor/tools/diffscan"
+	"kk-flavor/tools/flavorconfig"
 	"kk-flavor/tools/shell"
 )
 
@@ -81,29 +82,53 @@ type Config struct {
 	MaxFileBytes int64
 }
 
-// ConfigFromEnv reads the three overrides. A value that does not parse is not silently replaced by the
-// default: a caller who set COMMENT_MAX_RATIO=0..3 asked for something, and answering with 0.3 reports
-// a scan against a threshold they did not choose.
+// The tracked default the flavor ships, and the keys it may hold. Keyed short because the file is
+// named for the tool; the shell stub's header pairs each with its environment variable.
+const configName = "comment-density.conf"
+
+var configKeys = []string{"max-ratio", "min-lines", "max-file-bytes"}
+
+// ConfigFromEnv resolves the three thresholds: the tracked default under `~/.kk-flavor/configs/`,
+// then this run's environment over it. A value that does not parse is not silently replaced by the
+// built-in: a caller who set COMMENT_MAX_RATIO=0..3 asked for something, and answering with 0.3
+// reports a scan against a threshold they did not choose.
+//
+// HOME comes through lookup rather than the process, so a suite can point the mount at a fixture
+// without touching anything process-global.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxRatio: defaultMaxRatio, MinLines: defaultMinLines, MaxFileBytes: defaultMaxFileBytes}
-	if raw, ok := lookup("COMMENT_MAX_RATIO"); ok && raw != "" {
+	home, _ := lookup("HOME")
+	path := flavorconfig.Path(home, configName)
+	shipped, err := flavorconfig.Read(path, configKeys)
+	if err != nil {
+		return cfg, fmt.Errorf("%w — the scan did NOT run", err)
+	}
+	// Names what set the value as well as the value, so a refusal sends the human to the environment
+	// or to the file rather than leaving them to find out which of the two they are fighting.
+	setting := func(variable, key string) (string, string) {
+		if raw, ok := lookup(variable); ok && raw != "" {
+			return raw, variable
+		}
+		return shipped[key], path + "'s `" + key + "`"
+	}
+	if raw, source := setting("COMMENT_MAX_RATIO", "max-ratio"); raw != "" {
 		value, err := strconv.ParseFloat(raw, 64)
 		if err != nil || value < 0 || value > 1 {
-			return cfg, fmt.Errorf("COMMENT_MAX_RATIO is %q, which is no share between 0 and 1 — the scan did NOT run", raw)
+			return cfg, fmt.Errorf("%s is %q, which is no share between 0 and 1 — the scan did NOT run", source, raw)
 		}
 		cfg.MaxRatio = value
 	}
-	if raw, ok := lookup("COMMENT_MIN_LINES"); ok && raw != "" {
+	if raw, source := setting("COMMENT_MIN_LINES", "min-lines"); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil || value < 1 {
-			return cfg, fmt.Errorf("COMMENT_MIN_LINES is %q, which is no positive whole number — the scan did NOT run", raw)
+			return cfg, fmt.Errorf("%s is %q, which is no positive whole number — the scan did NOT run", source, raw)
 		}
 		cfg.MinLines = value
 	}
-	if raw, ok := lookup("DENSITY_MAX_FILE_BYTES"); ok && raw != "" {
+	if raw, source := setting("DENSITY_MAX_FILE_BYTES", "max-file-bytes"); raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || value < 0 {
-			return cfg, fmt.Errorf("DENSITY_MAX_FILE_BYTES is %q, which is no whole number of bytes — the scan did NOT run", raw)
+			return cfg, fmt.Errorf("%s is %q, which is no whole number of bytes — the scan did NOT run", source, raw)
 		}
 		cfg.MaxFileBytes = value
 	}
@@ -219,10 +244,15 @@ func (s *scan) count(file, raw string) {
 }
 
 // Lockfiles are matched by name as well as extension: the yaml ones are generated, and nobody's comments.
+//
+// `.conf` is settings data whose header IS its documentation — a file of two `<key> <value>` lines
+// under the paragraph explaining what tuning them costs. Counted as source it always reads
+// comment-heavy, and the only way to clear the bar would be to delete the explanation the flavor's own
+// rule requires it to carry (`~/.kk-flavor/standards/ecosystem.md` → **Conventions a new file joins**).
 func isProseOrData(file string) bool {
 	base := path.Base(file)
 	switch strings.ToLower(path.Ext(base)) {
-	case ".md", ".markdown", ".txt", ".json", ".lock":
+	case ".md", ".markdown", ".txt", ".json", ".lock", ".conf":
 		return true
 	case ".yaml", ".yml":
 		return strings.Contains(strings.ToLower(base), "lock")

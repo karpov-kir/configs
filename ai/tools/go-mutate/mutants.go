@@ -974,6 +974,11 @@ var mutants = []mutant{
 	{"density: DENSITY_MAX_FILE_BYTES parses and is then discarded", "../comment-density/density.go", "./comment-density/", "TestAThresholdOverrideTakesEffect",
 		`cfg.MaxFileBytes = value`, `cfg.MaxFileBytes = defaultMaxFileBytes + value*0`},
 
+	// One entry for three callers: every tool with a tracked default parses through this package, so a
+	// line silently skipped here restores the built-in value in all of them at once.
+	{"flavorconfig: a line the caller cannot read is skipped rather than refused", "../flavorconfig/flavorconfig.go", "./flavorconfig/", "TestAnUnusableConfigRefusesRatherThanReadingAsAbsent",
+		`if len(fields) != 2 || !slices.Contains(allowed, fields[0]) {`, `if false {`},
+
 	{"dup: the length floor stops applying to a whole line", "../dup-literals/dup.go", "./dup-literals/", "TestTheLengthFloor",
 		`if len([]rune(trimmed)) >= s.cfg.MinLength {`, "if true {"},
 	{"dup: a literal appearing once counts as repeated", "../dup-literals/dup.go", "./dup-literals/", "TestASingleOccurrenceIsNotADuplicate",
