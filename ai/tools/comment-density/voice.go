@@ -272,6 +272,11 @@ func commentBlocksIn(lines []string, held present) []block {
 		switch {
 		case !held(at):
 			inBlock, inStar = false, false
+		case isShebang(at, line):
+			// An interpreter directive, not a comment. Counted as one it joins the file header below
+			// it and spends a line of that header's allowance, so a script whose header is exactly at
+			// the limit reports long for saying which interpreter runs it.
+			inBlock, inStar = false, false
 		case inStar:
 			found[len(found)-1].end = at
 			if strings.Contains(line, "*/") {
@@ -291,6 +296,12 @@ func commentBlocksIn(lines []string, held present) []block {
 	return found
 }
 
+// isShebang says this is the interpreter directive a script opens with. Only on the first line: `#!`
+// anywhere else is an ordinary comment that happens to start with a bang.
+func isShebang(at int, line string) bool {
+	return at == 1 && strings.HasPrefix(line, "#!")
+}
+
 func opensStar(line string) bool {
 	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
 }
@@ -304,9 +315,15 @@ func opensStar(line string) bool {
 // generous direction is the whole check going quiet.
 func (b block) isFileHeader(lines []string, held present) bool {
 	for at := 1; at < b.start; at++ {
-		if !held(at) || strings.TrimSpace(lines[at-1]) != "" {
+		line := strings.TrimSpace(lines[at-1])
+		if !held(at) {
 			return false
 		}
+		// A shell script's interpreter directive stands above its header and does not displace it.
+		if line == "" || isShebang(at, line) {
+			continue
+		}
+		return false
 	}
 	return true
 }

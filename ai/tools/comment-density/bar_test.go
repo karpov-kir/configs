@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -738,5 +739,21 @@ func TestTheBarAndTheVoiceCheckAgreeOnBlockLength(t *testing.T) {
 	}
 	if found := (scanner{profile: ProfileComment}).scanSource("f.go", strings.Split(strings.TrimSuffix(prose, "\n"), "\n"), nil); !hasCheck(found, checkLongBlock) {
 		t.Error("the voice check did not report five prose lines long, so the two disagree")
+	}
+}
+
+// A shebang does not displace the file header standing under it, here as in the voice check. Marking
+// the file as begun at line 1 would hold an eight-line header to a block's four — the same defect this
+// rule was written to remove, moved from the block scan into the bar.
+func TestAHeaderUnderAShebangKeepsTheHeadersAllowance(t *testing.T) {
+	eight := "#!/usr/bin/env bash\n"
+	for i := 1; i <= 8; i++ {
+		eight += "# Line " + strconv.Itoa(i) + ".\n"
+	}
+	if counted := statsOf(eight + "code\n"); counted.longBlocks != 0 {
+		t.Fatalf("an eight-line header under a shebang counted as %d long block(s)", counted.longBlocks)
+	}
+	if counted := statsOf(eight + "# Line 9.\ncode\n"); counted.longBlocks != 1 {
+		t.Fatalf("a nine-line header under a shebang counted as %d long block(s); want 1", counted.longBlocks)
 	}
 }
