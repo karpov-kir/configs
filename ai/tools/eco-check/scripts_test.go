@@ -93,10 +93,9 @@ func TestScriptTestPosition(t *testing.T) {
 	})
 
 	// The harness is exempt: asking a test file to name its own test makes every one of them a finding.
-	t.Run("asks nothing of -test.sh and -mutate.sh themselves", func(t *testing.T) {
+	t.Run("asks nothing of -test.sh itself", func(t *testing.T) {
 		f := newRoot(t)
 		f.newScript("harness-test.sh", "#!/usr/bin/env bash\ntrue")
-		f.newScript("harness-mutate.sh", "#!/usr/bin/env bash\ntrue")
 		f.doesNotReport(noPosition)
 	})
 

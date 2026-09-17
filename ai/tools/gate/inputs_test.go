@@ -18,8 +18,6 @@ import (
 // it sources, and a fixture copy is a second path to the same input. A staged fixture would assert
 // what the case handed it rather than what discovery does.
 //
-// The Go checks and the shell suites, not discoverGoMutants: it runs `go build` and writes a binary
-// into the tree. The case below covers the mutation units' own append site directly instead.
 // Returns the table, the suite count it should hold one unit for, and how many checks were already
 // registered before those units — so a caller compares two counted numbers, never a written-down one.
 func discoveredOverThisRepo(t *testing.T) (*gate, int, int) {
@@ -89,8 +87,7 @@ func TestAGuideUnitTheGraphCannotAnswerForRefuses(t *testing.T) {
 	}
 }
 
-// This repository's own graph, read as discovery reads it. `go list` writes nothing, so a case may
-// take this where it may not call discoverGoMutants.
+// This repository's own graph, read as discovery reads it.
 func thisModulesImports(t *testing.T, g *gate) map[string][]string {
 	t.Helper()
 	listing, err := g.listModulePackages()
@@ -135,36 +132,20 @@ func TestNoUnitDeclaresAnInputTwice(t *testing.T) {
 	}
 }
 
-// The mutation units are built somewhere else entirely, and they left this file's reach when the
-// helper above stopped calling buildUnits. groupMutants appends to one group's inputs once per mutant
-// over that suite set, so a set holding many mutants over one file is where the widest duplication
-// lives — and it is g.add, not groupMutants, that has to collapse it. Staged over the listing format
-// the harness emits rather than run through `go build`.
-func TestAMutantGroupReachesAUnitWithNoInputTwice(t *testing.T) {
-	const line = "eco-report/records.go\t./eco-report/\tTestSomething\tai/tools/eco-report/records.go\n"
-	groups, err := groupMutants(line+line+line, "", suiteCompiles)
-	if err != nil {
-		t.Fatalf("grouping three mutants over one file: %v", err)
-	}
-	if len(groups) != 1 {
-		t.Fatalf("three mutants over one suite set produced %d group(s), wanted 1", len(groups))
-	}
-
-	// The control, and it is the point of the case: grouping itself repeats the file, once per mutant.
-	// If that ever stops being true this case proves nothing about g.add, so it has to be asserted.
-	if count(groups[0].inputs, "ai/tools/eco-report/records.go") < 2 {
-		t.Fatalf("grouping no longer repeats a file across its mutants, so registering it below cannot "+
-			"show the dedupe doing anything: %v", groups[0].inputs)
-	}
-
+// The case above reads the real table, where a collision needs two append sites to land on one file.
+// This one asks the registering function directly, with the duplicate handed to it: an append site
+// that starts repeating a path must not reach `--units` as a count `--why` disagrees with, and the
+// collapse has to happen in addUnit rather than at whichever site collided.
+func TestAUnitDeclaringOneFileTwiceHoldsItOnce(t *testing.T) {
+	const file = "ai/tools/eco-report/records.go"
 	g := &gate{}
-	g.add(groups[0].id, "mutation", groups[0].inputs, "run")
+	g.add("example", "check", []string{file, "ai/tools/shell", file}, "run")
 	if len(g.units) != 1 {
-		t.Fatalf("registering one group produced %d unit(s)", len(g.units))
+		t.Fatalf("registering one unit produced %d of them", len(g.units))
 	}
-	if n := count(g.units[0].inputs, "ai/tools/eco-report/records.go"); n != 1 {
-		t.Errorf("the mutation unit declares its file %d times. groupMutants appends per mutant, so a "+
-			"suite set with many mutants over one file is the widest duplication in the table", n)
+	if n := count(g.units[0].inputs, file); n != 1 {
+		t.Errorf("the unit declares %s %d times, so `--units` reports an input count `--why` does not "+
+			"resolve to", file, n)
 	}
 }
 
@@ -421,8 +402,8 @@ func TestThisModulesGraphSaysWhatASuiteCompiles(t *testing.T) {
 	}
 	reached := thisModulesImports(t, &gate{root: root})
 	if !slices.Contains(reached["ai/tools/eco-report"], "ai/tools/repo-key") {
-		t.Errorf("the graph does not say eco-report's suite compiles repo-key, so editing repokey.go "+
-			"leaves mutants:go:eco-report fresh: %v", reached["ai/tools/eco-report"])
+		t.Errorf("the graph does not say eco-report's suite compiles repo-key, so a unit keyed off it "+
+			"stays fresh over an edit to repokey.go: %v", reached["ai/tools/eco-report"])
 	}
 	if got := reached["ai/tools/cadence"]; len(got) != 1 || got[0] != "ai/tools/cadence" {
 		t.Errorf("cadence's suite compiles nothing else in this module, and the graph answers %v — a "+

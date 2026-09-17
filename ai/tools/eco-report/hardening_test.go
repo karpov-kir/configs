@@ -1,7 +1,7 @@
 package ecoreport_test
 
 // What a careless or hostile input can make this tool do on disk. These cases are grouped by the
-// question they answer rather than by the file they exercise, the way mutants.go groups the same set.
+// question they answer rather than by the file they exercise.
 // The question is the one the move out of the tree opened: the scratch directory is now chosen by a
 // machine-local config file, lives outside the repository, holds the only copy of the intents, and is
 // the directory `discard` removes.
@@ -51,9 +51,9 @@ func TestTheScratchDirectoryIsReadableByItsOwnerAlone(t *testing.T) {
 	// Deliberately NOT parallel: the umask pinned on the next line is process-global, so running this
 	// beside other cases would change the mode of every directory they create.
 	//
-	// Pinned because the control is otherwise umask-dependent: under umask 077 a mutated 0o777 yields
-	// 0700 anyway, the mutant survives, and the case passes while observing nothing. 022 is the ordinary
-	// default and makes 0o777 land as 0755, which the assertion below can tell apart.
+	// Pinned because the control is otherwise umask-dependent: under umask 077 a broken 0o777 yields
+	// 0700 anyway and the case passes while observing nothing. 022 is the ordinary default and makes
+	// 0o777 land as 0755, which the assertion below can tell apart.
 	defer syscall.Umask(syscall.Umask(0o022))
 	// What the mode buys is at init.go's MkdirAll, which is the one place in the tool that creates this
 	// tree. Both assertions rest on this fixture reaching `init` before anything else does, and that is

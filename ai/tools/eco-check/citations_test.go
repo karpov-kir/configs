@@ -471,10 +471,6 @@ func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
 		newHarnessCitation(t, "fixture-test.sh").reports(ecocheck.HarnessCitationNote)
 	})
 
-	t.Run("and on one against a mutation list", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-mutate.sh").reports(ecocheck.HarnessCitationNote)
-	})
-
 	// The cost this choice takes, stated as a case: there is no escape hatch, so a harness may carry no
 	// citation literal at all. The finding still fires, and that is what makes the rule bind.
 	t.Run("and reports it all the same, since nothing here exempts a harness", func(t *testing.T) {

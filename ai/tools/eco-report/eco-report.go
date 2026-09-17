@@ -5,8 +5,8 @@
 // .idsd/intents/<intent>/for-agents/qualify-report.md, so two ships never share a file.
 //
 // It is a library with a thin command beside it, for the reason ecocheck is: the suite that proves it
-// drives it once per case, and a process spawn per case is the cost that makes a mutation run take
-// hours. Nothing here writes to os.Stdout or calls os.Exit — every path reports through the writers
+// drives it once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets. Nothing here writes to os.Stdout or calls os.Exit — every path reports through the writers
 // the Invocation carries and returns the code the command exits on — and nothing here holds state
 // between calls, so two runs in one process cannot see each other's caches.
 //

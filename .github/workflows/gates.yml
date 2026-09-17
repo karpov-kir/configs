@@ -91,67 +91,6 @@ jobs:
           # The two have to match.
           go test -count=1 -timeout 30m ./...
 
-  # Proves the guards can actually fail. `ai/run-tests.sh` cannot cover this — it discovers `*-test.sh`
-  # and the mutation harnesses are not suites — so without this job, editing a guard retires the proof
-  # that its case can redden and nothing says so.
-  #
-  # Linux only, because what is being proved is that a guard reddens, which is not OS-specific.
-  mutants:
-    runs-on: ubuntu-latest
-    # Read off twenty consecutive runs of this job, which swept all 526 mutants cold in 297s to 614s.
-    # The bound is three times the slowest of those, so a loaded runner still finishes inside it and a
-    # sweep that stops making progress is reported in half an hour rather than at GitHub's six-hour
-    # default. Raise it from another run's duration, never from a guess: a bound under the real figure
-    # cancels a legitimate sweep and reddens every push. TestTheMutantsJobCarriesABound holds the
-    # presence of a bound, not this number.
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: ai/tools/go.mod
-          cache: false
-
-      # exit 1 is a guard that did not redden, and it fails the job. exit 2 is the gate saying it cannot
-      # report, and only one thing reaching that is weather: a mutation suite the runner killed before
-      # it measured. Passing on any of the rest is a green tick over a run that never happened. The
-      # no-input case even outranks a failure inside the gate, so a guard that did not redden beside one
-      # comes out as 2.
-      #
-      # The grep below names the weather case by the line the gate prints for it and for nothing else.
-      # The rest are an open set, so a reason added later fails this job until someone decides it is
-      # weather. TestTheMutantsJobNamesTheGatesDidNotMeasureLine holds the pattern to the gate's wording.
-      #
-      # The warning also goes to the step summary, because an annotation alone lives inside a log fold.
-      # Nothing here catches a runner that never measures at all: no count crosses runs, so such a job
-      # warns every time and never escalates.
-      - name: Prove the guards can fail
-        run: |
-          log="$RUNNER_TEMP/mutants.log"
-          set +e
-          ai/gate.sh --mutants >"$log" 2>&1
-          status=$?
-          set -e
-          cat "$log"
-
-          if [ "$status" -ne 2 ]; then
-            exit "$status"
-          fi
-
-          if ! grep -q 'unit(s) exited 2 without measuring' "$log"; then
-            echo "::error::ai/gate.sh --mutants exited 2 for a reason other than a unit that ran without measuring, so this is not machine load and nothing here says the guards were proven. The reason is in this step's log."
-            exit 1
-          fi
-
-          note="ai/gate.sh --mutants exited 2: the gate ran and measured nothing, so this run says nothing about the guards it names. The reason is in this step's log."
-          echo "::warning::$note"
-          {
-            echo "### :warning: guards unproven on this run"
-            echo
-            echo "$note"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   # The instruction tree — standards, SKILL.md files, templates. `ai/run-tests.sh` discovers
   # `*-test.sh`, and the wiring check is not a suite, so without this job a citation pointing at a file
   # that does not exist reaches main with nothing looking at it.

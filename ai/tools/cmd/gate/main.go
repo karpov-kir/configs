@@ -1,6 +1,6 @@
 // The pre-commit gate as a command.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
+//	usage: gate.sh [--full] [--units] [--why <unit>] [--check-path <name>]
 package main
 
 import (

@@ -276,7 +276,7 @@ func TestACutRefusalSaysThatItWasCut(t *testing.T) {
 	// Matched on the whole cut name under the refusal's own wording, never on the marker alone: a
 	// refused import is also named in the uncounted-import note, which marks its own cut at a
 	// different bound — so "the marker is somewhere in the output" passes through that other call
-	// site whatever this one did. The mutation harness is where that was observed rather than argued.
+	// site whatever this one did, which is how the loose form was seen to pass over a broken bound.
 	t.Run("and marks that name under the refusal, not only in the census note", func(t *testing.T) {
 		kept := "../../" + strings.Repeat("e", budgetMessageBound-len("../../")-len(shell.CutMarker))
 		newLongRefusedImport(t).reports("named but not counted: " + kept + shell.CutMarker)

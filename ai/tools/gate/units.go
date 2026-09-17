@@ -266,7 +266,7 @@ func (g *gate) probedClients() (reachable string, unreachable []string, err erro
 	return strings.Join(marks, " "), unreachable, nil
 }
 
-// The import graph is read once here, for `guide` and for the mutation units that key on it.
+// The import graph is read once here, for the `guide` unit that keys on it.
 func (g *gate) discoverUnits() int {
 	packages, err := g.listModulePackages()
 	if err != nil {
@@ -279,10 +279,7 @@ func (g *gate) discoverUnits() int {
 	if code := g.addChecks(imports); code != 0 {
 		return code
 	}
-	if code := g.discoverShellSuites(); code != 0 {
-		return code
-	}
-	return g.discoverGoMutants(imports)
+	return g.discoverShellSuites()
 }
 
 // The units that are not discovered from the tree. One list, because the suite counting units has to

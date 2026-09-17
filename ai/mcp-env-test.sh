@@ -12,14 +12,11 @@
 # The control that makes the rest mean something is the sentinel one: "no secret reached the child"
 # passes just as well when the child printed nothing at all, so the same sentinels are measured
 # without the wrapper first, and that run has to find them.
-#
-# MCP_ENV_UNDER_TEST names the file every case drives, so a mutation run can point the whole suite at
-# a mutated copy without editing anything in the checkout.
 set -uo pipefail
 export LC_ALL=C
 
 here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-script="${MCP_ENV_UNDER_TEST:-$here/mcp-env.sh}"
+script="$here/mcp-env.sh"
 
 # Exit 2 and no summary line: the cases below are all `$script ...`, so a script this suite cannot
 # execute makes every one of them fail for a reason that has nothing to do with the guard it names.

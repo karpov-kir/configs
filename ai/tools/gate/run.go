@@ -48,14 +48,11 @@ const (
 	settledRan settledState = iota
 	settledEmpty
 	settledFresh
-	settledDeferred
-	settledUnasked
 )
 
 type runTally struct {
 	ran        int
 	fresh      int
-	deferred   int
 	failed     int
 	unmeasured int
 	empty      int
@@ -78,10 +75,8 @@ type slot struct {
 }
 
 // What the gate prints for a unit that ran and measured nothing, and for nothing else. Every other
-// exit 2 prints something different, and that set is open. `.github/workflows/gates.yml`'s mutants job
-// greps for this line to find the one exit it may warn and pass over. `workflows_test.go` holds the two
-// spellings together, and it finds this one by prefix, so keep the declaration at column zero and on
-// one line.
+// exit 2 prints something different, and that set is open. Keep the declaration at column zero and on
+// one line: anything reading this wording out of the source finds it by prefix.
 const didNotMeasureLine = "unit(s) exited 2 without measuring"
 
 // Every unit's key, and whether it settles without executing anything. Serial and cheap on purpose:
@@ -100,10 +95,6 @@ func (g *gate) planSlots(selected mode) ([]*slot, map[string][]*slot) {
 			sl.settled = settledEmpty
 		case selected != modeFull && g.hasRecord(u, key):
 			sl.settled = settledFresh
-		case u.kind == "mutation" && selected == modeFast:
-			sl.settled = settledDeferred
-		case u.kind == "check" && selected == modeMutants:
-			sl.settled = settledUnasked
 		}
 		if sl.settled != settledRan {
 			close(sl.done)
@@ -116,11 +107,10 @@ func (g *gate) planSlots(selected mode) ([]*slot, map[string][]*slot) {
 }
 
 func (g *gate) runUnits(selected mode, started time.Time) int {
-	name := map[mode]string{modeFast: "fast", modeFull: "full", modeMutants: "mutants"}[selected]
+	name := map[mode]string{modeFast: "fast", modeFull: "full"}[selected]
 	fmt.Fprintf(g.out, "%d unit(s): %s path\n\n", len(g.units), name)
 
 	tally := runTally{}
-	var deferredIDs []string
 
 	slots, lanes := g.planSlots(selected)
 
@@ -156,14 +146,6 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			g.unitLine("fresh", u.id, withShortfall(key[:12]+" — inputs unchanged since it last passed", u))
 			tally.fresh++
 			continue
-		case settledDeferred:
-			g.unitLine("DEFERRED", u.id, "inputs moved — not run on the fast path")
-			tally.deferred++
-			deferredIDs = append(deferredIDs, u.id)
-			continue
-		case settledUnasked:
-			g.unitLine("not asked", u.id, "--mutants settles the mutation units only")
-			continue
 		}
 
 		output, note, status, took := sl.output, sl.note, sl.status, sl.took
@@ -185,9 +167,9 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 		os.Remove(inputsFile)
 		switch status {
 		case 2:
-			// This repo's "it did not run" — a mutation suite the watchdog killed on a loaded machine, a
-			// fixture that could not be built. Held apart from a failure: calling it one names the code
-			// for something the machine did.
+			// This repo's "it did not run" — a fixture that could not be built, a prerequisite this
+			// machine does not provide. Held apart from a failure: calling it one names the code for
+			// something the machine did.
 			//
 			// For a unit with a prerequisite, that "something the machine did" reaches every key, not just
 			// this one. `prerequisite` is PATH presence, so a client that is installed and has stopped
@@ -211,7 +193,7 @@ func (g *gate) runUnits(selected mode, started time.Time) int {
 			tally.failed++
 		}
 	}
-	return g.reportRun(started, deferredIDs, tally)
+	return g.reportRun(started, tally)
 }
 
 // What a unit keeps after an unmeasured run. A unit with no prerequisite keeps every verdict but the

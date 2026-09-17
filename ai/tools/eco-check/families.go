@@ -60,8 +60,8 @@ func workflowStateDir() string { return "." + strings.TrimSuffix(workflowFamily,
 func workflowWorkerDir() string { return strings.TrimSuffix(workflowFamily, "-") }
 
 // The files a lane steers its reader with, in either tree: prose, and the scripts whose comments steer
-// just as surely. One list rather than the pair at each call site, so the mutation that proves scripts
-// are really read has one anchor to narrow.
+// just as surely. One list rather than the pair at each call site, so a reader asking whether scripts
+// are really read has one place to look.
 var laneProseAndScripts = []string{"*.md", "*.sh"}
 
 func (c *checker) scanFamilyDirection() {

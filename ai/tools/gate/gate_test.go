@@ -10,7 +10,7 @@
 //
 // Every case drives the gate through its units-file seam rather than the real table: that reaches the
 // run loop, the cache and every refusal in milliseconds, where discovering the real units means
-// building go-mutate and listing both harnesses — the very work this exists not to do.
+// running the suites themselves — the very work this exists not to do.
 package gate
 
 import (
@@ -199,15 +199,14 @@ func TestTwoIdsNamingOneCacheRecordExitTwo(t *testing.T) {
 	}
 }
 
-// Ids are package-qualified — `mutants:go:eco-check/shell.go` — and a `/` in one names a directory the
-// cache does not have, so every write for such a unit failed silently and `--mutants` reported a pass
-// having recorded nothing.
+// A `/` in an id names a directory the cache does not have, so every write for such a unit failed
+// silently and the run reported a pass having recorded nothing. recordStem is what flattens it.
 func TestAnIdHoldingASlashStillRecords(t *testing.T) {
 	f := newFixture(t)
 	f.write("watched.txt", "one\n")
-	f.table("mutants:go:pkg/file.go\tmutation\twatched.txt\t" + marker("ran.log", 0))
+	f.table("go:pkg/file.go\tcheck\twatched.txt\t" + marker("ran.log", 0))
 
-	f.run("--mutants")
+	f.run()
 	f.expectCode(0)
 	f.expectOut("ran ok")
 
@@ -216,49 +215,6 @@ func TestAnIdHoldingASlashStillRecords(t *testing.T) {
 	if got := f.runCount("ran.log"); got != 1 {
 		t.Errorf("the unit ran %d times, wanted 1 — its record did not stick", got)
 	}
-}
-
-func TestTheFastPathDefersMutationAndMutantsSettlesIt(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	// A check beside it, because a run whose ONLY unit is deferred has measured nothing and exits 2 by
-	// the same guard that catches a table resolving to nothing. Every real table has checks in it; a
-	// fixture without one would be asserting against a shape the gate never meets.
-	f.table(
-		"plain\tcheck\twatched.txt\t"+marker("check.log", 0),
-		"mutants:shell:x\tmutation\twatched.txt\t"+marker("ran.log", 0),
-	)
-
-	f.run()
-	f.expectCode(0)
-	f.expectOut("DEFERRED")
-	f.expectOut("ai/gate.sh --mutants")
-	if got := f.runCount("ran.log"); got != 0 {
-		t.Errorf("the fast path ran a mutation unit %d times", got)
-	}
-
-	f.run("--mutants")
-	f.expectCode(0)
-	f.expectOut("ran ok")
-	if got := f.runCount("ran.log"); got != 1 {
-		t.Errorf("--mutants ran it %d times, wanted 1", got)
-	}
-}
-
-func TestMutantsDoesNotRunTheChecks(t *testing.T) {
-	f := newFixture(t)
-	f.write("watched.txt", "one\n")
-	f.table("plain\tcheck\twatched.txt\t" + marker("ran.log", 0))
-	f.run("--mutants")
-	f.expectOut("not asked")
-	if got := f.runCount("ran.log"); got != 0 {
-		t.Errorf("--mutants ran a check %d times", got)
-	}
-	// Nothing ran and nothing was answered from cache, which is exit 2 and not a pass. Asserted here
-	// rather than in a case of its own, because this table — every unit set aside — is the shape that
-	// reaches that guard, and a run over it exiting 0 is the gate reporting a clean sweep it never took.
-	f.expectCode(2)
-	f.expectOut("nothing was measured and nothing was answered from cache")
 }
 
 // --full ignores a record and then refreshes it, so a unit that has started failing is caught rather

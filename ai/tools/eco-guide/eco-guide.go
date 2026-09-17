@@ -25,7 +25,8 @@
 // disagree with the page.
 //
 // It is a library with a thin command beside it, for the reason ecocheck and ecostats are: the suite
-// drives it once per case, and a process spawn per case is what makes a mutation run take hours.
+// drives it once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets.
 // Nothing here writes to os.Stdout or calls os.Exit, and nothing holds state between calls.
 //
 // Three exit codes, and never anything else. 0 — the page is written, the committed one already

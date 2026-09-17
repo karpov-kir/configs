@@ -3,9 +3,8 @@ package ecocheck_test
 // The fixture builders and the assertions the case files beside it are written against. This is the
 // only suite over these scans, so a case removed here is coverage gone, not coverage moved.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile, never by shelling out: a mutation harness
-// multiplies every fork by the length of its mutation list. `ai/tools/go-mutate` is what shows a case
-// here can fail.
+// Fixtures are built with os.MkdirAll and os.WriteFile, never by shelling out: on the machine these
+// are written on, a process costs about 100ms and a file write costs nothing.
 
 import (
 	"bytes"

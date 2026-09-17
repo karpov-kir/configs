@@ -83,34 +83,19 @@ func TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn(t *testing.T) {
 		}
 	}
 
-	// The mutation units, which are the risk: the harness prints resolved paths ABSOLUTE, and
-	// groupMutants trimming the root off them is the one place a root reaches an input at all. Driven
-	// off the fixture listing rather than real discovery, which would `go build` the harness and write
-	// a binary into the tree.
-	groups := grouped(t)
-	fromListing := false
-	for _, group := range groups {
-		for _, in := range group.inputs {
-			if strings.HasSuffix(in, ".go") {
-				fromListing = true
-			}
-			if filepath.IsAbs(in) {
-				t.Errorf("%s declares the absolute input %s — the harness's resolved path reached the "+
-					"key with the root still on it", group.id, in)
-			}
-		}
-		for _, file := range group.files {
-			if filepath.IsAbs(file) {
-				t.Errorf("%s hands the harness the absolute path %s, so its command names this "+
-					"checkout and its key moves with it", group.id, file)
+	// The control. Reading only `gofmt`, whose single input is a directory name written down in
+	// units.go, would pass this whether or not a discovered path ever reaches a key.
+	discovered := false
+	for _, u := range g.units {
+		for _, in := range u.inputs {
+			if strings.HasSuffix(in, ".sh") {
+				discovered = true
 			}
 		}
 	}
-	// The control. A group's inputs also hold suite directories and the harness's own tree, neither of
-	// which goes through the trim — without this, the loop above passes having read only those.
-	if !fromListing {
-		t.Fatalf("no group among %d holds a path from the listing's resolved column, so nothing above "+
-			"read a trimmed path", len(groups))
+	if !discovered {
+		t.Fatalf("no unit among %d declares a path discovery found, so the loop above read only the "+
+			"inputs units.go spells out", len(g.units))
 	}
 }
 

@@ -1,9 +1,8 @@
 // The pre-commit gate: every check this repo gates on, run only where the change could have moved it.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
-//	       (no flag)     the fast path — run what is stale, skip what is not, defer the mutation harnesses
+//	usage: gate.sh [--full] [--units] [--why <unit>] [--check-path <name>]
+//	       (no flag)     the fast path — run what is stale, skip what is not
 //	       --full        run everything from cold, ignoring and then refreshing every cached verdict
-//	       --mutants     settle the deferred mutation units, and nothing else
 //	       --units       print the unit table with each unit's freshness, and stop
 //	       --why         print the input files one unit is keyed on, and stop
 //	       --check-path  say whether a name is one the gate can safely build a command from, and stop
@@ -25,12 +24,11 @@
 //   - Resolve a unit to an empty input set. That is a rename or a typo silently narrowing the gate, so
 //     it exits 2 and names the unit, the way run-tests.sh exits 2 when discovery finds no suites.
 //   - Finish having resolved nothing at all. Also exit 2.
-//   - Skip something quietly. Every run prints one line per unit, and the deferred mutation units get
-//     their own block with the command that settles them.
+//   - Skip something quietly. Every run prints one line per unit.
 //
 // Go rather than shell, because the cost on this class of machine is process spawns rather than CPU,
 // and keying 60-odd units on their declared inputs is a library call here. What is left spawning is
-// the work itself — git's file list, the two mutation harnesses' listings, and each unit's own command.
+// the work itself — git's file list and each unit's own command.
 //
 // This is a fast path beside the full sweep, never instead of it: .github/workflows/gates.yml still
 // runs every command from cold on every push, and `--full` is the same sweep on demand.
@@ -72,7 +70,6 @@ type mode int
 const (
 	modeFast mode = iota
 	modeFull
-	modeMutants
 	modeUnits
 	modeWhy
 	modeCheckPath
@@ -81,7 +78,7 @@ const (
 
 type unit struct {
 	id     string
-	kind   string // "check" or "mutation"
+	kind   string // "check"
 	inputs []string
 	cmd    string
 	stem   string
@@ -107,15 +104,14 @@ type unit struct {
 }
 
 type gate struct {
-	env            Env
-	root           string
-	cache          string
-	stamp          string
-	out, errOut    io.Writer
-	units          []unit
-	manifest       []manifestLine
-	scratch        string
-	goMutateBinary string
+	env         Env
+	root        string
+	cache       string
+	stamp       string
+	out, errOut io.Writer
+	units       []unit
+	manifest    []manifestLine
+	scratch     string
 }
 
 type manifestLine struct {
@@ -132,7 +128,7 @@ func Run(args []string, env Env, out, errOut io.Writer) int {
 	return g.run(args)
 }
 
-const usageLine = "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]"
+const usageLine = "usage: gate.sh [--full] [--units] [--why <unit>] [--check-path <name>]"
 
 // A refusal raised while parsing the arguments, the one class a caller can fix from the flag list — so
 // it carries that list. One raised after parsing is not one the flag list answers.
@@ -212,8 +208,6 @@ func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string
 		switch args[i] {
 		case "--full":
 			selected = modeFull
-		case "--mutants":
-			selected = modeMutants
 		case "--units":
 			selected = modeUnits
 		case "--check-path":
@@ -423,10 +417,10 @@ func hashString(text string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// The record's filename, which is not the id. An id carries bytes a path segment may not: `:` in every
-// `mutants:go:…`, `+` where a unit covers more than one suite, and possibly a `/` — which would name a
-// directory the cache does not have, so every write for that unit would fail and `--mutants` would
-// report a pass having recorded nothing. Mutation ids hold no `/` today, but a units-file table may.
+// The record's filename, which is not the id. An id carries bytes a path segment may not: the `:` in
+// every `shell:…`, and possibly a `/` — which would name a directory the cache does not have, so every
+// write for that unit would fail and the run would report a pass having recorded nothing. No id holds
+// a `/` today, but a units-file table may.
 func recordStem(id string) string {
 	var b strings.Builder
 	for i := 0; i < len(id); i++ {

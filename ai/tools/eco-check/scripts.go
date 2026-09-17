@@ -270,13 +270,13 @@ func suiteIsAmbiguous(script, suite string, carriers []string) bool {
 	return true
 }
 
-// A script the tree treats as harness rather than as instruction: a suite, and the mutation list that
-// drives one. Held in one predicate because two scans turn on it and they must not drift into
-// different ideas of what a harness is — the test-position scan asks nothing of these files, and the
-// citation scan tells their author what to do about a fixture it just read as a citation.
+// A script the tree treats as harness rather than as instruction. Held in one predicate because two
+// scans turn on it and they must not drift into different ideas of what a harness is — the
+// test-position scan asks nothing of these files, and the citation scan tells their author what to do
+// about a fixture it just read as a citation.
 func isTestHarness(path string) bool {
 	base := shell.BaseName(path)
-	return strings.HasSuffix(base, "-test.sh") || strings.HasSuffix(base, "-mutate.sh")
+	return strings.HasSuffix(base, "-test.sh")
 }
 
 // Every scan that reads a usage line anchors on a lowercase `usage:` — flags.go's usageFlags,

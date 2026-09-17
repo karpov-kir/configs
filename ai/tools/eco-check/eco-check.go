@@ -3,7 +3,8 @@
 // declaring its layer, and no cycle of citations crossing one.
 //
 // It is a library with a thin command beside it, because the suite that proves it drives it once
-// per case and a process spawn per case is the cost that makes a mutation run take hours. Nothing
+// per case and a process spawn per case is what puts a suite over the time budget
+// testing.md sets. Nothing
 // here writes to os.Stdout or calls os.Exit: Run reports through the writers it is handed and returns
 // the code the command exits on. Every emit counter lives on the checker Run builds, so two runs in
 // one process cannot see each other's. The one thing held across them is scripts.go's `bash -n` memo,
@@ -13,8 +14,8 @@
 // stage over a branch that chose its own contents: NUL bytes in files, newlines in committed
 // filenames, symlinks at every path it touches, control bytes in anything echoed into a finding,
 // unbounded emit counts, and paths that resolve outside the root. A change here needs a case in the
-// suite beside it, and a scan you add needs one that fails without it — `ai/tools/go-mutate` is what
-// shows a case can fail. `check.sh` in kk-ecosystem's scripts/ is the stub that reaches this binary.
+// suite beside it, and a scan you add needs one seen to fail before the scan exists. `check.sh` in
+// kk-ecosystem's scripts/ is the stub that reaches this binary.
 package ecocheck
 
 import (

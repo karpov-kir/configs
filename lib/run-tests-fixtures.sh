@@ -9,7 +9,7 @@
 # underneath it.
 #
 # Before sourcing, a caller sets `suite_name` (what a refusal reports itself as) and `runner` (the
-# run-tests.sh under test, so a mutation run can point a suite at a mutated copy). After sourcing it
+# run-tests.sh under test). After sourcing it
 # has $tmp, TMPDIR pointed inside it, the skip counter, and the suite writers.
 #
 # Every case in both suites builds its own root under $tmp and points the runner at it. None of them

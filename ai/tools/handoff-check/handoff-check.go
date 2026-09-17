@@ -4,7 +4,8 @@
 // scan here asks one question: can somebody act on this without asking the author anything.
 //
 // It is a library with a thin command beside it, for the reason eco-check states: the suite drives it
-// once per case, and a process spawn per case is what makes a mutation run take hours. Nothing here
+// once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets. Nothing here
 // writes to os.Stdout or calls os.Exit. Run reports through the writers it is handed and returns the
 // code the command exits on, and every counter lives on the scan Run builds, so two runs in one
 // process cannot see each other's.
@@ -155,7 +156,8 @@ const (
 // instruction rather than a smudge.
 //
 // Held here and nowhere else. A site added later cannot opt out of a printer, and a second guard at
-// the message would be one this one makes unobservable — an unkillable mutant, reported as a survivor.
+// the message would be one this one makes unobservable — no case could be written that fails without
+// it.
 func printLine(w io.Writer, text string) {
 	fmt.Fprintln(w, shell.CutBytesMarked(shell.Oneline(text), lineWidthCap))
 }

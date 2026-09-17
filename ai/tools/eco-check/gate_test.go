@@ -172,7 +172,7 @@ func TestAGitignoredSkillDirectoryIsNotCounted(t *testing.T) {
 	f := newGitRoot(t)
 	// Installed, because the mount scan is the half only this list decides: everything else about a
 	// skill directory is reachable through the walk, so a clone's fixture would leave the guard
-	// unobserved and the mutant that removes it killing nothing.
+	// unobserved and this case passing whether or not it is there.
 	f.newHome()
 	f.mkdirAll(f.home + "/.claude/skills")
 	f.newMountedSkill("kk-real")
