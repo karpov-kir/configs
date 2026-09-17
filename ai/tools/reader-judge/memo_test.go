@@ -1,5 +1,5 @@
 // Cases for the record that makes an inconsistent model idempotent.
-package bloatjudge
+package readerjudge
 
 import (
 	"path/filepath"
@@ -16,15 +16,15 @@ func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 		return "1", nil // always the first unit left, so unchecked it would empty the file
 	}
 	var first, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &first, &errOut, greedy, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &first, &errOut, greedy, memo); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	var second strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", write(t, first.String())}, nil, &second, &errOut, greedy, memo); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"comment", write(t, first.String())}, nil, &second, &errOut, greedy, memo); code != exitClean {
 		t.Fatalf("the pruned text was judged again: exit %d, %q", code, second.String())
 	}
 	var replay strings.Builder
-	Run("bloat-judge.sh", []string{"comment", path}, nil, &replay, &errOut, greedy, memo)
+	Run("reader-judge.sh", []string{"comment", path}, nil, &replay, &errOut, greedy, memo)
 	if replay.String() != first.String() {
 		t.Fatalf("the original drew a different verdict on replay")
 	}
@@ -38,7 +38,7 @@ func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	memo := &Memo{Dir: filepath.Join(write(t, "not a dir"), "judged")}
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "1", nil }
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 }
@@ -87,7 +87,7 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	calls := 0
 	call := func(string, string) (string, error) { calls++; return "1", nil }
 	var out, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if calls != 1 {

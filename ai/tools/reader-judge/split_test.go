@@ -1,5 +1,5 @@
 // Cases for turning a text into units, and for applying a verdict back onto it.
-package bloatjudge
+package readerjudge
 
 import (
 	"strings"

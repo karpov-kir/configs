@@ -28,7 +28,7 @@ var notGoDriven = map[string]string{
 	// The other two the comment skip is holding: drop that skip and three units re-key, so all three
 	// have to be named here for the revert to redden.
 	"shell:ai/run-tests-concurrency": "this suite's own header naming ai/tools/gate/units.go",
-	"shell:lib/install-registry":     "lib/install-registry.sh's header naming a bloat-judge source",
+	"shell:lib/install-registry":     "lib/install-registry.sh's header naming a reader-judge source",
 	// These two say so themselves, because nothing in their text could: both are `# go-tools: none`.
 	"shell:ai/bootstrap":     "the ai/tools/install.sh it names is a stub it writes into its own fixture repo",
 	"shell:ai/rtk-bootstrap": "ai/bootstrap.sh does run the installer, on a branch all four of this suite's invocations skip with --skip-tools",

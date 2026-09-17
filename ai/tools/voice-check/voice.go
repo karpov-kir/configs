@@ -294,7 +294,7 @@ func onlyAdded(within map[int]bool) present {
 	return func(at int) bool { return within[at] }
 }
 
-// commentBlocks groups adjacent comment lines. Mirrors bloat-judge's own grouping: inside a `/*` run
+// commentBlocks groups adjacent comment lines. Mirrors reader-judge's own grouping: inside a `/*` run
 // every line belongs to the block until one carries `*/`, whatever it starts with — except that a gap
 // ends the run here, since the line that would have closed it may be one the diff did not touch.
 func commentBlocks(lines []string) []block { return commentBlocksIn(lines, wholeFile) }

@@ -1,4 +1,4 @@
-package bloatjudge
+package readerjudge
 
 import (
 	"errors"
@@ -32,7 +32,7 @@ type Configured struct {
 
 func Configure(configuration Configuration) (Configured, error) {
 	if _, present := os.LookupEnv("JUDGE_MODEL"); present {
-		return Configured{}, fmt.Errorf("JUDGE_MODEL is retired; set the bloat-judge task in models.json or use --config for an evaluation policy")
+		return Configured{}, fmt.Errorf("JUDGE_MODEL is retired; set the reader-judge task in models.json or use --config for an evaluation policy")
 	}
 	provider, err := resolveProvider()
 	if err != nil {
@@ -42,14 +42,14 @@ func Configure(configuration Configuration) (Configured, error) {
 	if err != nil {
 		return Configured{}, err
 	}
-	decision, err := policy.Resolve(modelpolicy.Request{Client: provider, Task: "bloat-judge"})
+	decision, err := policy.Resolve(modelpolicy.Request{Client: provider, Task: "reader-judge"})
 	if err != nil {
 		return Configured{}, err
 	}
 	// A vote needs a roll to count; the policy owns how many, so an unset count is its error, not a
 	// default this tool supplies.
 	if decision.Rolls < 1 {
-		return Configured{}, fmt.Errorf("the bloat-judge task sets no roll count, so there is no vote to take")
+		return Configured{}, fmt.Errorf("the reader-judge task sets no roll count, so there is no vote to take")
 	}
 	call := ClaudeCaller(configuration.Deadline, decision.Requested)
 	if provider == "codex" {
@@ -71,7 +71,7 @@ func namingTheFileThatDecides(call Caller, policyPath, overridePath string) Call
 		reply, err := call(prompt, view)
 		var refused *ModelRefused
 		if errors.As(err, &refused) {
-			return "", fmt.Errorf("%w, which the bloat-judge task in %s names", err, policyPath)
+			return "", fmt.Errorf("%w, which the reader-judge task in %s names", err, policyPath)
 		}
 		// Only when there is a path to name. A machine with no absolute config home has nowhere an
 		// override could sit, and pointing at the empty string would be worse than the bare bound.
@@ -111,7 +111,7 @@ func announcingASlowRoll(call Caller, deadline, silence time.Duration, progress 
 					return
 				case <-ticker.C:
 					speaking.Lock()
-					fmt.Fprintf(progress, "bloat-judge: a roll is still waiting, %s of its %s\n",
+					fmt.Fprintf(progress, "reader-judge: a roll is still waiting, %s of its %s\n",
 						time.Since(started).Round(time.Second), deadline)
 					speaking.Unlock()
 				}
@@ -162,7 +162,7 @@ func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
 
 func CodexCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
 	return func(prompt, view string) (string, error) {
-		dir, err := os.MkdirTemp("", "bloat-judge-")
+		dir, err := os.MkdirTemp("", "reader-judge-")
 		if err != nil {
 			return "", fmt.Errorf("could not isolate Codex: %w", err)
 		}

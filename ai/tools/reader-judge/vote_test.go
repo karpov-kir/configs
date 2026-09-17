@@ -1,5 +1,5 @@
 // Cases for the majority rule, and for reading one roll's answer.
-package bloatjudge
+package readerjudge
 
 import (
 	"sync"

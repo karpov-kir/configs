@@ -359,7 +359,7 @@ func isRefByte(b byte) bool {
 // **Every priced row prints its tier**, on its own line and again beside each dispatch of it. Only
 // the skills half carried tiers at first, which left the map silent about 22 of its 40 rows — and
 // `--cost`'s refusal on a worker redirects the reader here for exactly that number. Two rows are not
-// reachable any other way: `bloat-judge` and `kk-diagnose` have no outgoing edge and no
+// reachable any other way: `reader-judge` and `kk-diagnose` have no outgoing edge and no
 // `~/.kk-flavor/` path anywhere names them, so an earlier version that printed only the workers
 // which reach further left them out of a map whose own header counted them.
 func emitGraph(map_ workflow, out io.Writer) {

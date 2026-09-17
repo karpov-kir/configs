@@ -1,4 +1,4 @@
-package bloatjudge
+package readerjudge
 
 import (
 	"errors"
@@ -121,7 +121,7 @@ cat > "$answer"`)
 		t.Fatal(err)
 	}
 	dir := strings.TrimSpace(string(raw))
-	if !strings.Contains(filepath.Base(dir), "bloat-judge-") {
+	if !strings.Contains(filepath.Base(dir), "reader-judge-") {
 		t.Fatalf("not isolated: %s", dir)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
@@ -239,14 +239,14 @@ func TestARefusalNamesThePolicyFileThatChoseTheModel(t *testing.T) {
 	refuse := func(string, string) (string, error) {
 		return "", &ModelRefused{Client: "codex", Model: "gpt-5.4-mini"}
 	}
-	_, err := namingTheFileThatDecides(refuse, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view")
+	_, err := namingTheFileThatDecides(refuse, "/somewhere/models.json", "/somewhere/reader-judge.conf")("prompt", "view")
 	if err == nil {
 		t.Fatal("the wrapper dropped the refusal")
 	}
-	// "bloat-judge task" and not "judge profile": a refusal sends the reader to a key to edit, and
+	// "reader-judge task" and not "judge profile": a refusal sends the reader to a key to edit, and
 	// v4 deleted `profiles`. A message naming a construct the file no longer has costs the reader the
 	// one thing this wrapper exists to give them.
-	for _, want := range []string{"codex refused the model gpt-5.4-mini", "bloat-judge task", "/somewhere/models.json"} {
+	for _, want := range []string{"codex refused the model gpt-5.4-mini", "reader-judge task", "/somewhere/models.json"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("refusal %q does not say %q", err.Error(), want)
 		}
@@ -257,14 +257,14 @@ func TestARefusalNamesThePolicyFileThatChoseTheModel(t *testing.T) {
 // that fail some other way.
 func TestNamingThePolicyLeavesEveryOtherAnswerAlone(t *testing.T) {
 	answered := func(string, string) (string, error) { return "none", nil }
-	if reply, err := namingTheFileThatDecides(answered, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view"); reply != "none" || err != nil {
+	if reply, err := namingTheFileThatDecides(answered, "/somewhere/models.json", "/somewhere/reader-judge.conf")("prompt", "view"); reply != "none" || err != nil {
 		t.Errorf("a good roll came back %q, %v; want none, nil", reply, err)
 	}
 	broke := func(string, string) (string, error) {
 		return "", errors.New("the model did not answer (exit status 7)")
 	}
-	_, err := namingTheFileThatDecides(broke, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view")
-	if err == nil || strings.Contains(err.Error(), "models.json") || strings.Contains(err.Error(), "bloat-judge.conf") {
+	_, err := namingTheFileThatDecides(broke, "/somewhere/models.json", "/somewhere/reader-judge.conf")("prompt", "view")
+	if err == nil || strings.Contains(err.Error(), "models.json") || strings.Contains(err.Error(), "reader-judge.conf") {
 		t.Errorf("an unrelated failure was blamed on a config file: %v", err)
 	}
 }
@@ -274,11 +274,11 @@ func TestNamingThePolicyLeavesEveryOtherAnswerAlone(t *testing.T) {
 // about — nothing else in a gate's output points at it.
 func TestACutOffRollNamesTheFileThatSetsTheBound(t *testing.T) {
 	cutOff := func(string, string) (string, error) { return "", &RollTimedOut{Deadline: 900 * time.Second} }
-	_, err := namingTheFileThatDecides(cutOff, "/somewhere/models.json", "/somewhere/bloat-judge.conf")("prompt", "view")
+	_, err := namingTheFileThatDecides(cutOff, "/somewhere/models.json", "/somewhere/reader-judge.conf")("prompt", "view")
 	if err == nil {
 		t.Fatal("the wrapper dropped the expiry")
 	}
-	for _, want := range []string{"did not answer within 15m0s", "roll-timeout", "/somewhere/bloat-judge.conf"} {
+	for _, want := range []string{"did not answer within 15m0s", "roll-timeout", "/somewhere/reader-judge.conf"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("expiry %q does not say %q", err.Error(), want)
 		}

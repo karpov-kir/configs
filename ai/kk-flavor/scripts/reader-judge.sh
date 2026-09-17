@@ -2,7 +2,7 @@
 # The judge: what a named reader would delete from an outward text, decided by a model that sees only
 # what that reader sees.
 #
-#   usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
+#   usage: reader-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]   # no path reads stdin
 #
 # Set JUDGE_PROVIDER=codex or JUDGE_PROVIDER=claude explicitly. Missing, unknown or unavailable
 # providers fail with exit 2; no auto-selection or fallback. models.json selects the judge model.
@@ -14,17 +14,17 @@
 # inside its deadline, or an answer that was not numbers.
 #
 # Every attempted roll is bounded. Cancellation supplies no verdict.
-# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/bloat-judge.conf` retunes the bound on this machine
-# with a `roll-timeout <seconds>` line; `ai/tools/bloat-judge/deadline.go` holds the figure it replaces.
+# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/reader-judge.conf` retunes the bound on this machine
+# with a `roll-timeout <seconds>` line; `ai/tools/reader-judge/deadline.go` holds the figure it replaces.
 #
-# What the model may do, and why it is safe, is the package doc in `ai/tools/bloat-judge/judge.go`.
+# What the model may do, and why it is safe, is the package doc in `ai/tools/reader-judge/judge.go`.
 #
-# tested by: the Go suite beside the tool, `ai/tools/bloat-judge/`; the shared stub region below by
+# tested by: the Go suite beside the tool, `ai/tools/reader-judge/`; the shared stub region below by
 # tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
 
 set -euo pipefail
 
-tool="bloat-judge"
+tool="reader-judge"
 # How far THIS file sits above the tools directory.
 tools_offset="../.."
 

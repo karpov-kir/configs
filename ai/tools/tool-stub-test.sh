@@ -114,8 +114,8 @@ TABLE
 
 echo "shared:tool-stub"
 
-judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
-name="bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
+judge_stub="$ai/kk-flavor/scripts/reader-judge.sh"
+name="reader-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
 if [ -x "$judge_stub" ]; then
   judge_err="$base/judge-probe.err"
   # A well-formed invocation, so what refuses is the missing provider and not the grammar. Bare, the

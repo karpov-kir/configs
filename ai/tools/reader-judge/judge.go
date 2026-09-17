@@ -1,4 +1,4 @@
-// Package bloatjudge deletes prose by majority vote over independent rolls of the model.
+// Package readerjudge deletes prose by majority vote over independent rolls of the model.
 // --changed offers only blocks touched by the diff, while showing the model the whole file.
 // The model returns unit numbers; it cannot rewrite text or delete source code.
 //
@@ -16,7 +16,7 @@
 //   - Carry the judged content's hash on the artifact, such as a Judged trailer or HTML comment,
 //     so another machine can recognize the verdict. Today memoization is machine-local,
 //     under $XDG_CACHE_HOME/kk-flavor/judged.
-package bloatjudge
+package readerjudge
 
 import (
 	"fmt"
@@ -84,7 +84,7 @@ func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, 
 
 // The grammar, in one place, because two copies of it drift and `ai/tools/stub_usage_test.go` holds
 // this one against the stub's header byte for byte.
-const usageLine = "usage: bloat-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]"
+const usageLine = "usage: reader-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]"
 
 // What the option grammar says about these arguments, resolving nothing and reaching no provider.
 // Returns the refusal to print, or "" when the arguments are the grammar.

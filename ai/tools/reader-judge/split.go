@@ -3,7 +3,7 @@
 // A source file's units are its comment blocks; prose's are its markdown blocks. What is shown but
 // never offered lives here too — the code around a comment, a commit's subject and trailers, and
 // everything the diff did not touch.
-package bloatjudge
+package readerjudge
 
 import (
 	"fmt"

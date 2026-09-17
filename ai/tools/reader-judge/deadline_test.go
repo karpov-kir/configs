@@ -1,4 +1,4 @@
-package bloatjudge
+package readerjudge
 
 import (
 	"errors"
@@ -83,7 +83,7 @@ func TestWhatCountsAsARollDeadlineBudget(t *testing.T) {
 		{"a duration in a call that bounds no roll", "func f() { Waiting(10*time.Second, 3) }", nil, 0},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			budgets, rolls := rollDeadlines(t, "fixture_test.go", "package bloatjudge\n"+row.source+"\n")
+			budgets, rolls := rollDeadlines(t, "fixture_test.go", "package readerjudge\n"+row.source+"\n")
 			if rolls != row.rolls {
 				t.Errorf("found %d roll(s), want %d", rolls, row.rolls)
 			}
@@ -199,7 +199,7 @@ func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
 	path := write(t, source)
 	var out, errOut strings.Builder
 	fakeClaude(t, "sleep 30")
-	code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
+	code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
@@ -216,7 +216,7 @@ func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
 // single roll is spent, and an untuned machine saying nothing.
 func TestResolveRollDeadlineAnnouncesRefusesOrStaysQuiet(t *testing.T) {
 	quiet := t.TempDir()
-	deadline, path, ok := ResolveRollDeadline("bloat-judge.sh", quiet, quiet, failingWriter{t})
+	deadline, path, ok := ResolveRollDeadline("reader-judge.sh", quiet, quiet, failingWriter{t})
 	if !ok || deadline != defaultRollDeadline {
 		t.Fatalf("got %s ok=%v with no override, want the default and silence", deadline, ok)
 	}
@@ -229,17 +229,17 @@ func TestResolveRollDeadlineAnnouncesRefusesOrStaysQuiet(t *testing.T) {
 	tuned := t.TempDir()
 	writeOverride(t, tuned, "roll-timeout 45\n")
 	var said strings.Builder
-	if deadline, path, ok := ResolveRollDeadline("bloat-judge.sh", tuned, tuned, &said); !ok || deadline != 45*time.Second || path != overridePath(tuned, tuned) {
+	if deadline, path, ok := ResolveRollDeadline("reader-judge.sh", tuned, tuned, &said); !ok || deadline != 45*time.Second || path != overridePath(tuned, tuned) {
 		t.Fatalf("got %s %q ok=%v, want 45s at the override", deadline, path, ok)
 	}
-	if !strings.HasPrefix(said.String(), "bloat-judge.sh: ") || !strings.Contains(said.String(), "45s") {
+	if !strings.HasPrefix(said.String(), "reader-judge.sh: ") || !strings.Contains(said.String(), "45s") {
 		t.Fatalf("the announcement is not the tool's own voice: %q", said.String())
 	}
 
 	broken := t.TempDir()
 	writeOverride(t, broken, "timeout 45\n")
 	said.Reset()
-	if _, _, ok := ResolveRollDeadline("bloat-judge.sh", broken, broken, &said); ok {
+	if _, _, ok := ResolveRollDeadline("reader-judge.sh", broken, broken, &said); ok {
 		t.Fatal("a broken override let the judge run")
 	}
 	if !strings.Contains(said.String(), "the judge did NOT run") {
@@ -264,7 +264,7 @@ func TestRollDeadlineIsTheDefaultWithNoOverrideFile(t *testing.T) {
 }
 
 // A config home that is not absolute is no config home: read as given, a checkout shipping
-// `cfg/kk-flavor/bloat-judge.conf` would set the bound for every run made from inside it.
+// `cfg/kk-flavor/reader-judge.conf` would set the bound for every run made from inside it.
 func TestRollDeadlineIgnoresARelativeConfigHome(t *testing.T) {
 	home := t.TempDir()
 	writeOverride(t, filepath.Join(home, ".config"), "roll-timeout 300\n")
@@ -286,7 +286,7 @@ func TestAnOverrideThatTookEffectAnnouncesItself(t *testing.T) {
 	if err != nil || deadline != 45*time.Second {
 		t.Fatalf("got %s %v, want 45s", deadline, err)
 	}
-	for _, want := range []string{"45s", "bloat-judge.conf", defaultRollDeadline.String()} {
+	for _, want := range []string{"45s", "reader-judge.conf", defaultRollDeadline.String()} {
 		if !strings.Contains(override, want) {
 			t.Fatalf("the announcement does not carry %q: %q", want, override)
 		}
@@ -323,7 +323,7 @@ func TestAnUnusableOverrideRefusesRatherThanFallingBack(t *testing.T) {
 // fixture builds no refusal on a machine running as one (testing.md → 4).
 func TestAnOverridePathThatIsNotAFileRefuses(t *testing.T) {
 	config := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(config, "kk-flavor", "bloat-judge.conf"), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Join(config, "kk-flavor", "reader-judge.conf"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := rollDeadline(config, t.TempDir()); err == nil ||
@@ -335,7 +335,7 @@ func TestAnOverridePathThatIsNotAFileRefuses(t *testing.T) {
 // A dangling link reads as absent to an existence test alone, so it is checked for by name.
 func TestADanglingOverrideLinkRefusesInsteadOfReadingAsAbsent(t *testing.T) {
 	config := t.TempDir()
-	path := filepath.Join(config, "kk-flavor", "bloat-judge.conf")
+	path := filepath.Join(config, "kk-flavor", "reader-judge.conf")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +349,7 @@ func TestADanglingOverrideLinkRefusesInsteadOfReadingAsAbsent(t *testing.T) {
 
 func writeOverride(t *testing.T, configHome, content string) {
 	t.Helper()
-	path := filepath.Join(configHome, "kk-flavor", "bloat-judge.conf")
+	path := filepath.Join(configHome, "kk-flavor", "reader-judge.conf")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}

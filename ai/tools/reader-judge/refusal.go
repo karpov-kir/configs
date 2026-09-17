@@ -1,4 +1,4 @@
-package bloatjudge
+package readerjudge
 
 import (
 	"errors"

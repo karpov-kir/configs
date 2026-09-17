@@ -3,7 +3,7 @@
 // The model is not consistent: the same text drew two different verdicts on consecutive runs, and a
 // pass over its own output deleted more. Idempotence therefore cannot come from the model, so it
 // comes from here.
-package bloatjudge
+package readerjudge
 
 import (
 	"crypto/sha256"

@@ -21,7 +21,7 @@
 // reaching the API, and codex reaches it and comes back 400. A name it accepts costs the smallest
 // call that CLI can make, six of them for the whole file today.
 //
-// The probe goes through bloat-judge's own caller, so a name that passes here is proven against the
+// The probe goes through reader-judge's own caller, so a name that passes here is proven against the
 // argv the judge will actually use, and the refusal this reports is the one the judge reports.
 package modelcheck
 
@@ -33,7 +33,7 @@ import (
 	"os/exec"
 	"time"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
+	readerjudge "kk-flavor/tools/reader-judge"
 	modelpolicy "kk-flavor/tools/model-policy"
 	"kk-flavor/tools/shell"
 )
@@ -56,7 +56,7 @@ const (
 const maxSelections = 24
 
 // maxReportedSelectionBytes bounds the name part of one reported line, the way every tool here bounds
-// a name it echoes. 120 rather than the 80 bloat-judge's echoable uses, because a line here names
+// a name it echoes. 120 rather than the 80 reader-judge's echoable uses, because a line here names
 // where a selection comes from, a client, a model and an effort where that one names a single
 // argument.
 const maxReportedSelectionBytes = 120
@@ -153,7 +153,7 @@ func resolveAll(selections []modelpolicy.Selection, probe Probe) []verdict {
 }
 
 func isRefusal(err error) bool {
-	var refused *bloatjudge.ModelRefused
+	var refused *readerjudge.ModelRefused
 	return errors.As(err, &refused)
 }
 
@@ -211,9 +211,9 @@ func liveProbe(selection modelpolicy.Selection) error {
 		return fmt.Errorf("%s is not on PATH here, so nothing on this machine can ask about its models", selection.Client)
 	}
 	settings := modelpolicy.Settings{Model: selection.Model, Effort: selection.Effort}
-	call := bloatjudge.ClaudeCaller(probeDeadline, settings)
+	call := readerjudge.ClaudeCaller(probeDeadline, settings)
 	if selection.Client == "codex" {
-		call = bloatjudge.CodexCaller(probeDeadline, settings)
+		call = readerjudge.CodexCaller(probeDeadline, settings)
 	}
 	_, err := call(probePrompt, probeView)
 	return err

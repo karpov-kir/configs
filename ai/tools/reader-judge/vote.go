@@ -3,7 +3,7 @@
 // A unit is deleted only where more than half the independent rolls name it, and every roll goes out
 // at once. Each is parsed on its own, so one that explains instead of answering fails the whole vote
 // rather than being outvoted into silence.
-package bloatjudge
+package readerjudge
 
 import (
 	"fmt"

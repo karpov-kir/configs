@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
+	readerjudge "kk-flavor/tools/reader-judge"
 	modelpolicy "kk-flavor/tools/model-policy"
 )
 
@@ -71,7 +71,7 @@ func TestARefusedNameFailsAndNamesTheConfig(t *testing.T) {
 	path := policyFile(t)
 	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
 		if selection.Model == "cheap-codex" {
-			return &bloatjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
+			return &readerjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
 		}
 		return nil
 	}, path)

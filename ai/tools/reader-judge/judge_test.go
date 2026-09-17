@@ -1,4 +1,4 @@
-package bloatjudge
+package readerjudge
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ func TestRunOnASourceFileCutsOnlyComments(t *testing.T) {
 		}
 		return "1, 2, 3", nil
 	}
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d, want %d — %s", code, exitCut, errOut.String())
 	}
 	if got, want := out.String(), "\nfunc a() {}\n*ptr = 1\n"; got != want {
@@ -39,7 +39,7 @@ func TestRunNumbersPrintsFileLines(t *testing.T) {
 	path := write(t, source)
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "2", nil }
-	Run("bloat-judge.sh", []string{"--numbers", "comment", path}, nil, &out, &errOut, call, nil)
+	Run("reader-judge.sh", []string{"--numbers", "comment", path}, nil, &out, &errOut, call, nil)
 	if out.String() != "5\n" {
 		t.Fatalf("got %q, want the file line of unit 2", out.String())
 	}
@@ -56,11 +56,11 @@ func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
 		return "none", nil
 	}
 	var first, second, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &first, &errOut, call, nil); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &first, &errOut, call, nil); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	again := write(t, first.String())
-	if code := Run("bloat-judge.sh", []string{"comment", again}, nil, &second, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"comment", again}, nil, &second, &errOut, call, nil); code != exitClean {
 		t.Fatalf("second run exit %d, want clean — %s", code, errOut.String())
 	}
 	if second.String() != first.String() {
@@ -79,7 +79,7 @@ func TestRunRefusesARollThatReachedNoVerdict(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			path := write(t, source)
 			var out, errOut strings.Builder
-			if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitDidNotRun {
+			if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitDidNotRun {
 				t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 			}
 			if out.Len() != 0 {
@@ -130,7 +130,7 @@ func TestClaudeArgsWithNoEffortStillEndAtThePrompt(t *testing.T) {
 
 func TestRunRefusesAnUnknownKind(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"poem"}, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
+	if code := Run("reader-judge.sh", []string{"poem"}, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 	if !strings.Contains(errOut.String(), "comment commit instruction pr-body record-entry reply report return review slack ticket") {
@@ -141,7 +141,7 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 // A path carrying a newline must not forge a second line in the refusal.
 func TestARefusalCarriesNoControlByteFromItsArgument(t *testing.T) {
 	var out, errOut strings.Builder
-	Run("bloat-judge.sh", []string{"comment", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
+	Run("reader-judge.sh", []string{"comment", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
 	if strings.ContainsAny(errOut.String()[:len(errOut.String())-1], "\n\x1b") {
 		t.Fatalf("the refusal carried a control byte through: %q", errOut.String())
 	}
@@ -154,7 +154,7 @@ func TestRunPassesThroughWithNoUnits(t *testing.T) {
 		t.Fatal("the model was called with nothing to judge")
 		return "", nil
 	}
-	if code := Run("bloat-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitClean {
 		t.Fatalf("exit %d, want clean", code)
 	}
 	if out.String() != "func a() {}\n" {
@@ -171,7 +171,7 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 		return "2", nil
 	}
 	in := strings.NewReader("What changes.\n\nWhy the writer is right about it.\n")
-	if code := Run("bloat-judge.sh", []string{"pr-body"}, in, &out, &errOut, call, nil); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"pr-body"}, in, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != "What changes.\n\n" {
@@ -214,7 +214,7 @@ func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 		}
 		return "1", nil
 	}
-	if code := RunIn("bloat-judge.sh", []string{"--changed", "comment", "f.go"}, repo, nil, &out, &errOut, call, nil); code != exitCut {
+	if code := RunIn("reader-judge.sh", []string{"--changed", "comment", "f.go"}, repo, nil, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != committed+"func c() {}\n" {
@@ -224,7 +224,7 @@ func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
 
 func TestChangedRefusesWithoutAPath(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Run("bloat-judge.sh", []string{"--changed", "pr-body"}, strings.NewReader("x\n"), &out, &errOut, nil, nil); code != exitDidNotRun {
+	if code := Run("reader-judge.sh", []string{"--changed", "pr-body"}, strings.NewReader("x\n"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 }

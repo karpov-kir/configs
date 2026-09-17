@@ -983,9 +983,9 @@ var mutants = []mutant{
 	{"bar: a shebang marks the file as begun and displaces its header", "../voice-check/bar.go", "./voice-check/", "TestAHeaderUnderAShebangKeepsTheHeadersAllowance",
 		"\t\t\t// keeps the allowance the voice check gives it.\n\t\t\tcloseRun()",
 		"\t\t\t// keeps the allowance the voice check gives it.\n\t\t\tcloseRun()\n\t\t\tseen = true"},
-	{"judge: a shebang is offered as a unit the model may delete", "../bloat-judge/split.go", "./bloat-judge/", "TestAShebangIsNeverOfferedAsAUnit",
+	{"judge: a shebang is offered as a unit the model may delete", "../reader-judge/split.go", "./reader-judge/", "TestAShebangIsNeverOfferedAsAUnit",
 		"\t\tif i == 0 && strings.HasPrefix(line, \"#!\") {", "\t\tif i == 0 && strings.HasPrefix(line, \"#!\") && false {"},
-	{"judge: a hash-bang anywhere is withheld", "../bloat-judge/split.go", "./bloat-judge/", "TestAHashBangBelowTheFirstLineIsAnOrdinaryComment",
+	{"judge: a hash-bang anywhere is withheld", "../reader-judge/split.go", "./reader-judge/", "TestAHashBangBelowTheFirstLineIsAnOrdinaryComment",
 		"\t\tif i == 0 && strings.HasPrefix(line, \"#!\") {", "\t\tif strings.HasPrefix(line, \"#!\") {"},
 	{"voice: a shebang is counted as part of the file header", "../voice-check/voice.go", "./voice-check/", "TestAShebangIsNotPartOfTheFileHeader",
 		"\t\tcase isShebang(at, line):\n\t\t\t// An interpreter directive, not a comment.", "\t\tcase isShebang(at, line) && false:\n\t\t\t// An interpreter directive, not a comment."},
@@ -1465,11 +1465,11 @@ var mutants = []mutant{
 	// The rule that stops a loaded machine reddening this package: a case bounds a roll either at the
 	// shared out-of-reach constant or at a sub-second figure it is actually asking about. A guard that
 	// exempted everything would read exactly like this one and observe nothing.
-	{"judge: the shared roll deadline stops exempting", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+	{"judge: the shared roll deadline stops exempting", "../reader-judge/deadline_test.go", "./reader-judge/", "TestWhatCountsAsARollDeadlineBudget",
 		`if spelled == "notTheSubject" {`, `if spelled == "notTheSubject" && false {`},
-	{"judge: every deadline counts as sub-second", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+	{"judge: every deadline counts as sub-second", "../reader-judge/deadline_test.go", "./reader-judge/", "TestWhatCountsAsARollDeadlineBudget",
 		`[]string{"time.Millisecond", "time.Microsecond", "time.Nanosecond"}`, `[]string{""}`},
-	{"judge: the scan stops caring which call bounds a roll", "../bloat-judge/deadline_test.go", "./bloat-judge/", "TestWhatCountsAsARollDeadlineBudget",
+	{"judge: the scan stops caring which call bounds a roll", "../reader-judge/deadline_test.go", "./reader-judge/", "TestWhatCountsAsARollDeadlineBudget",
 		`if !isName || (callee.Name != "ClaudeCaller" && callee.Name != "CodexCaller") {`, `if !isName || callee.Name == "" {`},
 }
 

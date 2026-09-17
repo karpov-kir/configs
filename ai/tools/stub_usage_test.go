@@ -64,7 +64,7 @@ var refusals = []refusal{
 	// Its main names a provider and loads a policy before the argument count is looked at, and refuses
 	// without one — so this row reaches the usage line only with a provider named. No provider is
 	// called: what refuses is the missing argument.
-	{stub: "ai/kk-flavor/scripts/bloat-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}},
+	{stub: "ai/kk-flavor/scripts/reader-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}},
 	{stub: "ai/kk-flavor/scripts/model-check.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/scripts/model-policy.sh", args: []string{"--nope"}},
 	// Two roots where the tool takes one path.

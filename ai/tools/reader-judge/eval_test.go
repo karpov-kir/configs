@@ -2,7 +2,7 @@
 // exists because capping the model's thinking and changing which model rolls both change what the
 // judge deletes — the one thing it may not get wrong — and no timing run tells a fast configuration
 // from one that eats a load-bearing paragraph.
-package bloatjudge
+package readerjudge
 
 import (
 	"fmt"
@@ -189,7 +189,7 @@ func TestEveryCorpusCaseParsesAndLabelsARealUnit(t *testing.T) {
 }
 
 // How a label is checked by eye, since a case's numbering comes from the judge's own Split and not
-// from counting lines: `JUDGE_EVAL_SHOW=1 go test ./bloat-judge/ -run TestShowCorpus -v`.
+// from counting lines: `JUDGE_EVAL_SHOW=1 go test ./reader-judge/ -run TestShowCorpus -v`.
 func TestShowCorpus(t *testing.T) {
 	if os.Getenv("JUDGE_EVAL_SHOW") == "" {
 		t.Skip("JUDGE_EVAL_SHOW is unset")
@@ -365,7 +365,7 @@ func (v variant) run(c evalCase) trial {
 }
 
 // Spends a model call per roll per case per variant, so it runs only when JUDGE_EVAL names variants —
-// `JUDGE_EVAL=baseline,codex go test ./bloat-judge/ -run TestJudgeEval -v -timeout 2h`, the names
+// `JUDGE_EVAL=baseline,codex go test ./reader-judge/ -run TestJudgeEval -v -timeout 2h`, the names
 // being the `variants` list below. An unknown one fails the run rather than being skipped, so a stale
 // command cannot measure less than it claims.
 func TestJudgeEval(t *testing.T) {

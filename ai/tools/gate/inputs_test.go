@@ -349,7 +349,7 @@ func TestTheGuideUnitIsKeyedOnEveryFileItsPageIsBuiltFrom(t *testing.T) {
 // `ai/tools/model-policy` is the entry that shows why this is worth a case: `Selections()` lives there
 // and decides which names the probe asks about. Drop that one and repricing a row changes the question
 // while the unit answers from the last run's record — a provider never asked about the new name, and a
-// green saying it was. `bloat-judge` is here for the same reason one step out: the probe runs through
+// green saying it was. `reader-judge` is here for the same reason one step out: the probe runs through
 // its callers, so the argv a name is proven against is built there.
 //
 // What this catches is an entry TRIMMED from the declaration, and only that — hence "stays keyed".
@@ -361,7 +361,7 @@ func TestTheModelsUnitStaysKeyedOnThePackagesItsProbeIsBuiltFrom(t *testing.T) {
 
 	want := []string{"ai/kk-flavor/models.json", "ai/kk-flavor/scripts/model-check.sh",
 		"ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
-		"ai/tools/bloat-judge", "ai/tools/shell"}
+		"ai/tools/reader-judge", "ai/tools/shell"}
 	found := false
 	for _, u := range g.units {
 		if u.id != "models" {

@@ -63,7 +63,7 @@ var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-fla
 var extStubs = []string{
 	"ai/gate.sh",
 	"ai/guide.sh",
-	"ai/kk-flavor/scripts/bloat-judge.sh",
+	"ai/kk-flavor/scripts/reader-judge.sh",
 	"ai/kk-flavor/scripts/model-check.sh",
 	"ai/kk-flavor/scripts/model-policy.sh",
 	"ai/kk-flavor/scripts/repo-key.sh",
@@ -199,10 +199,10 @@ func (g *gate) addGuideCheck(imports map[string][]string) int {
 // package doc carries why that question needs asking at all.
 //
 // Keyed on the file it checks, the stub that runs it, and each package the check is built from —
-// bloat-judge among them, because the probe goes through its caller. Not on `ai/tools`: this is the
+// reader-judge among them, because the probe goes through its caller. Not on `ai/tools`: this is the
 // one unit whose command spends money, and keying it on the whole module would buy a model call per
 // name out of any Go edit at all. Direct imports rather than the transitive closure, as addGuideCheck
-// above does: `go list -deps` also reaches diffscan, through a bloat-judge file no probe calls. So a
+// above does: `go list -deps` also reaches diffscan, through a reader-judge file no probe calls. So a
 // new import has to be added to this list by hand.
 //
 // Blind to the module's test files, like every other unit that observes a compiled binary, and
@@ -218,7 +218,7 @@ func (g *gate) addModelCheck() int {
 	}
 	g.addUnit(unit{id: "models", kind: "check", blindToGoTests: true,
 		inputs: []string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
-			"ai/tools/bloat-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
+			"ai/tools/reader-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
 		cmd:                   "ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh",
 		prerequisite:          reachable,
 		prerequisiteShortfall: unaskedProviderNote(unreachable)})

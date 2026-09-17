@@ -249,7 +249,7 @@ Nothing here identifies the stall. What the number can do is survive it, which a
 
 **A managed policy setting still reaches a judge roll, and nothing here can refuse it.** The client's
 setting sources and the roll's environment are both allow-lists now, and `runBounded` is the single
-seam both `bloat-judge` and `model-check` shell out through, so one list covers every provider call
+seam both `reader-judge` and `model-check` shell out through, so one list covers every provider call
 this repo makes. A managed setting is merged above all of them by the client itself. Nothing in the
 tree can close that; what it can do is stop claiming isolation, which
 [model-policy.md](ai/kk-flavor/standards/model-policy.md) now does.
