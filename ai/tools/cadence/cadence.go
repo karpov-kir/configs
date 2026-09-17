@@ -19,10 +19,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"kk-flavor/tools/repo"
 )
 
 const intervalDays = 7
@@ -50,7 +51,7 @@ type Clock func() time.Time
 // Run executes one invocation and returns its exit code. `cwd` is the directory the caller stood in,
 // which is what the repository is resolved from — passed rather than read from the process so the
 // suite can drive many fixtures without chdir'ing a shared process.
-func Run(self string, args []string, cwd string, now Clock, stdout, stderr io.Writer) int {
+func Run(self string, args []string, cwd string, git repo.Git, now Clock, stdout, stderr io.Writer) int {
 	topic := ""
 	if len(args) > 0 {
 		topic = args[0]
@@ -74,7 +75,7 @@ func Run(self string, args []string, cwd string, now Clock, stdout, stderr io.Wr
 	// duplication is deliberate — that resolver answers a different question about a different
 	// directory, and a shared helper would make each one's failure the other's. Change one and read
 	// the other.
-	state, err := recordPath(cwd)
+	state, err := recordPath(git, cwd)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", self, err)
 		return exitUndetermined
@@ -224,33 +225,20 @@ func parseDate(text string) (time.Time, bool) {
 // git is asked rather than the layout being walked here. `--git-common-dir` knows about linked
 // worktrees, alternates and `$GIT_DIR`, and reimplementing that would put a second, quietly diverging
 // answer in the tree — one whose failure mode is writing the record somewhere no other caller looks,
-// which is invisible until the offer repeats forever.
-func recordPath(cwd string) (string, error) {
-	root, err := git(cwd, "rev-parse", "--show-toplevel")
+// which is invisible until the offer repeats forever. What git said about either failure is dropped:
+// its wording names a cause the caller cannot act on, where the two refusals below say what was not
+// determined.
+func recordPath(git repo.Git, cwd string) (string, error) {
+	root, err := git.TopLevel(cwd)
 	if err != nil || root == "" {
 		return "", errors.New("not inside a git repository, so there is no per-repo record — nothing was determined.")
 	}
-	// Asked from the root and absolutized against it, because `--git-common-dir` answers relative to
-	// the caller's cwd in an ordinary repo: left relative, the record is written to a `.git` the
-	// caller's own subdirectory does not have, created on the spot and invisible to everyone else.
-	gitDir, err := git(root, "rev-parse", "--git-common-dir")
+	// Asked from the root, never from the caller's own directory: git answers `--git-common-dir`
+	// relative to where it ran in an ordinary repo, so asked from a subdirectory the port anchors a
+	// bare `.git` there and the record lands beside the caller, invisible to everyone else.
+	gitDir, err := git.CommonDir(root)
 	if err != nil || gitDir == "" {
 		return "", errors.New("could not resolve the repository's shared git dir — nothing was determined.")
 	}
-	if !filepath.IsAbs(gitDir) {
-		gitDir = filepath.Join(root, gitDir)
-	}
 	return filepath.Join(gitDir, recordName), nil
-}
-
-func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	// git's stderr is dropped: every failure here becomes one of the two refusals above, which say
-	// what was not determined. git's own wording would name a cause the caller cannot act on.
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimRight(string(out), "\n"), nil
 }
