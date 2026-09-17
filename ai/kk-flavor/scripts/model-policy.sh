@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Resolve requested model settings without launching a worker. --help lists every argument.
 # usage: model-policy.sh --client codex|claude --task <task> [--config <file>] [--limits] [--help]
-# tested by: the Go suite in ai/tools/model-policy/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/model-policy/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="model-policy"

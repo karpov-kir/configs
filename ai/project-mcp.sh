@@ -8,7 +8,7 @@
 #
 # The recipe is Go, in `ai/tools/project-mcp/`.
 #
-# tested by: the Go suite in ai/tools/project-mcp/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/project-mcp/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="project-mcp"

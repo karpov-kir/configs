@@ -11,7 +11,7 @@
 # $HOME. Both installs symlink into the same repo, so they ship together or not at all.
 #
 # tested by: the Go suite beside the tool, `ai/tools/eco-report/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

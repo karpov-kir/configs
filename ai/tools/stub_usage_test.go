@@ -1,7 +1,7 @@
 // A stub's header documents a usage line and the binary behind it prints one when it refuses a bad
 // invocation. Nothing else compares the two: each binary's line is asserted in its own suite and each
-// stub's is only grepped for its lowercase prefix by tool-stub-test.sh, so the two flag lists could
-// drift apart with both suites green.
+// stub's is only scanned for its lowercase prefix by eco-check, so the two flag lists could drift
+// apart with both suites green.
 //
 // The stubs are discovered and never listed, so the one written tomorrow is held here without an edit.
 // What no scan can derive is the invocation that makes each tool refuse: a guess either scans the
@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	// A stub carries the shared region AS a region. tool-stub-test.sh names the marker only inside the
-	// strings it searches for, so it answers a grep for the name and carries neither of these lines —
-	// which is the difference between a stub and a file that talks about stubs. Told apart by that
-	// property rather than by name, because a name here is the stale list this suite exists to replace.
+	// A stub carries the shared region AS a region. A file that names the marker inside a string it
+	// searches for answers a grep for the name and carries neither of these lines, which is the
+	// difference between a stub and a file that talks about stubs. Told apart by that property rather
+	// than by name, because a name here is the stale list this suite exists to replace.
 	stubRegionOpen  = "# --- shared:tool-stub ---"
 	stubRegionClose = "# --- end shared:tool-stub ---"
 	// What every stub declares the tool behind it to be, and how this suite finds the package to build.

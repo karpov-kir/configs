@@ -116,7 +116,7 @@ func TestFlagCallSites(t *testing.T) {
 		f.reports(flagFinding("--full"))
 	})
 
-	// Lowercase, the spelling subcommands.go and tool-stub-test.sh already hold every script to. A
+	// Lowercase, the spelling subcommands.go and ai/tools/stub_usage_test.go hold every script to. A
 	// capitalised `Usage:` is a script with no usage line, which is the other finding and not a pass.
 	t.Run("reads a capitalised Usage: as no usage line at all", func(t *testing.T) {
 		f := newFlagScript(t, "#   Usage: toy.sh [--gate]")

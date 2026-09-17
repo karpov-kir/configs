@@ -26,7 +26,7 @@
 # anchor that stops a file's own content forging a header.
 #
 # tested by: the Go suite beside the tool, `ai/tools/dup-literals/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

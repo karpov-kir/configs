@@ -20,7 +20,7 @@
 # What the model may do, and why it is safe, is the package doc in `ai/tools/bloat-judge/judge.go`.
 #
 # tested by: the Go suite beside the tool, `ai/tools/bloat-judge/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

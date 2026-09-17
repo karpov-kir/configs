@@ -17,7 +17,7 @@
 # much costs only a rebuild the next run would make anyway. `_test.go` is the one exclusion, because
 # no test file reaches a binary.
 #
-# tested by: source-stamp-test.sh
+# tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
 set -euo pipefail
 
 die() {
@@ -37,8 +37,8 @@ case "$tool" in
 esac
 
 # macOS ships shasum, most Linux images ship sha256sum, and a release is stamped on one and read on
-# the other — so this rests on the two writing a digest and a name the same way, which
-# source-stamp-test.sh asserts.
+# the other — so this rests on the two writing a digest and a name the same way, which the Go suite
+# in ai/tools/reach/ asserts.
 if command -v shasum >/dev/null 2>&1; then
   hasher=(shasum -a 256)
 elif command -v sha256sum >/dev/null 2>&1; then

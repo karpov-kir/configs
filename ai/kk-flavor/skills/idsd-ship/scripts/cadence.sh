@@ -13,7 +13,7 @@
 # caller that reads one as the other suppresses the pass for as long as the bad record sits there.
 #
 # tested by: the Go suite beside the tool, `ai/tools/cadence/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

@@ -19,7 +19,7 @@
 #
 # tested by: the Go suite in ai/tools/cite-graph/, which drives the tool in process — every figure
 # above, and each of the two ways a root can fail to name one tree. The shared stub region below is
-# covered by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# covered by the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

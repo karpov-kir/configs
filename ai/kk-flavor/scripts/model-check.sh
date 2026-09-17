@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ask each provider whether it will run the model names models.json holds. Judges no text.
 # usage: model-check.sh [--config <policy.json>]
-# tested by: the Go suite in ai/tools/model-check/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/model-check/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="model-check"

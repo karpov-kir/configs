@@ -12,7 +12,7 @@
 # The recipe is Go, in `ai/tools/env-bootstrap/`. env/ and ai/ install together for that reason: this
 # reaches the resolver next door, and a checkout carrying only env/ has nothing to run.
 #
-# tested by: the Go suite in ai/tools/env-bootstrap/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/env-bootstrap/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="env-bootstrap"

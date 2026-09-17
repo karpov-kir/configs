@@ -20,7 +20,7 @@
 # and not when anything here does.
 #
 # tested by: the Go suite beside the tool, `ai/tools/tree-fingerprint/`; the shared stub region below
-# by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# by the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

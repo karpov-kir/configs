@@ -307,8 +307,8 @@ func isTestHarness(path string) bool {
 // spelling is reported here instead, and the scans stay lowercase-only.
 //
 // Every `*.sh`, the harness included. A `-test.sh` header is as invisible to those scans as any
-// other, and tool-stub-test.sh's own refusal of a capitalised `Usage:` reaches only the files
-// carrying the tool-stub shared region.
+// other, and ai/tools/stub_usage_test.go, which refuses a capitalised `Usage:` too, reaches only the
+// files carrying the tool-stub shared region.
 func (c *checker) scanUsageSpelling() {
 	for script, lines := range c.filesWithLines(c.root.Named(), "*.sh") {
 		spelling := unreadUsageSpelling(lines)

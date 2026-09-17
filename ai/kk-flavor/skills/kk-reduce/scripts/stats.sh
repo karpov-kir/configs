@@ -9,7 +9,7 @@
 # ../stats.md is found from argv[0], so this must stay in the skill's scripts/ directory.
 #
 # tested by: the Go suite beside the tool, `ai/tools/eco-stats/`; the shared stub region below by
-# tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 

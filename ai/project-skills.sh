@@ -7,7 +7,7 @@
 #
 # The recipe is Go, in `ai/tools/project-install/`.
 #
-# tested by: the Go suite in ai/tools/project-install/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/project-setup/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="project-skills"

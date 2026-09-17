@@ -8,7 +8,7 @@
 # The recipe is Go, in `ai/tools/ai-bootstrap/`. What is left here is the one part of a machine install
 # that cannot be: reaching a Go binary on a machine that has none.
 #
-# tested by: the Go suite in ai/tools/ai-bootstrap/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/ai-bootstrap/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="ai-bootstrap"

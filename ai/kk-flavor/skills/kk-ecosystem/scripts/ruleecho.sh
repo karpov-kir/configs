@@ -8,8 +8,8 @@
 # could not run must never be mistaken for one that found nothing.
 #
 # tested by: the Go suite in ai/tools/rule-echo/, which drives the tool in process — the matcher, and
-# all three exit codes above. The shared stub region below is covered by tool-stub-test.sh, and the
-# resolver it calls by resolve-test.sh.
+# all three exit codes above. The shared stub region below, and the resolver it calls, by the Go
+# suite in ai/tools/reach/.
 
 set -euo pipefail
 

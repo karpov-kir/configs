@@ -12,7 +12,7 @@
 #
 # The recipe is Go, in `ai/tools/mcp-sync/`.
 #
-# tested by: the Go suite in ai/tools/mcp-sync/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/mcp-sync/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="mcp-sync"

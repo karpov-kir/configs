@@ -15,7 +15,7 @@ func TestAnUnknownOptionIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 }
 
 // The stub's own basename, which is the string eco-check's scans anchor on to read a stub's grammar
-// and find the dispatch behind it. ai/tools/tool-stub-test.sh holds every stub to it.
+// and find the dispatch behind it. ai/tools/stub_usage_test.go holds every stub to it.
 func TestHelpPrintsTheUsageLineAndChangesNothing(t *testing.T) {
 	f := newFixture(t)
 

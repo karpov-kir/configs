@@ -13,7 +13,7 @@
 #
 # The recipe is Go, in `ai/tools/repo-key/`; Go callers import it rather than coming through here.
 #
-# tested by: the Go suite in ai/tools/repo-key/; shared stub by tool-stub-test.sh.
+# tested by: the Go suite in ai/tools/repo-key/; stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="repo-key"

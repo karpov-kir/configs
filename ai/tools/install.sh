@@ -24,7 +24,7 @@
 # nothing to download and nothing went wrong. The third is separate because a caller cannot otherwise
 # tell it from a download that failed, and the two send a reader to different places.
 #
-# tested by: install-test.sh
+# tested by: the Go suite in ai/tools/reach/, which execs this script and sources it.
 # untested: the download itself, which is a `gh release download` against a real release — faking gh
 # would only assert the fake, so run it and read what lands in bin/. Its argv is faked, because which
 # repository and tag this asks for is this script's decision rather than an answer from GitHub. How
@@ -154,8 +154,8 @@ releases_state() { # <owner/name>
   fi
 }
 
-# install-test.sh sources this file to reach the functions above, so sourcing stops here. Only a
-# direct run downloads anything.
+# The suite in ai/tools/reach/ sources this file to reach the functions above, so sourcing stops
+# here. Only a direct run downloads anything.
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
   return 0
 fi

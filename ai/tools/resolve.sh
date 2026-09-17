@@ -23,7 +23,7 @@
 # none is what a clean tree looks like, and a tool that could not run must never reach a caller as
 # silence: an empty stdout is not enough, the caller has to be told.
 #
-# tested by: resolve-test.sh
+# tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
 set -euo pipefail
 
 die() {

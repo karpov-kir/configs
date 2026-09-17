@@ -30,7 +30,7 @@
 # apply to it, and it exits 2 as well when no file outside the change set carries countable lines.
 #
 # tested by: the Go suite beside the tool, `ai/tools/comment-density/`; the shared stub region below
-# by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.
+# by the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
 
