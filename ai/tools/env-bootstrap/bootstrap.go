@@ -23,6 +23,7 @@ package envbootstrap
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"kk-flavor/tools/installer"
@@ -46,13 +47,23 @@ const label = "env bootstrap"
 // it, and a line they cannot match reads as documented to a human while both scans go silent.
 const invocation = "bootstrap.sh"
 
-// The formulae and casks these links need, held against env/README.md by this package's own suite:
+// The formulae and casks these links need, held against env/README.md by the case in `ai/tools`:
 // adding one to the README alone would leave it documented and never installed, with every other case
 // still green.
 var (
 	formulae = []string{"zsh-autocomplete", "mise", "hstr", "neovim", "starship"}
 	casks    = []string{"ghostty"}
 )
+
+// FormulaNames is every brew formula this installer installs, and CaskNames every cask.
+//
+// Exported for that case. It has to read the shipped README, and the README sits outside this module:
+// Go keys a package's test cache on the module it belongs to, so a case here that opened it would
+// answer `ok (cached)` over a README that had changed underneath the run.
+func FormulaNames() []string { return slices.Clone(formulae) }
+
+// CaskNames is the cask half of that list, exported for the same reason.
+func CaskNames() []string { return slices.Clone(casks) }
 
 // Options is everything a run needs that it must not go looking for itself. Nothing here reads the
 // environment: the home arrives as a value, which is what lets a suite point a whole run at a

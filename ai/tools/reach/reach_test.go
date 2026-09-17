@@ -4,10 +4,11 @@
 //
 // Those three stay shell and cannot become anything else. They run before there is a binary to run, so
 // a Go build of them could not execute until after it had executed. Their cases live here for the
-// reason `ai/tools/mcp-env`'s do: what each one measures is what a bash script did on a machine shaped
-// a particular way, and nothing in Go can answer that without running the script. So the exec stays,
-// and only the exec — every fixture is built in process, every case runs in parallel, and a fake
-// toolchain stands where the subject is resolve.sh's decision to build rather than Go's compiler.
+// reason `ai/tools/mcp_env_test.go`'s do: what each one measures is what a bash script did on a
+// machine shaped a particular way, and nothing in Go can answer that without running the script. So
+// the exec stays, and only the exec — every fixture is built in process, every case runs in parallel,
+// and a fake toolchain stands where the subject is resolve.sh's decision to build rather than Go's
+// compiler.
 //
 // What that replaces: four shell suites, 280 assertions, 247 seconds and 1,887 commands, nearly all of
 // it fixture plumbing — a real `go build` per staleness case, a 22-tool release per install case, and a

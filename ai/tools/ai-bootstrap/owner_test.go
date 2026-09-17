@@ -182,33 +182,6 @@ func TestTheOwnerUninstallPreservesAModifiedFile(t *testing.T) {
 	f.expectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
 }
 
-// The template the owner tier copies and the region every other tier is given say the same thing and
-// cannot be derived from one another — generating three lines would cost a generator and a gate unit
-// to keep it honest. This is what catches the wording drifting apart.
-//
-// Compared as the body's lines, not as a whole file: the owner's copy sits under a heading and beside
-// prose the fenced copy has no business carrying.
-func TestTheShippedOwnerTemplateCarriesEveryLineOfTheRegionBody(t *testing.T) {
-	const shipped = "../../owner-instructions.md"
-	body, err := os.ReadFile(shipped)
-	if err != nil {
-		t.Fatalf("reading %s, which is the other half of this comparison: %v", shipped, err)
-	}
-	lines := strings.Split(flavor.RegionBody, "\n")
-	if len(lines) < 2 {
-		t.Fatalf("the region body is %d line(s), so this comparison would assert almost nothing", len(lines))
-	}
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		if !strings.Contains(string(body), line) {
-			t.Errorf("%s does not carry %q, which every other tier is given — the two wordings have drifted "+
-				"apart, and an owner and a colleague are now reading different instructions", shipped, line)
-		}
-	}
-}
-
 // --- fixture helpers a case needs and the harness does not ------------------------------------------
 
 func appendTo(t *testing.T, path, text string) {

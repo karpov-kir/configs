@@ -34,9 +34,12 @@ const (
 )
 
 var (
-	namedTestSuite    = regexp.MustCompilePOSIX(`[A-Za-z0-9_.-]+-test\.sh`)
-	untestedDeclared  = regexp.MustCompilePOSIX(`^#[[:space:]]*untested:[[:space:]]*[^[:space:]]`)
-	goSuiteDeclared   = regexp.MustCompilePOSIX(`the Go suite in (ai/tools/[A-Za-z0-9_-]+)/`)
+	namedTestSuite   = regexp.MustCompilePOSIX(`[A-Za-z0-9_.-]+-test\.sh`)
+	untestedDeclared = regexp.MustCompilePOSIX(`^#[[:space:]]*untested:[[:space:]]*[^[:space:]]`)
+	// `ai/tools` itself is a package and an answer: a case whose subject sits outside that Go module —
+	// this script does — belongs in its root package, because Go keys a test cache on the module and a
+	// package under it would answer `ok (cached)` over a file that had moved.
+	goSuiteDeclared   = regexp.MustCompilePOSIX(`the Go suite in (ai/tools[A-Za-z0-9_/-]*)/`)
 	sharedRegionOpen  = regexp.MustCompilePOSIX(`^[[:space:]]*# --- shared:[A-Za-z0-9_-]+ ---[[:space:]]*$`)
 	sharedRegionClose = regexp.MustCompilePOSIX(`^[[:space:]]*# --- end shared:[A-Za-z0-9_-]+ ---[[:space:]]*$`)
 	sharedRegionName  = regexp.MustCompilePOSIX(`^[[:space:]]*# --- shared:`)

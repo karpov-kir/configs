@@ -4,8 +4,9 @@ package tools_test
 //
 // It lives here rather than beside the tool because `kk-flavor/standards/` is outside the module: Go
 // keys its test cache on the module, so a package that reads a standard answers `ok (cached)` over one
-// that has changed under it. This package is allowed to read the checkout, and the gate runs it with
-// the out-of-module inputs it carries.
+// that has changed under it. This package is where every case that reads the checkout is gathered, so
+// that one package is the only one a run has to defeat the cache for; every workflow gate already does
+// (`go test -count=1`), and `ai/gate.sh --full` is the local spelling of it.
 
 import (
 	"os"

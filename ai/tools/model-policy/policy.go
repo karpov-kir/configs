@@ -379,6 +379,50 @@ func (p *Policy) TopTier(client string) (string, bool) {
 	return ordered[len(ordered)-1], true
 }
 
+// OrchestratorsAtTheCeiling names every skill in `declared` that calls itself an orchestrator and is
+// priced at the top tier, as `<client>/<skill>`, sorted. An orchestrator claims every substantive step
+// is dispatched; the most expensive row is what the work a session keeps costs, so a skill holding
+// both says two things that cannot both be true and neither file says which one to believe.
+//
+// Given the declarations rather than reading them, so a caller can hand it a tree that has the defect.
+// A gate only ever run against a tree that passes is one nobody has watched fail.
+//
+// Exported because the check that runs it over the shipped tree lives in `ai/tools`: that tree is
+// outside this module, and Go keys a package's test cache on the module, so a case here that read
+// kk-flavor/skills/ would answer `ok (cached)` over declarations that had changed underneath the run.
+// The fixture case beside this file is what holds the derivation itself.
+//
+// Every row names a model for every client — validateSettings refuses one that does not — so every
+// orchestrator ranks and this needs no arm for a row it cannot judge.
+//
+// The unranked arm below is the other half of that, and it is unreachable on purpose rather than by
+// luck: it walks the same dispatchClients validateTiers demands a non-empty order for, so every
+// client asked about here is one Parse refused to leave unranked. It stays because a client added to
+// that list with no order behind it would otherwise make this report an empty ceiling and pass.
+func (p *Policy) OrchestratorsAtTheCeiling(declared map[string]string) ([]string, error) {
+	var atTop []string
+	for _, client := range dispatchClients {
+		top, ranked := p.TopTier(client)
+		if !ranked {
+			return nil, fmt.Errorf("the policy orders no %s tiers, so nothing here knows which model is the top one", client)
+		}
+		for skill, mode := range declared {
+			if mode != "orchestrator" {
+				continue
+			}
+			decision, err := p.Resolve(Request{Client: client, Task: skill})
+			if err != nil {
+				return nil, fmt.Errorf("%s declares itself an orchestrator and the policy does not price it: %w", skill, err)
+			}
+			if decision.Requested.Model == top {
+				atTop = append(atTop, client+"/"+skill)
+			}
+		}
+	}
+	slices.Sort(atTop)
+	return atTop, nil
+}
+
 // TaskNames answers what the policy covers, so a check can compare it against the dispatch sites that
 // exist rather than trusting a hand-kept list.
 func (p *Policy) TaskNames() []string {
@@ -517,6 +561,11 @@ func validName(value string) bool {
 // the tier orders that must exist, the halves of a row validated, Resolve, Selections, a ceiling
 // check — and those only stay in step while they read the same list.
 var dispatchClients = []string{"codex", "claude"}
+
+// DispatchClients is that list, for the shipped-tree checks in `ai/tools`. They live there because the
+// tree is outside this module and Go's test cache cannot see it; they still have to walk the same two
+// clients as everything here, and a second list written out beside them is one that drifts.
+func DispatchClients() []string { return slices.Clone(dispatchClients) }
 
 // The efforts both CLIs answer to, and the three codex carries on its own.
 var (

@@ -1,29 +1,32 @@
-package modelpolicy
-
 // The shipped instruction tree, held against the shipped policy. These checks read directories under
-// kk-flavor/ and fail on what the two disagree about; command_test.go beside them reads the policy
-// document alone and never opens the tree. The split is that line — a check here needs a checkout to
-// mean anything, and one there does not.
+// kk-flavor/ and fail on what the two disagree about.
+//
+// They live in this package rather than beside `model-policy` because the tree is outside the module:
+// Go keys a package's test cache on the module it belongs to, so a case under `ai/tools/model-policy/`
+// that walked kk-flavor/skills/ would answer `ok (cached)` over a tree that had changed underneath the
+// run — and a merge or a checkout is exactly when that tree has moved. `ai/kk-flavor/standards/
+// testing.md` rule 11 states it.
+//
+// What is left in model-policy is every check a checkout could not make truer: the parser, Resolve,
+// and the ceiling derivation run against a fixture tree that has the defect the shipped one does not.
+package tools_test
 
 import (
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
-	"sort"
 	"strings"
 	"testing"
 
 	"kk-flavor/tools/shell"
 )
 
-// The shipped tree these checks read, from its one root — and the policy beside it, which
-// command_test.go reads too. Every path is derived from that root, so a suite run from another
+// The shipped tree these checks read, from the repository root — and the policy beside it, which
+// shipped_policy_test.go reads too. Every path is derived from that root, so a suite run from another
 // directory fails on the root rather than on whichever literal was missed.
 const (
-	flavorTree        = "../../kk-flavor"
+	flavorTree        = repoRoot + "/ai/kk-flavor"
 	skillsTree        = flavorTree + "/skills"
 	workersTree       = flavorTree + "/workers"
 	shippedPolicyPath = flavorTree + "/models.json"
@@ -192,45 +195,6 @@ func TestEverySkillDeclaresHowItRuns(t *testing.T) {
 	}
 }
 
-// The ceiling. An orchestrator claims every substantive step is dispatched; the most expensive row is
-// what the work a session keeps costs, so a skill holding both says two things that cannot both be
-// true and neither file says which one to believe.
-//
-// Given the policy and the declarations rather than reading either, so the case below can hand it a
-// tree that has the defect. A gate only ever run against a tree that passes is one nobody has watched
-// fail.
-//
-// Every row names a model for every client — validateSettings refuses one that does not — so every
-// orchestrator ranks and this needs no arm for a row it cannot judge.
-//
-// The unranked arm below is the other half of that, and it is unreachable on purpose rather than by
-// luck: it walks the same dispatchClients validateTiers demands a non-empty order for, so every
-// client asked about here is one Parse refused to leave unranked. It stays because a client added to
-// that list with no order behind it would otherwise make this report an empty ceiling and pass.
-func orchestratorsAtTheCeiling(policy *Policy, declared map[string]string) ([]string, error) {
-	var atTop []string
-	for _, client := range dispatchClients {
-		top, ranked := policy.TopTier(client)
-		if !ranked {
-			return nil, fmt.Errorf("the policy orders no %s tiers, so nothing here knows which model is the top one", client)
-		}
-		for skill, mode := range declared {
-			if mode != "orchestrator" {
-				continue
-			}
-			decision, err := policy.Resolve(Request{Client: client, Task: skill})
-			if err != nil {
-				return nil, fmt.Errorf("%s declares itself an orchestrator and the policy does not price it: %w", skill, err)
-			}
-			if decision.Requested.Model == top {
-				atTop = append(atTop, client+"/"+skill)
-			}
-		}
-	}
-	sort.Strings(atTop)
-	return atTop, nil
-}
-
 func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
 	declared := declaredRunModes(t)
 	orchestrators := 0
@@ -242,35 +206,12 @@ func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
 	if orchestrators == 0 {
 		t.Fatal("no skill declares itself an orchestrator, so this proved nothing")
 	}
-	atTop, err := orchestratorsAtTheCeiling(loadShippedPolicy(t), declared)
+	atTop, err := loadShippedPolicy(t).OrchestratorsAtTheCeiling(declared)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, at := range atTop {
 		t.Errorf("%s is declared an orchestrator and priced at the top tier — find the work that tier is paying for: either it is real and the skill is a session naming which reason holds it, or it was dispatched already and the row never came down", at)
-	}
-}
-
-// The ceiling against a tree that has the defect, which the shipped one does not. Both clients are
-// asserted: the two orders share no model name, so a check that read one list and compared against the
-// other's top would report nothing and look green.
-func TestTheCeilingCatchesAnOrchestratorAtTheTopTier(t *testing.T) {
-	policy, err := Parse([]byte(sample))
-	if err != nil {
-		t.Fatal(err)
-	}
-	atTop, err := orchestratorsAtTheCeiling(policy, map[string]string{"kk-build": "orchestrator"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := []string{"claude/kk-build", "codex/kk-build"}; !slices.Equal(atTop, want) {
-		t.Fatalf("at the ceiling: %v; want %v", atTop, want)
-	}
-	// The same row declared for the work it keeps is no finding at all — the ceiling reads the
-	// declaration, never the tier alone.
-	atTop, err = orchestratorsAtTheCeiling(policy, map[string]string{"kk-build": "holds — converses"})
-	if err != nil || len(atTop) != 0 {
-		t.Fatalf("a session at the top tier was reported: %v, %v", atTop, err)
 	}
 }
 
@@ -292,7 +233,7 @@ func TestNoFileNamesATaskThePolicyDoesNotAssign(t *testing.T) {
 	}
 	shaped := regexp.MustCompile("`([a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)+)`")
 	scanned, checked := 0, 0
-	for _, tree := range []string{flavorTree, "../../tools"} {
+	for _, tree := range []string{flavorTree, repoRoot + "/ai/tools"} {
 		if err := filepath.WalkDir(tree, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err

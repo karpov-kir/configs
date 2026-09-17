@@ -20,6 +20,20 @@ var formulae = []struct {
 	{name: "jq"},
 }
 
+// FormulaNames is every formula this installer installs, both tiers, in declared order.
+//
+// Exported for the case in `ai/tools` that holds the list against ai/README.md. That case has to read
+// the shipped README, and the README sits outside this module: Go keys a package's test cache on the
+// module it belongs to, so a case here that opened it would answer `ok (cached)` over a README that
+// had changed underneath the run.
+func FormulaNames() []string {
+	names := make([]string, 0, len(formulae))
+	for _, formula := range formulae {
+		names = append(names, formula.name)
+	}
+	return names
+}
+
 // Installed-first rather than an unconditional install: the latter is slow, noisy, and answers
 // non-zero on an already-installed formula, which would make a finished machine look broken.
 func (run *invocation) installPackages() {

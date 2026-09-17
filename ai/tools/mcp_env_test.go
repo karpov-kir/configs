@@ -7,15 +7,16 @@
 // every server into a startup failure, and where a toolchain IS present it would run `go build`
 // inside the very unstripped environment this wrapper exists to keep unreviewed code away from.
 //
-// So the exec stays, and only the exec: this is the one package in the module that starts a process
-// per case, because what it measures is what a child saw after `env -i`, and nothing in Go can answer
-// that about a bash script without running it. Cases share a launch wherever two of them read the
-// same child.
+// So the exec stays, and only the exec: this is the one subject in the module measured a process at a
+// time, because what it measures is what a child saw after `env -i`, and nothing in Go can answer that
+// about a bash script without running it. Cases share a launch wherever two of them read the same
+// child.
 //
-// `ai/mcp-env.sh` is outside this Go module, so the gate keys its `gotest` unit on it by name
-// (`ai/tools/gate/units.go`). Without that, editing the wrapper leaves this suite answering
-// `(cached)` over a file it never read.
-package mcpenv
+// They live in this package because `ai/mcp-env.sh` sits outside the module, and Go keys a package's
+// test cache on the module: a package of their own under `ai/tools/` would answer `ok (cached)` over a
+// wrapper that had changed underneath the run — and for a child process it could not do better, since
+// nothing the child opens reaches the cache at all.
+package tools_test
 
 import (
 	"errors"
@@ -30,7 +31,7 @@ import (
 )
 
 // The wrapper under test, beside the rest of `ai/`.
-const wrapper = "../../mcp-env.sh"
+const wrapper = repoRoot + "/ai/mcp-env.sh"
 
 // The names the wrapper may pass, written out here rather than asked of it.
 //

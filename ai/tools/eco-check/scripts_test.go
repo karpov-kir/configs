@@ -131,6 +131,17 @@ func TestScriptTestPosition(t *testing.T) {
 		f.doesNotReport(noPosition, missingTest)
 	})
 
+	// The tools root package is an answer too, and the one a script outside that Go module has to give:
+	// Go keys a test cache on the module, so a package under it would answer `ok (cached)` over a script
+	// that had changed. Named without a subdirectory, which is how that package is spelt.
+	t.Run("accepts a header naming the tools root package", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/ai/tools")
+		f.write(f.root+"/ai/tools/launcher_test.go", "package tools_test\n")
+		f.newScript("launcher.sh", "#!/usr/bin/env bash\n# tested by: the Go suite in ai/tools/, which execs it.\ntrue")
+		f.doesNotReport(noPosition, missingTest)
+	})
+
 	// Held to what a named -test.sh is held to: naming a package that is not there would leave the
 	// script counting as covered by a suite nobody runs.
 	t.Run("fires on a header naming a Go package with no suite in it", func(t *testing.T) {

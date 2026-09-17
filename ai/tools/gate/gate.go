@@ -146,9 +146,16 @@ func (g *gate) resolveRoot(root string) int {
 // that hangs then fails as the thing it is, rather than after Go's ten-minute default with a
 // goroutine dump that reads like a deadlock.
 //
-// `--full` is `-count=1`. Go's test cache is keyed on the module and is correct now that nothing here
-// reads outside it, so an ordinary run may answer out of it — but the budget is a claim about a COLD
-// run, so the run that measures it must not.
+// `--full` is `-count=1` over everything, and the budget is a claim about a COLD run, so the run that
+// measures it must not answer out of Go's cache at all.
+//
+// An ordinary run lets that cache answer, with one package forced. Measured 2026-09-17: the cache is
+// keyed on the MODULE, not on the package, so a file outside `ai/tools` is invisible to it — break
+// `ai/kk-flavor/standards/records.md` and a plain `go test` still says `ok (cached)`. Every case that
+// reads the checkout is gathered in the `ai/tools` root package for exactly that reason, so forcing
+// that one package closes the hole, and it costs about ten seconds. The root therefore runs twice on a
+// cold ordinary run: naming the other packages instead would mean a list to keep in step with the
+// module, which is the machinery this gate just deleted. `testing.md` rule 11.
 func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if env.Checks != "" {
 		return g.checksFromFile(env.Checks)
@@ -156,15 +163,15 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if _, err := exec.LookPath("go"); err != nil {
 		return nil, g.fail("no go on this machine, so nothing here can be built or run — nothing ran")
 	}
-	cold := ""
-	if full {
-		cold = " -count=1"
-	}
 	bound := fmt.Sprintf("%ds", int(g.budget.Seconds()))
+	suite := "go test -timeout " + bound + " ./... && go test -count=1 -timeout " + bound + " ."
+	if full {
+		suite = "go test -count=1 -timeout " + bound + " ./..."
+	}
 	return []check{
 		{id: "gofmt", cmd: "cd ai/tools && test -z \"$(gofmt -l .)\" || { gofmt -l . >&2; exit 1; }"},
 		{id: "vet", cmd: "cd ai/tools && go vet ./..."},
-		{id: "gotest", cmd: "cd ai/tools && go test" + cold + " -timeout " + bound + " ./..."},
+		{id: "gotest", cmd: "cd ai/tools && " + suite},
 		{id: "wiring", cmd: "ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && " +
 			"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate"},
 		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},
