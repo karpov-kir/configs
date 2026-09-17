@@ -290,7 +290,33 @@ write_instruction_region() {
   say "instructions"
   if $owner; then
     write_owner_instructions || return 1
-    local memory="$HOME/Document/AI/MEMORY.md"
+    local memory="$HOME/Documents/AI/MEMORY.md"
+    # Where an owner install before this one put the store. Drop this migration and the human's
+    # entries stay at a path no session reads — rtk-bootstrap-test.sh has the case.
+    local legacy="$HOME/Document/AI/MEMORY.md"
+    if [ -e "$legacy" ]; then
+      if [ -e "$memory" ]; then
+        refuse "owner memory exists at both $legacy and $memory — merge them into $memory and remove $legacy"
+        return 1
+      fi
+      if $dry_run; then
+        say "  would move $legacy to $memory"
+        # Nothing moved, so the create block below would still find $memory absent and say it would
+        # create one — two lines that cannot both hold, about the file this migration exists to protect.
+        return 0
+      fi
+      # `-n` because the guard above is not atomic with this line: a session following the very rule
+      # this installer writes can create the destination in between, and a plain `mv` would silently
+      # replace the only copy there is. `mv -n` exits 0 when it skips, so the check after it is what
+      # turns that skip into a refusal.
+      mkdir -p -- "${memory%/*}" && mv -n -- "$legacy" "$memory" && [ ! -e "$legacy" ] || {
+        refuse "could not move owner memory from $legacy to $memory — both were left as they are"
+        return 1
+      }
+      # Only if they are now empty; a directory holding anything else is the human's.
+      rmdir -- "${legacy%/*}" "${legacy%/*/*}" 2>/dev/null || :
+      say "  moved    $legacy to $memory"
+    fi
     if [ ! -e "$memory" ]; then
       if $dry_run; then
         say "  would create $memory"
