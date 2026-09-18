@@ -492,6 +492,12 @@ func report(t *testing.T, v variant, trials []trial, plain plainResult) {
 			t.Errorf("%-20s %-28s %7.1f DID NOT RUN: %v", v.name, result.name, result.elapsed.Seconds(), result.err)
 			continue
 		}
+		if result.wanted != nil {
+			// A verdict trial fills neither cut field, so the delete kind's three columns would print
+			// empty for every such case and say nothing about what it answered.
+			t.Logf("%-20s %-28s %7.1f %s", v.name, result.name, result.elapsed.Seconds(), disagreements(result))
+			continue
+		}
 		falseCuts += len(result.falseCuts)
 		missedCuts += len(result.missedCuts)
 		t.Logf("%-20s %-28s %7.1f cut %v | FALSE CUT %v | missed %v",
@@ -611,6 +617,23 @@ func labelTable(trials []trial, plain plainResult) []string {
 	}
 	lines = append(lines, fmt.Sprintf("plain set: %d flagged of %d block(s) over %d case(s)", plain.flagged, plain.blocks, plain.cases))
 	return lines
+}
+
+// disagreements names every block whose verdict differs from the label, in block order, so a reading
+// of the table can be taken back to the block that produced it.
+func disagreements(result trial) string {
+	var parts []string
+	for n := 1; n <= len(result.wanted); n++ {
+		want, got := result.wanted[n], result.answered[n]
+		if want == got {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d wanted %s got %s", n, want, got))
+	}
+	if len(parts) == 0 {
+		return "every block as labelled"
+	}
+	return strings.Join(parts, " | ")
 }
 
 // missesAsText is what a miss was answered instead, in verdict order so two runs print one order.
