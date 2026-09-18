@@ -84,16 +84,17 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 		if _, stillASkill := skills[name]; stillASkill {
 			continue
 		}
-		if name == toolBuiltWorker {
+		if name == toolBuiltWorker || strings.HasPrefix(name, toolBuiltWorker+"/") {
 			continue
 		}
-		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and it is not %s, the one row a Go tool assembles the prompt for", name, toolBuiltWorker)
+		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and it is not %s or one of its kinds, whose prompts a Go tool assembles", name, toolBuiltWorker)
 	}
 }
 
-// The one worker whose prompt is assembled in Go rather than read from the tree, so the census cannot
-// find a file for it and must not demand one. Named rather than sniffed out: it is the only row of its
-// kind, and a second would be a decision somebody has to write down here.
+// The worker whose prompt a Go tool assembles. The census finds a file for every other one, and this
+// row has none, so it passes by name. Naming it makes a second worker of this shape a decision
+// somebody writes down. Its `<name>/<kind>` sub-rows are the same tool, assembled the same way, and
+// price one kind apart for a question the tool's own tier cannot answer. The tree ships none today.
 const toolBuiltWorker = "reader-judge"
 
 // A session sub-row prices a named path through one session rather than a spawn, so the mode file that

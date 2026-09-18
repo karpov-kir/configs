@@ -133,8 +133,16 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 	if code := Run("reader-judge.sh", []string{"poem"}, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
-	if !strings.Contains(errOut.String(), "comment commit instruction pr-body record-entry reply report return review slack ticket") {
-		t.Fatalf("the refusal does not list the kinds: %s", errOut.String())
+	// Read off `kinds`, so a kind added tomorrow cannot break this case and a kind dropped from the
+	// message still does. A spelled-out list gets edited to match whatever the tool prints. That is a
+	// case agreeing with the code, and its job is to hold the code to something.
+	for name := range kinds {
+		if !strings.Contains(errOut.String(), name) {
+			t.Fatalf("the refusal leaves out the kind %q: %s", name, errOut.String())
+		}
+	}
+	if !strings.Contains(errOut.String(), kindNames()) {
+		t.Fatalf("the refusal does not list the kinds in one run: %s", errOut.String())
 	}
 }
 

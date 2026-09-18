@@ -14,9 +14,14 @@ import (
 	modelpolicy "kk-flavor/tools/model-policy"
 )
 
+// judgeTask is the tool's own models.json row, and the fallback for a kind with no row of its own.
+const judgeTask = "reader-judge"
+
 type Configuration struct {
 	Deadline   time.Duration
 	PolicyPath string
+	// Task is the models.json row to ask for, empty for the tool's own.
+	Task string
 	// OverridePath is where this machine's roll bound is set, from ResolveRollDeadline. Carried so a
 	// roll that times out can name it; empty when there is nowhere for an override to sit.
 	OverridePath string
@@ -28,6 +33,8 @@ type Configured struct {
 	Call          Caller
 	Decision      modelpolicy.Decision
 	CacheIdentity string
+	// Task is the models.json row that answered. It is the sub-row wherever one exists.
+	Task string
 }
 
 func Configure(configuration Configuration) (Configured, error) {
@@ -42,7 +49,18 @@ func Configure(configuration Configuration) (Configured, error) {
 	if err != nil {
 		return Configured{}, err
 	}
-	decision, err := policy.Resolve(modelpolicy.Request{Client: provider, Task: "reader-judge"})
+	// A kind with a row of its own takes it. One kind can then be read by a different tier while the
+	// rest keep the price a delete vote is worth. The row is optional, and a kind without one falls
+	// back to the tool's. Which row answered is on the line the command prints.
+	task := configuration.Task
+	if task == "" {
+		task = judgeTask
+	}
+	decision, err := policy.Resolve(modelpolicy.Request{Client: provider, Task: task})
+	if err != nil && task != judgeTask {
+		task = judgeTask
+		decision, err = policy.Resolve(modelpolicy.Request{Client: provider, Task: task})
+	}
 	if err != nil {
 		return Configured{}, err
 	}
@@ -57,7 +75,7 @@ func Configure(configuration Configuration) (Configured, error) {
 	}
 	call = namingTheFileThatDecides(call, configuration.PolicyPath, configuration.OverridePath)
 	call = announcingASlowRoll(call, configuration.Deadline, rollSilence, configuration.Progress)
-	return Configured{Call: call, Decision: decision, CacheIdentity: decision.PolicyDigest + "/" + decision.Client + "/" + decision.Requested.Model + "/" + decision.Requested.Effort}, nil
+	return Configured{Call: call, Decision: decision, Task: task, CacheIdentity: decision.PolicyDigest + "/" + task + "/" + decision.Client + "/" + decision.Requested.Model + "/" + decision.Requested.Effort}, nil
 }
 
 // namingTheFileThatDecides puts a file into the two roll failures whose repair is an edit to one: the

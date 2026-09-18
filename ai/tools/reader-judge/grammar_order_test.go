@@ -24,7 +24,7 @@ import (
 	"testing"
 )
 
-func TestBloatJudgeNamesItsGrammarWithNoProviderReachable(t *testing.T) {
+func TestReaderJudgeNamesItsGrammarWithNoProviderReachable(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "reader-judge")
 	build := exec.Command("go", "build", "-o", binary, "../cmd/reader-judge")
 	if out, err := build.CombinedOutput(); err != nil {
