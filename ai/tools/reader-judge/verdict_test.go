@@ -1,6 +1,9 @@
 package readerjudge
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAMajorityLabelWinsOutright(t *testing.T) {
 	if got := MajorityLabel([]string{"obvious", "obvious", "keep"}); got != "obvious" {
@@ -44,5 +47,24 @@ func TestEveryBlockMustCarryAVerdict(t *testing.T) {
 	}
 	if _, err := ParseLabels("1 obvious\n2 keep\n", 2); err != nil {
 		t.Errorf("a complete reply was refused: %v", err)
+	}
+}
+
+// A delete kind with nothing offered prints the artifact, because its output is the artifact. A
+// verdict kind's output is one label line per block, so the same path would hand its caller a file to
+// read as verdicts. Reached whenever `--changed` narrows a file to no changed block.
+func TestAVerdictRunWithNothingOfferedPrintsNoArtifact(t *testing.T) {
+	path := write(t, "package p\n\nfunc a() {}\n")
+	var out, errOut strings.Builder
+	called := false
+	call := func(string, string) (string, error) { called = true; return "", nil }
+	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, nil, &out, &errOut, call, nil); code != exitClean {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	if out.String() != "" {
+		t.Errorf("a verdict run with no block offered printed %q", out.String())
+	}
+	if called {
+		t.Error("the model was called for a file offering no block")
 	}
 }

@@ -183,7 +183,10 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 	}
 	units, view := Split(lines, kind.candidates(lines), offer)
 	if len(units) == 0 {
-		if !numbersOnly {
+		// A delete kind's output is the artifact, so with nothing to remove it is the artifact
+		// unchanged. A verdict kind's output is one label line per block, and printing the artifact
+		// there hands its caller source code to read as verdicts.
+		if !numbersOnly && !kind.Verdicts {
 			io.WriteString(stdout, content)
 		}
 		return exitClean
