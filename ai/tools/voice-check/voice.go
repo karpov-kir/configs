@@ -127,7 +127,7 @@ var (
 	// The same spine with the comma dropped and a conjunction in its place. "It is logged and not
 	// believed", "a survey and no verdict" — the reader is still being told about the thing they did
 	// not ask about.
-	reAndNot = regexp.MustCompile(`\s+and\s+(?:not|no)\s+(?:a|an|the|its|his|her|their|our|your|[a-z]+)`)
+	reAndNot = regexp.MustCompile(`[^,]\s+and\s+(?:not|no)\s+(?:a|an|the|its|his|her|their|our|your|[a-z]+)`)
 	// What stands before the conjunction, asked whether it is already a negation.
 	reNegated   = regexp.MustCompile(`(?i)\b(?:no|not|never|nothing|nobody|none)\b`)
 	reInsteadOf = regexp.MustCompile(`(?:^|[.;:]\s+|,\s+)[Ii]nstead of\b`)
@@ -170,6 +170,16 @@ var (
 	// and the phrase is a reduced relative clause. A plural noun opening a sentence ("Entries paired
 	// with …") is suppressed with it, which is the cost of reading shape rather than grammar.
 	reOpensWithVerb = regexp.MustCompile(`^[A-Z][a-z]+s\s`)
+
+	// Words ending in `ed` that are no participle, so the participial arm stops reading them as a
+	// dropped subject. The list names what the instruction tree holds: `red` 16 times, `need` 16,
+	// `seed` 5, `fed` once, and `proceed`, which is the word firing a finding today. A length floor
+	// was the first idea, and the measurement ended it: `fed` is three letters and a participle.
+	notAParticiple = map[string]bool{
+		"red": true, "bed": true, "shed": true, "sled": true, "embed": true, "need": true,
+		"seed": true, "feed": true, "deed": true, "heed": true, "creed": true, "greed": true,
+		"speed": true, "breed": true, "indeed": true, "exceed": true, "proceed": true, "succeed": true,
+	}
 
 	// "nothing", "nobody" and "the one X" used to make a claim feel larger than it is.
 	reIntensifier = regexp.MustCompile(`(?i)\bnothing\b|\bnobody\b|\bno one\b|\bthe one\s`)
@@ -525,6 +535,15 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 				continue
 			}
 		}
+		// A table row is data laid out in columns, and its cells carry prose a reader follows. A
+		// paragraph made of them runs together into one pseudo-sentence, long and deeply clausal
+		// however plain each cell is. Each cell is read on its own. The prose in a table stays under
+		// the register, and the layout draws no finding of its own.
+		if strings.HasPrefix(line, "|") {
+			flush(at - 1)
+			found = append(found, s.scanCells(file, at, line)...)
+			continue
+		}
 		if line == "" {
 			flush(at - 1)
 			continue
@@ -535,6 +554,36 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 	}
 	flush(len(lines))
 	return s.filter(found)
+}
+
+// scanCells reads a table row's cells, each as its own segment. The delimiter row under a header
+// carries dashes and colons. Every check passes over those, so it needs no case of its own.
+func (s scanner) scanCells(file string, at int, row string) []Finding {
+	var found []Finding
+	for _, cell := range strings.Split(strings.Trim(row, "|"), "|") {
+		cell = strings.TrimSpace(cell)
+		if cell == "" {
+			continue
+		}
+		found = append(found, s.scanSegment(file, join([]string{cell}, 1, 1, strings.TrimSpace))...)
+	}
+	for i := range found {
+		found[i].Line = at
+	}
+	return found
+}
+
+// participialPhrase is the first `, <past participle> <preposition>` a text carries, or nil. A regexp
+// reads a word ending in `ed` and cannot tell a participle from a stem, so each match is read back
+// and the words notAParticiple names are stepped over.
+func participialPhrase(read string) []int {
+	for _, at := range reParticiplePhr.FindAllStringIndex(read, -1) {
+		fields := strings.Fields(strings.TrimLeft(read[at[0]:at[1]], ", "))
+		if len(fields) > 0 && !notAParticiple[fields[0]] {
+			return at
+		}
+	}
+	return nil
 }
 
 // scanSegment is every check over one segment, and the only place a check runs. One function, so the
@@ -622,7 +671,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		if reParticipleOpen.MatchString(read) || opensWithGerund(read) {
 			add(checkNoSubject, span[0], span[1])
 		}
-		if at := reParticiplePhr.FindStringIndex(read); at != nil && !reOpensWithVerb.MatchString(read) {
+		if at := participialPhrase(read); at != nil && !reOpensWithVerb.MatchString(read) {
 			add(checkNoSubject, span[0]+at[0], span[0]+at[1])
 		}
 		if at := rePositional.FindStringIndex(read); at != nil {

@@ -1185,3 +1185,98 @@ func TestACoinedPhraseIsMatchedAcrossAWrappedLine(t *testing.T) {
 		t.Errorf("the plain form produced a coined finding")
 	}
 }
+
+// A word ending in `ed` is not always a past participle, and the participial arm read every one as a
+// dropped subject. The instruction tree before the fix had `proceed` firing a finding and `fed`
+// firing a true one. A length floor would have traded a real catch for a false one.
+func TestAStemEndingInEdIsNoParticiple(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	for _, stem := range []string{
+		"// The gate holds, proceed to the next stage.",
+		"// The count rose, need for a second pass.",
+		"// One row was red, against a green tree.",
+	} {
+		if hasCheck(s.scanSource("f.go", []string{stem}, nil), checkNoSubject) {
+			t.Errorf("%q was read as a dropped subject, and its `ed` is part of the stem", stem)
+		}
+	}
+	for _, participle := range []string{
+		"// The tree measures clean, fed by a scan nobody ran.",
+		"// The row stays, read against the baseline it carries.",
+	} {
+		if !hasCheck(s.scanSource("f.go", []string{participle}, nil), checkNoSubject) {
+			t.Errorf("%q dropped its subject and went unreported", participle)
+		}
+	}
+}
+
+// The contrast spine defines a thing against what it is not. A comma before `and` opens a new clause,
+// so the same words carry a second fact. The instruction tree held ten of those.
+func TestACommaBeforeAndOpensAClauseAndNotTheSpine(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	for _, clause := range []string{
+		"// The gates are green, and no requirement is left undelivered.",
+		"// The rule names its own model, and no worker is lowered to match.",
+	} {
+		if hasCheck(s.scanSource("f.go", []string{clause}, nil), checkContrast) {
+			t.Errorf("%q states a second fact and was read as a contrast", clause)
+		}
+	}
+	for _, spine := range []string{
+		"// It is a survey and no verdict.",
+		"// It is a trailer and not a subject prefix.",
+	} {
+		if !hasCheck(s.scanSource("f.go", []string{spine}, nil), checkContrast) {
+			t.Errorf("%q is the spine and went unreported", spine)
+		}
+	}
+}
+
+// A table row is data in columns. A paragraph made of its cells runs them together, so a table of
+// any size reads as one sentence. The finding lands on a layout that is right as it stands.
+func TestATableRowIsDataInBothTextProfiles(t *testing.T) {
+	table := []string{
+		"| Verdict | Action |",
+		"|---|---|",
+		"| `keep` | leave it, since the block states a fact the code cannot show anywhere |",
+		"| `obvious` | delete it, because every sentence restates the name or the lines beneath |",
+	}
+	for _, profile := range []Profile{ProfileProse, ProfileInstruction} {
+		s := scanner{profile: profile}
+		for _, one := range s.scanProse("f.md", table) {
+			if one.Check == checkLongSentence || one.Check == checkClauseDepth {
+				t.Errorf("the %s profile read the rows as one sentence: %v", profile, one)
+			}
+		}
+	}
+}
+
+// A cell's own prose is still read. Joined, these rows make a long clausal pseudo-sentence, and each
+// cell alone is plain, so a check firing per cell is the coverage a skip would have cost.
+func TestACellsOwnProseIsStillRead(t *testing.T) {
+	table := []string{
+		"| Verdict | Action |",
+		"|---|---|",
+		"| `obvious` | Counted across the whole ledger, it goes. |",
+	}
+	s := scanner{profile: ProfileInstruction}
+	found := s.scanProse("f.md", table)
+	if !hasCheck(found, checkNoSubject) {
+		t.Errorf("a cell dropping its subject went unread: %v", found)
+	}
+	for _, one := range found {
+		if one.Line != 3 {
+			t.Errorf("a cell's finding is reported on line %d, and its row is line 3", one.Line)
+		}
+	}
+}
+
+// The same words outside a table are read like any other paragraph, which leaves the row as what
+// does the work in the case before this one.
+func TestTheSameWordsOutsideATableAreRead(t *testing.T) {
+	s := scanner{profile: ProfileProse}
+	prose := []string{"Delete it because every sentence restates the name and no reader is served."}
+	if found := s.scanProse("f.md", prose); len(found) == 0 {
+		t.Error("a paragraph carrying the same words went unread")
+	}
+}
