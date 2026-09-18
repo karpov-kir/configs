@@ -131,7 +131,7 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"even rolls":                  strings.Replace(sample, `"rolls":3`, `"rolls":4`, 1),
 		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),
 		"cap over the ceiling":        strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":999999`, 1),
-		"task name with space":        strings.Replace(sample, `"reader-judge":`, `"bloat judge":`, 1),
+		"task name with space":        strings.Replace(sample, `"reader-judge":`, `"reader judge":`, 1),
 		// The tier order is what tells a later check which of two rows spends more, so every way it
 		// can fail to answer that is refused at parse rather than read as "unranked" downstream. A
 		// comparison that quietly answers "not higher" passes what it should have stopped.
