@@ -44,7 +44,9 @@ const (
 	// Two negations in one sentence.
 	voiceNegations = 2
 
-	// Words after a semicolon before its tail reads as a clause. Below this it reads as a list item.
+	// Words after a semicolon before its tail reads as a clause, where the sentence carries several and
+	// is therefore a list. One semicolon joins two clauses whatever its tail is: the tree holds eleven
+	// with a tail of one to three words, and every one of them joins two sentences.
 	voiceClauseTail = 4
 )
 
@@ -183,6 +185,13 @@ var (
 
 	// "nothing", "nobody" and "the one X" used to make a claim feel larger than it is.
 	reIntensifier = regexp.MustCompile(`(?i)\bnothing\b|\bnobody\b|\bno one\b|\bthe one\s`)
+
+	// An adverb that raises a claim without adding to it. The word before decides. A DEFINITE
+	// determiner makes it the emphatic form, as in "this run" or "the case", and all twenty-two uses
+	// in the tree are that form. An indefinite determiner leaves the adverb, and the adverb inflates
+	// a claim where the emphatic form picks a thing out.
+	reEmphasis = regexp.MustCompile(`(?i)(\w+\s+)?\b(?:very|crucially|vitally|extremely)\b`)
+	rePointing = regexp.MustCompile(`(?i)^(?:the|this|that|these|those|its|his|her|their|our|your)\s`)
 
 	// "the token above" where the token has a name. Anchored on the noun phrase the reader is sent to
 	// hunt for, so "see the note above" fires and a bare "above" inside a sentence about layout does not.
@@ -403,6 +412,9 @@ type scanner struct {
 	// suppressed counts what the allowlist dropped. A finding answered by an entry is still a finding
 	// the text carried, and a report that said nothing about it would read as text that matched nothing.
 	suppressed *int
+	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
+	// in one separates two fields, and the same semicolon in prose joins two clauses.
+	inCell bool
 	// notice writes a line to the run's stderr. A file this scan declines to read has to say so, or
 	// the report claims a denominator it never covered. Nil in a caller that only wants the findings.
 	notice func(string)
@@ -565,7 +577,9 @@ func (s scanner) scanCells(file string, at int, row string) []Finding {
 		if cell == "" {
 			continue
 		}
-		found = append(found, s.scanSegment(file, join([]string{cell}, 1, 1, strings.TrimSpace))...)
+		inCell := s
+		inCell.inCell = true
+		found = append(found, inCell.scanSegment(file, join([]string{cell}, 1, 1, strings.TrimSpace))...)
 	}
 	for i := range found {
 		found[i].Line = at
@@ -663,6 +677,12 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	for _, at := range reIntensifier.FindAllStringIndex(prose, -1) {
 		add(checkIntensifier, at[0], at[1])
 	}
+	for _, at := range reEmphasis.FindAllStringIndex(prose, -1) {
+		if rePointing.MatchString(prose[at[0]:at[1]]) {
+			continue
+		}
+		add(checkIntensifier, at[0], at[1])
+	}
 	for _, span := range sentenceSpans(text) {
 		read := prose[span[0]:span[1]]
 		if reCounterfactual.MatchString(read) || reReadAloneAnd.MatchString(read) {
@@ -688,8 +708,14 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		if len(reNegation.FindAllString(read, -1)) >= voiceNegations {
 			add(checkDoubleNeg, span[0], span[1])
 		}
-		if at := reSemicolon.FindStringIndex(read); at != nil && len(strings.Fields(read[at[1]:])) >= voiceClauseTail {
-			add(checkSemicolon, span[0], span[1])
+		// A sentence carrying one semicolon joins two clauses, whatever the tail's length. Several
+		// semicolons are a list, and there the tail tells a list item from a clause: `owner; entry;
+		// book` is three fields where three sentences would each run longer.
+		if all := reSemicolon.FindAllStringIndex(read, -1); len(all) > 0 {
+			tail := len(strings.Fields(read[all[0][1]:]))
+			if (len(all) == 1 && !s.inCell) || tail >= voiceClauseTail {
+				add(checkSemicolon, span[0], span[1])
+			}
 		}
 	}
 	return found

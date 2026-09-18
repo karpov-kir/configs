@@ -185,6 +185,13 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 		gone[i] = i + 1
 	}
 	stripped := readerjudge.Apply(lines, units, gone)
+	// A file header sits above a blank line, and removing the header leaves that blank as line 1. The
+	// writer then opens a file whose first line is empty. The formatter drops it at the gate, which
+	// puts a line the change never wrote into the change set. Only blankness this run created goes,
+	// and a file that already opened on a blank line keeps it.
+	if len(lines) > 0 && strings.TrimSpace(lines[0]) != "" {
+		stripped = strings.TrimLeft(stripped, "\n")
+	}
 	if !strings.HasSuffix(content, "\n") {
 		stripped = strings.TrimSuffix(stripped, "\n")
 	}

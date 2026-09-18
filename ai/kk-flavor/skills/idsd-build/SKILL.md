@@ -55,7 +55,7 @@ Enter `~/.kk-flavor/skills/kk-build/SKILL.md`'s loop, supplying:
   - A change to a contract others consume (an API shape, a shared type, a wire protocol) → a `- [ ]` for **every** consumer, the project's own skills and tooling included — those read the contract from outside the codebase and won't show up in a code search.
   - A follow-up, open question, or cross-intent consequence → an unchecked `- [ ]` in the ICE's `## Follow-ups`, naming where it will land.
 
-**Its tests are this ICE's scenarios**, each at the cheapest level that can prove it (`~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, rule 4). Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises — each supported value, threshold, edge branch. Extend hand-written tests; don't clobber them.
+**Its tests are this ICE's scenarios**, each at the cheapest level that can prove it (`~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, rule 4). Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises — each supported value, threshold, edge branch. Extend hand-written tests. Do not clobber them.
 
 **`idsd-qualify` is the pass that closes the lanes it names**, and `idsd-finalize` refuses to archive until one has stamped this tree.
 

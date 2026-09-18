@@ -136,3 +136,41 @@ func TestStripChangedRemovesOnlyTheBlocksTheDiffTouched(t *testing.T) {
 		t.Fatalf("sites:\n%s\nwant\n%s", out.String(), want)
 	}
 }
+
+// A file header sits above a blank line. The header goes and that blank becomes line 1. The writer
+// then opens a file whose first line is empty, and the formatter drops it at the gate, putting a line
+// the change never wrote into the change set. Five files in the #3194 run carried one.
+func TestStripLeavesNoBlankLineWhereAFileHeaderWas(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	if err := os.WriteFile(path, []byte("// A header nobody reads.\n\nexport function a() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(body), "export function a() {}\n"; got != want {
+		t.Errorf("the strip left %q, and the blank above the declaration was the header's", got)
+	}
+}
+
+// A file that opened on a blank line keeps it. Only blankness the strip created goes, or the strip is
+// reformatting a file it was asked to read.
+func TestStripKeepsABlankLineItDidNotCreate(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	if err := os.WriteFile(path, []byte("\n// A header nobody reads.\nexport function a() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut)
+	body, _ := os.ReadFile(path)
+	if got, want := string(body), "\nexport function a() {}\n"; got != want {
+		t.Errorf("the strip left %q, and the file's own first line was blank", got)
+	}
+}

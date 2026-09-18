@@ -394,7 +394,16 @@ func shippedWorkerFiles(t *testing.T) map[string]bool {
 		if err != nil {
 			return err
 		}
-		found[strings.TrimSuffix(filepath.ToSlash(rel), ".md")] = true
+		// A `tests/` directory holds probes a human runs against a worker, the way
+		// skills/idsd-reactor/tests does. A human runs a probe and a dispatch never reaches it. A row
+		// for one would price a worker that stays idle, and this census would go on asking for it.
+		name := strings.TrimSuffix(filepath.ToSlash(rel), ".md")
+		for _, part := range strings.Split(name, "/") {
+			if part == "tests" {
+				return nil
+			}
+		}
+		found[name] = true
 		return nil
 	}); err != nil {
 		t.Fatal(err)
