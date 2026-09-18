@@ -617,6 +617,9 @@ func runPlainSet(v variant, cases []evalCase, inSet, at int) plainResult {
 		// quoted over a set smaller than the one the report names. Counted and reported instead.
 		if one.err != nil {
 			result.failed++
+			if result.why == "" {
+				result.why = one.err.Error()
+			}
 			continue
 		}
 		for n := range one.wanted {
@@ -642,6 +645,9 @@ type plainResult struct {
 	// failed is the plain cases that did not run. Their blocks reached no denominator, so a rate
 	// quoted without them is quoted over less than the report says it read.
 	failed int
+	// why is the first failure's own words. A count of failures says a run was partial; it takes the
+	// reason to say whether the set is unreadable or the judge is.
+	why string
 }
 
 // labelTable is the catch-and-miss table: one row per verdict the corpus labels, then the false-flag
@@ -690,7 +696,8 @@ func labelTable(trials []trial, plain plainResult) []string {
 	read := fmt.Sprintf("plain set: %d flagged of %d block(s) read over %d file(s), out of %d block(s) in the set",
 		plain.flagged, plain.blocks, plain.cases, plain.inSet)
 	if plain.failed > 0 {
-		read += fmt.Sprintf(" — %d file(s) did not run, and their blocks are in none of these counts", plain.failed)
+		read += fmt.Sprintf(" — %d file(s) did not run, and their blocks are in none of these counts. First: %s",
+			plain.failed, plain.why)
 	}
 	lines = append(lines, read)
 	return lines
