@@ -269,7 +269,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 		f.evidence())
 	f.record("and promises no contest that always resolves",
 		!strings.Contains(f.out, "loses") && !strings.Contains(f.out, "tie"), f.evidence())
-	// Exit 2 is `bloat-judge.sh` saying it did NOT run, and it prints the same empty stdout as exit 0.
+	// Exit 2 is `reader-judge.sh` saying it did NOT run, and it prints the same empty stdout as exit 0.
 	// An agent holding only the exit-0 reading takes that silence for "the judge named nothing" and
 	// calls the cap held — a verdict nothing reached. Measured in the field on a 109-entry record.
 	f.record("and reads exit 2 as the judge not having run, leaving the append refused",

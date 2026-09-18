@@ -74,7 +74,7 @@ mkdir -p "$report_repo"
   exit 2
 }
 
-# comment-density.sh scans a diff, so its probe needs a repository with a COMMIT — `git diff HEAD` on an
+# voice-check.sh scans a diff, so its probe needs a repository with a COMMIT — `git diff HEAD` on an
 # unborn HEAD exits 2, which is indistinguishable here from the stub failing to reach its tool.
 density_repo="$base/density-repo"
 mkdir -p "$density_repo"
@@ -87,7 +87,7 @@ mkdir -p "$density_repo"
     git add seed.go &&
     git commit -qm seed
 ) >/dev/null 2>&1 || {
-  echo "tool-stub-test: could not init the comment-density fixture repository, so nothing was tested" >&2
+  echo "tool-stub-test: could not init the voice-check fixture repository, so nothing was tested" >&2
   exit 2
 }
 
@@ -108,14 +108,14 @@ kk-reduce|stats.sh|$base|$ai|prose:
 idsd-qualify|report.sh|$report_repo|list|no reports
 kk-ecosystem|ruleecho.sh|$base|$echo_root|rule stated twice
 kk-ecosystem|cite-graph.sh|$base|$echo_root|citation edge(s)
-kk-edit|comment-density.sh|$density_repo|HEAD|reached the scan
+kk-edit|voice-check.sh|$density_repo|HEAD|reached the scan
 TABLE
 }
 
 echo "shared:tool-stub"
 
-judge_stub="$ai/kk-flavor/scripts/bloat-judge.sh"
-name="bloat-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
+judge_stub="$ai/kk-flavor/scripts/reader-judge.sh"
+name="reader-judge.sh reaches its tool from two levels below tools/, in the tree not a fixture"
 if [ -x "$judge_stub" ]; then
   judge_err="$base/judge-probe.err"
   # A well-formed invocation, so what refuses is the missing provider and not the grammar. Bare, the

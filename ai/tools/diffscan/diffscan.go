@@ -1,5 +1,5 @@
 // The half two scanners share: a caller's arguments turned into the ADDED lines of a change set, plus
-// a count of what was and was not read. `comment-density` classifies those lines, `dup-literals`
+// a count of what was and was not read. `voice-check` classifies those lines, `dup-literals`
 // compares them. The denominator is contract, not decoration: callers get Reached, SkippedUnread and
 // BinaryLines and must print them, or an empty report at exit 0 cannot say whether anything was read.
 package diffscan
@@ -100,7 +100,7 @@ func resolvesAsRevision(cwd, arg string) bool {
 func Diff(cwd string, revisions []string) ([]byte, error) {
 	args := []string{
 		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/",
+		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames",
 	}
 	named, paths := RevisionsNamed(revisions)
 	if len(named) == 0 {

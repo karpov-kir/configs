@@ -731,3 +731,64 @@ func TestASetUpFailureCarriesItsCause(t *testing.T) {
 		t.Error("it carried no evidence, so the reader cannot tell a missing file from a full disk")
 	}
 }
+
+// Preflight enforces two rules at runtime, and anchors are the first. This case covers the second:
+// every mutant names a case its suite holds. Each suite's own source answers it, because
+// `go test -list` per suite is the slow half and belongs to the harness run. A rename moves a case
+// and leaves the mutant naming the old one, which the fast gate defers and CI then reports.
+func TestTheShippedMutantsAllNameACaseTheirSuiteHolds(t *testing.T) {
+	tools := ".."
+	if _, err := os.Stat(filepath.Join(tools, "eco-check")); err != nil {
+		t.Skipf("the tool tree is not above this package: %v", err)
+	}
+	held := map[string]map[string]bool{}
+	var broken []string
+	for _, m := range mutants {
+		if m.by == "" {
+			continue
+		}
+		if _, read := held[m.suite]; !read {
+			cases, err := testCasesIn(filepath.Join(tools, m.suite))
+			if err != nil {
+				broken = append(broken, m.label+": "+m.suite+" could not be read: "+err.Error())
+			}
+			held[m.suite] = cases
+		}
+		if !held[m.suite][m.by] {
+			broken = append(broken, m.label+": names "+m.by+", which "+m.suite+" does not hold")
+		}
+	}
+	if len(broken) > 0 {
+		t.Errorf("%d of %d mutant(s) name a case that is gone:\n  %s",
+			len(broken), len(mutants), strings.Join(broken, "\n  "))
+	}
+}
+
+// Every `func TestX(` a package's test files declare. The source answers for a package that has
+// stopped compiling, and that is the state a rename leaves behind.
+func testCasesIn(dir string) (map[string]bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return map[string]bool{}, err
+	}
+	found := map[string]bool{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return found, err
+		}
+		for _, line := range strings.Split(string(body), "\n") {
+			name, ok := strings.CutPrefix(line, "func Test")
+			if !ok {
+				continue
+			}
+			if name, _, ok = strings.Cut(name, "("); ok {
+				found["Test"+name] = true
+			}
+		}
+	}
+	return found, nil
+}

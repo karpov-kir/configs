@@ -76,7 +76,7 @@ const recordsStandard = "~/.kk-flavor/standards/records.md"
 // The judge the cap's last rung runs, and the one an over-cap prune uses — `records.md` → **The cap
 // evicts by what the record can afford to lose**. A constant, because two notes hand it over and they
 // must not offer different judges.
-const judgeCommand = `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/bloat-judge.sh record-entry  # the new entry and every incumbent on stdin`
+const judgeCommand = `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/reader-judge.sh record-entry  # the new entry and every incumbent on stdin`
 
 // The moves at the cap that free a slot at no loss, in `records.md`'s order. A constant for the same
 // reason judgeCommand is — the same two notes quote both.
@@ -87,9 +87,9 @@ const capLadderRungs = "delete what is no longer true, promote what must not be 
 // rung two agents can read two ways.
 //
 // Exit 2 earns a line of its own because from where the agent stands it looks exactly like exit 0:
-// `bloat-judge.sh` prints nothing and exits 2 when it did NOT run — an unknown kind, a missed
-// deadline, an answer that was not numbers. Read as exit 0, that silence says the judge named nothing
-// and the cap holds, which is a verdict nothing reached.
+// `reader-judge.sh` stays silent and exits 2 when the run failed — an unknown kind, a missed
+// deadline, an answer that was not numbers. An agent who reads that silence as exit 0 takes it for a
+// clean artifact under a cap that holds, which is a verdict no run produced.
 func judgeRung() []string {
 	return []string{
 		"    " + judgeCommand,

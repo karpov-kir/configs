@@ -45,7 +45,7 @@ differs, since a site that bills separately is a site the cost surface has to sh
 name a row owning a prompt, one hop and never a chain, so every site still resolves to exactly one
 file. The second is a worker **that is still a mounted skill**, running from its own `SKILL.md` until
 that move finishes. The third is one **whose prompt a Go tool assembles** rather than reading it from
-the tree; `bloat-judge` is the only one, and its row is a required input rather than a declaration
+the tree; `reader-judge` is the only one, and its row is a required input rather than a declaration
 (**What the policy can and cannot reach** below).
 
 **A site is never declared in a skill's prose.** A line beside the prose can forget to mention itself,
@@ -142,8 +142,8 @@ set, not a row's (**What the policy can and cannot reach** below).
 Two kinds of control, and the difference decides where effort is worth spending:
 
 - **Required input** — a Go tool under `ai/tools/` loads the policy and cannot run without it. Two do,
-  and they read it for different things. `bloat-judge` takes its model, its effort and its roll count
-  from the `bloat-judge` task, and refuses to vote when the roll count is missing. `model-check` owns
+  and they read it for different things. `reader-judge` takes its model, its effort and its roll count
+  from the `reader-judge` task, and refuses to vote when the roll count is missing. `model-check` owns
   no row: it reads every selection the file holds and asks each provider whether it will run one,
   which is the `models` unit above. **That the policy is required does not make the model it names the
   one that runs** — see the paragraph below.
@@ -177,7 +177,7 @@ sources plus that list and not as isolation: a managed policy setting is merged 
 **Three levers sit outside the file, and no row can move them.** The session an orchestrator runs in
 takes the model the human chose before the skill loaded, so a cheap reactor or patrol loop is bought
 with that choice and not with an assignment. The judge's roll deadline stays machine-local in
-`bloat-judge.conf` on purpose (`ai/tools/bloat-judge/deadline.go`) — a timeout tuned in the tree would
+`reader-judge.conf` on purpose (`ai/tools/reader-judge/deadline.go`) — a timeout tuned in the tree would
 travel to everyone on the next commit.
 
 **The third is which client judges, and it is `JUDGE_PROVIDER`'s.** Every row names a model for both
@@ -186,7 +186,7 @@ codex, and still fails rather than falls back when it is absent** — an unconfi
 before this default too, and now says which CLI to install. A labelled corpus settled that default
 rather than a preference: `claude` at haiku deleted a load-bearing paragraph of a real commit message
 that `codex` at `gpt-5.6-luna` effort low kept, and sonnet scored as haiku did, so it is the provider
-and not the tier. Re-run the eval before moving it; `ai/tools/bloat-judge/eval_test.go` holds what it
+and not the tier. Re-run the eval before moving it; `ai/tools/reader-judge/eval_test.go` holds what it
 measures and why its two counts are not symmetric.
 
 ## Resolving

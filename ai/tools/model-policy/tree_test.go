@@ -94,7 +94,7 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 // The one worker whose prompt is assembled in Go rather than read from the tree, so the census cannot
 // find a file for it and must not demand one. Named rather than sniffed out: it is the only row of its
 // kind, and a second would be a decision somebody has to write down here.
-const toolBuiltWorker = "bloat-judge"
+const toolBuiltWorker = "reader-judge"
 
 // A session sub-row prices a named path through one session rather than a spawn, so the mode file that
 // path reads is its evidence. A session's own row is a skill, already checked against the skills tree.
@@ -122,7 +122,7 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if !ok {
 		t.Fatal("kk-qualify carries no readable SKILL.md, so the lane table cannot be read")
 	}
-	enforced := map[string]bool{"bloat-judge": true}
+	enforced := map[string]bool{"reader-judge": true}
 	for _, row := range lanesTableRow.FindAllSubmatch(lanes, -1) {
 		enforced[string(row[1])] = true
 	}
