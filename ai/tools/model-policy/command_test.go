@@ -15,7 +15,7 @@ func TestCommandEmitsRequestedSettingsAndNothingObserved(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errors strings.Builder
-	args := []string{"--config", config, "--client", "claude", "--task", "bloat-judge"}
+	args := []string{"--config", config, "--client", "claude", "--task", "reader-judge"}
 	if code := Run(Command{Args: args, Stdout: &out, Stderr: &errors}); code != 0 {
 		t.Fatalf("command=%d: %s", code, errors.String())
 	}
@@ -66,7 +66,7 @@ func TestShippedPolicyKeepsTheJudgeCheapAndVoting(t *testing.T) {
 		"claude": {Model: "haiku"},
 		"codex":  {Model: "gpt-5.6-luna", Effort: "low"},
 	} {
-		decision, err := policy.Resolve(Request{Client: client, Task: "bloat-judge"})
+		decision, err := policy.Resolve(Request{Client: client, Task: "reader-judge"})
 		if err != nil || decision.Requested != want {
 			t.Fatalf("judge %s = %+v, %v; want %+v", client, decision.Requested, err, want)
 		}

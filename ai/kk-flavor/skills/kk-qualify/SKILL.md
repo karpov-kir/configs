@@ -23,7 +23,7 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 | drive | `~/.kk-flavor/workers/drive.md` | — | — |
 | code-review | `~/.kk-flavor/workers/code-review.md` | — | `code-review` |
 | security-review | `~/.kk-flavor/workers/security-review.md` | — | `security` |
-| edit | `kk-edit` | for comments: its strip, the comment writer, the verdict, then its voice check; its density bar as a figure | `comments` |
+| edit | `kk-edit` | for comments: its strip, the comment writer, then its voice check, with the density figure reported | `comments` |
 | instruction | `kk-ecosystem` | `~/.kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=<claude or codex>` | — |
 | refactor | `~/.kk-flavor/workers/refactor.md`, which owes a verdict per comment block as well as per file | `~/.kk-flavor/workers/refactor/dup-literals.sh` | `refactor` |
 

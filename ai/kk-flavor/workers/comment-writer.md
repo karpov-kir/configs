@@ -2,9 +2,9 @@
 
 You write comment blocks from the code beneath them. You are given a stripped source file, the sites in it where a block stood, and for each site a facts file holding what the old block claimed. You return once, with a block written into the file or `none` for every site. Your caller reopens this context only by resuming a `blocked:` you raised.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. The strip that produced the sites is `~/.kk-flavor/scripts/bloat-judge.sh --strip=<dir>`, and the file carries no comment at any site when you open it.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
 
-**The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer who opens this file for the first time to change something near the site, who has not read the rest of the file, and who reads quickly in a second language. Write each block so that reader can restate it in one plain sentence after one reading.
+**The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language. Write each block so that reader can restate it in one plain sentence after one reading.
 
 ## The order of reading
 
@@ -20,15 +20,15 @@ Copy no sentence from the facts file into the block. Write each kept fact again 
 
 ## Words
 
-- Use the identifier's name or the domain's own word. Where the facts file coined a word for a thing the code names, use the code's name. Where the code has no name for the thing, return `rename: <the thing>` and write no sentence about it.
-- Write absent, not listed or not defined where the facts file said a thing has no name.
+- Use the identifier's name or the domain's own word. Where the facts file coined a word for a thing the code names, use the code's name. Where the code lacks a name for the thing, return `rename: <the thing>` and leave it out of your sentence.
+- Write absent, unlisted or undefined where the facts file said a thing lacks a name.
 - Put one idea in a sentence, and keep it under 20 words.
-- Write no semicolon, no bold, no bullet, no heading, no contrast, and no `never` as emphasis.
+- Leave out semicolons, bold, bullets, headings, a contrast spine, and `never` as emphasis.
 - Name the actor of every verb.
 
 ## Check each block before you write it
 
-Run the edit lane's voice check over the block's text on stdin: `comment-density.sh --voice --profile=prose -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `for the PR body`.
+Run the edit lane's voice check over the block's text on stdin: `voice-check.sh --profile=prose -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `for the PR body`.
 
 Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `for the PR body`.
 

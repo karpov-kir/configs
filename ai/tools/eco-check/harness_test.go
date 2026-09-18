@@ -55,7 +55,7 @@ const layerLine = "**Layer:** base\n\n"
 // constant because those two case files have to state the same path. Written inline in a file the
 // checker scans, a cited path that does not resolve in the real checkout becomes a finding against the
 // checkout itself — but no scan reads a `.go` file, so nothing here is exposed that way.
-const laneScriptRef = "~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh"
+const laneScriptRef = "~/.kk-flavor/skills/kk-humanize/scripts/voice-check.sh"
 
 // Aliased, never written out: a restated copy goes on compiling after the bound moves, and every
 // oversize fixture built one byte past it then measures nothing.
@@ -147,12 +147,12 @@ func (f *fixture) newScript(name, body string) {
 func (f *fixture) newLaneWithScript() {
 	f.t.Helper()
 	f.newMountedSkill("kk-humanize")
-	f.newScript("kk-humanize/scripts/comment-density.sh", "true")
+	f.newScript("kk-humanize/scripts/voice-check.sh", "true")
 }
 
 // Two mounted lanes, one of them holding a script the other does not. Both halves of the basename
 // scan's uniqueness gate are then live on one tree: `SKILL.md` is a name two lanes carry, and
-// `comment-density.sh` is a name one lane carries. A tree with only the first has no unique lane
+// `voice-check.sh` is a name one lane carries. A tree with only the first has no unique lane
 // basename at all, and the scan the case is written against never runs.
 func newTwoLaneTree(t *testing.T) *fixture {
 	t.Helper()

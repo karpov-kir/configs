@@ -1,0 +1,62 @@
+kind: comment-verdict
+unclear: 1 2 3
+coined: 4
+padded: 5
+stale: 6
+---
+// A ledger exposing the vendor's prefixed API answers about its own rate scheme only there, so a
+// question about that scheme goes to it first; the standard API would record Unsupported for a scheme
+// the ledger has. Only that scheme goes there, because the prefixed API knows the vendor's scheme
+// alone and would answer Unsupported about every other.
+export function rateSourceFor(scheme: Scheme, ledger: Ledger): RateSource {
+  if (scheme === Scheme.Vendor && ledger.prefixed) {
+    return ledger.prefixed;
+  }
+  return ledger.standard;
+}
+
+/**
+ * Asks whether a rate scheme is worth preparing for, which is a different question from rateFor's.
+ * A ledger that ignores the rounding field leaves the pairing unestablished while still having the
+ * scheme, and those are the ledgers whose first posting stalls. A prefixed-only interface answers
+ * no, because preparing it would post nothing.
+ */
+export function isWorthPreparing(scheme: Scheme, ledger: Ledger): boolean {
+  return ledger.prefixed === undefined && ledger.readsRounding(scheme) !== Rounding.Unknown;
+}
+
+/**
+ * Checks whether the ledger reads the rounding field, by asking about a rounding no ledger supports.
+ * A ledger that reads the field says no, and one too old to know it accepts anyway; much of an
+ * installed base is that old, and there a yes for one rounding is only a yes for the scheme.
+ */
+export function readsRoundingField(ledger: Ledger): boolean {
+  return !ledger.accepts({ scheme: Scheme.Vendor, rounding: Rounding.Impossible });
+}
+
+// These are host methods, and a bare call can be rejected outright on the ledgers that expose them,
+// so the call keeps its owner.
+const post = ledger.post.bind(ledger);
+
+/**
+ * Loads the rate table. Rates are fetched once per run, because the provider answers a second
+ * request for the same day with 429. The result is cached in the module variable and returned on
+ * later calls.
+ */
+export async function loadRates(): Promise<RateTable> {
+  return cached ?? (cached = await fetchRates());
+}
+
+/** Returns the rate in percent. */
+export function rateFor(category: TaxCategory): number {
+  return RATE_TABLE_BASIS_POINTS[category];
+}
+
+/** Posts the entry, or throws RateUnknown when its category has no rate in the loaded table. */
+export function postEntry(entry: Entry): Posting {
+  const rate = RATE_TABLE_BASIS_POINTS[entry.category];
+  if (rate === undefined) {
+    throw new RateUnknown(entry.category);
+  }
+  return post(entry, rate);
+}

@@ -14,7 +14,7 @@ const sample = `{"version":4,"limits":{"intents-in-flight":10},` +
 	tierOrder +
 	`"sessions":{"kk-build":{"codex":{"model":"frontier","effort":"high"},"claude":{"model":"opus"}}},` +
 	`"workers":{` +
-	`"bloat-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"},"rolls":3},` +
+	`"reader-judge":{"codex":{"model":"helper","effort":"low"},"claude":{"model":"haiku"},"rolls":3},` +
 	`"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}}}}`
 
 // `sample` with the order removed and nothing else touched, so the missing order is the only thing
@@ -37,14 +37,14 @@ func policyForTest(t *testing.T) *Policy {
 
 func TestEachClientGetsItsOwnSettingsAndRolls(t *testing.T) {
 	p := policyForTest(t)
-	got, err := p.Resolve(Request{Client: "claude", Task: "bloat-judge"})
+	got, err := p.Resolve(Request{Client: "claude", Task: "reader-judge"})
 	if err != nil || got.Requested.Model != "haiku" || got.Requested.Effort != "" || got.Rolls != 3 {
 		t.Fatalf("claude judge = %+v, %v", got, err)
 	}
 	if len(got.PolicyDigest) != 64 {
 		t.Fatalf("digest = %q", got.PolicyDigest)
 	}
-	got, err = p.Resolve(Request{Client: "codex", Task: "bloat-judge"})
+	got, err = p.Resolve(Request{Client: "codex", Task: "reader-judge"})
 	if err != nil || got.Requested.Model != "helper" || got.Requested.Effort != "low" {
 		t.Fatalf("codex judge = %+v, %v", got, err)
 	}
@@ -96,7 +96,7 @@ func TestUnassignedTaskFailsRatherThanInheriting(t *testing.T) {
 	for _, request := range []Request{
 		{Client: "claude", Task: "kk-code-review"},
 		{Client: "claude", Task: ""},
-		{Client: "unknown", Task: "bloat-judge"},
+		{Client: "unknown", Task: "reader-judge"},
 	} {
 		if got, err := p.Resolve(request); err == nil {
 			t.Fatalf("unassigned dispatch accepted: %+v -> %+v", request, got)
@@ -131,7 +131,7 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"even rolls":                  strings.Replace(sample, `"rolls":3`, `"rolls":4`, 1),
 		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),
 		"cap over the ceiling":        strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":999999`, 1),
-		"task name with space":        strings.Replace(sample, `"bloat-judge":`, `"bloat judge":`, 1),
+		"task name with space":        strings.Replace(sample, `"reader-judge":`, `"reader judge":`, 1),
 		// The tier order is what tells a later check which of two rows spends more, so every way it
 		// can fail to answer that is refused at parse rather than read as "unranked" downstream. A
 		// comparison that quietly answers "not higher" passes what it should have stopped.
@@ -168,11 +168,11 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		// segment can leave the tree is refused here, at the one place all of those readers share.
 		// The field guide reads such a file and prints a line of it onto a committed page, so a name
 		// that escapes is a read primitive rather than only a broken lookup.
-		"task name climbing out":           strings.Replace(sample, `"bloat-judge":`, `"../../../etc/passwd":`, 1),
+		"task name climbing out":           strings.Replace(sample, `"reader-judge":`, `"../../../etc/passwd":`, 1),
 		"task name with a dot-dot segment": strings.Replace(sample, `"build/explore":`, `"build/../../../secret":`, 1),
 		"task name with a dot segment":     strings.Replace(sample, `"build/explore":`, `"build/./explore":`, 1),
 		"task name with an empty segment":  strings.Replace(sample, `"build/explore":`, `"build//explore":`, 1),
-		"task name that is absolute":       strings.Replace(sample, `"bloat-judge":`, `"/etc/passwd":`, 1),
+		"task name that is absolute":       strings.Replace(sample, `"reader-judge":`, `"/etc/passwd":`, 1),
 		"negative rolls":                   strings.Replace(sample, `"rolls":3`, `"rolls":-1`, 1),
 		// Each way the field naming another row's prompt can name nothing, refused at parse time rather
 		// than at the dispatch that would read it.
@@ -183,9 +183,9 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"row names itself as its prompt's owner": strings.Replace(sample, `"claude":{"model":"sonnet"}`,
 			`"claude":{"model":"sonnet"},"worker":"build/explore"`, 1),
 		"session names a prompt owner": strings.Replace(sample, `"claude":{"model":"opus"}`,
-			`"claude":{"model":"opus"},"worker":"bloat-judge"`, 1),
+			`"claude":{"model":"opus"},"worker":"reader-judge"`, 1),
 		"prompt owner names one in turn": strings.NewReplacer(
-			`"claude":{"model":"sonnet"}`, `"claude":{"model":"sonnet"},"worker":"bloat-judge"`,
+			`"claude":{"model":"sonnet"}`, `"claude":{"model":"sonnet"},"worker":"reader-judge"`,
 			`"rolls":3`, `"rolls":3,"worker":"build/explore"`).Replace(sample),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -218,20 +218,20 @@ func TestDigestTracksEveryAssignment(t *testing.T) {
 
 func TestARowNamingAnotherWorkersPromptKeepsItsOwnTier(t *testing.T) {
 	raw := strings.Replace(sample, `"claude":{"model":"sonnet"}`,
-		`"claude":{"model":"sonnet"},"worker":"bloat-judge"`, 1)
+		`"claude":{"model":"sonnet"},"worker":"reader-judge"`, 1)
 	p, err := Parse([]byte(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
 	got, err := p.Resolve(Request{Client: "claude", Task: "build/explore"})
-	if err != nil || got.Requested.Model != "sonnet" || got.Worker != "bloat-judge" || got.Kind != "worker" {
+	if err != nil || got.Requested.Model != "sonnet" || got.Worker != "reader-judge" || got.Kind != "worker" {
 		t.Fatalf("a row naming another's prompt = %+v, %v", got, err)
 	}
-	if named := p.PromptOwners(); len(named) != 1 || named["build/explore"] != "bloat-judge" {
+	if named := p.PromptOwners(); len(named) != 1 || named["build/explore"] != "reader-judge" {
 		t.Fatalf("PromptOwners() = %v", named)
 	}
 	// The rows that own their prompt say nothing, so a caller reads the field as "someone else's".
-	own, err := p.Resolve(Request{Client: "claude", Task: "bloat-judge"})
+	own, err := p.Resolve(Request{Client: "claude", Task: "reader-judge"})
 	if err != nil || own.Worker != "" {
 		t.Fatalf("a row owning its prompt = %+v, %v", own, err)
 	}
@@ -306,9 +306,9 @@ func TestSelectionsListEveryRowOfBothMaps(t *testing.T) {
 		got = append(got, selection.Origin+"/"+selection.Client+"/"+selection.Model+"/"+selection.Effort)
 	}
 	want := []string{
-		"bloat-judge/codex/helper/low", "bloat-judge/claude/haiku/",
 		"build/explore/codex/middling/low", "build/explore/claude/sonnet/",
 		"kk-build/codex/frontier/high", "kk-build/claude/opus/",
+		"reader-judge/codex/helper/low", "reader-judge/claude/haiku/",
 	}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("Selections = %v;\nwant %v", got, want)

@@ -28,7 +28,7 @@
     "kk-retro":                 { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } }
   },
   "workers": {
-    "bloat-judge":             { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "rolls": 3 },
+    "reader-judge":             { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "rolls": 3 },
     "build/explore":           { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
     "code-review":             { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "comment-writer":          { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
