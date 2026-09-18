@@ -613,7 +613,10 @@ func runPlainSet(v variant, cases []evalCase, inSet, at int) plainResult {
 	}
 	result := plainResult{measured: true, cases: len(cases), inSet: inSet}
 	for _, one := range runAll(v, cases, at) {
+		// A case that did not run leaves its blocks out of the denominator, so the rate would be
+		// quoted over a set smaller than the one the report names. Counted and reported instead.
 		if one.err != nil {
+			result.failed++
 			continue
 		}
 		for n := range one.wanted {
@@ -636,6 +639,9 @@ type plainResult struct {
 	flagged  int
 	// inSet is every block the named set holds, which is the denominator a sampled run did not read.
 	inSet int
+	// failed is the plain cases that did not run. Their blocks reached no denominator, so a rate
+	// quoted without them is quoted over less than the report says it read.
+	failed int
 }
 
 // labelTable is the catch-and-miss table: one row per verdict the corpus labels, then the false-flag
@@ -681,7 +687,12 @@ func labelTable(trials []trial, plain plainResult) []string {
 		lines = append(lines, "plain set: NOT MEASURED — "+plainSetEnv+" names no directory, so the false-flag bound went unmeasured and this run does not clear it")
 		return lines
 	}
-	lines = append(lines, fmt.Sprintf("plain set: %d flagged of %d block(s) read over %d file(s), out of %d block(s) in the set", plain.flagged, plain.blocks, plain.cases, plain.inSet))
+	read := fmt.Sprintf("plain set: %d flagged of %d block(s) read over %d file(s), out of %d block(s) in the set",
+		plain.flagged, plain.blocks, plain.cases, plain.inSet)
+	if plain.failed > 0 {
+		read += fmt.Sprintf(" — %d file(s) did not run, and their blocks are in none of these counts", plain.failed)
+	}
+	lines = append(lines, read)
 	return lines
 }
 
