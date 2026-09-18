@@ -84,6 +84,22 @@ var kinds = map[string]Kind{
 		"reading quickly to change something near this line", Source: true, Verdicts: true},
 }
 
+// TaskFor is the models.json row an invocation should resolve. A kind this tool knows takes the row
+// named for it, and anything else takes the tool's own row, so an unknown kind is refused by the run
+// and never by the policy.
+func TaskFor(args []string) string {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		if _, known := kinds[arg]; known {
+			return judgeTask + "/" + arg
+		}
+		return judgeTask
+	}
+	return judgeTask
+}
+
 func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
 	return RunIn(self, args, ".", stdin, stdout, stderr, call, memo)
 }
@@ -375,7 +391,6 @@ func verdictPrompt(kind Kind) string {
 		"padded — one sentence says something the code cannot show, and the rest restates the code.\n" +
 		"unclear — you could not restate it in one plain sentence after reading it once.\n" +
 		"coined — leans on a word or phrase that is neither the domain's nor an identifier in the code.\n" +
-		"carried — a test, a lint rule, a rename or a separate function would carry what it says.\n" +
 		"stale — contradicts the code beside it.\n\n" +
 		"Where more than one fits, answer the first of these that fits: " + VerdictNames() + "."
 }

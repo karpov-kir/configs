@@ -6,6 +6,7 @@ package readerjudge
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -56,7 +57,7 @@ func parseCase(name, raw string) (evalCase, error) {
 		switch key {
 		case "kind":
 			parsed.kind = strings.TrimSpace(value)
-		case "carried", "obvious", "stale", "padded", "coined", "unclear":
+		case "obvious", "stale", "padded", "coined", "unclear":
 			if !kinds[parsed.kind].Verdicts {
 				return evalCase{}, fmt.Errorf("%s: %q labels a verdict, and kind %q does not answer verdicts", name, key, parsed.kind)
 			}
@@ -288,6 +289,9 @@ type variant struct {
 	// settingSources replaces the empty list claudeArgs ships, for the row that measures what
 	// inheriting the operator's configuration did.
 	settingSources string
+	// rolls overrides evalRolls for this row, so a configuration that changes the roll count is a row
+	// of its own rather than a second sweep. Zero takes the shipped count.
+	rolls int
 	// thinking is what MAX_THINKING_TOKENS is set to for the roll. Handed to the command rather than
 	// exported here, because a roll's environment is an allow-list that drops this one on purpose —
 	// exported, the variant would measure the baseline while reporting as itself. Empty leaves the
@@ -306,6 +310,9 @@ var variants = []variant{
 	{name: "think-off", client: "claude", settings: modelpolicy.Settings{Model: "haiku"}, thinking: "0"},
 	{name: "sonnet", client: "claude", settings: modelpolicy.Settings{Model: "sonnet"}},
 	{name: "codex", client: "codex", settings: modelpolicy.Settings{Model: "gpt-5.6-luna", Effort: "low"}},
+	// What models.json now ships for the verdict kind: its own sub-row at the reader's tier, and five
+	// rolls because three disagreed with themselves across two runs of the same corpus.
+	{name: "verdict-reader", client: "claude", settings: modelpolicy.Settings{Model: "sonnet"}, rolls: 5},
 }
 
 // caller builds the variant's roll out of the shipped one, so a row differs from production by the
@@ -379,10 +386,18 @@ type trial struct {
 // configurations against each other, and a roll count that moved under it would move every row.
 const evalRolls = 3
 
+// rollCount is this row's roll count, and the shipped one where the row names none.
+func (v variant) rollCount() int {
+	if v.rolls > 0 {
+		return v.rolls
+	}
+	return evalRolls
+}
+
 func (v variant) run(c evalCase) trial {
 	units, view := c.split()
 	started := time.Now()
-	reply, err := Voting(v.caller(), evalRolls)(Prompt(kinds[c.kind]), view)
+	reply, err := Voting(v.caller(), v.rollCount())(Prompt(kinds[c.kind]), view)
 	result := trial{name: c.name, elapsed: time.Since(started)}
 	if err != nil {
 		result.err = err
@@ -441,7 +456,7 @@ func TestJudgeEval(t *testing.T) {
 			t.Fatalf("JUDGE_EVAL_PARALLEL is %q, which is not a positive count", set)
 		}
 	}
-	plainCases, err := loadPlainSet()
+	plainCases, plainInSet, err := loadPlainSet()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +467,7 @@ func TestJudgeEval(t *testing.T) {
 			t.Fatalf("no variant %q; the corpus knows %s", name, variantNames())
 		}
 		v := variants[index]
-		t.Run(v.name, func(t *testing.T) { report(t, v, runAll(v, corpus, at), runPlainSet(v, plainCases, at)) })
+		t.Run(v.name, func(t *testing.T) { report(t, v, runAll(v, corpus, at), runPlainSet(v, plainCases, plainInSet, at)) })
 	}
 }
 
@@ -510,42 +525,93 @@ func report(t *testing.T, v variant, trials []trial, plain plainResult) {
 	}
 }
 
-// plainSetEnv names a directory of `.case` files whose blocks are all ordinary. That is the
+// plainSetEnv names a directory of source files whose comment blocks are all ordinary. That is the
 // denominator for the false-flag half of the bar. A judge labelling a plain block spends a reader's
-// attention on text that was fine. The cases stay outside this tree: the set measured here is
+// attention on text that was fine. The files stay outside this tree: the set measured here is
 // somebody else's code, this repository is public, and only the counts are ever reported.
+//
+// Source files and not cases, because a plain set carries no label to write down. Every block in it
+// wants `keep`, which is what makes it a denominator.
 const plainSetEnv = "JUDGE_EVAL_PLAIN"
 
-// loadPlainSet reads the cases the environment names, or answers that none were named. A directory
-// that is named and unreadable is a failure. A run handed a bad path has measured no block at all,
-// and reporting that as "unset" would hide the typo.
-func loadPlainSet() ([]evalCase, error) {
+// plainBlocksEnv bounds how many blocks the plain half reads, because every block costs a roll per
+// variant and the set is larger than a sweep can pay for. Files are read in sorted order, so a
+// smaller budget reads a prefix of the same set and never a different sample each run.
+const plainBlocksEnv = "JUDGE_EVAL_PLAIN_BLOCKS"
+
+const plainBlockBudget = 120
+
+// The verdict kind the plain set is judged by. Spelled out: a plain set is a denominator for one
+// kind's false flags, and deriving it from whichever kind answers verdicts would silently move the
+// denominator when a second such kind lands.
+const plainSetKind = "comment-verdict"
+
+// loadPlainSet reads the source files the environment names, or answers that none were named. A
+// directory that is named and unreadable is a failure. A run handed a bad path has measured no block
+// at all, and reporting that as "unset" would hide the typo.
+//
+// It answers the blocks in the whole set beside the ones it took, so a sampled run says what fraction
+// of the set it read rather than reporting a rate over an unstated denominator.
+func loadPlainSet() (cases []evalCase, inSet int, err error) {
 	dir := os.Getenv(plainSetEnv)
 	if dir == "" {
-		return nil, nil
+		return nil, 0, nil
 	}
-	cases, err := loadCorpus(dir)
-	if err != nil {
-		return nil, fmt.Errorf("%s names %q, and the plain set could not be read there: %w", plainSetEnv, dir, err)
-	}
-	for _, c := range cases {
-		if len(c.verdicts) > 0 || len(c.cut) > 0 {
-			return nil, fmt.Errorf("%s: case %q labels a block, and every block in the plain set is an ordinary one", plainSetEnv, c.name)
+	var paths []string
+	walked := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if !kinds[c.kind].Verdicts {
-			return nil, fmt.Errorf("%s: case %q is kind %q, which answers no verdicts", plainSetEnv, c.name, c.kind)
+		if !entry.IsDir() && plainSetExtensions[filepath.Ext(path)] {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if walked != nil {
+		return nil, 0, fmt.Errorf("%s names %q, and the plain set could not be read there: %w", plainSetEnv, dir, walked)
+	}
+	if len(paths) == 0 {
+		return nil, 0, fmt.Errorf("%s names %q, which holds no source file the scan reads", plainSetEnv, dir)
+	}
+	sort.Strings(paths)
+	budget := plainBlockBudget
+	if set := os.Getenv(plainBlocksEnv); set != "" {
+		if budget, err = strconv.Atoi(set); err != nil || budget < 1 {
+			return nil, 0, fmt.Errorf("%s is %q, which is not a positive count", plainBlocksEnv, set)
 		}
 	}
-	return cases, nil
+	taken := 0
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, 0, err
+		}
+		// The name is the file's position in the sorted set, never its path. A path from this set
+		// names somebody else's tree, and a run's log is read and pasted by people.
+		one := evalCase{name: fmt.Sprintf("plain-%03d", len(paths)), kind: plainSetKind, text: string(raw)}
+		units, _ := one.split()
+		inSet += len(units)
+		if len(units) == 0 || taken >= budget {
+			continue
+		}
+		one.name = fmt.Sprintf("plain-%03d", len(cases)+1)
+		cases = append(cases, one)
+		taken += len(units)
+	}
+	return cases, inSet, nil
 }
+
+// The extensions the plain set is read from. A set of another language joins by adding one here, and
+// a file the scan does not read is left out of the denominator rather than counted as clean.
+var plainSetExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".go": true}
 
 // runPlainSet judges the plain cases for one variant and counts what it flagged. Run per variant,
 // because the number it produces belongs to the configuration that produced it.
-func runPlainSet(v variant, cases []evalCase, at int) plainResult {
+func runPlainSet(v variant, cases []evalCase, inSet, at int) plainResult {
 	if len(cases) == 0 {
 		return plainResult{}
 	}
-	result := plainResult{measured: true, cases: len(cases)}
+	result := plainResult{measured: true, cases: len(cases), inSet: inSet}
 	for _, one := range runAll(v, cases, at) {
 		if one.err != nil {
 			continue
@@ -568,6 +634,8 @@ type plainResult struct {
 	cases    int
 	blocks   int
 	flagged  int
+	// inSet is every block the named set holds, which is the denominator a sampled run did not read.
+	inSet int
 }
 
 // labelTable is the catch-and-miss table: one row per verdict the corpus labels, then the false-flag
@@ -613,7 +681,7 @@ func labelTable(trials []trial, plain plainResult) []string {
 		lines = append(lines, "plain set: NOT MEASURED — "+plainSetEnv+" names no directory, so the false-flag bound went unmeasured and this run does not clear it")
 		return lines
 	}
-	lines = append(lines, fmt.Sprintf("plain set: %d flagged of %d block(s) over %d case(s)", plain.flagged, plain.blocks, plain.cases))
+	lines = append(lines, fmt.Sprintf("plain set: %d flagged of %d block(s) read over %d file(s), out of %d block(s) in the set", plain.flagged, plain.blocks, plain.cases, plain.inSet))
 	return lines
 }
 
@@ -664,8 +732,8 @@ func TestAnUnmeasuredPlainSetIsReportedAsUnmeasured(t *testing.T) {
 	if !strings.Contains(lines, "NOT MEASURED") {
 		t.Errorf("an unset plain set was reported as though it had run:\n%s", lines)
 	}
-	measured := strings.Join(labelTable(nil, plainResult{measured: true, cases: 2, blocks: 40, flagged: 1}), "\n")
-	if !strings.Contains(measured, "1 flagged of 40 block(s) over 2 case(s)") {
+	measured := strings.Join(labelTable(nil, plainResult{measured: true, cases: 2, blocks: 40, flagged: 1, inSet: 550}), "\n")
+	if !strings.Contains(measured, "1 flagged of 40 block(s) read over 2 file(s), out of 550 block(s) in the set") {
 		t.Errorf("a measured plain set did not report its counts:\n%s", measured)
 	}
 }
@@ -674,28 +742,64 @@ func TestAnUnmeasuredPlainSetIsReportedAsUnmeasured(t *testing.T) {
 // half of the bar the caller asked for.
 func TestAPlainSetPathThatDoesNotReadIsAFailure(t *testing.T) {
 	t.Setenv(plainSetEnv, filepath.Join(t.TempDir(), "nowhere"))
-	if _, err := loadPlainSet(); err == nil {
+	if _, _, err := loadPlainSet(); err == nil {
 		t.Error("a plain set path naming no directory was taken as no plain set at all")
 	}
+	t.Setenv(plainSetEnv, t.TempDir())
+	if _, _, err := loadPlainSet(); err == nil {
+		t.Error("a directory holding no source file was taken as a plain set")
+	}
 	t.Setenv(plainSetEnv, "")
-	cases, err := loadPlainSet()
-	if err != nil || cases != nil {
-		t.Errorf("an unset variable is no plain set and no error, got %d case(s) and %v", len(cases), err)
+	cases, inSet, err := loadPlainSet()
+	if err != nil || cases != nil || inSet != 0 {
+		t.Errorf("an unset variable is no plain set and no error, got %d case(s), %d block(s) and %v", len(cases), inSet, err)
 	}
 }
 
-// Every block in the plain set is an ordinary one — that is what makes it the denominator. A case
-// carrying a label belongs in the corpus, where it is scored, and counting it here would measure the
-// judge against text somebody already called defective.
-func TestAPlainSetCaseThatLabelsABlockIsRefused(t *testing.T) {
+// A sampled run says what it read and what it did not. The budget takes files in sorted order, so a
+// second run at the same budget reads the same blocks, and a rate is quoted over a denominator the
+// report states rather than over the whole set it did not reach.
+func TestAPlainSetSampleNamesWhatItLeftUnread(t *testing.T) {
 	dir := t.TempDir()
-	body := "kind: comment-verdict\nobvious: 1\n---\n// Lists the entries.\nfunc list() {}\n"
-	if err := os.WriteFile(filepath.Join(dir, "labelled.case"), []byte(body), 0o644); err != nil {
+	for _, name := range []string{"a.ts", "b.ts", "c.ts"} {
+		body := "// Lists every entry in the book.\nexport function list() {}\n"
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv(plainSetEnv, dir)
+	t.Setenv(plainBlocksEnv, "2")
+	cases, inSet, err := loadPlainSet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inSet != 3 {
+		t.Errorf("the set holds 3 blocks and the run counted %d", inSet)
+	}
+	if len(cases) != 2 {
+		t.Errorf("a budget of 2 blocks took %d file(s) of one block each", len(cases))
+	}
+	lines := strings.Join(labelTable(nil, plainResult{measured: true, cases: 2, blocks: 2, flagged: 0, inSet: 3}), "\n")
+	if !strings.Contains(lines, "out of 3 block(s) in the set") {
+		t.Errorf("the report does not say what it left unread:\n%s", lines)
+	}
+}
+
+// No path from the plain set reaches a log. The set is somebody else's tree, and a run's output is
+// read and pasted by people, so a case is named by its position and never by where it came from.
+func TestAPlainSetCaseIsNamedByPositionAndNotByPath(t *testing.T) {
+	dir := t.TempDir()
+	body := "// Lists every entry in the book.\nexport function list() {}\n"
+	if err := os.WriteFile(filepath.Join(dir, "SecretlyNamed.ts"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(plainSetEnv, dir)
-	if _, err := loadPlainSet(); err == nil {
-		t.Error("a labelled case was accepted into the plain set")
+	cases, _, err := loadPlainSet()
+	if err != nil || len(cases) != 1 {
+		t.Fatalf("%d case(s), %v", len(cases), err)
+	}
+	if strings.Contains(cases[0].name, "SecretlyNamed") || strings.Contains(cases[0].name, dir) {
+		t.Errorf("a case carries its path into the report: %q", cases[0].name)
 	}
 }
 

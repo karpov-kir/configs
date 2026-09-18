@@ -16,10 +16,14 @@ import (
 )
 
 // The verdicts, highest precedence first. The order is the tie-break: it runs from the verdict whose
-// action retires the block to the verdict that leaves it alone. `carried` leads because making the
-// carrier takes the fact with it, and deleting first loses that fact. `padded` sits under `obvious`
-// for the mixed block, which without it is deleted whole and takes its one fact along.
-var verdictOrder = []string{"carried", "obvious", "stale", "padded", "coined", "unclear", "keep"}
+// action retires the block to the verdict that leaves it alone. `padded` sits under `obvious` for
+// the mixed block, which without it is deleted whole and takes its one fact along.
+//
+// A seventh verdict, `carried`, was measured and dropped. It asked whether a test or a rename would
+// carry the block, and a reader who cannot see the tests cannot answer that: it caught 0 of 2 and
+// answered `stale` once, which asserts a contradiction the judge does not see. The refactor lane
+// owns that question, with the tests in view.
+var verdictOrder = []string{"obvious", "stale", "padded", "coined", "unclear", "keep"}
 
 var verdictRank = func() map[string]int {
 	rank := map[string]int{}

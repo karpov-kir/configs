@@ -1,6 +1,5 @@
 kind: comment-verdict
-carried: 1
-unclear: 2 3
+unclear: 1 2 3
 coined: 4
 padded: 5
 stale: 6

@@ -47,12 +47,13 @@ func main() {
 	}
 	configured, err := readerjudge.Configure(readerjudge.Configuration{
 		Deadline: deadline, PolicyPath: policyPath, OverridePath: overridePath, Progress: os.Stderr,
+		Task: readerjudge.TaskFor(args),
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v — the judge did NOT run\n", self, err)
 		os.Exit(2)
 	}
-	fmt.Fprintf(os.Stderr, "reader-judge: requested client=%s model=%s effort=%q rolls=%d policy=%s\n", configured.Decision.Client, configured.Decision.Requested.Model, configured.Decision.Requested.Effort, configured.Decision.Rolls, configured.Decision.PolicyDigest)
+	fmt.Fprintf(os.Stderr, "reader-judge: row=%s requested client=%s model=%s effort=%q rolls=%d policy=%s\n", configured.Task, configured.Decision.Client, configured.Decision.Requested.Model, configured.Decision.Requested.Effort, configured.Decision.Rolls, configured.Decision.PolicyDigest)
 	memo := readerjudge.DefaultMemo(configured.CacheIdentity)
 	if os.Getenv("JUDGE_NO_CACHE") != "" {
 		memo = nil

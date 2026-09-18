@@ -1,6 +1,6 @@
 kind: comment-verdict
-carried: 2
 obvious: 3 5 6 8
+coined: 2
 ---
 // Entries in exports written before v3 carry no currency field at all, and the importer fills it
 // from the book. Drop that fallback and those exports total as zero.

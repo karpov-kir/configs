@@ -29,6 +29,7 @@
   },
   "workers": {
     "reader-judge":             { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "rolls": 3 },
+    "reader-judge/comment-verdict": { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" }, "rolls": 5 },
     "build/explore":           { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
     "code-review":             { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "conform":                 { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },

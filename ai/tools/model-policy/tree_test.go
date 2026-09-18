@@ -84,16 +84,20 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 		if _, stillASkill := skills[name]; stillASkill {
 			continue
 		}
-		if name == toolBuiltWorker {
+		if name == toolBuiltWorker || strings.HasPrefix(name, toolBuiltWorker+"/") {
 			continue
 		}
-		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and it is not %s, the one row a Go tool assembles the prompt for", name, toolBuiltWorker)
+		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and it is not %s or one of its kinds, whose prompts a Go tool assembles", name, toolBuiltWorker)
 	}
 }
 
-// The one worker whose prompt is assembled in Go rather than read from the tree, so the census cannot
-// find a file for it and must not demand one. Named rather than sniffed out: it is the only row of its
-// kind, and a second would be a decision somebody has to write down here.
+// The worker whose prompt is assembled in Go rather than read from the tree, so the census cannot
+// find a file for it and must not demand one. Named rather than sniffed out, and a second worker of
+// this shape is a decision somebody has to write down here.
+//
+// Its `<name>/<kind>` sub-rows are the same tool, and the prompt is assembled the same way. A sub-row
+// exists where one kind is read by a different tier: comment-verdict asks a comprehension question,
+// which the tier a delete vote is worth cannot answer.
 const toolBuiltWorker = "reader-judge"
 
 // A session sub-row prices a named path through one session rather than a spawn, so the mode file that
@@ -122,7 +126,7 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if !ok {
 		t.Fatal("kk-qualify carries no readable SKILL.md, so the lane table cannot be read")
 	}
-	enforced := map[string]bool{"reader-judge": true}
+	enforced := map[string]bool{"reader-judge": true, "reader-judge/comment-verdict": true}
 	for _, row := range lanesTableRow.FindAllSubmatch(lanes, -1) {
 		enforced[string(row[1])] = true
 	}

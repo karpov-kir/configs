@@ -20,8 +20,8 @@ func TestRollsThatAgreeABlockIsBadTakeThePrecedence(t *testing.T) {
 	if got := MajorityLabel([]string{"obvious", "coined", "obvious", "coined"}); got != "obvious" {
 		t.Errorf("a split between obvious and coined answered %q, and obvious outranks coined", got)
 	}
-	if got := MajorityLabel([]string{"carried", "unclear", "coined", "unclear"}); got != "carried" {
-		t.Errorf("a three-way split answered %q, and carried outranks both", got)
+	if got := MajorityLabel([]string{"stale", "unclear", "coined", "unclear"}); got != "stale" {
+		t.Errorf("a three-way split answered %q, and stale outranks both", got)
 	}
 }
 
