@@ -9,7 +9,7 @@
 # `refuse` and honours its `$dry_run`.
 #
 # The path is the one `ecosystem.md` → **Conventions a new file joins** sets for a machine-local
-# file, `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/`, and ai/tools/bloat-judge/deadline.go already
+# file, `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/`, and ai/tools/reader-judge/deadline.go already
 # reads it. `$HOME` and `$XDG_CONFIG_HOME` are read from the
 # environment and never `~`-expanded, which is the whole of what lets the suites point this at a
 # throwaway home.

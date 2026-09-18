@@ -21,7 +21,7 @@
 # binary lines ignored. An empty report at exit 0 means "nothing repeated" only when the first number
 # is above zero, and "nothing was read" when it is not.
 #
-# The scanner is Go, in `ai/tools/dup-literals/`. The half it shares with comment-density is
+# The scanner is Go, in `ai/tools/dup-literals/`. The half it shares with voice-check is
 # `ai/tools/diffscan/`: which arguments are refused, the git flags that pin the diff's shape, and the
 # anchor that stops a file's own content forging a header.
 #

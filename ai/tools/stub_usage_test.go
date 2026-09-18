@@ -64,7 +64,7 @@ var refusals = []refusal{
 	// Its main names a provider and loads a policy before the argument count is looked at, and refuses
 	// without one — so this row reaches the usage line only with a provider named. No provider is
 	// called: what refuses is the missing argument.
-	{stub: "ai/kk-flavor/scripts/bloat-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}},
+	{stub: "ai/kk-flavor/scripts/reader-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}},
 	{stub: "ai/kk-flavor/scripts/model-check.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/scripts/model-policy.sh", args: []string{"--nope"}},
 	// Two roots where the tool takes one path.
@@ -82,7 +82,7 @@ var refusals = []refusal{
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh"},
 	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
 	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
-	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh", args: []string{"--nope"}},
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh", args: []string{"--nope"}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh"},
 	{stub: "ai/kk-flavor/skills/kk-reduce/scripts/stats.sh", args: []string{"--agent=claude", "one", "two"}},
 	{stub: "ai/kk-flavor/workers/refactor/dup-literals.sh", args: []string{"--nope"}},

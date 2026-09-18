@@ -63,7 +63,7 @@ var extQualify = []string{"ai/kk-flavor/skills/idsd-qualify/scripts", "ai/kk-fla
 var extStubs = []string{
 	"ai/gate.sh",
 	"ai/guide.sh",
-	"ai/kk-flavor/scripts/bloat-judge.sh",
+	"ai/kk-flavor/scripts/reader-judge.sh",
 	"ai/kk-flavor/scripts/model-check.sh",
 	"ai/kk-flavor/scripts/model-policy.sh",
 	"ai/kk-flavor/scripts/repo-key.sh",
@@ -74,7 +74,7 @@ var extStubs = []string{
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh",
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph.sh",
 	"ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh",
-	"ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh",
+	"ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh",
 	"ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh",
 	"ai/kk-flavor/skills/kk-reduce/scripts/stats.sh",
 	"ai/kk-flavor/workers/refactor/dup-literals.sh",
@@ -158,6 +158,12 @@ func (g *gate) addGoChecks() {
 	// the stale green this whole thing exists not to serve. Blind to the module's test files for a
 	// reason of its own: eco-check reads Go sources only to find subcommand dispatches, and skips
 	// `_test.go` by name, because a test file's fixtures hold dispatch switches of their own.
+	// The baseline is the instruction tree's ratchet, and it only goes down. The unit is keyed on the
+	// tree it measures and on the tool that measures it, because a check that moves either moves the
+	// counts.
+	g.add("baseline", "check", []string{"ai/kk-flavor", "ai/tools/voice-check"},
+		"ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh")
+
 	g.addBlindToGoTests("wiring", "check", []string{"ai/kk-flavor", "ai/tools", "lib", ".gitignore"},
 		"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate")
 }
@@ -199,10 +205,10 @@ func (g *gate) addGuideCheck(imports map[string][]string) int {
 // package doc carries why that question needs asking at all.
 //
 // Keyed on the file it checks, the stub that runs it, and each package the check is built from —
-// bloat-judge among them, because the probe goes through its caller. Not on `ai/tools`: this is the
+// reader-judge among them, because the probe goes through its caller. Not on `ai/tools`: this is the
 // one unit whose command spends money, and keying it on the whole module would buy a model call per
 // name out of any Go edit at all. Direct imports rather than the transitive closure, as addGuideCheck
-// above does: `go list -deps` also reaches diffscan, through a bloat-judge file no probe calls. So a
+// above does: `go list -deps` also reaches diffscan, through a reader-judge file no probe calls. So a
 // new import has to be added to this list by hand.
 //
 // Blind to the module's test files, like every other unit that observes a compiled binary, and
@@ -218,7 +224,7 @@ func (g *gate) addModelCheck() int {
 	}
 	g.addUnit(unit{id: "models", kind: "check", blindToGoTests: true,
 		inputs: []string{extModels, "ai/tools/model-check", "ai/tools/cmd/model-check", "ai/tools/model-policy",
-			"ai/tools/bloat-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
+			"ai/tools/reader-judge", "ai/tools/shell", "ai/kk-flavor/scripts/model-check.sh"},
 		cmd:                   "ECO_TOOLS_BUILD=1 ai/kk-flavor/scripts/model-check.sh",
 		prerequisite:          reachable,
 		prerequisiteShortfall: unaskedProviderNote(unreachable)})

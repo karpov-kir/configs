@@ -1,0 +1,21 @@
+kind: commit
+cut: 1 3 4
+keep: 2
+---
+Send the comment lane to the mode that has a bar
+
+This commit changes the comment lane so that it is sent to the mode
+which has a bar.
+
+kk-qualify's Lanes table is the only place an orchestrator reads to get
+the comment scanner's command, and it named voice-check.sh with no
+mode, which reports two ranges against each other and never against the
+bar. Three passes in one stack each read a change set at three times its
+repo's rate as house style.
+
+I noticed this on Tuesday while re-reading the stack for something else.
+
+The fix is minimal, surgical and robust, and leaves the rest of the
+table exactly as it was.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
