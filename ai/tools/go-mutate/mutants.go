@@ -958,7 +958,7 @@ var mutants = []mutant{
 	{"density: DENSITY_MAX_FILE_BYTES parses and is then discarded", "../voice-check/density.go", "./voice-check/", "TestAThresholdOverrideTakesEffect",
 		`cfg.MaxFileBytes = value`, `cfg.MaxFileBytes = defaultMaxFileBytes + value*0`},
 
-	{"density: a fixture under testdata is counted as this repository's source", "../voice-check/density.go", "./voice-check/", "TestAFixtureUnderTestdataIsNotThisRepositorysSource",
+	{"density: a fixture under testdata is counted as this repository's source", "../voice-check/density.go", "./voice-check/", "TestNamingAFixtureIsAskingForIt",
 		`return isProseOrData(file) || isFixture(file)`, `return isProseOrData(file)`},
 	{"density: testdata matches as a prefix rather than a path segment", "../voice-check/density.go", "./voice-check/", "TestNamingAFixtureIsAskingForIt",
 		`return file == "testdata" || strings.HasPrefix(file, "testdata/") || strings.Contains(file, "/testdata/")`,
