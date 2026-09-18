@@ -359,6 +359,11 @@ type trial struct {
 	missedCuts []int
 	elapsed    time.Duration
 	err        error
+	// answered and wanted are the verdict kind's half: one label per block, and what the case says
+	// each should be. Both carry every block, `keep` included, because the false-flag half of the bar
+	// is counted over the blocks a case did not label.
+	answered map[int]string
+	wanted   map[int]string
 }
 
 // evalRolls is the shipped roll count. Held here rather than read from models.json: the eval compares
@@ -374,6 +379,16 @@ func (v variant) run(c evalCase) trial {
 		result.err = err
 		return result
 	}
+	if kinds[c.kind].Verdicts {
+		answered, err := ParseLabels(reply, len(units))
+		if err != nil {
+			result.err = err
+			return result
+		}
+		result.answered = answered
+		result.wanted = c.wantedLabels(len(units))
+		return result
+	}
 	gone, err := ParseVerdict(reply, len(units))
 	if err != nil {
 		result.err = err
@@ -382,6 +397,20 @@ func (v variant) run(c evalCase) trial {
 	result.gone = gone
 	result.falseCuts, result.missedCuts = c.score(gone)
 	return result
+}
+
+// wantedLabels is the case's answer for every block it offers. A block the case does not label is an
+// ordinary one, so it is `keep`, and a case therefore names only what it flags.
+func (c evalCase) wantedLabels(count int) map[int]string {
+	wanted := map[int]string{}
+	for n := 1; n <= count; n++ {
+		if label, labelled := c.verdicts[n]; labelled {
+			wanted[n] = label
+			continue
+		}
+		wanted[n] = "keep"
+	}
+	return wanted
 }
 
 // Spends a model call per roll per case per variant, so it runs only when JUDGE_EVAL names variants —
@@ -403,6 +432,10 @@ func TestJudgeEval(t *testing.T) {
 			t.Fatalf("JUDGE_EVAL_PARALLEL is %q, which is not a positive count", set)
 		}
 	}
+	plainCases, err := loadPlainSet()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range strings.Split(asked, ",") {
 		name = strings.TrimSpace(name)
 		index := slices.IndexFunc(variants, func(v variant) bool { return v.name == name })
@@ -410,7 +443,7 @@ func TestJudgeEval(t *testing.T) {
 			t.Fatalf("no variant %q; the corpus knows %s", name, variantNames())
 		}
 		v := variants[index]
-		t.Run(v.name, func(t *testing.T) { report(t, v, runAll(v, corpus, at)) })
+		t.Run(v.name, func(t *testing.T) { report(t, v, runAll(v, corpus, at), runPlainSet(v, plainCases, at)) })
 	}
 }
 
@@ -438,7 +471,7 @@ func runAll(v variant, corpus []evalCase, at int) []trial {
 // and a threshold here would only teach the next corpus to clear it. A case that never reached the
 // model is the exception and fails the run: an eval that exits 0 over eight cases it could not run is
 // silence dressed as a clean result, the same thing ParseVerdict refuses of a roll that said nothing.
-func report(t *testing.T, v variant, trials []trial) {
+func report(t *testing.T, v variant, trials []trial, plain plainResult) {
 	t.Helper()
 	falseCuts, missedCuts, failures := 0, 0, 0
 	var total time.Duration
@@ -457,6 +490,132 @@ func report(t *testing.T, v variant, trials []trial) {
 	}
 	t.Logf("SUMMARY %s: false cuts %d, missed cuts %d, did not run %d, %.0fs of roll time over %d cases",
 		v.name, falseCuts, missedCuts, failures, total.Seconds(), len(trials))
+	for _, line := range labelTable(trials, plain) {
+		t.Logf("%s", line)
+	}
+}
+
+// plainSetEnv names a directory of `.case` files whose blocks are all ordinary. It is the denominator
+// for the false-flag half of the bar: a judge that labels a plain block is spending a reader's
+// attention on text that was fine.
+//
+// A path and not a fixture in this tree. The set measured here is somebody else's code, and this
+// repository is public, so the cases stay outside it and only the counts are ever reported.
+const plainSetEnv = "JUDGE_EVAL_PLAIN"
+
+// loadPlainSet reads the cases the environment names, or answers that none were named. A directory
+// that is named and unreadable is a failure and not an absence: a run told where the set is and given
+// a bad path has measured nothing, and saying so as "unset" would hide the typo.
+func loadPlainSet() ([]evalCase, error) {
+	dir := os.Getenv(plainSetEnv)
+	if dir == "" {
+		return nil, nil
+	}
+	cases, err := loadCorpus(dir)
+	if err != nil {
+		return nil, fmt.Errorf("%s names %q, and the plain set could not be read there: %w", plainSetEnv, dir, err)
+	}
+	for _, c := range cases {
+		if len(c.verdicts) > 0 || len(c.cut) > 0 {
+			return nil, fmt.Errorf("%s: case %q labels a block, and every block in the plain set is an ordinary one", plainSetEnv, c.name)
+		}
+		if !kinds[c.kind].Verdicts {
+			return nil, fmt.Errorf("%s: case %q is kind %q, which answers no verdicts", plainSetEnv, c.name, c.kind)
+		}
+	}
+	return cases, nil
+}
+
+// runPlainSet judges the plain cases for one variant and counts what it flagged. Run per variant,
+// because the number it produces belongs to the configuration that produced it.
+func runPlainSet(v variant, cases []evalCase, at int) plainResult {
+	if len(cases) == 0 {
+		return plainResult{}
+	}
+	result := plainResult{measured: true, cases: len(cases)}
+	for _, one := range runAll(v, cases, at) {
+		if one.err != nil {
+			continue
+		}
+		for n := range one.wanted {
+			result.blocks++
+			if one.answered[n] != "keep" {
+				result.flagged++
+			}
+		}
+	}
+	return result
+}
+
+// plainResult is what the plain half measured, and whether it ran at all. Unset is NOT a pass: an
+// unmeasured bound is one nothing was held to, and a run that reported it as clean would be claiming
+// a measurement nobody took.
+type plainResult struct {
+	measured bool
+	cases    int
+	blocks   int
+	flagged  int
+}
+
+// labelTable is the catch-and-miss table: one row per verdict the corpus labels, then the false-flag
+// row the plain set answers. Returned as lines rather than logged from inside, so a case can drive it
+// without a model and without a corpus.
+func labelTable(trials []trial, plain plainResult) []string {
+	caught, labelled := map[string]int{}, map[string]int{}
+	instead := map[string]map[string]int{}
+	falseFlags, plainInCorpus := 0, 0
+	for _, result := range trials {
+		if result.err != nil || result.wanted == nil {
+			continue
+		}
+		for n, want := range result.wanted {
+			got := result.answered[n]
+			if want == "keep" {
+				plainInCorpus++
+				if got != "keep" {
+					falseFlags++
+				}
+				continue
+			}
+			labelled[want]++
+			if got == want {
+				caught[want]++
+				continue
+			}
+			if instead[want] == nil {
+				instead[want] = map[string]int{}
+			}
+			instead[want][got]++
+		}
+	}
+	lines := []string{fmt.Sprintf("%-10s %7s %7s  %s", "verdict", "caught", "of", "answered instead")}
+	for _, name := range verdictOrder {
+		if name == "keep" || labelled[name] == 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%-10s %7d %7d  %s", name, caught[name], labelled[name], missesAsText(instead[name])))
+	}
+	lines = append(lines, fmt.Sprintf("false flags on the corpus's own plain blocks: %d of %d", falseFlags, plainInCorpus))
+	if !plain.measured {
+		lines = append(lines, "plain set: NOT MEASURED — "+plainSetEnv+" names no directory, so the false-flag bound went unmeasured and this run does not clear it")
+		return lines
+	}
+	lines = append(lines, fmt.Sprintf("plain set: %d flagged of %d block(s) over %d case(s)", plain.flagged, plain.blocks, plain.cases))
+	return lines
+}
+
+// missesAsText is what a miss was answered instead, in verdict order so two runs print one order.
+func missesAsText(instead map[string]int) string {
+	if len(instead) == 0 {
+		return "—"
+	}
+	var parts []string
+	for _, name := range verdictOrder {
+		if n := instead[name]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", name, n))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 func variantNames() string {
@@ -465,4 +624,67 @@ func variantNames() string {
 		names[i] = v.name
 	}
 	return strings.Join(names, ",")
+}
+
+// An unmeasured bound is one nothing was held to. A run that printed the plain half as clean where
+// nobody named a set would be claiming a measurement that was never taken, and the bar this kind
+// ships against has a false-flag half.
+func TestAnUnmeasuredPlainSetIsReportedAsUnmeasured(t *testing.T) {
+	lines := strings.Join(labelTable(nil, plainResult{}), "\n")
+	if !strings.Contains(lines, "NOT MEASURED") {
+		t.Errorf("an unset plain set was reported as though it had run:\n%s", lines)
+	}
+	measured := strings.Join(labelTable(nil, plainResult{measured: true, cases: 2, blocks: 40, flagged: 1}), "\n")
+	if !strings.Contains(measured, "1 flagged of 40 block(s) over 2 case(s)") {
+		t.Errorf("a measured plain set did not report its counts:\n%s", measured)
+	}
+}
+
+// A path that was named and cannot be read is a failure, never an absence. Read as "unset", a typo
+// would silently drop the half of the bar the caller asked for.
+func TestAPlainSetPathThatDoesNotReadIsAFailure(t *testing.T) {
+	t.Setenv(plainSetEnv, filepath.Join(t.TempDir(), "nowhere"))
+	if _, err := loadPlainSet(); err == nil {
+		t.Error("a plain set path naming no directory was taken as no plain set at all")
+	}
+	t.Setenv(plainSetEnv, "")
+	cases, err := loadPlainSet()
+	if err != nil || cases != nil {
+		t.Errorf("an unset variable is no plain set and no error, got %d case(s) and %v", len(cases), err)
+	}
+}
+
+// Every block in the plain set is an ordinary one — that is what makes it the denominator. A case
+// carrying a label belongs in the corpus, where it is scored, and counting it here would measure the
+// judge against text somebody already called defective.
+func TestAPlainSetCaseThatLabelsABlockIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	body := "kind: comment-verdict\nobvious: 1\n---\n// Lists the entries.\nfunc list() {}\n"
+	if err := os.WriteFile(filepath.Join(dir, "labelled.case"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(plainSetEnv, dir)
+	if _, err := loadPlainSet(); err == nil {
+		t.Error("a labelled case was accepted into the plain set")
+	}
+}
+
+// The table is the one number the kind ships or dies by, so it is driven here rather than read off a
+// model run. A miss has to name what was answered instead: a label the judge confuses with another is
+// merged, and a label it simply never reaches is a different decision.
+func TestTheLabelTableCountsCatchesAndNamesWhatAMissAnswered(t *testing.T) {
+	trials := []trial{{
+		wanted:   map[int]string{1: "obvious", 2: "obvious", 3: "coined", 4: "keep", 5: "keep"},
+		answered: map[int]string{1: "obvious", 2: "padded", 3: "coined", 4: "keep", 5: "stale"},
+	}}
+	lines := strings.Join(labelTable(trials, plainResult{}), "\n")
+	for _, want := range []string{
+		"obvious          1       2  padded 1",
+		"coined           1       1  —",
+		"false flags on the corpus's own plain blocks: 1 of 2",
+	} {
+		if !strings.Contains(lines, want) {
+			t.Errorf("the table does not carry %q:\n%s", want, lines)
+		}
+	}
 }
