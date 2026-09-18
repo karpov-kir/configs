@@ -194,15 +194,20 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		if len(args) == 2 {
 			name = echoable(args[1])
 		}
-		reply, err := call(Prompt(kind), view)
-		if err != nil {
-			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
-			return exitDidNotRun
-		}
-		labels, err := ParseLabels(reply, len(units))
-		if err != nil {
-			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
-			return exitDidNotRun
+		labelKey := kindName + "\n" + offeredKey(units)
+		labels, recorded := memo.lookupLabels(labelKey, content, len(units))
+		if !recorded {
+			reply, err := call(Prompt(kind), view)
+			if err != nil {
+				fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
+				return exitDidNotRun
+			}
+			labels, err = ParseLabels(reply, len(units))
+			if err != nil {
+				fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
+				return exitDidNotRun
+			}
+			memo.recordLabels(labelKey, content, labels)
 		}
 		flagged := 0
 		for _, n := range SortedUnits(labels) {

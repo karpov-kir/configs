@@ -8,6 +8,7 @@ package readerjudge
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -86,4 +87,38 @@ func (m *Memo) record(kind, content string, gone []int) {
 		body = strings.Join(fields, ",")
 	}
 	_ = os.WriteFile(m.key(kind, content), []byte(body+"\n"), 0o600)
+}
+
+// lookupLabels answers a recorded label set, bounded by the blocks this run offers for the reason
+// lookup is bounded. A verdict kind prunes nothing, so its record is keyed by the offered blocks
+// alone, and there is no pruned form to record under a second key.
+func (m *Memo) lookupLabels(kind, content string, count int) (map[int]string, bool) {
+	if m == nil {
+		return nil, false
+	}
+	raw, err := os.ReadFile(m.key(kind, content))
+	if err != nil {
+		return nil, false
+	}
+	labels, err := ParseLabels(string(raw), count)
+	if err != nil {
+		return nil, false
+	}
+	return labels, true
+}
+
+// recordLabels writes a label set in the shape ParseLabels reads, so a record and the reply it stands
+// in for are one format and the reader of a memo file is reading the answer.
+func (m *Memo) recordLabels(kind, content string, labels map[int]string) {
+	if m == nil {
+		return
+	}
+	if err := os.MkdirAll(m.Dir, 0o700); err != nil {
+		return
+	}
+	var body strings.Builder
+	for _, n := range SortedUnits(labels) {
+		fmt.Fprintf(&body, "%d %s\n", n, labels[n])
+	}
+	_ = os.WriteFile(m.key(kind, content), []byte(body.String()), 0o600)
 }
