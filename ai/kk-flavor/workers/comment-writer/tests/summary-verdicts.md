@@ -82,11 +82,34 @@ Facts: empty.
 Expected: `none`. The default, and the case that fails when a writer writes a comment because a site
 was offered.
 
+### 5. A claim defending a decision the reader takes for granted
+
+```ts
+export function isPriced(book: Element): boolean {
+  return (
+    hasCurrency(book.getAttribute('currency')) ||
+    entriesOf(book).some(entry => hasCurrency(entry.getAttribute('currency')))
+  );
+}
+```
+
+Facts: `The ledger format allows a currency on the book or on each entry, so both are read.`
+
+Expected: `none`. The fact is true and the code cannot show it, so the presence form alone writes it.
+Question 3 drops it instead: a reader meeting two places a value can sit reads both, and the claim
+defends what they were going to do. This is case 2's site with the fact that survived the first pass
+over it.
+
 ## Reading a result
 
 A `none` on case 3 is the rule read as a length test. A 60-file reviewed set holds 390 summaries, 274
 of them over a body of five lines or fewer. Of those 274, 272 carry a word the declaration and the
 body do not, so the length reading deletes the facts this lane exists to keep.
 
-A written block on case 1 or 2 is the restatement rule going unapplied, which is what the #3194 run
-found twice.
+A written block on case 2 is the restatement rule going unapplied. On case 5 it is a claim kept for
+being true, where the question is whether a reader needs it.
+
+Case 1 is what no procedure reaches. The strike step leaves `paired` standing, since the identifiers
+and the body carry that word nowhere. The body runs to seven lines, so the five-line sentence
+has no scope over it either. What decides case 1 is a reader seeing that a loop inside a loop is a
+pairing, and a written block there is the restatement rule going unapplied.
