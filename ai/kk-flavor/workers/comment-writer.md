@@ -12,7 +12,7 @@ Read the code first and the facts file last. Open a site's facts file only when 
 
 ## Per site, three questions in order
 
-1. **Is a comment needed?** Read the declaration, its signature, its body, and for an exported symbol its callers, found with `grep` over the repository. Answer `none` where the name, the parameters, the return type and the fields say what the symbol does. `none` is the default. A type whose fields say what it is gets no summary. A function whose name and parameters say what it lists, checks or returns gets no summary.
+1. **Is a comment needed?** Read the declaration, its signature, its body, and for an exported symbol its callers, found with `grep` over the repository. Answer `none` where the name, the parameters, the return type and the fields say what the symbol does. `none` is the default. A type whose fields say what it is gets no summary. A function whose name and parameters say what it lists, checks or returns gets no summary. Where the body is five lines or fewer, the reader reads the body. A summary there is written for a fact from outside the function: what a caller expects, what a format or a platform does, why a bound was chosen.
 2. **The summary.** Write one where the name and signature leave a return case, a unit, an ordering a caller depends on, a side effect or a precondition unsaid. Fill the summary pattern the rule gives: `<Verb> <what>` and, where there is a case, `, or <value> when <case>`. Use the identifier's names and the domain's words. Say what the symbol decides or returns. Do not say why.
 3. **The note.** Open the facts file. Read each sentence in it as a claim, and check the claim against the code. Drop a claim the code contradicts, and return it as `stale`. Drop a claim the body shows. Drop a claim a test, a lint rule, a rename or an extraction would carry, and return it as `carried by <what>` for the refactor lane. Keep a claim only where the code cannot show it and a reader editing at the site would break something without it. Write each kept claim as one sentence in the note pattern: `<One fact>, so <consequence>.` Name the fact's subject first. A second fact is a second sentence. Two sentences is the ceiling. Return a fact that needs more as `for the PR body`, and write no note for it.
 
@@ -25,6 +25,7 @@ Copy no sentence from the facts file into the block. Write each kept fact again 
 - Put one idea in a sentence, and keep it under 20 words.
 - Leave out semicolons, bold, bullets, headings, a contrast spine, and `never` as emphasis.
 - Name the actor of every verb.
+- Name a language mechanism by the language's own word: `this` binding, closure, promise, iterator, generator. A metaphor for one is a word the reader has to translate.
 
 ## Check each block before you write it
 
@@ -44,4 +45,5 @@ After the verdict lines, one line each: `stale: <site>: <claim>`, `carried by <w
 
 - Write a comment because the old one existed. The default is `none`.
 - Read the facts file before question 3.
+- Run `git diff`, `git show` or `git log` over the change's range before question 3. The strip clears the tree and leaves the history, so a block you read there is the block you were sent to replace.
 - Change a line of code. A code change you want is a `rename:` or `carried by` line for the refactor lane.

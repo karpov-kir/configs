@@ -1,0 +1,27 @@
+# Comment verdict regression cases
+
+Run when changing the per-block verdict in `~/.kk-flavor/workers/refactor.md` or the rule it reads,
+`~/.kk-flavor/standards/code-style.md` → **Comments**. These probes test which verdict a block draws.
+They do not prove the edit the verdict asks for is made.
+
+## Procedure
+
+Give an isolated instruction worker the candidate checkout's shared skill protocol, the refactor
+worker and the comment rule. Supply the Block and Code columns below, and withhold the Expected
+column. Ask for the block's verdict line alone. Resolve its model through the instruction
+role, and record the candidate file hashes and the worker identity.
+
+## Cases
+
+| Block | Code | Expected |
+|---|---|---|
+| `// A ledger on the vendor's prefixed API answers there, and the standard API answers for the rest.` | A function whose body is one `if` on `ledger.prefixed` with a return in each arm | `carried by <a named function per branch>`. The third shape, and `stays` is not available to it. |
+| `// 90 days, because the tax authority rejects a filing older than a quarter.` | `const RETENTION_DAYS = 90` | `carried by <a rename>`, since the constant's name can hold the unit and the bound |
+| `// Every entry in a book inherits the book's currency where it sets none of its own.` | The same sentence stated in prose in two other files | `carried by <an extraction>`, since more than one file states the invariant |
+| `// Exports written before v3 set no currency on the book, so those books read as unpriced.` | A function reading `book.currency` with no other trace of v3 in the tree | `stays: the format's history, which no name can carry` |
+
+## Reading a result
+
+A `stays` on the first case is the defect this fixture exists for. The rule settles that verdict, and
+a worker reaching its own judgement there has read the rule and set it aside. A `carried by` on the
+last case is the opposite defect, and it deletes a fact the code cannot show.

@@ -1280,3 +1280,65 @@ func TestTheSameWordsOutsideATableAreRead(t *testing.T) {
 		t.Error("a paragraph carrying the same words went unread")
 	}
 }
+
+// A sentence carrying one semicolon joins two clauses, whatever the tail's length. The floor was
+// written for a list, where a short tail is a field, and it let seventeen real joins through in the
+// instruction tree.
+func TestOneSemicolonJoinsTwoClausesWhateverItsTail(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	for _, join := range []string{
+		"// This check is important; it never fails.",
+		"// Extend the hand-written tests; do not clobber them.",
+	} {
+		if !hasCheck(s.scanSource("f.go", []string{join}, nil), checkSemicolon) {
+			t.Errorf("%q joins two clauses and went unreported", join)
+		}
+	}
+	for _, list := range []string{
+		"// Reads three fields: owner; entry; book.",
+		"// The kinds are comment; commit; reply.",
+	} {
+		if hasCheck(s.scanSource("f.go", []string{list}, nil), checkSemicolon) {
+			t.Errorf("%q is a list and was read as a clause join", list)
+		}
+	}
+}
+
+// A table cell is a list by construction. One semicolon in a cell separates two fields, and the same
+// semicolon in prose joins two clauses. Two cells in standards/testing.md found this.
+func TestOneSemicolonInACellSeparatesFields(t *testing.T) {
+	cell := []string{"| Unit | One unit of behaviour | Real in-process collaborators; no real I/O |"}
+	for _, profile := range []Profile{ProfileProse, ProfileInstruction} {
+		s := scanner{profile: profile}
+		if hasCheck(s.scanProse("f.md", cell), checkSemicolon) {
+			t.Errorf("the %s profile read a cell's two fields as a clause join", profile)
+		}
+	}
+	prose := []string{"Real in-process collaborators; no real I/O is reached."}
+	s := scanner{profile: ProfileProse}
+	if !hasCheck(s.scanProse("f.md", prose), checkSemicolon) {
+		t.Error("the same semicolon outside a table went unreported")
+	}
+}
+
+// After a definite determiner the word points at a thing, and all twenty-two uses in the tree do
+// that. The adverb form is what earns a finding.
+func TestEmphasisIsTheAdverbAndNotTheDeterminer(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	for _, padding := range []string{
+		"// This is a very important check.",
+		"// The bound is crucially wrong.",
+	} {
+		if !hasCheck(s.scanSource("f.go", []string{padding}, nil), checkIntensifier) {
+			t.Errorf("%q raises a claim without adding to it and went unreported", padding)
+		}
+	}
+	for _, naming := range []string{
+		"// A verify run that discovers this very case.",
+		"// It reads the directory from the very first entry.",
+	} {
+		if hasCheck(s.scanSource("f.go", []string{naming}, nil), checkIntensifier) {
+			t.Errorf("%q names a thing and was read as padding", naming)
+		}
+	}
+}
