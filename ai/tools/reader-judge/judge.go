@@ -80,13 +80,11 @@ var kinds = map[string]Kind{
 	"return":       {Reader: "an orchestrator deciding what to do next from this stage's return"},
 	"reply":        {Reader: "the person you are replying to, in chat"},
 	"record-entry": {Reader: "an agent reading this record before acting, paying for each entry in context"},
-	"comment-verdict": {Reader: "an engineer in your first year, new to this codebase and not a native English speaker, " +
-		"reading quickly to change something near this line", Source: true, Verdicts: true},
 }
 
 // TaskFor is the models.json row an invocation should resolve. A kind this tool knows takes the row
-// named for it, and anything else takes the tool's own row, so an unknown kind is refused by the run
-// and never by the policy.
+// named for it, and anything else takes the tool's own row. An unknown kind is then refused by the
+// run and never by the policy.
 func TaskFor(args []string) string {
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") {

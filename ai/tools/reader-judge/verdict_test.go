@@ -54,6 +54,7 @@ func TestEveryBlockMustCarryAVerdict(t *testing.T) {
 // verdict kind's output is one label line per block, so the same path would hand its caller a file to
 // read as verdicts. Reached whenever `--changed` narrows a file to no changed block.
 func TestAVerdictRunWithNothingOfferedPrintsNoArtifact(t *testing.T) {
+	withTheRecordedVerdictKind(t)
 	path := write(t, "package p\n\nfunc a() {}\n")
 	var out, errOut strings.Builder
 	called := false

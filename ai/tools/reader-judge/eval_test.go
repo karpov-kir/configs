@@ -58,7 +58,7 @@ func parseCase(name, raw string) (evalCase, error) {
 		case "kind":
 			parsed.kind = strings.TrimSpace(value)
 		case "obvious", "stale", "padded", "coined", "unclear":
-			if !kinds[parsed.kind].Verdicts {
+			if !specificationFor(parsed.kind).Verdicts {
 				return evalCase{}, fmt.Errorf("%s: %q labels a verdict, and kind %q does not answer verdicts", name, key, parsed.kind)
 			}
 			numbers, err := unitNumbers(value, key)
@@ -88,7 +88,9 @@ func parseCase(name, raw string) (evalCase, error) {
 			return evalCase{}, fmt.Errorf("%s: unknown label %q", name, key)
 		}
 	}
-	if _, known := kinds[parsed.kind]; !known {
+	_, live := kinds[parsed.kind]
+	_, recorded := deletedKinds[parsed.kind]
+	if !live && !recorded {
 		return evalCase{}, fmt.Errorf("%s names kind %q, which the judge does not have", name, parsed.kind)
 	}
 	parsed.units, _ = parsed.split()
@@ -124,7 +126,7 @@ func unitNumbers(value, label string) ([]int, error) {
 // produces — a commit's withheld trailers included.
 func (c evalCase) split() ([]Unit, string) {
 	lines := shell.SplitLines(c.text)
-	kind := kinds[c.kind]
+	kind := specificationFor(c.kind)
 	return Split(lines, kind.candidates(lines), offerFor(lines, kind))
 }
 
@@ -190,11 +192,54 @@ const corpusDir = "testdata/corpus"
 // a directory of the host repository instead; the denominator differs and the outcome does not.
 const deletedKindRecord = "comment-read: 8/12 and 8/26, then 4/12 and 2/26, against a bar of >=10 and <=3"
 
-// The record above names a kind, and a kind that came back without its eval would make it a lie.
-func TestTheDeletedKindStaysDeleted(t *testing.T) {
-	if _, present := kinds["comment-read"]; present {
-		t.Fatalf("comment-read is a kind again, and %q is now false — restore its eval case with it", deletedKindRecord)
+// `comment-verdict` labelled every block from a closed set, against bars fixed before the run. It
+// missed both halves, and a second configuration at the reader's tier with five rolls moved one
+// block. The plain half decided it, and the labels it failed are the reason not to build it again in
+// this shape.
+const deletedVerdictRecord = "comment-verdict: obvious 2/4, coined 0/2, unclear 1/3, plain set ~30% against a bound of 5%"
+
+// The records above name kinds, and a kind that came back without its eval would make them lies. The
+// corpus keeps the cases either way, so re-adding a kind runs it against the bars it missed.
+func TestTheDeletedKindsStayDeleted(t *testing.T) {
+	for name, record := range map[string]string{
+		"comment-read":    deletedKindRecord,
+		"comment-verdict": deletedVerdictRecord,
+	} {
+		if _, present := kinds[name]; present {
+			t.Fatalf("%s is a kind again, and %q is now false — clear its bars before restoring it", name, record)
+		}
 	}
+}
+
+// deletedKinds are the kinds this corpus measured and the tree no longer ships, each with the shape
+// it had. A case naming one still parses and still splits the way it did, so the fixture that decided
+// a kind outlives the kind and is there to re-run against.
+var deletedKinds = map[string]Kind{
+	"comment-verdict": {Reader: "an engineer in your first year, new to this codebase and not a native English speaker, " +
+		"reading quickly to change something near this line", Source: true, Verdicts: true},
+}
+
+// withTheRecordedVerdictKind puts a deleted kind back for one case's duration. The label machinery
+// stays in the tree for the next attempt, so a test is the only caller left that can drive it.
+// TestTheDeletedKindsStayDeleted is what guards the shipped set, in place of this absence.
+func withTheRecordedVerdictKind(t *testing.T) string {
+	t.Helper()
+	const name = "comment-verdict"
+	if _, shipped := kinds[name]; shipped {
+		t.Fatalf("%s ships again, so this fixture would shadow the real one", name)
+	}
+	kinds[name] = deletedKinds[name]
+	t.Cleanup(func() { delete(kinds, name) })
+	return name
+}
+
+// specificationFor is a case's kind, live or recorded as deleted. Every reader of a case goes through
+// it, so a deleted kind's fixture splits into the blocks it was labelled against.
+func specificationFor(name string) Kind {
+	if kind, live := kinds[name]; live {
+		return kind
+	}
+	return deletedKinds[name]
 }
 
 func TestEveryCorpusCaseParsesAndLabelsARealUnit(t *testing.T) {
@@ -229,6 +274,7 @@ func TestShowCorpus(t *testing.T) {
 // in front of the model. A recording caller reads the view RunIn built and holds it against the
 // case's own, so the two cannot drift apart while both still look reasonable on their own.
 func TestTheEvalOffersEachCaseTheUnitsARunDoes(t *testing.T) {
+	withTheRecordedVerdictKind(t)
 	corpus, err := loadCorpus(corpusDir)
 	if err != nil {
 		t.Fatal(err)
@@ -238,7 +284,7 @@ func TestTheEvalOffersEachCaseTheUnitsARunDoes(t *testing.T) {
 			seen := ""
 			recording := func(_, view string) (string, error) {
 				seen = view
-				if !kinds[c.kind].Verdicts {
+				if !specificationFor(c.kind).Verdicts {
 					return "none", nil
 				}
 				// "none" is the delete kind's empty answer and is not a verdict. A verdict kind
@@ -290,7 +336,7 @@ type variant struct {
 	// inheriting the operator's configuration did.
 	settingSources string
 	// rolls overrides evalRolls for this row, so a configuration that changes the roll count is a row
-	// of its own rather than a second sweep. Zero takes the shipped count.
+	// of its own and never a second sweep. Zero takes the shipped count.
 	rolls int
 	// thinking is what MAX_THINKING_TOKENS is set to for the roll. Handed to the command rather than
 	// exported here, because a roll's environment is an allow-list that drops this one on purpose —
@@ -386,7 +432,7 @@ type trial struct {
 // configurations against each other, and a roll count that moved under it would move every row.
 const evalRolls = 3
 
-// rollCount is this row's roll count, and the shipped one where the row names none.
+// rollCount is this row's roll count, and the shipped count for a row that sets zero.
 func (v variant) rollCount() int {
 	if v.rolls > 0 {
 		return v.rolls
@@ -397,13 +443,13 @@ func (v variant) rollCount() int {
 func (v variant) run(c evalCase) trial {
 	units, view := c.split()
 	started := time.Now()
-	reply, err := Voting(v.caller(), v.rollCount())(Prompt(kinds[c.kind]), view)
+	reply, err := Voting(v.caller(), v.rollCount())(Prompt(specificationFor(c.kind)), view)
 	result := trial{name: c.name, elapsed: time.Since(started)}
 	if err != nil {
 		result.err = err
 		return result
 	}
-	if kinds[c.kind].Verdicts {
+	if specificationFor(c.kind).Verdicts {
 		answered, err := ParseLabels(reply, len(units))
 		if err != nil {
 			result.err = err
@@ -525,13 +571,10 @@ func report(t *testing.T, v variant, trials []trial, plain plainResult) {
 	}
 }
 
-// plainSetEnv names a directory of source files whose comment blocks are all ordinary. That is the
+// plainSetEnv names a directory of source files whose comment blocks are all ordinary, the
 // denominator for the false-flag half of the bar. A judge labelling a plain block spends a reader's
-// attention on text that was fine. The files stay outside this tree: the set measured here is
-// somebody else's code, this repository is public, and only the counts are ever reported.
-//
-// Source files and not cases, because a plain set carries no label to write down. Every block in it
-// wants `keep`, which is what makes it a denominator.
+// attention on text that was fine. Every block wants `keep`, so the set needs no case file. Its
+// files are somebody else's code and stay outside this tree, and only counts are reported.
 const plainSetEnv = "JUDGE_EVAL_PLAIN"
 
 // plainBlocksEnv bounds how many blocks the plain half reads, because every block costs a roll per
@@ -541,17 +584,15 @@ const plainBlocksEnv = "JUDGE_EVAL_PLAIN_BLOCKS"
 
 const plainBlockBudget = 120
 
-// The verdict kind the plain set is judged by. Spelled out: a plain set is a denominator for one
-// kind's false flags, and deriving it from whichever kind answers verdicts would silently move the
-// denominator when a second such kind lands.
+// The verdict kind the plain set is judged by, named here. A plain set is a denominator for a single
+// kind's false flags. A lookup over whichever kind answers verdicts would move that denominator on
+// its own, the day a second such kind landed.
 const plainSetKind = "comment-verdict"
 
 // loadPlainSet reads the source files the environment names, or answers that none were named. A
-// directory that is named and unreadable is a failure. A run handed a bad path has measured no block
-// at all, and reporting that as "unset" would hide the typo.
-//
-// It answers the blocks in the whole set beside the ones it took, so a sampled run says what fraction
-// of the set it read rather than reporting a rate over an unstated denominator.
+// directory that is named and unreadable is a failure, since a run handed a bad path has measured no
+// block at all and "unset" would hide the typo. It answers the blocks in the whole set beside the
+// ones it took, so a sampled run says what fraction of the set it read.
 func loadPlainSet() (cases []evalCase, inSet int, err error) {
 	dir := os.Getenv(plainSetEnv)
 	if dir == "" {
@@ -586,8 +627,8 @@ func loadPlainSet() (cases []evalCase, inSet int, err error) {
 		if err != nil {
 			return nil, 0, err
 		}
-		// The name is the file's position in the sorted set, never its path. A path from this set
-		// names somebody else's tree, and a run's log is read and pasted by people.
+		// The name is the file's position in the sorted set. A path from this set names somebody
+		// else's tree, and a run's log gets read and pasted by people.
 		one := evalCase{name: fmt.Sprintf("plain-%03d", len(paths)), kind: plainSetKind, text: string(raw)}
 		units, _ := one.split()
 		inSet += len(units)
@@ -602,7 +643,7 @@ func loadPlainSet() (cases []evalCase, inSet int, err error) {
 }
 
 // The extensions the plain set is read from. A set of another language joins by adding one here, and
-// a file the scan does not read is left out of the denominator rather than counted as clean.
+// a file the scan does not read stays out of the denominator instead of counting as clean.
 var plainSetExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".go": true}
 
 // runPlainSet judges the plain cases for one variant and counts what it flagged. Run per variant,
@@ -613,8 +654,8 @@ func runPlainSet(v variant, cases []evalCase, inSet, at int) plainResult {
 	}
 	result := plainResult{measured: true, cases: len(cases), inSet: inSet}
 	for _, one := range runAll(v, cases, at) {
-		// A case that did not run leaves its blocks out of the denominator, so the rate would be
-		// quoted over a set smaller than the one the report names. Counted and reported instead.
+		// A case that did not run leaves its blocks out of the denominator, and the rate would then
+		// cover a smaller set than the report names. Counted and reported.
 		if one.err != nil {
 			result.failed++
 			if result.why == "" {
@@ -642,11 +683,11 @@ type plainResult struct {
 	flagged  int
 	// inSet is every block the named set holds, which is the denominator a sampled run did not read.
 	inSet int
-	// failed is the plain cases that did not run. Their blocks reached no denominator, so a rate
-	// quoted without them is quoted over less than the report says it read.
+	// failed is the plain cases that did not run. Their blocks reach the denominator nowhere, so a
+	// rate quoted without them covers less than the report says it read.
 	failed int
-	// why is the first failure's own words. A count of failures says a run was partial; it takes the
-	// reason to say whether the set is unreadable or the judge is.
+	// why is the first failure's own words. A count says a run was partial. The reason says whether
+	// the set is unreadable or the judge is.
 	why string
 }
 
@@ -775,8 +816,8 @@ func TestAPlainSetPathThatDoesNotReadIsAFailure(t *testing.T) {
 }
 
 // A sampled run says what it read and what it did not. The budget takes files in sorted order, so a
-// second run at the same budget reads the same blocks, and a rate is quoted over a denominator the
-// report states rather than over the whole set it did not reach.
+// second run at the same budget reads the same blocks, and the report states the denominator it
+// quotes a rate over.
 func TestAPlainSetSampleNamesWhatItLeftUnread(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{"a.ts", "b.ts", "c.ts"} {
@@ -803,8 +844,8 @@ func TestAPlainSetSampleNamesWhatItLeftUnread(t *testing.T) {
 	}
 }
 
-// No path from the plain set reaches a log. The set is somebody else's tree, and a run's output is
-// read and pasted by people, so a case is named by its position and never by where it came from.
+// No path from the plain set reaches a log. The set is somebody else's tree, and a run's output gets
+// pasted around. A case carries its position in place of where it came from.
 func TestAPlainSetCaseIsNamedByPositionAndNotByPath(t *testing.T) {
 	dir := t.TempDir()
 	body := "// Lists every entry in the book.\nexport function list() {}\n"

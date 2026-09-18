@@ -91,13 +91,10 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 	}
 }
 
-// The worker whose prompt is assembled in Go rather than read from the tree, so the census cannot
-// find a file for it and must not demand one. Named rather than sniffed out, and a second worker of
-// this shape is a decision somebody has to write down here.
-//
-// Its `<name>/<kind>` sub-rows are the same tool, and the prompt is assembled the same way. A sub-row
-// exists where one kind is read by a different tier: comment-verdict asks a comprehension question,
-// which the tier a delete vote is worth cannot answer.
+// The worker whose prompt a Go tool assembles. The census finds a file for every other one, and this
+// row has none, so it passes by name. Naming it makes a second worker of this shape a decision
+// somebody writes down. Its `<name>/<kind>` sub-rows are the same tool, assembled the same way, and
+// price one kind apart for a question the tool's own tier cannot answer. The tree ships none today.
 const toolBuiltWorker = "reader-judge"
 
 // A session sub-row prices a named path through one session rather than a spawn, so the mode file that
@@ -126,7 +123,7 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if !ok {
 		t.Fatal("kk-qualify carries no readable SKILL.md, so the lane table cannot be read")
 	}
-	enforced := map[string]bool{"reader-judge": true, "reader-judge/comment-verdict": true}
+	enforced := map[string]bool{"reader-judge": true}
 	for _, row := range lanesTableRow.FindAllSubmatch(lanes, -1) {
 		enforced[string(row[1])] = true
 	}

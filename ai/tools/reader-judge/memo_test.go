@@ -99,6 +99,7 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 // The verdict kind is paid for once over the same blocks, the way the delete kind is. Its answer is a
 // label per block, and the delete kind's record holds unit numbers, so it needed a record of its own.
 func TestTheVerdictKindIsPaidForOnce(t *testing.T) {
+	withTheRecordedVerdictKind(t)
 	path := write(t, source)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
 	calls := 0
@@ -126,6 +127,7 @@ func TestTheVerdictKindIsPaidForOnce(t *testing.T) {
 // same bytes. It is a miss, and the model answers again, which is what the delete kind's lookup does
 // for the same reason.
 func TestALabelRecordOutsideTheOfferedBlocksIsAMiss(t *testing.T) {
+	withTheRecordedVerdictKind(t)
 	path := write(t, source)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
 	calls := 0

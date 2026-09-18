@@ -33,7 +33,7 @@ type Configured struct {
 	Call          Caller
 	Decision      modelpolicy.Decision
 	CacheIdentity string
-	// Task is the models.json row that answered, which is the sub-row where one exists.
+	// Task is the models.json row that answered. It is the sub-row wherever one exists.
 	Task string
 }
 
@@ -49,7 +49,7 @@ func Configure(configuration Configuration) (Configured, error) {
 	if err != nil {
 		return Configured{}, err
 	}
-	// A kind with a row of its own takes it, so one kind can be read by a different tier while the
+	// A kind with a row of its own takes it. One kind can then be read by a different tier while the
 	// rest keep the price a delete vote is worth. The row is optional, and a kind without one falls
 	// back to the tool's. Which row answered is on the line the command prints.
 	task := configuration.Task
