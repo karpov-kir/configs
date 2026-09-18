@@ -202,7 +202,7 @@ func TestEveryCorpusCaseParsesAndLabelsARealUnit(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range corpus {
-		if len(c.cut) == 0 && len(c.keep) == 0 {
+		if len(c.cut) == 0 && len(c.keep) == 0 && len(c.verdicts) == 0 {
 			t.Errorf("%s labels nothing, so no configuration can pass or fail it", c.name)
 		}
 	}
@@ -220,7 +220,7 @@ func TestShowCorpus(t *testing.T) {
 	}
 	for _, c := range corpus {
 		_, view := c.split()
-		t.Logf("\n=== %s (%s) cut %v keep %v ===\n%s", c.name, c.kind, c.cut, c.keep, view)
+		t.Logf("\n=== %s (%s) cut %v keep %v verdicts %v ===\n%s", c.name, c.kind, c.cut, c.keep, c.verdicts, view)
 	}
 }
 
@@ -237,7 +237,16 @@ func TestTheEvalOffersEachCaseTheUnitsARunDoes(t *testing.T) {
 			seen := ""
 			recording := func(_, view string) (string, error) {
 				seen = view
-				return "none", nil
+				if !kinds[c.kind].Verdicts {
+					return "none", nil
+				}
+				// "none" is the delete kind's empty answer and is not a verdict. A verdict kind
+				// refuses a reply that leaves a block unanswered, so the stub answers every one.
+				lines := make([]string, 0, unitsInView(view))
+				for n := 1; n <= unitsInView(view); n++ {
+					lines = append(lines, strconv.Itoa(n)+" keep")
+				}
+				return strings.Join(lines, "\n"), nil
 			}
 			var out, errs strings.Builder
 			if code := RunIn("j", []string{c.kind, write(t, c.text)}, ".", nil, &out, &errs, recording, nil); code != exitClean {
@@ -686,5 +695,27 @@ func TestTheLabelTableCountsCatchesAndNamesWhatAMissAnswered(t *testing.T) {
 		if !strings.Contains(lines, want) {
 			t.Errorf("the table does not carry %q:\n%s", want, lines)
 		}
+	}
+}
+
+// The two kinds are measured over one text. comment-ts.case and comment-ts-verdict.case carry the
+// same blocks under different labels, so a block edited in one and not the other would leave the two
+// kinds scored against different material while reporting one corpus.
+func TestTheTwoKindsShareOneTextForTheSharedCase(t *testing.T) {
+	corpus, err := loadCorpus(corpusDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	texts := map[string]string{}
+	for _, c := range corpus {
+		texts[c.name] = c.text
+	}
+	deleting, labelling := texts["comment-ts"], texts["comment-ts-verdict"]
+	if deleting == "" || labelling == "" {
+		t.Fatalf("one of the paired cases is missing: comment-ts %d bytes, comment-ts-verdict %d bytes",
+			len(deleting), len(labelling))
+	}
+	if deleting != labelling {
+		t.Error("comment-ts and comment-ts-verdict have drifted, so the two kinds are scored on different blocks")
 	}
 }
