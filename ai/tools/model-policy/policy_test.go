@@ -306,9 +306,9 @@ func TestSelectionsListEveryRowOfBothMaps(t *testing.T) {
 		got = append(got, selection.Origin+"/"+selection.Client+"/"+selection.Model+"/"+selection.Effort)
 	}
 	want := []string{
-		"reader-judge/codex/helper/low", "reader-judge/claude/haiku/",
 		"build/explore/codex/middling/low", "build/explore/claude/sonnet/",
 		"kk-build/codex/frontier/high", "kk-build/claude/opus/",
+		"reader-judge/codex/helper/low", "reader-judge/claude/haiku/",
 	}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("Selections = %v;\nwant %v", got, want)

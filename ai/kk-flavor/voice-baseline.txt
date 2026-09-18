@@ -51,10 +51,10 @@
 15 ai/kk-flavor/workers/grill/facts.md
 15 ai/kk-flavor/standards/code-style.md
 15 ai/kk-flavor/skills/kk-handoff/SKILL.md
-15 ai/kk-flavor/skills/kk-edit/SKILL.md
 15 ai/kk-flavor/skills/idsd-charter/SKILL.md
 13 ai/kk-flavor/workers/reduce/reconcile.md
 13 ai/kk-flavor/workers/reduce/arbitrate.md
+13 ai/kk-flavor/skills/kk-edit/SKILL.md
 12 ai/kk-flavor/workers/refactor.md
 12 ai/kk-flavor/workers/reduce/over-cut.md
 12 ai/kk-flavor/skills/kk-pr/address-review.md

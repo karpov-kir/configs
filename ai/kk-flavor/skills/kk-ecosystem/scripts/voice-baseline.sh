@@ -2,17 +2,22 @@
 # Holds the instruction tree to `ai/kk-flavor/voice-baseline.txt`, the ratchet the register campaign
 # pays down. Before this script its only reader was a sentence in a skill telling an agent to read it.
 #
-#   usage: voice-baseline.sh [--regenerate]
+#   usage: voice-baseline.sh [--regenerate] [<root>]
 #
-# It refuses in both directions. A file measuring over its line has risen, so the change that raised
-# it repairs it. A file measuring under its line has left slack, so the change lowers the line too. A
-# file that carries a count without a baseline line is a new file starting dirty. `--regenerate`
-# rewrites the file from what the tree measures now, in the same change that lowers a count.
+# It refuses in both directions. A file over its line has risen, so the change that raised it repairs
+# it. A file under its line has left slack, so the change lowers the line too. A file that carries a
+# count without a baseline line is a new file starting dirty. Exits 1 with findings, 0 when every
+# file is on its line, and 2 when the check did not run.
 #
-# Exits 1 with findings, 0 when every file sits exactly on its line, 2 when the check did not run.
+# tested by: voice-baseline-test.sh
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+regenerate=""
+[ "${1:-}" = "--regenerate" ] && { regenerate=1; shift; }
+
+# The checkout to measure. Named, it is a fixture root carrying its own baseline and its own stub
+# checker, which is how the suite drives both refusal directions without the Go tool.
+root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"
 baseline="$root/ai/kk-flavor/voice-baseline.txt"
 check="$root/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh"
 
@@ -33,7 +38,10 @@ for f in "${files[@]}"; do
   measured["$f"]="${n:-0}"
 done
 
-if [ "${1:-}" = "--regenerate" ]; then
+# Rewritten from what the tree measures now, which belongs in the same change that lowered a count.
+# A later change spends slack the baseline still records, and the count never reaches the floor it
+# already stood on.
+if [ -n "$regenerate" ]; then
   { grep '^#' "$baseline"; for f in "${files[@]}"; do echo "${measured[$f]} $f"; done | sort -rn -k1,1 -k2,2; } > "$baseline.new"
   mv "$baseline.new" "$baseline"
   echo "voice-baseline: regenerated over ${#files[@]} file(s)"

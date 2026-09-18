@@ -164,3 +164,34 @@ func TestWhatIsNotThisRepositorysSource(t *testing.T) {
 		}
 	}
 }
+
+// A markdown heading opens with `#`. That is a comment in half the languages this reads, so a tree of
+// rule files would report findings against prose that was never a comment. The skip holds the register
+// check to source.
+func TestTheScanSkipsProseAndData(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("clean.go", "// Lists every entry in the ledger.\npackage fixture\n")
+	r.write("notes.md", "# Counted across the whole ledger.\n")
+	r.run()
+	r.expectCode(0)
+	r.expectStdoutLacks("notes.md")
+}
+
+// Findings are printed in one order whatever order they were read in, so a reader comparing two runs
+// reads one list. Git hands a diff's files in its own order, and a scan appends as it walks.
+func TestTheReportIsOrderedByFileThenLineThenCheck(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("z.go", "// Counted across the whole ledger.\npackage fixture\n")
+	r.write("a.go", "// Counted across the whole ledger.\npackage fixture\n")
+	r.run()
+	r.expectCode(1)
+	r.expectStdoutHas("a.go")
+	r.expectStdoutHas("z.go")
+	if out := r.stdout.String(); strings.Index(out, "a.go") > strings.Index(out, "z.go") {
+		t.Errorf("z.go was reported before a.go:\n%s", out)
+	}
+}
