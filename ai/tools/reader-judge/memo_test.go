@@ -9,7 +9,7 @@ import (
 )
 
 func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
-	path := write(t, source)
+	path := write(t, instructions)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
 	calls := 0
 	greedy := func(_, view string) (string, error) {
@@ -17,15 +17,15 @@ func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 		return "1", nil // always the first unit left, so unchecked it would empty the file
 	}
 	var first, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &first, &errOut, greedy, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &first, &errOut, greedy, memo); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	var second strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment", write(t, first.String())}, nil, &second, &errOut, greedy, memo); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"instruction", write(t, first.String())}, nil, &second, &errOut, greedy, memo); code != exitClean {
 		t.Fatalf("the pruned text was judged again: exit %d, %q", code, second.String())
 	}
 	var replay strings.Builder
-	Run("reader-judge.sh", []string{"comment", path}, nil, &replay, &errOut, greedy, memo)
+	Run("reader-judge.sh", []string{"instruction", path}, nil, &replay, &errOut, greedy, memo)
 	if replay.String() != first.String() {
 		t.Fatalf("the original drew a different verdict on replay")
 	}
@@ -35,11 +35,11 @@ func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 }
 
 func TestMemoThatCannotWriteStillJudges(t *testing.T) {
-	path := write(t, source)
+	path := write(t, instructions)
 	memo := &Memo{Dir: filepath.Join(write(t, "not a dir"), "judged")}
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "1", nil }
-	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 }
@@ -80,7 +80,7 @@ func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
 
 // A memo naming a unit the text does not have is a miss, not a verdict.
 func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
-	path := write(t, source)
+	path := write(t, instructions)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
 	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
 	units, _ := Split(lines, CommentBlocks(lines), all)
@@ -88,7 +88,7 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	calls := 0
 	call := func(string, string) (string, error) { calls++; return "1", nil }
 	var out, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if calls != 1 {

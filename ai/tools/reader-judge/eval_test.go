@@ -198,12 +198,19 @@ const deletedKindRecord = "comment-read: 8/12 and 8/26, then 4/12 and 2/26, agai
 // this shape.
 const deletedVerdictRecord = "comment-verdict: obvious 2/4, coined 0/2, unclear 1/3, plain set ~30% against a bound of 5%"
 
+// `comment` asked a reader which comment blocks to delete. That is the same question about absence
+// that sank `comment-verdict`, put to the same reader, and its survivors were the complaint that
+// opened this campaign. The lane replacing it writes each block again and bounds it three ways, with
+// a model voting on none of the three.
+const deletedCommentRecord = "comment: replaced by strip, write and voice, none of which is a vote"
+
 // The records above name kinds, and a kind that came back without its eval would make them lies. The
 // corpus keeps the cases either way, so re-adding a kind runs it against the bars it missed.
 func TestTheDeletedKindsStayDeleted(t *testing.T) {
 	for name, record := range map[string]string{
 		"comment-read":    deletedKindRecord,
 		"comment-verdict": deletedVerdictRecord,
+		"comment":         deletedCommentRecord,
 	} {
 		if _, present := kinds[name]; present {
 			t.Fatalf("%s is a kind again, and %q is now false — clear its bars before restoring it", name, record)
@@ -217,6 +224,8 @@ func TestTheDeletedKindsStayDeleted(t *testing.T) {
 var deletedKinds = map[string]Kind{
 	"comment-verdict": {Reader: "an engineer in your first year, new to this codebase and not a native English speaker, " +
 		"reading quickly to change something near this line", Source: true, Verdicts: true},
+	"comment": {Reader: "an engineer opening this file for the first time to change something near this line, " +
+		"who has not read the rest of the file and does not know the change that introduced it", Source: true},
 }
 
 // withTheRecordedVerdictKind puts a deleted kind back for one case's duration. The label machinery
@@ -224,13 +233,21 @@ var deletedKinds = map[string]Kind{
 // TestTheDeletedKindsStayDeleted is what guards the shipped set, in place of this absence.
 func withTheRecordedVerdictKind(t *testing.T) string {
 	t.Helper()
-	const name = "comment-verdict"
-	if _, shipped := kinds[name]; shipped {
-		t.Fatalf("%s ships again, so this fixture would shadow the real one", name)
+	withTheRecordedKinds(t)
+	return "comment-verdict"
+}
+
+// withTheRecordedKinds puts every deleted kind back for one case's duration, for the cases that read
+// the whole corpus and would otherwise skip its older half.
+func withTheRecordedKinds(t *testing.T) {
+	t.Helper()
+	for name, kind := range deletedKinds {
+		if _, shipped := kinds[name]; shipped {
+			t.Fatalf("%s ships again, so this fixture would shadow the real one", name)
+		}
+		kinds[name] = kind
+		t.Cleanup(func() { delete(kinds, name) })
 	}
-	kinds[name] = deletedKinds[name]
-	t.Cleanup(func() { delete(kinds, name) })
-	return name
 }
 
 // specificationFor is a case's kind, live or recorded as deleted. Every reader of a case goes through
@@ -274,7 +291,7 @@ func TestShowCorpus(t *testing.T) {
 // in front of the model. A recording caller reads the view RunIn built and holds it against the
 // case's own, so the two cannot drift apart while both still look reasonable on their own.
 func TestTheEvalOffersEachCaseTheUnitsARunDoes(t *testing.T) {
-	withTheRecordedVerdictKind(t)
+	withTheRecordedKinds(t)
 	corpus, err := loadCorpus(corpusDir)
 	if err != nil {
 		t.Fatal(err)

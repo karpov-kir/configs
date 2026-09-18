@@ -937,9 +937,38 @@ func (s scanner) scanAdded(a *addedLines) []Finding {
 		for _, line := range a.byFile[file] {
 			lines[line.at-1] = line.text
 		}
-		found = append(found, s.scanSource(file, lines, within)...)
+		found = append(found, s.scanSource(file, lines, withoutSharedRegions(lines, within))...)
 	}
 	return found
+}
+
+// A region a repository holds byte-identical across several files. The two markers name it, and the
+// wiring check's shared-region scan enforces it.
+const (
+	sharedRegionOpen  = "# --- shared:"
+	sharedRegionClose = "# --- end shared:"
+)
+
+// withoutSharedRegions drops the lines inside a shared region. A finding there asks for an edit the
+// shared-region scan forbids, since the same bytes sit in every file carrying the region. The text is
+// one text however many copies exist, so a new file carrying a copy adds no prose to read.
+func withoutSharedRegions(lines []string, within map[int]bool) map[int]bool {
+	kept := map[int]bool{}
+	inside := false
+	for at := 1; at <= len(lines); at++ {
+		text := strings.TrimSpace(lines[at-1])
+		if strings.HasPrefix(text, sharedRegionClose) {
+			inside = false
+			continue
+		}
+		if strings.HasPrefix(text, sharedRegionOpen) {
+			inside = true
+		}
+		if !inside && within[at] {
+			kept[at] = true
+		}
+	}
+	return kept
 }
 
 // scanDiff is the diff half on its own, for a caller holding the bytes.

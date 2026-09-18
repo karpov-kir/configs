@@ -196,10 +196,10 @@ func TestClaudeCallerDoesNotWaitOnAChildThatOutlivesTheRoll(t *testing.T) {
 // The two ends tied together: an expiry has to reach the caller as exit 2 saying the judge did not
 // run, never as a clean pass over unjudged text.
 func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
-	path := write(t, source)
+	path := write(t, instructions)
 	var out, errOut strings.Builder
 	fakeClaude(t, "sleep 30")
-	code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
+	code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}

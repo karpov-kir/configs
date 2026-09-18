@@ -83,6 +83,9 @@ var refusals = []refusal{
 	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
 	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh", args: []string{"--nope"}},
+	// No facts directory. The tool takes it first and refuses when it is absent, before it reads a
+	// path or reaches git. The refusal states the grammar, and it makes no claim about the tree.
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-strip.sh"},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh"},
 	{stub: "ai/kk-flavor/skills/kk-reduce/scripts/stats.sh", args: []string{"--agent=claude", "one", "two"}},
 	{stub: "ai/kk-flavor/workers/refactor/dup-literals.sh", args: []string{"--nope"}},

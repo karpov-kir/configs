@@ -69,7 +69,6 @@ func (k Kind) candidates(lines []string) []Unit {
 }
 
 var kinds = map[string]Kind{
-	"comment":      {Reader: "an engineer opening this file for the first time to change something near this line, who has not read the rest of the file and does not know the change that introduced it", Source: true},
 	"instruction":  {Reader: "an agent loading this file at the start of every session, paying for each line in context"},
 	"pr-body":      {Reader: "a reviewer deciding whether to approve this change, with the diff in front of you"},
 	"review":       {Reader: "the author of this change deciding what to change, with the line in front of you"},

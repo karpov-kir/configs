@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,49 +17,39 @@ func all(Unit) bool { return true }
 
 const source = "// file header\n// second line\n\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
 
-func TestRunOnASourceFileCutsOnlyComments(t *testing.T) {
-	path := write(t, source)
-	var out, errOut strings.Builder
-	call := func(prompt, view string) (string, error) {
-		if !strings.Contains(prompt, "opening this file for the first time") {
-			t.Fatalf("the comment kind's reader is missing from the prompt:\n%s", prompt)
-		}
-		return "1, 2, 3", nil
-	}
-	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitCut {
-		t.Fatalf("exit %d, want %d — %s", code, exitCut, errOut.String())
-	}
-	if got, want := out.String(), "\nfunc a() {}\n*ptr = 1\n"; got != want {
-		t.Fatalf("got %q, want %q", got, want)
-	}
-}
+// A rule file, for the cases that need a kind reading units out of a named file. They read a source
+// file until the comment kind went, and what they drive — the numbers mode, idempotence, an empty
+// offer, an expiry — belongs to every kind.
+const instructions = "One plain paragraph a reader follows without effort.\n\n" +
+	"A second paragraph, since a rule file's units are its paragraphs.\n\n" +
+	"A third, to leave the vote something it can pass over.\n"
 
 func TestRunNumbersPrintsFileLines(t *testing.T) {
-	path := write(t, source)
+	path := write(t, instructions)
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "2", nil }
-	Run("reader-judge.sh", []string{"--numbers", "comment", path}, nil, &out, &errOut, call, nil)
-	if out.String() != "5\n" {
+	Run("reader-judge.sh", []string{"--numbers", "instruction", path}, nil, &out, &errOut, call, nil)
+	if out.String() != "3\n" {
 		t.Fatalf("got %q, want the file line of unit 2", out.String())
 	}
 }
 
 func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
-	path := write(t, source)
+	path := write(t, instructions)
 	call := func(_, view string) (string, error) {
 		for _, line := range strings.Split(view, "\n") {
-			if strings.HasSuffix(line, "| // on a()") {
+			if strings.Contains(line, "| A second paragraph") {
 				return strings.TrimSpace(strings.SplitN(line, "|", 2)[0]), nil
 			}
 		}
 		return "none", nil
 	}
 	var first, second, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &first, &errOut, call, nil); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &first, &errOut, call, nil); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	again := write(t, first.String())
-	if code := Run("reader-judge.sh", []string{"comment", again}, nil, &second, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"instruction", again}, nil, &second, &errOut, call, nil); code != exitClean {
 		t.Fatalf("second run exit %d, want clean — %s", code, errOut.String())
 	}
 	if second.String() != first.String() {
@@ -79,7 +68,7 @@ func TestRunRefusesARollThatReachedNoVerdict(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			path := write(t, source)
 			var out, errOut strings.Builder
-			if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitDidNotRun {
+			if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, nil); code != exitDidNotRun {
 				t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 			}
 			if out.Len() != 0 {
@@ -149,23 +138,23 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 // A path carrying a newline must not forge a second line in the refusal.
 func TestARefusalCarriesNoControlByteFromItsArgument(t *testing.T) {
 	var out, errOut strings.Builder
-	Run("reader-judge.sh", []string{"comment", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
+	Run("reader-judge.sh", []string{"instruction", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
 	if strings.ContainsAny(errOut.String()[:len(errOut.String())-1], "\n\x1b") {
 		t.Fatalf("the refusal carried a control byte through: %q", errOut.String())
 	}
 }
 
 func TestRunPassesThroughWithNoUnits(t *testing.T) {
-	path := write(t, "func a() {}\n")
+	path := write(t, "\n")
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) {
 		t.Fatal("the model was called with nothing to judge")
 		return "", nil
 	}
-	if code := Run("reader-judge.sh", []string{"comment", path}, nil, &out, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, nil); code != exitClean {
 		t.Fatalf("exit %d, want clean", code)
 	}
-	if out.String() != "func a() {}\n" {
+	if out.String() != "\n" {
 		t.Fatalf("got %q", out.String())
 	}
 }
@@ -183,49 +172,6 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != "What changes.\n\n" {
-		t.Fatalf("got %q", out.String())
-	}
-}
-
-func TestChangedOffersOnlyTheBlocksTheDiffTouched(t *testing.T) {
-	repo := t.TempDir()
-	git := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
-		// The machine's own git config must not reach this fixture: a global core.excludesFile
-		// matching `*.go` refuses the `git add` below, and commit.gpgsign refuses the commit —
-		// both on a machine where this tool is working perfectly.
-		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1",
-			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	git("init", "-q")
-	committed := "// human one\nfunc a() {}\n// human two\nfunc b() {}\n"
-	if err := os.WriteFile(filepath.Join(repo, "f.go"), []byte(committed), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	git("add", "f.go")
-	git("commit", "-qm", "base")
-	if err := os.WriteFile(filepath.Join(repo, "f.go"), []byte(committed+"// agent three\nfunc c() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	var out, errOut strings.Builder
-	call := func(_, view string) (string, error) {
-		if strings.Count(view, "   1| ") != 1 || strings.Contains(view, "   2| ") {
-			t.Fatalf("expected exactly one offered unit, got:\n%s", view)
-		}
-		if !strings.Contains(view, "   1| // agent three") {
-			t.Fatalf("the offered unit is not the added block:\n%s", view)
-		}
-		return "1", nil
-	}
-	if code := RunIn("reader-judge.sh", []string{"--changed", "comment", "f.go"}, repo, nil, &out, &errOut, call, nil); code != exitCut {
-		t.Fatalf("exit %d — %s", code, errOut.String())
-	}
-	if out.String() != committed+"func c() {}\n" {
 		t.Fatalf("got %q", out.String())
 	}
 }
@@ -291,7 +237,7 @@ func viewOf(lines ...string) string {
 }
 
 func TestEveryLaneKindExists(t *testing.T) {
-	for _, name := range []string{"comment", "instruction", "pr-body", "review", "commit", "report", "return", "reply", "ticket", "slack", "record-entry"} {
+	for _, name := range []string{"instruction", "pr-body", "review", "commit", "report", "return", "reply", "ticket", "slack", "record-entry"} {
 		if _, ok := kinds[name]; !ok {
 			t.Errorf("no kind %q", name)
 		}
