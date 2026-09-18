@@ -94,8 +94,8 @@ func TestStripRefusesAFactsDirectoryThatIsNotEmpty(t *testing.T) {
 	}
 }
 
-// The tool takes one path and no kind: only a source file has comment blocks, so a second argument is
-// a caller still passing the judge's grammar.
+// The tool takes one path. Only a source file has comment blocks, so a second argument is a caller
+// still passing the judge's grammar.
 func TestStripRefusesASecondArgument(t *testing.T) {
 	var out, errOut strings.Builder
 	if code := Strip("comment-strip.sh", []string{"--facts=" + t.TempDir(), "comment", "x.md"}, t.TempDir(), &out, &errOut); code != exitDidNotRun {

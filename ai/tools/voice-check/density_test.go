@@ -195,3 +195,32 @@ func TestTheReportIsOrderedByFileThenLineThenCheck(t *testing.T) {
 		t.Errorf("z.go was reported before a.go:\n%s", out)
 	}
 }
+
+// A shared region is held byte-identical across every file carrying it, by the wiring check's
+// shared-region scan. A finding inside one asks for an edit that check forbids, so the scan reads the
+// region nowhere. Driven through a run, since a narrower case passes against an unwired skip.
+func TestASharedRegionIsReadNowhere(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("stub.sh", "#!/usr/bin/env bash\n"+
+		"# --- shared:tool-stub ---\n"+
+		"# The ledger acts on nothing here.\n"+
+		"# --- end shared:tool-stub ---\n"+
+		"echo hi\n")
+	r.run()
+	r.expectCode(0)
+	r.expectStdoutLacks("stub.sh")
+}
+
+// The same file with its markers gone is read like any other. The region is what does the work in the
+// case before this one, where the text alone would leave that unproven.
+func TestTheSameLinesOutsideASharedRegionAreRead(t *testing.T) {
+	r := newRepo(t)
+	r.write("keep.go", "package fixture\n")
+	r.commit("base")
+	r.write("stub.sh", "#!/usr/bin/env bash\n# The ledger acts on nothing here.\necho hi\n")
+	r.run()
+	r.expectCode(1)
+	r.expectStdoutHas("stub.sh")
+}

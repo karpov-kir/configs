@@ -1,16 +1,13 @@
-// Removes a file's comment blocks before a writer reads the code, so the block it then writes owes
-// the old one nothing. It calls no model: this is the judge's Apply with every offered unit gone,
-// plus a record of what went, one file per block, which the writer opens only when it asks whether a
-// note is owed.
+// Removes a file's comment blocks before a writer reads the code, so the block it then writes is the
+// code's alone. It runs without a model: the judge's Apply with every offered unit gone, plus a
+// record of what went.
 //
 //	usage: comment-strip.sh --facts=<dir> [--changed[=<revisions>]] <path>
 //
-// The file is rewritten in place. Each removed block goes to `<dir>/<n>.facts`, headed by the site the
-// block sat on, `<path>:<line>`, where the line is the first code line after the block AS THE STRIPPED
-// FILE NUMBERS IT, which is the file the writer reads. Stdout lists the same sites with their facts
-// file, one per line. Exit 1 when something was removed, 0 when nothing was, 2 when the strip did not
-// run. A comment the toolchain reads (`eslint-disable`, `@ts-expect-error`, `go:generate`, ...) is
-// never removed, since removing it changes what the code does, and is named on stderr instead.
+// The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site
+// it sat on, which the writer opens when it asks whether a note is owed. That site is the first code
+// line after the block AS THE STRIPPED FILE NUMBERS IT, the file the writer reads. Stdout lists the
+// same sites. Exit 1 removed something, 0 removed none, 2 did not run.
 package commentstrip
 
 import (
@@ -33,14 +30,14 @@ const (
 	exitDidNotRun = 2
 )
 
-// FactsRequested says whether the arguments ask for the strip rather than a judgement.
+// FactsRequested says whether the arguments open with the facts directory this tool requires.
 func FactsRequested(args []string) bool {
 	return len(args) > 0 && strings.HasPrefix(args[0], factsOption)
 }
 
 // directive is a comment the toolchain reads: a lint suppression, a compiler pragma, a build tag, a
-// coverage marker or an interpreter line. Its text is an instruction to a program, and a block holding
-// one stays whole.
+// coverage marker or an interpreter line. Its text instructs a program, so a block holding one stays
+// whole and stderr names it. Its removal changes what the code does.
 var directive = regexp.MustCompile(`^(eslint-|@ts-|prettier-|istanbul |biome-|tslint:|noqa|pylint:|type: |nolint|go:|\+build|#!|/// <reference|@jsx|c8 |v8 |webpack|@vitest-|@jest-|jscpd:)`)
 
 // echoable bounds a path this tool echoes back, the way every tool here bounds one. A path comes off
@@ -69,8 +66,9 @@ func holdsDirective(lines []string, u readerjudge.Unit) bool {
 	return false
 }
 
-// Strip runs the grammar above. The facts directory must be empty or absent: a file already there
-// reads exactly like one this run wrote, and the writer would take another block's facts as this one's.
+// Strip runs the grammar this file's header states. The facts directory must be empty or absent: a
+// file already there reads exactly like one this run wrote, and the writer would take another block's
+// facts as this one's.
 func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int {
 	refuse := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "%s: %s — the strip did NOT run\n", self, fmt.Sprintf(format, a...))
@@ -146,7 +144,7 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 		return exitClean
 	}
 
-	// Sites are numbered in the stripped file: the writer reads that file, and a site naming a line of
+	// Sites are numbered in the stripped file. The writer reads that file, and a site naming a line of
 	// the old one would point it at the wrong declaration by the height of every block above it.
 	removedBefore := 0
 	type site struct {

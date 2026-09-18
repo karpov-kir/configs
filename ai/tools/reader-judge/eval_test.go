@@ -198,10 +198,10 @@ const deletedKindRecord = "comment-read: 8/12 and 8/26, then 4/12 and 2/26, agai
 // this shape.
 const deletedVerdictRecord = "comment-verdict: obvious 2/4, coined 0/2, unclear 1/3, plain set ~30% against a bound of 5%"
 
-// `comment` asked a reader which comment blocks to delete, which is the same question about absence
-// that sank `comment-verdict`, of the same reader. Its survivors were the complaint that opened this
-// campaign. The lane that replaced it writes each block again and bounds it three ways, and a model
-// votes on none of them.
+// `comment` asked a reader which comment blocks to delete. That is the same question about absence
+// that sank `comment-verdict`, put to the same reader, and its survivors were the complaint that
+// opened this campaign. The lane replacing it writes each block again and bounds it three ways, with
+// a model voting on none of the three.
 const deletedCommentRecord = "comment: replaced by strip, write and voice, none of which is a vote"
 
 // The records above name kinds, and a kind that came back without its eval would make them lies. The

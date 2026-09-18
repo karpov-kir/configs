@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Removes a source file's comment blocks and records what each one said, so a writer reads the code
-# with the old block gone. It reaches no model and no policy.
+# with the old block gone. It runs without a model.
 #
 #   usage: comment-strip.sh --facts=<dir> [--changed[=<revisions>]] <path>
 #
-# The file is rewritten in place. Each removed block goes to `<dir>/<n>.facts`, headed by the site it
-# sat on as the STRIPPED file numbers it, which is the file the writer reads. Stdout lists those sites.
-# Exit 1 when something was removed, 0 when nothing was, 2 when the strip did not run. A comment the
-# toolchain reads is kept and named on stderr, since removing it changes what the code does.
+# The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site it
+# sat on, as the STRIPPED file numbers it, which is the file the writer reads. Stdout lists the same
+# sites. Exit 1 removed something, 0 removed none, 2 did not run.
 #
 # tested by: the Go suite beside the tool, `ai/tools/comment-strip/`. The shared stub region in this
 # file is tested by tool-stub-test.sh, and the resolver it calls by resolve-test.sh.

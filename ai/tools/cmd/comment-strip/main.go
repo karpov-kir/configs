@@ -1,4 +1,4 @@
-// The command behind comment-strip.sh. It reaches no model and no policy, so it resolves neither.
+// The command behind comment-strip.sh. It runs on its own, so it resolves a model or a policy nowhere.
 package main
 
 import (
