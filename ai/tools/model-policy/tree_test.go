@@ -395,8 +395,8 @@ func shippedWorkerFiles(t *testing.T) map[string]bool {
 			return err
 		}
 		// A `tests/` directory holds probes a human runs against a worker, the way
-		// skills/idsd-reactor/tests does. A probe reaches no dispatch, so a row for one would price
-		// a worker that never runs, and this census would go on asking for that row.
+		// skills/idsd-reactor/tests does. A human runs a probe and a dispatch never reaches it. A row
+		// for one would price a worker that stays idle, and this census would go on asking for it.
 		name := strings.TrimSuffix(filepath.ToSlash(rel), ".md")
 		for _, part := range strings.Split(name, "/") {
 			if part == "tests" {
