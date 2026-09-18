@@ -24,6 +24,11 @@ import (
 
 const factsOption = "--facts="
 
+// The grammar. It carries the stub's name where argv[0] would carry the binary's. A caller then
+// reads a usage line they can retype. A refusal states it: an argument this tool refuses comes from
+// a caller who needs the form, and the refusal alone gives them half of it.
+const usage = "usage: comment-strip.sh --facts=<dir> [--changed[=<revisions>]] <path>"
+
 const (
 	exitClean     = 0
 	exitCut       = 1
@@ -72,6 +77,7 @@ func holdsDirective(lines []string, u readerjudge.Unit) bool {
 func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int {
 	refuse := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "%s: %s — the strip did NOT run\n", self, fmt.Sprintf(format, a...))
+		fmt.Fprintf(stderr, "%s\n", usage)
 		return exitDidNotRun
 	}
 	if !FactsRequested(args) {
