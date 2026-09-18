@@ -31,6 +31,9 @@ type evalCase struct {
 	keep  []int
 	text  string
 	units []Unit
+	// verdicts is the labelled answer for a kind that labels every block, read from one label line
+	// per verdict. A block with no line is labelled `keep`, so a case names only what it flags.
+	verdicts map[int]string
 }
 
 const caseSeparator = "---"
@@ -53,6 +56,23 @@ func parseCase(name, raw string) (evalCase, error) {
 		switch key {
 		case "kind":
 			parsed.kind = strings.TrimSpace(value)
+		case "carried", "obvious", "stale", "padded", "coined", "unclear":
+			if !kinds[parsed.kind].Verdicts {
+				return evalCase{}, fmt.Errorf("%s: %q labels a verdict, and kind %q does not answer verdicts", name, key, parsed.kind)
+			}
+			numbers, err := unitNumbers(value, key)
+			if err != nil {
+				return evalCase{}, fmt.Errorf("%s: %w", name, err)
+			}
+			if parsed.verdicts == nil {
+				parsed.verdicts = map[int]string{}
+			}
+			for _, n := range numbers {
+				if was, twice := parsed.verdicts[n]; twice {
+					return evalCase{}, fmt.Errorf("%s labels block %d both %s and %s", name, n, was, key)
+				}
+				parsed.verdicts[n] = key
+			}
 		case "cut", "keep":
 			numbers, err := unitNumbers(value, key)
 			if err != nil {

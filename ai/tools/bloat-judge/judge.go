@@ -52,6 +52,10 @@ type Kind struct {
 	// already see. Offered, it is the likeliest unit in the message to be cut, and cutting it leaves
 	// a message git will not take. Measured 2026-09-16 on this change's own commit message.
 	Subject bool
+	// Verdicts marks a kind that labels every block from a closed vocabulary rather than naming the
+	// units to delete. Its caller counts verdict lines against blocks, so such a kind answers for
+	// every block including the ones it leaves alone, and it prunes nothing itself.
+	Verdicts bool
 }
 
 // candidates is where this kind's units come from, and the one place the source/prose split is
@@ -76,6 +80,8 @@ var kinds = map[string]Kind{
 	"return":       {Reader: "an orchestrator deciding what to do next from this stage's return"},
 	"reply":        {Reader: "the person you are replying to, in chat"},
 	"record-entry": {Reader: "an agent reading this record before acting, paying for each entry in context"},
+	"comment-verdict": {Reader: "an engineer in your first year, new to this codebase and not a native English speaker, " +
+		"reading quickly to change something near this line", Source: true, Verdicts: true},
 }
 
 func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
@@ -183,6 +189,34 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 		return exitClean
 	}
 
+	if kind.Verdicts {
+		name := "-"
+		if len(args) == 2 {
+			name = echoable(args[1])
+		}
+		reply, err := call(Prompt(kind), view)
+		if err != nil {
+			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
+			return exitDidNotRun
+		}
+		labels, err := ParseLabels(reply, len(units))
+		if err != nil {
+			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
+			return exitDidNotRun
+		}
+		flagged := 0
+		for _, n := range SortedUnits(labels) {
+			fmt.Fprintf(stdout, "%s:%d: %s\n", name, units[n-1].Line, labels[n])
+			if labels[n] != "keep" {
+				flagged++
+			}
+		}
+		if flagged == 0 {
+			return exitClean
+		}
+		return exitCut
+	}
+
 	// Judged output is final whatever scope produced it, so the unscoped record is looked up by content
 	// alone before the scoped verdict is.
 	unscopedKey := kindName + "\n"
@@ -247,6 +281,9 @@ func kindNames() string {
 // Prompt is part of the memo key, so every edit here invalidates every cached verdict with no version
 // bump to make. Say so in the commit that changes it.
 func Prompt(kind Kind) string {
+	if kind.Verdicts {
+		return verdictPrompt(kind)
+	}
 	return "You are " + kind.Reader + ". You read this once, quickly, and will not come back to it. " +
 		"Below is a text with some units numbered in the left margin; a `.` marks a line that continues the " +
 		"unit above it, and unnumbered lines are context you can see but may not delete. Reply with only " +
@@ -313,4 +350,24 @@ func repoRelative(cwd, path string) (string, error) {
 		return filepath.ToSlash(rel), nil
 	}
 	return filepath.ToSlash(filepath.Clean(filepath.Join(prefix, path))), nil
+}
+
+// verdictPrompt asks for one label per block from the closed set. The vocabulary is spelled out with
+// what each label means, because a label the model reads differently from the eval is a label the
+// eval cannot score.
+func verdictPrompt(kind Kind) string {
+	return "You are " + kind.Reader + ". You read each comment block once, quickly, and will not come back to it. " +
+		"Below is a file with some comment blocks numbered in the left margin; a `.` marks a line that continues " +
+		"the block above it, and unnumbered lines are the code.\n\n" +
+		verdictPromptMark + ", `<number> <verdict>`, and nothing else. Every numbered block " +
+		"gets a line, including the ones you would leave alone.\n\n" +
+		"The verdicts:\n" +
+		"keep — states a fact the code beneath it cannot show, and you could restate it in one plain sentence.\n" +
+		"obvious — every sentence in it restates the name, the signature, or the lines beneath it.\n" +
+		"padded — one sentence says something the code cannot show, and the rest restates the code.\n" +
+		"unclear — you could not restate it in one plain sentence after reading it once.\n" +
+		"coined — leans on a word or phrase that is neither the domain's nor an identifier in the code.\n" +
+		"carried — a test, a lint rule, a rename or a separate function would carry what it says.\n" +
+		"stale — contradicts the code beside it.\n\n" +
+		"Where more than one fits, answer the first of these that fits: " + VerdictNames() + "."
 }

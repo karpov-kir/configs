@@ -65,6 +65,9 @@ func ParseVerdict(reply string, count int) ([]int, error) {
 func Voting(call Caller, rolls int) Caller {
 	return func(prompt, view string) (string, error) {
 		count := unitsInView(view)
+		if strings.Contains(prompt, verdictPromptMark) {
+			return voteLabels(call, prompt, view, count, rolls)
+		}
 		named, err := rollAll(call, prompt, view, count, rolls)
 		if err != nil {
 			return "", err
@@ -136,4 +139,42 @@ func unitsInView(view string) int {
 		}
 	}
 	return count
+}
+
+// voteLabels is the vote for a kind that labels every block. Read per block rather than per named
+// unit, because every block carries a verdict here and the question is which one, not whether.
+//
+// Selected by a mark the verdict prompt itself writes, so the two cannot drift: a Caller is handed
+// the prompt and the view and nothing else, and the wrapper is built before the kind is parsed.
+func voteLabels(call Caller, prompt, view string, count, rolls int) (string, error) {
+	cast := make([]map[int]string, rolls)
+	errs := make([]error, rolls)
+	var wg sync.WaitGroup
+	for i := 0; i < rolls; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			reply, err := call(prompt, view)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			cast[i], errs[i] = ParseLabels(reply, count)
+		}(i)
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return "", err
+		}
+	}
+	var out []string
+	for n := 1; n <= count; n++ {
+		voted := make([]string, 0, rolls)
+		for _, one := range cast {
+			voted = append(voted, one[n])
+		}
+		out = append(out, strconv.Itoa(n)+" "+MajorityLabel(voted))
+	}
+	return strings.Join(out, "\n"), nil
 }
