@@ -15,7 +15,7 @@ func TestAMajorityLabelWinsOutright(t *testing.T) {
 }
 
 // A block carrying two defects splits the rolls between two correct labels. The rolls agree it is
-// bad, so precedence decides which action it takes rather than the block escaping as `keep`.
+// bad. Precedence decides which action it takes, and a split would otherwise escape as `keep`.
 func TestRollsThatAgreeABlockIsBadTakeThePrecedence(t *testing.T) {
 	if got := MajorityLabel([]string{"obvious", "coined", "obvious", "coined"}); got != "obvious" {
 		t.Errorf("a split between obvious and coined answered %q, and obvious outranks coined", got)
@@ -50,7 +50,7 @@ func TestEveryBlockMustCarryAVerdict(t *testing.T) {
 	}
 }
 
-// A delete kind with nothing offered prints the artifact, because its output is the artifact. A
+// A delete kind with an empty offer prints the artifact, because its output is the artifact. A
 // verdict kind's output is one label line per block, so the same path would hand its caller a file to
 // read as verdicts. Reached whenever `--changed` narrows a file to no changed block.
 func TestAVerdictRunWithNothingOfferedPrintsNoArtifact(t *testing.T) {

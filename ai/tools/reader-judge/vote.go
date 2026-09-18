@@ -141,11 +141,11 @@ func unitsInView(view string) int {
 	return count
 }
 
-// voteLabels is the vote for a kind that labels every block. Read per block rather than per named
-// unit, because every block carries a verdict here and the question is which one, not whether.
+// voteLabels is the vote for a kind that labels every block. It reads per block. Every block here
+// carries a verdict, and the question is which one it carries.
 //
-// Selected by a mark the verdict prompt itself writes, so the two cannot drift: a Caller is handed
-// the prompt and the view and nothing else, and the wrapper is built before the kind is parsed.
+// The verdict prompt writes the mark that selects it, which holds the two together. A Caller is
+// handed the prompt and the view alone, and the wrapper is built before the kind is parsed.
 func voteLabels(call Caller, prompt, view string, count, rolls int) (string, error) {
 	cast := make([]map[int]string, rolls)
 	errs := make([]error, rolls)

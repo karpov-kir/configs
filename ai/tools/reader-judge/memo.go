@@ -89,9 +89,9 @@ func (m *Memo) record(kind, content string, gone []int) {
 	_ = os.WriteFile(m.key(kind, content), []byte(body+"\n"), 0o600)
 }
 
-// lookupLabels answers a recorded label set, bounded by the blocks this run offers for the reason
-// lookup is bounded. A verdict kind prunes nothing, so its record is keyed by the offered blocks
-// alone, and there is no pruned form to record under a second key.
+// lookupLabels answers a recorded label set. It is bounded by the blocks this run offers, for the
+// reason lookup is bounded. A verdict kind leaves every block in place, so its record is keyed by
+// the offered blocks alone, and a second key would have no pruned form to hold.
 func (m *Memo) lookupLabels(kind, content string, count int) (map[int]string, bool) {
 	if m == nil {
 		return nil, false
@@ -107,8 +107,8 @@ func (m *Memo) lookupLabels(kind, content string, count int) (map[int]string, bo
 	return labels, true
 }
 
-// recordLabels writes a label set in the shape ParseLabels reads, so a record and the reply it stands
-// in for are one format and the reader of a memo file is reading the answer.
+// recordLabels writes a label set in the shape ParseLabels reads. A record and the reply it stands
+// in for are then one format, and whoever opens a memo file is reading the answer.
 func (m *Memo) recordLabels(kind, content string, labels map[int]string) {
 	if m == nil {
 		return

@@ -52,9 +52,9 @@ type Kind struct {
 	// already see. Offered, it is the likeliest unit in the message to be cut, and cutting it leaves
 	// a message git will not take. Measured 2026-09-16 on this change's own commit message.
 	Subject bool
-	// Verdicts marks a kind that labels every block from a closed vocabulary rather than naming the
-	// units to delete. Its caller counts verdict lines against blocks, so such a kind answers for
-	// every block including the ones it leaves alone, and it prunes nothing itself.
+	// Verdicts marks a kind that labels every block from a closed vocabulary, where a delete kind
+	// names the units to remove. Its caller counts verdict lines against blocks, so such a kind
+	// answers for every block, the ones it leaves alone included, and it prunes no block itself.
 	Verdicts bool
 }
 
@@ -183,9 +183,9 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 	}
 	units, view := Split(lines, kind.candidates(lines), offer)
 	if len(units) == 0 {
-		// A delete kind's output is the artifact, so with nothing to remove it is the artifact
-		// unchanged. A verdict kind's output is one label line per block, and printing the artifact
-		// there hands its caller source code to read as verdicts.
+		// A delete kind's output is the artifact, so an empty verdict leaves the artifact unchanged.
+		// A verdict kind's output is one label line per block, and printing the artifact there hands
+		// its caller source code to read as verdicts.
 		if !numbersOnly && !kind.Verdicts {
 			io.WriteString(stdout, content)
 		}

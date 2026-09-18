@@ -133,9 +133,9 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 	if code := Run("reader-judge.sh", []string{"poem"}, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
-	// Read off `kinds` rather than spelled out, so a kind added tomorrow cannot break this case and a
-	// kind dropped from the message still does. A spelled-out list is edited to match whatever the
-	// tool prints, which is the case agreeing with the code instead of holding it to anything.
+	// Read off `kinds`, so a kind added tomorrow cannot break this case and a kind dropped from the
+	// message still does. A spelled-out list gets edited to match whatever the tool prints. That is a
+	// case agreeing with the code, and its job is to hold the code to something.
 	for name := range kinds {
 		if !strings.Contains(errOut.String(), name) {
 			t.Fatalf("the refusal leaves out the kind %q: %s", name, errOut.String())

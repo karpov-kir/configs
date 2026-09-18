@@ -2,8 +2,11 @@
 //
 // One kind answers what four instruments used to answer separately — the delete vote, the
 // comprehension flag, the refactor lane's per-note verdict and what the writer is handed. A closed
-// set is what makes that measurable: every labelled case sorts into one of these, so the eval scores
-// per label, and a label the judge cannot separate from another is merged rather than tuned.
+// set makes that measurable. Every labelled case sorts into one of these, so the eval scores per
+// label, and a label the judge cannot separate from another is merged.
+//
+// How much a block says is never a verdict. Length is what the deterministic checks measure, and a
+// verdict the model has to count words to reach is one it reaches differently each roll.
 package readerjudge
 
 import (
@@ -12,19 +15,10 @@ import (
 	"strings"
 )
 
-// The verdicts, highest precedence first. Order is the tie-break and is not alphabetical: it runs
-// from the verdicts whose action retires the block to the one that leaves it alone.
-//
-// `carried` outranks `obvious` because making the carrier — a test, a lint rule, a rename, an
-// extraction — retires the block and takes the fact with it, where deleting first loses the fact.
-// `obvious` outranks the rewrite verdicts because a block whose every sentence restates what is
-// already visible is deleted rather than rewritten, and rewriting it would spend a model call to
-// produce nothing. `padded` sits below it and above the rest for the mixed block: one fact worth
-// keeping, carried along with sentences the code already shows. Without it that block lands on
-// `obvious` and is deleted whole, and the fact goes with it.
-//
-// How much a block says is never a verdict. Length is what the deterministic checks measure, and a
-// verdict the model has to count words to reach is a verdict it will reach differently each roll.
+// The verdicts, highest precedence first. The order is the tie-break: it runs from the verdict whose
+// action retires the block to the verdict that leaves it alone. `carried` leads because making the
+// carrier takes the fact with it, and deleting first loses that fact. `padded` sits under `obvious`
+// for the mixed block, which without it is deleted whole and takes its one fact along.
 var verdictOrder = []string{"carried", "obvious", "stale", "padded", "coined", "unclear", "keep"}
 
 var verdictRank = func() map[string]int {
@@ -35,16 +29,16 @@ var verdictRank = func() map[string]int {
 	return rank
 }()
 
-// verdictPromptMark is written by the verdict prompt and read by the vote, so the vote can tell which
-// reply shape it is counting without being handed the kind. One constant, so the two cannot drift.
+// verdictPromptMark is written by the verdict prompt and read by the vote. The vote reads it to tell
+// which reply shape it is counting, having been handed no kind. One constant holds the two together.
 const verdictPromptMark = "Answer with one line per numbered block"
 
 // VerdictNames is the vocabulary as the prompt and a refusal both state it.
 func VerdictNames() string { return strings.Join(verdictOrder, ", ") }
 
 // ParseLabels reads one `<unit> <verdict>` line per block. Every offered unit must be answered,
-// because the caller counts verdict lines against blocks: a reply that silently omits a block would
-// read as a clean block rather than as an answer the judge never gave.
+// because the caller counts verdict lines against blocks. A reply omitting a block would read as a
+// clean block, and the answer the judge never gave would pass as one it did.
 func ParseLabels(reply string, count int) (map[int]string, error) {
 	trimmed := strings.TrimSpace(reply)
 	if trimmed == "" {
@@ -84,14 +78,10 @@ func ParseLabels(reply string, count int) (map[int]string, error) {
 	return labels, nil
 }
 
-// MajorityLabel is one block's verdict across the rolls.
-//
-// A single label carried by more than half the rolls wins outright. Where none is, but more than half
-// of the rolls called the block something other than `keep`, the rolls agree the block is bad and
-// disagree about why — which is what a block carrying two defects looks like — and the highest
-// precedence among the labels actually cast is taken. Short of that the verdict is `keep`: acting on
-// a block a majority did not call bad is worse than leaving it, and precision is what this pipeline
-// is short of.
+// MajorityLabel is one block's verdict across the rolls. A label carried by more than half wins
+// outright. Short of that, a majority calling the block something other than `keep` agrees it is bad
+// and disagrees about why, so the highest precedence among the labels cast is taken. Every other
+// split answers `keep`, since acting on a block a majority left alone costs more than leaving it.
 func MajorityLabel(cast []string) string {
 	if len(cast) == 0 {
 		return "keep"

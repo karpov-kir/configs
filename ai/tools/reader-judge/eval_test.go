@@ -31,8 +31,8 @@ type evalCase struct {
 	keep  []int
 	text  string
 	units []Unit
-	// verdicts is the labelled answer for a kind that labels every block, read from one label line
-	// per verdict. A block with no line is labelled `keep`, so a case names only what it flags.
+	// verdicts is the labelled answer for a kind that labels every block. One label line names the
+	// blocks carrying that verdict. A block with no line is `keep`, so a case names only what it flags.
 	verdicts map[int]string
 }
 
@@ -493,8 +493,8 @@ func report(t *testing.T, v variant, trials []trial, plain plainResult) {
 			continue
 		}
 		if result.wanted != nil {
-			// A verdict trial fills neither cut field, so the delete kind's three columns would print
-			// empty for every such case and say nothing about what it answered.
+			// A verdict trial leaves both cut fields empty, so the delete kind's three columns would
+			// print blank for every such case and say none of what it answered.
 			t.Logf("%-20s %-28s %7.1f %s", v.name, result.name, result.elapsed.Seconds(), disagreements(result))
 			continue
 		}
@@ -510,17 +510,15 @@ func report(t *testing.T, v variant, trials []trial, plain plainResult) {
 	}
 }
 
-// plainSetEnv names a directory of `.case` files whose blocks are all ordinary. It is the denominator
-// for the false-flag half of the bar: a judge that labels a plain block is spending a reader's
-// attention on text that was fine.
-//
-// A path and not a fixture in this tree. The set measured here is somebody else's code, and this
-// repository is public, so the cases stay outside it and only the counts are ever reported.
+// plainSetEnv names a directory of `.case` files whose blocks are all ordinary. That is the
+// denominator for the false-flag half of the bar. A judge labelling a plain block spends a reader's
+// attention on text that was fine. The cases stay outside this tree: the set measured here is
+// somebody else's code, this repository is public, and only the counts are ever reported.
 const plainSetEnv = "JUDGE_EVAL_PLAIN"
 
 // loadPlainSet reads the cases the environment names, or answers that none were named. A directory
-// that is named and unreadable is a failure and not an absence: a run told where the set is and given
-// a bad path has measured nothing, and saying so as "unset" would hide the typo.
+// that is named and unreadable is a failure. A run handed a bad path has measured no block at all,
+// and reporting that as "unset" would hide the typo.
 func loadPlainSet() ([]evalCase, error) {
 	dir := os.Getenv(plainSetEnv)
 	if dir == "" {
@@ -562,9 +560,9 @@ func runPlainSet(v variant, cases []evalCase, at int) plainResult {
 	return result
 }
 
-// plainResult is what the plain half measured, and whether it ran at all. Unset is NOT a pass: an
-// unmeasured bound is one nothing was held to, and a run that reported it as clean would be claiming
-// a measurement nobody took.
+// plainResult is what the plain half measured, and whether it ran at all. Unset is NOT a pass. An
+// unmeasured bound is a bound the run skipped, and reporting it as clean would claim a measurement
+// no run took.
 type plainResult struct {
 	measured bool
 	cases    int
@@ -573,8 +571,8 @@ type plainResult struct {
 }
 
 // labelTable is the catch-and-miss table: one row per verdict the corpus labels, then the false-flag
-// row the plain set answers. Returned as lines rather than logged from inside, so a case can drive it
-// without a model and without a corpus.
+// row the plain set answers. It returns lines for its caller to log, so a case can drive it on its
+// own, with a model and a corpus both absent.
 func labelTable(trials []trial, plain plainResult) []string {
 	caught, labelled := map[string]int{}, map[string]int{}
 	instead := map[string]map[string]int{}
@@ -619,8 +617,8 @@ func labelTable(trials []trial, plain plainResult) []string {
 	return lines
 }
 
-// disagreements names every block whose verdict differs from the label, in block order, so a reading
-// of the table can be taken back to the block that produced it.
+// disagreements names every block whose verdict differs from its label, in block order. A row of the
+// table can then be taken back to the block that produced it.
 func disagreements(result trial) string {
 	var parts []string
 	for n := 1; n <= len(result.wanted); n++ {
@@ -658,9 +656,9 @@ func variantNames() string {
 	return strings.Join(names, ",")
 }
 
-// An unmeasured bound is one nothing was held to. A run that printed the plain half as clean where
-// nobody named a set would be claiming a measurement that was never taken, and the bar this kind
-// ships against has a false-flag half.
+// An unmeasured bound is a bound the run skipped. A plain half printed as clean where the caller
+// named no set claims a measurement somebody skipped, and the bar this kind ships against has a
+// false-flag half.
 func TestAnUnmeasuredPlainSetIsReportedAsUnmeasured(t *testing.T) {
 	lines := strings.Join(labelTable(nil, plainResult{}), "\n")
 	if !strings.Contains(lines, "NOT MEASURED") {
@@ -672,8 +670,8 @@ func TestAnUnmeasuredPlainSetIsReportedAsUnmeasured(t *testing.T) {
 	}
 }
 
-// A path that was named and cannot be read is a failure, never an absence. Read as "unset", a typo
-// would silently drop the half of the bar the caller asked for.
+// A path that was named and cannot be read is a failure. A typo read as "unset" silently drops the
+// half of the bar the caller asked for.
 func TestAPlainSetPathThatDoesNotReadIsAFailure(t *testing.T) {
 	t.Setenv(plainSetEnv, filepath.Join(t.TempDir(), "nowhere"))
 	if _, err := loadPlainSet(); err == nil {
@@ -701,9 +699,9 @@ func TestAPlainSetCaseThatLabelsABlockIsRefused(t *testing.T) {
 	}
 }
 
-// The table is the one number the kind ships or dies by, so it is driven here rather than read off a
-// model run. A miss has to name what was answered instead: a label the judge confuses with another is
-// merged, and a label it simply never reaches is a different decision.
+// The table is the figure the kind ships or dies by, so a case drives it here instead of reading it
+// off a model run. A miss has to name what was answered instead. A label the judge confuses with
+// another is a label to merge, and a label it never reaches is a different decision.
 func TestTheLabelTableCountsCatchesAndNamesWhatAMissAnswered(t *testing.T) {
 	trials := []trial{{
 		wanted:   map[int]string{1: "obvious", 2: "obvious", 3: "coined", 4: "keep", 5: "keep"},
@@ -722,8 +720,8 @@ func TestTheLabelTableCountsCatchesAndNamesWhatAMissAnswered(t *testing.T) {
 }
 
 // The two kinds are measured over one text. comment-ts.case and comment-ts-verdict.case carry the
-// same blocks under different labels, so a block edited in one and not the other would leave the two
-// kinds scored against different material while reporting one corpus.
+// same blocks under different labels. Edit a block in one alone and the two kinds are scored on
+// different material, under a report that says one corpus.
 func TestTheTwoKindsShareOneTextForTheSharedCase(t *testing.T) {
 	corpus, err := loadCorpus(corpusDir)
 	if err != nil {
