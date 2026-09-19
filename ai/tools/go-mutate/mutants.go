@@ -971,6 +971,14 @@ var mutants = []mutant{
 		"\t\tif i == 0 && strings.HasPrefix(line, \"#!\") {", "\t\tif i == 0 && strings.HasPrefix(line, \"#!\") && false {"},
 	{"judge: a hash-bang anywhere is withheld", "../reader-judge/split.go", "./reader-judge/", "TestAHashBangBelowTheFirstLineIsAnOrdinaryComment",
 		"\t\tif i == 0 && strings.HasPrefix(line, \"#!\") {", "\t\tif strings.HasPrefix(line, \"#!\") {"},
+	// The strip trims the blank a removed header left on line 1, and every site under it moves up with
+	// it. The shift is what keeps each site off the declaration above its own.
+	{"strip: the sites left where the trimmed blank put them", "../comment-strip/strip.go", "./comment-strip/", "TestStripNumbersSitesUnderAHeaderItTrimmed",
+		"sites[i].line = max(sites[i].line-(len(stripped)-len(short)), 1)", "sites[i].line = max(sites[i].line, 1)"},
+	// One blank is what a header usually stands over, and a shift of one would pass the case above. The
+	// observing case puts two there.
+	{"strip: the shift guessing a line instead of counting them", "../comment-strip/strip.go", "./comment-strip/", "TestStripCountsEveryLineTheTrimTook",
+		"sites[i].line = max(sites[i].line-(len(stripped)-len(short)), 1)", "sites[i].line = max(sites[i].line-1, 1)"},
 	{"voice: a shebang is counted as part of the file header", "../voice-check/voice.go", "./voice-check/", "TestAShebangIsNotPartOfTheFileHeader",
 		"\t\tcase isShebang(at, line):\n\t\t\t// An interpreter directive, not a comment.", "\t\tcase isShebang(at, line) && false:\n\t\t\t// An interpreter directive, not a comment."},
 	{"voice: a shebang displaces the header it stands above", "../voice-check/voice.go", "./voice-check/", "TestAShebangIsNotPartOfTheFileHeader",

@@ -174,3 +174,80 @@ func TestStripKeepsABlankLineItDidNotCreate(t *testing.T) {
 		t.Errorf("the strip left %q, and the file's own first line was blank", got)
 	}
 }
+
+// The blank the header left goes, and every line under it moves up one. A site the writer opens on
+// names a declaration, so a site one line high names the declaration before the block's own. Two
+// files in the #3194 run reported sites that were each one high for this reason.
+func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	source := "// A header nobody reads.\n\nexport function a() {}\n\n// A note about b.\nexport function b() {}\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts := filepath.Join(dir, "facts")
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	if got, want := string(mustRead(t, path)), "export function a() {}\n\nexport function b() {}\n"; got != want {
+		t.Fatalf("stripped file:\n%q\nwant\n%q", got, want)
+	}
+	// a() is line 1 of the stripped file and b() is line 3.
+	if want := path + ":1 1.facts\n" + path + ":3 2.facts\n"; out.String() != want {
+		t.Errorf("sites:\n%swant\n%s", out.String(), want)
+	}
+	if got, want := string(mustRead(t, filepath.Join(facts, "2.facts"))), path+":3\n// A note about b.\n"; got != want {
+		t.Errorf("2.facts:\n%q\nwant\n%q", got, want)
+	}
+}
+
+// The negative control for the case above: the same file with a blank line of its own on top. The
+// strip trims nothing there, so no site moves.
+func TestStripLeavesSitesWhereItTrimmedNothing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	source := "\n// A header nobody reads.\n\nexport function a() {}\n\n// A note about b.\nexport function b() {}\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	if got, want := string(mustRead(t, path)), "\n\nexport function a() {}\n\nexport function b() {}\n"; got != want {
+		t.Fatalf("stripped file:\n%q\nwant\n%q", got, want)
+	}
+	if want := path + ":3 1.facts\n" + path + ":5 2.facts\n"; out.String() != want {
+		t.Errorf("sites:\n%swant\n%s", out.String(), want)
+	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+// The shift counts the lines the trim took rather than assuming one of them, so a header over two
+// blank lines moves its site by two.
+func TestStripCountsEveryLineTheTrimTook(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	if err := os.WriteFile(path, []byte("// A header nobody reads.\n\n\nexport function a() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	if got, want := string(mustRead(t, path)), "export function a() {}\n"; got != want {
+		t.Fatalf("stripped file:\n%q\nwant\n%q", got, want)
+	}
+	if want := path + ":1 1.facts\n"; out.String() != want {
+		t.Errorf("sites:\n%swant\n%s", out.String(), want)
+	}
+}

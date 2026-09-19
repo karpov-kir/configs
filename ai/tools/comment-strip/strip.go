@@ -154,8 +154,9 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 	// the old one would point it at the wrong declaration by the height of every block above it.
 	removedBefore := 0
 	type site struct {
-		line  int
-		facts string
+		line   int
+		facts  string
+		record string
 	}
 	sites := make([]site, 0, len(units))
 	for n, u := range units {
@@ -168,17 +169,12 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 		if next > len(lines) {
 			at = len(lines) - removedBefore
 		}
-		facts := fmt.Sprintf("%d.facts", n+1)
 		var record strings.Builder
-		fmt.Fprintf(&record, "%s:%d\n", path, at)
 		for offset := 0; offset < u.Span; offset++ {
 			record.WriteString(lines[u.Line-1+offset])
 			record.WriteByte('\n')
 		}
-		if err := os.WriteFile(filepath.Join(dir, facts), []byte(record.String()), 0o644); err != nil {
-			return refuse("cannot write %s", echoable(filepath.Join(dir, facts)))
-		}
-		sites = append(sites, site{line: at, facts: facts})
+		sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", n+1), record: record.String()})
 	}
 	gone := make([]int, len(units))
 	for i := range units {
@@ -190,10 +186,25 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 	// puts a line the change never wrote into the change set. Only blankness this run created goes,
 	// and a file that already opened on a blank line keeps it.
 	if len(lines) > 0 && strings.TrimSpace(lines[0]) != "" {
-		stripped = strings.TrimLeft(stripped, "\n")
+		short := strings.TrimLeft(stripped, "\n")
+		// What goes here sits over every site, so each site moves up by as many lines. The loop that
+		// numbered them counted the blocks alone, so a site one line high names the declaration before
+		// its own.
+		for i := range sites {
+			sites[i].line = max(sites[i].line-(len(stripped)-len(short)), 1)
+		}
+		stripped = short
 	}
 	if !strings.HasSuffix(content, "\n") {
 		stripped = strings.TrimSuffix(stripped, "\n")
+	}
+	// A facts file carries its site, so it is written once the site is final. A refusal here leaves the
+	// source file as the run read it.
+	for _, s := range sites {
+		record := fmt.Sprintf("%s:%d\n%s", path, s.line, s.record)
+		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(record), 0o644); err != nil {
+			return refuse("cannot write %s", echoable(filepath.Join(dir, s.facts)))
+		}
 	}
 	if err := os.WriteFile(readPath, []byte(stripped), info.Mode().Perm()); err != nil {
 		return refuse("cannot write %s", echoable(path))
