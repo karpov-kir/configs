@@ -1,6 +1,6 @@
 // Scores a comment block the writer produced, by what the block carries. Four judge kinds were built
-// in this campaign and all four were dropped on measurement, and the label each of them failed asked
-// a reader what a block does NOT say. The two that held asked about a contradiction and a mixture,
+// in this campaign and all four were dropped on measurement. The label each of them failed asked a
+// reader what a block does NOT say, and the two that held asked about a contradiction and a mixture,
 // both present in the text. So this scorer reads the block and asks only what is there.
 //
 // Every check here was counted on a set of reviewed code before it was written down, and the counts
@@ -72,14 +72,14 @@ func (r Return) Text() string {
 }
 
 // takenVerbs are the metaphor verbs the census found on the reviewed set and read as figures. The
-// writing standard named six more that fire zero times over sixty files, and `answer` and `reach`
-// are the literal verbs of a codebase that queries things, so all of those stay out.
+// writing standard named six more that fire zero times over sixty files. `answer` and `reach` are
+// the literal verbs of a codebase that queries things. All eight stay out.
 var takenVerbs = map[string]bool{"cover": true, "settle": true, "sit in": true, "load-bearing": true}
 
 // noteSentences is the ceiling the comment rule sets for a note.
 const noteSentences = 2
 
-// Failure is one check a block did not pass, named with the text that failed it.
+// Failure is one check a block did not pass. It carries the text that failed it.
 type Failure struct {
 	Check string
 	Found string

@@ -41,9 +41,9 @@ func checkedBy(failures []Failure, check string) bool {
 	return false
 }
 
-// Each of Kirill's four blocks, translated into the ledger domain, and the plain rewrite of each
-// beside it. The rewrite is the control: a check that fires on both reaches clear prose, which is
-// what the census caught two proposed rules doing.
+// Each of Kirill's four blocks in the ledger domain, with the plain rewrite of each beside it. The
+// rewrite is the control: a check that fires on both reaches clear prose, which is what the census
+// caught two proposed rules doing.
 func TestEachFlaggedShapeFailsAndItsPlainRewritePasses(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -125,8 +125,8 @@ func TestAVerdictNeedsBothTheClassAndTheChecks(t *testing.T) {
 	}
 }
 
-// A declined site is scored on its class alone. Running the text checks over an empty block would
-// report failures about text nobody wrote.
+// A declined site is scored on its class alone. The text checks over an empty block would report a
+// failure about text the writer never wrote.
 func TestADeclinedSiteFailsNoTextCheck(t *testing.T) {
 	if got := Score(ParseReturn("none")); len(got) != 0 {
 		t.Errorf("a declined site failed %+v", got)
