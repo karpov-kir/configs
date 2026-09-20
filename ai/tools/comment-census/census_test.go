@@ -25,17 +25,18 @@ func TestASummaryIsTheFirstSentenceOverADeclaration(t *testing.T) {
 	}
 }
 
-// A block over no declaration has no summary, so every sentence in it is a note. A rule aimed at
-// notes would otherwise skip a file header's first sentence and reach the rest of it.
+// Every sentence of a block standing over plain code is a note. A rule aimed at notes would
+// otherwise skip a file header's first sentence and reach the rest of it.
 func TestABlockOverNoDeclarationIsAllNotes(t *testing.T) {
-	blocks := Blocks(linesOf("// A header. A second sentence.\n\nconst x = 1;\n"))
+	blocks := Blocks(linesOf("// A header. A second sentence.\n  return 1;\n"))
 	if len(blocks) != 1 {
 		t.Fatalf("%d block(s), want 1", len(blocks))
 	}
 	if _, ok := blocks[0].Summary(); ok {
-		if blocks[0].OverDecl {
-			t.Skip("the loose declaration shape reads `const x = 1;` as a declaration, which it is")
-		}
+		t.Errorf("a block standing over a return statement was given a summary")
+	}
+	if got := blocks[0].Notes(); len(got) != 2 {
+		t.Errorf("notes %q, want both sentences", got)
 	}
 }
 
@@ -136,8 +137,8 @@ func loadPlainSet(t *testing.T) [][]string {
 	return files
 }
 
-// The census itself. It asserts nothing: a shape's count is the evidence a rule is cut against, and a
-// bar invented here would teach the next rule to clear it rather than to be true.
+// The census itself, which asserts no bar. A shape's count is the evidence a rule is cut against. A
+// bar invented here would teach the next rule to clear it.
 func TestCensusOverThePlainSet(t *testing.T) {
 	files := loadPlainSet(t)
 	rep := Measure(files)
@@ -182,7 +183,7 @@ func TestCensusOverThePlainSet(t *testing.T) {
 }
 
 // A shape is counted against the sentences it was offered. One offered both summaries and notes has
-// both as its denominator, and reporting it against the notes alone reads as a rate above one.
+// both as its denominator, and reporting it against the notes alone overstates it.
 func denominatorOf(name string, rep Report) int {
 	for _, shape := range Shapes() {
 		if shape.Name != name {

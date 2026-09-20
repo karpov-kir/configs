@@ -1,6 +1,6 @@
 // Counts the shapes a comment rule proposes to forbid, over a set of files the repository does not
 // hold. Every rule this campaign wrote as a word test or a length test had to be re-cut once someone
-// counted it, so a proposed rule is counted here before it is written down.
+// counted it. A proposed rule is counted here before it is written down.
 //
 // The set is named by an environment variable and never by a committed path, and the report carries
 // counts and sample sentences alone. A case is named by its position in the sorted set.
@@ -14,7 +14,8 @@ import (
 	readerjudge "kk-flavor/tools/reader-judge"
 )
 
-// Block is one comment block, its marker characters removed, paired with what sits under it.
+// Block is one comment block with its marker characters removed. OverDecl says whether a
+// declaration sits under it.
 type Block struct {
 	Line      int
 	Span      int
@@ -26,9 +27,9 @@ type Block struct {
 var markerHead = regexp.MustCompile(`^\s*(///|//|/\*\*|/\*|\*/|\*|#)\s?`)
 var markerTail = regexp.MustCompile(`\s*\*/\s*$`)
 
-// declaration is the shape of a line a summary can sit over. It is deliberately loose: a count of
-// summaries is the denominator of every rule measured here, and a line this misses is a summary
-// counted as a note, which understates the rule's reach rather than overstating it.
+// declaration is the shape of a line a summary can sit over. The shape is loose on purpose. A count
+// of summaries is the denominator of every rule measured here, and a line this misses becomes a
+// note, which understates a rule's reach.
 var declaration = regexp.MustCompile(`^\s*(export\s+|default\s+|public\s+|private\s+|protected\s+|static\s+|async\s+|abstract\s+)*(function|const|let|var|class|interface|type|enum|func|def)\b|^\s*[A-Za-z_$][\w$]*\s*[:(]|^\s*[A-Za-z_$][\w$]*\s*=\s*(\(|function|async)`)
 
 // Blocks reads a file's comment blocks and says which of them stand over a declaration.
@@ -57,9 +58,9 @@ func Blocks(lines []string) []Block {
 
 var sentenceEnd = regexp.MustCompile(`(?:[.!?])(?:\s+|$)`)
 
-// Sentences splits on terminal punctuation. A doc tag line carries no sentence and drops out, and an
-// abbreviation splits one sentence into two, which inflates the sentence count rather than the
-// finding counts every rule here is measured by.
+// Sentences splits on terminal punctuation. A doc tag line carries no sentence and drops out. An
+// abbreviation splits one sentence in two, which inflates the sentence count and leaves the finding
+// counts alone.
 func Sentences(text string) []string {
 	var out []string
 	for _, piece := range sentenceEnd.Split(text, -1) {
@@ -89,7 +90,7 @@ func (b Block) Notes() []string {
 	return b.Sentences
 }
 
-// A shape is one proposed rule, counted by the sentences it would reach.
+// A shape is one proposed rule. Its count is the sentences it would reach.
 type Shape struct {
 	Name string
 	Over string // "note", "summary" or "either"
@@ -200,7 +201,7 @@ var hyphenPair = regexp.MustCompile(`\b([a-z]+)-([a-z]+)\b`)
 
 // CoinedCompounds returns the hyphenated pairs in a sentence that the file's own identifiers do not
 // carry, in either the hyphenated or the camelCase spelling. A compound the code spells is the
-// domain's word; one it does not is a word the comment invented.
+// domain's word. One the code lacks is a word the comment invented.
 func CoinedCompounds(sentence string, identifiers map[string]bool) []string {
 	var out []string
 	for _, m := range hyphenPair.FindAllStringSubmatch(sentence, -1) {
@@ -235,7 +236,7 @@ func Identifiers(lines []string, blocks []Block) map[string]bool {
 }
 
 // Tally is one shape's count with a sample of what it reached, so a number is read beside the
-// sentences behind it rather than on its own.
+// sentences behind it.
 type Tally struct {
 	Name    string
 	Count   int
@@ -263,8 +264,8 @@ type Report struct {
 	Long      Tally
 }
 
-// Measure counts every shape over the files handed to it. A file is a name and its lines, and the
-// name is used for nothing but ordering, so no path reaches the report.
+// Measure counts every shape over the files handed to it. A file is a name and its lines. The name
+// orders the set, and the report carries counts and matched sentences alone.
 func Measure(files [][]string) Report {
 	shapes := Shapes()
 	rep := Report{Files: len(files)}
