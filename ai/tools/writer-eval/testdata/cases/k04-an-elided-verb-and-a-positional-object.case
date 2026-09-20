@@ -1,0 +1,9 @@
+expect: written
+why: the verb is elided, and the consequence's subject is a caller nobody named
+labelled: 2026-09-20
+--- code
+export function toEntries(collection: LiveEntrySet): Entry[] {
+  return Array.from(collection);
+}
+--- facts
+A LiveEntrySet drops an entry as soon as the ledger does, so a caller removing entries iterates this array.

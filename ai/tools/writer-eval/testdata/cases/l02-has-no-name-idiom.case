@@ -1,0 +1,11 @@
+expect: none
+why: the house idiom of naming where plain English says absent, and it goes with l01
+labelled: 2026-09-17
+--- code
+export enum Settlement {
+  Unsettled = 'unsettled',
+  DirectCash = 'direct-cash',
+  EscrowCredit = 'escrow-credit',
+}
+--- facts
+Only pairings that exist in practice are members, so an impossible one like escrow with cash has no name.

@@ -1,0 +1,15 @@
+expect: written
+why: the case clause is negated and carries four conditions, which a named predicate takes
+labelled: 2026-09-20
+--- code
+export function soleMeasurableEntry(ledger: Document, entryType: string): EntryInBook | undefined {
+  const declaring = listEntriesDeclaring(ledger, entryType);
+  const measurable = declaring.filter(
+    inBook => inBook.amount > 0 && inBook.rate > 0 && inBook.period > 0 && inBook.currency > 0,
+  );
+
+  return measurable.length === 1 ? measurable[0] : undefined;
+}
+--- facts
+Returns the entry declaring the entry type, or undefined unless exactly one declares it with a positive amount,
+rate, period and currency.

@@ -1,0 +1,9 @@
+expect: written
+why: the consequence describes a call nobody makes, and the reader has to invert it
+labelled: 2026-09-20
+--- code
+export function postingTypeOf(requirement: SettlementRequirement): string {
+  return requirement.entryType.split(';')[0];
+}
+--- facts
+An account can refuse a posting, so a full entry type would hide the clearing house's answer.

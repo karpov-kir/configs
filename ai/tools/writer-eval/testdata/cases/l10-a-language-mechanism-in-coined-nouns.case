@@ -1,0 +1,16 @@
+expect: none
+why: a language mechanism described in coined nouns, and a test carries it
+labelled: 2026-09-17
+--- code
+function getClaimThroughLegacyApi(clearing: Clearing, settlementApi: LegacySettlementApi): LedgerClaim {
+  const { isTypeSupported } = settlementApi;
+
+  if (!isTypeSupported) {
+    return LedgerClaim.Unknown;
+  }
+
+  return interpretAnswerWithoutScheme(clearing, house => Boolean(isTypeSupported.call(settlementApi, house)));
+}
+--- facts
+These are host methods, and a bare call can be rejected outright on the ledgers that expose them, so the call keeps
+its owner.

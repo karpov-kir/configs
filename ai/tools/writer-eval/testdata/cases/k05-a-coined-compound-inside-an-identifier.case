@@ -1,0 +1,9 @@
+expect: rename
+why: the coined compound is the code's own word, so a rename comes back instead of the word in prose
+labelled: 2026-09-20
+--- code
+export function interpretPeriodBlindAnswer(clearing: Clearing, ask: (house: string) => boolean): LedgerClaim {
+  return claimFromPeriodBlindYes(clearing, getClearingIdentifiers(clearing).some(ask));
+}
+--- facts
+Reads an answer given without a period and turns it into a claim about the clearing house.
