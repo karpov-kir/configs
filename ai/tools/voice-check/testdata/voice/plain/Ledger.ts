@@ -52,3 +52,8 @@ export function totalBook(book: Element): number {
 export function resolveSettlementCode(book: Element): string {
   return "";
 }
+
+/** Returns true where the claim settles the period without naming one. */
+export function claimFromPeriodBlindAnswer(book: Element): boolean {
+  return Boolean(book);
+}

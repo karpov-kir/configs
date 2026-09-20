@@ -104,6 +104,7 @@ const (
 	checkPositional    = "positional"
 	checkLongBlock     = "long-block"
 	checkCoined        = "coined"
+	checkCoinedIdent   = "coined-identifier"
 	checkLongSentence  = "long-sentence"
 	checkClauseDepth   = "clause-depth"
 	checkDoubleNeg     = "double-negative"
@@ -112,8 +113,8 @@ const (
 
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
-	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkLongSentence,
-	checkClauseDepth, checkDoubleNeg, checkSemicolon}
+	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
+	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon}
 
 var (
 	// A bold span opening on a word or a backtick. `**` around a space is markdown that did not close.
@@ -408,6 +409,9 @@ func isProseLine(stripped string) bool {
 type scanner struct {
 	profile Profile
 	coined  []string
+	// domain holds the compounds this codebase's readers know, from the conf. The coined-identifier
+	// check passes over these and fires on every other compound the code spells.
+	domain  []string
 	allowed allowlist
 	// suppressed counts what the allowlist dropped. A finding answered by an entry is still a finding
 	// the text carried, and a report that said nothing about it would read as text that matched nothing.
@@ -484,7 +488,9 @@ func (seg segment) lineSpan(from, to int) (int, int) {
 func (s scanner) scanSource(file string, lines []string, within map[int]bool) []Finding {
 	var found []Finding
 	held := onlyAdded(within)
+	identifiers := identifierWordsOf(lines)
 	for _, b := range commentBlocksIn(lines, held) {
+		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		limit := voiceLongBlock
 		if b.isFileHeader(lines, held) {
 			limit = voiceLongHeader
@@ -828,7 +834,7 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 		}
 	}
 
-	coined, allowed, conf, err := voiceConfig(cwd)
+	coined, domain, allowed, conf, err := voiceConfig(cwd)
 	if err != nil {
 		return out.refuse(err)
 	}
@@ -836,11 +842,11 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 	// ships can allow every check and the run still reports `0 finding(s)` and `clean, which says the
 	// register was read` — a clean voice pass over text nothing read.
 	if conf != "" {
-		out.note("reading %s: %d coined word(s), %d allowlist entry(ies)",
-			shell.CutBytesMarked(shell.Oneline(conf), maxPathBytes), len(coined), len(allowed))
+		out.note("reading %s: %d coined word(s), %d domain word(s), %d allowlist entry(ies)",
+			shell.CutBytesMarked(shell.Oneline(conf), maxPathBytes), len(coined), len(domain), len(allowed))
 	}
 	suppressed := 0
-	s := scanner{profile: profile, coined: coined, allowed: allowed, suppressed: &suppressed,
+	s := scanner{profile: profile, coined: coined, domain: domain, allowed: allowed, suppressed: &suppressed,
 		notice: func(line string) { out.note("%s", line) }}
 	over := scanned{conf: conf}
 
@@ -1161,4 +1167,51 @@ func tally(parts []string) string {
 		return ""
 	}
 	return " — " + strings.Join(parts, ", ")
+}
+
+// A hyphenated pair in prose, and the identifier words a file spells outside its comments.
+var reHyphenPair = regexp.MustCompile(`\b([a-z]+)-([a-z]+)\b`)
+var reIdentifierWord = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
+var reCamelBreak = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+
+// identifierWordsOf collects what a file's identifiers spell, lowercased: each whole identifier, and
+// each adjacent pair of its camel humps joined. A compound in prose is matched against the pairs,
+// because `period-blind` lives inside `claimFromPeriodBlindAnswer` as two humps beside each other.
+func identifierWordsOf(lines []string) map[string]bool {
+	out := map[string]bool{}
+	for _, line := range lines {
+		for _, word := range reIdentifierWord.FindAllString(line, -1) {
+			out[strings.ToLower(word)] = true
+			humps := strings.Fields(reCamelBreak.ReplaceAllString(word, "$1 $2"))
+			for i := 0; i+1 < len(humps); i++ {
+				out[strings.ToLower(humps[i]+humps[i+1])] = true
+			}
+		}
+	}
+	return out
+}
+
+// coinedIdentifiers finds a hyphenated compound in a block whose camelCase join the code spells. The
+// code coined the word and the prose took it, so the rename lane owns it and the prose takes the
+// plain phrase. A compound the conf names as the domain's passes.
+//
+// Measured before it landed: 12 of 129 hyphenated compounds on a sixty-file set, every one of them a
+// term that stays, which is why the domain list is seeded per repository rather than guessed at here.
+// comment-census's README holds the count.
+func (s scanner) coinedIdentifiers(file string, b block, lines []string, identifiers map[string]bool) []Finding {
+	var found []Finding
+	known := map[string]bool{}
+	for _, word := range s.domain {
+		known[strings.ToLower(word)] = true
+	}
+	for at := b.start; at <= b.end && at <= len(lines); at++ {
+		text := proseOf(lines[at-1])
+		for _, m := range reHyphenPair.FindAllStringSubmatch(text, -1) {
+			if known[strings.ToLower(m[0])] || !identifiers[strings.ToLower(m[1]+m[2])] {
+				continue
+			}
+			found = append(found, Finding{File: file, Line: at, Check: checkCoinedIdent, Text: m[0]})
+		}
+	}
+	return found
 }

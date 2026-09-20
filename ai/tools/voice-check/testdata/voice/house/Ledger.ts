@@ -70,3 +70,10 @@ export function totalBook(book: Element): number {
 export function resolveSettlementCode(book: Element): string {
   return "";
 }
+
+/**
+ * A period-blind claim still settles the period.
+ */
+export function claimFromPeriodBlindAnswer(book: Element): boolean {
+  return Boolean(book);
+}

@@ -429,11 +429,11 @@ func TestAnAllowlistEntryNeedsACheckItRunsAndAReason(t *testing.T) {
 		{"empty reason", "allow contrast rather than # ", "no reason"},
 		{"unknown check", "allow loudness rather than # because", "a check this scan does not run"},
 		{"no text", "allow contrast  # because", "no matched text"},
-		{"unknown keyword", "suppress contrast rather than", "neither `coined` nor `allow`"},
+		{"unknown keyword", "suppress contrast rather than", "none of `coined`, `domain` and `allow`"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, _, err := parseVoiceConf(c.line + "\n")
+			_, _, _, err := parseVoiceConf(c.line + "\n")
 			if err == nil || !strings.Contains(err.Error(), c.wants) {
 				t.Fatalf("got %v, want a refusal naming %q", err, c.wants)
 			}
@@ -442,7 +442,7 @@ func TestAnAllowlistEntryNeedsACheckItRunsAndAReason(t *testing.T) {
 }
 
 func TestAnAllowlistDropsOnlyTheFindingItNames(t *testing.T) {
-	coined, allowed, err := parseVoiceConf(
+	coined, _, allowed, err := parseVoiceConf(
 		"coined climb\n" +
 			"allow contrast rather than # the host repo's own phrase in this file, quoted\n")
 	if err != nil {
@@ -487,7 +487,7 @@ func TestAConfThatDoesNotParseRefusesTheRunRatherThanScanningWithHalfOfIt(t *tes
 		t.Fatal(err)
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
-	if _, _, _, err := voiceConfig(dir); err == nil {
+	if _, _, _, _, err := voiceConfig(dir); err == nil {
 		t.Fatal("a conf with an entry carrying no reason was accepted")
 	}
 }
@@ -496,7 +496,7 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("COMMENT_VOICE_CONF", "")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "absent"))
-	coined, allowed, _, err := voiceConfig(dir)
+	coined, _, allowed, _, err := voiceConfig(dir)
 	if err != nil || len(coined) != 0 || len(allowed) != 0 {
 		t.Fatalf("got %v/%v/%v, want an empty configuration and no error", coined, allowed, err)
 	}
@@ -859,7 +859,7 @@ func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
 		t.Skipf("this filesystem does not take symlinks: %v", err)
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
-	_, _, _, err := voiceConfig(dir)
+	_, _, _, _, err := voiceConfig(dir)
 	if err == nil {
 		t.Fatal("a symlinked conf was read")
 	}
@@ -874,7 +874,7 @@ func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
 // A conf that does not parse is refused by line, and the refusal carries no text off the line. A
 // symlinked or mistaken conf otherwise prints its first token into the transcript.
 func TestAParseRefusalNamesTheLineAndNotItsContents(t *testing.T) {
-	_, _, err := parseVoiceConf("NPM_TOKEN=abcdef\n")
+	_, _, _, err := parseVoiceConf("NPM_TOKEN=abcdef\n")
 	if err == nil {
 		t.Fatal("a line that is neither directive was accepted")
 	}
@@ -1024,7 +1024,7 @@ func TestTheContrastSpineIsCaughtWithAConjunction(t *testing.T) {
 // Through MustCompile that is a panic printing the conf's own bytes and a stack trace of host paths —
 // which undoes the refusal-without-echoing the rest of the conf handling was written for.
 func TestAConfLineThatIsNotUTF8IsRefusedWithoutEchoingIt(t *testing.T) {
-	_, _, err := parseVoiceConf("coined API\xffKEY\n")
+	_, _, _, err := parseVoiceConf("coined API\xffKEY\n")
 	if err == nil {
 		t.Fatal("a conf line holding invalid UTF-8 was accepted")
 	}
@@ -1050,7 +1050,7 @@ func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
 	}
 	t.Setenv("COMMENT_VOICE_CONF", "")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "machine"))
-	if _, _, _, err := voiceConfig(dir); err == nil {
+	if _, _, _, _, err := voiceConfig(dir); err == nil {
 		t.Fatal("a dangling conf symlink was treated as no conf at all")
 	}
 }
@@ -1058,7 +1058,7 @@ func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
 // A finding the allowlist answers is still a finding the text carried. Uncounted, a conf a repository
 // ships silences every check and the run still reports `0 finding(s)` and `clean`.
 func TestASuppressedFindingIsCounted(t *testing.T) {
-	_, allowed, err := parseVoiceConf("allow contrast rather than # the fixture's own phrase, quoted\n")
+	_, _, allowed, err := parseVoiceConf("allow contrast rather than # the fixture's own phrase, quoted\n")
 	if err != nil {
 		t.Fatal(err)
 	}

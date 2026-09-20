@@ -84,14 +84,14 @@ const (
 // One Lstat decides both selection and validity. Split across two calls, the tree under review could
 // ship a symlink that passes selection and fails validation, which refuses the run and takes the
 // machine's own conf out of reach — a branch disabling the check for anyone who reads it.
-func voiceConfig(cwd string) ([]string, allowlist, string, error) {
+func voiceConfig(cwd string) ([]string, []string, allowlist, string, error) {
 	path, origin, found := voiceConfPath(cwd)
 	if !found {
-		return nil, nil, "", nil
+		return nil, nil, nil, "", nil
 	}
 	named := shell.CutBytesMarked(shell.Oneline(path), maxPathBytes)
-	refuse := func(why string) ([]string, allowlist, string, error) {
-		return nil, nil, "", fmt.Errorf("%s (%s) %s — exit 2, the scan did NOT run", named, origin, why)
+	refuse := func(why string) ([]string, []string, allowlist, string, error) {
+		return nil, nil, nil, "", fmt.Errorf("%s (%s) %s — exit 2, the scan did NOT run", named, origin, why)
 	}
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -104,11 +104,11 @@ func voiceConfig(cwd string) ([]string, allowlist, string, error) {
 	if err != nil {
 		return refuse(err.Error())
 	}
-	coined, allowed, err := parseVoiceConf(body)
+	coined, domain, allowed, err := parseVoiceConf(body)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("%s (%s): %w — exit 2, the scan did NOT run", named, origin, err)
+		return nil, nil, nil, "", fmt.Errorf("%s (%s): %w — exit 2, the scan did NOT run", named, origin, err)
 	}
-	return coined, allowed, origin + " " + named, nil
+	return coined, domain, allowed, origin + " " + named, nil
 }
 
 // readCapped reads a file and refuses one that is larger than the cap. The cap is enforced on the READ
@@ -165,8 +165,9 @@ func exists(path string) bool {
 //
 // The reason is separated by ` # ` because a matched text can hold anything a comment can, spaces
 // included, and a positional separator would cut the text at its first space.
-func parseVoiceConf(body string) ([]string, allowlist, error) {
+func parseVoiceConf(body string) ([]string, []string, allowlist, error) {
 	var coined []string
+	var domain []string
 	var allowed allowlist
 	for number, raw := range shell.SplitLines(body) {
 		line := strings.TrimSpace(raw)
@@ -178,27 +179,35 @@ func parseVoiceConf(body string) ([]string, allowlist, error) {
 		// panic printing the conf's own bytes and a stack trace of absolute host paths, which undoes
 		// the whole point of refusing without echoing the file.
 		if !utf8.ValidString(line) {
-			return nil, nil, fmt.Errorf("line %d is not valid UTF-8", number+1)
+			return nil, nil, nil, fmt.Errorf("line %d is not valid UTF-8", number+1)
 		}
 		keyword, rest, _ := strings.Cut(line, " ")
 		rest = strings.TrimSpace(rest)
 		switch keyword {
 		case "coined":
 			if rest == "" {
-				return nil, nil, fmt.Errorf("line %d names no word to treat as coined", number+1)
+				return nil, nil, nil, fmt.Errorf("line %d names no word to treat as coined", number+1)
 			}
 			coined = append(coined, rest)
+		// A `domain` word is a compound this codebase's own identifiers spell and its readers know.
+		// The coined-identifier check fires on every other compound the code spells, so a repository
+		// seeds the ones its readers already carry and a new invention stands out against them.
+		case "domain":
+			if rest == "" {
+				return nil, nil, nil, fmt.Errorf("line %d names no word to treat as the domain's", number+1)
+			}
+			domain = append(domain, rest)
 		case "allow":
 			entry, err := parseAllowLine(rest, number+1)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			allowed = append(allowed, entry)
 		default:
-			return nil, nil, fmt.Errorf("line %d starts with a word that is neither `coined` nor `allow`", number+1)
+			return nil, nil, nil, fmt.Errorf("line %d starts with a word that is none of `coined`, `domain` and `allow`", number+1)
 		}
 	}
-	return coined, allowed, nil
+	return coined, domain, allowed, nil
 }
 
 func parseAllowLine(rest string, number int) (allowEntry, error) {
