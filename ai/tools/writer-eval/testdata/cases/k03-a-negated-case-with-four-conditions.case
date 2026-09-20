@@ -1,5 +1,5 @@
-expect: written
-why: the case clause is negated and carries four conditions, which a named predicate takes
+expect: none
+why: the refactor lane extracts the four-condition case as a named predicate, and the summary then restates the name; the predicate extraction is what decides this case rather than a block
 labelled: 2026-09-20
 --- code
 export function soleMeasurableEntry(ledger: Document, entryType: string): EntryInBook | undefined {

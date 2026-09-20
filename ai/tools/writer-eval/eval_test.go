@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,12 @@ const writerRow = "comment-writer"
 const evalEnv = "WRITER_EVAL"
 
 const callDeadline = 4 * time.Minute
+
+// evalRolls is how many times each case is put to the writer. The writer is a model, so one roll per
+// case cannot tell a rule that changed the answer from a case that answers differently twice. A case
+// counts as passed only where every roll passed, and the table prints the split so variance is read
+// rather than averaged away.
+const evalRolls = 3
 
 // labelledBar is what every labelled case has to do: land in the class its label expects, and pass
 // every check where that class is a written block. The plain half of the eval is the next piece, and
@@ -149,50 +156,76 @@ func TestWriterEval(t *testing.T) {
 		}
 	}
 
-	verdicts := make([]Verdict, len(cases))
-	answers := make([]string, len(cases))
+	rolls := make([][]Verdict, len(cases))
+	answers := make([][]string, len(cases))
+	for i := range cases {
+		rolls[i] = make([]Verdict, evalRolls)
+		answers[i] = make([]string, evalRolls)
+	}
 	gate := make(chan struct{}, at)
 	var wait sync.WaitGroup
 	for i, c := range cases {
-		wait.Add(1)
-		go func(i int, c Case) {
-			defer wait.Done()
-			gate <- struct{}{}
-			defer func() { <-gate }()
-			raw, err := callWriter(settings, prompt(t, c))
-			if err != nil {
-				verdicts[i] = Verdict{Name: c.Name, Want: c.Expect, Got: "error"}
-				answers[i] = err.Error()
-				return
-			}
-			answers[i] = strings.TrimSpace(raw)
-			verdicts[i] = Judge(c.Name, c.Expect, ParseReturn(raw))
-		}(i, c)
+		for roll := 0; roll < evalRolls; roll++ {
+			wait.Add(1)
+			go func(i, roll int, c Case) {
+				defer wait.Done()
+				gate <- struct{}{}
+				defer func() { <-gate }()
+				raw, err := callWriter(settings, prompt(t, c))
+				if err != nil {
+					rolls[i][roll] = Verdict{Name: c.Name, Want: c.Expect, Got: "error"}
+					answers[i][roll] = err.Error()
+					return
+				}
+				answers[i][roll] = strings.TrimSpace(raw)
+				rolls[i][roll] = Judge(c.Name, c.Expect, ParseReturn(raw))
+			}(i, roll, c)
+		}
 	}
 	wait.Wait()
 
 	var out strings.Builder
-	fmt.Fprintf(&out, "\nwriter row: %s %s, %d case(s)\n\n", settings.Model, settings.Effort, len(cases))
-	fmt.Fprintf(&out, "%-46s %-8s %-8s %s\n", "case", "want", "got", "failed")
+	fmt.Fprintf(&out, "\nwriter row: %s %s, %d case(s), %d roll(s) each\n\n",
+		settings.Model, settings.Effort, len(cases), evalRolls)
+	fmt.Fprintf(&out, "%-46s %-8s %-7s %s\n", "case", "want", "passed", "what came back")
 	passed := 0
-	for i, v := range verdicts {
-		if v.Passed() {
+	for i, c := range cases {
+		clean := 0
+		got := map[string]int{}
+		failed := map[string]bool{}
+		for _, v := range rolls[i] {
+			if v.Passed() {
+				clean++
+			}
+			got[string(v.Got)]++
+			for _, f := range v.Failures {
+				failed[f.Check] = true
+			}
+		}
+		if clean == evalRolls {
 			passed++
 		}
-		var names []string
-		for _, f := range v.Failures {
-			names = append(names, f.Check)
+		var classes []string
+		for _, class := range []string{"none", "written", "rename", "error"} {
+			if got[class] > 0 {
+				classes = append(classes, fmt.Sprintf("%s x%d", class, got[class]))
+			}
 		}
-		fmt.Fprintf(&out, "%-46s %-8s %-8s %s\n", v.Name, v.Want, v.Got, strings.Join(names, ", "))
-		if !v.Passed() {
-			fmt.Fprintf(&out, "    wanted because: %s\n    answered: %s\n", cases[i].Why, oneLine(answers[i]))
+		var checks []string
+		for check := range failed {
+			checks = append(checks, check)
+		}
+		sort.Strings(checks)
+		fmt.Fprintf(&out, "%-46s %-8s %d of %d  %s %s\n", c.Name, c.Expect, clean, evalRolls,
+			strings.Join(classes, ", "), strings.Join(checks, ", "))
+		if clean != evalRolls {
+			fmt.Fprintf(&out, "    wanted because: %s\n    answered: %s\n", c.Why, oneLine(answers[i][0]))
 		}
 	}
-	fmt.Fprintf(&out, "\n%d of %d in the expected class with every check passed. The bar is %s.\n",
-		passed, len(cases), labelledBar)
+	fmt.Fprintf(&out, "\n%d of %d clean on every roll. The bar is %s.\n", passed, len(cases), labelledBar)
 	t.Log(out.String())
 	if passed != len(cases) {
-		t.Errorf("%d of %d labelled case(s) cleared the bar", passed, len(cases))
+		t.Errorf("%d of %d labelled case(s) cleared the bar on every roll", passed, len(cases))
 	}
 }
 

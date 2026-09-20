@@ -1,5 +1,5 @@
 expect: written
-why: the consequence describes a call nobody makes, and the reader has to invert it
+why: the fact is about accounts and not about this code, and a one-line body shows no reason for dropping the rest of the entry type, so the presence form keeps it; the written form is two plain sentences, the second naming this code's element
 labelled: 2026-09-20
 --- code
 export function postingTypeOf(requirement: SettlementRequirement): string {
