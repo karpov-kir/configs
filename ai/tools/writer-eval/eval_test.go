@@ -36,9 +36,9 @@ const callDeadline = 4 * time.Minute
 
 // evalRolls is how many times each case is put to the writer. The writer is a model, so one roll per
 // case cannot tell a rule that changed the answer from a case that answers differently twice. Three
-// rolls was not enough either: three cases moved by two rolls between runs that changed nothing
-// touching them. A case counts as passed only where every roll passed, and the table prints the
-// split so a reader sees the variance.
+// rolls fell short too. Three cases moved by two rolls between runs, and neither run touched any of
+// them. A case counts as passed only where every roll passed. The table prints the split, so a
+// reader sees the variance.
 const evalRolls = 5
 
 // labelledBar is what every labelled case has to do: land in the class its label expects, and pass
@@ -271,8 +271,8 @@ func oneLine(text string) string {
 }
 
 // ledgerEnv names a file this eval appends each run's per-case counts to. A per-case count at five
-// rolls is still noisy, so a change is attributable only where it is larger than the spread the
-// ledger shows across runs. Unset, the run reports itself alone.
+// rolls still carries noise. A change is attributable where it is larger than the spread the ledger
+// shows across runs. Unset, the run reports itself alone.
 const ledgerEnv = "WRITER_EVAL_LEDGER"
 
 type pooled struct {
@@ -321,8 +321,8 @@ func poolInto(path string, clean map[string]int) (pooled, error) {
 }
 
 // plainSetEnv names a directory of reviewed source whose blocks a reviewer left alone. It is
-// somebody else's code and this repository is public, so the set is named by the environment, a case
-// is named by its position in the sorted set, and only counts leave the run.
+// somebody else's code and this repository is public. So the environment names the set, a case is
+// named by its position in the sorted set, and only counts leave the run.
 const plainSetEnv = "JUDGE_EVAL_PLAIN"
 
 // plainBlocksEnv bounds how many blocks the plain half reads, because each one spends a model call.
