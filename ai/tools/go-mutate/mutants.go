@@ -1056,8 +1056,8 @@ var mutants = []mutant{
 	{"voice: a non-regular conf is read like a file", "../voice-check/voiceconf.go", "./voice-check/", "TestANonRegularConfIsDeclinedWithoutEchoingIt",
 		"\tif !info.Mode().IsRegular() {", "\tif !info.Mode().IsRegular() && false {"},
 	{"voice: a parse refusal echoes the line it refused", "../voice-check/voiceconf.go", "./voice-check/", "TestAParseRefusalNamesTheLineAndNotItsContents",
-		"fmt.Errorf(\"line %d starts with a word that is neither `coined` nor `allow`\", number+1)",
-		"fmt.Errorf(\"line %d starts with %q, which is neither `coined` nor `allow`\", number+1, keyword)"},
+		"fmt.Errorf(\"line %d starts with a word that is none of `coined`, `domain` and `allow`\", number+1)",
+		"fmt.Errorf(\"line %d starts with %q, which is none of `coined`, `domain` and `allow`\", number+1, keyword)"},
 	{"voice: a run says nothing about the conf it read", "../voice-check/voice.go", "./voice-check/", "TestARunThatReadAConfNamesIt",
 		"\tif conf != \"\" {", "\tif false {"},
 	{"bar: a block's length counts its markers and its doc tags", "../voice-check/bar.go", "./voice-check/", "TestTheBarAndTheVoiceCheckAgreeOnBlockLength",
@@ -1100,8 +1100,18 @@ var mutants = []mutant{
 		`if repo := shell.Join(shell.Join(cwd, ".kk-flavor"), voiceConfName); exists(repo) {`,
 		`if repo := shell.Join(shell.Join(cwd, ".kk-flavor"), voiceConfName); false && exists(repo) {`},
 	{"voice: a conf that does not parse scans with half of it", "../voice-check/voiceconf.go", "./voice-check/", "TestAConfThatDoesNotParseRefusesTheRunRatherThanScanningWithHalfOfIt",
-		"\tcoined, allowed, err := parseVoiceConf(body)\n\tif err != nil {",
-		"\tcoined, allowed, err := parseVoiceConf(body)\n\tif false {"},
+		"\tcoined, domain, allowed, err := parseVoiceConf(body)\n\tif err != nil {",
+		"\tcoined, domain, allowed, err := parseVoiceConf(body)\n\tif false {"},
+	// The domain list is what makes this check seedable. Ignore it and every compound the code spells
+	// is a rename finding, which is the twelve the measurement found on one set.
+	{"voice: the domain list ignored", "../voice-check/voice.go", "./voice-check/", "TestADomainWordSilencesTheCoinedIdentifierCheck",
+		"if known[strings.ToLower(m[0])] || !identifiers[strings.ToLower(m[1]+m[2])] {",
+		"if !identifiers[strings.ToLower(m[1]+m[2])] {"},
+	// Drop the identifier test and a compound the prose invented alone is reported as a rename, which
+	// names the refactor lane for a word no identifier carries.
+	{"voice: a compound the code never spells reported as a rename", "../voice-check/voice.go", "./voice-check/", "TestACompoundTheCodeDoesNotSpellIsNoRenameFinding",
+		"if known[strings.ToLower(m[0])] || !identifiers[strings.ToLower(m[1]+m[2])] {",
+		"if known[strings.ToLower(m[0])] {"},
 	{"voice: an unknown profile is taken rather than refused", "../voice-check/voice.go", "./voice-check/", "TestAnUnknownProfileRefusesTheRun",
 		"\t\tswitch named {", "\t\tswitch Profile(\"comment\") {"},
 

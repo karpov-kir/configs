@@ -1342,3 +1342,43 @@ func TestEmphasisIsTheAdverbAndNotTheDeterminer(t *testing.T) {
 		}
 	}
 }
+
+// A compound the code spells is a rename finding until the conf says the domain owns it. The seeding
+// is per repository, because the measurement behind this check read twelve on one sixty-file set and
+// every one of those was a term its readers knew.
+func TestADomainWordSilencesTheCoinedIdentifierCheck(t *testing.T) {
+	name, lines := readCorpus(t, houseCorpus)
+	firing := scanner{profile: ProfileComment, coined: fixtureCoined}
+	var compound string
+	for _, f := range firing.scanSource(name, lines, nil) {
+		if f.Check == checkCoinedIdent {
+			compound = f.Text
+		}
+	}
+	if compound == "" {
+		t.Fatalf("the house corpus carries no compound the code spells, so this case tests nothing")
+	}
+	silenced := scanner{profile: ProfileComment, coined: fixtureCoined, domain: []string{compound}}
+	for _, f := range silenced.scanSource(name, lines, nil) {
+		if f.Check == checkCoinedIdent {
+			t.Errorf("%q is a domain word and the check still reported it", f.Text)
+		}
+	}
+}
+
+// The check asks whether the CODE spells the compound. A compound the prose invented on its own is
+// the `coined` check's, and reporting it here would name the rename lane for a word no identifier
+// carries.
+func TestACompoundTheCodeDoesNotSpellIsNoRenameFinding(t *testing.T) {
+	lines := []string{
+		"/** A scheme-blind claim settles the period. */",
+		"export function claimOf(book: Element): boolean {",
+		"  return Boolean(book);",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", lines, nil) {
+		if f.Check == checkCoinedIdent {
+			t.Errorf("reported %q, and no identifier in that file spells it", f.Text)
+		}
+	}
+}
