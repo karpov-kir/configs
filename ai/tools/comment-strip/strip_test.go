@@ -202,8 +202,9 @@ func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 	}
 }
 
-// The negative control for the case above: the same file with a blank line of its own on top. The
-// strip trims nothing there, so no site moves.
+// The control for TestStripNumbersSitesUnderAHeaderItTrimmed: the same file with a blank line of
+// its own on top. The strip leaves that blank, so each site keeps the number the blocks alone gave
+// it.
 func TestStripLeavesSitesWhereItTrimmedNothing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.ts")
@@ -232,8 +233,7 @@ func mustRead(t *testing.T, path string) []byte {
 	return body
 }
 
-// The shift counts the lines the trim took rather than assuming one of them, so a header over two
-// blank lines moves its site by two.
+// The shift counts the lines the trim took, so a header over two blank lines moves its site by two.
 func TestStripCountsEveryLineTheTrimTook(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.ts")
