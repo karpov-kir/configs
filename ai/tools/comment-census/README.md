@@ -80,3 +80,27 @@ that the wide window struck by reaching code the summary never spoke about.
 
 So `restates-code` lands as a report. The writer's own `none` stays the only thing that deletes a
 block, and the strike step stays the writer's procedure.
+
+## The rules measurement cut, and what the cutting has in common
+
+Three proposed rules were cut in one batch on 2026-09-20, and the campaign has cut one the same way
+in every batch before it.
+
+| the rule as proposed | what it reached | what landed |
+|---|---|---|
+| a note carries no connective | 131 of 304 notes | dropped; the notes it reached are clear |
+| a sentence is at most fifteen words | 354 of 711 sentences | dropped, for the same reason |
+| a summary restating its declaration is deleted | 2 to 4 of 407, by an arbitrary window | a report, and it deletes nothing |
+| a compound the code spells is renamed | 12 of 129, all of them terms that stay | a check behind a `domain` allowlist |
+
+Each was written as a blanket word test or length test, and each reached prose nobody had flagged.
+The rules that survived every batch strike a shape the text carries: a counterfactual consequence at
+14 of 304, a boolean written as a person at 3 of 711, an elided verb at 1 of 711.
+
+Two rules also reached nothing at all, which is the other failure and looks like a clean measurement
+until the case that prompted the rule is checked against it. The summary strike step as first written
+reached neither block it was written for. The `anthropomorphism` check wanted the article beside the
+word and so passed over "a scheme-blind yes", the one sentence it existed for.
+
+So a proposed rule is counted twice before it lands: over the population it will run against, and
+over the case that prompted it.
