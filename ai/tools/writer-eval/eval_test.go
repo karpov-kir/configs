@@ -34,8 +34,8 @@ const callDeadline = 4 * time.Minute
 
 // evalRolls is how many times each case is put to the writer. The writer is a model, so one roll per
 // case cannot tell a rule that changed the answer from a case that answers differently twice. A case
-// counts as passed only where every roll passed, and the table prints the split so variance is read
-// rather than averaged away.
+// counts as passed only where every roll passed. The table prints the split, so a reader sees the
+// variance.
 const evalRolls = 3
 
 // labelledBar is what every labelled case has to do: land in the class its label expects, and pass
