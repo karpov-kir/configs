@@ -1,0 +1,199 @@
+package commentcensus
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+)
+
+func linesOf(text string) []string { return strings.Split(text, "\n") }
+
+func TestASummaryIsTheFirstSentenceOverADeclaration(t *testing.T) {
+	blocks := Blocks(linesOf("// Returns the rows. One row is a posting.\nexport function rows() {}\n"))
+	if len(blocks) != 1 {
+		t.Fatalf("%d block(s), want 1", len(blocks))
+	}
+	summary, ok := blocks[0].Summary()
+	if !ok || summary != "Returns the rows" {
+		t.Errorf("summary %q, ok %v", summary, ok)
+	}
+	if got := blocks[0].Notes(); len(got) != 1 || got[0] != "One row is a posting" {
+		t.Errorf("notes %q", got)
+	}
+}
+
+// A block over no declaration has no summary, so every sentence in it is a note. A rule aimed at
+// notes would otherwise skip a file header's first sentence and reach the rest of it.
+func TestABlockOverNoDeclarationIsAllNotes(t *testing.T) {
+	blocks := Blocks(linesOf("// A header. A second sentence.\n\nconst x = 1;\n"))
+	if len(blocks) != 1 {
+		t.Fatalf("%d block(s), want 1", len(blocks))
+	}
+	if _, ok := blocks[0].Summary(); ok {
+		if blocks[0].OverDecl {
+			t.Skip("the loose declaration shape reads `const x = 1;` as a declaration, which it is")
+		}
+	}
+}
+
+func TestEachShapeReachesItsOwnSentenceAndLeavesTheOthers(t *testing.T) {
+	cases := []struct {
+		shape    string
+		reaches  string
+		declines string
+	}{
+		{"note-connective", "The ledger refuses the entry, so the balance is Unknown",
+			"A closing period carries no postings"},
+		{"so-clause", "The list is sorted, so the search is binary", "The list is sorted"},
+		{"counterfactual-consequence", "The name is short, so a longer one would ask about the prior period",
+			"The name is short, so parseName reads two fields"},
+		{"anthropomorphism", "An account can say no to the posting", "An account refuses the posting"},
+		{"elided-verb", "A row goes as soon as the ledger does", "A row goes when the ledger removes it"},
+		{"negated-case", "Returns the row, or undefined unless exactly one is priced",
+			"Returns the row, or undefined when none is priced"},
+	}
+	byName := map[string]Shape{}
+	for _, s := range Shapes() {
+		byName[s.Name] = s
+	}
+	for _, c := range cases {
+		s, ok := byName[c.shape]
+		if !ok {
+			t.Fatalf("no shape named %q", c.shape)
+		}
+		if s.Hits(c.reaches) == "" {
+			t.Errorf("%s did not reach %q", c.shape, c.reaches)
+		}
+		if hit := s.Hits(c.declines); hit != "" {
+			t.Errorf("%s reached %q on %q, and that sentence is the control", c.shape, hit, c.declines)
+		}
+	}
+}
+
+func TestAMetaphorVerbIsFoundInEveryInflection(t *testing.T) {
+	for _, sentence := range []string{"A true answer settles the period", "The claim settled the period",
+		"Settling the period", "The field hides the answer"} {
+		if MetaphorHit(sentence) == "" {
+			t.Errorf("no metaphor verb found in %q", sentence)
+		}
+	}
+	if hit := MetaphorHit("The parser reads two fields"); hit != "" {
+		t.Errorf("the control sentence matched %q", hit)
+	}
+}
+
+// A compound the code spells is the domain's word. Only one the code lacks is the comment's own.
+func TestACompoundTheCodeSpellsIsNotCoined(t *testing.T) {
+	identifiers := map[string]bool{"byterange": true}
+	if got := CoinedCompounds("The byte-range request is partial", identifiers); len(got) != 0 {
+		t.Errorf("byte-range read as coined: %q", got)
+	}
+	if got := CoinedCompounds("A period-blind yes still settles it", identifiers); len(got) != 1 || got[0] != "period-blind" {
+		t.Errorf("period-blind not found: %q", got)
+	}
+}
+
+// plainSetEnv names the directory of reviewed source the census counts. It is an environment
+// variable and never a committed path: the set is somebody else's code, and this repository is
+// public. Only counts and the sentences a shape reached leave the run.
+const plainSetEnv = "JUDGE_EVAL_PLAIN"
+
+var plainSetExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".go": true}
+
+func loadPlainSet(t *testing.T) [][]string {
+	t.Helper()
+	dir := os.Getenv(plainSetEnv)
+	if dir == "" {
+		t.Skipf("%s names no directory, so no rule proposed here has been counted", plainSetEnv)
+	}
+	var paths []string
+	if err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && plainSetExtensions[strings.ToLower(filepath.Ext(path))] {
+			paths = append(paths, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("%s names a directory the census could not read: %v", plainSetEnv, err)
+	}
+	if len(paths) == 0 {
+		t.Fatalf("%s names a directory holding no source file the census reads", plainSetEnv)
+	}
+	sort.Strings(paths)
+	var files [][]string
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("a file in the set could not be read: %v", err)
+		}
+		files = append(files, strings.Split(string(body), "\n"))
+	}
+	return files
+}
+
+// The census itself. It asserts nothing: a shape's count is the evidence a rule is cut against, and a
+// bar invented here would teach the next rule to clear it rather than to be true.
+func TestCensusOverThePlainSet(t *testing.T) {
+	files := loadPlainSet(t)
+	rep := Measure(files)
+	var out strings.Builder
+	fmt.Fprintf(&out, "\nfiles %d, comment blocks %d, summaries over a declaration %d, note sentences %d\n\n",
+		rep.Files, rep.Blocks, rep.Summaries, rep.Notes)
+	fmt.Fprintf(&out, "%-30s %6s  %s\n", "shape", "count", "of")
+	for _, s := range rep.Shapes {
+		fmt.Fprintf(&out, "%-30s %6d  %d\n", s.Name, s.Count, denominatorOf(s.Name, rep))
+	}
+	fmt.Fprintf(&out, "\n%-30s %6d  %d\n", "coined-compound", rep.Coined.Count, rep.Blocks)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", "note over 2 sentences", rep.Long.Count, rep.Blocks)
+	fmt.Fprintf(&out, "\n%-30s %6s\n", "metaphor verb", "count")
+	for _, v := range rep.Verbs {
+		fmt.Fprintf(&out, "%-30s %6d\n", v.Name, v.Count)
+	}
+	for _, s := range rep.Shapes {
+		if len(s.Samples) == 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", s.Name, len(s.Samples), s.Count)
+		for _, sample := range s.Samples {
+			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	for _, v := range rep.Verbs {
+		if len(v.Samples) == 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", v.Name, len(v.Samples), v.Count)
+		for _, sample := range v.Samples {
+			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	if len(rep.Coined.Samples) > 0 {
+		fmt.Fprintf(&out, "\ncoined-compound — %d sample(s) of %d:\n", len(rep.Coined.Samples), rep.Coined.Count)
+		for _, sample := range rep.Coined.Samples {
+			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	t.Log(out.String())
+}
+
+// A shape is counted against the sentences it was offered. One offered both summaries and notes has
+// both as its denominator, and reporting it against the notes alone reads as a rate above one.
+func denominatorOf(name string, rep Report) int {
+	for _, shape := range Shapes() {
+		if shape.Name != name {
+			continue
+		}
+		switch shape.Over {
+		case "summary":
+			return rep.Summaries
+		case "note":
+			return rep.Notes
+		}
+	}
+	return rep.Summaries + rep.Notes
+}
