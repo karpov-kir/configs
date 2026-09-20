@@ -32,11 +32,9 @@ const evalEnv = "WRITER_EVAL"
 const callDeadline = 4 * time.Minute
 
 // labelledBar is what every labelled case has to do: land in the class its label expects, and pass
-// every check where that class is a written block.
-//
-// The plain half of the eval is the next piece and is absent here. It reads reviewed source from the
-// environment and bounds how many of its written blocks may fail a check. Its bound is absent too,
-// because a bar declared before the thing that measures it reads as enforced.
+// every check where that class is a written block. The plain half of the eval is the next piece, and
+// its bound is absent with it, because a bar declared before the thing that measures it reads as
+// enforced.
 const labelledBar = "every labelled case in its expected class"
 
 func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
