@@ -151,8 +151,8 @@ type Verdict struct {
 func (v Verdict) Passed() bool { return v.Want == v.Got && len(v.Failures) == 0 }
 
 // Judge scores one return against what its case expected. A declined site and a rename are scored on
-// their class, since a run that checks the prose of a block the writer never wrote reports a failure
-// about text nobody has.
+// their class alone. Checking the prose of a block the writer declined to write would report a
+// failure about text the run never received.
 func Judge(name string, want Expected, r Return) Verdict {
 	got := ClassOf(r)
 	v := Verdict{Name: name, Want: want, Got: got}

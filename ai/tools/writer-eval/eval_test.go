@@ -32,10 +32,11 @@ const evalEnv = "WRITER_EVAL"
 const callDeadline = 4 * time.Minute
 
 // labelledBar is what every labelled case has to do: land in the class its label expects, and pass
-// every check where that class is a written block. The plain half of the eval, which reads reviewed
-// source from the environment and bounds how many of its written blocks may fail a check, is the
-// next piece and is absent here. A bar declared before the thing that measures it exists reads as
-// enforced and is not.
+// every check where that class is a written block.
+//
+// The plain half of the eval is the next piece and is absent here. It reads reviewed source from the
+// environment and bounds how many of its written blocks may fail a check. Its bound is absent too,
+// because a bar declared before the thing that measures it reads as enforced.
 const labelledBar = "every labelled case in its expected class"
 
 func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
@@ -132,8 +133,8 @@ func callWriter(settings modelpolicy.Settings, text string) (string, error) {
 	return string(out), nil
 }
 
-// TestWriterEval runs the labelled set through the real writer row and prints the table. The bar is
-// above, fixed before the first run.
+// TestWriterEval runs the labelled set through the real writer row and prints the table. It reads
+// the bar labelledBar names, which was written down before the first run.
 func TestWriterEval(t *testing.T) {
 	if os.Getenv(evalEnv) == "" {
 		t.Skipf("%s is unset; this spends one model call per case", evalEnv)
