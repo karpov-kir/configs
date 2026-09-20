@@ -149,6 +149,10 @@ func TestCensusOverThePlainSet(t *testing.T) {
 	for _, s := range rep.Shapes {
 		fmt.Fprintf(&out, "%-30s %6d  %d\n", s.Name, s.Count, denominatorOf(s.Name, rep))
 	}
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoNamed.Name, rep.SoNamed.Count, rep.SoNamed.Count+rep.SoPronoun.Count+rep.SoUnnamed.Count)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoPronoun.Name, rep.SoPronoun.Count, rep.SoNamed.Count+rep.SoPronoun.Count+rep.SoUnnamed.Count)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoUnnamed.Name, rep.SoUnnamed.Count, rep.SoNamed.Count+rep.SoPronoun.Count+rep.SoUnnamed.Count)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoBoth.Name, rep.SoBoth.Count, rep.SoUnnamed.Count)
 	fmt.Fprintf(&out, "\n%-30s %6d  %d\n", "coined-compound", rep.Coined.Count, rep.Blocks)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", "note over 2 sentences", rep.Long.Count, rep.Blocks)
 	fmt.Fprintf(&out, "\n%-30s %6s\n", "metaphor verb", "count")
@@ -171,6 +175,15 @@ func TestCensusOverThePlainSet(t *testing.T) {
 		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", v.Name, len(v.Samples), v.Count)
 		for _, sample := range v.Samples {
 			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	for _, t := range []Tally{rep.SoUnnamed, rep.SoPronoun, rep.SoNamed} {
+		if len(t.Samples) == 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", t.Name, len(t.Samples), t.Count)
+		for _, sample := range t.Samples {
+			fmt.Fprintf(&out, "  so %s\n", sample)
 		}
 	}
 	if len(rep.Coined.Samples) > 0 {
@@ -197,4 +210,31 @@ func denominatorOf(name string, rep Report) int {
 		}
 	}
 	return rep.Summaries + rep.Notes
+}
+
+// The consequence clause the pattern keeps names this code's own element. A clause whose subject the
+// file never spells is the one Kirill read twice as a confusing second half.
+func TestASoClauseIsSortedByWhetherItNamesTheCode(t *testing.T) {
+	identifiers := map[string]bool{"parsename": true, "toelements": true}
+	named, unnamed := "The name is short, so parseName reads two fields",
+		"The name is short, so a longer one would ask about the prior period"
+	if _, namesCode, found := SoClauseSubject(named, identifiers); !found || !namesCode {
+		t.Errorf("the clause naming parseName was not read as naming the code")
+	}
+	if _, namesCode, found := SoClauseSubject(unnamed, identifiers); !found || namesCode {
+		t.Errorf("the clause about a hypothetical name was read as naming the code")
+	}
+	if _, _, found := SoClauseSubject("The name is short", identifiers); found {
+		t.Errorf("a sentence carrying no so clause was read as carrying one")
+	}
+}
+
+// A clause naming its element inside backticks names it. The plain set writes most of its element
+// names that way.
+func TestASoClauseNamesTheCodeInsideBackticks(t *testing.T) {
+	identifiers := map[string]bool{"toelements": true}
+	_, namesCode, found := SoClauseSubject("The collection is live, so `toElements` copies it", identifiers)
+	if !found || !namesCode {
+		t.Errorf("a backticked element name was not read as naming the code")
+	}
 }

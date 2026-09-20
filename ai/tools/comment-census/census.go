@@ -214,6 +214,79 @@ func CoinedCompounds(sentence string, identifiers map[string]bool) []string {
 	return out
 }
 
+var soClause = regexp.MustCompile(`(?i),\s+so\s+(.{0,80})`)
+var backticked = regexp.MustCompile("`([^`]+)`")
+
+// soSubjectWords is how far into a `so` clause the subject is looked for. A subject longer than this
+// is a clause the pattern already refuses on its length.
+const soSubjectWords = 5
+
+// SoClauseSubject reads the clause after `, so` and says whether its subject is an element the file
+// spells. The pattern under review keeps a consequence clause only where its subject is this code's
+// own element by name, so the count of clauses failing that test is the count the rule would reach.
+// A clause naming its element inside backticks counts as naming it.
+// subjectPronoun opens a clause whose subject is the sentence's own. The pattern asks for an element
+// by name, and a pronoun is no name, so these are counted apart and the choice between them is left
+// to the rule.
+var subjectPronoun = map[string]bool{"it": true, "they": true, "this": true, "that": true,
+	"these": true, "those": true, "he": true, "she": true, "we": true, "you": true}
+
+// SoSubject is what a consequence clause puts in its subject position.
+type SoSubject int
+
+const (
+	// SoNoClause says the sentence carries no `so` clause.
+	SoNoClause SoSubject = iota
+	// SoNamesCode says the subject is an element the file spells.
+	SoNamesCode
+	// SoPronoun says the subject refers back to the sentence's own subject.
+	SoPronoun
+	// SoNamesNoElement says the subject is a noun the file never spells.
+	SoNamesNoElement
+)
+
+// SoClauseSubject reads the clause after `, so` and sorts its subject into one of the three kinds
+// above. The pattern under review keeps a consequence clause only where its subject is this code's
+// own element by name, so the clauses naming no element are the ones the rule would reach.
+func soClauseKind(sentence string, identifiers map[string]bool) (clause string, kind SoSubject) {
+	clause, namesCode, found := SoClauseSubject(sentence, identifiers)
+	switch {
+	case !found:
+		return clause, SoNoClause
+	case namesCode:
+		return clause, SoNamesCode
+	}
+	if fields := strings.Fields(strings.ToLower(clause)); len(fields) > 0 && subjectPronoun[strings.Trim(fields[0], "`,.")] {
+		return clause, SoPronoun
+	}
+	return clause, SoNamesNoElement
+}
+
+func SoClauseSubject(sentence string, identifiers map[string]bool) (clause string, namesCode, found bool) {
+	m := soClause.FindStringSubmatch(sentence)
+	if m == nil {
+		return "", false, false
+	}
+	clause = strings.TrimSpace(m[1])
+	head := clause
+	if fields := strings.Fields(clause); len(fields) > soSubjectWords {
+		head = strings.Join(fields[:soSubjectWords], " ")
+	}
+	for _, quoted := range backticked.FindAllStringSubmatch(head, -1) {
+		for _, word := range identifierWord.FindAllString(quoted[1], -1) {
+			if identifiers[strings.ToLower(word)] {
+				return clause, true, true
+			}
+		}
+	}
+	for _, word := range identifierWord.FindAllString(head, -1) {
+		if identifiers[strings.ToLower(word)] && len(word) > 2 {
+			return clause, true, true
+		}
+	}
+	return clause, false, true
+}
+
 // Identifiers collects every identifier the file spells, lowercased, so a comment's compound can be
 // asked whether the code carries it.
 func Identifiers(lines []string, blocks []Block) map[string]bool {
@@ -262,6 +335,10 @@ type Report struct {
 	Verbs     []Tally
 	Coined    Tally
 	Long      Tally
+	SoNamed   Tally
+	SoPronoun Tally
+	SoUnnamed Tally
+	SoBoth    Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -281,6 +358,11 @@ func Measure(files [][]string) Report {
 	}
 	coined := &Tally{Name: "coined-compound"}
 	long := &Tally{Name: "note-over-2-sentences"}
+	soNamed := &Tally{Name: "so-clause-naming-the-code"}
+	soUnnamed := &Tally{Name: "so-clause-naming-no-element"}
+	soPronoun := &Tally{Name: "so-clause-with-a-pronoun-subject"}
+	soBoth := &Tally{Name: "of those, also counterfactual"}
+	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
 		blocks := Blocks(lines)
@@ -311,6 +393,19 @@ func Measure(files [][]string) Report {
 					}
 				}
 			}
+			for _, n := range notes {
+				switch clause, kind := soClauseKind(n, identifiers); kind {
+				case SoNamesCode:
+					soNamed.add(clause)
+				case SoPronoun:
+					soPronoun.add(clause)
+				case SoNamesNoElement:
+					soUnnamed.add(clause)
+					if counterfactual.Hits(n) != "" {
+						soBoth.add(clause)
+					}
+				}
+			}
 			for _, sentence := range b.Sentences {
 				if stem := MetaphorHit(sentence); stem != "" {
 					verbs[stem].add(sentence)
@@ -331,5 +426,9 @@ func Measure(files [][]string) Report {
 	sort.SliceStable(rep.Verbs, func(i, j int) bool { return rep.Verbs[i].Count > rep.Verbs[j].Count })
 	rep.Coined = *coined
 	rep.Long = *long
+	rep.SoNamed = *soNamed
+	rep.SoPronoun = *soPronoun
+	rep.SoBoth = *soBoth
+	rep.SoUnnamed = *soUnnamed
 	return rep
 }
