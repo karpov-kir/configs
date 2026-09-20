@@ -18,9 +18,10 @@ type Case struct {
 	Label  string
 	Code   string
 	Facts  string
-	// Tests is what the change set's tests hold about this site. Question 3 asks them for the fact
-	// before it keeps a claim, so a case whose label says `carried by <test>` is unmeasurable without
-	// them: the writer greps nothing and keeps the claim, correctly by the text in front of it.
+	// Tests is what the change set's tests hold about this site. Question 3 greps them for a fact
+	// before it keeps a claim. A case whose label says `carried by <test>` and which carries no test
+	// is unmeasurable, because the writer greps an empty set and keeps the claim, correctly by the
+	// text in front of it.
 	Tests string
 }
 
