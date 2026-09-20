@@ -130,8 +130,13 @@ func Shapes() []Shape {
 		{"so-clause", "note", firstMatch(mustAll(`(?i),\s+so\b`))},
 		{"counterfactual-consequence", "note", firstMatch(mustAll(
 			`(?i)\bso\b[^.]*\b(would|could)\b`))},
+		// `yes` takes modifiers between the article and the word, because the block that prompted this
+		// rule said "a scheme-blind yes" and the adjacent form reached neither it nor anything else.
+		// `no` stays adjacent: it is a determiner in "no row" and in "no longer", and widening it
+		// would count every one of those as a boolean written as a person.
 		{"anthropomorphism", "either", firstMatch(mustAll(
-			`(?i)\b(a|the|its|their)\s+(yes|no)\b`,
+			`(?i)\b(a|an|the|its|their|his|her|our|your)\s+(?:[a-z][a-z-]*\s+){0,2}yes\b`,
+			`(?i)\b(a|an|the|its|their|his|her|our|your)\s+no\b`,
 			`(?i)\bsay(s|ing)?\s+(yes|no)\b`,
 			`(?i)\banswers?\s+(yes|no)\b`))},
 		{"elided-verb", "either", firstMatch(mustAll(
