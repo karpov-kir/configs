@@ -132,8 +132,8 @@ func Shapes() []Shape {
 			`(?i)\bso\b[^.]*\b(would|could)\b`))},
 		// `yes` takes modifiers between the article and the word. The block that prompted this rule
 		// said "a scheme-blind yes", and the adjacent form passed straight over it. The `no` form
-		// stays adjacent, because `no` is the determiner in a phrase like "no row". Widening it would
-		// count each of those as a boolean written as a person.
+		// stays adjacent, because `no` is the determiner in a phrase like "no row". A wider form counts
+		// each such phrase as a boolean written as a person.
 		{"anthropomorphism", "either", firstMatch(mustAll(
 			`(?i)\b(a|an|the|its|their|his|her|our|your)\s+(?:[a-z][a-z-]*\s+){0,2}yes\b`,
 			`(?i)\b(a|an|the|its|their|his|her|our|your)\s+no\b`,

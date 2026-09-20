@@ -1,6 +1,6 @@
 // Scores a comment block the writer produced, by what the block carries. Four judge kinds were built
 // in this campaign and all four were dropped on measurement. The label each of them failed asked a
-// reader what a block does NOT say, and the two that held asked about a contradiction and a mixture,
+// reader what a block does NOT say. The two that held asked about a contradiction and a mixture,
 // both present in the text. So this scorer reads the block and asks only what is there.
 //
 // Every check here was counted on a set of reviewed code before it was written down, and the counts
