@@ -213,7 +213,7 @@ func denominatorOf(name string, rep Report) int {
 }
 
 // The consequence clause the pattern keeps names this code's own element. A clause whose subject the
-// file never spells is the one Kirill read twice as a confusing second half.
+// file never spells is what Kirill read twice as a confusing second half.
 func TestASoClauseIsSortedByWhetherItNamesTheCode(t *testing.T) {
 	identifiers := map[string]bool{"parsename": true, "toelements": true}
 	named, unnamed := "The name is short, so parseName reads two fields",

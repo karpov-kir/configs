@@ -221,13 +221,8 @@ var backticked = regexp.MustCompile("`([^`]+)`")
 // is a clause the pattern already refuses on its length.
 const soSubjectWords = 5
 
-// SoClauseSubject reads the clause after `, so` and says whether its subject is an element the file
-// spells. The pattern under review keeps a consequence clause only where its subject is this code's
-// own element by name, so the count of clauses failing that test is the count the rule would reach.
-// A clause naming its element inside backticks counts as naming it.
-// subjectPronoun opens a clause whose subject is the sentence's own. The pattern asks for an element
-// by name, and a pronoun is no name, so these are counted apart and the choice between them is left
-// to the rule.
+// subjectPronoun opens a clause that carries the sentence's own subject forward. These are counted
+// apart, because the pattern asks a consequence clause for an element by name.
 var subjectPronoun = map[string]bool{"it": true, "they": true, "this": true, "that": true,
 	"these": true, "those": true, "he": true, "she": true, "we": true, "you": true}
 
@@ -245,9 +240,8 @@ const (
 	SoNamesNoElement
 )
 
-// SoClauseSubject reads the clause after `, so` and sorts its subject into one of the three kinds
-// above. The pattern under review keeps a consequence clause only where its subject is this code's
-// own element by name, so the clauses naming no element are the ones the rule would reach.
+// soClauseKind sorts a sentence's consequence clause into one of the kinds SoSubject names. A clause
+// naming no element of the code is what the pattern under review drops.
 func soClauseKind(sentence string, identifiers map[string]bool) (clause string, kind SoSubject) {
 	clause, namesCode, found := SoClauseSubject(sentence, identifiers)
 	switch {
@@ -262,6 +256,8 @@ func soClauseKind(sentence string, identifiers map[string]bool) (clause string, 
 	return clause, SoNamesNoElement
 }
 
+// SoClauseSubject reads the clause after `, so` and says whether its subject is an element the file
+// spells. A clause naming its element inside backticks counts as naming it.
 func SoClauseSubject(sentence string, identifiers map[string]bool) (clause string, namesCode, found bool) {
 	m := soClause.FindStringSubmatch(sentence)
 	if m == nil {
