@@ -18,6 +18,10 @@ type Case struct {
 	Label  string
 	Code   string
 	Facts  string
+	// Tests is what the change set's tests hold about this site. Question 3 asks them for the fact
+	// before it keeps a claim, so a case whose label says `carried by <test>` is unmeasurable without
+	// them: the writer greps nothing and keeps the claim, correctly by the text in front of it.
+	Tests string
 }
 
 // ExpectRename is a site whose own identifier carries a coined compound. The writer returns the
@@ -32,6 +36,7 @@ var expectedClasses = map[string]Expected{
 
 const codeSection = "--- code"
 const factsSection = "--- facts"
+const testsSection = "--- tests"
 
 // ParseCase reads one case file. A header line names a field, and the two sections carry the text.
 func ParseCase(name, raw string) (Case, error) {
@@ -44,8 +49,10 @@ func ParseCase(name, raw string) (Case, error) {
 	if !found {
 		return c, fmt.Errorf("%s holds no %q section", name, factsSection)
 	}
+	facts, tests, _ := strings.Cut(facts, testsSection+"\n")
 	c.Code = strings.TrimSpace(code)
 	c.Facts = strings.TrimSpace(facts)
+	c.Tests = strings.TrimSpace(tests)
 	if c.Code == "" {
 		return c, fmt.Errorf("%s shows the writer no code", name)
 	}

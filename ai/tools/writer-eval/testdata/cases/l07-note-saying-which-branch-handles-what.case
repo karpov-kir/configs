@@ -21,3 +21,16 @@ Asks whether the ledger claims the clearing house under the settlement scheme, t
 present. The interface present decides how to ask, because a registry list only knows the registries someone
 already enumerated. A ledger exposing the legacy interface answers about escrow only there, so an escrow question
 goes to it first; the standard interface would record `Unsupported` for a clearing house the ledger has.
+--- tests
+// SettlementClaim.test.ts in the change set
+it('asks the legacy interface for escrow when the legacy interface is present', async () => {
+  registry.legacySettlementApi = fakeLegacyApi();
+  await getSettlementClaim({ clearing: Clearing.Escrow }, entryType);
+  expect(fakeLegacyApi().asked).toBe(true);
+});
+
+it('asks the standard interface for a clearing house the legacy interface does not hold', async () => {
+  registry.legacySettlementApi = fakeLegacyApi();
+  await getSettlementClaim({ clearing: Clearing.Direct }, entryType);
+  expect(standardApi.asked).toBe(true);
+});

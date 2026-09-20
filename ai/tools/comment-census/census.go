@@ -204,6 +204,19 @@ func wordIn(haystack, word string) bool {
 var identifierWord = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
 var hyphenPair = regexp.MustCompile(`\b([a-z]+)-([a-z]+)\b`)
 
+// SpelledCompounds returns the hyphenated pairs in a sentence whose camelCase join the file's own
+// identifiers carry. The code coined the word and the prose took it, so the rename lane owns it and
+// the prose takes the plain phrase.
+func SpelledCompounds(sentence string, identifiers map[string]bool) []string {
+	var out []string
+	for _, m := range hyphenPair.FindAllStringSubmatch(sentence, -1) {
+		if identifiers[strings.ToLower(m[1]+m[2])] {
+			out = append(out, m[0])
+		}
+	}
+	return out
+}
+
 // CoinedCompounds returns the hyphenated pairs in a sentence that the file's own identifiers do not
 // carry, in either the hyphenated or the camelCase spelling. A compound the code spells is the
 // domain's word. One the code lacks is a word the comment invented.
@@ -341,6 +354,7 @@ type Report struct {
 	SoUnnamed Tally
 	SoBoth    Tally
 	Restating Tally
+	Spelled   Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -365,6 +379,7 @@ func Measure(files [][]string) Report {
 	soPronoun := &Tally{Name: "so-clause-with-a-pronoun-subject"}
 	soBoth := &Tally{Name: "of those, also counterfactual"}
 	restating := &Tally{Name: "restates-code"}
+	spelled := &Tally{Name: "compound-the-code-spells"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
@@ -425,6 +440,9 @@ func Measure(files [][]string) Report {
 				for _, c := range CoinedCompounds(sentence, identifiers) {
 					coined.add(c + " — " + sentence)
 				}
+				for _, c := range SpelledCompounds(sentence, identifiers) {
+					spelled.add(c)
+				}
 			}
 		}
 	}
@@ -442,6 +460,7 @@ func Measure(files [][]string) Report {
 	rep.SoPronoun = *soPronoun
 	rep.SoBoth = *soBoth
 	rep.Restating = *restating
+	rep.Spelled = *spelled
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }

@@ -116,6 +116,10 @@ func prompt(t *testing.T, c Case) string {
 	}
 	fmt.Fprintf(&out, "=== the site ===\nThe file holds this code, with every comment block already removed:\n\n"+
 		"```ts\n%s\n```\n\nThe facts file for the site holds:\n\n%s\n\n", c.Code, c.Facts)
+	if c.Tests != "" {
+		fmt.Fprintf(&out, "=== the change set's tests ===\nQuestion 3 greps these for a fact's nouns:\n\n"+
+			"```ts\n%s\n```\n\n", c.Tests)
+	}
 	out.WriteString("Answer with the block you would write above the declaration, or the single word none, " +
 		"or a line `rename: <what to rename>`. Add your audit lines, one per line, as " +
 		"`term: <phrase> — identifier|domain|plain` and `verb: <word> — literal|figure`. Answer with nothing else.")
@@ -223,6 +227,16 @@ func TestWriterEval(t *testing.T) {
 		}
 	}
 	fmt.Fprintf(&out, "\n%d of %d clean on every roll. The bar is %s.\n", passed, len(cases), labelledBar)
+	var carried []string
+	for _, c := range cases {
+		if c.Tests != "" {
+			carried = append(carried, c.Name)
+		}
+	}
+	fmt.Fprintf(&out, "%d case(s) carry the change set's tests, so question 3 can reach them: %s.\n",
+		len(carried), strings.Join(carried, ", "))
+	fmt.Fprintf(&out, "A case whose label says carried by a test and which carries none is unmeasurable, "+
+		"because the writer greps nothing and keeps the claim.\n")
 	t.Log(out.String())
 	if passed != len(cases) {
 		t.Errorf("%d of %d labelled case(s) cleared the bar on every roll", passed, len(cases))

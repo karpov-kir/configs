@@ -15,3 +15,12 @@ Names every settlement the ledger measures, published names under the same renam
 Only pairings that exist in practice are members, so an impossible one like escrow with cash has no name. Members
 are ordered by settlement scheme to match the posting catalog, so an account's cells under one scheme sit together
 in both.
+--- tests
+// SettlementOrder.test.ts in the change set
+it('orders settlements by scheme so an account\'s cells sit together in the catalog', () => {
+  expect(Object.values(Settlement)).toEqual(catalogOrderedSettlements());
+});
+
+it('offers escrow only under the credit scheme', () => {
+  expect(Object.values(Settlement).filter(isEscrow)).toEqual([Settlement.EscrowCredit]);
+});
