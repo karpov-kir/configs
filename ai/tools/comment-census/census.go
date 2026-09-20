@@ -484,7 +484,7 @@ func stemOf(word string) string {
 }
 
 // bodyWindow bounds how far past a declaration the strike step reads. The count of findings moves
-// with it, which is why restates-code reports rather than deletes. The README holds the measurement.
+// with it, and that is why restates-code only reports. The README holds the measurement.
 const bodyWindow = 40
 
 var camelBreak = regexp.MustCompile(`([a-z0-9])([A-Z])`)
