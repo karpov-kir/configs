@@ -1192,10 +1192,9 @@ func identifierWordsOf(lines []string) map[string]bool {
 }
 
 // coinedIdentifiers finds a hyphenated compound in a block whose camelCase join the code spells. The
-// code invented the word and the prose took it, so the rename lane owns it and the prose takes the
-// plain phrase. A compound the conf names as the domain's passes. The measurement that set the
-// domain list is in comment-census's README: 12 of 129 on a sixty-file set, all of them terms that
-// stay, so each repository seeds its own.
+// code invented the word and the prose took it, so the rename lane owns it. A compound the conf
+// names as the domain's passes, and comment-census's README holds the measurement that seeds the
+// list: 12 of 129 on a sixty-file set, all of them terms that stay.
 func (s scanner) coinedIdentifiers(file string, b block, lines []string, identifiers map[string]bool) []Finding {
 	var found []Finding
 	known := map[string]bool{}
