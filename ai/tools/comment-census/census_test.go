@@ -247,8 +247,8 @@ func TestASoClauseNamesTheCodeInsideBackticks(t *testing.T) {
 	}
 }
 
-// The strike behind restates-code: a summary whose content words the declaration already spells has
-// nothing left after the strike.
+// The strike behind restates-code: the declaration already spells every content word of the summary,
+// so the strike takes all of them.
 func TestASummaryRestatingTheDeclarationLeavesNoWord(t *testing.T) {
 	lines := linesOf("// x\nexport function listPostingCells(): PostingCell[] {\n  return cells;\n}\n")
 	blocks := Blocks(lines)

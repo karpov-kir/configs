@@ -447,13 +447,14 @@ func Measure(files [][]string) Report {
 }
 
 // openingVerbs are the verbs a summary opens with. The writer's strike step removes them before it
-// asks what the summary adds, because "Returns" over a function that returns says nothing.
+// asks what the summary adds, because "Returns" over a function that returns is the return type
+// again.
 var openingVerbs = map[string]bool{"check": true, "whether": true, "return": true, "list": true,
 	"say": true, "give": true, "declare": true, "hold": true, "name": true, "read": true,
 	"write": true, "take": true, "yield": true, "produce": true, "provide": true, "get": true,
 	"set": true, "pair": true, "map": true}
 
-// stopWords carry no content, so they are neither struck nor counted as what a summary adds.
+// stopWords carry no content. The strike passes over them, and they count for neither side of it.
 var stopWords = map[string]bool{"a": true, "an": true, "the": true, "of": true, "for": true,
 	"in": true, "on": true, "to": true, "and": true, "or": true, "its": true, "it": true,
 	"every": true, "each": true, "with": true, "that": true, "this": true, "from": true,
@@ -482,8 +483,8 @@ func stemOf(word string) string {
 	return word
 }
 
-// bodyWindow bounds how far past a declaration the strike step reads. A body longer than this is one
-// whose words a summary can restate only by naming them, which the declaration line already holds.
+// bodyWindow bounds how far past a declaration the strike step reads. The count of findings moves
+// with it, which is why restates-code reports rather than deletes. The README holds the measurement.
 const bodyWindow = 40
 
 var camelBreak = regexp.MustCompile(`([a-z0-9])([A-Z])`)
