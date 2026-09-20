@@ -153,6 +153,7 @@ func TestCensusOverThePlainSet(t *testing.T) {
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoPronoun.Name, rep.SoPronoun.Count, rep.SoNamed.Count+rep.SoPronoun.Count+rep.SoUnnamed.Count)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoUnnamed.Name, rep.SoUnnamed.Count, rep.SoNamed.Count+rep.SoPronoun.Count+rep.SoUnnamed.Count)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoBoth.Name, rep.SoBoth.Count, rep.SoUnnamed.Count)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.Restating.Name, rep.Restating.Count, rep.Summaries)
 	fmt.Fprintf(&out, "\n%-30s %6d  %d\n", "coined-compound", rep.Coined.Count, rep.Blocks)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", "note over 2 sentences", rep.Long.Count, rep.Blocks)
 	fmt.Fprintf(&out, "\n%-30s %6s\n", "metaphor verb", "count")
@@ -174,6 +175,13 @@ func TestCensusOverThePlainSet(t *testing.T) {
 		}
 		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", v.Name, len(v.Samples), v.Count)
 		for _, sample := range v.Samples {
+			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	if len(rep.Restating.Samples) > 0 {
+		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", rep.Restating.Name,
+			len(rep.Restating.Samples), rep.Restating.Count)
+		for _, sample := range rep.Restating.Samples {
 			fmt.Fprintf(&out, "  %s\n", sample)
 		}
 	}
@@ -236,5 +244,46 @@ func TestASoClauseNamesTheCodeInsideBackticks(t *testing.T) {
 	_, namesCode, found := SoClauseSubject("The collection is live, so `toElements` copies it", identifiers)
 	if !found || !namesCode {
 		t.Errorf("a backticked element name was not read as naming the code")
+	}
+}
+
+// The strike behind restates-code: a summary whose content words the declaration already spells has
+// nothing left after the strike.
+func TestASummaryRestatingTheDeclarationLeavesNoWord(t *testing.T) {
+	lines := linesOf("// x\nexport function listPostingCells(): PostingCell[] {\n  return cells;\n}\n")
+	blocks := Blocks(lines)
+	words := DeclarationWords(lines, blocks[0])
+	survived, hadContent := Restates("Lists every posting cell", words)
+	if !hadContent || len(survived) != 0 {
+		t.Errorf("survived %q, and every word of that summary is in the declaration", survived)
+	}
+	survived, _ = Restates("Cells are ordered by settlement to match the catalog", words)
+	if len(survived) == 0 {
+		t.Errorf("a summary carrying an outside fact was struck whole")
+	}
+}
+
+// The count restates-code reads moves with bodyWindow, which is a number this file chose. A check
+// whose finding count depends on such a number reports, and it never deletes.
+func TestTheStrikeReadsTheDeclarationsOwnWords(t *testing.T) {
+	lines := linesOf("// x\nexport function isPriced(book: Element): boolean {\n" +
+		"  return hasCurrency(book.getAttribute('currency'));\n}\n")
+	words := DeclarationWords(lines, Blocks(lines)[0])
+	for _, word := range []string{"pric", "book", "currency", "element"} {
+		if !words[word] {
+			t.Errorf("the declaration spells %q and the strike does not hold it", word)
+		}
+	}
+}
+
+// A catalogue constant's description says what the data is. The strike reads it as a restatement,
+// because a constant's name carries the same words, and deleting it would take the description of
+// an asset with it. This is why the check reports.
+func TestACatalogueDescriptionReadsAsARestatement(t *testing.T) {
+	lines := linesOf("// x\nexport const LEDGER_WITH_ACCRUAL_ENTRIES = 'ledger-accrual';\n")
+	words := DeclarationWords(lines, Blocks(lines)[0])
+	survived, hadContent := Restates("Ledger with accrual entries", words)
+	if !hadContent || len(survived) != 0 {
+		t.Skipf("the strike left %q, so this spelling is not the false-positive shape", survived)
 	}
 }

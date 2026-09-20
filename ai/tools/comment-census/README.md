@@ -54,3 +54,29 @@ sample. Every rule this campaign has re-cut moved in that direction.
 Two assumptions died on contact here. The connective ban was proposed to make notes simple and would
 have rewritten 131 of 304 notes that nobody had flagged. The counterfactual clause was assumed to be
 the subset of the clauses naming no element, and it is 6 of the 21.
+
+## restates-code, measured before it was allowed to delete
+
+The proposal was a check that deletes a summary whose content words the declaration beneath it
+already spells, the writer's strike step turned into a tool. It was measured at 3 of 390 on summaries
+the writer had produced. The population it would run against is different: the summaries a codebase
+already holds. So it was measured there first.
+
+| bodyWindow | restates-code | of |
+|---|---|---|
+| 8 lines | 2 | 407 |
+| 20 lines | 3 | 407 |
+| 40 lines | 4 | 407 |
+
+The count is a function of how far past the declaration the strike reads, which is a number this
+tool chose. That alone settles it: a check whose finding count moves with an arbitrary constant
+reports, and it never deletes.
+
+Reading the four at the widest window settles it again. Two are descriptions on catalogue constants,
+where the constant's name carries the same words as its description because the description is what
+the name was made from. Deleting those takes the description of an asset with it, which is the
+provenance class rather than the restatement class. One more is a summary carrying a second clause
+that the wide window struck by reaching code the summary never spoke about.
+
+So `restates-code` lands as a report. The writer's own `none` stays the only thing that deletes a
+block, and the strike step stays the writer's procedure.

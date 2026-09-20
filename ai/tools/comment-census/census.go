@@ -340,6 +340,7 @@ type Report struct {
 	SoPronoun Tally
 	SoUnnamed Tally
 	SoBoth    Tally
+	Restating Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -363,11 +364,21 @@ func Measure(files [][]string) Report {
 	soUnnamed := &Tally{Name: "so-clause-naming-no-element"}
 	soPronoun := &Tally{Name: "so-clause-with-a-pronoun-subject"}
 	soBoth := &Tally{Name: "of those, also counterfactual"}
+	restating := &Tally{Name: "restates-code"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
 		blocks := Blocks(lines)
 		identifiers := Identifiers(lines, blocks)
+		for _, b := range blocks {
+			summary, ok := b.Summary()
+			if !ok {
+				continue
+			}
+			if survived, hadContent := Restates(summary, DeclarationWords(lines, b)); hadContent && len(survived) == 0 {
+				restating.add(summary)
+			}
+		}
 		rep.Blocks += len(blocks)
 		for _, b := range blocks {
 			summary, hasSummary := b.Summary()
@@ -430,6 +441,91 @@ func Measure(files [][]string) Report {
 	rep.SoNamed = *soNamed
 	rep.SoPronoun = *soPronoun
 	rep.SoBoth = *soBoth
+	rep.Restating = *restating
 	rep.SoUnnamed = *soUnnamed
 	return rep
+}
+
+// openingVerbs are the verbs a summary opens with. The writer's strike step removes them before it
+// asks what the summary adds, because "Returns" over a function that returns says nothing.
+var openingVerbs = map[string]bool{"check": true, "whether": true, "return": true, "list": true,
+	"say": true, "give": true, "declare": true, "hold": true, "name": true, "read": true,
+	"write": true, "take": true, "yield": true, "produce": true, "provide": true, "get": true,
+	"set": true, "pair": true, "map": true}
+
+// stopWords carry no content, so they are neither struck nor counted as what a summary adds.
+var stopWords = map[string]bool{"a": true, "an": true, "the": true, "of": true, "for": true,
+	"in": true, "on": true, "to": true, "and": true, "or": true, "its": true, "it": true,
+	"every": true, "each": true, "with": true, "that": true, "this": true, "from": true,
+	"by": true, "is": true, "are": true, "as": true, "at": true, "be": true, "one": true,
+	"given": true, "into": true, "which": true, "their": true, "them": true, "then": true,
+	"where": true, "when": true, "all": true, "any": true, "no": true, "not": true, "if": true}
+
+// stemOf folds a plural and a verb form onto one word, because the strike step counts those as the
+// same word as the identifier's.
+func stemOf(word string) string {
+	word = strings.ToLower(strings.Trim(word, "`'\".,:;()[]{}"))
+	for _, suffix := range []string{"ies", "ing", "es", "ed", "s"} {
+		if len(word) > len(suffix)+2 && strings.HasSuffix(word, suffix) {
+			if suffix == "ies" {
+				return strings.TrimSuffix(word, "ies") + "y"
+			}
+			word = strings.TrimSuffix(word, suffix)
+			break
+		}
+	}
+	// A trailing `e` goes too, so that price and priced fold onto one stem. Without it the strike
+	// misses every identifier whose verb form the summary spells as a noun.
+	if len(word) > 3 && strings.HasSuffix(word, "e") {
+		return strings.TrimSuffix(word, "e")
+	}
+	return word
+}
+
+// bodyWindow bounds how far past a declaration the strike step reads. A body longer than this is one
+// whose words a summary can restate only by naming them, which the declaration line already holds.
+const bodyWindow = 40
+
+var camelBreak = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+
+// DeclarationWords collects the stems the declaration under a block spells: its identifier split at
+// its camel humps, its parameter names, its return type and its body.
+func DeclarationWords(lines []string, b Block) map[string]bool {
+	at := b.Line + b.Span
+	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
+		at++
+	}
+	out := map[string]bool{}
+	depth, seenBrace := 0, false
+	for i := at; i <= len(lines) && i < at+bodyWindow; i++ {
+		line := lines[i-1]
+		for _, word := range identifierWord.FindAllString(camelBreak.ReplaceAllString(line, "$1 $2"), -1) {
+			out[stemOf(word)] = true
+		}
+		depth += strings.Count(line, "{") - strings.Count(line, "}")
+		if strings.Contains(line, "{") {
+			seenBrace = true
+		}
+		if seenBrace && depth <= 0 {
+			break
+		}
+	}
+	return out
+}
+
+// Restates says whether every content word of a summary is a word the declaration beneath it already
+// spells. It returns the words that survived the strike, so a finding can be read beside them.
+func Restates(summary string, declWords map[string]bool) (survived []string, hadContent bool) {
+	for _, raw := range strings.Fields(camelBreak.ReplaceAllString(summary, "$1 $2")) {
+		stem := stemOf(raw)
+		if stem == "" || stopWords[stem] || openingVerbs[stem] {
+			continue
+		}
+		hadContent = true
+		if declWords[stem] {
+			continue
+		}
+		survived = append(survived, stem)
+	}
+	return survived, hadContent
 }
