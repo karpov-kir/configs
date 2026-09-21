@@ -144,7 +144,7 @@ func Shapes() []Shape {
 		{"negated-case", "summary", firstMatch(mustAll(
 			`(?i)\bor\s+[\w']+\s+(unless|except)\b`))},
 		// The positional words a reviewer read as unplaceable, where no backticked name sits in the
-		// sentence to place them. Proposed on 2026-09-20 and never measured until now.
+		// sentence to place them. The proposal of 2026-09-20 waited a day for this count.
 		{"positional-here", "either", func(s string) string {
 			if strings.Contains(s, "`") {
 				return ""
@@ -766,18 +766,16 @@ func standsOnData(lines []string, b Block) bool {
 }
 
 // paraphraseWords is the fewest camel humps an identifier needs before its split words in prose read
-// as that identifier. The floor was measured at two, three and four humps: 41 of 304 notes, then 1,
-// then none.
+// as that identifier. Measured at two, three and four humps: 41 of 304 notes, then 1, then none.
 //
-// The check reports and never fires, because an identifier's camel words are usually the domain's
-// own phrase. `DeviceClaim` is named after "device claim", `contentType` after "content type", and
-// prose using those phrases is right while the identifier is the derivative. Every hit at two humps
-// is that shape, and the one at three is a specification's term.
+// It reports and never fires. An identifier's camel humps are usually the domain's own phrase, so
+// the prose using that phrase is right and the identifier is the derivative. comment-census's README
+// holds the samples.
 var paraphraseWords = 3
 
 // ParaphrasedIdentifiers returns the identifiers a note spells out in English instead of naming. A
-// reader given "the preferred key systems setting" has neither the name nor an explanation of it, so
-// the remedy is the name with an appositive, the same as a bare one.
+// reader given "the preferred key systems setting" gets no name and no explanation. The remedy is
+// the name with an appositive, as for a bare one.
 func ParaphrasedIdentifiers(note string, lines []string) []string {
 	low := strings.ToLower(note)
 	var out []string
