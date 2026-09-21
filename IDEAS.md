@@ -43,6 +43,35 @@ bytes — past any real machine, so latent rather than live — and `diffscan`, 
 `dup-literals` bound messages with no such rule of their own. Worth stating once for all of them: a
 suite whose subject is where a message is cut owns the length of its own fixture root.
 
+## 1x | 2026-09-21 | A comment is data to a checker, and a rewrite can silently change it
+
+Rewriting this branch's own comments to the register rule broke two checks and nearly broke a third,
+in the same way each time. A comment is prose to a reader and input to a tool at the same time, and
+the tools give no sign when they stop finding what they read.
+
+**A blank line inside a shell script's header hides everything under it.** The leading comment block
+ends at the first line that is not a comment, and that block is where the wiring check reads a
+script's `usage:` line and its test position. Splitting a long header with a real blank line, which is
+how every overlong comment block in this branch was brought under its limit without losing reasons,
+truncated two headers so the declarations below fell outside the block any scan sees. Neither `go
+test` nor `go vet` can see this; only the wiring check can, and only if somebody runs it.
+
+**A phrase a regexp matches must not wrap.** The same scan matches `the Go suite in <package>/` on one
+line. A rewrite that put the phrase at the end of a line and the path at the start of the next left
+two scripts declaring no test position at all.
+
+**A masking match is worse than a missing one.** Eleven headers read "the Go suite beside the tool,
+X" and then "the shared stub region by the Go suite in reach". Only the second clause carried the
+phrase, so all eleven declared reach, each script's real package went unchecked, and the scan stayed
+quiet. The scan now holds every suite a header names rather than the first, which turns that silence
+into a finding. The wrapping and the blank line have no such guard.
+
+What is worth doing is making the tools say when they read nothing. A script whose leading block
+carries a `#` line below a blank one is almost certainly a header somebody split, and a scan that
+found no declaration could say which lines it read rather than only that it found none. The same
+holds for the register scan itself: the only reason these were caught is that somebody ran a check
+that was not part of the loop the sweep was verifying against.
+
 ## 3x | 2026-09-14 | Type every edge, then collapse the tooling that reads them
 
 `--graph` prints `reads` for 27 edges because a path citation carries no kind. `cite-graph` prints 10
