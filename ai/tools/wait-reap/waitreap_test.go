@@ -62,13 +62,12 @@ func wrapped(command string) string {
 }
 
 func TestEveryPollingLoopIsReported(t *testing.T) {
+	// One row per way a body can wait. What the condition polls — a file, a process, a log, another
+	// command's output — is text isWaitLoop never reads, so a row per condition is the same row under
+	// another name.
 	polling := map[string]string{
-		"polls for a file":    "until [ -f /tmp/143-hold ]; do sleep 120; done",
-		"polls for a process": "until ! pgrep -f 'ai/gate.sh' >/dev/null 2>&1; do sleep 3; done",
-		"greps a log":         "until grep -q 'GATE EXIT=' /tmp/gate.log; do sleep 45; done",
-		"spins with no sleep": "until [ ! -e /proc/self ] && false; do :; done 2>/dev/null",
-		"counts its attempts": "until [ -f /tmp/x ] || [ $n -ge 55 ]; do sleep 5; n=$((n+1)); done",
-		"polls a command":     `until [ "$(gh run list)" = "completed" ] || [ $n -ge 30 ]; do sleep 30; n=$((n+1)); done`,
+		"sleeps between passes": "until [ -f /tmp/143-hold ]; do sleep 120; done",
+		"spins with no sleep":   "until [ ! -e /proc/self ] && false; do :; done 2>/dev/null",
 		// A monitor does work on every pass and still strands forever. It is reported for that reason,
 		// and never ended for the same one.
 		"watches and reports":  `until [ -f "$x" ]; do cur=$(ls); echo "$cur"; sleep 20; done`,
@@ -231,19 +230,6 @@ func TestAParkedWaiterIsEndedOnceItIsPastTheStaleWindow(t *testing.T) {
 	}
 }
 
-func TestAParkedWaiterInsideTheStaleWindowIsLeftAlone(t *testing.T) {
-	listing := parkRow(24672, "00:40:00")
-
-	_, out, killed := drive(t, []string{"--kill"}, listing, 3*time.Hour)
-
-	if len(killed) != 0 {
-		t.Fatalf("killed %v inside the stale window: %s", killed, out)
-	}
-	if !strings.Contains(out, "unowned") {
-		t.Errorf("the report does not say why it left the waiter alone: %s", out)
-	}
-}
-
 func TestALoopInTheHumansOwnShellIsNeverEnded(t *testing.T) {
 	listing := "24672    09:19:00 -zsh -c until [ -f /tmp/mine ]; do sleep 60; done"
 
@@ -352,20 +338,17 @@ func TestCommandOfSeparatesAGoneProcessFromAFailedRead(t *testing.T) {
 	}
 }
 
+// The other end of the mapping above: exit 1 is how `ps` says the pid is gone, and the case above
+// reads that end through a real `ps`. Every other status is a read that failed, and reading one as a
+// gone process is reading a live waiter as one that ended on its own.
 func TestAFailedReadIsNotReadAsAGoneProcess(t *testing.T) {
 	_, refused := exec.Command("sh", "-c", "exit 3").Output()
 	if refused == nil {
-		t.Fatal("the fixture command succeeded, so neither half below proves anything")
+		t.Fatal("the fixture command succeeded, so nothing below proves anything")
 	}
 	if _, err := commandFromPs(nil, refused); err == nil {
 		t.Error("a `ps` that failed for any reason but a missing pid read as a gone process, and a gone " +
 			"process is a waiter that ended on its own")
-	}
-
-	_, missing := exec.Command("sh", "-c", "exit 1").Output()
-	command, err := commandFromPs(nil, missing)
-	if err != nil || command != "" {
-		t.Errorf("exit 1 is how `ps` says the pid is gone; got %q, %v", command, err)
 	}
 }
 

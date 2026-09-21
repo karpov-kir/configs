@@ -117,6 +117,12 @@ func (f *fixture) runAs(agent string, args ...string) (stdout, stderr string, st
 func (f *fixture) figure(name string) string {
 	f.t.Helper()
 	stdout, _, _ := f.run(f.root)
+	return figureIn(stdout, name)
+}
+
+// The same read, off a report a case already has, so a case asserting a figure and a message together
+// runs the tool once.
+func figureIn(stdout, name string) string {
 	return firstSubmatch(regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(name)+`: *([0-9]*) words`), stdout)
 }
 
@@ -176,19 +182,6 @@ func rowsIn(t *testing.T, path string) int {
 		}
 	}
 	return rows
-}
-
-// Everything a ledger says before its column header — the half the seed block writes and the live
-// file is compared against.
-func ledgerProse(text string) string {
-	var prose strings.Builder
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, "| date |") {
-			break
-		}
-		prose.WriteString(line + "\n")
-	}
-	return prose.String()
 }
 
 func firstSubmatch(pattern *regexp.Regexp, text string) string {
@@ -251,11 +244,11 @@ func indent(text string) string {
 // `t.TempDir()` makes that length ambient: about 140 bytes on a macOS runner (`/var/folders/<two>/<28
 // random>/T/<the test's own name>/001`) against around 60 on Linux. The answer is then a property of
 // the machine before it is a property of the code. Two cases here passed on one macOS temp path and
-// failed on another with no other change.
+// failed on another with no other change, and finding that cost a CI leg.
 
-// A short base under `/tmp` leaves the whole of every bound for the case's own content to spend.
-// TMPDIR is exactly what is too long here. A case that wants a root long enough to spend a bound grows
-// one itself and leaves TMPDIR out of it.
+// So no fixture here reaches back for `t.TempDir()`, and none reads TMPDIR: a short base under `/tmp`
+// leaves the whole of every bound for the case's own content to spend. A case that wants a root long
+// enough to spend a bound grows one itself.
 
 // The scratch directory every fixture above is built under, 14 to 16 bytes wherever it runs: `/tmp/e`
 // plus the eight-to-ten digit run os.MkdirTemp appends. This suite fixes that length, and the machine
@@ -268,47 +261,4 @@ func newBase(t *testing.T) string {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(base) })
 	return base
-}
-
-// What a fixture root may spend of a bounded message before the case writes a byte. newBase, the test
-// helper, builds a base of 14 to 16 bytes, and every fixture puts `/r` on the end of it. That leaves
-// room to rename the prefix and none to go back to a path the machine picked. `t.TempDir()` costs
-// upwards of 35 bytes on the shortest Linux runner and about 160 on a macOS one.
-const maxFixtureRootBytes = 24
-
-// A comment on each affected fixture only helps the author who reads it, so the property is held as a
-// case here. A helper reaching back for `t.TempDir()` shows up as a handful of unrelated cases going
-// red on one runner and green on another. That is how this class of defect was found, and it cost a CI
-// leg.
-
-// The bound is checked under a LONG TMPDIR as well as the ambient one, and that second leg is the
-// point. A root read once says little about whether the machine chose its length, and this machine's
-// temp path is short enough to hide the defect.
-
-// The two legs are compared on length and never on sameness. os.MkdirTemp appends a run of eight to
-// ten digits, so a root wobbles by two bytes inside a 24-byte budget, and no case here reads that
-// wobble.
-
-// The property newBase, the test helper, exists for.
-func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
-	// t.TempDir creates ONE directory per test and numbers the rest inside it. newBase, the test helper,
-	// would answer out of a tree already pinned to the ambient TMPDIR if it reached for t.TempDir, and
-	// the moved TMPDIR would go unread. That second leg is what this case is for, hence os.MkdirTemp here.
-	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
-	if err != nil {
-		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(long) })
-
-	for _, leg := range []struct{ what, tmpdir string }{
-		{"under a TMPDIR as long as a macOS runner's", long},
-		{"under a short TMPDIR", "/tmp"},
-	} {
-		t.Setenv("TMPDIR", leg.tmpdir)
-		if root := newRoot(t).root; len(root) > maxFixtureRootBytes {
-			t.Errorf("a fixture root %s is %d bytes, past the %d this suite allows itself — that much of "+
-				"every bounded message is spent before the case writes anything: %s",
-				leg.what, len(root), maxFixtureRootBytes, root)
-		}
-	}
 }

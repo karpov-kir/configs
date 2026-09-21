@@ -13,39 +13,37 @@ import (
 // The ledger a case starts from when it needs one that already has its columns.
 const ledgerColumns = "| date | prose | scripts | always-loaded | skills | what ran |\n|---|---|---|---|---|---|\n"
 
+// A 60-word note appends nothing; a short one appends one row.
 func TestAnOverLongNoteIsRefusedRatherThanAppended(t *testing.T) {
-	t.Run("a 60-word note appends nothing, a short one appends one row", func(t *testing.T) {
-		f := newRoot(t)
-		ledger := f.newLedger("| date |\n")
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		f.run("--append", wordsCount(60), f.root)
-		afterLong := rowsIn(t, ledger)
-		f.run("--append", "short enough to keep", f.root)
-		afterShort := rowsIn(t, ledger)
-		if afterLong != 1 || afterShort != 2 {
-			t.Errorf("rows after the long note: %d (want 1)\nrows after the short one: %d (want 2)",
-				afterLong, afterShort)
-		}
-	})
+	f := newRoot(t)
+	ledger := f.newLedger("| date |\n")
+	f.write(f.root+"/CLAUDE.md", "one two\n")
+	f.run("--append", wordsCount(60), f.root)
+	afterLong := rowsIn(t, ledger)
+	f.run("--append", "short enough to keep", f.root)
+	afterShort := rowsIn(t, ledger)
+	if afterLong != 1 || afterShort != 2 {
+		t.Errorf("rows after the long note: %d (want 1)\nrows after the short one: %d (want 2)",
+			afterLong, afterShort)
+	}
 }
 
+// A note carrying a newline and a pipe still writes exactly one six-column row.
 func TestTheNoteCannotForgeALedgerRow(t *testing.T) {
-	t.Run("a note carrying a newline and a pipe still writes exactly one 6-column row", func(t *testing.T) {
-		f := newRoot(t)
-		ledger := f.newLedger(ledgerColumns)
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		before := rowsIn(t, ledger)
-		f.run("--append", "first line\nsecond line | with a pipe", f.root)
-		appended := rowsIn(t, ledger) - before
-		lines := strings.Split(strings.TrimSuffix(readFile(t, ledger), "\n"), "\n")
-		row := lines[len(lines)-1]
-		// Escaped pipes come out before the count: `\|` separates no column, so counting raw `|` would
-		// read the guard working as the guard failing.
-		columns := strings.Count(strings.ReplaceAll(row, `\|`, ""), "|")
-		if appended != 1 || columns != 7 {
-			t.Errorf("rows appended: %d (want 1)\nunescaped pipes: %d (want 7)\n%s", appended, columns, row)
-		}
-	})
+	f := newRoot(t)
+	ledger := f.newLedger(ledgerColumns)
+	f.write(f.root+"/CLAUDE.md", "one two\n")
+	before := rowsIn(t, ledger)
+	f.run("--append", "first line\nsecond line | with a pipe", f.root)
+	appended := rowsIn(t, ledger) - before
+	lines := strings.Split(strings.TrimSuffix(readFile(t, ledger), "\n"), "\n")
+	row := lines[len(lines)-1]
+	// Escaped pipes come out before the count: `\|` separates no column, so counting raw `|` would
+	// read the guard working as the guard failing.
+	columns := strings.Count(strings.ReplaceAll(row, `\|`, ""), "|")
+	if appended != 1 || columns != 7 {
+		t.Errorf("rows appended: %d (want 1)\nunescaped pipes: %d (want 7)\n%s", appended, columns, row)
+	}
 }
 
 func TestTheNoteCannotCarryAControlByteIntoTheLedger(t *testing.T) {
@@ -53,22 +51,20 @@ func TestTheNoteCannotCarryAControlByteIntoTheLedger(t *testing.T) {
 	// erases the line it lands on, so an ESC left in it edits the terminal of everyone who later reads
 	// the ledger — the byte TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw bars from a message,
 	// barred here from the record.
-	t.Run("an ESC in the note reaches neither the ledger nor the terminal", func(t *testing.T) {
-		f := newRoot(t)
-		ledger := f.newLedger(ledgerColumns)
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		before := rowsIn(t, ledger)
-		stdout, stderr, status := f.run("--append", "ran a pass\x1b[2K and stopped", f.root)
-		written := readFile(t, ledger)
-		appended := rowsIn(t, ledger) - before
+	f := newRoot(t)
+	ledger := f.newLedger(ledgerColumns)
+	f.write(f.root+"/CLAUDE.md", "one two\n")
+	before := rowsIn(t, ledger)
+	stdout, stderr, status := f.run("--append", "ran a pass\x1b[2K and stopped", f.root)
+	written := readFile(t, ledger)
+	appended := rowsIn(t, ledger) - before
 
-		// The row has to have landed: a run that appended nothing carries no ESC either, and would
-		// pass a byte check while saying nothing about sanitising.
-		if appended != 1 || strings.Contains(written+stdout+stderr, "\x1b") {
-			t.Errorf("status: %d\nrows appended: %d (want 1)\n%s", status, appended,
-				indent(strings.ReplaceAll(written+stdout+stderr, "\x1b", "<ESC>")))
-		}
-	})
+	// The row has to have landed: a run that appended nothing carries no ESC either, and would pass a
+	// byte check while saying nothing about sanitising.
+	if appended != 1 || strings.Contains(written+stdout+stderr, "\x1b") {
+		t.Errorf("status: %d\nrows appended: %d (want 1)\n%s", status, appended,
+			indent(strings.ReplaceAll(written+stdout+stderr, "\x1b", "<ESC>")))
+	}
 }
 
 func TestAMissingLedgerIsOpenedWithAHeaderAReaderCanUse(t *testing.T) {
@@ -76,21 +72,19 @@ func TestAMissingLedgerIsOpenedWithAHeaderAReaderCanUse(t *testing.T) {
 	// header written when the ledger does not exist. Every other --append case creates the file first
 	// and never sees that block. The `+` legend is asserted because it is the one thing in the header
 	// a reader cannot reconstruct from the columns, and the header is where a fresh ledger states it.
-	t.Run("creates the ledger with the column header, the + legend, and one row under them", func(t *testing.T) {
-		f := newRoot(t)
-		f.installStats()
-		f.write(f.root+"/CLAUDE.md", "one two\n")
-		fresh := f.root + "/kk-flavor/skills/kk-reduce/stats.md"
-		f.run("--append", "opening row", f.root)
-		content := readFile(t, fresh)
-		rows := rowsIn(t, fresh)
-		if rows != 3 ||
-			!strings.Contains(content, "| date | prose | scripts | always-loaded | skills | what ran |") ||
-			!strings.Contains(content, "lower bound") ||
-			!strings.Contains(content, "is the checkout's") {
-			t.Errorf("lines starting '|': %d (want 3 — header, rule, row)\n%s", rows, indent(content))
-		}
-	})
+	f := newRoot(t)
+	f.installStats()
+	f.write(f.root+"/CLAUDE.md", "one two\n")
+	fresh := f.root + "/kk-flavor/skills/kk-reduce/stats.md"
+	f.run("--append", "opening row", f.root)
+	content := readFile(t, fresh)
+	rows := rowsIn(t, fresh)
+	if rows != 3 ||
+		!strings.Contains(content, "| date | prose | scripts | always-loaded | skills | what ran |") ||
+		!strings.Contains(content, "lower bound") ||
+		!strings.Contains(content, "is the checkout's") {
+		t.Errorf("lines starting '|': %d (want 3 — header, rule, row)\n%s", rows, indent(content))
+	}
 }
 
 func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {

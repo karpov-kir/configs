@@ -34,14 +34,18 @@ func TestCommandRefusesAnUnassignedTask(t *testing.T) {
 	}
 }
 
-// A row naming an effort and no model is refused at parse, for either client and in either map. On
-// claude nothing could carry the effort; on codex something can, and the spawn then runs at whatever
-// model the caller had — the silent inheritance the policy exists to remove, and the shape that would
-// otherwise leave an orchestrator outside the tier order and so outside the ceiling.
+// A row naming an effort and no model is refused at parse, for either client. On claude nothing could
+// carry the effort; on codex something can, and the spawn then runs at whatever model the caller had —
+// the silent inheritance the policy exists to remove, and the shape that would otherwise leave an
+// orchestrator outside the tier order and so outside the ceiling. Both rows read the sentence rather
+// than the error, because validName refuses an empty model too and would otherwise answer for this
+// guard while it is disabled.
+//
+// One row per client and not per map: validateAssignments walks the sessions and the workers with one
+// validator, and TestPolicyRejectsMalformedDocuments breaks a session row against it.
 func TestARowNamingAnEffortAndNoModelIsRefused(t *testing.T) {
 	for _, swap := range []struct{ what, from, to string }{
 		{"a codex worker row", `"build/explore":{"codex":{"model":"middling","effort":"low"}`, `"build/explore":{"codex":{"effort":"low"}`},
-		{"a codex session row", `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, `"kk-build":{"codex":{"effort":"high"}`},
 		{"a claude worker row", `"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}`, `"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"effort":"low"}`},
 	} {
 		raw := strings.Replace(sample, swap.from, swap.to, 1)

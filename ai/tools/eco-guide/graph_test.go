@@ -323,20 +323,6 @@ func TestASkillWithNoDeclarationSaysSoRatherThanGoingBlank(t *testing.T) {
 	}
 }
 
-// A worker's profile would be one line, and that line is already printed beside every skill that
-// dispatches it. Answering invites reading it as this worker's share of a run, which it is not.
-func TestCostRefusesAWorkerAndSaysWhatToReadInstead(t *testing.T) {
-	root := newGraphRoot(t, map[string]string{"skills/kk-pr/SKILL.md": skillBody("holds — landing", "x")})
-
-	status, output := run(t, "--cost", "code-review", root)
-	if status != 2 {
-		t.Fatalf("expected exit 2 for a worker, got %d\n%s", status, output)
-	}
-	if !strings.Contains(output, "is a worker") {
-		t.Errorf("the refusal does not say a worker is what was named, so the reader retypes it\n%s", output)
-	}
-}
-
 func TestCostRefusesANameNoRowHolds(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{"skills/kk-pr/SKILL.md": skillBody("holds — landing", "x")})
 
@@ -387,9 +373,11 @@ func TestTheEmittersRunWithNoNarrativeTemplate(t *testing.T) {
 	if status, output := run(t, "--cost", "kk-qualify", root); status != 0 {
 		t.Fatalf("--cost needs the template it does not read: %d\n%s", status, output)
 	}
-	// And the page path still reports the missing template rather than emitting a guide without it.
-	if status, output := run(t, root); status != 2 || !strings.Contains(output, "narrative template") {
-		t.Errorf("the page path no longer refuses a missing template: %d\n%s", status, output)
+	// And the page path still refuses, naming the template it could not read rather than emitting a
+	// guide without it.
+	if status, output := run(t, root); status != 2 ||
+		!strings.Contains(output, "narrative template") || !strings.Contains(output, templateRelative) {
+		t.Errorf("the page path no longer refuses a missing template by name: %d\n%s", status, output)
 	}
 }
 
@@ -441,12 +429,13 @@ func TestAWorkerThatDispatchesAnotherIsOnTheMap(t *testing.T) {
 // A refusal names what did not happen, and the three paths do not produce the same thing. Told "the
 // guide was NOT generated", someone who asked what a skill costs goes looking for a page they never
 // mentioned, and the message stops being the fastest way to the actual fault.
+//
+// The page path's own wording is TestAGuideWithNoUsablePolicyRefuses, over this same wrecked policy.
 func TestARefusalNamesWhichOfTheThreeDidNotHappen(t *testing.T) {
 	for _, one := range []struct {
 		args []string
 		want string
 	}{
-		{want: "the guide was NOT generated"},
 		{args: []string{"--graph"}, want: "the map was NOT emitted"},
 		{args: []string{"--cost", "kk-pr"}, want: "the cost profile was NOT emitted"},
 	} {
@@ -505,6 +494,11 @@ func TestACitationWithoutTheDeclarationIsNotBilled(t *testing.T) {
 // A door a human types answers what it costs; a worker nobody types refuses, because its one line is
 // already printed beside every skill that dispatches it. The three lanes that kept their doors sit on
 // the worker side of the policy and the door side of that question.
+//
+// The profile it does answer is also where this file holds a worker row whose contract is not
+// `workers/<name>.md`. Six of this tree's rows are in that state — three doors, two borrowing another's
+// prompt, one a Go tool assembles — and read only at the first home every one of them is a leaf that
+// dispatches nothing.
 func TestADoorKeepingLaneAnswersItsCostAndADoorlessWorkerRefuses(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
 		"skills/kk-edit/SKILL.md": skillBody("dispatched", "Hand structure to `~/.kk-flavor/workers/refactor.md`."),
@@ -555,52 +549,6 @@ func TestARowReachedBothWaysIsReportedAsTheSkillsOwn(t *testing.T) {
 	t.Errorf("the profile does not price code-review at all\n%s", output)
 }
 
-// Six of this tree's worker rows hold their contract somewhere other than `workers/<name>.md` —
-// three skills that kept their doors, two rows borrowing another's prompt, one a Go tool assembles.
-// Read only at the first home, every one of them printed as a leaf that dispatches nothing, and the
-// page beside it resolved all four ways: two readers of one thing, disagreeing in silence.
-func TestAWorkerRowWhoseContractIsNotUnderWorkersStillShowsWhatItDispatches(t *testing.T) {
-	root := newGraphRoot(t, map[string]string{
-		// `kk-edit` has a workers row and its contract is its SKILL.md, the door-keeping shape.
-		"skills/kk-edit/SKILL.md": skillBody("dispatched",
-			"Hand the structure to `~/.kk-flavor/workers/refactor.md`."),
-	})
-	if err := os.Remove(filepath.Join(root, "kk-flavor", "workers", "kk-edit.md")); err != nil {
-		t.Fatalf("removing the fixture worker file: %v", err)
-	}
-
-	status, output := run(t, "--graph", root)
-	if status != 0 {
-		t.Fatalf("expected exit 0, got %d\n%s", status, output)
-	}
-	if !strings.Contains(graphBlock(t, output, "kk-edit"), "dispatches refactor") {
-		t.Errorf("a worker row whose contract is a SKILL.md printed as a leaf\n%s", output)
-	}
-}
-
-// And the borrowing shape: a row with no file of its own, running the prompt its `worker` field
-// names. What that prompt dispatches is what this row dispatches, at this row's tier.
-func TestABorrowedPromptsDispatchesAreTheBorrowersToo(t *testing.T) {
-	policy := strings.Replace(graphPolicy, `"refactor":       {`,
-		`"lender/repair":  { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "worker": "code-review" },
-    "refactor":       {`, 1)
-	root := newGraphRoot(t, map[string]string{
-		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", "Dispatch `~/.kk-flavor/workers/code-review.md`."),
-	})
-	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(policy), 0o644); err != nil {
-		t.Fatalf("fixture policy: %v", err)
-	}
-	writeWorkers(t, root, fixtureWorker{"code-review", "One review. Then `~/.kk-flavor/workers/refactor.md`.\n"})
-
-	status, output := run(t, "--graph", root)
-	if status != 0 {
-		t.Fatalf("expected exit 0, got %d\n%s", status, output)
-	}
-	if !strings.Contains(graphBlock(t, output, "lender/repair"), "dispatches refactor") {
-		t.Errorf("a row borrowing a prompt does not reach what that prompt dispatches\n%s", output)
-	}
-}
-
 // The walk went recursive with this change, and a recursive walk over a tree the caller merely named
 // can be pointed out of it. A `.md` symlink puts an out-of-tree file's citations into the map; the
 // FIFO case is the same gate and cannot be driven here without hanging the suite if it regresses.
@@ -647,10 +595,11 @@ func TestAModeRowReadsItsOwnFileAndNotItsSkillsDirectory(t *testing.T) {
 	}
 }
 
-// A row that borrows another's prompt reads that file, and the file points at its own assets. Those
-// pointers are the prompt owner's self-citations whoever runs them; dropped against the borrowing
-// row's name instead, they left the tree as dispatches and billed the borrower for a second run of
-// the very contract it is.
+// The borrowing shape: a row with no file of its own, running the prompt its `worker` field names.
+// What that prompt dispatches is what this row dispatches, at this row's tier — and the file also
+// points at its own assets. Those pointers are the prompt owner's self-citations whoever runs them;
+// dropped against the borrowing row's name instead, they left the tree as dispatches and billed the
+// borrower for a second run of the very contract it is.
 func TestABorrowedPromptsSelfCitationsAreNotTheBorrowersDispatches(t *testing.T) {
 	policy := strings.Replace(graphPolicy, `"refactor":       {`,
 		`"lender/repair":  { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "worker": "kk-edit" },
