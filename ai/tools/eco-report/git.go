@@ -8,13 +8,13 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// Every repository question the tool asks, and the one ignore mechanism it writes through —
-// `.gitignore`, via appendLine, for `promote`. Every `.git/info/exclude` mention below is a READ that
-// classifies an ignore source; what removes a stale entry lives in migrate.go.
+// Every repository question the tool asks, plus the single ignore mechanism it writes through:
+// `.gitignore`, via appendLine, for `promote`. Every `.git/info/exclude` mention in this file is a
+// READ that classifies an ignore source. The code that removes a stale entry lives in migrate.go.
 
-// The repository is asked rather than reimplemented everywhere it answers a question about ignoring,
-// tracking or worktrees: the answer has to be the one git will give the human's next command, not this
-// tool's model of it. `ai/tools/repo` names those questions; r.git answers them.
+// Questions about ignoring, tracking or worktrees go to git itself. The answer has to match what git
+// will tell the human's next command, and a model of git kept inside this tool can disagree with it.
+// `ai/tools/repo` names those questions, and r.git answers them.
 
 type gitAnswer struct {
 	value string
@@ -44,7 +44,7 @@ func (r *run) forgetIndexAnswers() {
 }
 
 // Absolute path to <name> in this worktree's git dir. An empty answer would build a bare "$root/" in
-// the tree, so it is refused rather than joined.
+// the tree, so gitPath refuses it.
 func (r *run) gitPath(name string) string {
 	if gitDir, ok := layoutGitDir(r.root); ok {
 		return filepath.Join(gitDir, name)
@@ -84,7 +84,7 @@ func (r *run) assertRepoModeReadable() {
 }
 
 // git's own account of a failure, beside the refusal that follows it. The child used to inherit
-// stderr, so what git said reached the human; the port hands it back as an error instead, and these
+// stderr, so what git said reached the human. The port hands it back as an error instead, and these
 // are the call sites that used to let it through. One line, because a path git quotes back carries the
 // tree's own bytes and a newline in one would forge a second — and what reads these is another agent.
 func (r *run) sayWhatGitSaid(err error) {

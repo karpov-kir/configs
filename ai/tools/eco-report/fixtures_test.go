@@ -119,7 +119,7 @@ func (f *fixture) entries(dir string) []string {
 }
 
 // What the repository holds, as a case states it. The fake answers the tool from this table, so a case
-// says "the index holds this" rather than running a command to make it so — and nothing forks.
+// says "the index holds this" and forks no command.
 
 // Put paths in the index and at HEAD, with whatever is on disk at each. What `git add` followed by
 // `git commit` gave the old fixtures, which every case using it wanted only as a starting state.
@@ -139,7 +139,7 @@ func (f *fixture) track(paths ...string) {
 
 // A commit under a name a case can use, holding the given content, and the object id it resolves to.
 //
-// Both spellings, because the tool resolves a base-ref to an id and then diffs against THAT: a
+// Both spellings, because the tool resolves a base-ref to an id and then diffs against THAT. A
 // revision the table knows only by name is one it cannot diff, and git answers about either spelling.
 func (f *fixture) commitNamed(rev string, files map[string]string) string {
 	f.t.Helper()
@@ -178,7 +178,7 @@ func (f *fixture) staged() string {
 	return strings.Join(names, "\n")
 }
 
-// Say that git ignores these paths, and which file said so. `source` is what `check-ignore -v` names —
+// Says that git ignores these paths, and names the file that said it. `source` is what `check-ignore -v` names —
 // `.gitignore` is the only answer that travels with the repository, and the tool turns on that
 // difference.
 func (f *fixture) ignore(source string, paths ...string) {
@@ -411,16 +411,16 @@ func (f *fixture) stageResultsPath(intent string) string {
 	return fmt.Sprintf("%s/.git/idsd-stage-results/%x.json", f.repo, sha256.Sum256([]byte(report)))
 }
 
-// The tree fingerprint every fixture runs on. The RECIPE belongs to `ai/tools/tree-fingerprint/`,
-// which owns its own suite; what the cases here need of it is the one property they all turn on — a
-// value that moves when the tree's content moves and stands still otherwise — and the shipped recipe
-// pays five git spawns per reading to deliver it.
-//
-// Ignorable report files are skipped for the same reason git's own ignore rules skip them: a report
+// Ignorable report files are skipped for the same reason git's own ignore rules skip them. A report
 // written inside the tree it fingerprints makes every stamp stale on arrival, and assertReportIsIgnored
 // is the guard that exists because of it. `.git` is skipped because git's own recipe never reads it.
-//
+
 // Forty hex characters, because `gate` prints the value and index_test.go matches it as one.
+
+// The tree fingerprint every fixture runs on. The RECIPE belongs to the `treefingerprint` package
+// under ai/tools, which owns its own suite. What the cases here need of it is the single property they
+// all turn on: a value that moves when the tree's content moves and stands still otherwise. The
+// shipped recipe pays five git spawns per reading to deliver it.
 func (f *fixture) newTreeFingerprint() func(string) (string, error) {
 	return func(root string) (string, error) {
 		sum := sha1.New()
@@ -433,8 +433,8 @@ func (f *fixture) newTreeFingerprint() func(string) (string, error) {
 				return relErr
 			}
 			// A linked worktree's `.git` is a FILE, and SkipDir on one skips the REST of the directory
-			// holding it — which here is the whole worktree, since `.git` sorts first. The tree then
-			// fingerprints as empty and every freshness case passes on a reading of nothing.
+			// holding it. Here that is the whole worktree, since `.git` sorts first. The tree then
+			// fingerprints as empty, and every freshness case passes on an empty reading.
 			if name == ".git" {
 				if info.IsDir() {
 					return filepath.SkipDir
@@ -460,9 +460,8 @@ func (f *fixture) newTreeFingerprint() func(string) (string, error) {
 	}
 }
 
-// The ship working files `.gitignore` covers, by the same patterns the tool writes — ignoreEntries()
-// mirrors ignoreSurface(), so the fixture and the tool cannot disagree about which files a fingerprint
-// must not see.
+// The ship working files `.gitignore` covers, by the same patterns the tool writes. ignoreEntries()
+// mirrors ignoreSurface(), so the fixture and the tool agree on the files a fingerprint must skip.
 func fingerprintSkips(name string) bool {
 	for _, entry := range ignoreEntries() {
 		if matched, _ := path.Match(entry, filepath.ToSlash(name)); matched {
@@ -472,19 +471,19 @@ func fingerprintSkips(name string) bool {
 	return false
 }
 
-// A linked worktree, built the way git builds one: a directory whose `.git` is a FILE naming a git dir
-// under the main repository's `worktrees/`, and a `commondir` in that git dir pointing back at the
-// shared store. layout.go reads exactly this shape, so nothing has to run `git worktree add`.
-//
-// The two properties every case using this turns on come straight from the layout: the worktree's own
-// git dir is its own, which is where its identity token is minted, and its common dir is the clone's,
-// which is where the one scratch directory lives.
+// Two properties come straight from the layout, and every case using this turns on them. The
+// worktree's git dir is its own, and that is where its identity token is minted. Its common dir is
+// the clone's, and that is where the single scratch directory lives.
+
+// A linked worktree, built the way git builds one. Its `.git` is a FILE naming a git dir under the
+// main repository's `worktrees/`, and that git dir holds a `commondir` pointing back at the shared
+// store. layout.go reads exactly this shape, so no case runs `git worktree add`.
 func (f *fixture) newLinkedWorktree(name string) string {
 	f.t.Helper()
 	linked := f.base + "/" + name
 	// Canonical, because the pointer is what layoutGitDir reads and what layoutCommonDir then resolves
-	// against: a `/var` spelling here resolves one location and the main tree's `/private/var` another,
-	// and two worktrees of one clone would answer two scratch directories while both looked right.
+	// against. A `/var` spelling here resolves one location and the main tree's `/private/var` another.
+	// Two worktrees of one clone would then answer two scratch directories, and both would look right.
 	gitDir := f.canonicalRepo() + "/.git/worktrees/" + name
 	f.mkdirAll(gitDir)
 	f.write(gitDir+"/commondir", "../..\n")
@@ -492,15 +491,15 @@ func (f *fixture) newLinkedWorktree(name string) string {
 	f.mkdirAll(linked)
 	f.write(linked+"/.git", "gitdir: "+gitDir+"\n")
 	// Its own git dir, the clone's common dir, and the same history and ignore answers as the tree it
-	// was added from — which is what a real linked worktree answers, and what `repo/exec_test.go` holds
-	// git to. Shared maps rather than copies, so a case that tracks or ignores something afterwards is
-	// answered the same from both.
+	// was added from. That is what a real linked worktree answers, and what `repo/exec_test.go` holds
+	// git to. The maps are shared, so a case that tracks or ignores something afterwards is answered
+	// the same from both.
 	sibling := repotest.New(canonical(linked))
 	sibling.Git, sibling.Common = gitDir, f.canonicalRepo()+"/.git"
 	sibling.Revs, sibling.Refs, sibling.Sources, sibling.Fail = f.fake.Revs, f.fake.Refs, f.fake.Sources, f.fake.Fail
 	f.worktrees[canonical(linked)] = sibling
-	// The tracked file the main tree has, so the two trees fingerprint alike — which is the state a
-	// freshly added worktree is in and the precondition several cases state for themselves.
+	// The tracked file the main tree has, so the two trees fingerprint alike. That is the state a
+	// freshly added worktree is in, and the precondition several cases state for themselves.
 	f.write(linked+"/tracked.txt", f.read(f.repo+"/tracked.txt"))
 	return linked
 }
@@ -517,8 +516,8 @@ func (f *fixture) removeLinkedWorktree(name string) {
 // `git worktree move`: the checkout changes place and keeps its git dir, so it keeps its identity.
 func (f *fixture) moveLinkedWorktree(from, to string) {
 	f.t.Helper()
-	// Keyed before the rename: canonical() resolves a path that exists, and after the move the old one
-	// does not, so the entry would be looked up under a spelling nothing holds.
+	// The key is taken before the rename, since canonical() resolves a path that exists. After the move
+	// the old path is gone, and canonical() would key the entry under a spelling that no longer exists.
 	was := canonical(from)
 	if err := os.Rename(from, to); err != nil {
 		f.t.Fatalf("move %s to %s: %v", from, to, err)
@@ -538,11 +537,10 @@ func canonical(path string) string {
 	return path
 }
 
-// The report template, written by the fixture rather than read from the installed skill: reading it
-// from outside this module is what made a plain `go test` answer `(cached)` over a changed one. Four
-// placeholder frontmatter lines and a body: `init` refuses a template missing any of them, and every
-// case that drifts one edits this copy. The shipped one is
-// `ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md`; nothing here reads it.
+// The report template the fixture writes for itself instead of reading the installed skill. A read from
+// outside this module made a plain `go test` answer `(cached)` over a changed one. Four placeholder
+// frontmatter lines and a body: `init` refuses a template missing any, and a varying case edits this
+// copy. The shipped copy at `ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md` goes unread.
 const reportTemplate = `---
 intent: <NNN-slug or "review: <description>">
 reviewed-tree: <hash>
@@ -553,10 +551,9 @@ reviewed-stages: <stages>
 # Decide
 `
 
-// A second clone of this repository: another checkout with a git dir of its own. What makes it a
-// second CLONE rather than a second worktree is that its git dir is not the first's — which is the
-// whole of what a repo key is taken from, and the reason two clones must never share a scratch
-// directory.
+// A second clone of this repository: another checkout with a git dir of its own. A second worktree
+// would share the first's git dir, and this one has a separate git dir. That is the whole of what a
+// repo key is taken from, and the reason two clones must never share a scratch directory.
 func (f *fixture) newSecondClone(name string) string {
 	f.t.Helper()
 	clone := f.base + "/" + name
@@ -566,14 +563,14 @@ func (f *fixture) newSecondClone(name string) string {
 	return clone
 }
 
-// What the tree's own .gitignore says about a path, read at the moment of the question — `promote`
-// writes that file mid-run and then asks whether the write took effect, so an answer arranged before
-// the run could only ever say yes. The bool is whether any rule matched at all.
-//
 // Only literal glob matching with git's last-match-wins negation is modelled. An implementation of
 // gitignore here would be the fake agreeing with itself about a question `repo/exec_test.go` holds
-// real git to; a case wanting any other rule — `.git/info/exclude`, a global excludesFile — states the
-// answer with f.ignore, and .gitignore is consulted first because that is git's own precedence.
+// real git to. A case wanting any other rule — `.git/info/exclude`, a global excludesFile — states
+// the answer with f.ignore, and .gitignore is consulted first because that is git's own precedence.
+
+// What the tree's own .gitignore says about a path, at the moment of the question. `promote` writes
+// that file mid-run and then asks whether the write took effect, and an answer arranged before the run
+// would always match. The bool is whether any rule matched at all.
 func (f *fixture) gitignoreSourceFor(full string) (source string, matched bool) {
 	// Relative to whichever working tree holds it: a committed `.idsd/` is checked out into every linked
 	// worktree, and the rules that cover it are the same tracked .gitignore.

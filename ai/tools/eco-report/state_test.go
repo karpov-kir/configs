@@ -85,8 +85,8 @@ func TestAnUnreadableReportIsNotAState(t *testing.T) {
 		buffered.assertRefused("carry refuses a report it cannot read rather than reporting no open items")
 		// The message carries this one: with the readability refusal deleted, `carry` still exits 2,
 		// because the open-item scan cannot read the file either and refuses in its place. Only this
-		// assertion tells the two apart; the discard case pins the same guard where nothing else
-		// refuses for it.
+		// assertion tells the two apart, and the discard case pins the same guard where no other
+		// refusal covers it.
 		buffered.assertReports("its state is unknown", "and it is that guard refusing, not the scan failing behind it")
 		buffered.runReport("carry", "001-readable-first")
 		buffered.record("and a readable sibling still carries normally", buffered.status == 0,
@@ -142,8 +142,8 @@ func TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer(t *testing.T) {
 func TestAReportNothingCouldReadIsNeverReadAsNothingOpen(t *testing.T) {
 	t.Parallel()
 	// `state`, `carry` and `close` share one reader, and the point of sharing it is that they cannot
-	// drift apart, so all three are asserted here against the same unreadable report. Read as "nothing
-	// open", a report nothing opened lets unrouted `- [ ]` through the merge gate.
+	// diverge, so all three are asserted here against the same unreadable report. A failed read taken
+	// for an empty one lets unrouted `- [ ]` through the merge gate.
 	f := newShip(t, "001-scan-fails")
 	f.stampFullPass("001-scan-fails")
 	// The positive control, while the report still opens: this fixture reaches the open-item scan and

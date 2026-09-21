@@ -7,9 +7,10 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The one seam this package does not own: the tree fingerprint, which `ai/tools/tree-fingerprint/`
-// owns and which runs in process. It is not reimplemented below, and newRun says what recomputing it
-// costs. The open-item scan is this package's own now — openitems.go.
+// This package owns every seam except the tree fingerprint, which belongs to
+// `ai/tools/tree-fingerprint/` and runs in process. The code here calls that package instead of
+// reimplementing it, and newRun records what recomputing the fingerprint costs. The open-item scan
+// belongs to this package now, in openitems.go.
 
 // The open-item scan over this run's own report.
 func (r *run) reportOpenItems() (string, error) {
@@ -19,10 +20,9 @@ func (r *run) reportOpenItems() (string, error) {
 // The report's open `- [ ]`, for every caller that must refuse rather than read a failed scan as
 // "nothing open". The consequence is the caller's, since what is then unknown differs at each one.
 //
-// Every one of those callers resolves its report through requireReport, which probes the file before
-// this runs, so this refusal stands behind that one rather than in front of it. It is kept because
-// deleting the probe would otherwise leave `carry` printing no items over a report it never opened,
-// which is what a report with nothing open looks like.
+// Every one of those callers resolves its report through requireReport, which probes the file first.
+// This refusal is the backstop behind that probe. Drop the probe and `carry` prints an empty item
+// list for a report it failed to open, which reads exactly like a report with no open items.
 func (r *run) readOpenTodos(consequence string) {
 	items, err := r.reportOpenItems()
 	if err != nil {
@@ -44,8 +44,8 @@ func (r *run) anyOpenItemsBeforeMerge(consequence string) bool {
 	if intent == "" {
 		return false
 	}
-	// Nothing upstream has opened the intent file — intentFilePath asks only that it is a regular file
-	// and not a symlink — so this is the one open-item refusal a caller can reach directly.
+	// No upstream step opens the intent file. intentFilePath checks only that the path is a regular
+	// file, excluding a symlink. This is the only open-item refusal a caller reaches directly.
 	items, err := openItemsIn(intent)
 	if err != nil {
 		r.refuse("error: the open-item scan of " + intent + " did not run — " + shell.Oneline(err.Error()) + "; " + consequence)

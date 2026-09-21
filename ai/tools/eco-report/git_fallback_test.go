@@ -1,14 +1,13 @@
 package ecoreport_test
 
-// The paths that ask the repository, which nothing else here reaches.
+// The paths that ask the repository, which no other case here reaches.
 //
 // layout.go answers the repository's shape by reading the filesystem, and every caller in this package
 // takes that answer when it comes. It comes for every fixture the rest of the suite builds, so the
-// port underneath it ran in no case at all. Mutation reported exactly that: disabling the CommonDir
-// call, the absolutize-against-the-root step and gitPath's absolute-answer guard each left the whole
-// suite green. Two of those three now live in `ai/tools/repo`'s adapter, which makes every answer
-// absolute, and `repo/exec_test.go` holds them against a real git; what is left here is that this
-// package asks the question at all, and asks it about the right directory.
+// port underneath it ran in no case. Mutation reported exactly that: disabling the CommonDir call, the
+// absolutize-against-the-root step and gitPath's absolute-answer guard each left the suite green. Two
+// of those three now live in `ai/tools/repo`'s adapter, which makes every answer absolute, and
+// `repo/exec_test.go` holds them to real git. What is left here is that this package asks at all.
 //
 // The lever is GIT_CEILING_DIRECTORIES, pointed somewhere that is no ancestor of the fixture. layout.go
 // refuses on any of its four environment names, so the callers fall through to git; and a ceiling that
@@ -52,9 +51,9 @@ func TestTheGitFallbackResolvesWhatTheLayoutReaderWould(t *testing.T) {
 		f.mkdirAll(sub)
 		fromRoot := f.runReportStdout("root")
 		fromSub := f.runReportStdoutIn(sub, "root")
-		// The question goes from the working tree ROOT, never from wherever the caller stood: git answers
-		// `--git-common-dir` as a bare `.git` in an ordinary repository, so a caller's own directory
-		// reaching the adapter is a scratch dir built beside them.
+		// The question goes from the working tree ROOT, and the caller's own directory is left out of it.
+		// git answers `--git-common-dir` as a bare `.git` in an ordinary repository, so a caller's own
+		// directory reaching the adapter is a scratch dir built beside them.
 		f.record("a run from a subdirectory resolves the same absolute location through the port",
 			fromSub == fromRoot && filepath.IsAbs(fromSub), "root: "+fromRoot+"\nsubdir: "+fromSub)
 		f.record("and built nothing beside the caller", !f.exists(sub+"/.git"), sub)

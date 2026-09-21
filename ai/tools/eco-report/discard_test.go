@@ -202,8 +202,8 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	f.write(f.repo+"/.gitignore", ignoreBlock())
 	f.track(".gitignore", ".idsd/charter.md", ".idsd/intents/002-tracked/intent.md")
 	// Built by hand rather than through the committed-repo builder, because this one needs the intent
-	// file tracked, so it owes the same assertion that builder carries. Checked before the index read is
-	// broken, since `repo-mode` cannot answer afterwards.
+	// file tracked, so it owes the same assertion that builder carries. The check runs before the index
+	// read is broken, since `repo-mode` cannot answer afterwards.
 	f.assertFixtureIsCommitted()
 	f.failsToAnswer("Tracked", "fatal: index file open failed: Permission denied")
 	f.runReport("discard", "002-tracked")
@@ -212,7 +212,7 @@ func TestDiscardRefusesWhenTheRepoModeCannotBeRead(t *testing.T) {
 	// refused a few lines later for having no ship at the resolved location — also exit 2, from a guard
 	// that says nothing about the unreadable index. Asserting the code alone observes neither.
 	f.assertReports("could not read the index", "and names the unreadable index as why")
-	// Named directly rather than through f.scratch(): that reads the index to tell which mode this is,
+	// Named directly instead of through f.scratch(): that reads the index to tell which mode this is,
 	// and the index read is the very thing this case broke.
 	f.record("and the tracked intent file survives", f.isFile(f.treeIdsd()+"/intents/002-tracked/intent.md"), "")
 }

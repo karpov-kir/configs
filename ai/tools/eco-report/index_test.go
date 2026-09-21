@@ -21,16 +21,17 @@ func TestTheHumanIndexIsNeverTouched(t *testing.T) {
 	f := newRepo(t)
 	f.runReport("check-ignore")
 
-	// A tree with all three of a human's states in it — a tracked file modified, an untracked file
-	// beside it — so a subcommand that staged by sweeping the tree would have something to sweep.
+	// A tree with all three of a human's states in it: a file staged, a tracked file modified, and an
+	// untracked file beside them. A subcommand that staged by sweeping the tree would have something
+	// to sweep.
 	f.write(f.repo+"/staged.txt", "staged\n")
 	f.track("staged.txt")
 	f.write(f.repo+"/tracked.txt", "base\nmodified\n")
 	f.write(f.repo+"/untracked.txt", "untracked\n")
 
 	// What a human loses is their staged/unstaged split, and the only way this tool can touch it is by
-	// staging: the one write in `ai/tools/repo`'s port is Add. So the assertion is that neither
-	// subcommand asked for one — which the fake records whether or not any repository would have obeyed.
+	// staging: Add is the single write in `ai/tools/repo`'s port. The assertion is that neither
+	// subcommand asked for a stage, which the fake records whatever a real repository would have done.
 	f.runReport("init", "review: index isolation")
 	f.record("init stages nothing (a regression guard, not a fingerprint one)",
 		f.indexState() == "staged:", f.indexState())

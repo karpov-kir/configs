@@ -186,9 +186,9 @@ func visibleResultReport(body []byte) error {
 	return err
 }
 
-// The same walk the open-item scan reads the report by, so a stored checkbox cannot pass here while
-// hidden from that one. Refused rather than reported where a fence is left open, because the line it
-// hides is a finding someone submitted.
+// Returns the report's visible lines, by the same walk the open-item scan uses. A stored checkbox
+// therefore cannot pass here while hiding from that scan. An open fence makes this refuse, because
+// the line it hides is a finding someone submitted.
 func resultVisibleLines(body []byte) ([]string, error) {
 	visible, leftOpen := visibleMarkdownLines(string(body))
 	if leftOpen {

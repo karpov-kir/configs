@@ -70,17 +70,17 @@ func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
 	f.record("the routing token sees an item the report does not hold",
 		f.status == 0 && strings.TrimSpace(f.out) == "decide", f.evidence())
 
-	// A scan that did not run is not a scan that found nothing: read as one, a ship whose ICE still
-	// holds unrouted items passes the merge gate. The intent file is where the scan can still fail —
-	// the report is probed for readability before any reader reaches it, while intentFilePath asks only
-	// that this one is a regular file and not a symlink.
+	// A scan that did not run differs from a scan that found zero items. Read them alike and a ship
+	// whose ICE still holds unrouted items passes the merge gate. The intent file is where the scan can
+	// still fail. The report is probed for readability first, while intentFilePath only asks for a
+	// regular file, excluding a symlink.
 	if f.madeUnreadable(f.shipDir("001-follow-ups")+"/intent.md", "the unreadable-intent case") {
 		f.runReport("gate", "001-follow-ups")
 		f.record("gate blocks when the open-item scan of the intent did not run",
 			f.status == 1 && strings.Contains(f.out, "the scan of the intent did not run"), f.evidence())
-		// The routing token never reaches that scan, and does not need to: an intent it cannot read is
-		// an intent it cannot see approved, and that arm already routes back to build rather than to a
-		// merge. Asserted so the day it starts answering `ready` here is a red case and not a merge.
+		// The routing token never reaches that scan. An intent it cannot read is an intent it cannot
+		// see approved, and that arm already routes back to build instead of to a merge. Asserted so the
+		// day it starts answering `ready` here is a red case instead of a merge.
 		f.runReport("state", "001-follow-ups")
 		f.record("and the routing token sends an unreadable intent back to build",
 			f.status == 0 && strings.TrimSpace(f.out) == "resume", f.evidence())
@@ -205,12 +205,10 @@ func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
 		f.status == 0 && strings.TrimSpace(f.out) == "ready", f.evidence())
 }
 
-// Every markdown shape the open-item scan has to get right, and what it reads out of each. The scan
-// has one implementation and this is the whole contract it is held to.
-//
-// `carry` is the reader that prints what the scan found, so driving it over one report pins the whole
-// answer — the items, their sections and the order — rather than a count. The `- [ ]` inside a fence or
-// a comment is the row that decides whether an EXAMPLE in a report blocks a merge.
+// Every markdown shape the scan for open items has to get right, and what it reads out of each. The
+// scan has one implementation and this is the whole contract it is held to. `carry` is the reader that
+// prints what the scan found, so one report drives the whole answer: the items, their sections and the
+// order. The `- [ ]` inside a fence or a comment decides whether an EXAMPLE in a report blocks a merge.
 func TestTheOpenItemScanReadsEachMarkdownShapeAReportCanTake(t *testing.T) {
 	t.Parallel()
 	// One ship, its report rewritten per row: what varies is the markdown, and building a fresh ship
@@ -224,15 +222,15 @@ func TestTheOpenItemScanReadsEachMarkdownShapeAReportCanTake(t *testing.T) {
 			"# Decide | - [ ] First.\n## Follow-ups | - [ ] Second."},
 		{"a closed item beside an open one", "# Decide\n\n- [x] Done.\n- [ ] Not done.\n",
 			"# Decide | - [ ] Not done."},
-		// A report whose every box is ticked. Separate from the row above because a scan matching `- [`
+		// A report whose every box is ticked. Separate from the preceding row because a scan matching `- [`
 		// would answer that one correctly off the open item beside it and this one wrongly.
 		{"a closed item alone", "# Decide\n\n- [x] Done.\n", ""},
 		{"an example inside a fence", "# Decide\n\n```\n- [ ] an example\n```\n\n- [ ] a real one\n",
 			"# Decide | - [ ] a real one"},
-		// A fence nobody closed swallows the rest of the report, so a real item behind one goes
-		// unreported and the merge is not blocked. Pinned as the behaviour it has, so a change to it is
-		// a decision rather than a surprise met at a merge. Nothing is lost silently: a stage result
-		// submitted into such a report is refused outright, by the reader that shares this walk.
+		// An unclosed fence swallows the rest of the report, so a real item behind one goes unreported
+		// and the merge proceeds. This is pinned as the behaviour it has, so a change to it is a
+		// decision and never a surprise met at a merge. Losses stay visible: a stage result submitted
+		// into such a report is refused outright, by the reader that shares this walk.
 		{"a fence nobody closed", "# Decide\n\n```\n- [ ] an example\n\n- [ ] a real one\n", ""},
 		{"an example inside a tilde fence", "# Decide\n\n~~~\n- [ ] an example\n~~~\n", ""},
 		{"an example inside a comment", "# Decide\n\n<!--\n- [ ] an example\n-->\n\n- [ ] a real one\n",

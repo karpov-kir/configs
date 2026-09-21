@@ -91,9 +91,9 @@ func (r *run) scopeStages(base string) map[string]string {
 			r.refuse("error: invalid path in scope diff")
 		}
 		// Both sides, because deleting code or renaming it as prose does not remove its review
-		// obligation. An empty mode is the side that does not exist — an addition has no source — and
-		// the source MODE is what no reading of the content could recover: a `.md` that was executable
-		// or a symlink at the base is not prose whatever its bytes say.
+		// obligation. An empty mode marks a side that is absent, as an addition has no source. The MODE
+		// has to come from the diff, since the content never states it. A `.md` that was executable or a
+		// symlink at the base falls outside plain prose, whatever its bytes say.
 		if change.OldMode != "" {
 			if change.OldMode == "100644" && isPlainProse(change.Path, nil) {
 				body, wasRead := r.readProseBlob(change.OldBlob)

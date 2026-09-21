@@ -120,8 +120,8 @@ func (r *run) blocksOnOpenTodos() bool {
 }
 
 func (r *run) blocksOnOpenTodosIn(path, which string) bool {
-	// A file that could not be read yields no items, which the test below would take for "no open
-	// TODOs" and pass the merge gate on a scan that never ran.
+	// A file that failed to read yields zero items. The switch here would read that as an empty TODO
+	// list and pass the merge gate on a scan that never ran.
 	todos, err := openItemsIn(path)
 	switch {
 	case err != nil:

@@ -6,13 +6,13 @@
 //
 // It is a library with a thin command beside it, for the reason ecocheck is: the suite that proves it
 // drives it once per case, and a process spawn per case is what puts a suite over the time budget
-// testing.md sets. Nothing here writes to os.Stdout or calls os.Exit — every path reports through the writers
+// testing.md sets. No code here writes to os.Stdout or calls os.Exit — every path reports through the writers
 // the Invocation carries and returns the code the command exits on — and nothing here holds state
 // between calls, so two runs in one process cannot see each other's caches.
 //
-// One seam stays out of this package, and must: `ai/tools/tree-fingerprint/` owns the
-// tree-fingerprint recipe, imported and run in process. It is not reimplemented here — newRun says
-// what recomputing it costs. Nothing here spawns a child.
+// One seam stays out of this package, and must: the fingerprint recipe belongs to the
+// `treefingerprint` package, imported and run in process. This package calls it instead of
+// reimplementing it, and newRun says what recomputing it costs. No code here spawns a child.
 //
 // This tool deletes files (discard) and writes to the git index (promote). Every refusal below is
 // load-bearing: read the comment before removing one.
@@ -127,8 +127,8 @@ type Invocation struct {
 	// a fixture instead of the developer's own.
 	ConfigHome string
 	Out, Err   io.Writer
-	// Where this run's repository questions go. Nil is `repo.Exec` against the Home above, which is
-	// what the command wires in; the suite hands a `repotest.Fake` instead, so no case has to build a
+	// Where this run's repository questions go. Nil means `repo.Exec` against the Home field, which is
+	// what the command wires in. The suite hands a `repotest.Fake` instead, so no case has to build a
 	// repository to have something to ask.
 	Git repo.Git
 	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS rather than
@@ -249,8 +249,8 @@ func newRun(inv Invocation) *run {
 	if inv.Home == "" {
 		r.home = os.Getenv("HOME")
 	}
-	// Built here rather than by the command, because it needs the HOME resolved just above: git reads
-	// its global config out of HOME, so a run pointed at another one has to point git there too or it
+	// The command cannot build this, because it needs the HOME resolved a few lines earlier. git reads
+	// its global config out of HOME. A run pointed at another HOME has to point git there too, or git
 	// answers from a config the caller replaced.
 	if r.git == nil {
 		r.git = repo.Exec{Env: repo.Environ(r.home)}

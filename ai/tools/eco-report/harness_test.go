@@ -1,21 +1,21 @@
 package ecoreport_test
 
 // The fixture builders and the assertions the cases are written against. This is the only suite over
-// these gates, so a case removed here is coverage gone rather than coverage moved.
-//
-// Every input this suite gives the tool it writes itself — the template, the tree. Nothing is read
-// from outside the module, and that is a cache property before it is a style one: `go test` keys its
-// cache on the module, so a suite reading the shipped skill answers `ok (cached)` over a template that
-// has changed under it.
-//
-// The repository is a table, not a checkout. `ai/tools/repo` names the questions this tool asks of one
-// and `repotest.Fake` answers them, so no case forks git to have something to drive. What a repository
-// still IS on disk is a directory holding `.git`, because layout.go reads the layout itself.
-//
-// Nothing here runs against this checkout. Every case gets its own tree under t.TempDir(), and every
-// destructive path is aimed by the resolved idsd location rather than by a search: this suite reaches
-// `discard`, which removes .idsd/ and deletes intent files. newWorkingTree says what stands where git's
-// own "this directory is its own root" check used to.
+// these gates, so a case removed here is coverage gone for good.
+
+// Every input this suite gives the tool it writes itself — the template, the tree. No file outside
+// the module is read, and that is a cache property before it is a style one. `go test` keys its cache
+// on the module, so a suite reading the shipped skill answers `ok (cached)` over a template that has
+// changed under it.
+
+// The repository is a table, and no case forks git to have something to drive. `ai/tools/repo` names
+// the questions this tool asks of a repository, and `repotest.Fake` answers them. On disk a repository
+// is still a directory holding `.git`, because layout.go reads the layout itself.
+
+// Every case gets its own tree under t.TempDir(), so none of them runs against this checkout. Every
+// destructive path is aimed by the resolved idsd location, because this suite reaches `discard`. That
+// subcommand removes .idsd/ and deletes intent files. newWorkingTree says what stands where git's own
+// "this directory is its own root" check used to.
 
 import (
 	"bytes"
@@ -54,8 +54,8 @@ func ignoreBlock() string { return strings.Join(ignoreEntries(), "\n") + "\n" }
 
 // One case's tree.
 type fixture struct {
-	// How this fixture's tree is fingerprinted. newTreeFingerprint by default; countFingerprints wraps
-	// it to count, and one case swaps in a failing one.
+	// How this fixture's tree is fingerprinted. newTreeFingerprint by default. countFingerprints wraps
+	// it to count, and one case swaps in a failing recipe.
 	fingerprint func(root string) (string, error)
 	// What the tool's repository questions are answered from. Never nil: the scope fixtures put this
 	// table over a real seed repository, since applicability.go still runs one git command itself, but
@@ -66,22 +66,24 @@ type fixture struct {
 	base string // scratch the case may write outside the repo into
 	repo string // the fixture repository, and the directory every run acts from
 	// A per-case copy of the skill directory: scripts beside templates, the layout the tool derives
-	// its template path from. So a case can break it without touching this checkout's own, and one
-	// copy per case means no mutation carries. It holds no report.sh — nothing reads that path, only
-	// the directory above it.
+	// its template path from. A case can break it and leave this checkout's own copy alone, and one
+	// copy per case keeps a mutation inside the case that made it. It holds no report.sh, since only
+	// the containing directory is ever read.
 	skill string
 	// The HOME the tool runs against, built by newFlavorHome. Never the machine's own: see there.
 	home string
 	// Where the tool looks for this machine's override. Empty means there is none, which is what every
 	// case wants but the few that write one; never the developer's real $XDG_CONFIG_HOME.
 	configHome string
-	// One table per linked worktree, keyed by the worktree's canonical path. newLinkedWorktree fills it.
+	// Holds one table per linked worktree, keyed by the worktree's canonical path. newLinkedWorktree
+	// fills it.
 	worktrees map[string]*repotest.Fake
-	// Every FILE the tool's staging reached, beside the pathspecs it named — what `git diff --cached`
-	// would have listed, since git expands a directory pathspec and `staged` is read as that listing.
+	// Every FILE the tool's staging reached, beside the pathspecs it named. This is what `git diff
+	// --cached` would have listed, since git expands a directory pathspec and `staged` reads as that
+	// listing.
 	stagedFiles []string
-	// Held across every repository answer, for the one case that submits two results at once: two
-	// invocations then share one table, and the fake records what it was asked in a slice of its own.
+	// This mutex is held across every repository answer. One case submits two results at once, so two
+	// invocations share one table, and the fake records what it was asked in a slice of its own.
 	asking *sync.Mutex
 
 	out    string // the last run's stdout and stderr, merged, with trailing newlines stripped
@@ -93,10 +95,10 @@ func newRepo(t *testing.T) *fixture {
 	return newRepoNamed(t, "r")
 }
 
-// The same fixture under a chosen directory name, for the one case whose input IS the repository's own
-// path. It comes through here rather than being built beside it so that the HOME, the skill directory
-// and the config home every case depends on are settled in one place: a second builder would carry
-// none of them, and the case it serves would run against a fixture nothing arranged.
+// The same fixture under a chosen directory name, for the single case whose input IS the repository's
+// own path. This builder settles the HOME, the skill directory and the config home in one place. A
+// second builder would carry none of them, and the case it serves would run against a fixture that
+// was never set up.
 func newRepoNamed(t *testing.T, name string) *fixture {
 	t.Helper()
 	base := t.TempDir()
@@ -115,28 +117,26 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	return f
 }
 
+// The old guard asked git whether the fixture directory was its own root: a fixture inside an enclosing
+// repository could send `discard` at that repository's .idsd/. The tool resolves its root from the `.git`
+// this builder just made, and the fake answers about that root alone. An enclosing checkout stays out of
+// reach, whatever stands above t.TempDir(), as newNeutral arranges in `ai/tools/cadence`.
+
 // What a repository is to this tool: a directory holding `.git`, plus a table of answers. layout.go
-// reads the layout off the disk itself and the port answers everything that is a decision rather than a
-// location, so nothing has to run git to build one.
-//
-// This is also where the old fixture's destructive-case guard lived, and it is replaced by something
-// stronger rather than dropped. That guard asked git whether the fixture directory was its own root,
-// because a fixture inside an enclosing repository would have sent `discard` at that repository's
-// .idsd/. Here there is no discovery to go wrong: the tool resolves its root from the `.git` this
-// builder just made, and the fake answers about that root alone — an enclosing checkout is not
-// reachable from either, whatever stands above t.TempDir(). What the old guard could only check
-// afterwards is now arranged, which is the same move newNeutral made in `ai/tools/cadence`.
+// reads the layout off the disk itself, and the port answers every question that is a decision instead
+// of a location. No git runs to build one.
 func (f *fixture) newWorkingTree() {
 	f.t.Helper()
 	// `git init`'s own skeleton, as far as anything here reads it: HEAD, and the three directories a
-	// case or the tool writes into — `info/` holds the exclude file migrate.go cleans up.
+	// case or the tool writes into. `info/` holds the exclude file migrate.go cleans up.
 	for _, dir := range []string{"/.git/info", "/.git/objects", "/.git/refs"} {
 		f.mkdirAll(f.repo + dir)
 	}
 	f.write(f.repo+"/.git/HEAD", "ref: refs/heads/main\n")
 	f.write(f.repo+"/tracked.txt", "base\n")
-	// Rooted at the canonical path, because that is what the tool resolves: on macOS a temp dir sits
-	// under /var, a symlink to /private/var, and layoutRoot answers physically for the reason it states.
+	// The fixture is rooted at the canonical path, because that is what the tool resolves. On macOS a
+	// temp dir sits under /var, a symlink to /private/var, and layoutRoot answers physically for the
+	// reason it states.
 	f.fake = repotest.New(f.canonicalRepo())
 	f.worktrees = map[string]*repotest.Fake{}
 	f.track("tracked.txt")
@@ -176,7 +176,7 @@ func newCommittedRepo(t *testing.T) *fixture {
 	return f
 }
 
-// Checked at the one place the state is built. A fixture whose .idsd/ is not tracked is external,
+// This runs at the single place the state is built. A fixture whose .idsd/ is not tracked is external,
 // and the committed-mode branches its cases test (discard's refusal, check-ignore's warning, init's
 // acceptance) answer the same way in both modes. So every case above such a fixture passes while
 // testing nothing, all at once.
@@ -215,7 +215,7 @@ func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
 // Where a run from this directory gets its repository answers.
 //
 // A linked worktree answers for itself. Its git dir is its OWN and its common dir is the clone's, and
-// the whole scratch location rests on that difference — one table answering both would give every
+// the whole scratch location rests on that difference. One table answering both would give every
 // caller the main tree's git dir and pass a tool that had stopped asking.
 func (f *fixture) repoGit(dir string) repo.Git {
 	fake := f.fake
@@ -272,9 +272,9 @@ func (f *fixture) shipDir(name string) string {
 }
 
 // Where this fixture's scratch directory is, by the same rule the tool applies: in the tree while
-// .idsd/ is tracked, under the shared git dir otherwise. Asked of the index rather than of the tool,
-// because every assertion helper below calls this and running the tool here would overwrite the f.out
-// and f.status the case is about to read.
+// .idsd/ is tracked, under the shared git dir otherwise. The index answers this, since every
+// assertion helper calls it. A run of the tool here would overwrite the f.out and f.status the case
+// is about to read.
 func (f *fixture) scratch() string {
 	if f.isTracked(".idsd") {
 		return f.treeIdsd()
@@ -284,8 +284,8 @@ func (f *fixture) scratch() string {
 
 // This fixture's repo path as the tool records it, and the base every location below is built from.
 //
-// Physically resolved, because that is the root the tool resolves: layoutRoot answers physically, and
-// so does git's own `--show-toplevel`, so on macOS a fixture under /var is reported under /private/var.
+// Physically resolved, because that is the root the tool resolves. layoutRoot answers physically, and
+// git's own `--show-toplevel` does too. On macOS a fixture under /var is reported under /private/var.
 func (f *fixture) canonicalRepo() string {
 	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
 		return real
@@ -364,9 +364,9 @@ func (f *fixture) writeOverride(content string) {
 // reach it, so there is nothing to hide and no exclusion to keep in step across worktrees. Stronger
 // than what it replaced — an exclude entry can be edited away, a path outside the tree cannot.
 //
-// Asked of the working tree itself rather than of `git status`: what makes the property hold is that
-// nothing named .idsd exists anywhere under the root, which is also what git would have to be reading
-// to report one. Whether git's own status sees a path inside the tree is `repo/exec_test.go`'s.
+// The working tree itself is asked, and `git status` is left out of it. The property holds when no
+// file named .idsd exists anywhere under the root, which is also what git would have to be reading to
+// report one. Whether git's own status sees a path inside the tree is `repo/exec_test.go`'s.
 func (f *fixture) treeIsFreeOfScratch() bool {
 	for _, path := range f.find(f.repo) {
 		if strings.HasPrefix(path, f.repo+"/.git") {
@@ -444,12 +444,10 @@ func (f *fixture) newDurableCharter() {
 	f.write(f.treeIdsd()+"/charter.md", "# durable\n")
 }
 
-// The HOME every case runs against: a fixture directory holding the one script the tool looks for
-// before it fingerprints. Its CONTENT is never run — the recipe is called in process through
-// Invocation.Fingerprint, and currentTree only asks whether the install is complete — so the body is a
-// refusal, which is what a case would see if that ever stopped being true. Written rather than copied
-// from this checkout, so the suite reads nothing `go test` cannot key its cache on, and so a case may
-// chmod it without reaching the real install.
+// The HOME every case runs against, holding the script the tool looks for before fingerprinting. Its
+// CONTENT never runs, since Invocation.Fingerprint calls the recipe in process and currentTree only
+// checks that the install is complete. The body is a refusal, so a case sees one when that stops
+// holding. Written here and never copied in, so `go test` can cache the suite and a case may chmod it.
 func (f *fixture) newFlavorHome() {
 	f.t.Helper()
 	f.home = f.base + "/home"
@@ -464,9 +462,9 @@ func (f *fixture) fingerprintScriptIn(home string) string {
 	return home + "/.kk-flavor/scripts/tree-fingerprint.sh"
 }
 
-// The skill dir the tool resolves its template from, written by the fixture: scripts beside templates,
-// the layout the tool derives that path from. So a case can break the template without touching this
-// checkout's own, and one per case means no mutation carries.
+// Writes the skill dir the tool resolves its template from: scripts beside templates, the layout the
+// tool derives that path from. A case can break the template and leave this checkout's own copy
+// alone, and one copy per case keeps a mutation inside the case that made it.
 func (f *fixture) newSkillCopy() {
 	f.t.Helper()
 	f.skill = f.base + "/skill"
@@ -521,17 +519,17 @@ func (f *fixture) inSubtest(t *testing.T) *fixture {
 	return &bound
 }
 
-// Everything this tool has staged in the fixture so far, which is the whole of what it can do to a
-// human's index: the one write in `ai/tools/repo`'s port is Add, and the fake records every path it is
-// given.
+// Everything this tool has staged in the fixture up to now, which is the whole of what it can do to a
+// human's index. Add is the single write in `ai/tools/repo`'s port, and the fake records every path
+// it is given.
 func (f *fixture) indexState() string {
 	f.t.Helper()
 	return "staged:" + sortedWords(f.staged())
 }
 
 // A counter around this fixture's fingerprint, for the case whose subject is how MANY times one run
-// walks the tree. Wraps whatever the fixture already had rather than naming a recipe of its own, so
-// there is one answer in this suite to where a fingerprint comes from.
+// walks the tree. Wraps whatever the fixture already had, so the fixture keeps a single source for
+// its fingerprint.
 func (f *fixture) countFingerprints() *int {
 	f.t.Helper()
 	calls := 0
@@ -551,13 +549,13 @@ func (f *fixture) nonEmptyLinesIn(path string) int {
 	return countNonEmptyLines(string(content))
 }
 
-// Say which file git would name as ignoring each ship's working files, for the cases whose subject is
-// that the source decides. `.gitignore` travels with the repository and nothing else does, which is the
+// The entries are expanded here because `check-ignore` reads its argument as a literal pathname. An
+// entry holding `*` can only be asked about through a path it covers, and the tool's own ignoreProbe
+// does the same.
+
+// Says the file git would name as ignoring each ship's working files, for the cases whose subject is
+// the source. `.gitignore` travels with the repository and other sources do not, which is the
 // difference the tool turns on.
-//
-// The entries are expanded here because `check-ignore` reads its argument as a literal pathname — an
-// entry holding `*` can only be asked about through a path it covers, which is what the tool's own
-// ignoreProbe does.
 func (f *fixture) ignoreShipFiles(source string, slugs ...string) {
 	f.t.Helper()
 	var paths []string
@@ -569,21 +567,20 @@ func (f *fixture) ignoreShipFiles(source string, slugs ...string) {
 	f.ignore(source, paths...)
 }
 
-// The fake, plus the things a table cannot hold on its own: after `git add`, the index HOLDS what
-// was staged. `promote` reads exactly that back — through repoMode, and deliberately rather than
-// through the add's exit, because `git add` on a directory whose every file is ignored stages nothing
-// and still succeeds. A fake that only recorded the request would answer "still external" and every
-// promotion would refuse.
-//
 // Only the files git would really have staged: an ignorable ship working file is not added, which is
 // the state that refusal exists for.
+
+// The fake, plus the things a table cannot hold on its own: after `git add`, the index HOLDS what was
+// staged. `promote` reads that back through repoMode, and the add's exit is deliberately left out of
+// it. `git add` over a directory whose every file is ignored stages zero paths and still exits 0. A
+// fake that only recorded the request would answer "still external", and every promotion would refuse.
 type stagingRepo struct {
 	*repotest.Fake
 	f *fixture
 }
 
-// The tree's own .gitignore decides first, as it does for git; anything a case stated answers what it
-// does not cover. gitignoreSourceFor holds why this is read per question rather than arranged once.
+// The tree's own .gitignore decides first, as it does for git. Anything a case stated answers what it
+// does not cover. gitignoreSourceFor holds why this is read per question and never arranged once.
 func (s stagingRepo) IgnoreSource(dir, full string) (string, error) {
 	defer s.holdTheRepository()()
 	if source, matched := s.f.gitignoreSourceFor(full); matched {
@@ -622,13 +619,13 @@ func (s stagingRepo) Add(dir string, paths []string) error {
 	return nil
 }
 
+// Arranged here, and never provoked through a permission bit. Root ignores mode bits, so `chmod 000
+// .git/index` restricts no CI image that runs as root. These cases used to take that form, and each
+// then skipped itself on exactly the machine that runs it most — see testing.md.
+
 // Make one repository question fail, as an unreadable index or a concurrent `git add` makes git's own
 // answer fail. `question` is the port method's name — "Tracked" is the index read the repo mode rests
-// on, "Add" the one write this tool makes.
-//
-// Arranged rather than provoked through a permission bit. Root ignores mode bits, so the `chmod 000
-// .git/index` form these cases used to take could not restrict a CI image running as one, and the case
-// then skipped itself on exactly the machine that runs it most — testing.md → **4. Setup strategy**.
+// on, "Add" the single write this tool makes.
 func (f *fixture) failsToAnswer(question, reason string) {
 	f.t.Helper()
 	f.fake.Fail[question] = errors.New(reason)
@@ -639,10 +636,10 @@ func (f *fixture) answersAgain(question string) {
 	delete(f.fake.Fail, question)
 }
 
-// Read off the working tree rather than from a list a case kept in step with it: what `ls-files
-// --others --exclude-standard` answers is "present on disk, not in the index, not ignored", and every
-// case that writes a file into the fixture means exactly that. Declared over stated, so a case cannot
-// write a file and forget to mention it — which would read as a scope with nothing in it.
+// Read off the working tree, and never off a list a case keeps in step with it. What `ls-files
+// --others --exclude-standard` answers is "on disk, outside the index, and unignored", and every case
+// that writes a file into the fixture means exactly that. A case cannot write a file and forget to
+// mention it, which would otherwise read as an empty scope.
 func (s stagingRepo) Untracked(dir string, pathspec ...string) ([]string, error) {
 	if _, err := s.Fake.Untracked(dir, pathspec...); err != nil {
 		return nil, err
@@ -669,10 +666,10 @@ func (s stagingRepo) Untracked(dir string, pathspec ...string) ([]string, error)
 	return names, nil
 }
 
-// IgnoreSource, Add and Untracked are the whole of this wrapper: each answers something a table cannot
-// hold on its own, and each reads the FIXTURE — its files, its .gitignore, its staged list — which is
-// the state this lock guards. repotest.Fake holds a lock of its own, so a method that only forwarded
-// would add nothing here, and none does.
+// IgnoreSource, Add and Untracked are the whole of this wrapper. Each answers something a table cannot
+// hold on its own, and each reads the FIXTURE: its files, its .gitignore, its staged list. That is the
+// state this lock guards. repotest.Fake holds a lock of its own, and a plain forwarding method would
+// add no guard, so this wrapper has none.
 func (s stagingRepo) holdTheRepository() func() {
 	s.f.asking.Lock()
 	return s.f.asking.Unlock

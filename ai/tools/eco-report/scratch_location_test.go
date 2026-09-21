@@ -22,7 +22,7 @@ func TestEveryWorktreeOfACloneSeesTheOneScratchDirectory(t *testing.T) {
 	f.newIntentFile("001-shared")
 	second := f.newLinkedWorktree("second-worktree")
 	// The fixture's own precondition: a linked worktree's git dir is its OWN and its common dir is the
-	// clone's, which is the whole shape the two answers below turn on. A `.git` this tool read as an
+	// clone's, which is the whole shape the two answers here turn on. A `.git` this tool read as an
 	// ordinary directory would resolve one location twice and pass.
 	f.record("fixture: the second checkout is a linked worktree of the first",
 		f.read(second+"/.git") != "" && f.read(f.repo+"/.git/worktrees/second-worktree/commondir") != "", "")

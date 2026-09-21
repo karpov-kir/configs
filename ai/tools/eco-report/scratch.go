@@ -124,8 +124,8 @@ func (r *run) cmdPromote() {
 	// The index moves here, so the memoized `ls-files .idsd` answer goes with it: it is what decides
 	// committed from external, and `discard` reads that before deleting.
 	r.forgetIndexAnswers()
-	// git's account of a failed add is what the human gets: it names the paths it could not stage, and
-	// it is collapsed to one line for the reason sayWhatGitSaid states.
+	// git's account of a failed add is what the human gets, and it names the paths it could not stage.
+	// One line, for the reason sayWhatGitSaid states.
 	if err := r.git.Add(r.root, []string{".idsd", ".gitignore"}); err != nil {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.",
 			"  git said: "+shell.Oneline(err.Error()))

@@ -31,9 +31,9 @@ func TestAGlobalExcludeDoesNotCountAsIgnoringTheReport(t *testing.T) {
 	t.Parallel()
 	f := newCommittedRepoUnignored(t)
 	// An absolute source is what `check-ignore -v` names for a `core.excludesFile` outside the
-	// repository, and an absolute path is what the tool keys on. The arrangement is stated rather than
-	// probed for: that git really names the excludesFile that way is git's own, held in
-	// `repo/exec_test.go`.
+	// repository, and an absolute path is what the tool keys on. The arrangement is stated here and
+	// never probed for. That git really names the excludesFile that way is git's own question, and
+	// `repo/exec_test.go` holds it.
 	f.ignoreShipFiles(f.base+"/global-exclude", "001-global-only")
 	f.runReport("init", "001-global-only")
 	f.assertRefused("init refuses when only a global core.excludesFile ignores the reports directory")
@@ -94,8 +94,8 @@ func TestAGitignoreEntryIsWrittenOnceAndNeverFusedOntoTheLastLine(t *testing.T) 
 			containsLine(f.read(gitignore), "*.scratch"),
 		"exit "+strconv.Itoa(f.status)+"; .gitignore now reads:\n"+f.read(gitignore))
 	// Whether a fused line still matches is git's own question, and `repo/exec_test.go` holds git to it.
-	// What this case can see is the file: two lines, each whole, which is the only state in which either
-	// rule can match at all.
+	// What this case can see is the file: two lines, each whole, and that is the only state where
+	// either rule can match at all.
 	f.record("and the human's own rule is still a line of its own, unfused",
 		countLinesEqual(f.read(gitignore), "*.scratch") == 1 &&
 			countLinesEqual(f.read(gitignore), reportEntry()) == 1,

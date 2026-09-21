@@ -1,8 +1,8 @@
 package ecoreport_test
 
-// What `scope` may let a pass skip, and what it must not. Every case drives `repotest.Fake`: the
-// change set is a table of what each revision holds, and the two cases below that turn on a file's
-// MODE state the change verbatim, because a fake holding content can only ever derive an ordinary one.
+// What `scope` may let a pass skip, and what it must not. Every case drives `repotest.Fake`, where the
+// change set is a table of what each revision holds. The two cases that turn on a file's MODE state
+// the change verbatim, because a fake holding content can only ever derive an ordinary mode.
 
 import (
 	"os"
@@ -14,11 +14,9 @@ import (
 )
 
 // The change set the table derives, with one path's SOURCE MODE replaced by one a table of content
-// could never hold.
-//
-// Derived first, and that is the whole care in it: the record's source BLOB has to be one the table
-// really holds, because an id it does not resolve reads back as "could not be read" — which requires
-// every stage on its own account and would let a case pass with the mode check gone.
+// could never hold. The set is derived first, because the record's source BLOB has to be one the table
+// really holds. An id the table cannot resolve reads back as "could not be read". That requires every
+// stage on its own account, and would let a case pass with the mode check gone.
 func (f *fixture) changeModeAtBase(base, path, mode string) {
 	f.t.Helper()
 	derived, err := f.fake.ChangedWithStatus(f.repo, []string{base}, nil)
@@ -106,15 +104,15 @@ func TestScopeSeesCommittedRenamedDeletedAndLinkedCode(t *testing.T) {
 			base := f.commitNamed("base", map[string]string{"tracked.txt": "base\n"})
 			switch kind {
 			case "symlink":
-				// Untracked and not a regular file, so nothing about it can be read as prose.
+				// Untracked, and a symlink instead of a regular file, so its content cannot be read as prose.
 				f.symlink("tracked.txt", f.repo+"/notes.md")
 			case "committed":
 				// Code that landed after the base: the change set holds it as an addition.
 				f.write(f.repo+"/source.go", "package source\n")
 				f.track("source.go")
 			case "renamed":
-				// The same code under a prose name. Its CONTENT would pass for prose, so what keeps the
-				// obligation is the path it had at the base — which only the diff's source side carries.
+				// The same code under a prose name. Its CONTENT would pass for prose, so the obligation
+				// rests on the path it had at the base. Only the diff's source side carries that path.
 				base = f.commitNamed("base", map[string]string{"tracked.txt": "base\n", "source.go": "package source\n"})
 				f.write(f.repo+"/notes.md", "package source\n")
 				f.fake.Revs[repotest.WorkTree] = map[string]string{"tracked.txt": "base\n", "notes.md": "package source\n"}
@@ -133,14 +131,14 @@ func TestScopeSeesCommittedRenamedDeletedAndLinkedCode(t *testing.T) {
 	}
 }
 
-// The two fields of a raw diff record that no reading of the tree recovers, each with the row that
-// goes red without it. Both are about the side that is GONE: what a path WAS at the base decides its
-// review obligation whatever stands there now, and the tree holds no trace of either.
+// The two fields of a raw diff record that a reading of the tree cannot recover, each with the row
+// that goes red in its absence. Both are about the side that is GONE. What a path WAS at the base
+// decides its review obligation whatever stands there now, and the tree holds no trace of either.
 func TestScopeReadsWhatAPathWasAtTheBaseAndNotOnlyWhatItIsNow(t *testing.T) {
 	t.Parallel()
 
-	// The source BLOB. Deleting prose is still a prose change, so the stages its content does not touch
-	// stay skippable — and the content is only reachable through the blob the record names.
+	// The source BLOB. A prose deletion is still a prose change, so the stages its content does not
+	// touch stay skippable. The content is only reachable through the blob the record names.
 	t.Run("prose deleted at the base is read as the prose it was", func(t *testing.T) {
 		f := newShip(t, "001-prose-gone")
 		base := f.commitNamed("base", map[string]string{"tracked.txt": "base\n", "notes.md": "# Notes\nPlain prose.\n"})
@@ -152,9 +150,9 @@ func TestScopeReadsWhatAPathWasAtTheBaseAndNotOnlyWhatItIsNow(t *testing.T) {
 		f.assertReports("refactor: not-applicable", "and no refactor")
 	})
 
-	// The source MODE. The bytes on both sides are ordinary prose; only the mode says this file was
+	// The source MODE. The bytes on both sides are ordinary prose. Only the mode says this file was
 	// something a reader executes or follows, and a scan that skipped on content alone would let it
-	// through. Stated verbatim rather than derived, since a table of content knows nothing about modes.
+	// through. Stated verbatim, since a table of content carries no mode of its own.
 	for _, was := range []struct{ name, mode string }{
 		{"executable", "100755"},
 		{"a symlink", "120000"},

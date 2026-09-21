@@ -173,9 +173,9 @@ func (f *fixture) takeMergeSlotFrom(intent, worktree string) {
 		intent+"\n"+worktree+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
 }
 
-// The slot lives in the git dir every worktree of the clone shares, which for an ordinary repository
-// is the repository's own `.git` — resolved from the canonical repo path, because that is the root the
-// tool resolves and a slot written beside a symlinked one is a slot nothing else finds.
+// The slot lives in the git dir every worktree of the clone shares. For an ordinary repository that is
+// the repository's own `.git`, at the canonical repo path. The tool resolves that same root, and a
+// slot written beside a symlinked path is a slot no other run finds.
 func (f *fixture) mergeSlotPath() string {
 	f.t.Helper()
 	return f.canonicalRepo() + "/.git/idsd-merge-slot"

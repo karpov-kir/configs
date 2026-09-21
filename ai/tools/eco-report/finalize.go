@@ -255,8 +255,9 @@ func (r *run) cmdFinalize(args []string) {
 // directory pathspec sweeps in strays, and exits 0 having staged nothing when all its files are ignored.
 func (r *run) stageArchivedShip(stem string) string {
 	target := r.archiveDir(stem)
-	// The ship folder as a pathspec has to be root-relative: this only runs in committed mode, where the
-	// folder is inside the tree, and an absolute pathspec names a path outside a linked worktree's own.
+	// The ship folder as a pathspec has to be root-relative. This only runs in committed mode, where
+	// the folder is inside the tree, and an absolute pathspec names a path outside a linked worktree's
+	// own root.
 	vacated := strings.TrimPrefix(r.shipDir(stem), r.root+"/")
 	// One read, two answers: whether the vacated path needs staging at all, and which files the removal
 	// it stages will cover.

@@ -5,17 +5,15 @@ import (
 	"strings"
 )
 
-// What indents a markdown line here. The scan this replaced ran awk under LC_ALL=C, whose
-// `[[:space:]]` covers the carriage return, the vertical tab and the form feed as well as space and
-// tab, so a fence or an item pushed right by one of those is still seen.
+// What counts as indentation on a markdown line here. The awk scan this replaced ran under LC_ALL=C,
+// where `[[:space:]]` covers carriage return, vertical tab and form feed too. A fence or an item
+// pushed right by one of those is still found.
 const markdownIndent = " \t\r\v\f"
 
-// The open `- [ ]` a markdown file still carries, each under the heading it sits beneath, and an
-// error when the file could not be read at all. A caller has to tell those two apart: no items and an
-// unread file both come back with nothing to print, and read as "nothing open" a report nothing
-// opened passes the merge gate still holding unrouted findings.
-//
-// Fence- and comment-aware, so a checkbox written as an EXAMPLE in a report never blocks a merge.
+// Returns the open `- [ ]` items a markdown file carries, each under the heading it sits beneath, or
+// an error when the file could not be read. An empty result and a read failure look the same here, so
+// a caller that ignores the error lets a report it never read pass the merge gate. Checkboxes inside a
+// fence or an HTML comment are skipped, so an example in a report does not block a merge.
 func openItemsIn(path string) (string, error) {
 	body, err := os.ReadFile(path)
 	if err != nil {
@@ -36,11 +34,10 @@ func openItemsIn(path string) (string, error) {
 	return strings.Join(found, "\n"), nil
 }
 
-// The lines a reader of this markdown actually sees, plus whether a fence or a comment was still open
-// at the end of it. Two readers walk this and they answer that flag differently: the open-item scan
-// reports what it could see, since a fence nobody closed is a typo and blocking every merge behind one
-// is worse than missing an item; the stage-result reader refuses the file, because there the hidden
-// line is a finding someone submitted.
+// Returns the lines a reader of this markdown sees, and whether a fence or an HTML comment was still
+// open at the end. The open-item scan reports what it could see, treating an unclosed fence as a typo
+// too small to block every merge. The stage-result reader refuses such a file, because a line hidden
+// there is a finding someone submitted.
 func visibleMarkdownLines(body string) (visible []string, leftOpen bool) {
 	inFence, inComment := false, false
 	for _, line := range strings.Split(body, "\n") {
@@ -65,9 +62,9 @@ func visibleMarkdownLines(body string) (visible []string, leftOpen bool) {
 	return visible, inFence || inComment
 }
 
-// `^#{1,6} `, on the line as written. Markdown stops at six hashes, so a seventh does not open a
-// section and the items under it keep the heading they were already under. An indented `#` is not a
-// heading either.
+// Reports whether the line is `^#{1,6} `, on the line as written. Markdown stops at six hashes, so a
+// run of seven opens no section and its items keep the heading already in force. An indented `#` does
+// not open one either.
 func isMarkdownHeading(line string) bool {
 	hashes := 0
 	for hashes < len(line) && line[hashes] == '#' {

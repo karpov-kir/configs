@@ -90,7 +90,7 @@ func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 	// The mode decides whether .idsd/ is durable, so every caller that acts on it owes the check.
 	f := newShip(t, "001-modes")
 	f.failsToAnswer("Tracked", "fatal: index file open failed: Permission denied")
-	// Again the message rather than the exit: without the assertion both subcommands still exit 2,
+	// Again the message instead of the exit: without the assertion both subcommands still exit 2,
 	// because a later git call fails on the same unreadable index. Only the message tells the two
 	// apart, and only the assertion stops the mode being read as "external", the answer that deletes.
 	f.runReport("promote")

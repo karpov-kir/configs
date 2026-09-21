@@ -12,7 +12,7 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The primitives this tool holds itself, ported from the shell version: what `ai/tools/shell`
+// The primitives this tool holds itself, a port of the shell version: what `ai/tools/shell`
 // does not already share with every tool here, plus the directory walk two refusals count through. Each
 // is here because a refusal in this tool turns on its exact edges — what `rm -f` refuses, what `mv` does
 // across devices, which question `-r` and `-x` really asked, and what `find -type f` does and does not
