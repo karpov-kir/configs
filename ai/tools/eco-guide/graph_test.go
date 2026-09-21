@@ -109,8 +109,8 @@ func graphBlock(t *testing.T, output, name string) string {
 // a `skills/` path, the shape the three door-keeping lanes have, and `kk-qualify` names all three in
 // column two of its Lanes table **by bare name** — the spelling that table defines as "a door you
 // invoke". This case used to spell that edge `~/.kk-flavor/skills/kk-edit/SKILL.md`, which occurs
-// zero times in the tree: it passed over a fixture nothing in the repository looks like, so the rule
-// it named was exercised by nothing real. Two of the three appeared in the map anyway, off column *three*'s `scripts/*.sh`
+// zero times in the tree. The fixture matched no file in the repository, so the rule it named went
+// unexercised. Two of the three appeared in the map anyway, off column *three*'s `scripts/*.sh`
 // path cut at the first slash, and `kk-diagnose` — which owns no script — appeared nowhere at all.
 func TestASkillsPathWithAWorkerRowIsADispatchAndNotARead(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{

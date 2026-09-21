@@ -11,17 +11,19 @@ import (
 )
 
 // The only case in this package that forks. Every other one hands the checker a bash that answers from
-// a table: two parses per script cost this suite 802 processes at ~100ms each, and none of them were
-// about what the checker does with the answer. What a table cannot stand in for is the answer itself —
-// that `bash -n` says something about a script that will not parse and nothing about one that will, and
-// that the older bash refuses what the newer accepts. So this one drives the real binaries, over a
-// fixture of its own holding one script of each kind.
-//
-// The root opens with a dash, which is scripts.go's `--` rule: without it `bash -n -r/…` answers `-r:
-// invalid option`, dumps its usage, and never opens the file. The root has to be relative, because an
-// absolute one always opens on `/`, and that is what the chdir is for.
-//
-// One run, read by every case below. A fixture per case would multiply the only forks left here by four.
+// a table, and two parses per script cost this suite 802 processes at ~100ms each. Those processes
+// said little about what the checker does with the answer.
+
+// A table cannot stand in for the answer itself. `bash -n` reports a script that will not parse and
+// stays quiet about one that will, and the older bash refuses what the newer accepts. So this case
+// drives the real binaries, over a fixture of its own holding one script of each kind.
+
+// The root opens with a dash, which is scripts.go's `--` rule. `bash -n -r/…` without it answers `-r:
+// invalid option`, dumps its usage, and leaves the file unopened. The root has to be relative, because
+// an absolute one always opens on `/`, and that is what the chdir is for.
+
+// One run, and every case in this function reads it. A fixture per case would multiply the only forks
+// left here by four.
 func newRealBashRun(t *testing.T) (root string, output string) {
 	t.Helper()
 	base := t.TempDir()
@@ -60,8 +62,9 @@ func TestTheParseScanRunsARealBash(t *testing.T) {
 		}
 	})
 
-	// Without this the case above passes over a scan that calls every script a syntax error, and the
-	// tables every other case here is written against would be standing in for nothing.
+	// The control for "reports the script's own syntax error". A scan that called every script a syntax
+	// error would pass that case. The tables every other case here is written against would then be
+	// standing in for a bash that refuses everything.
 	t.Run("and raises no syntax error for the script that parses (control for the case above)", func(t *testing.T) {
 		needle := ecocheck.SyntaxError + root + "/kk-flavor/skills/parses.sh"
 		if strings.Contains(output, needle) {
@@ -75,9 +78,9 @@ func TestTheParseScanRunsARealBash(t *testing.T) {
 		}
 	})
 
-	// The second binary earning its process. macOS still ships 3.2 as /bin/bash and skills reach their
-	// scripts through `#!/usr/bin/env bash`, so a construct only bash 5 accepts is a stage that dies on
-	// a colleague's machine and nowhere else.
+	// The second binary earning its process. macOS still ships 3.2 as /bin/bash, and skills reach their
+	// scripts through `#!/usr/bin/env bash`. A construct only bash 5 accepts is a stage that dies on a
+	// colleague's machine and nowhere else.
 	t.Run("reports a construct only the newer bash accepts, under the older one", func(t *testing.T) {
 		if !refusesTheBash4Pipe(t, "/bin/bash") || refusesTheBash4Pipe(t, "bash") {
 			t.Skip("this machine has no pair of bash binaries that disagree about `|&`, so nothing here separates them")
@@ -120,9 +123,9 @@ func TestScriptTestPosition(t *testing.T) {
 		newCoveredScript(t).doesNotReport(noPosition)
 	})
 
-	// A script whose cases are in the module. `ai/mcp-env.sh` is the one that cannot have a `-test.sh`:
-	// an MCP client launches it from a path written into a config, so it stays shell and a Go package
-	// execs it once per case.
+	// A script whose cases are in the module. `ai/mcp-env.sh` is the script in this tree that cannot
+	// have a `-test.sh`. An MCP client launches it from a path written into a config, so it stays shell
+	// and a Go package execs it once per case.
 	t.Run("accepts a header naming a Go package that holds a suite", func(t *testing.T) {
 		f := newRoot(t)
 		f.mkdirAll(f.root + "/ai/tools/launcher")
@@ -131,9 +134,9 @@ func TestScriptTestPosition(t *testing.T) {
 		f.doesNotReport(noPosition, missingTest)
 	})
 
-	// The tools root package is an answer too, and the one a script outside that Go module has to give:
-	// Go keys a test cache on the module, so a package under it would answer `ok (cached)` over a script
-	// that had changed. Named without a subdirectory, which is how that package is spelt.
+	// The tools root package is an answer too, and a script outside that Go module has to give it. Go
+	// keys a test cache on the module, and a package under it answers `ok (cached)` over a script that
+	// had changed. The header names it with no subdirectory, which is how that package is spelt.
 	t.Run("accepts a header naming the tools root package", func(t *testing.T) {
 		f := newRoot(t)
 		f.mkdirAll(f.root + "/ai/tools")
@@ -142,8 +145,8 @@ func TestScriptTestPosition(t *testing.T) {
 		f.doesNotReport(noPosition, missingTest)
 	})
 
-	// Held to what a named -test.sh is held to: naming a package that is not there would leave the
-	// script counting as covered by a suite nobody runs.
+	// A header naming a Go package is held to what a named -test.sh is held to. A package that is absent
+	// would leave the script counting as covered by a suite that does not exist.
 	t.Run("fires on a header naming a Go package with no suite in it", func(t *testing.T) {
 		f := newRoot(t)
 		f.mkdirAll(f.root + "/ai/tools/launcher")
@@ -384,8 +387,8 @@ func unexpectedThen(line int) string {
 //
 // Every case here checks the tree twice, because the memo is held for the process and one run cannot
 // observe it: the parse workers reach both copies of a script at once, and neither has stored anything
-// yet. A fixture's bash names its binaries after its own case, so what one case stored can never answer
-// another's — the memo is keyed on the binary as well as the bytes.
+// yet. A fixture's bash names its binaries after its own case, so what one case stored can never
+// answer another's. The memo is keyed on the binary as well as the bytes.
 func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 	// The half that would be a silent hole. Both copies are reported by their own path on a run where
 	// the bytes have been seen before, or a tree hides a broken script behind a clean one.
@@ -413,10 +416,10 @@ func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 		newRepeatedScript(t, "# untested: fixture\ntrue").doesNotReportOnASecondRun(ecocheck.SyntaxError)
 	})
 
-	// What the memo is FOR, and the only place it is observable: it changes no finding, it only decides
+	// What the memo is FOR, and the only place it is observable. It changes no finding. It decides
 	// whether a check pays a process for bytes it has already been answered about. A real run of this
-	// repository walks 29 distinct scripts and parses each under two binaries; without the memo the suite
-	// in front of it spent 802 processes at ~100ms each.
+	// repository walks 29 distinct scripts and parses each under two binaries. With the memo gone, the
+	// suite in front of it spent 802 processes at ~100ms each.
 	t.Run("asks nothing of a second run over bytes it has already parsed", func(t *testing.T) {
 		f := newRepeatedScript(t, "# untested: fixture\ntrue")
 		first, second := f.parseCounts()

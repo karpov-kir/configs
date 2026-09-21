@@ -140,12 +140,14 @@ func TestARouterWithNoReadAlwaysHeadingListsNothing(t *testing.T) {
 	}
 }
 
-// Contains and HoldsSkillFile ask the same question of the same root — is this file's directory at or
-// under the checkout — and they used to answer it differently. HoldsSkillFile left the equality case
-// out and left the unresolved root out with it, so the two rows below are one predicate's two ends.
-//
-// A file sitting AT the root is this tree's own. Nothing mounts a skill there today, which is why the
-// omission never showed; a predicate whose answer depends on that staying true is one nobody can read.
+// Contains and HoldsSkillFile ask the same question of the same root, is this file's directory at or
+// under the checkout, and they used to answer it differently. HoldsSkillFile left the equality case
+// out and left the unresolved root out with it, so this case and TestAnUnresolvedRootHoldsNothing are
+// one predicate's two ends.
+
+// A file sitting AT the root is this tree's own. The tree mounts every skill under kk-flavor/skills
+// today, which is why the omission never showed. A predicate whose answer depends on that staying true
+// is a predicate a reader cannot trust.
 func TestAFileAtTheRootItselfBelongsToTheTree(t *testing.T) {
 	_, dir := newCheckout(t, "")
 	file := dir + "/SKILL.md"
@@ -164,11 +166,15 @@ func TestAFileAtTheRootItselfBelongsToTheTree(t *testing.T) {
 	}
 }
 
-// A Root that did not resolve holds NOTHING. It is the zero value New hands back when it refuses, so a
-// caller that read the answer and not the flag reaches it — and the containment test then compares
-// against the empty string, which every absolute path begins with. eco-stats counts a skill this
-// answers yes for as the checkout's own, so a root that resolved to nothing would silently report
-// that nothing is mounted from anywhere else.
+// The zero value is what New hands back when it refuses, so a caller that read the answer and skipped
+// the flag reaches it. The containment test then compares against the empty string, which every
+// absolute path begins with.
+
+// eco-stats counts a skill this predicate accepts as the checkout's own. A root that resolved to the
+// empty string would count every mounted skill as the checkout's own, and the figure for skills
+// mounted from elsewhere would silently read zero.
+
+// An unresolved Root contains no file.
 func TestAnUnresolvedRootHoldsNothing(t *testing.T) {
 	_, dir := newCheckout(t, "")
 	file := dir + "/kk-flavor/skills/elsewhere/SKILL.md"

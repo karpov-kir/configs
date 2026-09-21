@@ -36,8 +36,8 @@ const (
 var (
 	namedTestSuite   = regexp.MustCompilePOSIX(`[A-Za-z0-9_.-]+-test\.sh`)
 	untestedDeclared = regexp.MustCompilePOSIX(`^#[[:space:]]*untested:[[:space:]]*[^[:space:]]`)
-	// `ai/tools` itself is a package and an answer: a case whose subject sits outside that Go module —
-	// this script does — belongs in its root package, because Go keys a test cache on the module and a
+	// `ai/tools` itself is a package and an answer. A case whose subject sits outside that Go module,
+	// as this script does, belongs in the root package. Go keys a test cache on the module, and a
 	// package under it would answer `ok (cached)` over a file that had moved.
 	goSuiteDeclared   = regexp.MustCompilePOSIX(`the Go suite in (ai/tools[A-Za-z0-9_/-]*)/`)
 	sharedRegionOpen  = regexp.MustCompilePOSIX(`^[[:space:]]*# --- shared:[A-Za-z0-9_-]+ ---[[:space:]]*$`)
@@ -52,16 +52,19 @@ type parseResult struct {
 	findings []string
 }
 
+// The map is held for the process, and the saving is there.
+
+// A single check cannot use the map. The parse workers reach every copy of a script before any worker
+// has stored anything. One check of this tree parses 88 times over 44 distinct scripts whatever this
+// map holds.
+
+// What it answers is a SECOND check in the same process, and TestRepeatedScriptContentIsParsedOnce
+// holds that second check to zero parses. Two runs sharing this map cannot see each other, because a
+// hit is keyed on the bytes and returns what the parse would have returned for them.
+
 // Every (binary, script content) pair already seen to parse clean. `bash -n` reads the file and
 // nothing else, so under a fixed binary and a fixed locale it is a function of the script's bytes: a
 // file whose content another file has already parsed clean needs no process of its own.
-//
-// Held for the process rather than the run, which is where the saving is. A single check cannot use it
-// — the parse workers reach every copy of a script before any of them has stored anything — so one
-// check of this tree parses 88 times over 44 distinct scripts whatever this map holds. What it answers
-// is a SECOND check in the same process, and TestRepeatedScriptContentIsParsedOnce is what holds that
-// one to zero parses. Two runs sharing this map cannot see each other, because a hit is keyed on the
-// bytes and returns what the parse would have returned for them.
 //
 // Keyed on SHA-256 and not on a cheaper digest: the reviewed tree writes the scripts, and a digest it
 // could collide would let a broken script inherit a clean one's answer.
@@ -72,7 +75,7 @@ type parseResult struct {
 var cleanParses sync.Map
 
 // Skills reach their scripts by path (`scripts/report.sh …`), so a lost exec bit is a stage that
-// cannot run at all. And a script is parsed under every bash `#!/usr/bin/env bash` could resolve to;
+// cannot run at all. A script is also parsed under every bash `#!/usr/bin/env bash` could resolve to.
 // bash.go's port holds which those are and why there is more than one.
 func (c *checker) scanScriptsParse() {
 	scripts := c.filesNamed(c.root.Named(), "*.sh")
@@ -235,20 +238,18 @@ func (c *checker) reportTestPosition(script string, lines []string, carriers map
 	}
 }
 
-// Whether a suite name in a header names no one file. A file of that name sitting beside the script
-// resolves it — "a case in <suite> beside it" is what the header says, and the tree answers it. So
-// does a name only one file anywhere under the root carries. What is left is two or more files under
-// one basename with none of them a sibling, and nothing in the tree says which covers this script.
-// Reported, never chosen between.
-// A script whose cases live in the Go module rather than in a `-test.sh` beside it. Some scripts
-// cannot have one: `ai/mcp-env.sh` is launched by an MCP client from a path written into a config, so
-// it stays shell while what covers it is a Go package that execs it once per case.
-//
-// Held to the same standard a named `-test.sh` is: the package has to be there and to hold a Go test
-// file. Naming one that is not is the failure this whole scan exists to prevent — the script then
-// counts as covered by a suite nobody runs. So a header naming a missing package gets the missing-test
-// finding rather than falling through to the untested one, which would tell the reader to write a
-// reason for a script that already states where its cases are.
+// Some scripts cannot have a `-test.sh`. `ai/mcp-env.sh` is launched by an MCP client from a path
+// written into a config, so it stays shell, and a Go package execs it once per case.
+
+// The named package is held to the standard a named `-test.sh` is: it has to be there and to hold a Go
+// test file. A header naming a package that is absent leaves the script counted as covered by a suite
+// that does not exist, which is the failure this scan prevents.
+
+// Such a header gets the scriptNamesMissingTest finding. A fall through to
+// scriptDeclaresNoTestPosition would ask the reader for a reason, and the script already states where
+// its cases are.
+
+// A script whose cases live in the Go module and in no `-test.sh` beside it.
 func (c *checker) namesGoSuite(script string, header []string) bool {
 	for _, line := range header {
 		match := goSuiteDeclared.FindStringSubmatch(line)
@@ -263,10 +264,9 @@ func (c *checker) namesGoSuite(script string, header []string) bool {
 	return false
 }
 
-// Whether any Go test file in the tree sits in the named package. Matched on the path's tail rather
-// than joined onto the named root, because that root is the directory the check was pointed at and a
-// header writes the package as a repository-relative path — the two agree only when the check was
-// pointed at the repository itself.
+// Whether any Go test file in the tree sits in the named package. The match is on the path's tail.
+// That named root is the directory the check was pointed at, and a header writes the package as a
+// repository-relative path. The two agree only where the check was pointed at the repository itself.
 func (c *checker) holdsGoSuite(pkg string) bool {
 	for _, path := range c.filesNamed(c.root.Named(), "*_test.go") {
 		if strings.HasSuffix(shell.DirName(path), "/"+pkg) {
@@ -276,6 +276,14 @@ func (c *checker) holdsGoSuite(pkg string) bool {
 	return false
 }
 
+// A file of that name beside the script resolves the name, since "a case in <suite> beside it" is what
+// the header says. A name carried by a single file anywhere under the root resolves it too.
+
+// What is left is two or more files under one basename, with none of them a sibling. The tree says
+// which covers this script in no other way. The check reports the name and leaves the choice to the
+// reader.
+
+// Whether a suite name in a header answers to more than one file.
 func suiteIsAmbiguous(script, suite string, carriers []string) bool {
 	if len(carriers) < 2 {
 		return false
@@ -289,10 +297,11 @@ func suiteIsAmbiguous(script, suite string, carriers []string) bool {
 	return true
 }
 
-// A script the tree treats as harness rather than as instruction. Held in one predicate because two
-// scans turn on it and they must not drift into different ideas of what a harness is — the
-// test-position scan asks nothing of these files, and the citation scan tells their author what to do
-// about a fixture it just read as a citation.
+// Two scans turn on this predicate, and one predicate keeps them agreeing on what a harness is. The
+// scan for test position asks these files no question, and the citation scan tells their author what
+// to do about a fixture it just read as a citation.
+
+// Whether the tree treats this script as harness.
 func isTestHarness(path string) bool {
 	base := shell.BaseName(path)
 	return strings.HasSuffix(base, "-test.sh")

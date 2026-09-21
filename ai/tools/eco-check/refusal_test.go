@@ -90,8 +90,8 @@ func TestARefusalIsBoundedHoweverLongTheRootItEchoes(t *testing.T) {
 // whether that reason survives the line bound above. A root here is a real directory rather than argv,
 // so PATH_MAX bounds it — but PATH_MAX is twice the width a refusal prints at, which is the whole gap.
 //
-// The reason is the port's error, which carries git's own words: `gitRefused` in gate_test.go is that
-// shape, and `repo/exec.go`'s gitError is where a real run makes it.
+// The reason is the port's error, and that error carries git's own words. `gitRefused` in
+// gate_test.go is that shape, and `repo/exec.go`'s gitError makes it on a real run.
 func TestTheGateRefusalStillNamesGitsReasonUnderALongRoot(t *testing.T) {
 	t.Parallel()
 	// Grown until the root alone would spend the line, whatever this machine's temp path costs. A

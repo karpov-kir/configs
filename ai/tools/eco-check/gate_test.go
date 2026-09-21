@@ -1,16 +1,18 @@
 package ecocheck_test
 
 // The --gate flag: whether two checkouts of one commit can be made to answer differently.
-//
-// Nothing here forks git. What this package does is the FILTER — it drops a path from the walk, drops
-// it from citation resolution, reports the count, and refuses where the question went unanswered — and
-// a fake stating what git said serves all four.
-//
+
+// No case here forks git. What this package does is the FILTER. It drops a path from the walk, drops
+// it from citation resolution, reports the count, and refuses where the question went unanswered. A
+// fake stating what git said serves all four.
+
 // Git's own reading of a tree used to be argued here, because the call site was in this package. It is
-// the ADAPTER's now, and `repo/exec_test.go` holds it against a real repository: a tracked file
-// matching an ignore rule is not ignored, a path holding a newline survives the process boundary, and
-// matching nothing is check-ignore's exit 1 rather than a failure.
-//
+// the ADAPTER's now, and `repo/exec_test.go` holds it against a real repository.
+
+// There a tracked file matching an ignore rule is still not ignored, and a path holding a newline
+// survives the process boundary. check-ignore exits 1 when no path matches, and the adapter reads
+// that exit as an answer.
+
 // A case says what git answered by naming paths relative to the root under review, which is how
 // `newIgnoredPaths` asks and how git answers.
 
@@ -35,7 +37,7 @@ const (
 	missingRegion = "**No Such Section**"
 )
 
-// The tree every gate case starts from, with the port left answering that nothing is ignored.
+// The tree every gate case starts from, with the port answering that no path is ignored.
 func newGatedRoot(t *testing.T) *fixture {
 	t.Helper()
 	f := newRoot(t)
@@ -45,20 +47,20 @@ func newGatedRoot(t *testing.T) *fixture {
 	return f
 }
 
-// What git answered, as paths relative to the root under review. A directory is named without a
-// trailing slash and everything under it is ignored with it, which is what check-ignore reports when
-// the walk hands it a directory and the files inside it.
-//
-// Stated whole rather than appended to, so a case says the entire set it means and nothing a builder
-// left behind decides its result.
+// A directory is named without a trailing slash, and everything under it is ignored with it. That is
+// what check-ignore reports when the walk hands it a directory and the files inside it.
+
+// Each call states the whole set, so no leftover from a builder decides a case's result.
+
+// What git answered, as paths relative to the root under review.
 func (f *fixture) ignores(paths ...string) {
 	f.t.Helper()
 	f.git.IgnoredPaths = paths
 }
 
 // What `repo.Exec` hands back when git refuses the question: git's own words behind the command that
-// asked. The refusal cases below are about what this package does with that, so the shape is stated
-// once here — `repo/exec.go`'s gitError is where it is made.
+// asked. The refusal cases here are about what this package does with that, so the shape is stated
+// once in this var. `repo/exec.go`'s gitError is what makes it.
 var gitRefused = errors.New("git check-ignore --stdin: fatal: not a git repository (or any of the parent directories): .git")
 
 func newRefusingGit(root string) *repotest.Fake {
@@ -115,13 +117,15 @@ func TestAGitignoredFileIsJudgedWithoutTheFlagAndNotWithIt(t *testing.T) {
 	f.assertLacks("--gate judges only what a commit carries", gated, dangling)
 }
 
+// A skill somebody has just written and still unstaged is untracked, and git names it in no answer.
+// The check that proves a new skill is mounted goes on seeing it. A blanket untracked-skip would hide
+// the whole directory from that check.
+
+// Git's own reading of a tree keeps a tracked file matching an ignore rule out of the names it
+// returns, and `repo/exec_test.go` holds that there against a real repository.
+
 // The other half of the same guard, and what makes the flag safe to put in the gate: the filter drops
-// only what git named. A skill somebody has just written and not yet staged is untracked and no answer
-// names it, so the check that proves a new skill is mounted goes on seeing it — where a blanket
-// untracked-skip would hide the whole directory from that check.
-//
-// That a tracked file matching an ignore rule is not among the names git returns is git's own reading
-// of a tree, and `repo/exec_test.go` holds it there against a real repository.
+// only what git named.
 func TestAFileTheAnswerDoesNotNameIsStillJudgedUnderTheFlag(t *testing.T) {
 	f := newGatedRoot(t)
 	f.newMountedSkill("kk-scratchy")
@@ -131,13 +135,13 @@ func TestAFileTheAnswerDoesNotNameIsStillJudgedUnderTheFlag(t *testing.T) {
 	f.assertHolds("an unstaged file is content a commit can carry", f.runGated(), dangling)
 }
 
-// A committed filename may hold a newline, and the filter round-trips every name git returns: joined
-// back onto the root as the caller spelled it, cleaned, and compared against the walk's own path. A
-// name that survives git and then fails to match here leaves an ignored file judged, which is the
-// whole defect.
-//
-// That the name survives the process boundary at all is `-z` on both ends of it, which is
-// `repo/exec_test.go`'s against a real git.
+// A committed filename may hold a newline, and the filter round-trips every name git returns. Each
+// name is joined back onto the root as the caller spelled it, cleaned, and compared against the walk's
+// own path. A name that survives git and then fails to match here leaves an ignored file judged, which
+// is the whole defect.
+
+// `-z` on both ends of the call is what carries such a name over the process boundary, and
+// `repo/exec_test.go` holds that against a real git.
 func TestAGitignoredFileWhoseNameHoldsANewlineIsStillFilteredOut(t *testing.T) {
 	f := newGatedRoot(t)
 	f.newMountedSkill("kk-scratchy")
@@ -216,17 +220,17 @@ func TestTheFlagSaysWhatItSkipped(t *testing.T) {
 	f.ignores("kk-flavor/skills/kk-scratchy/findings.md")
 
 	gated, bare := f.bothWays()
-	// The skip line itself, not the whole report: a filter that dropped nothing leaves the dangling
-	// citation in, and that finding names this same path — so a case reading the whole output would go
-	// on passing over a gate that filtered nothing.
+	// The assertion reads the skip line alone. A filter that dropped no path leaves the dangling
+	// citation in, and that finding names this same path. A case reading the whole output would pass
+	// over a gate that filtered zero paths.
 	f.assertHolds("the flag names the path it dropped", lineWith(gated, gateLine), "skills/kk-scratchy/findings.md")
 	f.assertHolds("and says what the count is about", gated, gateLine)
 	f.assertLacks("a bare run claims no filtering", bare, gateLine)
 }
 
-// An empty answer is a clean checkout, so the run scans it and says it filtered nothing. Read as a
-// failure instead, the flag would refuse every clean checkout it exists to serve — and the empty
-// answer is what git's exit 1 arrives as, which `repo/exec_test.go` holds against a real repository.
+// An empty answer is a clean checkout, so the run scans it and reports zero paths filtered. A flag
+// that read the empty answer as a failure would refuse every clean checkout it exists to serve. Git's
+// exit 1 arrives as that empty answer, which `repo/exec_test.go` holds against a real repository.
 func TestTheFlagRunsOnATreeWithNothingIgnored(t *testing.T) {
 	f := newGatedRoot(t)
 	f.newMountedSkill("kk-real")
@@ -338,10 +342,10 @@ func TestACitationSpelledNonCanonicallyStillHitsTheGate(t *testing.T) {
 // --gate alone, and the extra finding shows here. No bare run can show it, and no case that fixes the
 // root's spelling can either.
 //
-// Its own fixture rather than the shared one: a relative spelling needs t.Chdir, t.Chdir bars
-// t.Parallel, and isolate() decides parallelism once per case. Still newBase rather than t.TempDir,
-// because this case and the one below compare two runs line for line — and a root long enough for the
-// printer's bound to cut both sides alike makes that comparison hold over nothing at all.
+// This case builds its own fixture, since a relative spelling needs t.Chdir, t.Chdir bars t.Parallel,
+// and isolate() decides parallelism once per case. newBase still stands in for t.TempDir here, since
+// this case and TestTheFindingsAreTheSameHoweverTheRootIsNamed compare two runs line for line. A root
+// long enough for the printer's bound to cut both sides alike leaves that comparison holding no lines.
 func TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed(t *testing.T) {
 	base := newBase(t)
 	git := newSpellingTree(t, base)
@@ -363,8 +367,8 @@ func TestAGatedRunAndABareRunAgreeHoweverTheRootIsNamed(t *testing.T) {
 // The ignored file is not what the assertion is about — it is there so the filter runs and the index
 // is rebuilt, which is where a dropped field would bite.
 //
-// The port comes back with it, answering for that one file under every spelling of the root: the walk
-// hands git paths with the root's own prefix cut off, so what git is asked about does not move.
+// The port comes back with it and answers for that one file under every spelling of the root. The
+// walk hands git paths with the root's own prefix cut off, so what git is asked about does not move.
 func newSpellingTree(t *testing.T, base string) *repotest.Fake {
 	t.Helper()
 	root := base + "/r"

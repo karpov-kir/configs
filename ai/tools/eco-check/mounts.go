@@ -15,20 +15,26 @@ const (
 	mountWithoutASkill    = "mount without a skill"
 )
 
-// The mounts every `~/...` citation resolves through, checked against *this checkout*. Anywhere that
-// is not the install — a clone, a PR review's worktree, a CI runner with a bare $HOME — the mounts
-// point at somebody else's tree or at nothing, and every finding below would be about that rather than
-// about the tree under review. Hence the IsInstalled gate; ecostats gates its own mount figure on the
-// same question (budget.go → mountedOutside).
-//
-// The gate holds for the reverse half below as well. A worktree's mounts point into the main checkout,
-// so none of them is under the worktree's own root. Set those aside and a scan run there has nothing
-// left to select.
-//
-// Past the gate, $HOME/.kk-flavor resolves to this tree by definition, so there is no flavor-mount
-// comparison here: `flavor not mounted` and `flavor mounted elsewhere` would both be restating the
-// gate's own condition and could never fire. What is left is the half the gate does not answer —
-// whether this install's own skills are reachable at the mount, asked in both directions, because
+// Anywhere outside the install, the mounts point at somebody else's tree or at a path that is gone. A
+// clone, a PR review's worktree and a CI runner with a bare $HOME are all outside it. Every finding
+// here would then be about that other tree.
+
+// Hence the IsInstalled term in the gate, and eco-stats asks the same question of its own mount figure
+// in budget.go.
+
+// The second term asks whether this agent is on the machine at all. Where it is absent, the mount it
+// would live at belongs to a client this machine lacks, and a finding there would describe the
+// machine. Hence the AgentPresent term.
+
+// The gate holds for the reverse half as well. A worktree's mounts point into the main checkout, so
+// none of them is under the worktree's own root, and a scan run there has that half empty.
+
+// Past the gate, $HOME/.kk-flavor resolves to this tree by definition, so no flavor-mount comparison
+// happens here. `flavor not mounted` and `flavor mounted elsewhere` would restate the gate's own
+// condition and could never fire.
+
+// Checks the mounts every `~/...` citation resolves through against *this checkout*. What is left is
+// whether this install's own skills are reachable at the mount. Both directions are asked, because
 // neither direction can see the defect the other one is about.
 func (c *checker) scanMounts() {
 	if !c.root.IsInstalled() || !c.root.AgentPresent() {
@@ -91,9 +97,9 @@ func (c *checker) reportSkippedMountScan(out io.Writer) {
 	case !c.root.IsInstalled():
 		writeLinef(out, "mounts: skipped — this checkout is not the install, so nothing here was checked about "+c.root.SkillsMount()+" in either direction")
 	case !c.root.AgentPresent():
-		// Its own line rather than the one above, because the two are acted on differently: the first
-		// says to run the check where the install is, and this one says there is nothing to install
-		// for here until this agent is on the machine.
+		// The two skips are acted on differently, so each gets its own line. The IsInstalled skip says to
+		// run the check where the install is. This skip says the machine has no client to mount into
+		// until this agent arrives.
 		writeLinef(out, "mounts: skipped — "+c.root.Agent()+" is not on this machine, so nothing here was checked about "+c.root.SkillsMount()+" in either direction")
 	}
 }

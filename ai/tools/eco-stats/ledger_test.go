@@ -106,10 +106,10 @@ func TestTheLedgerIsNotWrittenThroughASymlink(t *testing.T) {
 		}
 	})
 
-	// The other half of the .md/source pair no drift check covers. What the seed says is held against
-	// the live ledger by `ai/tools`, which is where a case may read that file; this is what makes the
-	// constant it reads the one a fresh install actually gets. Without it the two could agree with each
-	// other while neither was what a run writes.
+	// The other half of the .md/source pair, which no automatic check covers. `ai/tools` holds what the
+	// seed says against the live ledger, and a case may read the live file only there. This case ties
+	// the constant to what a fresh install gets. Absent it, the two could agree with each other while
+	// neither matched what a run writes.
 	t.Run("a first run writes the seed verbatim", func(t *testing.T) {
 		f := newRoot(t)
 		f.installStats()

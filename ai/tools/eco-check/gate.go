@@ -135,7 +135,7 @@ func (c *checker) enableGate() error {
 // One question and never one per file. On a machine whose endpoint agent inspects every exec a spawn
 // costs ~250ms against the 1-3ms an ordinary Unix charges, so a per-file call would price this flag
 // out of the gate it exists for — and the tree under review chooses how many files there are. That is
-// why the port takes the whole list rather than a path.
+// why the port takes the whole list in one call.
 //
 // Paths go in relative to the root and come back the same way, so the answer is echoed rather than
 // re-derived: git's own spelling of a path it was handed cannot disagree with the walk's.

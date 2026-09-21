@@ -3,8 +3,8 @@ package ecocheck_test
 // The fixture builders and the assertions the case files beside it are written against. This is the
 // only suite over these scans, so a case removed here is coverage gone, not coverage moved.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile, never by shelling out: on the machine these
-// are written on, a process costs about 100ms and a file write costs nothing.
+// Fixtures are built with os.MkdirAll and os.WriteFile. A forked process costs about 100ms on the
+// machine these were written on, and a file write is too cheap to measure.
 
 import (
 	"bytes"
@@ -70,12 +70,12 @@ type fixture struct {
 	base string
 	root string
 	home string
-	// The repository --gate puts its one question to. Every fixture carries one so a case reaching for
-	// the flag needs no builder of its own; a bare run never asks it anything.
+	// The repository --gate puts its one question to. Every fixture carries one, so a case reaching for
+	// the flag builds no repository of its own. A bare run leaves it untouched.
 	git *repotest.Fake
 
-	// The bash the parse scan reads its answers off. Every fixture carries one, so no case pays a fork
-	// for a script it wrote to be walked rather than to be parsed.
+	// The bash the parse scan reads its answers off. Every fixture carries one, so a script the case
+	// wrote for the tree scan to walk costs it no fork.
 	bash *ecocheck.FakeBash
 }
 
@@ -93,26 +93,26 @@ func newBareRoot(t *testing.T) *fixture {
 	return f
 }
 
-// The scratch directory every fixture below is built under, and short by a length this suite fixes
-// rather than one the machine hands it.
-//
 // report.go cuts EVERY finding line at lineWidthCap before printing it, and most of these cases assert
-// a finding that quotes a fixture path. Such a case is therefore reading the root's length as much as
-// the code's: whatever the root spends, the case's own content cannot. `t.TempDir()` makes that length
-// ambient — about 140 bytes on a macOS runner (`/var/folders/<two>/<28 random>/T/<the test's own
-// name>/001`) against around 60 on Linux — so a case passes on one machine and fails on another with
-// nothing else changed. Three did on the first macOS leg this repository ran, and three more went the
-// same way under a temp path longer still.
-//
-// This is 14 to 16 bytes wherever it runs — `/tmp/e` and the eight-to-ten digit run os.MkdirTemp
-// appends — which leaves the whole of every bound to be spent by what the case itself writes. A case
-// that wants a root long enough to spend a bound grows one itself —
-// TestTheGateRefusalStillNamesGitsReasonUnderALongRoot pads until the root outruns the cap whatever
-// this machine's temp path costs, and TestARefusalCarriesNoControlBytesFromTheRootItEchoes goes the
-// other way and runs from inside the parent so the name it echoes fits.
-//
-// `/tmp` rather than TMPDIR, because TMPDIR is exactly what is too long. Removed on the way out, like
-// t.TempDir's own.
+// a finding that quotes a fixture path. Such a case reads the root's length as much as the code's.
+// What the root spends, the case's own content cannot.
+
+// `t.TempDir()` makes that length ambient: about 140 bytes on a macOS runner
+// (`/var/folders/<two>/<28 random>/T/<the test's own name>/001`) against around 60 on Linux. A case
+// then passes on one machine and fails on another with no other change. Three did on the first macOS
+// leg this repository ran, and three more went the same way under a temp path longer still.
+
+// A short base under `/tmp` leaves the whole of every bound for the case's own content to spend.
+// TMPDIR is exactly what is too long here. A case that wants a root long enough to spend a bound grows
+// one itself. TestTheGateRefusalStillNamesGitsReasonUnderALongRoot pads until the root outruns the cap
+// whatever this machine's temp path costs.
+
+// TestARefusalCarriesNoControlBytesFromTheRootItEchoes goes the other way and runs from inside the
+// parent so the name it echoes fits.
+
+// The scratch directory every fixture below is built under, 14 to 16 bytes wherever it runs: `/tmp/e`
+// plus the eight-to-ten digit run os.MkdirTemp appends. This suite fixes that length, and the machine
+// does not choose it. The directory is removed on the way out, like t.TempDir's own.
 func newBase(t *testing.T) string {
 	t.Helper()
 	base, err := os.MkdirTemp("/tmp", "e")
@@ -124,25 +124,29 @@ func newBase(t *testing.T) string {
 }
 
 // What a fixture root may spend of a bounded finding before the case writes a byte. newBase builds a
-// base of 14 to 16 bytes and every fixture puts `/r` on the end of it, so this leaves room to rename the
-// prefix and none at all to go back to a path the machine picked: `t.TempDir()` costs upwards of 35
-// bytes on the shortest Linux runner and about 160 on a macOS one.
+// base of 14 to 16 bytes, and every fixture puts `/r` on the end of it. That leaves room to rename the
+// prefix and none to go back to a path the machine picked. `t.TempDir()` costs upwards of 35 bytes on
+// the shortest Linux runner and about 160 on a macOS one.
 const maxFixtureRootBytes = 24
 
-// The property newBase exists for. Held as a case because a comment on each affected fixture only
-// works while the next author reads it: without this, a helper reaching back for `t.TempDir()` shows
-// up as a handful of unrelated cases going red on one runner and green on another, which is how this
-// class was found in the first place and cost a CI leg to find.
-//
+// A comment on each affected fixture only helps the author who reads it, so the property is held as a
+// case here. A helper reaching back for `t.TempDir()` shows up as a handful of unrelated cases going
+// red on one runner and green on another. That is how this class of defect was found, and it cost a CI
+// leg.
+
 // The bound is checked under a LONG TMPDIR as well as the ambient one, and that second leg is the
-// whole point: a root read once tells you nothing about whether the machine chose its length, and the
-// machine this runs on is exactly the one whose temp path is short enough to hide the defect. Length
-// rather than sameness between the two legs, because os.MkdirTemp appends a run of eight to ten
-// digits and a root that wobbles by two bytes inside a 24-byte budget is not what any case here reads.
+// point. A root read once says little about whether the machine chose its length, and this machine's
+// temp path is short enough to hide the defect.
+
+// The two legs are compared on length and never on sameness. os.MkdirTemp appends a run of eight to
+// ten digits, so a root wobbles by two bytes inside a 24-byte budget, and no case here reads that
+// wobble.
+
+// The property newBase exists for.
 func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
-	// Built without t.TempDir, which would defeat the leg it is for: that call creates ONE directory
-	// per test and numbers the rest inside it, so a newBase reaching for it would answer out of a tree
-	// already pinned to the ambient TMPDIR and the moved one would never be read.
+	// t.TempDir creates ONE directory per test and numbers the rest inside it. A newBase reaching for
+	// it would answer out of a tree already pinned to the ambient TMPDIR, and the moved TMPDIR would go
+	// unread. That second leg is what this case is for, hence os.MkdirTemp here.
 	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
 	if err != nil {
 		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)
@@ -168,17 +172,16 @@ func newFixture(t *testing.T, base string) *fixture {
 	return &fixture{t: t, base: base, root: root, git: repotest.New(root), bash: newFakeBash(t)}
 }
 
-// Two binaries, under names only this case uses. A script is parsed once per binary, so one name would
-// leave the per-binary loop unexercised; and scripts.go's memo is keyed on the binary and held for the
+// Two binaries, under names only this case uses. A script is parsed once per binary, and a single name
+// leaves the per-binary loop unexercised. scripts.go keys its memo on the binary and holds it for the
 // process, so a name two cases share lets one case's parses answer the other's.
 func newFakeBash(t *testing.T) *ecocheck.FakeBash {
 	t.Helper()
 	return ecocheck.NewFakeBash(t.Name()+"/bash-5", t.Name()+"/bash-3.2")
 }
 
-// What a case hands a run it expects to refuse before any scan. Nothing on that path asks a
-// repository or a bash anything, and a run that started to would panic here rather than pass on an
-// answer the case never arranged.
+// What a case hands a run it expects to refuse before any scan. The refusal path asks a repository or
+// a bash for no answers. A run that reached for one would panic here, since the case arranged none.
 var (
 	noRepository repo.Git
 	noBash       ecocheck.Bash
@@ -243,8 +246,8 @@ func (f *fixture) newScript(name, body string) {
 }
 
 // A script that does not parse, and the lines `bash -n` refuses one with — each led by the script's own
-// path, and each becoming a finding of its own. Written as a table because the parse scan is the only
-// thing here that forks, and TestTheParseScanRunsARealBash is the one case that lets it.
+// path, and each becoming a finding of its own. The table stands in for a fork here, since the parse
+// scan is what forks and TestTheParseScanRunsARealBash is the only case that lets it.
 func (f *fixture) newUnparsableScript(name, body string, complaints ...string) {
 	f.t.Helper()
 	f.newScript(name, body)
@@ -542,8 +545,8 @@ func (f *fixture) absent(output string, needles ...string) {
 	}
 }
 
-// What each of two checks of the same tree asked its bash for. The first is the control: a tree the
-// first run never parsed says nothing about what the second one skipped.
+// What each of two checks of the same tree asked its bash for. The first run is the control, since a
+// tree it never parsed leaves the second run's skipping unmeasured.
 func (f *fixture) parseCounts() (first, second int) {
 	f.t.Helper()
 	f.isolate()

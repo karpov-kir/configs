@@ -351,13 +351,13 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 }
 
 // A machine carries one agent far more often than both, and the repository's own gate asks the mount
-// question for each of them. Asked about an agent that was never installed here, every answer would
-// be about a directory no install was ever meant to create — so `ai/bootstrap.sh --agent=claude`
-// failed its own verify step on a machine with nothing wrong with it.
-//
-// The three states have to stay apart, and no two of these cases can show that alone: absent reports
-// nothing, present-but-unmounted still reports, and silence is only meaningful against a case that
-// speaks.
+// question for each of them. An agent missing from this machine has every answer land on a directory
+// no install here was meant to create. `ai/bootstrap.sh --agent=claude` failed its own verify step
+// that way, on a machine in good order.
+
+// The three states have to stay apart, and any two of these cases alone fall short of showing it.
+// Absent stays quiet, present-but-unmounted still reports, and silence carries meaning only against a
+// case that speaks.
 func TestTheMountScanAsksOnlyAboutAnAgentThisMachineHas(t *testing.T) {
 	t.Run("says nothing about the mounts of an agent that is not on this machine", func(t *testing.T) {
 		f := newInstalledRoot(t)
@@ -366,8 +366,8 @@ func TestTheMountScanAsksOnlyAboutAnAgentThisMachineHas(t *testing.T) {
 		f.absent(runChecker(t, f.git, f.bash, "--agent=codex", f.root), "not mounted")
 	})
 
-	// The control. The same tree, the same agent, with only the directory its client makes added: the
-	// skill is now unreachable at a mount that should hold it, and that is still a finding.
+	// The control. The same tree and the same agent, with only the directory its client makes added.
+	// The skill is now unreachable at a mount that should hold it, and that is still a finding.
 	t.Run("while an agent whose own directory is here reports its missing mount", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.newMountedSkill("kk-drive")
@@ -376,8 +376,8 @@ func TestTheMountScanAsksOnlyAboutAnAgentThisMachineHas(t *testing.T) {
 		f.found(runChecker(t, f.git, f.bash, "--agent=codex", f.root), ecocheck.SkillsNotMounted)
 	})
 
-	// The skip said out loud, in its own words. Sharing the not-the-install line would tell a reader to
-	// go and run the check where the install is, which is the one thing that would not help here.
+	// The skip said out loud, in its own words. A shared not-the-install line would send the reader to
+	// run the check where the install is, and that is the advice that helps least here.
 	t.Run("but says out loud that it skipped them, and why", func(t *testing.T) {
 		f := newInstalledRoot(t)
 		f.isolate()

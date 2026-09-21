@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
+// The bash is a table, since what is under test is the scan's own answer to each of those machines. A
+// fork would prove little about it. TestTheParseScanRunsARealBash is where a real `bash -n` is held to
+// saying what this table says it says.
+
 // A checkout holding one script that does not parse, under a bash carrying the binaries named. None is
 // a machine with no bash at all, which is what these cases are about.
-//
-// The bash is a table rather than a process: what is under test is the scan's own answer to each of
-// those machines, and forking proves nothing about it. TestTheParseScanRunsARealBash is where a real
-// `bash -n` is held to saying what this table says it says.
 func newCheckerOverABrokenScript(t *testing.T, binaries ...string) *checker {
 	t.Helper()
 	root := t.TempDir()

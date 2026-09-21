@@ -176,16 +176,19 @@ func (r Root) IsInstalled() bool {
 	return flavorCanon != "" && shell.CanonicalDir(r.FlavorMount()) == flavorCanon
 }
 
+// IsInstalled cannot say whether an agent is here. IsInstalled asks about ~/.kk-flavor, the directory
+// every agent shares, and every mount question after it is about one agent's own skills directory.
+
+// A machine installed for claude alone passes IsInstalled and then fails every codex mount question.
+// The repository's own gate asks both, so `ai/bootstrap.sh --agent=claude` failed its own verify step
+// on a machine in good order.
+
+// The tell is the mount's PARENT. The client makes that directory, so its absence means the agent was
+// never here. Its presence with an empty skills/ means an install that went wrong, and that stays a
+// finding. An answer read off the mount itself would collapse those two.
+
 // AgentPresent reports whether the agent whose mounts are about to be scanned exists on this machine
-// at all. IsInstalled cannot answer it: that one asks about ~/.kk-flavor, which is the same directory
-// whichever agent is named, while every mount question below it is about one agent's own skills
-// directory. A machine installed for claude alone therefore passes IsInstalled and then fails every
-// codex mount question — and the repository's own gate asks both, so `ai/bootstrap.sh --agent=claude`
-// failed its own verify step on a machine that had nothing wrong with it.
-//
-// The tell is the mount's PARENT and not the mount: the client makes that directory, so its absence
-// means the agent was never here, while its presence with no skills/ inside means an install that
-// went wrong — which stays a finding. Answering from the mount itself would collapse those two.
+// at all.
 func (r Root) AgentPresent() bool {
 	return r.home != "" && shell.IsDir(shell.DirName(r.SkillsMount()))
 }

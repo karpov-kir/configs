@@ -263,7 +263,7 @@ func (c *checker) documentedFlagsOf(path string) documentedFlags {
 // is what keeps `# Run --help for …` from documenting a flag the grammar never names.
 //
 // Lowercase `usage:` only, the same anchor subcommands.go's usageSubcommands and
-// ai/tools/stub_usage_test.go both take, and the one that suite holds every stub's own header to.
+// ai/tools/stub_usage_test.go both take, and the anchor that suite holds every stub's own header to.
 // One spelling per thing, or this scan and those two disagree about which line is the usage.
 //
 // Read out of leadingCommentBlock, so a `# usage:` written inside a function body is not one: that

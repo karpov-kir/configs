@@ -4,7 +4,7 @@
 //
 // It is a library with a thin command beside it, because the suite that proves it drives it once
 // per case and a process spawn per case is what puts a suite over the time budget
-// testing.md sets. Nothing
+// testing.md sets. No code
 // here writes to os.Stdout or calls os.Exit: Run reports through the writers it is handed and returns
 // the code the command exits on. Every emit counter lives on the checker Run builds, so two runs in
 // one process cannot see each other's. The one thing held across them is scripts.go's `bash -n` memo,
@@ -56,8 +56,8 @@ type checker struct {
 	// answers and why the default is off.
 	gate *gateFilter
 
-	// Where --gate's one question goes. Nothing else in this package asks a repository anything, so a
-	// bare run never reaches it.
+	// Where --gate's one question goes. This package asks a repository for that answer alone, so a bare
+	// run never reaches it.
 	git repo.Git
 
 	// Which file holds each heading in the tree, built on the first dangling citation and never for
