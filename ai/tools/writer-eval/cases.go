@@ -141,8 +141,8 @@ func ClassOf(r Return) Expected {
 	return ExpectWritten
 }
 
-// JudgeCase scores a return against a case, including what the case expects of each part. A case
-// that names no part expectation is scored on the site alone, the way it was before the parts split.
+// JudgeCase scores a return against a case, including what the case expects of each part. Where a
+// case sets neither part expectation, it is scored on the site alone, as it was before the split.
 func JudgeCase(c Case, r Return) Verdict {
 	v := Judge(c.Name, c.Expect, r)
 	want := func(field, label string, got Part) {
