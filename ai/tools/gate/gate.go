@@ -171,8 +171,10 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if env.Checks != "" {
 		return g.checksFromFile(env.Checks)
 	}
-	// gofmt as well as go, because a check that cannot find its binary is not a check: `test -z
-	// "$(gofmt -l .)"` is green on a machine with no gofmt, the complaint having gone to stderr.
+	// gofmt as well as go, because a check that cannot find its binary is not a check. A machine with
+	// no gofmt has measured nothing, and both shapes this check has carried report that as something
+	// else: the listing one, `test -z "$(gofmt -l .)"`, as a clean tree, and the pipeline below as a
+	// format finding.
 	for _, tool := range []string{"go", "gofmt"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			return nil, g.fail("no %s on this machine, so the Go checks cannot run — nothing ran", tool)
@@ -184,17 +186,54 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 		suite = "go test -count=1 " + bound + " ./..."
 	}
 	return []check{
-		// gofmt's own exit status and not just its listing: handed a file it cannot parse it prints to
-		// stderr and lists nothing, and a check reading the listing alone calls that formatted.
-		{id: "gofmt", cmd: "unformatted=$(gofmt -l .) && test -z \"$unformatted\" || " +
-			"{ printf '%s\\n' \"$unformatted\" >&2; exit 1; }"},
+		{id: "gofmt", cmd: formatCmd},
 		{id: "vet", cmd: "go vet ./..."},
 		{id: "gotest", cmd: suite},
-		{id: "wiring", cmd: "ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate && " +
-			"ECO_TOOLS_BUILD=1 ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate"},
+		{id: "wiring", cmd: wiringCmd},
 		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},
 	}, 0
 }
+
+// The files git holds and never a walk: this machine keeps whole checkouts inside this one, and
+// `gofmt -l .` hands gofmt every .go file in all of them. `--others` as much as `--cached`, because a
+// .go file written and not staged yet is work the gate has to read; it does not descend into a nested
+// repository either, so those are dropped by git rather than by an ignore rule someone can delete.
+//
+// gofmt's own exit status and not just its listing: handed a file it cannot parse it prints to stderr
+// and lists nothing, and a check reading the listing alone calls that formatted. xargs ends the
+// pipeline and reports a non-zero gofmt as 123, so the substitution carries it without pipefail, which
+// `sh` on a Linux runner does not have.
+//
+// A tree holding no .go file at all lists nothing, and neither xargs then runs a gofmt that can fail:
+// the macOS one runs no command at all, and the GNU one runs gofmt with no file against /dev/null,
+// which is formatted. Measured on both, because macOS xargs carries no `-r` to say it in the command.
+const formatCmd = "unformatted=$(git ls-files --cached --others --exclude-standard -z -- '*.go' | xargs -0 gofmt -l) && " +
+	"test -z \"$unformatted\" || { printf '%s\\n' \"$unformatted\" >&2; exit 1; }"
+
+// One build, then both agents against it at once. Each run used to carry ECO_TOOLS_BUILD=1 and so
+// rebuilt and re-stamped the same binary for itself, which was the floor under a warm gate. The flag
+// stays where the build is — without it the thing measured can be a downloaded release binary rather
+// than this tree — and the runs after it reach those bytes through resolve.sh, which rebuilds any
+// binary whose stamp no longer matches the source beside it.
+//
+// Each run's output goes to a file of its own, because two reports interleaved line by line name
+// neither agent. Both statuses are read, claude's first where both are non-zero, as the `&&` that used
+// to chain them reported them.
+const wiringCmd = `
+ECO_TOOLS_BUILD=1 ai/tools/resolve.sh eco-check >/dev/null || exit 2
+work=$(mktemp -d "${TMPDIR:-/tmp}/gate-wiring.XXXXXX") || exit 2
+check=ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh
+"$check" --agent=claude --gate >"$work/claude" 2>&1 &
+claude=$!
+"$check" --agent=codex --gate >"$work/codex" 2>&1 &
+codex=$!
+wait $claude; claude_status=$?
+wait $codex; codex_status=$?
+cat "$work/claude" "$work/codex"
+rm -rf "$work"
+[ $claude_status -eq 0 ] || exit $claude_status
+exit $codex_status
+`
 
 func (g *gate) checksFromFile(path string) ([]check, int) {
 	body, err := os.ReadFile(path)
@@ -246,7 +285,7 @@ func (g *gate) runChecks(checks []check, started time.Time) int {
 			unmeasured++
 		default:
 			g.line("FAILED", c.id, took)
-			g.tail(c.out, 40)
+			g.failure(c)
 			failed++
 		}
 	}
@@ -312,14 +351,106 @@ func (g *gate) line(state, id, detail string) {
 }
 
 func (g *gate) tail(output string, n int) {
-	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
-	if len(lines) == 1 && lines[0] == "" {
-		return
-	}
+	lines := outputLines(output)
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
 	for _, line := range lines {
-		fmt.Fprintf(g.out, "              %s\n", line)
+		g.quote(line)
 	}
+}
+
+// The most lines one failed check prints. A run that panics in every package carries thousands, and a
+// report read on every commit that prints those is one nobody reads.
+const failureLineBudget = 40
+
+// What a FAILED check shows. Never the last n lines: one `go test ./...` prints an `ok` line per
+// package after the one that broke, so a positional tail of a failure in an early package is forty
+// lines of successes and not one word about what a reader has to fix.
+func (g *gate) failure(c check) {
+	all := outputLines(c.out)
+	if len(all) == 0 {
+		return
+	}
+	shown := failureLines(all)
+	switch {
+	case len(shown) == 0:
+		// Nothing in it is shaped like a `go test` failure — gofmt's listing, a wiring finding — and
+		// those print what they found and stop, so the end of the output is the report.
+		shown = all
+		if len(shown) > failureLineBudget {
+			shown = shown[len(shown)-failureLineBudget:]
+		}
+	case len(shown) > failureLineBudget:
+		// The first of them rather than the last: where a run breaks in several places the earliest
+		// is the one to read, and the ones after it are often that one again.
+		shown = shown[:failureLineBudget]
+	}
+	for _, line := range shown {
+		g.quote(line)
+	}
+	// What was dropped, and what prints all of it. A reader told nothing about the gap cannot tell a
+	// report that held everything from one that cut the part they needed.
+	if dropped := len(all) - len(shown); dropped > 0 {
+		g.quote(fmt.Sprintf("... %d of %d line(s) not shown, and `%s` is what prints all of them",
+			dropped, len(all), shell.Oneline(c.cmd)))
+	}
+}
+
+// The lines of a check's output that carry its failure: each `--- FAIL`, each line a failing package
+// or a panic opens with, and the output belonging to them. Empty where nothing in the output is
+// shaped that way, which is every check that is not `go test`.
+func failureLines(all []string) []string {
+	var kept []string
+	carrying := false
+	for _, line := range all {
+		switch {
+		case opensFailure(line):
+			carrying = true
+		case closesFailure(line):
+			carrying = false
+		}
+		if carrying {
+			kept = append(kept, line)
+		}
+	}
+	return kept
+}
+
+// Checks whether a line starts something a reader has to act on. `#` is the compiler's own package
+// header, which is the whole of what a package reported as `[build failed]` says about why.
+func opensFailure(line string) bool {
+	// A subtest indents its own `--- FAIL`.
+	return hasAnyPrefix(line, "FAIL", "panic:", "fatal error:", "# ") ||
+		hasAnyPrefix(strings.TrimLeft(line, " \t"), "--- FAIL")
+}
+
+// Checks whether a line ends the failure above it. Everything here is `go test` reporting a case or a
+// package that came back fine, and none of that belongs to the failure it follows.
+func closesFailure(line string) bool {
+	return hasAnyPrefix(line, "ok ", "ok\t", "? ", "?\t", "PASS") ||
+		hasAnyPrefix(strings.TrimLeft(line, " \t"), "--- PASS", "--- SKIP", "=== ")
+}
+
+func hasAnyPrefix(line string, prefixes ...string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// A check's output as lines, and none where it printed nothing at all.
+func outputLines(output string) []string {
+	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return nil
+	}
+	return lines
+}
+
+// One line of a check's own output, indented under the line that named the check.
+func (g *gate) quote(line string) {
+	fmt.Fprintf(g.out, "              %s\n", line)
 }

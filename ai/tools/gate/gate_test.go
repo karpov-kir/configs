@@ -8,12 +8,13 @@
 //     other one to stay fast, and a gate that reports it as a warning has no budget.
 //
 // No case here runs a real check. The cases about the run loop, the report and the refusals drive the
-// gate through its checks-file seam, which reaches all three in milliseconds; the cases about the six
+// gate through its checks-file seam, which reaches all three in milliseconds; the cases about the five
 // themselves read the commands `plan` builds and never execute them. Running the real ones means
 // running the suite this file is part of.
 package gate
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,6 +47,14 @@ func (f *fixture) table(lines ...string) {
 	f.t.Helper()
 	if err := os.WriteFile(f.checks, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		f.t.Fatalf("writing the checks table: %v", err)
+	}
+}
+
+// A file a check can print back, written into the fixture root, which is where every command runs.
+func (f *fixture) file(name, body string) {
+	f.t.Helper()
+	if err := os.WriteFile(filepath.Join(f.root, name), []byte(body), 0o644); err != nil {
+		f.t.Fatalf("writing %s: %v", name, err)
 	}
 }
 
@@ -92,7 +101,7 @@ func (f *fixture) runCount(name string) int {
 	return len(body)
 }
 
-// The real six, as plan builds them for this machine. The cases below read a command out of these and
+// The real five, as plan builds them for this machine. The cases below read a command out of these and
 // never run one.
 func (f *fixture) planned(full bool) []check {
 	f.t.Helper()
@@ -102,6 +111,18 @@ func (f *fixture) planned(full bool) []check {
 		f.t.Fatalf("plan refused on this machine, so these cases held nothing to account: %s", f.errOut.String())
 	}
 	return checks
+}
+
+// One of the real five by id, for the cases that read a command and never run it.
+func (f *fixture) plannedCheck(id string) check {
+	f.t.Helper()
+	for _, c := range f.planned(false) {
+		if c.id == id {
+			return c
+		}
+	}
+	f.t.Fatalf("the plan builds no %s check, so this case held nothing to account", id)
+	return check{}
 }
 
 // A PATH holding the named tools and nothing else, so a case can take one binary away from the plan
@@ -122,10 +143,11 @@ func (f *fixture) onlyOnPath(tools ...string) {
 	f.t.Setenv("PATH", dir)
 }
 
-// gofmt missing is a gate that did not run, and the shape the check was written in could not say so:
-// `test -z "$(gofmt -l .)"` is green on a machine with no gofmt, because the shell's complaint goes to
-// stderr and the substitution comes back empty. The pair is the control — the same plan with gofmt on
-// PATH builds its checks.
+// gofmt missing is a gate that did not run, and no shape of the check itself says so: the listing one
+// this started as, `test -z "$(gofmt -l .)"`, came back green, because the shell's complaint goes to
+// stderr and the substitution comes back empty, and the pipeline it carries now comes back with a
+// format finding against a machine that measured nothing. The pair is the control — the same plan with
+// gofmt on PATH builds its checks.
 func TestThePlanRefusesWhereGofmtIsMissing(t *testing.T) {
 	f := newFixture(t)
 	f.onlyOnPath("go")
@@ -215,6 +237,44 @@ func boundIn(flags []string) int {
 	return 0
 }
 
+// The format check reads the files git holds, and a walk is the one thing it may not do: this machine
+// keeps whole checkouts inside this one, and `gofmt -l .` hands gofmt every .go file in all of them.
+// `--others` is half of it — a .go file written and not staged yet is work the gate has to read, and a
+// check narrowed to `--cached` passes work it never looked at.
+func TestTheFormatCheckReadsTheFilesGitHolds(t *testing.T) {
+	f := newFixture(t)
+	cmd := f.plannedCheck("gofmt").cmd
+
+	for _, word := range []string{"git ls-files", "--cached", "--others", "--exclude-standard"} {
+		if !strings.Contains(cmd, word) {
+			t.Errorf("the gofmt check does not name %s, so the files it reads are not the ones this "+
+				"repository holds: %s", word, cmd)
+		}
+	}
+	if strings.Contains(cmd, "gofmt -l .") {
+		t.Errorf("the gofmt check walks the tree, which on this machine is several checkouts: %s", cmd)
+	}
+}
+
+// The wiring check is one binary run twice, once per agent, and it builds that binary once. Each run
+// carrying ECO_TOOLS_BUILD=1 rebuilt and re-stamped the same source for itself, which is the floor
+// under every warm gate. The flag itself stays: without it what gets measured can be a downloaded
+// release binary rather than this tree.
+func TestTheWiringCheckBuildsItsBinaryOnce(t *testing.T) {
+	f := newFixture(t)
+	cmd := f.plannedCheck("wiring").cmd
+
+	if builds := strings.Count(cmd, "ECO_TOOLS_BUILD=1"); builds != 1 {
+		t.Errorf("the wiring check forces %d build(s) of eco-check, and one is what makes it this "+
+			"tree's binary: %s", builds, cmd)
+	}
+	for _, agent := range []string{"--agent=claude", "--agent=codex"} {
+		if !strings.Contains(cmd, agent) {
+			t.Errorf("the wiring check does not run %s, so one agent's tree goes unchecked: %s", agent, cmd)
+		}
+	}
+}
+
 func TestACleanRunExitsZeroAndRunsEveryCheck(t *testing.T) {
 	f := newFixture(t)
 	f.table("one\t"+marker("one.log", 0), "two\t"+marker("two.log", 0))
@@ -241,6 +301,33 @@ func TestAFailingCheckExitsOneAndShowsItsOutput(t *testing.T) {
 	f.expectSaid("FAILED")
 	f.expectSaid("the-reason-it-failed")
 	f.expectSilentAbout("nothing-to-see")
+}
+
+// A failure under the successes that follow it, which is what one `go test ./...` prints: an `ok` line
+// per package, so a break in an early package is pushed out of any positional tail by the packages
+// after it and the report shows forty lines of passes and nothing to act on. What a reader needs is
+// the package, the case and the reason, and the report says what it dropped rather than quietly
+// cutting it.
+func TestAFailureUnderTheSuccessesAfterItIsStillShown(t *testing.T) {
+	f := newFixture(t)
+	var output strings.Builder
+	output.WriteString("ok  \tconfigs/ai/tools/before\t0.11s\n")
+	output.WriteString("--- FAIL: TestTheOneThatBroke (0.00s)\n")
+	output.WriteString("    broke_test.go:9: the-reason-it-failed\n")
+	output.WriteString("FAIL\nFAIL\tconfigs/ai/tools/broke\t0.20s\n")
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&output, "ok  \tconfigs/ai/tools/after%d\t0.01s\n", i)
+	}
+	f.file("gotest.log", output.String())
+	f.table("gotest\tcat gotest.log; exit 1")
+
+	f.run()
+	f.expectCode(1)
+	f.expectSaid("--- FAIL: TestTheOneThatBroke")
+	f.expectSaid("the-reason-it-failed")
+	f.expectSaid("configs/ai/tools/broke")
+	f.expectSaid("not shown")
+	f.expectSilentAbout("configs/ai/tools/after199")
 }
 
 // Exit 2 is "it did not run", which a caller may never read as a pass. The gate's own exit status is
@@ -330,7 +417,7 @@ func TestTheArgumentTable(t *testing.T) {
 		{"no argument runs the gate", nil, 0, "ran ok"},
 		{"--full runs it too", []string{"--full"}, 0, "ran ok"},
 		{"--help prints the usage line and runs nothing", []string{"--help"}, 0, usageLine},
-		{"an unknown argument is refused with the usage line", []string{"--mutants"}, 2, usageLine},
+		{"an unknown argument is refused with the usage line", []string{"--sideways"}, 2, usageLine},
 	} {
 		t.Run(c.what, func(t *testing.T) {
 			f := newFixture(t)
