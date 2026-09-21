@@ -15,11 +15,14 @@ tool="project-skills"
 tools_offset="."
 
 # --- shared:tool-stub ---
-# Byte-identical in every stub, held so by the wiring check's shared-region scan. Copied rather than
-# sourced because sourcing a file is executing it, and these run from whatever repo the human is in —
-# so only what cannot move is here: a stub has to find the resolver before the resolver can decide
-# anything. `ai/tools/resolve.sh` owns the rest, argv[0] included, and its header states why each line
-# below is the shape it is — the `cd -P`, the one declared offset, the two guards, the exec.
+# Byte-identical in every stub. The wiring check's shared-region scan holds it so.
+#
+# Each stub carries a copy instead of sourcing one file. Sourcing a file executes it, and a stub runs
+# from whatever repository the human is standing in. So the only part that lives here is the part that
+# cannot move: a stub has to find the resolver before the resolver can decide anything.
+#
+# ai/tools/resolve.sh owns everything after that, argv[0] included. Its header says why each line
+# below has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
