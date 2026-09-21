@@ -1,7 +1,8 @@
 expect: written
 note: written
 floor: 2
-why: the note opens on an actor the site does not name and uses a name the reader cannot place; Kirill on 2026-09-21: "This looks out of blue and hard to follow"; the expected form names the site's subject first and places the outside name with an appositive, and no check reaches this, so judgement decides it
+why: the note opens on an actor the site does not name and uses a name the reader cannot place; Kirill on 2026-09-21: "This looks out of blue and hard to follow"; the fix that day was a rule putting the site's subject first, and the rule of 2026-09-21 reverses it so the fact keeps its own subject, which is what the barred wording is here for: the fact's own subject is the outside thing the fact is about, and a chooser the code never names is not one; the expected form places the outside name with an appositive, and no check reaches this, so judgement decides it
+bars: can choose | could choose | may choose
 labelled: 2026-09-21
 --- code
 export function withOnlySettlement(source: SourceConfig, scheme: Settlement): SourceConfig {
