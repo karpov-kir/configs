@@ -425,8 +425,8 @@ func Measure(files [][]string) Report {
 					unanchored.add(notes[0])
 				}
 			}
-			// The provenance route's population: a block standing on data rather than on code that runs.
-			// A fact there is about the row, and a note is the wrong home for it.
+			// The provenance route's population: a block standing on data, where the code under it holds
+			// values and runs nothing. A fact there is about the row, and a note is the wrong home.
 			if len(notes) > 0 && standsOnData(lines, b) {
 				onAnEntry.add(notes[0])
 			}
@@ -725,8 +725,8 @@ func opensOnASummaryVerb(sentence string) bool {
 var reDataDeclaration = regexp.MustCompile(`^\s*(export\s+)?(const|readonly|static)\s+[A-Z][A-Z0-9_]*\s*[:=]`)
 var reEntryRow = regexp.MustCompile(`^\s*[\[{]|^\s*['"\x60]?[\w.-]+['"\x60]?\s*:`)
 
-// standsOnData says whether a block sits on a declaration that holds values rather than on code that
-// runs. A screaming-case constant or a row inside one is data, and a fact about it belongs to the row.
+// standsOnData says whether a block sits on a declaration that holds values and runs nothing. A
+// screaming-case constant or a row inside one is data, and a fact about it belongs to the row.
 func standsOnData(lines []string, b Block) bool {
 	at := b.Line + b.Span
 	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
@@ -739,7 +739,7 @@ func standsOnData(lines []string, b Block) bool {
 	if reDataDeclaration.MatchString(line) {
 		return true
 	}
-	// A row inside a table: the block sits on an entry, and a declaration above it opens the table.
+	// A row inside a table: the block sits on an entry, and the table's own declaration opens it.
 	if !reEntryRow.MatchString(line) {
 		return false
 	}
