@@ -1,0 +1,11 @@
+expect: written
+note: written
+floor: 3
+why: the claim is about a vendor's asset the file cannot read, so it is never stale; a run marked exactly this shape stale on 2026-09-21 and a reviewer fetched the asset and found the claim true, and the writer keeps the claim and returns `unverified:` for review
+labelled: 2026-09-21
+--- code
+export function entryTypeOf(row: LedgerRow): string {
+  return row.entryType;
+}
+--- facts
+The vendor's published export spells the entry type with the long settlement form, and this row copies it.

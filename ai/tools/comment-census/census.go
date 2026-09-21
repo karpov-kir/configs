@@ -360,6 +360,7 @@ type Report struct {
 	BareFact   Tally
 	Unanchored Tally
 	BareIdent  Tally
+	OnAnEntry  Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -390,6 +391,7 @@ func Measure(files [][]string) Report {
 	bareFact := &Tally{Name: "note-with-no-second-sentence"}
 	unanchored := &Tally{Name: "note-opening-on-another-actor"}
 	bareIdent := &Tally{Name: "bare-identifier-in-a-note"}
+	onAnEntry := &Tally{Name: "note-on-a-data-entry"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
@@ -422,6 +424,11 @@ func Measure(files [][]string) Report {
 				if _, anchored := AboutThisCode(notes[0], words); !anchored {
 					unanchored.add(notes[0])
 				}
+			}
+			// The provenance route's population: a block standing on data rather than on code that runs.
+			// A fact there is about the row, and a note is the wrong home for it.
+			if len(notes) > 0 && standsOnData(lines, b) {
+				onAnEntry.add(notes[0])
 			}
 			for _, note := range notes {
 				if survived, hadContent := Restates(note, words); hadContent && len(survived) == 0 {
@@ -507,6 +514,7 @@ func Measure(files [][]string) Report {
 	rep.BareFact = *bareFact
 	rep.Unanchored = *unanchored
 	rep.BareIdent = *bareIdent
+	rep.OnAnEntry = *onAnEntry
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }
@@ -710,6 +718,35 @@ func opensOnASummaryVerb(sentence string) bool {
 			continue
 		}
 		return openingVerbs[word]
+	}
+	return false
+}
+
+var reDataDeclaration = regexp.MustCompile(`^\s*(export\s+)?(const|readonly|static)\s+[A-Z][A-Z0-9_]*\s*[:=]`)
+var reEntryRow = regexp.MustCompile(`^\s*[\[{]|^\s*['"\x60]?[\w.-]+['"\x60]?\s*:`)
+
+// standsOnData says whether a block sits on a declaration that holds values rather than on code that
+// runs. A screaming-case constant or a row inside one is data, and a fact about it belongs to the row.
+func standsOnData(lines []string, b Block) bool {
+	at := b.Line + b.Span
+	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
+		at++
+	}
+	if at > len(lines) {
+		return false
+	}
+	line := lines[at-1]
+	if reDataDeclaration.MatchString(line) {
+		return true
+	}
+	// A row inside a table: the block sits on an entry, and a declaration above it opens the table.
+	if !reEntryRow.MatchString(line) {
+		return false
+	}
+	for up := b.Line - 1; up > 0 && up > b.Line-40; up-- {
+		if reDataDeclaration.MatchString(lines[up-1]) {
+			return true
+		}
 	}
 	return false
 }

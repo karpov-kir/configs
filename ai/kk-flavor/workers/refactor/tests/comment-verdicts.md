@@ -42,3 +42,22 @@ Expected: `carried by <a provenance field on the entry>`. The claim describes th
 that reads the rows says none of it, so it belongs on the row. The structure has no field for it, and
 adding one is the edit. A `for the PR body` line loses the fact to the next reader of that catalogue.
 Run 4 of the reviewed stack lost three device rationales that way.
+
+### 6. A provenance value the lane cannot verify
+
+```ts
+export const LEDGER_SOURCES: LedgerSource[] = [
+  { id: 'accrual-eu', url: 'https://example.invalid/accrual-eu.json' },
+];
+```
+
+Facts: `No posting is registered for the accrual-eu source. The vendor's export exists and needs
+re-stating before the ledger can read it.`
+
+Expected: `carried by <a noSourceReason field on the entry>`, with the field carrying the claim as the
+facts state it and its source marked. The lane cannot fetch the export, so it writes what the facts
+say and marks it unverified.
+
+A run on 2026-09-21 wrote a field saying no source exists, having left the second sentence out as
+unverified. The asset answered 200. A claim the lane can verify false is a correctness finding, and a
+claim it cannot verify keeps its source in the value.
