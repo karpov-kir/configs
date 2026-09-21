@@ -1,5 +1,6 @@
 expect: carried
-why: the claim is a fact about a row of the table it sits on, so it goes to a provenance field on that row and a note is the wrong home for it; the writer tried twice on 2026-09-21 and declined both, since a constant table performs no action a consequence sentence can name
+why: the claim is a fact about a row of the table it sits on, so it goes to a provenance field on that row and a note is the wrong home for it; the writer tried twice on 2026-09-21 and declined both, since a constant table performs no action a consequence sentence can name; no step reaches it, since the provenance route was written for a caller of a catalogue and this site is the catalogue, so the writer's judgement decides it and the floor is 2 of 5
+floor: 2
 labelled: 2026-09-21
 --- code
 export const SCHEME_NAMES: Record<Settlement, string[]> = {
