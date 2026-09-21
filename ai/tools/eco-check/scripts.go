@@ -250,18 +250,22 @@ func (c *checker) reportTestPosition(script string, lines []string, carriers map
 // its cases are.
 
 // A script whose cases live in the Go module and in no `-test.sh` beside it.
+//
+// Every suite the header names is held, not the first. Stopping at the first read eleven headers of the
+// form "the Go suite beside the tool, X; the shared stub region by the Go suite in reach" as declaring
+// reach and nothing else, because only the second clause carried the phrase this matches. Each of those
+// scripts named a package it was never held against, and the scan reported nothing.
 func (c *checker) namesGoSuite(script string, header []string) bool {
+	named := false
 	for _, line := range header {
-		match := goSuiteDeclared.FindStringSubmatch(line)
-		if match == nil {
-			continue
+		for _, match := range goSuiteDeclared.FindAllStringSubmatch(line, -1) {
+			named = true
+			if !c.holdsGoSuite(match[1]) {
+				c.add(scriptNamesMissingTest + ": " + shell.Oneline(script) + " names " + shell.Oneline(match[1]))
+			}
 		}
-		if !c.holdsGoSuite(match[1]) {
-			c.add(scriptNamesMissingTest + ": " + shell.Oneline(script) + " names " + shell.Oneline(match[1]))
-		}
-		return true
 	}
-	return false
+	return named
 }
 
 // Whether any Go test file in the tree sits in the named package. The match is on the path's tail.

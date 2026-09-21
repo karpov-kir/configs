@@ -6,13 +6,14 @@
 #   usage: bootstrap.sh [--dry-run] [--relocate] [--skip-brew]
 #
 # Safe to re-run: every step checks the state it wants before changing anything, so a second run over
-# a finished machine reports "ok" throughout and writes nothing. It refuses rather than deletes, and
-# it will not move a machine whose configuration is mounted from a different checkout.
+# a finished machine reports "ok" throughout and writes no file. A conflict makes it refuse, and no
+# file is deleted. It will not move a machine whose configuration is mounted from a different
+# checkout.
 #
 # The recipe is Go, in `ai/tools/env-bootstrap/`. env/ and ai/ install together for that reason: this
-# reaches the resolver next door, and a checkout carrying only env/ has nothing to run.
+# reaches the resolver next door, and a checkout carrying only env/ has no tool to run.
 #
-# tested by: the Go suite in ai/tools/env-bootstrap/; stub region by the Go suite in ai/tools/reach/.
+# tested by: the Go suite in ai/tools/env-bootstrap/, the stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="env-bootstrap"
@@ -20,14 +21,14 @@ tool="env-bootstrap"
 tools_offset="../ai"
 
 # --- shared:tool-stub ---
-# Byte-identical in every stub. The wiring check's shared-region scan holds it so.
+# Byte-identical in every stub, which the wiring check's shared-region scan enforces.
 #
-# Each stub carries a copy instead of sourcing one file. Sourcing a file executes it, and a stub runs
-# from whatever repository the human is standing in. So the only part that lives here is the part that
-# cannot move: a stub has to find the resolver before the resolver can decide anything.
-#
-# ai/tools/resolve.sh owns everything after that, argv[0] included. Its header says why each line
-# below has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
+# Each stub carries its own copy. One shared file would be executed by the source call that read it,
+# and a stub runs from whatever repository the human is standing in.
+
+# What lives here is the part that cannot move: a stub has to find the resolver before the resolver
+# can decide anything. ai/tools/resolve.sh owns the rest, argv[0] included. Its header says why each
+# line here has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2

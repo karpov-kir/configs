@@ -34,19 +34,20 @@ done < <(find ai/kk-flavor/standards ai/kk-flavor/workers ai/kk-flavor/skills ai
   -name '*.md' 2>/dev/null | sort)
 [ "${#files[@]}" -gt 0 ] || { echo "voice-baseline: no instruction file was found — exit 2" >&2; exit 2; }
 
-# Measured one file at a time, reading each run's own summary line. The report truncates its findings
-# at a display cap, so counting printed lines undercounts any file that runs past it, and one run over
-# every file at once would hit that cap long before the last file.
-#
-# The runs go concurrently, in batches. Sequentially this was the slowest thing in the gate at 102
-# seconds over 72 files, which is most of the whole budget spent on startup — each run reads one file
-# and shares nothing with the others, so there is nothing here to serialize. Batched with `wait` rather
-# than `wait -n`, and with an indexed array rather than an associative one, because macOS ships bash
-# 3.2 and has neither.
-#
-# Exit 2 from a run is fatal here. It means that run did not measure, and its empty summary would
-# otherwise read as a file with no findings — which is a count under its baseline, and the regenerate
-# path would then write that zero in as the new floor.
+# Each file is measured on its own, and each run's own summary line is what is read. The report
+# truncates its findings at a display cap. A count of printed lines would undercount any file that
+# runs past it, and one run over every file at once hits that cap long before the last file.
+
+# The runs go concurrently, in batches. Sequentially this was the gate's slowest check at 102 seconds
+# over 72 files, most of the whole budget and most of it process startup. Each run reads one file and
+# shares no state with the others, so they can all go at once.
+
+# This batches with `wait` and fills an indexed array, because macOS ships bash 3.2 and lacks
+# `wait -n` and associative arrays.
+
+# Exit 2 from a run is fatal here. It means that run failed to measure, and its empty summary would
+# otherwise read as a file with no findings. That reads as a count under the baseline, and the
+# regenerate path would then write the zero in as the new floor.
 measured=()
 work="$(mktemp -d "${TMPDIR:-/tmp}/voice-baseline.XXXXXX")" || {
   echo "voice-baseline: no temp directory, so nothing was measured — exit 2" >&2; exit 2; }
@@ -57,9 +58,8 @@ while [ "$i" -lt "${#files[@]}" ]; do
   j=0
   while [ "$j" -lt "$batch" ] && [ "$i" -lt "${#files[@]}" ]; do
     (
-      # The run's own status, taken from the substitution rather than from PIPESTATUS. PIPESTATUS
-      # there reports the assignment, which is a one-element pipeline, so it read 0 whatever the
-      # checker did — and the guard below never fired.
+      # The run's own status comes off the substitution. PIPESTATUS there reports the assignment, a
+      # one-element pipeline. It read 0 whatever the checker did, and the exit-2 guard never fired.
       status=0
       summary="$("$check" --profile=instruction "${files[$i]}" 2>&1 >/dev/null)" || status=$?
       summary="$(printf '%s' "$summary" | grep -o 'instruction profile: [0-9]* finding' || true)"

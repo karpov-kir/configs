@@ -17,9 +17,10 @@
 # the tree and never refuses one, so 0 is a report to read, never a verdict that the tree is flat.
 # A root holding no `.md` exits 2 for the same reason: reading nothing is not a flat tree.
 #
-# tested by: the Go suite in ai/tools/cite-graph/, which drives the tool in process — every figure
-# above, and each of the two ways a root can fail to name one tree. The shared stub region below is
-# covered by the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/cite-graph/, which drives the tool in process. It covers each
+# figure this header names, and each of the two ways a root can fail to name one tree. The shared
+# stub region and the resolver it calls have their own cases in
+# the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 
@@ -28,14 +29,14 @@ tool="cite-graph"
 tools_offset="../../../.."
 
 # --- shared:tool-stub ---
-# Byte-identical in every stub. The wiring check's shared-region scan holds it so.
+# Byte-identical in every stub, which the wiring check's shared-region scan enforces.
 #
-# Each stub carries a copy instead of sourcing one file. Sourcing a file executes it, and a stub runs
-# from whatever repository the human is standing in. So the only part that lives here is the part that
-# cannot move: a stub has to find the resolver before the resolver can decide anything.
-#
-# ai/tools/resolve.sh owns everything after that, argv[0] included. Its header says why each line
-# below has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
+# Each stub carries its own copy. One shared file would be executed by the source call that read it,
+# and a stub runs from whatever repository the human is standing in.
+
+# What lives here is the part that cannot move: a stub has to find the resolver before the resolver
+# can decide anything. ai/tools/resolve.sh owns the rest, argv[0] included. Its header says why each
+# line here has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2

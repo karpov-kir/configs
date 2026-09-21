@@ -10,7 +10,7 @@
 # ../templates/qualify-report-template.md. `~/.kk-flavor/scripts/tree-fingerprint.sh` is found from
 # $HOME. Both installs symlink into the same repo, so they ship together or not at all.
 #
-# tested by: the Go suite beside the tool, `ai/tools/eco-report/`; the shared stub region below by
+# tested by: the Go suite in ai/tools/eco-report/; the shared stub region below by
 # the Go suite in ai/tools/reach/, which covers the resolver it calls too.
 
 set -euo pipefail
@@ -20,14 +20,14 @@ tool="eco-report"
 tools_offset="../../../.."
 
 # --- shared:tool-stub ---
-# Byte-identical in every stub. The wiring check's shared-region scan holds it so.
+# Byte-identical in every stub, which the wiring check's shared-region scan enforces.
 #
-# Each stub carries a copy instead of sourcing one file. Sourcing a file executes it, and a stub runs
-# from whatever repository the human is standing in. So the only part that lives here is the part that
-# cannot move: a stub has to find the resolver before the resolver can decide anything.
-#
-# ai/tools/resolve.sh owns everything after that, argv[0] included. Its header says why each line
-# below has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
+# Each stub carries its own copy. One shared file would be executed by the source call that read it,
+# and a stub runs from whatever repository the human is standing in.
+
+# What lives here is the part that cannot move: a stub has to find the resolver before the resolver
+# can decide anything. ai/tools/resolve.sh owns the rest, argv[0] included. Its header says why each
+# line here has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2

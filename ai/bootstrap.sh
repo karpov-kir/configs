@@ -5,10 +5,10 @@
 #
 #   usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--uninstall]
 #
-# The recipe is Go, in `ai/tools/ai-bootstrap/`. What is left here is the one part of a machine install
-# that cannot be: reaching a Go binary on a machine that has none.
+# The recipe is Go, in `ai/tools/ai-bootstrap/`. What is left here is the part of a machine install
+# that cannot be Go: reaching a Go binary on a machine that has none.
 #
-# tested by: the Go suite in ai/tools/ai-bootstrap/; stub region by the Go suite in ai/tools/reach/.
+# tested by: the Go suite in ai/tools/ai-bootstrap/, the stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 
 tool="ai-bootstrap"
@@ -16,20 +16,23 @@ tool="ai-bootstrap"
 tools_offset="."
 
 # --- the toolchain, and why it is still shell -------------------------------------------------------
-#
-# Everything past the handover below is a Go subcommand, and none of it can run until a binary exists.
-# `ai/tools/install.sh` is what puts one there on a machine with no Go — it downloads the release this
-# repository cut, needing nothing but `gh` — and `ai/tools/resolve.sh` builds from source where there
-# is a toolchain instead. Without this call a fresh clone on a machine with no Go gets the resolver's
-# refusal and no install at all, which is the one machine a bootstrap is for.
-#
-# Only when nothing can answer yet, so a machine that is already set up pays two tests and no network.
-# `|| true`: install.sh exits 3 when this repository has cut no release, which is not a failure and is
-# reported properly by the tools step inside the run. Every other way it fails leaves no binary, and
-# the resolver below is what says so.
-#
-# Its own directory rather than the stub region's `$here`, because that region is copied byte for byte
-# into every stub and a line added inside it would break the scan that holds the copies identical.
+
+# Everything past the exec at the end of this file is a Go subcommand, and a binary has to exist
+# first. `ai/tools/install.sh` puts one there on a machine with no Go, downloading the release this
+# repository cut with `gh` alone. `ai/tools/resolve.sh` builds from source where a toolchain is
+# present instead.
+
+# A fresh clone on a machine that lacks Go would otherwise get the resolver's refusal, and the
+# install would stop there. That is the machine a bootstrap is for.
+
+# The guard fires only when a binary is absent and Go is too, so a machine already set up pays two
+# tests, and no network call goes out. `|| true`: install.sh exits 3 where this repository has cut
+# no release, and that is a normal state the tools step inside the run reports. Every other way it
+# fails leaves no binary, and the resolver at the end of this file is what says so.
+
+# This uses a directory of its own, and not the stub region's `$here`. That region is copied byte for
+# byte into every stub, and a line added inside it would break the scan that holds the copies
+# identical.
 prologue_here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || prologue_here=""
 if [ -n "$prologue_here" ] &&
   [ ! -x "$prologue_here/tools/bin/$tool" ] &&
@@ -39,14 +42,14 @@ if [ -n "$prologue_here" ] &&
 fi
 
 # --- shared:tool-stub ---
-# Byte-identical in every stub. The wiring check's shared-region scan holds it so.
+# Byte-identical in every stub, which the wiring check's shared-region scan enforces.
 #
-# Each stub carries a copy instead of sourcing one file. Sourcing a file executes it, and a stub runs
-# from whatever repository the human is standing in. So the only part that lives here is the part that
-# cannot move: a stub has to find the resolver before the resolver can decide anything.
-#
-# ai/tools/resolve.sh owns everything after that, argv[0] included. Its header says why each line
-# below has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
+# Each stub carries its own copy. One shared file would be executed by the source call that read it,
+# and a stub runs from whatever repository the human is standing in.
+
+# What lives here is the part that cannot move: a stub has to find the resolver before the resolver
+# can decide anything. ai/tools/resolve.sh owns the rest, argv[0] included. Its header says why each
+# line here has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2

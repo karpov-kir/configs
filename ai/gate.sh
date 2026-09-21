@@ -2,13 +2,13 @@
 # The pre-commit gate: every check this repository gates on, run from cold, every time.
 #
 #   usage: gate.sh [--full]
-#          (no flag)  run every check, letting Go's own test cache answer where it can
-#          --full     defeat that cache too, which is what the time budget is measured against
+#          (no flag)  run every check, and let Go's own test cache answer where it can
+#          --full     defeat that cache too. The time budget is measured against this mode.
 #
-# Five checks — gofmt, vet, the Go suite, the wiring check, the field guide — run at once and printed
-# in that order.
+# Six checks — gofmt, vet, the Go suite, the wiring check, the field guide, the instruction baseline
+# — run at once and printed in that order.
 #
-# It may never report a pass for a check it did not run, finish over budget and exit 0, or skip
+# It may never report a pass for a check it failed to run, finish over budget and exit 0, or skip
 # anything quietly. `ai/kk-flavor/standards/testing.md` rule 6 is the bound and `ai/tools/gate/` is
 # where it is enforced.
 #
@@ -21,14 +21,14 @@ tool="gate"
 tools_offset="."
 
 # --- shared:tool-stub ---
-# Byte-identical in every stub. The wiring check's shared-region scan holds it so.
+# Byte-identical in every stub, which the wiring check's shared-region scan enforces.
 #
-# Each stub carries a copy instead of sourcing one file. Sourcing a file executes it, and a stub runs
-# from whatever repository the human is standing in. So the only part that lives here is the part that
-# cannot move: a stub has to find the resolver before the resolver can decide anything.
-#
-# ai/tools/resolve.sh owns everything after that, argv[0] included. Its header says why each line
-# below has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
+# Each stub carries its own copy. One shared file would be executed by the source call that read it,
+# and a stub runs from whatever repository the human is standing in.
+
+# What lives here is the part that cannot move: a stub has to find the resolver before the resolver
+# can decide anything. ai/tools/resolve.sh owns the rest, argv[0] included. Its header says why each
+# line here has the shape it has: the `cd -P`, the declared offset, the two guards, the exec.
 die() {
   printf '%s: %s\n' "${0##*/}" "$1" >&2
   exit 2
