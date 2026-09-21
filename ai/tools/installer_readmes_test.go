@@ -1,10 +1,10 @@
-// The two installers' package lists, held against the two READMEs that document them. Adding a
-// formula to a README alone would leave it documented and never installed, with every other case in
-// either installer's package still green.
-//
-// Read from the shipped READMEs rather than from a fixture, so the files people actually edit are the
-// ones held here. They live in this package rather than in `ai/tools/<installer>/` for the reason
-// shipped_tree_test.go's cases do.
+// The two installers' package lists and the two READMEs that document them carry the same names.
+// Adding a formula to a README alone leaves it documented and never installed, with every other case
+// in either installer's package still green.
+
+// These cases read the shipped READMEs, so the files people actually edit are the ones held here. They
+// live in this package, and not in `ai/tools/<installer>/`, for the reason shipped_tree_test.go's
+// cases do.
 package tools_test
 
 import (
@@ -23,8 +23,8 @@ const (
 )
 
 // Both READMEs write each package as an inline code span: `brew install neovim`, `brew install --cask
-// ghostty`. Two patterns rather than one with an optional flag: `--cask` is inside the formula
-// pattern's character class, so a single pattern would file ghostty under formulae.
+// ghostty`. There are two patterns because `--cask` sits inside the formula pattern's character class,
+// and one pattern with an optional flag files ghostty under formulae.
 var (
 	readmeFormula = regexp.MustCompile("`brew install ([a-z0-9-]+)`")
 	readmeCask    = regexp.MustCompile("`brew install --cask ([a-z0-9-]+)`")
@@ -34,9 +34,9 @@ func TestTheAiReadmeAndItsInstallerNameTheSameFormulae(t *testing.T) {
 	body := readShipped(t, aiReadme)
 	documented := named(readmeFormula, body)
 
-	// The control, and the load-bearing half: this needle comes out of a regexp, and one that stopped
-	// matching would leave the comparison below holding a list against an empty one — a shape that can
-	// only go red, and only once someone reads why. Named here so the reason arrives with the failure.
+	// The control half of the case. This needle comes out of a regexp, and one that stopped matching
+	// leaves slices.Equal holding a list against an empty one. That shape can only go red, and only once
+	// someone reads why, so the reason is named here and arrives with the failure.
 	if len(documented) == 0 {
 		t.Fatalf("%s documents no formula at all, so the comparison below would run against nothing. "+
 			"Either the README stopped writing them as `brew install …` code spans, or this scan is "+
@@ -55,10 +55,9 @@ func TestTheEnvReadmeAndItsInstallerNameTheSamePackages(t *testing.T) {
 	documentedFormulae := named(readmeFormula, body)
 	documentedCasks := named(readmeCask, body)
 
-	// The same control, over both lists: these needles come out of a regexp, and one that stopped
-	// matching would leave both comparisons below holding a list against an empty one — a shape that
-	// can only go red, never green, but only after someone reads why. Named here so the reason arrives
-	// with the failure instead.
+	// The same control, over both lists. These needles come out of a regexp, and one that stopped
+	// matching leaves both slices.Equal calls holding a list against an empty one. That shape can only
+	// go red, and only once someone reads why, so the reason is named here.
 	if len(documentedFormulae) == 0 || len(documentedCasks) == 0 {
 		t.Fatalf("%s documents %d formula(e) and %d cask(s), so the comparison below would run against "+
 			"nothing. Either the README stopped writing them as `brew install …` code spans, or this scan "+
@@ -75,8 +74,8 @@ func TestTheEnvReadmeAndItsInstallerNameTheSamePackages(t *testing.T) {
 	}
 }
 
-// Every name the pattern found, sorted and deduplicated: a README lists them one per feature and the
-// order it does that in is prose, not a fact either comparison is about.
+// Returns every name the pattern found, sorted and deduplicated. A README lists them one per feature,
+// and neither comparison is about the order it does that in.
 func named(pattern *regexp.Regexp, body string) []string {
 	var found []string
 	for _, match := range pattern.FindAllStringSubmatch(body, -1) {
@@ -91,8 +90,8 @@ func sortedUnique(values []string) []string {
 	return slices.Compact(unique)
 }
 
-// One half of a comparison, refused loudly where it cannot be read: a case that carried on would hold
-// the installer's list against an empty string and report it as drift.
+// Returns the file's contents, and fails the case where it cannot be read. A case that carried on
+// would hold the installer's list against an empty string and report it as drift.
 func readShipped(t *testing.T, path string) string {
 	t.Helper()
 	body, err := os.ReadFile(path)

@@ -246,9 +246,9 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, autho
 // comment count it gives authorship as a share of what is there, which is bounded whichever way the
 // change went — where a rate built from the diff alone inverts on a change that only deleted.
 func (h hostRepo) authoredComments(revisions, changed []string) (map[string]int, error) {
-	// Scoped to the files already resolved as changed, so the diff read here names the same set the
-	// rest of the bar measured. `HEAD` is spelled out because the bare form diffs against the INDEX,
-	// which would credit nothing to a change already staged.
+	// The diff is scoped to the files already resolved as changed, so it names the same set the rest of
+	// the bar measured. `HEAD` is spelled out because the bare form diffs against the INDEX. A change
+	// already staged would then be credited with zero added lines.
 	named := revisions
 	if len(named) == 0 {
 		named = []string{"HEAD"}

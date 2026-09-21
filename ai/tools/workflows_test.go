@@ -10,8 +10,8 @@
 // carrying a Gate step, they have nothing to hold to account and fail deliberately.
 //
 // That the LOCAL gate bounds its own `go test` is not here any more. It was a scan of gate.go's source
-// lines for the literal, which said nothing about the commands that file actually builds and went red
-// on the refactor that named the bound once. `gate/gate_test.go`'s
+// lines for the literal, which read that file's text and never the commands it builds. It went red on
+// the refactor that named the bound once, and `gate/gate_test.go`'s
 // TestEveryGoCommandIsBoundedAboveTheBudget reads those commands instead.
 package tools_test
 
@@ -127,12 +127,16 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// `suiteTimeoutSeconds` in ai/tools/gate/gate.go is the bound's one home: the backstop every `go test`
-// carries, so a suite that hangs on a runner fails in minutes rather than after Go's ten-minute
-// default. It is NOT the 100 seconds `testing.md` rule 6 states — that number is a budget over the
-// whole gate and gate.go's own wall clock is what enforces it, because a `go test` carrying it killed
-// the package before the gate could report which one was slow. A pointer is only as good as something
-// checking it still points at the same number, and this is that check.
+// `suiteTimeoutSeconds` in ai/tools/gate/gate.go is the bound's one home. It is the backstop every
+// `go test` carries, so a suite that hangs on a runner fails in minutes, well inside Go's ten-minute
+// default.
+
+// It is NOT the 100 seconds `testing.md` rule 6 states. That number is a budget over the whole gate,
+// and gate.go's own wall clock enforces it. A `go test` carrying the budget killed the package before
+// the gate could report which one was slow.
+
+// A pointer is only as good as something checking it still points at the same number, and this case is
+// that check.
 func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	gateBody, err := os.ReadFile(gateSource)
 	if err != nil {
@@ -177,8 +181,9 @@ func TestEveryWorkflowGateBoundsGoTestLikeTheGate(t *testing.T) {
 	}
 }
 
-// A `const <name> = <n>` seconds declaration, rendered the way `go test -timeout` spells one. Anchored
-// at column zero, so a mention inside a comment or a nested scope is not mistaken for the declaration.
+// Returns a `const <name> = <n>` seconds declaration, rendered the way `go test -timeout` spells one.
+// The match is anchored at column zero, so a mention inside a comment or a nested scope is not
+// mistaken for the declaration.
 func constSecondsIn(source, name string) string {
 	assign := "const " + name + " = "
 	for _, line := range strings.Split(source, "\n") {

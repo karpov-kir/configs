@@ -78,10 +78,12 @@ func sourcesOf(names []string) []string {
 	return paths
 }
 
-// The index, not a filesystem walk: a walk would pull in vendored trees and build output nobody
-// here commented. With content pinned to a revision the listing moves there too — a list taken from
-// today's index names files that revision never held, and every one of them reads as unreadable and
-// leaves the baseline without a word, which is the defect this pinning exists to end, moved one step.
+// With content pinned to a revision the listing moves there too. A list taken from today's index names
+// files that revision never held. Each of those reads as unreadable, and the baseline is left with no
+// word at all. That is the defect this pinning exists to end, moved one step.
+
+// The listing comes from the index. A filesystem walk would pull in vendored trees and build output
+// written outside this repository.
 func (h hostRepo) trackedSources() ([]string, error) {
 	var names []string
 	var err error
@@ -112,9 +114,9 @@ func (h hostRepo) changedSources(revisions, pathspec []string) ([]string, error)
 	if len(pathspec) > 0 {
 		dir = h.cwd
 	}
-	// The port names a diff's files from the repository's top whatever directory it ran in, and pins
-	// the flags that keep it that way under a reviewer's own git config; repo/exec.go carries which
-	// and why. `HEAD` is spelled here because the bare form diffs against the INDEX, and a scan taking
+	// The port names a diff's files from the repository's top whatever directory it ran in. It pins the
+	// flags that keep it that way under a reviewer's own git config, and repo/exec.go carries which and
+	// why. `HEAD` is spelled here because the bare form diffs against the INDEX, and a scan taking
 	// git's default would report a clean tree over every change already staged.
 	named := revisions
 	if len(named) == 0 {

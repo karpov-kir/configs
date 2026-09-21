@@ -439,7 +439,7 @@ func TestBarSkipsABinaryFileUnread(t *testing.T) {
 // `git diff HEAD` is "ambiguous" once a file named HEAD sits in the working tree, and the branch under
 // review can commit one; the listings end in `--` whether a pathspec follows or not, so the bar runs.
 func TestBarRunsWithAFileNamedHEADInTheTree(t *testing.T) {
-	// Real git, because the refusal being averted is git's own and no fake can be made to give it.
+	// Real git, because the refusal being averted is git's own, and no fake can be made to give it.
 	r := newRealRepo(t)
 	lean := strings.Repeat("code()\n", 9) + "// one\n"
 	r.write("a.go", lean)

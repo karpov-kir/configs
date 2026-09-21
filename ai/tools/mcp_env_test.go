@@ -1,20 +1,18 @@
-// Cases for `ai/mcp-env.sh` — the wrapper every stdio MCP server is launched through, and the only
-// thing standing between an unpinned `npx` package and every credential exported in the shell that
-// started the client.
-//
-// The script stays shell and cannot become anything else: the MCP client launches it from a path
-// written into a config, on a machine that may have nothing built. A stub would exit 2 there and turn
-// every server into a startup failure, and where a toolchain IS present it would run `go build`
-// inside the very unstripped environment this wrapper exists to keep unreviewed code away from.
-//
-// So the exec stays, and only the exec: this is the one subject in the module measured a process at a
-// time, because what it measures is what a child saw after `env -i`, and nothing in Go can answer that
-// about a bash script without running it. Cases share a launch wherever two of them read the same
-// child.
-//
-// They live in this package rather than in one of their own for the reason shipped_tree_test.go's
-// cases do. Note what no placement fixes: these cases run the wrapper as a child process, and nothing
-// a child opens reaches the runner's cache at all.
+// Cases for `ai/mcp-env.sh`, the wrapper every stdio MCP server is launched through. It stands between
+// an unpinned `npx` package and every credential exported in the shell that started the client.
+
+// The script stays shell and cannot become anything else. The MCP client launches it from a path
+// written into a config, on a machine that may have no toolchain built. A stub would exit 2 there and
+// turn every server into a startup failure. Where a toolchain IS present, a stub would run `go build`
+// inside the very unstripped environment this wrapper keeps unreviewed code away from.
+
+// So the exec stays, and only the exec. This subject is measured a process at a time. What it measures
+// is what a child saw after `env -i`, and only running the script can answer that. Cases share a launch
+// wherever two of them read the same child.
+
+// They live in this package, and not in one of their own, for the reason shipped_tree_test.go's cases
+// do. One thing no placement fixes: these cases run the wrapper as a child process, and the files a
+// child opens stay out of the runner's cache.
 package tools_test
 
 import (
@@ -32,13 +30,14 @@ import (
 // The wrapper under test, beside the rest of `ai/`.
 const wrapper = repoRoot + "/ai/mcp-env.sh"
 
-// The names the wrapper may pass, written out here rather than asked of it.
-//
-// Every other case derives its expectation from the script under test, so on their own they stay
-// green while the allow-list grows: adding GITHUB_TOKEN to it leaves all of them passing and hands
-// the token to an unpinned `npx` package. This literal is what goes red on that edit, so widening the
-// wrapper means editing this list in the same commit, where a reviewer reads the new name next to the
-// old ones.
+// Every other case derives its expectation from the script under test, so on their own they stay green
+// as the allowlist grows. Adding GITHUB_TOKEN to it leaves all of them passing and hands the token to
+// an unpinned `npx` package.
+
+// This literal is what goes red on that edit. The list is edited in the same commit as the wrapper,
+// where a reviewer reads the new name next to the old ones.
+
+// The names the wrapper may pass, pinned here and never asked of it.
 var pinnedAllowList = []string{
 	"PATH", "HOME", "USER", "LOGNAME",
 	"TMPDIR", "TMP", "TEMP",
@@ -49,7 +48,7 @@ var pinnedAllowList = []string{
 	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
 }
 
-// Three names no allow-list entry resembles, carrying values nothing else on this machine prints.
+// Three names unlike any allowlist entry, carrying values that only these cases ever set.
 var sentinels = []string{
 	"FAKE_API_KEY=sentinel-alpha",
 	"GH_TOKEN=sentinel-bravo",
@@ -58,9 +57,9 @@ var sentinels = []string{
 
 const sentinelMark = "sentinel-"
 
-// The path to the wrapper, refused loudly where it cannot be run: every case below is a launch of it,
-// so a script this suite cannot execute makes all of them fail for a reason that has nothing to do
-// with the guard they name.
+// Returns the path to the wrapper, and fails the case where it cannot be run. Every case in this file
+// is a launch of it. A script the suite cannot execute makes them all fail for a reason unrelated to
+// the guard they name.
 func wrapperPath(t *testing.T) string {
 	t.Helper()
 	path, err := filepath.Abs(wrapper)
@@ -75,9 +74,9 @@ func wrapperPath(t *testing.T) string {
 	return path
 }
 
-// The environment a shell's `env NAME=VALUE … mcp-env.sh …` builds: this process's own, plus the
-// assignments. Passed whole rather than merged inside launch, because one case needs a name TAKEN OUT
-// of it and a merge can only put names in.
+// Returns the environment a shell's `env NAME=VALUE … mcp-env.sh …` builds: this process's own, plus
+// the assignments. It is passed whole, because one case needs a name TAKEN OUT of it and a merge
+// inside launch could only put names in.
 func launchingEnv(assignments ...string) []string {
 	return append(os.Environ(), assignments...)
 }
@@ -98,9 +97,10 @@ func launch(t *testing.T, environment []string, args ...string) (output string, 
 	return string(said), exit.ExitCode()
 }
 
-// What the child saw. `env` as the command throughout and never a shell: bash would add PWD, SHLVL
-// and `_` of its own, and the set comparison below would then be measuring bash rather than the
-// allow-list.
+// Returns what the child saw. The command is `env` throughout and never a shell, because bash adds
+// PWD, SHLVL and `_` of its own. The name comparison in
+// TestEveryNameTheHelpPromisesArrivesAndNothingElseDoes would then measure bash instead of the
+// allowlist.
 func childEnvIn(t *testing.T, environment []string) string {
 	t.Helper()
 	out, code := launch(t, environment, "env")
@@ -116,10 +116,10 @@ func childEnv(t *testing.T, assignments ...string) string {
 }
 
 // --- the sentinels ---
-//
+
 // The control that makes the rest mean anything. "No secret reached the child" passes just as well
-// when the child printed nothing at all, so the same sentinels are measured WITHOUT the wrapper
-// first, and that run has to find them.
+// over a child that printed silence. The same sentinels are measured WITHOUT the wrapper first, and
+// that run has to find them.
 func TestNoSecretInTheLaunchingEnvironmentReachesTheChild(t *testing.T) {
 	t.Parallel()
 	direct := exec.Command("env")
@@ -140,13 +140,13 @@ func TestNoSecretInTheLaunchingEnvironmentReachesTheChild(t *testing.T) {
 			"started the client would reach an unpinned `npx` package the same way.\n%s", found, through)
 	}
 	// The control on the same run: a wrapper that died before exec'ing anything also prints no
-	// sentinel, and a zero above would read as the stripping working.
+	// sentinel, and a zero from strings.Count would read as the stripping working.
 	if strings.TrimSpace(through) == "" {
 		t.Errorf("the child printed nothing, so the line above measured silence rather than absence")
 	}
 }
 
-// --- the allow-list, every row of it ---
+// --- the allowlist, every row of it ---
 func TestTheAllowListIsExactlyTheNamesPinnedHere(t *testing.T) {
 	t.Parallel()
 	promised := promisedNames(t)
@@ -160,17 +160,17 @@ func TestTheAllowListIsExactlyTheNamesPinnedHere(t *testing.T) {
 	}
 }
 
-// The names the help prints, set to markers and asked for back. Anything the child holds that the help
-// does not name is a leak the sentinels would have missed; anything named that does not arrive is a
-// server that may not start.
+// The names the help prints, set to markers and asked for back. A name the child holds that the help
+// leaves out is a leak the sentinels would have missed. A name promised that never arrives is a server
+// that may fail to start.
 func TestEveryNameTheHelpPromisesArrivesAndNothingElseDoes(t *testing.T) {
 	t.Parallel()
 	promised := promisedNames(t)
 	var marked []string
 	for _, name := range promised {
 		switch {
-		// Left at their real values: the wrapper needs PATH to exec anything, and a marker HOME would
-		// only be a marker.
+		// PATH and HOME keep their real values: the wrapper needs PATH to exec anything, and a marker
+		// HOME would only be a marker.
 		case name == "PATH" || name == "HOME":
 		// A locale name has to be a locale, or every child writes a setlocale warning to stderr and this
 		// suite's output grows a line no case put there.
@@ -194,9 +194,9 @@ func TestEveryNameTheHelpPromisesArrivesAndNothingElseDoes(t *testing.T) {
 }
 
 // --- unset, set-empty, set: three different things ---
-//
+
 // An empty TMPDIR forwarded as `TMPDIR=` makes npx unpack into a path that is the empty string
-// instead of falling back to /tmp, which is why this tells them apart by name rather than by value.
+// instead of falling back to /tmp. These cases tell the three apart by name, and never by value.
 func TestASetVariableArrivesWithItsValueAndAnUnsetOneStaysUnset(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
@@ -219,7 +219,7 @@ func TestASetVariableArrivesWithItsValueAndAnUnsetOneStaysUnset(t *testing.T) {
 	}
 }
 
-// Counted off one captured run, with its controls on the same run: a wrapper that died before
+// The case reads one captured run, with its controls on the same run. A wrapper that died before
 // exec'ing anything also prints no LC_CTYPE, and an absence would read as the guard working.
 func TestAnUnsetVariableStaysUnsetRatherThanArrivingEmpty(t *testing.T) {
 	t.Parallel()
@@ -273,10 +273,10 @@ func TestTheCommandsExitStatusIsTheWrappers(t *testing.T) {
 	}
 }
 
-// --- the two arms that launch nothing ---
-//
-// Asserted on wording as well as status. Every refusal here exits 2, so the code says one happened and
-// never which.
+// --- the two arms that launch no command ---
+
+// Every refusal here exits 2, so the code says only that a refusal happened. The wording is asserted
+// as well, and it is what tells the two arms apart.
 func TestNoCommandExitsTwoRatherThanLaunchingSomething(t *testing.T) {
 	t.Parallel()
 	out, code := launch(t, launchingEnv())
@@ -290,15 +290,17 @@ func TestNoCommandExitsTwoRatherThanLaunchingSomething(t *testing.T) {
 }
 
 // The help arm prints a line range out of the wrapper's own header, so two line numbers stand in for a
-// claim about that file's content, and a line added above the range silently makes them the wrong
-// lines. Both ends are pinned by content instead: the header line the range has to start at, and the
-// first line past it, which has to stay out.
-//
-// Both needles are read out of the wrapper, never written out here. A needle spelled literally is a
-// claim about prose, and prose gets reworded: the moment the wrapper's wording moves, the literal
-// matches nothing, "the help lacks it" becomes true of every possible output, and the case passes
-// forever without reaching its subject. Read from the file, a needle follows the rewording, and the
-// controls below fail when it reads as empty.
+// claim about that file's content. A line inserted into the header ahead of the range silently makes
+// them the wrong lines. Both ends are pinned by content: the header line the range has to start at,
+// and the first line past it, which has to stay out.
+
+// Both needles are read out of the wrapper, and never written out here. A needle spelled literally is
+// a claim about prose, and prose gets reworded. The moment the wrapper's wording moves, a literal
+// needle stops matching, and "the help lacks it" becomes true of every possible output. The case then
+// passes forever while its subject goes unread.
+
+// A needle read from the file follows the rewording, and the guards on the two needles fail when one
+// reads as empty.
 func TestHelpPrintsTheHeaderItPromisesAndStopsThere(t *testing.T) {
 	t.Parallel()
 	out, code := launch(t, launchingEnv(), "--help")
