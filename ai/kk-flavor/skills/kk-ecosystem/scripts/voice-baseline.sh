@@ -9,7 +9,7 @@
 # count without a baseline line is a new file starting dirty. Exits 1 with findings, 0 when every
 # file is on its line, and 2 when the check did not run.
 #
-# tested by: voice-baseline-test.sh
+# tested by: the Go suite in ai/tools/voicebaseline/, which execs this script once per case.
 set -euo pipefail
 
 regenerate=""
@@ -57,8 +57,12 @@ while [ "$i" -lt "${#files[@]}" ]; do
   j=0
   while [ "$j" -lt "$batch" ] && [ "$i" -lt "${#files[@]}" ]; do
     (
-      summary="$("$check" --profile=instruction "${files[$i]}" 2>&1 >/dev/null | grep -o 'instruction profile: [0-9]* finding' || true)"
-      status="${PIPESTATUS[0]}"
+      # The run's own status, taken from the substitution rather than from PIPESTATUS. PIPESTATUS
+      # there reports the assignment, which is a one-element pipeline, so it read 0 whatever the
+      # checker did — and the guard below never fired.
+      status=0
+      summary="$("$check" --profile=instruction "${files[$i]}" 2>&1 >/dev/null)" || status=$?
+      summary="$(printf '%s' "$summary" | grep -o 'instruction profile: [0-9]* finding' || true)"
       [ "$status" = 2 ] && { printf 'refused\n' >"$work/$i"; exit 0; }
       n="${summary//[!0-9]/}"
       printf '%s\n' "${n:-0}" >"$work/$i"
