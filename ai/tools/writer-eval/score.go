@@ -226,8 +226,8 @@ type Verdict struct {
 // Passed says whether a case cleared the bar. The class has to match, and a written block has to
 // fail no check.
 //
-// A carried claim satisfies a case wanting none, since both leave the site without a block and the
-// carried line says where the claim went. A case wanting carried asks for that line by name.
+// A carried claim satisfies a case wanting none. Both leave the site without a block, and the carried
+// line says where the claim went. A case wanting carried asks for that line by name.
 func (v Verdict) Passed() bool {
 	if len(v.Failures) > 0 {
 		return false
