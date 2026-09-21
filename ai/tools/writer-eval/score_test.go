@@ -232,9 +232,9 @@ func TestTheDeclarationUnderTheBlockIsNoSentence(t *testing.T) {
 	}
 }
 
-// A return carries its own bookkeeping beside the block: what it dropped and where that went. Reading
-// one of those lines as prose scored a correct `carried by` as a written block, and three of l07's
-// five rolls answered correctly while one was counted.
+// A return carries its own bookkeeping beside the block: what it dropped and where that went. A score
+// reading one of those lines as prose counted a correct `carried by` as a written block. Three of
+// l07's five rolls answered correctly and one of them was counted.
 func TestAVerdictLineIsNotPartOfTheBlock(t *testing.T) {
 	r := ParseReturn("summary: none\nnote: none\nnone\n" +
 		"carried by SettlementClaim.test.ts 'asks the legacy interface for escrow': A ledger " +
