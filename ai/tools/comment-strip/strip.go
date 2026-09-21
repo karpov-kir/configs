@@ -220,14 +220,6 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// Sites are numbered in the stripped file. The writer reads that file, and a site naming a line of
 	// the old one would point it at the wrong declaration by the height of every block above it.
 	removedBefore := 0
-	type site struct {
-		line   int
-		facts  string
-		record string
-		// The declaration this site sits on, which is how a later run finds the site again once an edit
-		// over it has moved its line.
-		decl string
-	}
 	sites := make([]site, 0, len(units))
 	for n, u := range units {
 		next := u.Line + u.Span
@@ -288,22 +280,16 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// comment blocks, so an empty site is invisible to it and its claims sit unread. The run that
 	// deleted the block decided under the rules of its day. This offers the site again, with the
 	// claims and an empty block, so the writer decides it under the rules standing now.
+	held := recordSites(records, sites, shared)
 	if archive != "" {
-		claimed := map[string]bool{}
-		for _, s := range sites {
-			for _, record := range records {
-				if record.isSite(s.line, s.decl, shared[s.decl]) {
-					claimed[record.name] = true
-				}
-			}
-		}
-		height := len(shell.SplitLines(stripped))
+		lines := shell.SplitLines(stripped)
+		height := len(lines)
 		for _, record := range records {
-			if claimed[record.name] {
+			if _, found := held[record.name]; found {
 				continue
 			}
-			claimed[record.name] = true
-			at := min(max(record.line, 1), max(height, 1))
+			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
+			held[record.name] = at
 			sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", len(sites)+1), decl: record.decl})
 		}
 	}
@@ -316,7 +302,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		// its own rules on one run. The strip reads the block as it stands, so the dropped text lives
 		// in that run's facts directory alone and a later run never weighs it.
 		if archive != "" {
-			record += earlierFacts(records, s.record, s.line, s.decl, shared[s.decl])
+			record += earlierFacts(records, s.record, s.line, held)
 		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(record), 0o644); err != nil {
 			return refuse("cannot write %s", echoable(filepath.Join(dir, s.facts)))
@@ -400,6 +386,18 @@ func archiveName(path string, line int) string {
 }
 
 // archived is one record an earlier run left: the site it was taken from, and the claims made there.
+// site is one place a block stood. Its line is a line of the stripped file, which is the file the
+// writer reads. A line of the file as it arrived would name a different declaration, off by the
+// height of every block the strip removed before it.
+type site struct {
+	line   int
+	facts  string
+	record string
+	// The declaration this site sits on, which is how a later run finds the site again once an edit
+	// over it has moved its line.
+	decl string
+}
+
 type archived struct {
 	name   string
 	line   int
@@ -449,26 +447,72 @@ func readArchive(archive, path string) ([]archived, error) {
 	return out, nil
 }
 
-// isSite says this record was taken from the site now standing at `line` over `decl`. The
-// declaration decides it wherever the record carries one, because an edit over a site moves it.
-//
-// A match on the line alone read the whole file's history into every site, which is what this
-// replaces. Where two sites share a declaration it decides neither, and both fall back to the line.
-func (a archived) isSite(line int, decl string, shared bool) bool {
-	if a.decl != "" && decl != "" && !shared {
-		return a.decl == decl
+// recordSites reads each archived record to the line of the site it came from. The declaration
+// decides first, and an edit over a site moves the site and leaves the declaration alone. Where no
+// declaration matches, the record is read by its line, and the site there is the same one renamed.
+// A read by the line alone handed every site in a file the whole file's history.
+func recordSites(records []archived, sites []site, shared map[string]bool) map[string]int {
+	at := map[string]int{}
+	for _, record := range records {
+		if record.decl == "" {
+			continue
+		}
+		for _, s := range sites {
+			if s.decl != "" && !shared[s.decl] && record.decl == s.decl {
+				at[record.name] = s.line
+			}
+		}
 	}
-	return a.line == line
+	for _, record := range records {
+		if _, found := at[record.name]; found {
+			continue
+		}
+		for _, s := range sites {
+			if record.line == s.line {
+				at[record.name] = s.line
+			}
+		}
+	}
+	return at
+}
+
+// declarationLine is where a record's declaration stands in the file now. A file holding it nowhere
+// gives up `fallback`. An archived site is offered here, because the recorded line put 45 of run 7's
+// 118 archived-only sites on a line their declaration had left.
+func declarationLine(lines []string, decl string, recorded, fallback int) int {
+	if decl == "" {
+		return fallback
+	}
+	at := 0
+	for n, line := range lines {
+		if strings.TrimSpace(line) != decl {
+			continue
+		}
+		if at == 0 || abs(n+1-recorded) < abs(at-recorded) {
+			at = n + 1
+		}
+	}
+	if at == 0 {
+		return fallback
+	}
+	return at
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
 // out. A block byte-identical to one already held is dropped. A site stripped twice with one block
 // between hands the writer that block once.
-func earlierFacts(records []archived, standing string, line int, decl string, shared bool) string {
+func earlierFacts(records []archived, standing string, line int, at map[string]int) string {
 	seen := map[string]bool{strings.TrimSpace(standing): true}
 	var out strings.Builder
 	for _, record := range records {
-		if !record.isSite(line, decl, shared) {
+		if at[record.name] != line {
 			continue
 		}
 		// An archived record holds one claim block per section. A site stripped three times hands over

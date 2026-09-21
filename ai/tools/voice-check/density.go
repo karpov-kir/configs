@@ -42,7 +42,7 @@ const stubName = "voice-check.sh"
 //
 // The stub's header states this line word for word, and a case holds the two together, so a flag added
 // here is added there in the same edit.
-const usage = "usage: " + stubName + " [--density | --per-file | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
+const usage = "usage: " + stubName + " [--density | --per-file | --profile=comment|prose|instruction] [--source] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
 // stderr under the tool's name, and the rest of the package writes there through this type alone. The

@@ -2,7 +2,8 @@ expect: written
 note: written
 floor: 3
 keeps: caller | iterat | loop | walk
-why: the fact is about a library type this code cannot change, and what makes the copy worth reading is what a caller does to the result; a run on 2026-09-21 wrote the mechanism twice and no consequence, and Kirill read the block as still confusing; the callers a grep finds remove entries while they walk the returned array, so the consequence names that act; the kept wording names the caller or the walk over the result, because the mechanism sentence carries a removal verb of its own and a floor that verb clears is a floor nothing fails
+keeps: toEntries
+why: the fact is about a library type this code cannot change, and what makes the copy worth reading is what a caller does to the result; a run on 2026-09-21 wrote the mechanism twice and no consequence, and Kirill read the block as still confusing; the callers a grep finds remove entries while they walk the returned array, so the consequence names that act; the second kept group names the site, because run 7 read a block that named a caller's act and never said what this function does about it, and the reader was left to infer the copy; the first kept group names the caller or the walk over the result, because the mechanism sentence carries a removal verb of its own and a floor that verb clears is a floor nothing fails
 labelled: 2026-09-21
 --- code
 export function toEntries(view: LiveEntryView<LedgerEntry>): LedgerEntry[] {

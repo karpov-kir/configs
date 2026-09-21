@@ -1589,3 +1589,44 @@ func TestATermOfArtIsNoBareIdentifier(t *testing.T) {
 		}
 	}
 }
+
+// The writer's per-block gate named the prose profile, which reads paragraphs and never comment
+// blocks. The bare identifier, long block and coined identifier checks live in the source scan
+// alone. Run 7 put a block past that gate twice, and the voice step then read 17 bare identifiers
+// over 8 files, at the cost of a re-pass over 56 sites.
+func TestABlockReadAsSourceReachesTheChecksProseDoesNot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "block.ts")
+	body := "/**\n * The ledger reads `preferredSettlements` on every call.\n * A source outside it is dropped.\n */\n" +
+		"export function postBatch(rows: LedgerRow[]): void {\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := voiceScanner()
+	cfg := Config{MaxFileBytes: 1 << 18}
+	var asProse, asSource scanned
+	prose, err := s.scanPaths([]string{path}, dir, cfg, &asProse, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if named := findingsNamed(prose, checkBareIdent); len(named) != 0 {
+		t.Errorf("the prose read reported %s, so this fixture no longer shows the gap", render(named))
+	}
+	source, err := s.scanPaths([]string{path}, dir, cfg, &asSource, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if named := findingsNamed(source, checkBareIdent); len(named) != 1 {
+		t.Errorf("the source read reported %s, want the one bare identifier", render(source))
+	}
+}
+
+func findingsNamed(found []Finding, check string) []Finding {
+	var out []Finding
+	for _, f := range found {
+		if f.Check == check {
+			out = append(out, f)
+		}
+	}
+	return out
+}
