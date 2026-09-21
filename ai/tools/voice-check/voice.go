@@ -513,13 +513,21 @@ func (seg segment) lineSpan(from, to int) (int, int) {
 // scanSource reads a source file's comment blocks. `within` is the set of lines this scan holds, nil
 // over a whole file; it scopes the scan by deciding what a block IS, so a block never reaches a check
 // carrying a line the diff did not add and nothing needs filtering afterwards.
-func (s scanner) scanSource(file string, lines []string, within map[int]bool) []Finding {
+//
+// `whole` is the file as the change leaves it, and it is nil where the run cannot reach the file.
+// Two checks exempt a word the code beside a block already spells, and both read `whole`. Over a
+// diff, `lines` carries the added lines alone, so the declaration under an untouched block is a gap
+// and the exemption goes with it. The scan's scope stays with `lines`.
+func (s scanner) scanSource(file string, lines []string, within map[int]bool, whole []string) []Finding {
 	var found []Finding
 	held := onlyAdded(within)
-	identifiers := identifierWordsOf(lines)
+	if whole == nil {
+		whole = lines
+	}
+	identifiers := identifierWordsOf(whole)
 	for _, b := range commentBlocksIn(lines, held) {
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
-		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(lines, b))...)
+		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
 		limit := voiceLongBlock
 		header := b.isFileHeader(lines, held)
 		if header {
@@ -896,7 +904,7 @@ func ScanFile(profile Profile, coined []string, allowed allowlist, file, content
 	s := scanner{profile: profile, coined: coined, allowed: allowed}
 	lines := shell.SplitLines(content)
 	if profile == ProfileComment {
-		return s.scanSource(file, lines, nil)
+		return s.scanSource(file, lines, nil, lines)
 	}
 	return s.scanProse(file, lines)
 }
@@ -1007,7 +1015,14 @@ func (s scanner) scanChange(args []string, cwd string, git repo.Git, cfg Config,
 	}
 	over.files = len(added.order)
 	over.declined = len(added.declined)
-	return s.scanAdded(added), nil
+	// A diff on stdin names a branch this checkout may lack, so the file is out of reach here and the
+	// declaration exemption stays off. The diff carries context lines that usually hold the
+	// declaration, and reading those would close the gap. It needs diffscan to offer them.
+	var whole map[string][]string
+	if !fromStdin {
+		whole = s.endSide(args, cwd, git, cfg, added.order)
+	}
+	return s.scanAdded(added, whole), nil
 }
 
 // addedLines is what a diff or an untracked walk contributed, per file, in the order the files
@@ -1109,7 +1124,7 @@ func (s scanner) readUntracked(a *addedLines, cwd string, git repo.Git, cfg Conf
 // scanAdded reads each file as a sparse one: the added lines at their own numbers, and a gap standing
 // in for every line the diff did not carry. `within` is what tells a gap from a blank line the diff
 // really added, which decides where a block ends and whether one is a file header.
-func (s scanner) scanAdded(a *addedLines) []Finding {
+func (s scanner) scanAdded(a *addedLines, whole map[string][]string) []Finding {
 	var found []Finding
 	for _, file := range a.order {
 		highest := 0
@@ -1124,9 +1139,60 @@ func (s scanner) scanAdded(a *addedLines) []Finding {
 		for _, line := range a.byFile[file] {
 			lines[line.at-1] = line.text
 		}
-		found = append(found, s.scanSource(file, lines, withoutSharedRegions(lines, within))...)
+		found = append(found, s.scanSource(file, lines, withoutSharedRegions(lines, within), whole[file])...)
 	}
 	return found
+}
+
+// endSide is each changed file as the change leaves it, for the checks that ask what the code beside
+// a block spells. `git diff` has three right-hand sides. No revisions and one revision both end at
+// the working tree. A range ends at the revision it names. A file this run cannot reach is left out
+// and falls back to the diff's own lines.
+func (s scanner) endSide(args []string, cwd string, git repo.Git, cfg Config, files []string) map[string][]string {
+	top, err := git.TopLevel(cwd)
+	if err != nil || len(files) == 0 {
+		return nil
+	}
+	named, _ := diffscan.RevisionsNamed(args)
+	rev := rightEnd(named)
+	whole := map[string][]string{}
+	if rev == "" {
+		for _, file := range files {
+			body, err := os.ReadFile(shell.Join(top, file))
+			if err != nil || int64(len(body)) > cfg.MaxFileBytes {
+				continue
+			}
+			whole[file] = shell.SplitLines(string(body))
+		}
+		return whole
+	}
+	// A revision this checkout lacks, or a read that fails, leaves the map short. The exemption falls
+	// silent for those files, the way every run behaved before this existed.
+	_ = git.ContentsAt(top, rev, files, cfg.MaxFileBytes, func(path string, content []byte) {
+		whole[path] = shell.SplitLines(string(content))
+	})
+	return whole
+}
+
+// rightEnd is the revision a diff's right-hand side names, or "" where that side is the working tree.
+// `a..b` and `a...b` both end at b, and `a..` ends at HEAD the way git reads it.
+func rightEnd(named []string) string {
+	if len(named) > 1 {
+		return named[len(named)-1]
+	}
+	if len(named) == 0 {
+		return ""
+	}
+	for _, separator := range []string{"...", ".."} {
+		if _, right, found := strings.Cut(named[0], separator); found {
+			if right == "" {
+				return "HEAD"
+			}
+			return right
+		}
+	}
+	// `git diff <rev>` compares that revision against the working tree.
+	return ""
 }
 
 // A region a repository holds byte-identical across several files. The two markers name it, and the
@@ -1164,7 +1230,7 @@ func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
 	if err := s.readDiff(added, diff); err != nil {
 		return nil, err
 	}
-	return s.scanAdded(added), nil
+	return s.scanAdded(added, nil), nil
 }
 
 // scanPaths reads the named files, or stdin for `-`. The prose profile's caller usually holds the
@@ -1380,13 +1446,23 @@ func (s scanner) coinedIdentifiers(file string, b block, lines []string, identif
 
 // declaredAt is what the declaration under a block spells, which is the name a block may use without
 // placing it. The block sits on that declaration, so its reader has the name in front of them.
+//
+// The lines it reads are the file as the change leaves it. A reader opens the file, so the
+// declaration under a block is in front of them whether or not the change touched it.
 func declaredAt(lines []string, b block) map[string]bool {
+	out := map[string]bool{}
+	// Comment lines are walked past as well as blank ones. Over a diff a block ends where its added
+	// lines end, and the rest of that same comment then stands between the block and the declaration.
+	// A walk stopping there would read the prose as the declaration and exempt every word of it.
 	at := b.end + 1
-	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
+	for at <= len(lines) && at <= b.end+declarationSearch {
+		line := strings.TrimLeft(lines[at-1], shell.SpaceBytes)
+		if line != "" && !isComment(line) && !isShebang(at, line) {
+			break
+		}
 		at++
 	}
-	out := map[string]bool{}
-	if at > len(lines) {
+	if at > len(lines) || at > b.end+declarationSearch {
 		return out
 	}
 	for _, word := range reIdentifierWord.FindAllString(lines[at-1], -1) {
@@ -1394,3 +1470,8 @@ func declaredAt(lines []string, b block) map[string]bool {
 	}
 	return out
 }
+
+// How far under a block the declaration may sit before the line found is no longer the block's own.
+// The gap holds a comment's remaining lines and the blanks around them. A bound well over the
+// longest block stops a runaway walk from exempting a name off unrelated code.
+const declarationSearch = 60

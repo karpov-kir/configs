@@ -97,6 +97,34 @@ func TestACompoundTheCodeSpellsIsNotCoined(t *testing.T) {
 	}
 }
 
+// Two blocks with a blank line between them are ordinary, and the upper one's declaration sits under
+// the lower one. A walk taking the first non-blank line finds the lower block's prose, reads it as
+// the upper block's declaration, and strikes every word it says from the upper block's summary.
+func TestTheDeclarationIsFoundPastASecondBlock(t *testing.T) {
+	lines := []string{
+		"// Settles a ledger entry.",
+		"",
+		"// A second block, about the rounding the vendor asks for.",
+		"export function settleLedgerEntry(row: LedgerRow): number {",
+		"  return 0;",
+		"}",
+	}
+	blocks := Blocks(lines)
+	if len(blocks) != 2 {
+		t.Fatalf("%d block(s), want 2, so the fixture is not the shape under test", len(blocks))
+	}
+	if !blocks[0].OverDecl {
+		t.Errorf("the upper block reads as standing over no declaration, and it stands over one")
+	}
+	words := DeclarationWords(lines, blocks[0])
+	if !words[stemOf("settleLedgerEntry")] && !words["settl"] {
+		t.Errorf("the declaration's own name is absent, so the words came off the second block")
+	}
+	if words[stemOf("vendor")] {
+		t.Errorf("the second block's prose was read as the first block's declaration")
+	}
+}
+
 // plainSetEnv names the directory of reviewed source the census counts. It is an environment
 // variable and never a committed path: the set is somebody else's code, and this repository is
 // public. Only counts and the sentences a shape reached leave the run.

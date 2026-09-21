@@ -1,6 +1,7 @@
 expect: written
 note: written
-why: the claim states that this table and a list outside it agree; Kirill on 2026-09-21, on its removal: "This is important context and has been removed"; where the two have parted, the parting is the correctness finding and this claim is what makes it findable, so it is never dropped as stale
+why: the claim states that this table and a list outside it agree, and the note has to keep the obligation; a run on 2026-09-21 wrote that the table copies the other, which states what is where the claim states what is owed, and a reader who changes one side is told nothing by it; Kirill on 2026-09-21, on its removal: "This is important context and has been removed"; where the two have parted, the parting is the correctness finding and this claim is what makes it findable, so it is never dropped as stale
+keeps: must match | must stay in step | has to match | has to stay in step | kept in sync | must be kept in sync
 labelled: 2026-09-21
 --- code
 export const SETTLEMENT_NAMES: Record<Settlement, string[]> = {

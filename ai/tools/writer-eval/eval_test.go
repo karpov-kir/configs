@@ -71,6 +71,21 @@ const labelledBar = "a none case on every roll, a written case on three of five"
 // writtenFloor is how many rolls a case the writer judges has to clear.
 const writtenFloor = 3
 
+// An invariant's worth is the obligation it states. A run on 2026-09-21 turned "must stay in step
+// with" into "copies", which leaves a reader of the changed side unaware of what they owe. Every
+// part of that return was otherwise right, and the harness had no way to see the loss.
+func TestABlockThatDropsTheObligationFails(t *testing.T) {
+	c := Case{Name: "k08", Expect: ExpectWritten, Keeps: []string{"must match", "must stay in step"}}
+	dropped := Return{Block: "// This table copies the ledger's settlement map.", Summary: PartNone, Note: PartWritten}
+	if JudgeCase(c, dropped).Passed() {
+		t.Errorf("a block stating what is, where the claim states what is owed, passed")
+	}
+	kept := Return{Block: "// This table must match the ledger's settlement map.", Summary: PartNone, Note: PartWritten}
+	if v := JudgeCase(c, kept); !v.Passed() {
+		t.Errorf("a block keeping the obligation failed: %v", v.Failures)
+	}
+}
+
 func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
