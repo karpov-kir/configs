@@ -221,12 +221,12 @@ var refusals = []refusal{
 			fmt.Fprintf(i.out, "%s: %s\n", i.self(), err)
 			return 2
 		}
-		return voicecheck.Run(i.self(), i.args, i.cwd, cfg, i.out, i.out)
+		return voicecheck.Run(i.self(), i.args, i.cwd, repo.Exec{}, cfg, i.out, i.out)
 	}},
 	// No facts directory. The tool takes it first and refuses when it is absent, before it reads a
 	// path or reaches git. The refusal states the grammar, and it makes no claim about the tree.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-strip.sh", call: func(i invocation) int {
-		return commentstrip.Strip(i.self(), i.args, i.cwd, i.out, i.out)
+		return commentstrip.Strip(i.self(), i.args, i.cwd, repo.Exec{}, i.out, i.out)
 	}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh", call: func(i invocation) int {
 		// An environment no GIT_DIR can redirect, which is what the command hands it: a session drafting

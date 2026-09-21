@@ -22,13 +22,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"configs/ai/tools/diffscan"
-	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/repo"
 	"configs/ai/tools/shell"
 )
 
@@ -98,8 +97,8 @@ func TaskFor(args []string) string {
 	return judgeTask
 }
 
-func Run(self string, args []string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
-	return RunIn(self, args, ".", stdin, stdout, stderr, call, memo)
+func Run(self string, args []string, git repo.Git, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
+	return RunIn(self, args, ".", git, stdin, stdout, stderr, call, memo)
 }
 
 // The grammar, in one place, because two copies of it drift and `ai/tools/stub_usage_test.go` holds
@@ -149,8 +148,10 @@ func RefuseIfNotTheGrammar(self string, args []string, stderr io.Writer) bool {
 	return false
 }
 
-// RunIn is Run with the working directory named, which --changed needs to find the repository.
-func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
+// RunIn is Run with the working directory named, which --changed needs to find the repository. git
+// answers for that repository and is only asked under --changed, so a caller that never passes the
+// option may hand it nothing.
+func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
 	numbersOnly, changed, revisions, rest, refusal := grammarRefusal(self, args)
 	if refusal != "" {
 		fmt.Fprintln(stderr, refusal)
@@ -188,7 +189,7 @@ func RunIn(self string, args []string, cwd string, stdin io.Reader, stdout, stde
 	lines := shell.SplitLines(content)
 	offer := offerFor(lines, kind)
 	if changed {
-		added, err := AddedLines(cwd, args[1], revisions)
+		added, err := AddedLines(git, cwd, args[1], revisions)
 		if err != nil {
 			fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
 			return exitDidNotRun
@@ -324,15 +325,15 @@ func Prompt(kind Kind) string {
 // AddedLines is the set of 1-based lines the diff added to one file, that file named as the caller
 // typed it and resolved against the repository root. With no revisions it is `git diff HEAD` plus, for
 // an untracked file, every line.
-func AddedLines(cwd, path string, revisions []string) (map[int]bool, error) {
-	if err := diffscan.RefuseNonRevisions(gitrepo.Exec{}, revisions, cwd); err != nil {
+func AddedLines(git repo.Git, cwd, path string, revisions []string) (map[int]bool, error) {
+	if err := diffscan.RefuseNonRevisions(git, revisions, cwd); err != nil {
 		return nil, err
 	}
-	rel, err := repoRelative(cwd, path)
+	rel, err := repoRelative(git, cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	diff, err := diffscan.Diff(gitrepo.Exec{}, cwd, revisions)
+	diff, err := diffscan.Diff(git, cwd, revisions)
 	if err != nil {
 		return nil, err
 	}
@@ -347,25 +348,24 @@ func AddedLines(cwd, path string, revisions []string) (map[int]bool, error) {
 		return nil, fmt.Errorf("the diff could not be read to the end (%v)", err)
 	}
 	if len(revisions) == 0 {
-		if err := result.WalkUntracked(gitrepo.Exec{}, cwd, diffscan.Options{MaxFileBytes: 1 << 20}, note); err != nil {
+		if err := result.WalkUntracked(git, cwd, diffscan.Options{MaxFileBytes: 1 << 20}, note); err != nil {
 			return nil, fmt.Errorf("could not list untracked files")
 		}
 	}
 	return added, nil
 }
 
-func repoRelative(cwd, path string) (string, error) {
-	out, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-prefix").Output()
+func repoRelative(git repo.Git, cwd, path string) (string, error) {
+	prefix, err := git.Prefix(cwd)
 	if err != nil {
 		return "", fmt.Errorf("%s is not inside a git repository", cwd)
 	}
-	prefix := strings.TrimSpace(string(out))
 	if filepath.IsAbs(path) {
-		top, err := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel").Output()
+		top, err := git.TopLevel(cwd)
 		if err != nil {
 			return "", fmt.Errorf("%s is not inside a git repository", cwd)
 		}
-		rel, err := filepath.Rel(strings.TrimSpace(string(top)), path)
+		rel, err := filepath.Rel(top, path)
 		if err != nil {
 			return "", err
 		}

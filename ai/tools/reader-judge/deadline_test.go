@@ -40,91 +40,227 @@ const notTheSubject = time.Hour
 // that IS the subject — such a case drives a fake that never returns, so the bound fires whatever else
 // the machine is doing. Anything coarser is the shape of a budget, an allowance for work expected to
 // finish sooner, and a budget is what load eats.
+//
+// The second spelling the scan reads is a roll a case makes slow by sleeping. A sleep is a budget the
+// caller constructors never see, and a case reading one against the announcer's interval asserts that
+// one real duration outruns another — the defect the announcer case carried past a scan that watched
+// only ClaudeCaller and CodexCaller.
 func TestNoCaseGivesARollAWallClockBudget(t *testing.T) {
 	names, err := filepath.Glob("*_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := 0
+	var total rollScan
 	for _, name := range names {
 		source, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		budgets, rolls := rollDeadlines(t, name, string(source))
-		found += rolls
-		for _, budget := range budgets {
+		found := scanRolls(t, name, string(source))
+		total.bounded += found.bounded
+		total.wrapped += found.wrapped
+		for _, budget := range found.budgets {
 			t.Errorf("%s bounds a roll at %s, which is a budget. Under concurrent gates this package "+
 				"spent ten such seconds before a fake that only echoes could answer, and nine cases "+
 				"failed on the bound rather than on their subjects. Pass notTheSubject, or — where "+
 				"the deadline is what the case asks about — a sub-second one against a fake that "+
 				"never returns.", name, budget)
 		}
+		for _, slept := range found.sleeps {
+			t.Errorf("%s makes a roll slow by sleeping %s, so what the case asserts is that one real "+
+				"duration outruns another, which a loaded machine makes false. Hold the roll on "+
+				"something the case releases — a channel it closes, or a clock it ticks — so the "+
+				"ordering is the ordering and not a race.", name, slept)
+		}
 	}
-	if found == 0 {
-		t.Fatal("no case here bounds a roll at all, so this would pass over the suite in any state")
+	if total.bounded == 0 {
+		t.Error("no case here bounds a roll at all, so that half would pass over the suite in any state")
+	}
+	if total.wrapped == 0 {
+		t.Error("no case here hands a roll to a wrapper, so that half would pass over the suite in any state")
 	}
 }
 
-// The scan above driven over text, so the spelling it exists to catch is a case rather than something
+// The scan above driven over text, so the spellings it exists to catch are cases rather than something
 // the tree merely happens not to hold today.
-func TestWhatCountsAsARollDeadlineBudget(t *testing.T) {
+func TestWhatCountsAsARollRacingTheWallClock(t *testing.T) {
 	for _, row := range []struct {
-		name    string
-		source  string
-		budgets []string
-		rolls   int
+		name             string
+		source           string
+		budgets, sleeps  []string
+		bounded, wrapped int
 	}{
-		{"the shared constant", "func f() { ClaudeCaller(notTheSubject, s()) }", nil, 1},
-		{"a sub-second bound the case is about", "func f() { CodexCaller(100*time.Millisecond, s()) }", nil, 1},
-		{"a budget in seconds", "func f() { ClaudeCaller(10*time.Second, s()) }", []string{"10*time.Second"}, 1},
-		{"a budget in minutes", "func f() { CodexCaller(time.Minute, s()) }", []string{"time.Minute"}, 1},
-		{"a second constant beside the shared one", "func f() { ClaudeCaller(generous, s()) }", []string{"generous"}, 1},
-		{"a duration in a call that bounds no roll", "func f() { Waiting(10*time.Second, 3) }", nil, 0},
+		{name: "the shared constant", source: "func f() { ClaudeCaller(notTheSubject, s()) }", bounded: 1},
+		{name: "a sub-second bound the case is about", source: "func f() { CodexCaller(100*time.Millisecond, s()) }", bounded: 1},
+		{name: "a budget in seconds", source: "func f() { ClaudeCaller(10*time.Second, s()) }", budgets: []string{"10*time.Second"}, bounded: 1},
+		{name: "a budget in minutes", source: "func f() { CodexCaller(time.Minute, s()) }", budgets: []string{"time.Minute"}, bounded: 1},
+		{name: "a second constant beside the shared one", source: "func f() { ClaudeCaller(generous, s()) }", budgets: []string{"generous"}, bounded: 1},
+		{name: "a duration in a call that bounds no roll", source: "func f() { Waiting(10*time.Second, 3) }"},
+		{name: "a budget reaching the announcer instead", source: "func f() { announcingASlowRoll(quick, 900*time.Second, tick, w) }", budgets: []string{"900*time.Second"}, bounded: 1, wrapped: 1},
+		{name: "a roll the case releases", source: "func f() { announcingOnEachTick(held, notTheSubject, w, c) }", bounded: 1, wrapped: 1},
+		// The shape this scan was extended for, written out as the file held it before the repair.
+		{
+			name:    "the announcer case as it stood when it went red",
+			source:  "func f() { slow := func(string, string) (string, error) { time.Sleep(60 * time.Millisecond); return \"none\", nil }; announcingASlowRoll(slow, 900*time.Second, 10*time.Millisecond, &said) }",
+			budgets: []string{"900*time.Second"},
+			sleeps:  []string{"60 * time.Millisecond"},
+			bounded: 1, wrapped: 1,
+		},
+		{
+			name:    "a sleeping roll handed to the vote",
+			source:  "func f() { slow := func(string, string) (string, error) { time.Sleep(time.Second); return \"none\", nil }; Voting(slow, 3) }",
+			sleeps:  []string{"time.Second"},
+			wrapped: 1,
+		},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			budgets, rolls := rollDeadlines(t, "fixture_test.go", "package readerjudge\n"+row.source+"\n")
-			if rolls != row.rolls {
-				t.Errorf("found %d roll(s), want %d", rolls, row.rolls)
+			found := scanRolls(t, "fixture_test.go", "package readerjudge\n"+row.source+"\n")
+			if found.bounded != row.bounded || found.wrapped != row.wrapped {
+				t.Errorf("found %d bounded and %d wrapped roll(s), want %d and %d",
+					found.bounded, found.wrapped, row.bounded, row.wrapped)
 			}
-			if strings.Join(budgets, ",") != strings.Join(row.budgets, ",") {
-				t.Errorf("budgets = %q, want %q", budgets, row.budgets)
+			if strings.Join(found.budgets, ",") != strings.Join(row.budgets, ",") {
+				t.Errorf("budgets = %q, want %q", found.budgets, row.budgets)
+			}
+			if strings.Join(found.sleeps, ",") != strings.Join(row.sleeps, ",") {
+				t.Errorf("sleeps = %q, want %q", found.sleeps, row.sleeps)
 			}
 		})
 	}
 }
 
-// rollDeadlines reports the deadlines `source` hands a caller constructor that are spelled as budgets,
-// and how many it hands one at all — the second so a scan that matched nothing can say so rather than
-// read as a clean sweep. The deadline is taken as the bytes the author wrote, not as a reconstruction
-// of them, so what the failure quotes is what the reader will search the file for.
-func rollDeadlines(t *testing.T, name, source string) ([]string, int) {
+// rollScan is what one file gave up: the two spellings that make a case race the wall clock, and the
+// count of each seam it was read for — the counts so a scan that matched nothing can say so rather
+// than read as a clean sweep.
+type rollScan struct {
+	budgets, sleeps  []string
+	bounded, wrapped int
+}
+
+// rollSeam is where one of the functions a case hands a roll to takes the two things that can be
+// spelled as wall clock: the bound, and the roll whose slowness the case arranges. -1 is one this
+// function does not take.
+type rollSeam struct{ deadline, roll int }
+
+func rollSeamOf(callee string) (rollSeam, bool) {
+	switch callee {
+	case "ClaudeCaller", "CodexCaller":
+		return rollSeam{deadline: 0, roll: -1}, true
+	case "announcingASlowRoll", "announcingOnEachTick":
+		return rollSeam{deadline: 1, roll: 0}, true
+	case "Voting", "namingTheFileThatDecides":
+		return rollSeam{deadline: -1, roll: 0}, true
+	}
+	return rollSeam{}, false
+}
+
+// scanRolls reads `source` for the rolls it bounds or wraps. Both spellings are taken as the bytes the
+// author wrote, not as a reconstruction of them, so what a failure quotes is what the reader will
+// search the file for.
+func scanRolls(t *testing.T, name, source string) rollScan {
 	t.Helper()
 	fileSet := token.NewFileSet()
 	parsed, err := parser.ParseFile(fileSet, name, source, 0)
 	if err != nil {
 		t.Fatalf("parsing %s: %v", name, err)
 	}
-	var budgets []string
-	found := 0
-	ast.Inspect(parsed, func(node ast.Node) bool {
+	spelling := func(node ast.Node) string {
+		return source[fileSet.Position(node.Pos()).Offset:fileSet.Position(node.End()).Offset]
+	}
+	// One declaration at a time. Two cases in a file both calling their roll `slow` are then read as
+	// the two literals they are, rather than as whichever of them the file bound last.
+	var found rollScan
+	for _, declared := range parsed.Decls {
+		found.gather(declared, spelling)
+	}
+	return found
+}
+
+// gather reads one declaration for the rolls it bounds and the rolls it hands to a wrapper.
+func (s *rollScan) gather(declared ast.Decl, spelling func(ast.Node) string) {
+	bound := rollLiterals(declared)
+	ast.Inspect(declared, func(node ast.Node) bool {
+		call, isCall := node.(*ast.CallExpr)
+		if !isCall {
+			return true
+		}
+		callee, isName := call.Fun.(*ast.Ident)
+		if !isName {
+			return true
+		}
+		seam, known := rollSeamOf(callee.Name)
+		if !known {
+			return true
+		}
+		if seam.deadline >= 0 && seam.deadline < len(call.Args) {
+			s.bounded++
+			if spelled := spelling(call.Args[seam.deadline]); deadlineIsABudget(spelled) {
+				s.budgets = append(s.budgets, spelled)
+			}
+		}
+		if seam.roll >= 0 && seam.roll < len(call.Args) {
+			s.wrapped++
+			for _, slept := range sleepsIn(bound, call.Args[seam.roll]) {
+				s.sleeps = append(s.sleeps, spelling(slept))
+			}
+		}
+		return true
+	})
+}
+
+// rollLiterals maps every name a declaration binds to a function literal onto that literal. A roll is
+// almost always handed to a wrapper by name rather than inline, so without this the body the author
+// wrote would go unread.
+func rollLiterals(scope ast.Node) map[string]*ast.FuncLit {
+	literals := map[string]*ast.FuncLit{}
+	ast.Inspect(scope, func(node ast.Node) bool {
+		assigned, isAssignment := node.(*ast.AssignStmt)
+		if !isAssignment {
+			return true
+		}
+		for i, left := range assigned.Lhs {
+			name, isName := left.(*ast.Ident)
+			if !isName || i >= len(assigned.Rhs) {
+				continue
+			}
+			if literal, isLiteral := assigned.Rhs[i].(*ast.FuncLit); isLiteral {
+				literals[name.Name] = literal
+			}
+		}
+		return true
+	})
+	return literals
+}
+
+// sleepsIn reports the durations a roll sleeps away, whether it was written inline or handed over by
+// the name it was bound to.
+func sleepsIn(literals map[string]*ast.FuncLit, roll ast.Expr) []ast.Expr {
+	var body *ast.FuncLit
+	switch given := roll.(type) {
+	case *ast.FuncLit:
+		body = given
+	case *ast.Ident:
+		body = literals[given.Name]
+	}
+	if body == nil {
+		return nil
+	}
+	var slept []ast.Expr
+	ast.Inspect(body, func(node ast.Node) bool {
 		call, isCall := node.(*ast.CallExpr)
 		if !isCall || len(call.Args) == 0 {
 			return true
 		}
-		callee, isName := call.Fun.(*ast.Ident)
-		if !isName || (callee.Name != "ClaudeCaller" && callee.Name != "CodexCaller") {
+		sleeping, isSelected := call.Fun.(*ast.SelectorExpr)
+		if !isSelected || sleeping.Sel.Name != "Sleep" {
 			return true
 		}
-		found++
-		deadline := call.Args[0]
-		spelled := source[fileSet.Position(deadline.Pos()).Offset:fileSet.Position(deadline.End()).Offset]
-		if deadlineIsABudget(spelled) {
-			budgets = append(budgets, spelled)
+		if pkg, isName := sleeping.X.(*ast.Ident); isName && pkg.Name == "time" {
+			slept = append(slept, call.Args[0])
 		}
 		return true
 	})
-	return budgets, found
+	return slept
 }
 
 // The shared constant, or a unit finer than a second. There is no third legitimate way to bound a roll
@@ -199,7 +335,7 @@ func TestAnExpiredRollExitsDidNotRunAndSaysSo(t *testing.T) {
 	path := write(t, instructions)
 	var out, errOut strings.Builder
 	fakeClaude(t, "sleep 30")
-	code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
+	code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &out, &errOut, ClaudeCaller(300*time.Millisecond, testSettings()), nil)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}

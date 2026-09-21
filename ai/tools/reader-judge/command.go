@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/repo"
 )
 
 // Main is the whole of the command, held here rather than in `cmd/reader-judge` because the ORDER of
@@ -65,6 +66,6 @@ func Main(invocation string, args []string, stdin io.Reader, stdout, stderr io.W
 	if os.Getenv("JUDGE_NO_CACHE") != "" {
 		memo = nil
 	}
-	return Run(self, args, stdin, stdout, stderr,
+	return Run(self, args, repo.Exec{}, stdin, stdout, stderr,
 		Voting(configured.Call, configured.Decision.Rolls), memo)
 }

@@ -110,24 +110,34 @@ const rollSilence = time.Minute
 
 // announcingASlowRoll makes a stall visible while it happens rather than only in the error that ends
 // it, and names the bound, since a reader watching this is deciding whether to wait or to kill the
-// run. One decorator wraps the caller a vote then calls once per roll, so the lock is shared and the
-// lines cannot interleave; nil is silent, and the interval is a parameter so a case need not wait out
-// a real minute to see one line.
+// run. The interval is a parameter so a case need not wait out a real minute to see one line.
 func announcingASlowRoll(call Caller, deadline, silence time.Duration, progress io.Writer) Caller {
+	return announcingOnEachTick(call, deadline, progress, func() (<-chan time.Time, func()) {
+		ticker := time.NewTicker(silence)
+		return ticker.C, ticker.Stop
+	})
+}
+
+// announcingOnEachTick takes the clock rather than a duration to build one from, so a case releases a
+// tick by hand and reads the line it caused instead of sleeping past an interval and racing it.
+// `ticking` starts one clock per roll and hands back the stop that ends it. One decorator wraps the
+// caller a vote then calls once per roll, so the lock is shared and the lines cannot interleave; a nil
+// destination starts no clock, since a tick reaching one would panic in a goroutine.
+func announcingOnEachTick(call Caller, deadline time.Duration, progress io.Writer, ticking func() (<-chan time.Time, func())) Caller {
 	if progress == nil {
 		return call
 	}
 	var speaking sync.Mutex
 	return func(prompt, view string) (string, error) {
 		started, done := time.Now(), make(chan struct{})
+		ticks, stop := ticking()
 		go func() {
-			ticker := time.NewTicker(silence)
-			defer ticker.Stop()
+			defer stop()
 			for {
 				select {
 				case <-done:
 					return
-				case <-ticker.C:
+				case <-ticks:
 					speaking.Lock()
 					fmt.Fprintf(progress, "reader-judge: a roll is still waiting, %s of its %s\n",
 						time.Since(started).Round(time.Second), deadline)
