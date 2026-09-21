@@ -65,9 +65,9 @@ func launchingEnv(assignments ...string) []string {
 	return append(os.Environ(), assignments...)
 }
 
-// One launch, with the wrapper started in exactly the environment it is given. runnableScript, the
-// helper this calls, lives in stub_reach_test.go: a script the suite cannot execute makes every case
-// here fail for a reason unrelated to the guard it names.
+// One launch, with the wrapper started in exactly the environment it is given. The script is checked
+// by runtest.Runnable first. A script the suite cannot execute makes every case here fail for a
+// reason unrelated to the guard it names.
 func launch(t *testing.T, environment []string, args ...string) (output string, code int) {
 	t.Helper()
 	command := exec.Command(runtest.Runnable(t, wrapper), args...)
@@ -107,10 +107,17 @@ func childEnv(t *testing.T, assignments ...string) string {
 // is on the same run: the child has to have printed something.
 func TestNoSecretInTheLaunchingEnvironmentReachesTheChild(t *testing.T) {
 	t.Parallel()
-	// That the sentinels reach the launching environment at all was proved once, by hand, with a bare
-	// `env` run over the same slice. os/exec hands that slice to the child verbatim, so re-running it
-	// every time measures the standard library.
-	through := childEnv(t, sentinels...)
+	// The sentinels have to be in the launching environment. An absence measured against a slice that
+	// never carried them reads the same as a wrapper doing its job.
+
+	// os/exec hands this slice to the child verbatim, so reading the slice is the whole of that claim
+	// and costs no process. The `env` run this replaces cost one.
+	launching := launchingEnv(sentinels...)
+	if found := strings.Count(strings.Join(launching, "\n"), sentinelMark); found != len(sentinels) {
+		t.Fatalf("the sentinels are not in the launching environment: %d of %d. The check below would "+
+			"then pass against a wrapper that does nothing at all.", found, len(sentinels))
+	}
+	through := childEnvIn(t, launching)
 	if found := strings.Count(through, sentinelMark); found != 0 {
 		t.Errorf("%d sentinel value(s) reached the child. Every credential exported in the shell that "+
 			"started the client would reach an unpinned `npx` package the same way.\n%s", found, through)

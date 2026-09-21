@@ -846,7 +846,13 @@ func (f *Fake) namedInTree(dir, spec string) string {
 // Everything under one pathspec put in the index, with what is on disk at each. A rule covering a
 // file swept up this way takes it out, which is git's silence above.
 func (f *Fake) stageUnder(name string) error {
-	return filepath.WalkDir(filepath.Join(f.Root, filepath.FromSlash(name)), func(full string, entry fs.DirEntry, err error) error {
+	// A pathspec holding `..` cleans to a name that climbs, and joining that onto Root aims the walk at
+	// the machine outside the fixture. Git refuses such a pathspec by name, so this does too.
+	from := filepath.Join(f.Root, filepath.FromSlash(name))
+	if from != f.Root && !strings.HasPrefix(from, f.Root+string(filepath.Separator)) {
+		return fmt.Errorf("fatal: %s: '%s' is outside repository at '%s'", name, name, f.Root)
+	}
+	return filepath.WalkDir(from, func(full string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			// `git add` exits 0 over a pathspec naming no file, and over a directory.
 			return nil

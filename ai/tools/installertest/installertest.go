@@ -143,10 +143,11 @@ func (w *Tree) Symlink(source, target string) {
 	}
 }
 
-// Hardlink is a second name for one file. A symlink check and an existence check both pass it, so
-// only a link count catches a write about to land in a file the run was never told about.
+// Hardlink is a second name for one file, so both ends are bound. An out-of-tree source would give an
+// in-tree name for a file outside the tree, and every later write through that name lands outside it.
 func (w *Tree) Hardlink(source, target string) {
 	w.t.Helper()
+	w.ContainedParent(source)
 	w.ContainedParent(target)
 	w.RefuseExistingSymlink(target)
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {

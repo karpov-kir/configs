@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/runtest"
 	"configs/ai/tools/shell"
 )
 
@@ -250,28 +251,6 @@ func TestFileOverTheBoundIsNotRead(t *testing.T) {
 	}
 }
 
-// True when a mode of 000 actually stops this process reading. Probed rather than compared against
-// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
-// carry the bit behave the same way, and all three make a mode-000 fixture something this tool reads
-// happily. ecocheck's suite carries the same probe for the same reason; neither package can import
-// the other's test helpers.
-func modeDeniesRead(t *testing.T) bool {
-	t.Helper()
-	probe := filepath.Join(t.TempDir(), "probe")
-	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-	if err := os.Chmod(probe, 0o000); err != nil {
-		t.Fatalf("chmod probe: %v", err)
-	}
-	file, err := os.Open(probe)
-	if err != nil {
-		return true
-	}
-	file.Close()
-	return false
-}
-
 // The two ways this read less than the tree it was pointed at and said nothing. Over a copy of `ai/`
 // with two directories at mode 000 it read 376 bolded rules as 206 — 45% less — and still exited on
 // the pair count alone with zero bytes on stderr. A caller cannot tell that from a clean result, and
@@ -340,7 +319,7 @@ func TestAPartialReadIsNamedAndCounted(t *testing.T) {
 		{"file", newShutFile},
 	} {
 		t.Run("names and counts an unreadable "+c.name, func(t *testing.T) {
-			if !modeDeniesRead(t) {
+			if !runtest.ModeDeniesRead(t) {
 				t.Skip("this process reads a mode-000 path regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable one cannot be built here")
 			}
 			root, shut := c.build(t)

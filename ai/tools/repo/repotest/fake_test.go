@@ -147,3 +147,29 @@ func write(t *testing.T, root, name, body string) {
 		t.Fatalf("writing the fixture %s: %v", name, err)
 	}
 }
+
+// A pathspec that climbs out of the repository. Git names it and refuses, and a fake that walked it
+// would send WalkDir up into whatever sits above the fixture.
+func TestAPathspecThatClimbsOutOfTheTreeIsRefused(t *testing.T) {
+	git := repotest.New(filepath.Join(t.TempDir(), "repo"))
+	if err := git.OnDisk(); err != nil {
+		t.Fatalf("could not build the fixture repo: %v — nothing was measured", err)
+	}
+	outside := filepath.Join(filepath.Dir(git.Root), "outside.txt")
+	if err := os.WriteFile(outside, []byte("not this tree's\n"), 0o644); err != nil {
+		t.Fatalf("writing the file above the fixture: %v — nothing was measured", err)
+	}
+
+	err := git.Add(git.Root, []string{"../outside.txt"})
+	if err == nil {
+		t.Fatal("a pathspec above the repository was accepted, so the walk ran outside the fixture")
+	}
+	if !strings.Contains(err.Error(), "outside repository") {
+		t.Errorf("the refusal says %q, which does not name the cause git names", err)
+	}
+	for _, held := range git.Staged {
+		if strings.Contains(held, "outside.txt") {
+			t.Errorf("the file above the fixture was staged as %q", held)
+		}
+	}
+}

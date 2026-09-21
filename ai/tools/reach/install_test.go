@@ -73,7 +73,7 @@ func TestARepositoryThatHasCutNoReleaseExitsThreeRatherThanTwo(t *testing.T) {
 	refused, _ := install(t, checkout, nil)
 
 	if refused.Code != 3 {
-		t.Errorf("wanted exit 3, which is the one runtest.Run that is neither an install nor a refusal\n%v", refused)
+		t.Errorf("wanted exit 3, the one outcome that is neither an install nor a refusal\n%v", refused)
 	}
 	for _, wording := range []string{"has cut no release", "from source on first use", "Go toolchain"} {
 		if !refused.Said(wording) {

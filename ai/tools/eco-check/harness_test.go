@@ -368,10 +368,6 @@ func (f *fixture) symlink(target, link string) {
 	}
 }
 
-// Decline a case whose fixture is a path this process has to be refused, on a machine where mode 000
-// refuses nobody. `what` finishes the sentence, so the skip still names what could not be built here
-// rather than only the machine it was declined on.
-
 func (f *fixture) chmod(path string, mode os.FileMode) {
 	f.t.Helper()
 	if err := os.Chmod(path, mode); err != nil {

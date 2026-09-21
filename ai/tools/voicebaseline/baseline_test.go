@@ -11,7 +11,7 @@
 package voicebaseline
 
 import (
-	"errors"
+	"configs/ai/tools/runtest"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,22 +48,6 @@ const refuses = -1
 type measurement struct {
 	name  string
 	count int
-}
-
-// What one launch of the script came back with. The streams are kept apart because the script keeps its
-// verdict on stderr and prints the files that are off their line on stdout.
-type outcome struct {
-	stdout string
-	stderr string
-	code   int
-}
-
-func (o outcome) said(wording string) bool {
-	return strings.Contains(o.stdout, wording) || strings.Contains(o.stderr, wording)
-}
-
-func (o outcome) String() string {
-	return fmt.Sprintf("exit %d\nstdout: %s\nstderr: %s", o.code, o.stdout, o.stderr)
 }
 
 func TestEveryWayATreeStandsAgainstItsBaseline(t *testing.T) {
@@ -126,7 +110,7 @@ func TestEveryWayATreeStandsAgainstItsBaseline(t *testing.T) {
 			t.Parallel()
 			root := newRoot(t, measurement{alpha, scenario.alpha}, measurement{beta, scenario.beta})
 			writeBaseline(t, root, scenario.baseline...)
-			if stood := runOver(t, root); stood.code != scenario.code || !stood.said(scenario.says) {
+			if stood := runOver(t, root); stood.Code != scenario.code || !stood.Said(scenario.says) {
 				t.Errorf("wanted exit %d and %q. A comparison answering the same in both directions is "+
 					"one that is not being made\n%v", scenario.code, scenario.says, stood)
 			}
@@ -180,12 +164,12 @@ func TestEveryWayTheRatchetDidNotRunExitsTwoAndNamesIt(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 			refused := runOver(t, scenario.arrange(t))
-			if refused.code != 2 {
+			if refused.Code != 2 {
 				t.Errorf("wanted exit 2 and the refusal %q. Anything else here claims a measurement that "+
 					"was never taken\n%v", scenario.says, refused)
 				return
 			}
-			if !refused.said(scenario.says) {
+			if !refused.Said(scenario.says) {
 				t.Errorf("the refusal does not say %q, so a caller cannot tell this cause from the others "+
 					"that also exit 2\n%v", scenario.says, refused)
 			}
@@ -202,10 +186,10 @@ func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 	root := newRoot(t, measurement{alpha, 4}, measurement{beta, 2})
 	writeBaseline(t, root, baselineLine(9, alpha), baselineLine(9, beta))
 
-	if regenerated := runOver(t, root, "--regenerate"); regenerated.code != 0 {
+	if regenerated := runOver(t, root, "--regenerate"); regenerated.Code != 0 {
 		t.Fatalf("--regenerate did not run, so the file read below is still the fixture's own\n%v", regenerated)
 	}
-	written := read(t, filepath.Join(root, baselineInRoot))
+	written := runtest.ReadFile(t, filepath.Join(root, baselineInRoot))
 	if !strings.Contains(written, baselineLine(4, alpha)+"\n") {
 		t.Errorf("alpha.md measures 4 and is not recorded at 4, so the new floor is not the count the "+
 			"tree just reported\n%s", written)
@@ -214,7 +198,7 @@ func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 		t.Errorf("the header the fixture wrote is gone, and the ratchet is now a bare list of numbers "+
 			"nobody can read\n%s", written)
 	}
-	if held := runOver(t, root); held.code != 0 {
+	if held := runOver(t, root); held.Code != 0 {
 		t.Errorf("the tree is off a baseline written from that same tree a moment earlier\n%v", held)
 	}
 }
@@ -233,7 +217,7 @@ func TestEachCountIsHeldAgainstTheFileItWasMeasuredFrom(t *testing.T) {
 
 	paired := newRoot(t, measured...)
 	writeBaseline(t, paired, baselineLines(measured)...)
-	if held := runOver(t, paired); held.code != 0 || !held.said("every one on its line") {
+	if held := runOver(t, paired); held.Code != 0 || !held.Said("every one on its line") {
 		t.Errorf("%d files carrying %d different counts did not stand against a baseline recording each "+
 			"of them, so a count is reaching a file it was not measured from\n%v",
 			len(measured), len(measured), held)
@@ -242,7 +226,7 @@ func TestEachCountIsHeldAgainstTheFileItWasMeasuredFrom(t *testing.T) {
 	mispaired := newRoot(t, measured...)
 	writeBaseline(t, mispaired, baselineLines(shifted(measured))...)
 	offTheirLine := fmt.Sprintf("%d file(s) off their line", len(measured))
-	if shown := runOver(t, mispaired); shown.code != 1 || !shown.said(offTheirLine) {
+	if shown := runOver(t, mispaired); shown.Code != 1 || !shown.Said(offTheirLine) {
 		t.Errorf("every file was given its neighbour's count and the run wanted exit 1 with %q. A suite "+
 			"that cannot see this cannot see a mispairing either, and the half above passes on nothing"+
 			"\n%v", offTheirLine, shown)
@@ -275,14 +259,24 @@ func shifted(measured []measurement) []measurement {
 //
 // The script is read through this process. `go test`'s cache then keys on the bytes of the thing under
 // test, and a cached green is a real run.
+// The script takes its root as the last argument, and this suite's cases name the rest. Building the
+// command is local for that reason. Running it is runtest's.
+func runOver(t *testing.T, root string, arguments ...string) runtest.Run {
+	t.Helper()
+	command := exec.Command(runtest.Bash(t),
+		append([]string{filepath.Join(root, scriptInRoot)}, append(arguments, root)...)...)
+	command.Dir = t.TempDir()
+	return runtest.Launch(t, command)
+}
+
 func newRoot(t *testing.T, measured ...measurement) string {
 	t.Helper()
 	root := t.TempDir()
 	for _, one := range measured {
-		writeFile(t, filepath.Join(root, standardsInRoot, one.name), "# "+one.name+"\n", 0o644)
+		runtest.WriteFile(t, filepath.Join(root, standardsInRoot, one.name), "# "+one.name+"\n", 0o644)
 	}
-	writeFile(t, filepath.Join(root, checkerInRoot), newStub(measured), 0o755)
-	writeFile(t, filepath.Join(root, scriptInRoot), read(t, runnable(t, script)), 0o755)
+	runtest.WriteFile(t, filepath.Join(root, checkerInRoot), newStub(measured), 0o755)
+	runtest.WriteFile(t, filepath.Join(root, scriptInRoot), runtest.ReadFile(t, runtest.Runnable(t, script)), 0o755)
 	return root
 }
 
@@ -315,7 +309,7 @@ func writeBaseline(t *testing.T, root string, lines ...string) {
 	if len(lines) > 0 {
 		body += strings.Join(lines, "\n") + "\n"
 	}
-	writeFile(t, filepath.Join(root, baselineInRoot), body, 0o644)
+	runtest.WriteFile(t, filepath.Join(root, baselineInRoot), body, 0o644)
 }
 
 func baselineLines(measured []measurement) []string {
@@ -331,34 +325,6 @@ func baselineLine(count int, name string) string {
 	return fmt.Sprintf("%d %s/%s", count, standardsInRoot, name)
 }
 
-// One launch of the fixture's own copy of the script over its root. The working directory is an empty
-// one, unknown to every part of the fixture. The script is handed its root and finds everything else
-// from there, and a cwd inside the fixture would hide a path it had reached the wrong way.
-// The script is bash's argument, and bash is what this execs. Linux refuses to exec a file any process
-// holds open for writing, with ETXTBSY. These cases write their fixture scripts and run them, and one
-// case's open descriptor reaches another case's fork. That failed the go job on a push to main, and
-// macOS has no such rule, so it passed here. bash opens the script to read.
-func runOver(t *testing.T, root string, arguments ...string) outcome {
-	t.Helper()
-	command := exec.Command(bashOnThisMachine(t),
-		append([]string{filepath.Join(root, scriptInRoot)}, append(arguments, root)...)...)
-	command.Dir = t.TempDir()
-
-	var out, err strings.Builder
-	command.Stdout, command.Stderr = &out, &err
-	result := outcome{}
-	var exit *exec.ExitError
-	switch runErr := command.Run(); {
-	case runErr == nil:
-	case errors.As(runErr, &exit):
-		result.code = exit.ExitCode()
-	default:
-		t.Fatalf("could not run %s: %v — nothing was measured", command.Path, runErr)
-	}
-	result.stdout, result.stderr = out.String(), err.String()
-	return result
-}
-
 // Whether a cleared execute bit really denies this process. Root ignores mode bits, and the behaviour
 // under test is the executability check itself. None of the paths that deny every user stands in for
 // it, because they are refused a limb earlier and never reach the check. Where the bit does not deny,
@@ -366,56 +332,8 @@ func runOver(t *testing.T, root string, arguments ...string) outcome {
 func requireExecuteBitDenies(t *testing.T) {
 	t.Helper()
 	denied := filepath.Join(t.TempDir(), "denied.sh")
-	writeFile(t, denied, "#!/bin/sh\nexit 0\n", 0o644)
+	runtest.WriteFile(t, denied, "#!/bin/sh\nexit 0\n", 0o644)
 	if exec.Command(denied).Run() == nil {
 		t.Skip("a file with no execute bit still runs as this user, so a cleared bit builds no refusal here")
 	}
-}
-
-func writeFile(t *testing.T, path, body string, mode os.FileMode) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("building %s: %v — nothing was measured", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, []byte(body), mode); err != nil {
-		t.Fatalf("writing %s: %v — nothing was measured", path, err)
-	}
-	// WriteFile leaves an existing file's mode alone, and the fixture writes the checker over itself.
-	if err := os.Chmod(path, mode); err != nil {
-		t.Fatalf("setting the mode of %s: %v — nothing was measured", path, err)
-	}
-}
-
-func read(t *testing.T, path string) string {
-	t.Helper()
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v — nothing was measured", path, err)
-	}
-	return string(body)
-}
-
-// The path to the script, refused loudly where it cannot be run. Every case here is a launch, and a
-// launch that could not start would fail for a reason far from the guard it names.
-func runnable(t *testing.T, path string) string {
-	t.Helper()
-	resolved, err := filepath.Abs(path)
-	if err != nil {
-		t.Fatalf("resolving %s: %v — nothing was measured", path, err)
-	}
-	info, err := os.Stat(resolved)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-		t.Fatalf("%s is not an executable file (%v) — nothing was measured", resolved, err)
-	}
-	return resolved
-}
-
-// bash itself, found on the PATH this process was started with.
-func bashOnThisMachine(t *testing.T) string {
-	t.Helper()
-	found, err := exec.LookPath("bash")
-	if err != nil {
-		t.Fatalf("no bash on this machine (%v) — every script here is one, so nothing was measured", err)
-	}
-	return found
 }

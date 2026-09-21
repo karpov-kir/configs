@@ -497,8 +497,6 @@ func newOversizeBudgetFile(t *testing.T) *fixture {
 	return f
 }
 
-// The file twin of skipUnlessModeDeniesDirList, above.
-
 // The `isReadable` limb of the refusal: a regular file, in the root, that the process cannot open.
 // Root reads a mode-000 file regardless of the mode, so on a root runner this condition does not
 // exist to be built — and no construction substitutes, because every other way of making a read fail

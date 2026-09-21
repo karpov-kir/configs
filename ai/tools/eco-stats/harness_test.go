@@ -250,6 +250,38 @@ func indent(text string) string {
 // leaves the whole of every bound for the case's own content to spend. A case that wants a root long
 // enough to spend a bound grows one itself.
 
+// The bound the paragraph above states, held by a case instead of by prose. A helper reaching back for
+// t.TempDir passes every other case in this file and reintroduces the defect that cost the CI leg.
+const maxFixtureRootBytes = 24
+
+// The bound is read under a long TMPDIR as well as the ambient one, and that second leg is the point.
+// This machine's own temp path is short enough to hide the defect.
+
+// os.MkdirTemp appends a run of eight to ten digits, so a root wobbles by two bytes inside the budget.
+// The two legs are compared on length and never on sameness.
+func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
+	// t.TempDir makes one directory per test and numbers the rest inside it, so newBase would answer out
+	// of a tree already pinned to the ambient TMPDIR and the moved TMPDIR would go unread. The second
+	// leg is what this case is for, which is why os.MkdirTemp is here.
+	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
+	if err != nil {
+		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(long) })
+
+	for _, leg := range []struct{ what, tmpdir string }{
+		{"under a TMPDIR as long as a macOS runner's", long},
+		{"under a short TMPDIR", "/tmp"},
+	} {
+		t.Setenv("TMPDIR", leg.tmpdir)
+		if root := newRoot(t).root; len(root) > maxFixtureRootBytes {
+			t.Errorf("a fixture root %s is %d bytes, past the %d this suite allows itself — that much of "+
+				"every bounded message is spent before the case writes anything: %s",
+				leg.what, len(root), maxFixtureRootBytes, root)
+		}
+	}
+}
+
 // The scratch directory every fixture above is built under, 14 to 16 bytes wherever it runs: `/tmp/e`
 // plus the eight-to-ten digit run os.MkdirTemp appends. This suite fixes that length, and the machine
 // does not choose it. The directory is removed on the way out, like t.TempDir's own.
