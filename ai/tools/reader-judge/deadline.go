@@ -2,6 +2,7 @@ package readerjudge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -183,11 +184,32 @@ type modelCommand struct {
 // os/exec already reads as "finished, not a failure to cancel". This narrows the window from the
 // whole Wait-to-channel gap down to the two adjacent syscalls below; it does not close it. Closing it
 // needs pidfd or process handles, which darwin does not have.
+//
+// A reaped child is not an empty group, which is why ErrProcessDone leaves work here to do. A provider
+// that exits leaving children behind has them reparented to launchd, still holding the roll's output
+// pipe. The roll then waits on them for the whole of cmd.WaitDelay, which is the very hang the group
+// kill exists to end.
 func killRollGroup(p *os.Process) error {
 	if err := p.Signal(syscall.Signal(0)); err != nil {
+		if errors.Is(err, os.ErrProcessDone) {
+			sweepTheAbandonedGroup(p.Pid)
+		}
 		return err
 	}
 	return syscall.Kill(-p.Pid, syscall.SIGKILL)
+}
+
+// Making a group takes being the pid it is named after. A pid held by no process cannot name a group
+// another process made, so an unused pid is what says the group behind it is still this roll's. ESRCH
+// from the sweep is the group having emptied itself, which is the outcome asked for.
+
+// sweepTheAbandonedGroup kills what a reaped roll left running, and stays silent once the leader's pid
+// belongs to another process.
+func sweepTheAbandonedGroup(leader int) {
+	if !errors.Is(syscall.Kill(leader, syscall.Signal(0)), syscall.ESRCH) {
+		return
+	}
+	_ = syscall.Kill(-leader, syscall.SIGKILL)
 }
 
 func runBounded(deadline time.Duration, command modelCommand) (string, error) {

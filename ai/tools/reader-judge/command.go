@@ -10,19 +10,22 @@ import (
 	"configs/ai/tools/repo"
 )
 
-// Main is the whole of the command, held here rather than in `cmd/reader-judge` because the ORDER of
-// the steps below is itself a behaviour and a `main()` is the one shape no case can call. A mistyped
-// invocation must be answered with the grammar on a machine carrying no provider CLI, and that holds
-// only while the grammar is asked before a provider is resolved — an ordering no function that skips
-// provider resolution can exhibit, which is why asserting on the pieces separately cannot replace
-// TestReaderJudgeNamesItsGrammarWithNoProviderReachable driving this.
-//
+// Main is the whole of the command, held here instead of in a `cmd/` package. The ORDER of the steps
+// in this function is itself a behaviour, and a `main()` is a shape no case can call.
+
+// A mistyped invocation must be answered with the grammar on a machine carrying no provider CLI. That
+// holds only while the grammar is asked before a provider is resolved, and no function skipping
+// provider resolution can exhibit that ordering.
+
+// That is why TestReaderJudgeNamesItsGrammarWithNoProviderReachable drives Main, and cases over the
+// pieces separately cannot replace it.
+
 // invocation is argv[0]: it names the tool in its own messages, and names the install the model
 // policy is found beside.
 func Main(invocation string, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	self := filepath.Base(invocation)
-	// An unreadable home leaves nowhere for an override to sit, which reads as no override rather
-	// than as a broken one.
+	// An unreadable home leaves nowhere for an override to sit. That reads as an absent override, and
+	// never as a broken one.
 	home, _ := os.UserHomeDir()
 	deadline, overridePath, ok := ResolveRollDeadline(self, os.Getenv("XDG_CONFIG_HOME"), home, stderr)
 	if !ok {
@@ -38,9 +41,9 @@ func Main(invocation string, args []string, stdin io.Reader, stdout, stderr io.W
 		args = args[2:]
 	}
 	// Before the policy and the provider, so an invocation error is answered with the grammar on a
-	// machine that can reach no model at all. Resolving first made `reader-judge.sh` with no arguments
-	// refuse with "no provider" wherever no CLI is installed — green here, red in CI, and the reader
-	// sent to install something rather than to fix the command they typed.
+	// machine that can reach no model at all. With resolution first, an argument-less invocation
+	// refused with "no provider" wherever a CLI is missing. It was green here and red in CI, and it
+	// sent the reader to install something instead of fixing the command they typed.
 	if RefuseIfNotTheGrammar(self, args, stderr) {
 		return exitDidNotRun
 	}

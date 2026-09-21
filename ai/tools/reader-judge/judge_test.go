@@ -17,8 +17,8 @@ import (
 
 func all(Unit) bool { return true }
 
-// What a case hands a run that never passes --changed. Only that option asks the repository anything,
-// so a run that started to would panic here rather than read an answer the case never arranged.
+// What a case hands a run that never passes --changed. Only that option asks the repository anything.
+// A run that started to would panic here, because the case arranged no answer for it to read.
 var noRepository repo.Git
 
 const source = "// file header\n// second line\n\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
@@ -190,8 +190,9 @@ func TestChangedRefusesWithoutAPath(t *testing.T) {
 }
 
 // Only the blocks the diff added are offered, while the whole file stays in front of the model as
-// context. The repository answers from a table: what a diff puts on offer is the subject here, and a
-// real one would cost a process per question without asserting anything more (testing.md → 6).
+// context. The repository answers from a table, because what a diff puts on offer is the subject
+// here. A real repository would cost a process per question without asserting anything more
+// (testing.md → 6).
 func TestChangedOffersOnlyTheBlocksTheDiffAdded(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "notes.md")

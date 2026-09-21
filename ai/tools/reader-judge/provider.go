@@ -118,11 +118,12 @@ func announcingASlowRoll(call Caller, deadline, silence time.Duration, progress 
 	})
 }
 
-// announcingOnEachTick takes the clock rather than a duration to build one from, so a case releases a
-// tick by hand and reads the line it caused instead of sleeping past an interval and racing it.
 // `ticking` starts one clock per roll and hands back the stop that ends it. One decorator wraps the
-// caller a vote then calls once per roll, so the lock is shared and the lines cannot interleave; a nil
+// caller a vote then calls once per roll, so the lock is shared and the lines cannot interleave. A nil
 // destination starts no clock, since a tick reaching one would panic in a goroutine.
+
+// announcingOnEachTick takes the clock, and never a duration to build one from. A case then releases a
+// tick by hand and reads the line it caused instead of sleeping past an interval and racing it.
 func announcingOnEachTick(call Caller, deadline time.Duration, progress io.Writer, ticking func() (<-chan time.Time, func())) Caller {
 	if progress == nil {
 		return call

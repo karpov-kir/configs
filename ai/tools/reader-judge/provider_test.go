@@ -296,8 +296,8 @@ func TestACutOffRollNamesTheFileThatSetsTheBound(t *testing.T) {
 // the wait is happening rather than only in the error that ends it.
 //
 // Both halves run off a clock this case holds. A roll made slow by sleeping past a real interval
-// asserts instead that 60ms of wall clock outruns 10ms of it, which is false on a loaded machine and
-// is what turned this case red on a green tree.
+// asserts instead that 60ms of wall clock outruns 10ms of it. That is false on a loaded machine, and
+// it is what turned this case red on a green tree.
 func TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing(t *testing.T) {
 	stalling, said := newHeldClock(), newAnnouncedLines()
 	slow := func(string, string) (string, error) {
@@ -312,9 +312,9 @@ func TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing(t *testing.T) {
 		t.Errorf("a slow roll did not say it was waiting, or against what: %q", said.String())
 	}
 
-	// No tick is sent here at all, so a line could only come from an announcer that speaks on entry or
-	// on exit. Waiting for the watcher to let its clock go is what makes the emptiness final rather
-	// than merely not observed yet.
+	// No tick is sent here at all, and a line could only come from an announcer that speaks on entry or
+	// on exit. The case waits for the watcher to let its clock go, and that is what makes the emptiness
+	// final instead of merely unobserved.
 	answering, quiet := newHeldClock(), newAnnouncedLines()
 	quick := func(string, string) (string, error) { return "none", nil }
 	if _, err := announcingOnEachTick(quick, notTheSubject, quiet, answering.ticking)("prompt", "view"); err != nil {
@@ -337,9 +337,9 @@ func TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing(t *testing.T) {
 	}
 }
 
-// The production wiring of that clock, which the case above replaces: a real ticker does reach a roll
-// that is still waiting. The roll here ends on the line rather than on a duration, so load makes this
-// slower and never wrong.
+// The production wiring of that clock, which TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing
+// replaces: a real ticker does reach a roll that is still waiting. The roll here ends on the line, and
+// never on a duration. Load makes this slower, and never wrong.
 func TestTheAnnouncersOwnTickerReachesARollThatIsStillWaiting(t *testing.T) {
 	said := newAnnouncedLines()
 	waiting := func(string, string) (string, error) {
@@ -354,14 +354,14 @@ func TestTheAnnouncersOwnTickerReachesARollThatIsStillWaiting(t *testing.T) {
 	}
 }
 
-// announcerDeadlock bounds a step that costs nothing when the announcer works — a tick it is already
-// selecting on, a write it has already been told to make — so only a broken one ever waits this long.
-// It is a net under a hang, not an allowance for a slow machine, which is why it can be this coarse
-// without becoming the budget this file's scan refuses.
+// announcerDeadlock bounds a step that is instant when the announcer works: a tick it is already
+// selecting on, a write it has already been told to make. Only a broken announcer ever waits this
+// long. It is a net under a hang, and never an allowance for a slow machine. That is why it can be
+// this coarse without becoming the budget this file's scan refuses.
 const announcerDeadlock = 10 * time.Second
 
-// heldClock is the announcer's clock with the case holding it: nothing ticks unless the case ticks it,
-// and `stopped` closes when the roll it belongs to lets its watcher go.
+// heldClock is the announcer's clock with the case holding it, and no tick happens unless the case
+// sends it. `stopped` closes when the roll it belongs to lets its watcher go.
 type heldClock struct {
 	ticks   chan time.Time
 	stopped chan struct{}
@@ -376,7 +376,7 @@ func (c *heldClock) ticking() (<-chan time.Time, func()) {
 }
 
 // tick hands the watcher one tick and returns once it has taken it, so what follows is ordered after
-// the announcement rather than hoping to outrun it.
+// the announcement instead of hoping to outrun it.
 func (c *heldClock) tick(t *testing.T) {
 	t.Helper()
 	select {
@@ -396,7 +396,7 @@ func (c *heldClock) awaitStop(t *testing.T) {
 }
 
 // announcedLines is where a case reads the announcer's output and how it learns a line has landed. The
-// announcer writes from a goroutine per roll, so the destination has to be safe for two of them, and
+// announcer writes from a goroutine per roll, so the destination has to be safe for two of them.
 // `written` lets a roll end only once the line it asked for is in hand.
 type announcedLines struct {
 	mu      sync.Mutex

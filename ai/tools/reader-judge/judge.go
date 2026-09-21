@@ -150,7 +150,7 @@ func RefuseIfNotTheGrammar(self string, args []string, stderr io.Writer) bool {
 
 // RunIn is Run with the working directory named, which --changed needs to find the repository. git
 // answers for that repository and is only asked under --changed, so a caller that never passes the
-// option may hand it nothing.
+// option may hand it a nil Git.
 func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader, stdout, stderr io.Writer, call Caller, memo *Memo) int {
 	numbersOnly, changed, revisions, rest, refusal := grammarRefusal(self, args)
 	if refusal != "" {
