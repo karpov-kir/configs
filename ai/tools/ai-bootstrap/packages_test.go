@@ -6,8 +6,8 @@ import (
 )
 
 // rtk is personal tooling and the owner tier's, which leaves the default tier no formula to install at
-// all. A tier that quietly left one out would be indistinguishable from a step that never ran, so the
-// skip says whose it is.
+// all. A tier that quietly left one out would read like a step that never ran, so the skip line names
+// the tier it belongs to.
 func TestTheDefaultTierInstallsNothingAndSaysRtkIsTheOwnersAlone(t *testing.T) {
 	f := newFixture(t)
 
@@ -54,9 +54,9 @@ func TestADryRunNamesWhatItWouldInstallAndInstallsNothing(t *testing.T) {
 	}
 }
 
-// A machine without brew still gets every link. The refusal says which half did not happen, because a
-// run that mounted everything and installed nothing must not read as a finished machine. Driven at the
-// owner tier, the only one with a formula to miss.
+// A machine without brew still gets every link. The refusal says which half did not happen. A run
+// that mounted everything and installed no formula has to read as unfinished. This case runs at the
+// owner tier, the only tier with a formula to miss.
 func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f := newFixture(t)
 	f.machine.without("brew")
@@ -67,10 +67,9 @@ func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f.expectLinkTo(f.home+"/.kk-flavor", f.repo+"/kk-flavor")
 }
 
-// A machine with no brew still installs, where the tier asks brew for nothing. Since jq went, that is
-// every tier but the owner's, and refusing there failed a whole install over a prerequisite nothing in
-// it needed. The skip line still prints, so the run says what this tier does not take rather than
-// going quiet about it.
+// A machine lacking brew still installs, where the tier asks brew for no formula. Since jq went, that
+// is every tier but the owner's, and refusing there failed a whole install over a prerequisite the
+// tier never used. The skip line still prints, so the run says what this tier does not take.
 func TestATierThatInstallsNoFormulaDoesNotNeedBrew(t *testing.T) {
 	f := newFixture(t)
 	f.machine.without("brew")

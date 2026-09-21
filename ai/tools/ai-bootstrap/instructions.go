@@ -10,17 +10,17 @@ import (
 )
 
 // The owner tier's memory store, and where an owner install before this one put it. The spelling was
-// `Document` for months, which is not a directory anything else on a Mac uses, and the owner's own
-// instructions name `Documents`. Correcting the destination alone would leave every entry already
-// written sitting at a path no session reads, so the migration below moves them.
+// `Document` for months, which no other tool on a Mac uses, and the owner's own instructions name
+// `Documents`. A fix to the destination alone would leave every entry already written at a path no
+// session reads, so moveLegacyOwnerMemory moves them.
 const (
 	ownerMemoryFile = "/Documents/AI/MEMORY.md"
 	legacyMemoryOne = "/Document/AI/MEMORY.md"
 )
 
-// A Codex profile can shadow AGENTS.md with a file of its own, and a run that wrote the instructions
-// anyway would leave the tree installed and nothing loading it. Asked before anything is written; an
-// uninstall is exempt, since it is removing what the shadow hides rather than relying on it.
+// A Codex profile can shadow AGENTS.md with a file of its own. A run that wrote the instructions
+// anyway would leave the tree installed with no client loading it. The question comes before the
+// first write, and an uninstall is exempt, because it removes what the shadow hides.
 func (run *invocation) shadowedInstructions() string {
 	if run.agent != codexAgent || run.isUninstall {
 		return ""
@@ -36,17 +36,15 @@ func isNonEmptyFile(path string) bool {
 	return err == nil && !info.IsDir() && info.Size() > 0
 }
 
-// The instruction step, and whether it finished. The answer is read by the rtk step: initialising rtk
-// against an instruction file this run refused to write leaves the machine describing tooling whose
-// instructions never arrived.
+// The instruction step, and whether it finished. The rtk step reads the answer.
 func (run *invocation) writeInstructions() bool {
 	run.mounting.Say("instructions")
 	if run.isOwner {
 		return run.writeOwnerInstructions() && run.moveLegacyOwnerMemory() && run.ensureOwnerMemory()
 	}
-	// Asked again here as well as at the top of the run. The check above stops a run before it writes
-	// anything; this one is the guard on the write itself, so a path that reached here some other way
-	// still cannot write into a file nothing will load.
+	// Asked again here as well as at the top of the run. do() stops a run before it writes anything.
+	// This call guards the write itself, so a path that reached here some other way still cannot write
+	// into a file no client will load.
 	if refusal := run.shadowedInstructions(); refusal != "" {
 		run.mounting.Refuse(refusal)
 		return false
@@ -63,9 +61,9 @@ func (run *invocation) writeInstructions() bool {
 	return run.mounting.WriteRegion(run.instructionFile, flavor.RegionOpen, flavor.RegionClose, flavor.RegionBody)
 }
 
-// The one path that creates an instruction file. The region writer refuses a file that is not there,
-// deliberately — a typo in a path would otherwise produce a plausible-looking new file in someone's
-// repository — so a client that has never been configured is handed an empty one here first.
+// The only path that creates an instruction file. The region writer refuses a missing file on
+// purpose, because a typo in a path would otherwise produce a plausible new file in someone's
+// repository. A client that has never been configured is handed an empty file here first.
 func (run *invocation) createEmptyInstructionFile() bool {
 	directory := shell.DirName(run.instructionFile)
 	if !shell.IsDir(directory) {
@@ -83,12 +81,10 @@ func (run *invocation) createEmptyInstructionFile() bool {
 
 // --- the owner tier -------------------------------------------------------------------------------
 
-// The owner gets a copy of ai/owner-instructions.md rather than a region inside their own file, so the
-// whole file is this repository's and a later edit of it is the owner's.
-//
-// That makes replacing it destructive in a way a region never is, which is what every refusal below
-// guards: the copy goes in only when what is there is one this repository wrote, and a backup is taken
-// on the way whenever the bytes differ.
+// The owner gets the whole owner template as a copy, so the file is this repository's and a later
+// edit of it is the owner's. A whole-file replacement is destructive in a way a region never is, and
+// every refusal here guards that. The copy goes in only where this repository wrote what is already
+// there, and a backup is taken whenever the bytes differ.
 func (run *invocation) writeOwnerInstructions() bool {
 	source := run.ownerSource()
 	if !shell.IsRegularFile(source) || shell.IsSymlink(source) {
@@ -112,8 +108,8 @@ func (run *invocation) writeOwnerInstructions() bool {
 	if !run.installOwnerCopy(source) {
 		return false
 	}
-	// The receipt is what a later run compares against when the source has moved on: without it an
-	// upgrade of owner-instructions.md would read as a file the owner edited, and refuse forever.
+	// The receipt is what a later run compares against when the source has moved on. A run lacking one
+	// reads an upgraded owner template as a file the owner edited, and refuses forever.
 	if !sameBytes(source, receipt) {
 		if err := copyFile(source, receipt); err != nil {
 			run.mounting.Refuse("could not record installed owner instructions")
@@ -132,10 +128,9 @@ func (run *invocation) ownerReceipt() string {
 	return run.instructionFile + ".kk-flavor-installed"
 }
 
-// Written through a temp file beside the target and renamed, so a killed run leaves the previous copy
-// whole rather than a half-written instruction file. A symlink at the target is replaced rather than
-// written through: an older install mounted this repository's own file there, and writing through that
-// link would edit the checkout.
+// The copy is written through a temp file beside the target and renamed, so a killed run leaves the
+// previous copy whole. A symlink at the target is replaced. An older install mounted this
+// repository's own file there, and a write through that link would edit the checkout.
 func (run *invocation) installOwnerCopy(source string) bool {
 	directory := shell.DirName(run.instructionFile)
 	if err := os.MkdirAll(directory, 0o755); err != nil {
@@ -160,19 +155,12 @@ func (run *invocation) installOwnerCopy(source string) bool {
 	return true
 }
 
-// Whether what is at the instruction file is something this repository put there. Four shapes count,
-// and every one of them is a machine an earlier version of this installer left behind:
-//
-//   - a symlink to this checkout's own instruction file or to the owner template, which is what the
-//     first owner installs mounted;
-//   - a copy of the current template;
-//   - a copy of the template as it was when this machine was installed, which is what the receipt
-//     records and the only way an upgraded template is told from an edited file;
-//   - for Codex, the generated region this repository used to write, with or without the RTK note that
-//     sat under it.
-//
-// Anything else is the owner's own writing and is refused rather than replaced.
+// Whether what is at the instruction file is something this repository put there. Each shape it
+// accepts is a machine an earlier version of this installer left behind. Anything else is the owner's
+// own writing, and the caller refuses it.
 func (run *invocation) ownerFileMatches() bool {
+	// What the first owner installs mounted: a link to this checkout's own instruction file or to the
+	// owner template.
 	if shell.IsSymlink(run.instructionFile) {
 		value, err := os.Readlink(run.instructionFile)
 		if err != nil {
@@ -186,10 +174,14 @@ func (run *invocation) ownerFileMatches() bool {
 	if sameBytes(run.instructionFile, run.ownerSource()) {
 		return true
 	}
+	// The template as it was when this machine was installed, which the receipt records. That is the
+	// only way an upgraded template is told from a file the owner edited.
 	receipt := run.ownerReceipt()
 	if shell.IsRegularFile(receipt) && !shell.IsSymlink(receipt) && sameBytes(run.instructionFile, receipt) {
 		return true
 	}
+	// For Codex, the generated region this repository used to write, with or without the RTK note that
+	// sat under it.
 	if run.agent != codexAgent {
 		return false
 	}
@@ -197,9 +189,8 @@ func (run *invocation) ownerFileMatches() bool {
 }
 
 // The generated file an older Codex install wrote: the fenced region, optionally followed by the RTK
-// note that install also added. Compared with blank lines dropped from both sides, because the two
-// were assembled by different runs and the number of blank lines between them is not something the
-// owner chose.
+// note that install also added. The comparison drops blank lines from both sides, because the two
+// halves were assembled by different runs and the owner chose no part of the spacing between them.
 func (run *invocation) matchesGeneratedCodexInstructions() bool {
 	body, err := os.ReadFile(run.instructionFile)
 	if err != nil {
@@ -213,9 +204,9 @@ func (run *invocation) matchesGeneratedCodexInstructions() bool {
 	return actual == generated+"\n"+withoutBlankLines(run.legacyRtkNote())
 }
 
-// What the older Codex install appended under the region. Reproduced rather than recognised by a
-// fence: the note names CODEX_HOME by absolute path, so the file on any one machine is the only place
-// its exact text exists.
+// What the older Codex install appended under the region. The text is reproduced here because it
+// names CODEX_HOME by an absolute path, and the exact text on any one machine exists only in that
+// machine's file.
 func (run *invocation) legacyRtkNote() string {
 	return "@" + run.CodexHome + "/RTK.md\n\n" +
 		flavor.LegacyRtkRegionOpen + "\n" +
@@ -234,20 +225,18 @@ func withoutBlankLines(text string) string {
 	return strings.Join(kept, "\n")
 }
 
-// The owner's memory store, created empty when it is not there and never written over: it is the one
-// file in this install whose whole content is the owner's.
-// The owner's entries, moved off the path an earlier install wrote them to. Drop this and they stay
-// somewhere no session reads, which is silent: the run reports a memory file created and the file it
-// created is empty.
+// The owner's entries, moved off the path an earlier install wrote them to. A run that skipped this
+// leaves them where no session reads, and the failure is silent: the run reports a memory file
+// created, and that file is empty.
 //
-// Returns true when there is nothing to move, which is every run after the first.
+// Returns true when there is no entry to move, which is every run after the first.
 func (run *invocation) moveLegacyOwnerMemory() bool {
 	legacy, memory := run.Home+legacyMemoryOne, run.Home+ownerMemoryFile
 	if !shell.PathExists(legacy) {
 		return true
 	}
-	// Two stores and no way to tell which holds what. Merging them is the human's call — this one
-	// cannot read either and cannot know which entry is newer.
+	// Two stores, with no way to tell which holds what. The merge is the human's call. This code
+	// cannot read either store, and it cannot tell which entry is newer.
 	if shell.PathExists(memory) {
 		run.mounting.Refuse("owner memory exists at both " + legacy + " and " + memory +
 			" — merge them into " + memory + " and remove " + legacy)
@@ -255,18 +244,18 @@ func (run *invocation) moveLegacyOwnerMemory() bool {
 	}
 	if run.isDryRun {
 		run.mounting.Say("  would move " + legacy + " to " + memory)
-		// Nothing moved, so ensureOwnerMemory below would still find the destination absent and say it
-		// would create one — two lines that cannot both hold, about the file this exists to protect.
+		// A dry run moves no file. ensureOwnerMemory then finds the destination absent and says it would
+		// create one. That is two lines that cannot both hold, about the file this exists to protect.
 		return false
 	}
 	if err := os.MkdirAll(shell.DirName(memory), 0o755); err != nil {
 		run.mounting.Refuse("could not create " + shell.DirName(memory) + ", so owner memory was left at " + legacy)
 		return false
 	}
-	// A hard link and then a remove, rather than a rename: `os.Rename` REPLACES a destination that
-	// appeared since the check above, and the check is not atomic with the move — a session following
-	// the very rule this installer writes can create it in between. `os.Link` refuses an existing
-	// destination, so the only copy there is cannot be replaced by this line.
+	// A hard link and then a remove. `os.Rename` REPLACES a destination that appeared since the
+	// PathExists check, and that check is not atomic with the move. A session following the very rule
+	// this installer writes can create the destination in between. `os.Link` refuses an existing
+	// destination, so the only copy there is survives this line.
 	if err := os.Link(legacy, memory); err != nil {
 		run.mounting.Refuse("could not move owner memory from " + legacy + " to " + memory +
 			" — both were left as they are")
@@ -277,14 +266,16 @@ func (run *invocation) moveLegacyOwnerMemory() bool {
 			" could not be removed — merge them by hand, since a later run will refuse both")
 		return false
 	}
-	// Only if they are now empty; a directory holding anything else is the human's. Best-effort, since
-	// a leftover empty directory decides nothing.
+	// Only if they are now empty, since a directory holding anything else is the human's. A failure
+	// here is ignored, because a leftover empty directory changes no outcome.
 	os.Remove(shell.DirName(legacy))
 	os.Remove(shell.DirName(shell.DirName(legacy)))
 	run.mounting.Say("  moved    " + legacy + " to " + memory)
 	return true
 }
 
+// The owner's memory store, created empty where it is missing and never written over. Its whole
+// content is the owner's, and this is the only file in the install of which that is true.
 func (run *invocation) ensureOwnerMemory() bool {
 	memory := run.Home + ownerMemoryFile
 	if !shell.PathExists(memory) {
@@ -296,8 +287,8 @@ func (run *invocation) ensureOwnerMemory() bool {
 			run.mounting.Refuse("could not create owner memory at " + memory)
 			return false
 		}
-		// O_EXCL, so a file that appeared between the check above and this write is kept rather than
-		// truncated. The whole point of this file is that nothing here ever overwrites it.
+		// O_EXCL, so a file that appeared between the PathExists check and this write is kept whole.
+		// This installer never overwrites the owner's memory, and that is the whole point of the file.
 		file, err := os.OpenFile(memory, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			run.mounting.Refuse("could not create owner memory at " + memory)
@@ -323,8 +314,8 @@ func (run *invocation) ensureOwnerMemory() bool {
 // --- removing what the owner tier installed -------------------------------------------------------
 
 // Removed only when what is there is still this repository's copy. An owner who edited it gets a
-// refusal and keeps their file: the uninstall's job is to take back what this put there, and by then
-// the file is no longer that.
+// refusal and keeps their file. An uninstall takes back what this installer put there, and an edited
+// file is no longer that.
 func (run *invocation) removeOwnerInstructions() bool {
 	if shell.PathExists(run.instructionFile) || shell.IsSymlink(run.instructionFile) {
 		if !run.ownerFileMatches() {
@@ -350,9 +341,8 @@ func (run *invocation) removeOwnerInstructions() bool {
 
 // --- reading and copying files ----------------------------------------------------------------------
 
-// Whether two files hold the same bytes. A file that cannot be read is not the same as one that can,
-// which is the answer every caller here wants: it sends them down the write path rather than the
-// leave-it-alone one.
+// Whether two files hold the same bytes. A file that cannot be read counts as different, which is
+// what every caller here wants: it sends them down the write path.
 func sameBytes(one, other string) bool {
 	first, err := os.ReadFile(one)
 	if err != nil {
@@ -373,8 +363,8 @@ func copyFile(source, target string) error {
 	return os.WriteFile(target, body, 0o644)
 }
 
-// A dated copy beside the original, under a name nothing else writes. The mode is carried over, which
-// is what `cp -p` did and what makes the backup readable to whoever could read the original.
+// A copy beside the original, under a unique name no other writer uses. The mode is carried over,
+// which is what `cp -p` did and what makes the backup readable to whoever could read the original.
 func backupOf(file string) (string, error) {
 	body, err := os.ReadFile(file)
 	if err != nil {
@@ -400,7 +390,7 @@ func backupOf(file string) (string, error) {
 	return name, nil
 }
 
-// Through a temp file in the target's own directory, then renamed — one filesystem, so the rename is
+// Through a temp file in the target's own directory, then renamed. One filesystem, so the rename is
 // atomic and a killed run never leaves a half-written instruction file.
 func replaceWithCopy(source, target string) error {
 	body, err := os.ReadFile(source)

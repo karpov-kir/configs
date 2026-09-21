@@ -9,8 +9,8 @@ import (
 	"configs/ai/tools/flavor"
 )
 
-// The owner tier gets a copy of ai/owner-instructions.md rather than a region inside their own file,
-// so the whole file is this repository's and a later edit of it is the owner's.
+// The owner tier gets a whole copy of ai/owner-instructions.md, so the file is this repository's and
+// a later edit of it is the owner's. A region inside the owner's own file gives neither.
 func TestTheOwnerTierInstallsAnIndependentCopy(t *testing.T) {
 	f := newFixture(t)
 
@@ -18,8 +18,8 @@ func TestTheOwnerTierInstallsAnIndependentCopy(t *testing.T) {
 
 	f.expectNotSymlink(f.home + "/.claude/CLAUDE.md")
 	f.expectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
-	// The receipt, which is what a later run compares against when the template has moved on: without
-	// it an upgrade would read as a file the owner edited, and refuse forever.
+	// The receipt, which is what a later run compares against when the template has moved on. A run
+	// lacking one reads an upgrade as a file the owner edited, and refuses forever.
 	f.expectFileBody(f.home+"/.claude/CLAUDE.md.kk-flavor-installed", ownerTemplate)
 }
 
@@ -48,7 +48,7 @@ func TestAnEditAfterTheCopyLandedIsRefusedOnTheNextRun(t *testing.T) {
 }
 
 // An upgraded template is not an edit, and the receipt is the only thing that can tell the two apart.
-// Without it every machine already installed would refuse the moment the template changed.
+// A machine lacking one would refuse the moment the template changed.
 func TestAnUpgradedTemplateReplacesTheCopyAndBacksTheOldOneUp(t *testing.T) {
 	f := newFixture(t)
 	f.expectCode(f.install("--agent=claude", "--owner"), 0)
@@ -63,9 +63,9 @@ func TestAnUpgradedTemplateReplacesTheCopyAndBacksTheOldOneUp(t *testing.T) {
 	}
 }
 
-// The first owner install mounted this repository's own file. That symlink is this repository's, so it
-// becomes a copy rather than a refusal — and the copy replaces the link instead of being written
-// through it, which would have edited the checkout.
+// The first owner install mounted this repository's own file. That symlink is this repository's, so
+// the run turns it into a copy. The copy replaces the link, because a write through the link would
+// have edited the checkout.
 func TestALegacyOwnerSymlinkBecomesAnIndependentCopy(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
@@ -108,8 +108,8 @@ func TestAGeneratedCodexFileCarryingTheOldRtkNoteMigratesToo(t *testing.T) {
 	f.expectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
 }
 
-// A dry run over the migration must write nothing: someone checks with --dry-run and it is the run
-// that replaced their instructions.
+// A dry run over the migration that wrote anything would be worse than having no flag at all. Someone
+// checks with it, and the check is the run that replaced their instructions.
 func TestADryRunOverTheOwnerMigrationLeavesTheFileAlone(t *testing.T) {
 	f := newFixture(t)
 	generated := flavor.RegionOpen + "\n" + flavor.RegionBody + "\n" + flavor.RegionClose + "\n"
@@ -121,8 +121,8 @@ func TestADryRunOverTheOwnerMigrationLeavesTheFileAlone(t *testing.T) {
 	f.expectSaid("would install")
 }
 
-// The owner's memory store is created empty and never written over: it is the one file in this install
-// whose whole content is the owner's.
+// The owner's memory store is created empty and never written over. Its whole content is the owner's,
+// and this is the only file in the install of which that is true.
 func TestTheOwnerMemoryStoreIsCreatedOnceAndThenLeftAlone(t *testing.T) {
 	f := newFixture(t)
 	memory := f.home + "/Documents/AI/MEMORY.md"
@@ -144,8 +144,8 @@ func TestAnOrdinaryInstallCreatesNoOwnerMemory(t *testing.T) {
 	f.expectAbsent(f.home + "/Documents")
 }
 
-// Both clients get the same file, so an owner running one after the other is not reading two different
-// sets of instructions depending on which client they opened.
+// Both clients get the same file. An owner running one after the other reads one set of instructions,
+// whichever client they opened.
 func TestBothClientsGetTheSameOwnerCopy(t *testing.T) {
 	f := newFixture(t)
 
@@ -166,7 +166,7 @@ func TestTheOwnerUninstallRemovesItsOwnCopyAndRefusesAnEditedOne(t *testing.T) {
 
 	f.expectAbsent(f.home + "/.claude/CLAUDE.md")
 	f.expectAbsent(f.home + "/.claude/CLAUDE.md.kk-flavor-installed")
-	// The memory store stays: it is the owner's own writing, and nothing here records whether they
+	// The memory store stays: it is the owner's own writing, and no record here says whether they
 	// still want it.
 	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n")
 }
@@ -226,7 +226,7 @@ func TestOwnerMemoryWrittenAtTheOldPathIsMoved(t *testing.T) {
 
 	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
 	f.expectAbsent(f.home + "/Document/AI/MEMORY.md")
-	// The directories it left behind go too, but only because nothing else is in them.
+	// The directories it left behind go too, but only where they are empty.
 	f.expectAbsent(f.home + "/Document")
 	f.expectSaid("moved")
 }
@@ -242,8 +242,8 @@ func TestTheOldMemoryDirectoryIsKeptWhenItHoldsAnythingElse(t *testing.T) {
 	f.expectFileBody(f.home+"/Document/AI/notes.md", "mine\n")
 }
 
-// Two stores and no way to tell which holds what. Merging them is the human's call: this cannot read
-// either, and cannot know which entry is the newer one.
+// Two stores, with no way to tell which holds what. The merge is the human's call. This code cannot
+// read either store, and cannot tell which entry is newer.
 func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
@@ -256,8 +256,9 @@ func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
 	f.expectSaid("exists at both")
 }
 
-// A dry run moves nothing and says so once. Saying it would move the file AND that it would create one
-// at the destination is two lines that cannot both hold, about the one file this exists to protect.
+// A dry run moves no file and says so once. A line saying it would move the file and a line saying it
+// would create one at the destination cannot both hold. They are about the file this exists to
+// protect.
 func TestADryRunSaysItWouldMoveAndCreatesNothing(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")

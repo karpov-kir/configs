@@ -1,21 +1,14 @@
+// The cases for the machine-wide agent install: the tiers, the instruction file, the Codex migration
+// and the four steps reaching outside this process. ai/tools/installer's own suite drives the rest.
+//
+// Every case gets its own home under t.TempDir(), and WriteRoot bounds the run to that tree. The
+// shell suite this replaces shared one home: a fixture write followed a live symlink into the
+// checkout and overwrote nvim/init.lua and starship.toml in the working tree. So the bound is read
+// back after every run, and a breach fails the case as a guard.
+//
+// No process is spawned. brew, rtk, gh, the client CLIs, the tools installer and the gate arrive
+// through the machine port, which lets a case drive an exit code this machine could not produce.
 package aibootstrap_test
-
-// The cases for the machine-wide agent install. What the mounting machinery does with a table —
-// refusing a real file, repointing a stale link, sweeping a mount whose source is gone, stopping at a
-// second checkout — is driven in ai/tools/installer's own suite against the same code. What is driven
-// here is this installer's own decisions: the tiers, the instruction file, the Codex migration, and
-// the four steps that reach commands outside this process.
-//
-// Every case gets a home of its own under t.TempDir(), and the run it drives is bounded to that same
-// tree with WriteRoot. The shell suite this replaces once handed every case the same home: a fixture
-// write followed a live symlink into the checkout and overwrote nvim/init.lua and starship.toml in the
-// working tree, and the case that reported it was read as a harness bug without anyone asking what the
-// run had already written. So the bound is read back after every run, and a breach fails the case as a
-// guard rather than as a result.
-//
-// Nothing here spawns a process. brew, rtk, gh, the client CLIs, the tools installer and the gate all
-// arrive through the machine port, which is what lets a case drive an exit code this machine could not
-// be asked to produce.
 
 import (
 	"os"
@@ -47,7 +40,7 @@ type fixture struct {
 	base string
 	repo string
 	home string
-	// Where this fixture's Codex profile is. Its own field so a case can point it somewhere else — an
+	// Where this fixture's Codex profile is. Its own field, so a case can point it somewhere else. An
 	// alias of the shared discovery directory is a shape the migration has to survive.
 	codexHome string
 	// Whether this run is one another run's verify step started. A field so the case about the marker
@@ -79,9 +72,9 @@ func (f *fixture) newCheckout(root string) {
 	f.Write(root+"/tools/install.sh", "#!/usr/bin/env bash\n")
 	f.Write(root+"/mcp-sync.sh", "#!/usr/bin/env bash\n")
 	f.Write(root+"/gate.sh", "#!/usr/bin/env bash\n")
-	// The three scripts the steps reach through the machine port. Declared here rather than in a case,
-	// because a run whose installer, sync or gate could not start is a machine fault and not a step's
-	// decision — the cases about that take one away again.
+	// The three scripts the steps reach through the machine port, declared here. A run whose
+	// installer, sync or gate could not start is a machine fault, and a step's decision is a
+	// different thing. The cases about that take one away again.
 	f.machine.Add(root+"/tools/install.sh", root+"/mcp-sync.sh", root+"/gate.sh")
 	for _, name := range publicSkills {
 		f.newSkill(root, name, "")
@@ -97,22 +90,22 @@ func (f *fixture) newSkill(root, name, audience string) {
 		"---\nname: "+name+"\ndescription: a skill\n"+audience+"---\n")
 }
 
-// The owner template a case installs. It carries the region body, which is the one property the real
-// file has that these cases depend on — ai/owner-instructions.md itself is held against the body by
-// the case in owner_test.go.
+// The owner template a case installs. It carries the region body, which is the only property of the
+// real file these cases depend on. ai/owner-instructions.md itself is held against the body by the
+// case in owner_test.go.
 const ownerTemplate = "# Owner\n\n### KK Flavor\n\n" +
 	"Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.\n"
 
 // The run a case drives, with everything it did not name taken from the fixture. Out, Err and
-// WriteRoot are the fixture's whatever a case says: a case that could print elsewhere is a case whose
-// output nothing reads, and one that could write elsewhere is the incident in this file's header.
+// WriteRoot stay the fixture's whatever a case says. A case printing elsewhere leaves output no
+// reader sees, and one writing elsewhere is the incident in this file's header.
 func (f *fixture) run(args ...string) int {
 	f.t.Helper()
 	return f.runFrom(f.repo, args...)
 }
 
 // The flags every case that is not about one of those four steps passes. Named once, so a step that
-// grows a flag cannot pick it up at some of the runs below and reach a real command at the rest.
+// grows a flag cannot pick it up at some of the cases here and reach a real command at the rest.
 var skipSteps = []string{"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify"}
 
 // A run of the ordinary shape: one agent, and every step that reaches outside this process skipped.
@@ -198,8 +191,8 @@ func (f *fixture) expectSymlink(target string) {
 	}
 }
 
-// Nothing at the path at all. Lstat rather than Stat, because Stat follows the link and answers "not
-// there" for one that dangles — the shape a half-finished removal leaves behind.
+// No entry at the path at all. Lstat is used, because Stat follows the link and answers "not there"
+// for one that dangles. That is the shape a half-finished removal leaves behind.
 func (f *fixture) expectAbsent(path string) {
 	f.t.Helper()
 	if info, err := os.Lstat(path); err == nil {
@@ -253,8 +246,6 @@ func (f *fixture) mounted(directory string) []string {
 	return names
 }
 
-// --- the fixture writers ------------------------------------------------------------------------
-
 // --- the machine, as a working fake -----------------------------------------------------------------
 
 // brew's own behaviour on top of the shared fake: a `list` answers non-zero until the matching
@@ -269,8 +260,8 @@ type brewMachine struct {
 func newBrewMachine() *brewMachine {
 	host := &brewMachine{Machine: fake.New(), installed: map[string]bool{}}
 	host.Answering("brew", host.answer)
-	// The clients and the release tool, so the mcp and tools steps reach their commands rather than
-	// refusing a machine that has none. A case about either refusal takes its command away again.
+	// The clients and the release tool, so the mcp and tools steps reach their commands. A case about
+	// either refusal takes its command away again.
 	host.Add("claude", "codex", "gh", "go", "rtk")
 	return host
 }

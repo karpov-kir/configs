@@ -8,8 +8,8 @@ func Perform(options Options) (*installer.Run, int) {
 	return perform(options)
 }
 
-// Usage is the line a refused invocation prints, so the case holding it against the parser reads one
-// spelling rather than a copy.
+// Usage is the line a refused invocation prints, so the case holding it against the parser reads the
+// tool's own spelling.
 func Usage() string {
 	return usage()
 }

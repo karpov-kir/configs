@@ -8,8 +8,8 @@ import (
 )
 
 // rtk writes into the client's own configuration, so it is handed the client's native arguments. The
-// whole list is asserted, because a flag dropped from the middle of one is the defect this has had:
-// Claude's hook-only patching and Codex's profile init are different modes, not different spellings.
+// whole list is asserted, because a flag dropped from the middle of one is the defect this has had.
+// Claude patches a global hook and Codex initialises a profile, which are different modes.
 func TestClaudeRtkIsInitialisedWithItsHookOnlyArguments(t *testing.T) {
 	f := newFixture(t)
 
@@ -21,8 +21,8 @@ func TestClaudeRtkIsInitialisedWithItsHookOnlyArguments(t *testing.T) {
 }
 
 // Codex's rtk init writes a whole profile, so it is pointed at a staging directory and only RTK.md is
-// copied out. Run against the real profile it would also rewrite AGENTS.md — the file the owner tier
-// has just made its own copy of.
+// copied out. A run against the real profile would also rewrite AGENTS.md, which the owner tier has
+// just made its own copy of.
 func TestCodexRtkIsInitialisedInAStagingProfileAndOnlyItsDocumentIsKept(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering("rtk", func(command machine.Command) int {
@@ -55,8 +55,8 @@ func TestAnExistingCodexRtkDocumentIsKeptAndTheCliIsNotRun(t *testing.T) {
 	}
 }
 
-// A symlink at that path would have rtk writing into a file the profile never named. Refused before
-// the CLI is reached, so nothing is written through it.
+// A symlink at that path would have rtk writing into a file the profile never named. The refusal
+// comes before the CLI is reached, so no byte goes through the link.
 func TestASymlinkedCodexRtkDocumentIsRefusedBeforeTheCliRuns(t *testing.T) {
 	f := newFixture(t)
 	f.Symlink(f.home+"/elsewhere", f.codexHome+"/RTK.md")
@@ -109,8 +109,8 @@ func TestSkipRtkSaysSoAndRunsNothing(t *testing.T) {
 	}
 }
 
-// rtk is personal tooling rather than something the instruction tree needs, so a colleague's machine
-// is never told about a leftover this repository never wrote there, and never has rtk initialised.
+// rtk is personal tooling, and the instruction tree works without it. A colleague's machine keeps
+// what it has, since this repository wrote no leftover there. rtk is never initialised on it either.
 func TestADefaultTierLeavesRtkAloneAndSaysWhose(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md", "not ours to remove\n")
@@ -136,8 +136,9 @@ func TestTheLeftoverClaudeRtkDocumentIsRemoved(t *testing.T) {
 	f.expectAbsent(f.home + "/.claude/RTK.md")
 }
 
-// A symlink there is what a machine set up from an older README by hand holds. The link goes; what it
-// points at must not, because a removal that followed it would take a file this never wrote.
+// A symlink there is what a machine set up from an older README by hand holds. The link goes, and
+// what it points at stays, because a removal that followed the link would take a file this never
+// wrote.
 func TestASymlinkAtTheLeftoverPathGoesWithoutFollowingIt(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/pointed-at.md", "the file the link named\n")
@@ -149,8 +150,8 @@ func TestASymlinkAtTheLeftoverPathGoesWithoutFollowingIt(t *testing.T) {
 	f.expectFileBody(f.home+"/.claude/pointed-at.md", "the file the link named\n")
 }
 
-// A directory there is not a shape this ever wrote, so it holds something else and removing it would
-// be the data loss this whole installer promises not to be.
+// This only ever wrote a file there, so a directory holds something else, and removing it is the data
+// loss this whole installer exists to avoid.
 func TestADirectoryAtTheLeftoverPathIsRefusedAndItsContentsSurvive(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md/notes.md", "somebody else put this here\n")
@@ -171,8 +172,8 @@ func TestADryRunOverTheLeftoverLeavesItAlone(t *testing.T) {
 	f.expectFileBody(f.home+"/.claude/RTK.md", "still here afterwards\n")
 }
 
-// Codex keeps its own RTK.md in the profile, so Claude's cleanup does not apply — and a step that
-// printed nothing reads exactly like one that was never reached.
+// Codex keeps its own RTK.md in the profile, so Claude's cleanup does not apply. A silent step reads
+// exactly like one that was never reached.
 func TestCodexSaysTheClaudeCleanupDoesNotApply(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md", "Claude's own\n")
@@ -185,8 +186,8 @@ func TestCodexSaysTheClaudeCleanupDoesNotApply(t *testing.T) {
 
 // --- fixture helpers for the rtk cases ---------------------------------------------------------------
 
-// Where rtk was pointed, read out of the environment the run handed it. Read rather than assumed,
-// because the staging directory being a directory of this run's own is the property the case is about.
+// Where rtk was pointed. The value comes out of the environment the run handed it, because the
+// staging directory being a directory of this run's own is the property the case is about.
 func stagingProfile(t *testing.T, command machine.Command) string {
 	t.Helper()
 	for _, entry := range command.Env {

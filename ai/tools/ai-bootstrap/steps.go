@@ -7,10 +7,10 @@ import (
 
 // --- the repository's own tools -------------------------------------------------------------------
 
-// install.sh's exit codes send a reader to different places: 2 to this machine's network, its auth or
-// the release's own assets, and 3 to the fact that this repository has cut no release at all. Only the
-// second is survivable, and collapsing it into the refusal fails every fresh clone until the first
-// release exists.
+// install.sh's exit codes send a reader to different places. 2 points at this machine's network, its
+// auth or the release's own assets. 3 points at a repository that has cut no release at all. Only 3
+// is survivable, and collapsing it into the refusal fails every fresh clone until the first release
+// exists.
 func (run *invocation) installTools() {
 	installer := run.Repo + "/tools/install.sh"
 	switch {
@@ -28,11 +28,10 @@ func (run *invocation) installTools() {
 	switch status := run.Machine.Run(machine.Command{Name: installer, Loud: true}); {
 	case status == 0:
 	case status == 3:
-		// Not a failure, and reporting it as one would fail every fresh clone until the first release is
-		// cut: a refusal names something the human at this machine must do, and only this repository's
-		// owner can cut a release. Go is checked here rather than left to the verify step, because
-		// --skip-verify turns that off and without this a run would end green having installed no tools
-		// onto a machine that cannot build them either.
+		// A refusal names something the human at this machine must do, and only this repository's owner
+		// can cut a release. Go is checked here, because --skip-verify turns the verify step off. A run
+		// would otherwise end green having installed no tool onto a machine that cannot build one
+		// either.
 		if run.Machine.HasCommand("go") {
 			run.mounting.Say("  ok       no release to install from; the tools build from source on first use, which needs Go")
 			return
@@ -65,19 +64,16 @@ func (run *invocation) syncMcp() {
 
 // --- verify ---------------------------------------------------------------------------------------
 
-// A setup that reports success without checking anything has reported nothing, so the last step is the
-// repository's own gate over what was just linked.
-//
-// Running the gate here assumes a machine that can run Go, which a verify step could once not assume.
-// The step above earns it: it installs the tool binaries and already refuses a machine that can
-// neither download nor build them, so by the time verify runs there is a binary or there is a refusal.
-//
-// The re-entry marker is load-bearing. The gate runs the Go suites, and a case that drives this
-// installer reaches verify, which would run the gate, which would run that case again. The marker is
-// what makes that recursion stop at a failure rather than hang a machine setup.
+// A setup that reports success without running a check proves only that it ran, so the last step is
+// the repository's own gate over what was just linked. The gate needs a machine that can run Go, and
+// installTools earns that. A machine that cannot download or build the tool binaries is refused
+// there, so by the time verify runs there is a binary or a refusal.
 func (run *invocation) verify() {
 	gate := run.Repo + "/gate.sh"
 	switch {
+	// The re-entry marker matters here. The gate runs the Go suites. A case that drives this installer
+	// reaches verify, verify runs the gate, and the gate runs that case again. The marker stops that
+	// recursion at a failure, and a setup lacking one hangs.
 	case run.IsInsideVerify:
 		run.mounting.Say("verify (skipped: already inside a verify run)")
 		return
@@ -85,11 +81,10 @@ func (run *invocation) verify() {
 		run.mounting.Say("verify (skipped)")
 		return
 	case !shell.IsRegularFile(gate):
-		// A missing gate must not be reported as a failing check. Without this the call exits 127 and the
-		// arm below blames the checks for a file that was never there — a false diagnosis pointing at
-		// code that is fine, which costs more than the silence would. Checked in the dry run too: a dry
-		// run that says "ok" over a checkout where the real run cannot work is the same lie one step
-		// earlier.
+		// A missing gate must not be reported as a failing check. The call would exit 127, and the
+		// default arm would blame the checks for a file that was never there. A false diagnosis
+		// pointing at fine code costs more than silence. The dry run is checked too: a dry run saying
+		// "ok" over a checkout where the real run cannot work is the same lie one step earlier.
 		run.mounting.Refuse(gate + " is not in this checkout — the checks were not run, which is not the " +
 			"same as passing")
 		return
@@ -109,10 +104,9 @@ func (run *invocation) verify() {
 	switch status {
 	case 0:
 	case 2:
-		// The gate's "nothing is known": a check that could not run, or one whose input set resolved to
-		// nothing. Neither is a finding about the code, and a refusal saying otherwise sends the reader to
-		// the wrong place — so this points at the gate's own output, where the check that never measured
-		// has already printed its reason.
+		// The gate's "unknown": a check that could not run, or one whose input set came out empty. Neither
+		// is a finding about the code, and a refusal saying otherwise sends the reader to the wrong place.
+		// So this points at the gate's own output, where the check that never measured printed its reason.
 		run.mounting.Refuse(gate + " could not measure every check — unproven is not disproven, and it is " +
 			"not passing either. The gate named the checks it could not measure and each said why above")
 	default:
@@ -120,6 +114,6 @@ func (run *invocation) verify() {
 	}
 }
 
-// The environment variable a verify run sets so the run it starts knows not to verify again. Read by
-// the command rather than by this package, which takes it as a value.
+// The environment variable a verify run sets so the run it starts knows to skip verifying. The
+// command reads it, and this package takes it as a value.
 const verifyMarker = "BOOTSTRAP_VERIFYING"

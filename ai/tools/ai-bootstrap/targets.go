@@ -6,8 +6,8 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// Where one client keeps what this installs. Resolved once, at the top of a run, because every step
-// after it reads both and a step deriving its own would be a second answer to drift from this one.
+// Where one client keeps what this installs, resolved once at the top of a run. Every step after
+// that reads both paths, and a step deriving its own could disagree with this one.
 //
 // Codex's paths follow OpenAI's own discovery: skills under ~/.agents/skills, instructions in the
 // profile CODEX_HOME names. Claude's are its own two.
@@ -40,10 +40,10 @@ func newTargets(agent string, options Options) targets {
 	return built
 }
 
-// Whether two paths name the same directory. Asked of the filesystem rather than of the two strings,
-// because CODEX_HOME is routinely a symlink to the profile it names — and a Codex run that read its
-// own destination as a second, older mount directory would migrate every skill out of the directory it
-// had just mounted them into.
+// Whether two paths name the same directory, which the filesystem answers and string equality does
+// not. CODEX_HOME is routinely a symlink to the profile it names. A Codex run that read its own
+// destination as an older mount directory would migrate every skill out of the directory it had just
+// mounted them into.
 func isSameDirectory(one, other string) bool {
 	first, err := os.Stat(one)
 	if err != nil {
@@ -56,8 +56,8 @@ func isSameDirectory(one, other string) bool {
 	return os.SameFile(first, second)
 }
 
-// Every symlink directly under a directory, by full path. Empty for a directory that is not there or
-// cannot be read, which is what a machine with no mounts of this kind looks like.
+// Every symlink directly under a directory, by full path. Empty where the directory is missing or
+// unreadable. That is what a machine with no mounts of this kind looks like.
 func mountedLinks(directory string) []string {
 	entries, err := os.ReadDir(directory)
 	if err != nil {

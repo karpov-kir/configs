@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// The table, driven end to end: the shared bucket, and one mount per skill the tier takes. Discovery
-// rather than a list, so a skill added tomorrow is mounted without anyone editing the installer.
+// The table, driven end to end: the shared bucket, and one mount per skill the tier takes. The set is
+// discovered, so a skill added tomorrow is mounted without anyone editing the installer.
 func TestAFreshMachineGetsTheBucketAndEverySkillTheTierTakes(t *testing.T) {
 	f := newFixture(t)
 
@@ -17,15 +17,15 @@ func TestAFreshMachineGetsTheBucketAndEverySkillTheTierTakes(t *testing.T) {
 	for _, name := range publicSkills {
 		f.expectLinkTo(f.skillsMount("claude")+"/"+name, f.repo+"/kk-flavor/skills/"+name)
 	}
-	// The instruction region goes into the file itself, never a mount of this checkout's own: the
-	// default tier shares one file with whatever else the human keeps in it.
+	// The instruction region goes into the file itself, and no mount of this checkout's stands in for
+	// it. The default tier shares one file with whatever else the human keeps in it.
 	f.expectFileContains(f.home+"/.claude/CLAUDE.md", "kk-flavor:begin")
 	f.expectNotSymlink(f.home + "/.claude/CLAUDE.md")
 }
 
-// Some skills exist only to maintain this instruction tree and do nothing for a machine that merely
-// uses it. Each costs every session context through its `description:`, loaded whether or not the
-// skill is ever invoked, so the default leaves them out and the bigger set is asked for by name.
+// Some skills exist only to maintain this instruction tree, and a machine that merely uses it gets no
+// use from them. Each costs every session context through its `description:`, loaded whether or not
+// the skill is ever invoked. So the default leaves them out, and the bigger set is asked for by name.
 func TestTheDefaultTierLeavesTheMarkedSkillsOutAndSaysSo(t *testing.T) {
 	f := newFixture(t)
 
@@ -34,8 +34,8 @@ func TestTheDefaultTierLeavesTheMarkedSkillsOutAndSaysSo(t *testing.T) {
 	for _, name := range maintainerSkills {
 		f.expectAbsent(f.skillsMount("claude") + "/" + name)
 	}
-	// Said out loud: a flag that quietly leaves skills out is indistinguishable from a discovery loop
-	// that stopped finding them.
+	// The exclusion is said out loud, because a flag that quietly leaves skills out reads like a
+	// discovery loop that stopped finding them.
 	f.expectSaid("maintainer-only skill(s): kk-ecosystem")
 }
 
@@ -49,8 +49,8 @@ func TestMaintainerMountsAMarkedSkillLikeAnyOther(t *testing.T) {
 	}
 }
 
-// The zero case is the same claim about work that did not happen. Without it a tree carrying no marked
-// skill and a tier that excluded three read the same to a human: silence.
+// The zero case is the same claim about work that did not happen. A tree carrying no marked skill and
+// a tier that excluded three otherwise read the same to a human: silence.
 func TestATreeWithNoMarkedSkillSaysItExcludedNothing(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range maintainerSkills {
@@ -62,10 +62,9 @@ func TestATreeWithNoMarkedSkillSaysItExcludedNothing(t *testing.T) {
 	f.expectSaid("no maintainer-only skill was there to exclude")
 }
 
-// Discovery's two vacuity cases, and they send a reader to different places: a skills directory with
-// nothing in it is a broken checkout, while a flag that excluded every skill it found is a flag doing
-// exactly what it says. The exit code is the same for both, so the wording is the only thing telling
-// them apart.
+// Discovery's two vacuity cases, and they send a reader to different places. An empty skills
+// directory is a broken checkout. A flag that excluded every skill it found is a flag doing exactly
+// what it says. The exit code is the same for both, so the wording is what tells them apart.
 func TestATreeWhoseEverySkillIsMarkedSaysTheTierExcludedThem(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range publicSkills {
@@ -88,8 +87,8 @@ func TestATreeWithNoSkillAtAllRefusesRatherThanMountingNothing(t *testing.T) {
 	f.expectNotSaid("excluded all")
 }
 
-// The control, and the load-bearing half of both cases above: the same tree with --maintainer mounts
-// the marked skills, so neither refusal can be passing over a fixture that never had a skill to mount.
+// The control for the two refusal cases. The same tree with --maintainer mounts the marked skills, so
+// a refusal here cannot be passing over a fixture that never had a skill to mount.
 func TestTheSameTreeWithMaintainerMountsWhatTheDefaultExcluded(t *testing.T) {
 	f := newFixture(t)
 	for _, name := range publicSkills {
@@ -101,9 +100,9 @@ func TestTheSameTreeWithMaintainerMountsWhatTheDefaultExcluded(t *testing.T) {
 	f.expectLinkTo(f.skillsMount("claude")+"/kk-ecosystem", f.repo+"/kk-flavor/skills/kk-ecosystem")
 }
 
-// A misspelled marker answers "not marked" exactly as a skill that declared nothing does, and those
-// mean opposite things: the misspelling installs for everyone while whoever typed it believes they
-// marked it, on a machine where nothing looks wrong.
+// A misspelled marker reads as unmarked, exactly as a skill that declared no audience does. The two
+// mean opposite things. The misspelling installs for everyone, and whoever typed it believes they
+// marked it, on a machine where the result looks right.
 func TestAnAudienceNoReaderKnowsIsReportedRatherThanInstalledQuietly(t *testing.T) {
 	f := newFixture(t)
 	f.RemoveAll(f.repo + "/kk-flavor/skills/kk-build/SKILL.md")
@@ -112,16 +111,16 @@ func TestAnAudienceNoReaderKnowsIsReportedRatherThanInstalledQuietly(t *testing.
 
 	f.expectCode(f.install("--agent=claude"), 1)
 
-	// Echoed back as it was typed, so a reader hunting `maintainr` finds what they wrote.
+	// The marker is echoed back as it was typed, so a reader hunting `maintainr` finds what they wrote.
 	f.expectSaid("maintainr")
 	f.expectSaid("audience: maintainer")
-	// Mounted anyway, so the tree behaves as it does today and the non-zero exit is what carries the
-	// news.
+	// The skill is mounted anyway, so the tree behaves as it does today, and the non-zero exit carries
+	// the news.
 	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.repo+"/kk-flavor/skills/kk-build")
 }
 
-// The control. Without it the case above is equally satisfied by an installer that refuses every skill
-// it reads, and the suite would be measuring nothing.
+// The control. The misspelling case alone is equally satisfied by an installer that refuses every
+// skill it reads, and the suite would then be measuring no decision at all.
 func TestTheSameTreeWithTheMarkerSpelledRightRefusesNothing(t *testing.T) {
 	f := newFixture(t)
 
@@ -130,11 +129,10 @@ func TestTheSameTreeWithTheMarkerSpelledRightRefusesNothing(t *testing.T) {
 	f.expectNotSaid("no reader knows")
 }
 
-// The whole reason the guard sits above linking rather than inside it: run from a scratch clone, every
-// mount would be repointed at the clone, and deleting the clone afterwards leaves the human with no
-// skills and no instructions. What only this side can cover is that a bulk mount takes part in the
-// count the refusal reports — a reader told their one config would move, and not that every skill
-// moves with it, has not been told the scale of what the run would do.
+// The guard runs before any linking. A run from a scratch clone would repoint every mount at the
+// clone, and a later delete of that clone takes the human's skills and instructions with it. What
+// only this side covers is that a bulk mount takes part in the count the refusal reports. A refusal
+// naming one config, with the skills left out of the count, understates what the run would do.
 func TestASecondCheckoutIsRefusedWithTheSkillsInTheCount(t *testing.T) {
 	f := newFixture(t)
 	stranger := f.base + "/stranger/ai"
@@ -145,8 +143,8 @@ func TestASecondCheckoutIsRefusedWithTheSkillsInTheCount(t *testing.T) {
 
 	f.expectSaid("3 mounts (1 configs and 2 skills)")
 	f.expectSaid(stranger)
-	// The load-bearing half. A guard that refuses after repointing has still moved the machine, so the
-	// mounts are read back rather than the message being taken at its word.
+	// The half that matters. A guard that refuses after repointing has still moved the machine, so the
+	// mounts are read back and the message alone is never trusted.
 	f.expectLinkTo(f.home+"/.kk-flavor", stranger+"/kk-flavor")
 	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", stranger+"/kk-flavor/skills/kk-build")
 }
@@ -163,8 +161,8 @@ func TestRelocateMovesTheWholeSetToThisCheckout(t *testing.T) {
 	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.repo+"/kk-flavor/skills/kk-build")
 }
 
-// The flag has to write nothing, or it is worse than not having it: someone checks with --dry-run and
-// it is the run that changed their machine.
+// A dry run that wrote anything would be worse than having no flag at all. Someone checks with it,
+// and the check is the run that changes their machine.
 func TestADryRunWritesNothingAtAll(t *testing.T) {
 	f := newFixture(t)
 
@@ -175,7 +173,7 @@ func TestADryRunWritesNothingAtAll(t *testing.T) {
 	f.expectAbsent(f.home + "/.claude")
 }
 
-// A second run over a finished machine reports ok throughout and writes nothing. It is the property
+// A second run over a finished machine reports ok throughout and writes no file. It is the property
 // that makes this safe to run on a working machine, and the only evidence for it is a second run over
 // the first run's output.
 func TestASecondRunOverAFinishedMachineRelinksNothing(t *testing.T) {

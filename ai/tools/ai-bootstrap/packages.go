@@ -6,12 +6,11 @@ import (
 	"configs/ai/tools/machine"
 )
 
-// The formulae this install needs, held against ai/README.md by this package's own suite: adding one
-// to the README alone would leave it documented and never installed, with every other case green.
+// The formulae this install needs. This package's own suite holds the list against ai/README.md, so a
+// formula added to the README alone stays documented and uninstalled with every other case green.
 //
-// rtk compresses this machine's shell output for the agent — personal tooling, not something the
-// instruction tree needs — so it is the owner tier's and the only formula here. The default tier then
-// installs nothing, and says so rather than passing over it in silence.
+// rtk compresses this machine's shell output for the agent. That is personal tooling the instruction
+// tree has no use for, so rtk is the owner tier's and the only formula here.
 var formulae = []struct {
 	name         string
 	isOwnersOnly bool
@@ -21,10 +20,9 @@ var formulae = []struct {
 
 // FormulaNames is every formula this installer installs, whatever the tier, in declared order.
 //
-// Exported for the case in `ai/tools` that holds the list against ai/README.md. That case has to read
-// the shipped README, and the README sits outside this module: Go keys a package's test cache on the
-// module it belongs to, so a case here that opened it would answer `ok (cached)` over a README that
-// had changed underneath the run.
+// The case holding this list against ai/README.md lives outside this module, and the README does too.
+// Go keys a package's test cache on its own module, and a case inside this package reports
+// `ok (cached)` over a README that changed underneath it.
 func FormulaNames() []string {
 	names := make([]string, 0, len(formulae))
 	for _, formula := range formulae {
@@ -33,16 +31,17 @@ func FormulaNames() []string {
 	return names
 }
 
-// Installed-first rather than an unconditional install: the latter is slow, noisy, and answers
-// non-zero on an already-installed formula, which would make a finished machine look broken.
+// Each formula is checked before it is installed. An unconditional install is slow, noisy, and
+// answers non-zero on a formula that is already there, which makes a finished machine look broken.
 func (run *invocation) installPackages() {
 	if run.isBrewSkipped {
 		run.mounting.Say("brew (skipped)")
 		return
 	}
-	// Asked before brew is, because the default tier installs no formula at all since jq went, and a
-	// machine with no brew would otherwise fail an install that needed nothing from it. The skip lines
-	// still print: a tier that quietly left a formula out reads the same as a step that never ran.
+	// The count comes before the brew check. Since jq went, the default tier installs no formula at
+	// all, and an install wanting none of them must still run on a machine that lacks brew. The skip
+	// lines still print, because a tier that quietly leaves a formula out reads like a step that never
+	// ran.
 	wanted := 0
 	for _, formula := range formulae {
 		if formula.isOwnersOnly && !run.isOwner {
@@ -69,8 +68,8 @@ func (run *invocation) installPackages() {
 	}
 }
 
-// One refusal does not end the run: a machine missing one formula should still get every link, and a
-// human fixing three named problems in one pass beats discovering them one run at a time.
+// One refusal does not end the run. A machine missing one formula should still get every link, and a
+// human fixing three named problems in one pass beats three separate runs.
 func (run *invocation) installOne(name string) {
 	spelled := strings.Join(machine.PackageArguments(machine.Formula, name), " ")
 	switch {
@@ -83,8 +82,8 @@ func (run *invocation) installOne(name string) {
 	}
 }
 
-// What this tier does not install, said by name. The reason it is said at all is the reason the skip
-// line above exists: a formula left out silently reads the same as a step that never ran.
+// What this tier does not install, by name. A formula left out silently reads the same as a step that
+// never ran, which is why installPackages prints its own skip lines.
 func (run *invocation) sayWhatThisTierSkips() {
 	for _, formula := range formulae {
 		if formula.isOwnersOnly && !run.isOwner {

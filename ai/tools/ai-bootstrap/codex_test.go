@@ -15,8 +15,8 @@ func TestCodexInstallsIntoItsOwnDiscoveryDirectoryAndProfile(t *testing.T) {
 	f.expectAbsent(f.home + "/.claude")
 }
 
-// A nonempty AGENTS.override.md shadows AGENTS.md, so a run that wrote the instructions anyway would
-// leave the tree installed and nothing loading it. Refused before anything is written.
+// A nonempty AGENTS.override.md shadows AGENTS.md. A run that wrote the instructions anyway would
+// leave the tree installed with no client loading it, so the refusal comes before the first write.
 func TestCodexRefusesAShadowedInstructionFileBeforeWritingAnything(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.codexHome+"/AGENTS.override.md", "custom override\n")
@@ -28,8 +28,8 @@ func TestCodexRefusesAShadowedInstructionFileBeforeWritingAnything(t *testing.T)
 }
 
 // Codex kept its skills under CODEX_HOME before the shared discovery directory existed, and machines
-// set up then still hold those links. The old one goes only once its replacement is in place, so an
-// interrupted migration leaves Codex with a working mount rather than none.
+// set up then still hold those links. The old link goes only once its replacement is in place, so an
+// interrupted migration leaves Codex with a working mount.
 func TestCodexDropsALegacyMountOnceItsReplacementIsThere(t *testing.T) {
 	f := newFixture(t)
 	f.Symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
@@ -41,7 +41,7 @@ func TestCodexDropsALegacyMountOnceItsReplacementIsThere(t *testing.T) {
 }
 
 // A link the old README's loop made reads back with a trailing slash, because `$d` came from a `*/`
-// glob. It names the same skill, so it migrates like any other — and compared raw it would not.
+// glob. It names the same skill, so it migrates like any other. A raw string comparison would miss it.
 func TestCodexMigratesALegacyLinkEndingInASlash(t *testing.T) {
 	f := newFixture(t)
 	f.Symlink(f.repo+"/kk-flavor/skills/kk-build/", f.codexHome+"/skills/kk-build")
@@ -51,8 +51,8 @@ func TestCodexMigratesALegacyLinkEndingInASlash(t *testing.T) {
 	f.expectAbsent(f.codexHome + "/skills/kk-build")
 }
 
-// A real directory at the replacement's path is not this run's mount. Dropping the old link against it
-// would leave Codex with a directory nobody wrote and no skill behind it.
+// A real directory at the replacement's path is not this run's mount. A drop of the old link against
+// it would leave Codex with a directory that holds no skill.
 func TestCodexKeepsALegacyMountWhoseDestinationIsOccupied(t *testing.T) {
 	f := newFixture(t)
 	f.Symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
@@ -78,7 +78,7 @@ func TestAProfileAliasOfTheDiscoveryDirectoryIsNotASecondMountDirectory(t *testi
 }
 
 // The two clients share the bucket and the source tree and are installed and removed independently.
-// The bucket stays while the other client still has mounts from this checkout — removing it would
+// The bucket stays while the other client still has mounts from this checkout. A removal there would
 // leave that client's whole set resolving through a link that is gone.
 func TestUninstallingOneClientKeepsTheBucketTheOtherStillNeeds(t *testing.T) {
 	f := newFixture(t)

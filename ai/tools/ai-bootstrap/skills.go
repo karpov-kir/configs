@@ -9,9 +9,9 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The bucket every client shares, and the one mount that is not a skill. On an uninstall it is
-// declared only when this is the last client using it: removing it while another client still has
-// skill mounts resolving through it would leave that client's whole set dangling.
+// The bucket every client shares, and the only mount here that is not a skill. An uninstall declares
+// it only where this is the last client using it. A removal while another client still has skill
+// mounts resolving through it would leave that client's whole set dangling.
 func (run *invocation) declareBucket() {
 	if run.isUninstall && run.anotherClientHoldsMounts() {
 		run.mounting.Say("  kept     " + run.Home + "/.kk-flavor: another client still has skill mounts")
@@ -21,9 +21,9 @@ func (run *invocation) declareBucket() {
 }
 
 // Whether a mount directory other than this client's still holds a skill of this checkout's. The
-// directory this run is uninstalling is passed over by identity rather than by name: CODEX_HOME is
-// routinely an alias of the profile it names, and a run that counted its own destination twice would
-// keep the bucket for a client that is itself being removed.
+// directory this run is uninstalling is skipped by identity, because CODEX_HOME is routinely an alias
+// of the profile it names. A run that counted its own destination twice would keep the bucket for a
+// client that is itself being removed.
 func (run *invocation) anotherClientHoldsMounts() bool {
 	prefix := run.Repo + "/kk-flavor/skills/"
 	for _, directory := range run.allSkillMounts {
@@ -48,10 +48,10 @@ func (run *invocation) declareSkills() installer.SkillMounts {
 	})
 }
 
-// Said out loud, and after the mounts so it reads beside them. A flag that quietly leaves skills out
-// is indistinguishable from a discovery loop that stopped finding them: the machine ends up short of
-// skills with nothing in the run saying why. The zero case is the same claim about work that did not
-// happen — a flag passed to a tree carrying no marked skill has to say it excluded nothing.
+// The tier is said out loud, after the mounts, so it reads beside them. A flag that quietly leaves
+// skills out reads like a discovery loop that stopped finding them, and no line says which it was.
+// The zero case is the same claim about work that never happened. A flag passed to a tree carrying
+// no marked skill has to say it excluded none.
 func (run *invocation) reportTier(found installer.SkillMounts) {
 	if run.isMaintainer {
 		return
@@ -64,10 +64,10 @@ func (run *invocation) reportTier(found installer.SkillMounts) {
 		len(found.SkippedNames), strings.Join(found.SkippedNames, " ")))
 }
 
-// Two ways to mount no skill, and they send a reader to different places: a skills directory with
-// nothing in it is a broken checkout, while a flag that excluded every skill it found is a flag doing
-// exactly what it says on a tree that has nothing else. The exit code is the same for both, so the
-// wording is the only thing telling them apart.
+// Two ways to mount zero skills, and they send a reader to different places. An empty skills
+// directory is a broken checkout. A flag that excluded every skill it found is a flag doing exactly
+// what it says on a tree that holds only maintainer skills. The exit code is the same for both, so
+// the wording is what tells them apart.
 func (run *invocation) emptyTableRefusal(found installer.SkillMounts) string {
 	if len(run.mounting.BulkMounts()) > 0 {
 		return ""
@@ -81,12 +81,9 @@ func (run *invocation) emptyTableRefusal(found installer.SkillMounts) string {
 }
 
 // Codex kept its skills under CODEX_HOME before the shared discovery directory existed, and machines
-// set up then are still holding those links. Each is dropped only once its replacement is in place and
-// resolves to the same skill, so an interrupted migration leaves the old mount working rather than the
-// client with no skill at all.
-//
-// UnmountTarget is what does the removing, so a link this checkout cannot prove it wrote is reported
-// and left — the same promise the rest of the run makes.
+// set up then are still holding those links. Each is dropped once its replacement is in place and
+// resolves to the same skill, so an interrupted migration leaves the client's skills reachable.
+// UnmountTarget does the removing, so a link this checkout cannot prove it wrote is reported and left.
 func (run *invocation) migrateLegacyCodexMounts() {
 	if run.agent != codexAgent || isSameDirectory(run.legacyCodexSkills, run.skillsMount) {
 		return
@@ -99,8 +96,8 @@ func (run *invocation) migrateLegacyCodexMounts() {
 		}
 		replacement := run.skillsMount + "/" + shell.BaseName(mounted)
 		// A symlink, and one resolving to the same skill. A real directory somebody put at the
-		// replacement's path is not this run's mount, and dropping the old link against it would leave
-		// Codex with a directory nobody wrote and no skill behind it.
+		// replacement's path is no mount of this run's. A drop of the old link against it would leave
+		// Codex with a directory that holds no skill.
 		if shell.IsSymlink(replacement) && isSameDirectory(replacement, mounted) {
 			run.mounting.UnmountTarget(mounted)
 		}

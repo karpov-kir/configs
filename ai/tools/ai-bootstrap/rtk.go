@@ -10,8 +10,8 @@ import (
 
 // The rtk step: take out the file this repository used to write, then let rtk configure itself.
 //
-// Both halves are the owner tier's. rtk is personal tooling, so a colleague's machine is never told
-// about a leftover this repository never wrote there, and never has rtk initialised on it.
+// Both halves are the owner tier's, because rtk is personal tooling. A colleague's machine keeps what
+// it has, since this repository wrote no leftover there. rtk is never initialised on it either.
 func (run *invocation) configureRtk() {
 	run.mounting.Say("rtk")
 	run.removeLeftoverRtkDocument()
@@ -33,16 +33,16 @@ func (run *invocation) removeLeftoverRtkDocument() {
 	switch {
 	case !shell.PathExists(leftover) && !shell.IsSymlink(leftover):
 		run.mounting.Say("  ok       no leftover " + leftover)
-	// A directory is not a shape this ever wrote there, so it holds something else and removing it
-	// would be the data loss this whole installer promises not to be.
+	// This only ever wrote a file there, so a directory holds something else, and removing it is the
+	// data loss this whole installer exists to avoid.
 	case !shell.IsSymlink(leftover) && shell.IsDir(leftover):
 		run.mounting.Refuse(leftover + " is a directory, and this script only ever wrote a file there — " +
 			"move it aside yourself")
 	case run.isDryRun:
 		run.mounting.Say("  would remove the leftover " + leftover)
 	default:
-		// Remove, never a delete that follows the link: a machine set up from an older README by hand
-		// holds a symlink here, and what it points at is not this run's to take.
+		// os.Remove takes out the link itself. A machine set up from an older README by hand holds a
+		// symlink here, and what it points at is not this run's to take.
 		if err := os.Remove(leftover); err != nil {
 			run.mounting.Refuse("could not remove the leftover " + leftover)
 			return
@@ -51,9 +51,9 @@ func (run *invocation) removeLeftoverRtkDocument() {
 	}
 }
 
-// rtk writes into the client's own configuration, so it is handed the client's native arguments rather
-// than one form for both: Claude takes a global hook with its settings patched, Codex takes its own
-// `--codex --global` and writes an RTK.md into the profile.
+// rtk writes into the client's own configuration, so each client is handed its own native arguments.
+// Claude takes a global hook with its settings patched. Codex takes `--codex --global` and writes an
+// RTK.md into the profile.
 func (run *invocation) rtkArguments() []string {
 	if run.agent == codexAgent {
 		return []string{"init", "--codex", "--global"}
@@ -66,15 +66,15 @@ func (run *invocation) initialiseRtk() {
 		run.mounting.Say("  skipped  RTK initialization")
 		return
 	}
-	// An instruction file this run refused to write is one rtk would be configured against for nothing:
-	// the machine would describe tooling whose instructions never arrived.
+	// rtk has no reason to be configured against an instruction file this run refused to write. A
+	// machine set up that way describes tooling whose instructions never arrived.
 	if !run.areInstructionsReady {
 		run.mounting.Say("  skipped  RTK initialization: instructions were refused")
 		return
 	}
-	// A Codex profile that already holds an RTK.md keeps it — it is the human's own document, and rtk
-	// would write over it. Checked through the region writer's own guard, so a symlink or an unwritable
-	// file is refused here rather than discovered by rtk halfway through.
+	// A Codex profile that already holds an RTK.md keeps it. The file is the human's own document, and
+	// rtk would write over it. The region writer's own guard does the checking, so a symlink or an
+	// unwritable file is refused here, before rtk is halfway through.
 	existing := run.CodexHome + "/RTK.md"
 	needsInitialisation := true
 	if run.agent == codexAgent && (shell.PathExists(existing) || shell.IsSymlink(existing)) {
@@ -109,12 +109,10 @@ func (run *invocation) initialiseRtk() {
 	}
 }
 
-// Codex's rtk init writes a whole profile, so it is pointed at a staging directory and only the one
-// file this install wants is copied out. Run against the real profile it would also rewrite AGENTS.md,
-// which is the file the owner tier has just made its own copy of.
-//
-// The copy does not overwrite: by the time it runs, the profile either has no RTK.md — the case that
-// got here — or gained one while rtk was running, and that one is not this run's to replace.
+// Codex's rtk init writes a whole profile, so it is pointed at a staging directory and only the file
+// this install wants is copied out. A run against the real profile would also rewrite AGENTS.md,
+// which the owner tier has just made its own copy of. The copy skips an existing RTK.md. A file that
+// appeared while rtk was running is not this run's to replace.
 func (run *invocation) initialiseCodexRtk() {
 	staging, err := os.MkdirTemp(run.Home, ".kk-flavor-rtk.")
 	if err != nil {
