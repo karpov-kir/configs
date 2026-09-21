@@ -31,7 +31,7 @@ const (
 // whether this install's own skills are reachable at the mount, asked in both directions, because
 // neither direction can see the defect the other one is about.
 func (c *checker) scanMounts() {
-	if !c.root.IsInstalled() {
+	if !c.root.IsInstalled() || !c.root.AgentPresent() {
 		return
 	}
 	skillsMount := c.root.SkillsMount()
@@ -87,10 +87,15 @@ func (c *checker) mayGoUnmounted(skillsMount, name string) bool {
 // and check.sh puts `wiring: clean` over both. Its own header refuses exactly that:
 // a check that did not run is not a clean one. Absence of this line says the scan did run.
 func (c *checker) reportSkippedMountScan(out io.Writer) {
-	if c.root.IsInstalled() {
-		return
+	switch {
+	case !c.root.IsInstalled():
+		writeLinef(out, "mounts: skipped — this checkout is not the install, so nothing here was checked about "+c.root.SkillsMount()+" in either direction")
+	case !c.root.AgentPresent():
+		// Its own line rather than the one above, because the two are acted on differently: the first
+		// says to run the check where the install is, and this one says there is nothing to install
+		// for here until this agent is on the machine.
+		writeLinef(out, "mounts: skipped — "+c.root.Agent()+" is not on this machine, so nothing here was checked about "+c.root.SkillsMount()+" in either direction")
 	}
-	writeLinef(out, "mounts: skipped — this checkout is not the install, so nothing here was checked about "+c.root.SkillsMount()+" in either direction")
 }
 
 // The mounts that outlived their skills. The forward loop iterates the directories this tree has, so a

@@ -349,3 +349,39 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		newMountNamedWithAControlByte(t).doesNotReport("\x1b")
 	})
 }
+
+// A machine carries one agent far more often than both, and the repository's own gate asks the mount
+// question for each of them. Asked about an agent that was never installed here, every answer would
+// be about a directory no install was ever meant to create — so `ai/bootstrap.sh --agent=claude`
+// failed its own verify step on a machine with nothing wrong with it.
+//
+// The three states have to stay apart, and no two of these cases can show that alone: absent reports
+// nothing, present-but-unmounted still reports, and silence is only meaningful against a case that
+// speaks.
+func TestTheMountScanAsksOnlyAboutAnAgentThisMachineHas(t *testing.T) {
+	t.Run("says nothing about the mounts of an agent that is not on this machine", func(t *testing.T) {
+		f := newInstalledRoot(t)
+		f.newMountedSkill("kk-drive")
+		f.isolate()
+		f.absent(runChecker(t, f.git, f.bash, "--agent=codex", f.root), "not mounted")
+	})
+
+	// The control. The same tree, the same agent, with only the directory its client makes added: the
+	// skill is now unreachable at a mount that should hold it, and that is still a finding.
+	t.Run("while an agent whose own directory is here reports its missing mount", func(t *testing.T) {
+		f := newInstalledRoot(t)
+		f.newMountedSkill("kk-drive")
+		f.mkdirAll(f.home + "/.agents")
+		f.isolate()
+		f.found(runChecker(t, f.git, f.bash, "--agent=codex", f.root), ecocheck.SkillsNotMounted)
+	})
+
+	// The skip said out loud, in its own words. Sharing the not-the-install line would tell a reader to
+	// go and run the check where the install is, which is the one thing that would not help here.
+	t.Run("but says out loud that it skipped them, and why", func(t *testing.T) {
+		f := newInstalledRoot(t)
+		f.isolate()
+		f.found(runChecker(t, f.git, f.bash, "--agent=codex", f.root),
+			"mounts: skipped", "codex is not on this machine")
+	})
+}

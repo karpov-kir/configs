@@ -176,6 +176,20 @@ func (r Root) IsInstalled() bool {
 	return flavorCanon != "" && shell.CanonicalDir(r.FlavorMount()) == flavorCanon
 }
 
+// AgentPresent reports whether the agent whose mounts are about to be scanned exists on this machine
+// at all. IsInstalled cannot answer it: that one asks about ~/.kk-flavor, which is the same directory
+// whichever agent is named, while every mount question below it is about one agent's own skills
+// directory. A machine installed for claude alone therefore passes IsInstalled and then fails every
+// codex mount question — and the repository's own gate asks both, so `ai/bootstrap.sh --agent=claude`
+// failed its own verify step on a machine that had nothing wrong with it.
+//
+// The tell is the mount's PARENT and not the mount: the client makes that directory, so its absence
+// means the agent was never here, while its presence with no skills/ inside means an install that
+// went wrong — which stays a finding. Answering from the mount itself would collapse those two.
+func (r Root) AgentPresent() bool {
+	return r.home != "" && shell.IsDir(shell.DirName(r.SkillsMount()))
+}
+
 // Contains reports whether a file may be read as part of this tree. A refusal covers more than
 // "outside the root": a symlink, anything that is not a regular file, and a file this process cannot
 // open are all turned away wherever they sit, because existence alone is not enough to promise a read.
