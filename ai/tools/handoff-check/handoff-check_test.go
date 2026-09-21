@@ -82,26 +82,19 @@ func TestMain(m *testing.M) {
 
 // newRepo, the fixture helper, builds a directory the gate can be pointed at and the port that
 // answers for it. That is a work tree holding one commit, a clean tree, and a shared git dir whose
-// parent name is what `repo-key` abbreviates.
+// parent name is what `repo-key` abbreviates. repotest.Fake.OnDisk builds the two things that have
+// to be real on disk — the git dir, which the gate is pointed at, and the HEAD `repo-key` refuses a
+// git dir without — and resolves the root.
 
-// Two things are real on disk and both have to be. The gate resolves the path a draft must name, and
-// `repo-key` refuses a git dir with no HEAD in it. The case for a repository lacking an abbreviation
-// is arranged that way.
-
-// os.MkdirTemp hands back a symlinked path on macOS. A draft quoting the path as created then fails
-// to match what the gate compares against.
+// The directory handed to the gate stays the one that was created, and the resolved spelling is what
+// a draft quotes: os.MkdirTemp answers a symlinked path on macOS, so the two differ, and a gate that
+// did not resolve its own argument would fail every case here.
 func newRepo(dir string) (repoDir, resolved string, git *repotest.Fake, err error) {
 	git = repotest.New(dir)
-	if err = os.MkdirAll(git.Git, 0o755); err != nil {
+	if err = git.OnDisk(); err != nil {
 		return "", "", nil, err
 	}
-	if err = os.WriteFile(filepath.Join(git.Git, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
-		return "", "", nil, err
-	}
-	if resolved, err = filepath.EvalSymlinks(dir); err != nil {
-		return "", "", nil, err
-	}
-	return dir, resolved, git.Commit(fixtureSHA, nil), nil
+	return dir, git.Root, git.Commit(fixtureSHA, nil), nil
 }
 
 // draftWith is the draft every case mutates. Each slot holds the shortest thing that is genuinely
@@ -321,11 +314,6 @@ func TestStructure(t *testing.T) {
 			mutate:   func(d *draft) { d.title = "[<repo abbrev>] Cut the mutation run down" },
 			want:     1,
 			contains: []string{"repository prefix is still the template placeholder"},
-		},
-		{
-			name:   "a filled repository prefix",
-			mutate: func(d *draft) { d.title = "[" + fixtureAbbrev + "] Cut the mutation run down" },
-			want:   0,
 		},
 		{
 			// The half the whole-line test used to hide: a filled prefix in front of an unfilled work

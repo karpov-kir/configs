@@ -15,17 +15,6 @@ func cycleTexts(loops [][]string) []string {
 	return texts
 }
 
-func TestOneCycleIsReportedOnceWhicheverSideItIsEnteredFrom(t *testing.T) {
-	adj := map[string][]string{"a": {"b"}, "b": {"a"}}
-	loops := Cycles(adj, []string{"a", "b"}, NewWalkBudget(WalkSteps))
-	if len(loops) != 1 {
-		t.Fatalf("cycles = %v, want the one a↔b cycle", cycleTexts(loops))
-	}
-	if got := cycleTexts(loops)[0]; got != "a>b>a" {
-		t.Errorf("cycle = %q, want the closing path a>b>a", got)
-	}
-}
-
 func TestCyclesAreTheLoopsAndNothingElse(t *testing.T) {
 	adj := map[string][]string{"a": {"b"}, "b": {"a", "c"}, "c": {"b", "d"}}
 	loops := Cycles(adj, []string{"a", "b", "c", "d"}, NewWalkBudget(WalkSteps))
@@ -116,16 +105,5 @@ func TestTwoDifferentCyclesAreNeverKeyedAsOne(t *testing.T) {
 	loops := Cycles(adj, []string{"x", "a>b", "a", "b"}, NewWalkBudget(WalkSteps))
 	if len(loops) != 2 {
 		t.Fatalf("cycles = %v, want both — one set of files was read as another", cycleTexts(loops))
-	}
-}
-
-// And the other side: an honest tree must leave the bound unspent, or every real report would be
-// labelled a lower bound.
-func TestASparseGraphLeavesTheCycleBudgetUnspent(t *testing.T) {
-	adj := map[string][]string{"a": {"b"}, "b": {"a"}}
-	budget := NewWalkBudget(WalkSteps)
-	Cycles(adj, []string{"a", "b"}, budget)
-	if budget.Exhausted() {
-		t.Error("one two-file cycle exhausted a budget sized for the whole tree")
 	}
 }

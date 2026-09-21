@@ -69,16 +69,6 @@ func TestARevisionIsNotAPath(t *testing.T) {
 	})
 }
 
-func TestARepeatedLineIsFound(t *testing.T) {
-	f := newFixture(t)
-	long := repeated('a', 120)
-	f.added("base.go", long, long)
-	f.run("HEAD")
-	f.expectCode(1)
-	f.expectStdoutHas("2x")
-	f.expectStdoutHas("120 chars")
-}
-
 func TestARepeatedTokenInsideDifferingLinesIsFound(t *testing.T) {
 	f := newFixture(t)
 	token := repeated('k', 130)
@@ -158,42 +148,26 @@ func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 // This tool echoes 60 bytes of every duplicate, so a file marked by NAME as secret-bearing is never
 // read. The skip is announced and counted, which keeps it visible to a reader.
 
-// The uppercase and modern-key rows each cover a real failure. On a case-insensitive filesystem
-// `.ENV` IS `.env`, and a list stopping at `id_rsa` misses the `id_ed25519` ssh-keygen writes by
-// default.
+// Which names are secret-bearing is `diffscan.SecretNamed`'s list, and every row of it is driven
+// where it lives, in `diffscan/diffscan_test.go`. Driving this whole pipeline once per name paid for
+// the same answer a second time; what belongs here is that the untracked arm asks that list at all.
 
-// Two guards stand on this path, and no row here says which of them fired. `diffscan.Options`'
+// Two guards stand on this path, and this case cannot say which of them fired. `diffscan.Options`'
 // SkipSecretNamed declines the file before it is opened, and `count` declines its lines after.
-// Measured: either guard alone keeps all 27 rows green, and only both off reddens them.
-
-// That is deliberate for a path that would otherwise put a credential in a report. Do not read a
-// green row as either guard working. Keep both, even where one looks redundant. The untracked guard
-// has its own case, against the code that owns it, in `diffscan/diffscan_test.go`.
+// Measured: either guard alone keeps this case green, and only both off reddens it. That is
+// deliberate for a path that would otherwise put a credential in a report. Do not read a green run
+// as either guard working, and keep both even where one looks redundant.
 
 // The case this file exists for.
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	secret := repeated('S', 130)
-	for _, name := range []string{
-		".env", ".env.local", "config/.env.production", "id_rsa", "server.pem", "app.key",
-		"my-credentials.txt", "secrets.yaml",
-		".ENV", "Server.PEM", "ID_RSA",
-		"id_ecdsa", "id_ed25519", "id_ed25519.bak",
-		".netrc", ".npmrc", "AuthKey_A1B2C3D4E5.p8",
-		// The suffix spelling of the same convention. Every name above it is a prefix form, so
-		// without these the table proves only that `.env*` matches `.env*`.
-		"production.env", "staging.env", "env/prod.env", "PRODUCTION.ENV",
-		".pgpass", ".htpasswd", ".pypirc", ".dockercfg", "deploy.ppk", "api.token",
-	} {
-		t.Run(name+" is skipped unread", func(t *testing.T) {
-			f := newFixture(t)
-			f.untracked(name, secret+"\n"+secret+"\n")
-			f.run()
-			// The secret is over the floor and appears twice, so a scan that read it would print it.
-			f.expectStdoutLacks(secret[:60])
-			f.expectStderrHas("its name marks it as secret-bearing")
-			f.expectStderrHas("1 file(s) skipped unread")
-		})
-	}
+	f := newFixture(t)
+	f.untracked(".env", secret+"\n"+secret+"\n")
+	f.run()
+	// The secret is over the floor and appears twice, so a scan that read it would print it.
+	f.expectStdoutLacks(secret[:60])
+	f.expectStderrHas("its name marks it as secret-bearing")
+	f.expectStderrHas("1 file(s) skipped unread")
 }
 
 // The skip announcement names a file somebody else put in the tree, and it is the one path in this

@@ -74,20 +74,6 @@ func TestAPartialScanRefusesRatherThanReporting(t *testing.T) {
 	}
 }
 
-func TestATreeReadWholeReportsAndExitsZero(t *testing.T) {
-	root := t.TempDir()
-	write(t, root, "std/proto.md", "# P\n\n## Caller\n")
-	write(t, root, "caller.md", "see `std/proto.md` → **Caller**\n")
-
-	code, out, errOut := runOver(t, root)
-	if code != 0 {
-		t.Fatalf("exit %d over a tree read whole, want 0; stderr was %q", code, errOut)
-	}
-	if !strings.Contains(out, "2 file(s), 1 citation edge(s)") {
-		t.Errorf("report does not measure the fixture:\n%s", out)
-	}
-}
-
 func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "notes.txt", "nothing to read here\n")

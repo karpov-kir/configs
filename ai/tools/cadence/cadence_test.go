@@ -56,12 +56,11 @@ type fixture struct {
 // for it.
 func newRepo(t *testing.T) *fixture {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "repo")
-	git := repotest.New(root)
-	if err := os.MkdirAll(git.Git, 0o755); err != nil {
+	git := repotest.New(filepath.Join(t.TempDir(), "repo"))
+	if err := git.OnDisk(); err != nil {
 		t.Fatalf("could not build a fixture repo: %v — stopping, since the case reads one", err)
 	}
-	return &fixture{repo: root, state: filepath.Join(git.Git, recordName), git: git}
+	return &fixture{repo: git.Root, state: filepath.Join(git.Git, recordName), git: git}
 }
 
 // newNeutral, a second fixture builder, answers as git does outside any repository, for the cases
@@ -166,6 +165,9 @@ func TestUsage(t *testing.T) {
 		// probing it rewrites the record it was asking about. The warning is the only thing at the
 		// point of the mistake that says so, so it is part of the contract rather than decoration.
 		f.expectOut(t, "'asked' OVERWRITES it with today's date")
+		// Exit 2 is undetermined, so anything left on stdout is what a caller capturing the verdict
+		// reads as one.
+		f.expectNoStdout(t)
 	})
 
 	t.Run("an unknown topic exits 2 and prints the usage", func(t *testing.T) {
@@ -189,12 +191,6 @@ func TestUsage(t *testing.T) {
 		f := newRepo(t)
 		f.run("audit", "bogus")
 		f.expectCode(t, 2)
-	})
-
-	t.Run("the usage leaves nothing on stdout for a caller to read as a verdict", func(t *testing.T) {
-		f := newNeutral(t)
-		f.run()
-		f.expectNoStdout(t)
 	})
 }
 

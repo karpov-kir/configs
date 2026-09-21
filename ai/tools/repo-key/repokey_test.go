@@ -19,45 +19,33 @@ import (
 // common dir is its clone's.
 
 // A fixture is therefore a directory holding `.git/HEAD`. That is the single file FromSharedGitDir
-// probes for, and a `repotest.Fake` pointed at it is what answers where the entry point asks git.
-
-// A fixture that is only a git directory.
-func newBareRepo(t *testing.T, name string) string {
+// probes for, and the `repotest.Fake` that built it is what answers where the entry point asks git:
+// it names `Root/.git` for whatever directory it is asked about, which is the answer a real git
+// gives from anywhere inside that clone, linked worktrees included.
+func newBareRepo(t *testing.T, name string) *repotest.Fake {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), name)
-	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(gitDir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", gitDir, err)
+	git := repotest.New(filepath.Join(t.TempDir(), name))
+	if err := git.OnDisk(); err != nil {
+		t.Fatalf("building the fixture repository %q: %v", name, err)
 	}
-	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
-		t.Fatalf("write HEAD in %s: %v", gitDir, err)
-	}
-	return dir
+	return git
 }
 
 // The key of a bare fixture, through the entry point that asks git nothing.
-func bareKey(t *testing.T, dir string) string {
+func bareKey(t *testing.T, git *repotest.Fake) string {
 	t.Helper()
-	k, err := FromSharedGitDir(filepath.Join(dir, ".git"))
+	k, err := FromSharedGitDir(git.Git)
 	if err != nil {
-		t.Fatalf("keying %s: %v", dir, err)
+		t.Fatalf("keying %s: %v", git.Root, err)
 	}
 	return k
 }
 
-// A port that answers `dir/.git` for whatever it is asked about — the answer a real git gives from
-// anywhere inside that clone, linked worktrees included.
-func gitAt(dir string) *repotest.Fake {
-	fake := repotest.New(dir)
-	fake.Git = filepath.Join(dir, ".git")
-	return fake
-}
-
-func key(t *testing.T, dir string) string {
+func key(t *testing.T, git *repotest.Fake) string {
 	t.Helper()
-	k, err := resolveKey(gitAt(dir), dir)
+	k, err := resolveKey(git, git.Root)
 	if err != nil {
-		t.Fatalf("keying %s: %v", dir, err)
+		t.Fatalf("keying %s: %v", git.Root, err)
 	}
 	return k
 }
@@ -70,10 +58,10 @@ func key(t *testing.T, dir string) string {
 // common dir alone.
 func TestEveryWorktreeOfOneCloneKeysTheSame(t *testing.T) {
 	t.Parallel()
-	clone := newBareRepo(t, "project")
-	git := gitAt(clone)
+	git := newBareRepo(t, "project")
+	clone := git.Root
 
-	want := key(t, clone)
+	want := key(t, git)
 	for _, where := range []string{clone, filepath.Join(filepath.Dir(clone), "wt-one"), "/somewhere/else"} {
 		got, err := resolveKey(git, where)
 		if err != nil {
@@ -96,7 +84,7 @@ func TestTwoClonesOfOneRemoteKeyApart(t *testing.T) {
 	first := newBareRepo(t, "project")
 	second := newBareRepo(t, "project")
 
-	if filepath.Base(first) != filepath.Base(second) {
+	if filepath.Base(first.Root) != filepath.Base(second.Root) {
 		t.Fatal("the two clones do not share a basename, so the digest could go untested")
 	}
 	if bareKey(t, first) == bareKey(t, second) {
@@ -110,7 +98,7 @@ func TestASymlinkedRouteToOneCloneKeysOnce(t *testing.T) {
 	t.Parallel()
 	direct := newBareRepo(t, "project")
 	link := filepath.Join(t.TempDir(), "via-link")
-	if err := os.Symlink(filepath.Dir(direct), link); err != nil {
+	if err := os.Symlink(filepath.Dir(direct.Root), link); err != nil {
 		t.Skipf("cannot create a symlink here: %v", err)
 	}
 	viaLink, err := FromSharedGitDir(filepath.Join(link, "project", ".git"))
@@ -140,7 +128,7 @@ func TestAnUnresolvablePathRefusesRatherThanFallingBack(t *testing.T) {
 func TestOutsideARepositoryItRefuses(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	git := gitAt(dir)
+	git := repotest.New(dir)
 	git.Fail["CommonDir"] = errors.New("not a git repository")
 	if got, err := resolveKey(git, dir); err == nil {
 		t.Fatalf("keyed a directory in no repository as %q", got)
@@ -152,12 +140,12 @@ func TestOutsideARepositoryItRefuses(t *testing.T) {
 // single consumer can see both.
 func TestBothEntryPointsAgree(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "project")
-	direct, err := FromSharedGitDir(filepath.Join(dir, ".git"))
+	git := newBareRepo(t, "project")
+	direct, err := FromSharedGitDir(git.Git)
 	if err != nil {
 		t.Fatalf("keying the shared git dir: %v", err)
 	}
-	if got := key(t, dir); got != direct {
+	if got := key(t, git); got != direct {
 		t.Fatalf("resolveKey keyed %s and FromSharedGitDir %s — one clone, two names", got, direct)
 	}
 }
@@ -185,11 +173,15 @@ func TestTheCommandStripsTheVariablesThatRelocateGit(t *testing.T) {
 // and not every character a directory name can carry survives that.
 var safeCharacters = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-func TestAKeyIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
+// The abbreviation is weighed beside the key over the same clone rather than in a loop of its own.
+// It is asserted through its own entry point, because an abbreviation re-derived on its own stops
+// being covered by the key's table and nothing turns red when it does — but it needs the same eight
+// directories, and building them twice proves nothing the one pass does not.
+func TestAKeyAndItsAbbreviationAreSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {
-		dir := newBareRepo(t, name)
-		got := bareKey(t, dir)
+		git := newBareRepo(t, name)
+		got := bareKey(t, git)
 		if !safeCharacters.MatchString(got) {
 			t.Errorf("directory %q keyed %q, which is not confined to characters that survive a path or a command line", name, got)
 		}
@@ -198,6 +190,17 @@ func TestAKeyIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 		}
 		if got == "" {
 			t.Errorf("directory %q keyed the empty string", name)
+		}
+
+		abbrev, err := abbrevFromSharedGitDir(git.Git)
+		if err != nil {
+			t.Fatalf("abbreviating %s: %v", git.Root, err)
+		}
+		if !safeCharacters.MatchString(abbrev) {
+			t.Errorf("directory %q abbreviated to %q, which is not confined to characters that survive a path or a command line", name, abbrev)
+		}
+		if strings.HasPrefix(abbrev, "-") {
+			t.Errorf("directory %q abbreviated to %q, which reads as an option wherever the abbreviation reaches a command", name, abbrev)
 		}
 	}
 }
@@ -216,19 +219,19 @@ func TestFlatteningTheNameNeverCollidesTwoClones(t *testing.T) {
 // rename every existing directory that a consumer has already created on disk.
 func TestAnOrdinaryNameIsUnchanged(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "player-testing")
-	if got := bareKey(t, dir); !strings.HasPrefix(got, "player-testing-") {
+	git := newBareRepo(t, "player-testing")
+	if got := bareKey(t, git); !strings.HasPrefix(got, "player-testing-") {
 		t.Fatalf("keyed %s — an ordinary directory name must survive verbatim, or existing directories are renamed under their users", got)
 	}
 }
 
 func TestAPathThatIsNotAGitDirRefuses(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "project")
-	if got, err := FromSharedGitDir(dir); err == nil {
+	git := newBareRepo(t, "project")
+	if got, err := FromSharedGitDir(git.Root); err == nil {
 		t.Fatalf("the worktree root keyed as %q instead of refusing — a caller passing the wrong path gets a plausible answer", got)
 	}
-	if got, err := FromSharedGitDir(filepath.Join(dir, ".git")); err != nil {
+	if got, err := FromSharedGitDir(git.Git); err != nil {
 		t.Fatalf("the real git dir refused (%v), so the check rejects what it must accept", err)
 	} else if got == "" {
 		t.Fatal("the real git dir keyed empty")
@@ -277,12 +280,12 @@ func TestARefusalCarriesNoControlBytesFromThePathItEchoes(t *testing.T) {
 // titled from the drifted one stop grouping with their siblings.
 func TestTheAbbreviationIsTheKeysReadableHalfAbbreviated(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "issue-tracker")
-	abbrev, err := abbrevFromSharedGitDir(filepath.Join(dir, ".git"))
+	git := newBareRepo(t, "issue-tracker")
+	abbrev, err := abbrevFromSharedGitDir(git.Git)
 	if err != nil {
-		t.Fatalf("abbreviating %s: %v", dir, err)
+		t.Fatalf("abbreviating %s: %v", git.Root, err)
 	}
-	key := bareKey(t, dir)
+	key := bareKey(t, git)
 	if len(key) <= digestLength+1 {
 		t.Fatalf("the clone keyed %q, which is too short to hold a readable half and a %d-character digest", key, digestLength)
 	}
@@ -332,11 +335,11 @@ func TestTheAbbreviationTable(t *testing.T) {
 // inconsistency the tool exists to remove.
 func TestEveryWorktreeOfOneCloneAbbreviatesTheSame(t *testing.T) {
 	t.Parallel()
-	main := newBareRepo(t, "issue-tracker")
-	worktree := filepath.Join(filepath.Dir(main), "wt-one")
+	git := newBareRepo(t, "issue-tracker")
+	worktree := filepath.Join(filepath.Dir(git.Root), "wt-one")
 
-	for _, where := range []string{main, worktree} {
-		got, err := ResolveAbbrev(gitAt(main), where)
+	for _, where := range []string{git.Root, worktree} {
+		got, err := ResolveAbbrev(git, where)
 		if err != nil {
 			t.Fatalf("abbreviating %s: %v", where, err)
 		}
@@ -350,8 +353,8 @@ func TestEveryWorktreeOfOneCloneAbbreviatesTheSame(t *testing.T) {
 // so a plausible one for a directory nobody meant is worse than none at all.
 func TestAnAbbreviationRefusesWhereAKeyWould(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "project")
-	got, err := abbrevFromSharedGitDir(dir)
+	git := newBareRepo(t, "project")
+	got, err := abbrevFromSharedGitDir(git.Root)
 	if err == nil {
 		t.Fatalf("the worktree root abbreviated to %q instead of refusing — a caller passing the wrong path gets a plausible answer", got)
 	}
@@ -365,8 +368,8 @@ func TestAnAbbreviationRefusesWhereAKeyWould(t *testing.T) {
 // resolve came from a caller with nothing to fix in their command line.
 func TestTheCommandsArgumentTable(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "project")
-	git := gitAt(dir)
+	git := newBareRepo(t, "project")
+	dir := git.Root
 	key, err := resolveKey(git, dir)
 	if err != nil {
 		t.Fatalf("keying %s: %v", dir, err)
@@ -374,7 +377,7 @@ func TestTheCommandsArgumentTable(t *testing.T) {
 	// The single row that has to refuse on resolution, and not on its arguments. The fake answers the
 	// clone's git dir whatever it is asked about, and a row naming an unreadable path would still key.
 	// A port that cannot answer at all is what that row needs.
-	refusing := gitAt(dir)
+	refusing := repotest.New(dir)
 	refusing.Fail["CommonDir"] = errors.New("not a git repository")
 
 	for _, c := range []struct {
@@ -423,11 +426,10 @@ func TestTheCommandsArgumentTable(t *testing.T) {
 // records what it was asked.
 func TestWithNoPathItAnswersForTheWorkingDirectory(t *testing.T) {
 	t.Parallel()
-	dir := newBareRepo(t, "project")
-	git := gitAt(dir)
-	key, err := resolveKey(git, dir)
+	git := newBareRepo(t, "project")
+	key, err := resolveKey(git, git.Root)
 	if err != nil {
-		t.Fatalf("keying %s: %v", dir, err)
+		t.Fatalf("keying %s: %v", git.Root, err)
 	}
 
 	for _, c := range []struct {
@@ -445,27 +447,6 @@ func TestWithNoPathItAnswersForTheWorkingDirectory(t *testing.T) {
 		}
 		if got := strings.TrimRight(out.String(), "\n"); got != c.want {
 			t.Errorf("%s: printed %q, want %q", c.what, got, c.want)
-		}
-	}
-}
-
-// The abbreviation is spliced into a session title and, through the stub, into whatever command line
-// a caller builds around it. Asserted through its own entry point rather than through the key: an
-// abbreviation re-derived on its own stops being covered by the key's table, and nothing turns red
-// when it does.
-func TestAnAbbreviationIsSafeToSpliceIntoAPathOrACommand(t *testing.T) {
-	t.Parallel()
-	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {
-		dir := newBareRepo(t, name)
-		got, err := abbrevFromSharedGitDir(filepath.Join(dir, ".git"))
-		if err != nil {
-			t.Fatalf("abbreviating %s: %v", dir, err)
-		}
-		if !safeCharacters.MatchString(got) {
-			t.Errorf("directory %q abbreviated to %q, which is not confined to characters that survive a path or a command line", name, got)
-		}
-		if strings.HasPrefix(got, "-") {
-			t.Errorf("directory %q abbreviated to %q, which reads as an option wherever the abbreviation reaches a command", name, got)
 		}
 	}
 }

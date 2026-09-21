@@ -201,6 +201,37 @@ func TestAPathIsRefusedOnlyWhereItNamesNoRevision(t *testing.T) {
 	}
 }
 
+// Which names are secret-bearing is a mapping, and a mapping is tested by every row of it. The rule
+// lives here and nowhere else — SecretNamed is exported so a caller scanning the diff asks this list
+// rather than keeping a second one — so the table belongs here too, at one function call a row.
+// A scanner driving its whole pipeline once per name pays for the same answer in another package.
+//
+// One row per rule of the list, plus the four readings the rules share: the basename of a nested
+// path, a substring matched anywhere in the path rather than in the basename, the lowercasing (on a
+// case-insensitive filesystem `.ENV` IS `.env`), and a trailing wildcard. The refusals are the other
+// half — `*token*` is deliberately absent from the list, so `tokenizer.go` is read, and a guard that
+// shrank the scan to nothing would pass every row above on its own.
+func TestSecretNamedIsTheWholeNameTable(t *testing.T) {
+	for _, name := range []string{
+		".env", ".env.local", "production.env",
+		"server.pem", "app.key", "AuthKey_A1B2C3D4E5.p8", "deploy.ppk", "api.token",
+		".netrc", ".npmrc", ".pgpass", ".htpasswd", ".pypirc", ".dockercfg",
+		"id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "id_ed25519.bak",
+		"my-credentials.txt", "secrets.yaml",
+		"config/.env.production", "credentials/app.go",
+		".ENV", "Server.PEM", "ID_RSA", "PRODUCTION.ENV",
+	} {
+		if !SecretNamed(name) {
+			t.Errorf("%q is read and echoed, and its name says it holds a credential", name)
+		}
+	}
+	for _, name := range []string{"tokenizer.go", "main.go", "env.go", "keyboard.md", "notes.txt"} {
+		if SecretNamed(name) {
+			t.Errorf("%q is declined unread, and protecting a secret must not shrink the scan", name)
+		}
+	}
+}
+
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	const secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"
 	fake, root := untrackedRepo(t, map[string]string{".env": secret + "\n", "plain.go": lfBody})

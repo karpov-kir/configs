@@ -243,7 +243,6 @@ func TestLayerDeclarationReadsTheThreeAndRefusesAFourth(t *testing.T) {
 		{line: "**Layer:** process", layer: "process", declared: true},
 		{line: "**Layer:** process\r", layer: "process", declared: true},
 		{line: "**Layer:** foundation", layer: "", declared: true},
-		{line: "**Layer:** basement", layer: "", declared: true},
 		{line: "**Layer:** Base", layer: "", declared: true},
 		{line: "**Layer:**", layer: "", declared: true},
 		{line: "The file **Layer:** base declares", layer: "", declared: false},

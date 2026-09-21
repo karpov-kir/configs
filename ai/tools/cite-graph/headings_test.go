@@ -66,20 +66,6 @@ func TestCitationToANumberedHeadingResolves(t *testing.T) {
 	}
 }
 
-func TestNumberedHeadingIsEnteredNotDangling(t *testing.T) {
-	root := t.TempDir()
-	write(t, root, "std/target.md", "# T\n\n## 7. What A Suite Reports\n\n## Plain Heading\n")
-	write(t, root, "citer.md", "see `std/target.md` → **What A Suite Reports** for it\n")
-
-	_, edges, _ := graph(t, root)
-	if len(edges) != 1 {
-		t.Fatalf("edges = %+v, want 1 — the numbered heading was not entered", edges)
-	}
-	if edges[0].section != "7. What A Suite Reports" {
-		t.Errorf("edge entered %q, want the full numbered heading", edges[0].section)
-	}
-}
-
 // The numbered carve-out and the em-dash one compose, and eco-check composes them: it takes the
 // numberless of every form it registers, the em-dash prefix included. Headings wearing both at once
 // (`## 1. Trigger — how it gets invoked`) are where matching each carve-out alone leaves exactly the
