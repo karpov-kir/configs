@@ -1263,7 +1263,7 @@ var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": tru
 // bareIdentifiers finds a name a block uses without saying what it is. A reader who cannot place a
 // name reads the sentence as being about something else. An appositive places one, and the site's own
 // declaration needs none. It reached 37 of 304 notes on a sixty-file set, and its false positives are
-// the terms of art in placeableNames, the list above.
+// the terms of art in placeableNames, a list of names a reader already knows.
 func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
 	var found []Finding
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
