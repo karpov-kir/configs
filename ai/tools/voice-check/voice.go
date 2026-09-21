@@ -634,6 +634,9 @@ var (
 
 	// A verb the sentence borrows from a clause before it, which the reader supplies again. 1 of 711.
 	reElidedVerb = regexp.MustCompile(`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`)
+
+	// `no` before a comparative is the ordinary word, as in "saying no more than itself".
+	reComparativeTail = regexp.MustCompile(`(?i)^\s+(more|longer|further|fewer|less|worse|better)\b`)
 )
 
 // SentenceShapes are the three comment-only checks, exported so comment-census counts the patterns
@@ -675,10 +678,15 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if s.profile == ProfileComment || s.profile == ProfileProse {
 		for _, name := range []string{checkCounterfact, checkAnthropo, checkElidedVerb} {
 			for _, pattern := range SentenceShapes()[name] {
-				if at := pattern.FindStringIndex(prose); at != nil {
-					add(name, at[0], at[1])
-					break
+				at := pattern.FindStringIndex(prose)
+				// `no` before a comparative is the ordinary word, as in "saying no more than itself".
+				// The check fired on its own documentation there, which is the one place a false
+				// positive announces itself.
+				if at == nil || reComparativeTail.MatchString(prose[at[1]:]) {
+					continue
 				}
+				add(name, at[0], at[1])
+				break
 			}
 		}
 	}

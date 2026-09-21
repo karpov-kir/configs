@@ -1382,3 +1382,34 @@ func TestACompoundTheCodeDoesNotSpellIsNoRenameFinding(t *testing.T) {
 		}
 	}
 }
+
+// `no` before a comparative is the ordinary English word. The check fired on its own documentation,
+// which is where a false positive announces itself.
+func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
+	lines := []string{
+		"// A bare fact is one sentence saying no more than itself.",
+		"export function readFact(book: Element): string {",
+		"  return '';",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", lines, nil) {
+		if f.Check == checkAnthropo {
+			t.Errorf("reported %q, and that is the ordinary word before a comparative", f.Text)
+		}
+	}
+	saying := []string{
+		"// A device can say no to the entry type.",
+		"export function readClaim(book: Element): string {",
+		"  return '';",
+		"}",
+	}
+	found := false
+	for _, f := range voiceScanner().scanSource("f.ts", saying, nil) {
+		if f.Check == checkAnthropo {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the guard silenced a true finding, which is the control for it")
+	}
+}

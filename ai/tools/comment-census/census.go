@@ -407,9 +407,9 @@ func Measure(files [][]string) Report {
 			notes := b.Notes()
 			// A fact with no sentence saying what this code does about it reads out of the blue. The
 			// count is of note sections that are one sentence long.
-			// A bare fact is one sentence saying no more than itself. The rule exempts a fact whose
-			// subject is the site's declaration. A consequence inside a subordinate clause counts as
-			// said, since most one-sentence notes carry theirs after `because`.
+			// A bare fact is one sentence that adds nothing to itself. The rule exempts a fact whose
+			// subject is the site's declaration, and a consequence in a subordinate clause counts as
+			// said.
 			if len(notes) == 1 && !reCarriesConsequence.MatchString(notes[0]) {
 				if _, aboutSite := AboutThisCode(notes[0], words); !aboutSite {
 					bareFact.add(notes[0])
@@ -417,9 +417,8 @@ func Measure(files [][]string) Report {
 			}
 			// A note opening on an actor the site does not name is the same complaint with a
 			// consequence attached. The site's subject is what its declaration spells.
-			// A sentence opening on a summary's verb is a summary, whatever this file's loose declaration
-			// shape made of the line under it. The count read one such summary as a note opening on
-			// another actor.
+			// A sentence opening on a summary's verb is a summary, whatever the loose declaration shape
+			// made of the line under it. The count read such a summary as a note on another actor.
 			if len(notes) > 0 && !opensOnASummaryVerb(notes[0]) {
 				if _, anchored := AboutThisCode(notes[0], words); !anchored {
 					unanchored.add(notes[0])
@@ -699,8 +698,7 @@ func BareIdentifiers(note string, declared map[string]bool) []string {
 }
 
 // reCarriesConsequence marks a sentence that says what follows from its fact, in a clause of its own
-// rather than in a second sentence. The rule asks for the consequence, and a reader gets it either
-// way.
+// and not in a second sentence. The rule asks for the consequence, and a reader gets it either way.
 var reCarriesConsequence = regexp.MustCompile(`(?i)\b(so|because|since|which|where|when|unless|as)\b`)
 
 // opensOnASummaryVerb says whether a sentence begins the way a summary does, on its verb. Those are
