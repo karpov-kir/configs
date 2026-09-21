@@ -339,10 +339,14 @@ func (w *Tree) ExpectFileContains(path, want string) {
 	}
 }
 
+// A file this cannot read fails the case. "The region was removed" and "the file is gone" are two
+// different outcomes, and an uninstall that deleted the human's file outright used to pass here.
 func (w *Tree) ExpectFileLacks(path, unwanted string) {
 	w.t.Helper()
 	got, err := os.ReadFile(path)
 	if err != nil {
+		w.t.Errorf("%s could not be read (%v), so this case cannot tell a trimmed file from a deleted one",
+			path, err)
 		return
 	}
 	if strings.Contains(string(got), unwanted) {

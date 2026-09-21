@@ -173,3 +173,25 @@ func TestAPathspecThatClimbsOutOfTheTreeIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// An add git refused leaves the index alone, and Added is what a case reads to see what was added. A
+// refusal recorded there reads as an add that happened.
+func TestARefusedAddIsNotRecordedAsOneThatHappened(t *testing.T) {
+	git := repotest.New(filepath.Join(t.TempDir(), "repo"))
+	if err := git.OnDisk(); err != nil {
+		t.Fatalf("could not build the fixture repo: %v — nothing was measured", err)
+	}
+	for name, body := range map[string]string{".gitignore": "secret.txt\n", "secret.txt": "x\n"} {
+		if err := os.WriteFile(filepath.Join(git.Root, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("writing %s: %v — nothing was measured", name, err)
+		}
+	}
+
+	if err := git.Add(git.Root, []string{"secret.txt"}); err == nil {
+		t.Fatal("an ignored file named outright was accepted, which git refuses")
+	}
+	if slices.Contains(git.Added, "secret.txt") {
+		t.Errorf("Added holds %q after git refused it, so a case reading Added counts a refusal as an add",
+			"secret.txt")
+	}
+}

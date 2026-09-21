@@ -77,9 +77,6 @@ type Fake struct {
 	// from Revs: a derivation would put a diff implementation in this fake, and a suite driven by that
 	// agrees with the fake.
 	PatchText string
-	// PatchByRevisions answers Patch for one spelling of the revisions, where a case drives more than
-	// one change set. The key is the revisions joined by a space, and PatchText answers anything absent.
-	PatchByRevisions map[string]string
 	// StatusLines is what `status --porcelain -uall` prints, verbatim.
 	StatusLines []string
 	// WorktreeList is what `worktree list` prints.
@@ -102,9 +99,6 @@ type Fake struct {
 	// answers. Of the two, only this one tells a directory of ignored files from a directory of work.
 	// OnDisk mode fills it, where there is a tree to sweep.
 	Staged []string
-	// Asked records every method called, in order, for a case whose subject is whether something was
-	// asked at all — a memo, or a listing taken once per run.
-	Asked []string
 }
 
 // Tree is what git answers about one directory: the working tree root it sits in, and the store its
@@ -315,7 +309,6 @@ func objectID(of string) string {
 }
 
 func (f *Fake) note(method string) error {
-	f.Asked = append(f.Asked, method)
 	return f.Fail[method]
 }
 
@@ -618,9 +611,6 @@ func (f *Fake) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
 	if err := f.note("Patch"); err != nil {
 		return nil, err
 	}
-	if text, found := f.PatchByRevisions[strings.Join(revisions, " ")]; found {
-		return []byte(text), nil
-	}
 	return []byte(f.PatchText), nil
 }
 
@@ -812,13 +802,16 @@ func (f *Fake) Add(dir string, paths []string) error {
 	if err := f.note("Add"); err != nil {
 		return err
 	}
-	f.Added = append(f.Added, paths...)
 	if !f.onDisk {
+		f.Added = append(f.Added, paths...)
 		return nil
 	}
 	// A path NAMED to `git add` and covered by a rule is refused outright, where the same file swept
 	// up by a directory pathspec is passed over in silence. A caller naming its files one by one is
 	// counting on that refusal, and one that hands over a directory is counting on the silence.
+
+	// The refusal is read before Added grows, so a case reading Added sees the adds git performed. An
+	// add recorded and then refused reads as one that happened.
 	for _, spec := range paths {
 		name := f.namedInTree(dir, spec)
 		if f.isIgnored(name) && isFile(filepath.Join(f.Root, name)) {
@@ -831,6 +824,7 @@ func (f *Fake) Add(dir string, paths []string) error {
 			return err
 		}
 	}
+	f.Added = append(f.Added, paths...)
 	return nil
 }
 
