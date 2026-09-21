@@ -344,9 +344,14 @@ func baselineLine(count int, name string) string {
 // One launch of the fixture's own copy of the script over its root. The working directory is an empty
 // one, unknown to every part of the fixture. The script is handed its root and finds everything else
 // from there, and a cwd inside the fixture would hide a path it had reached the wrong way.
+// The script is bash's argument, and bash is what this execs. Linux refuses to exec a file any process
+// holds open for writing, with ETXTBSY. These cases write their fixture scripts and run them, and one
+// case's open descriptor reaches another case's fork. That failed the go job on a push to main, and
+// macOS has no such rule, so it passed here. bash opens the script to read.
 func runOver(t *testing.T, root string, arguments ...string) outcome {
 	t.Helper()
-	command := exec.Command(filepath.Join(root, scriptInRoot), append(arguments, root)...)
+	command := exec.Command(bashOnThisMachine(t),
+		append([]string{filepath.Join(root, scriptInRoot)}, append(arguments, root)...)...)
 	command.Dir = t.TempDir()
 
 	var out, err strings.Builder
@@ -413,4 +418,14 @@ func runnable(t *testing.T, path string) string {
 		t.Fatalf("%s is not an executable file (%v) — nothing was measured", resolved, err)
 	}
 	return resolved
+}
+
+// bash itself, found on the PATH this process was started with.
+func bashOnThisMachine(t *testing.T) string {
+	t.Helper()
+	found, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatalf("no bash on this machine (%v) — every script here is one, so nothing was measured", err)
+	}
+	return found
 }

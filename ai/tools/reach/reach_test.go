@@ -154,10 +154,14 @@ func (o outcome) String() string {
 // The working directory is an empty one, unknown to every part of the fixture. Every script here finds
 // its own directory from `BASH_SOURCE`, and reaching one from cwd instead is the defect the stubs exist
 // to stop. No case is given a cwd that could hide it.
+// The script is bash's argument, and bash is what this execs. Linux refuses to exec a file any process
+// holds open for writing, with ETXTBSY. These cases write their fixture scripts and run them, and one
+// case's open descriptor reaches another case's fork. That failed the go job on the first push to
+// main, and macOS has no such rule, so it passed here. bash opens the script to read.
 func newLaunch(t *testing.T, script, path string, arguments ...string) *exec.Cmd {
 	t.Helper()
 	home := t.TempDir()
-	command := exec.Command(runnable(t, script), arguments...)
+	command := exec.Command(bash(t), append([]string{runnable(t, script)}, arguments...)...)
 	command.Dir = t.TempDir()
 	command.Env = []string{
 		"HOME=" + home,
@@ -214,6 +218,17 @@ func launch(t *testing.T, command *exec.Cmd) outcome {
 	}
 	result.stdout, result.stderr = out.String(), err.String()
 	return result
+}
+
+// bash itself, found on the PATH this process was started with. The PATH a case hands its child is the
+// case's own fixture, and several strip it to the bone on purpose.
+func bash(t *testing.T) string {
+	t.Helper()
+	found, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatalf("no bash on this machine (%v) — every script here is one, so nothing was measured", err)
+	}
+	return found
 }
 
 // The path to a script, refused loudly where it cannot be run.
