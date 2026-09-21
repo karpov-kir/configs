@@ -17,11 +17,15 @@ dist/
 /cmd/eco-stats/eco-stats
 /cmd/eco-guide/eco-guide
 /cmd/handoff-check/handoff-check
-/cmd/nomeasure/nomeasure
 /cmd/model-policy/model-policy
 /cmd/model-check/model-check
 /cmd/repo-key/repo-key
+/cmd/mcp-sync/mcp-sync
+/cmd/project-mcp/project-mcp
 /cite-graph/cite-graph
-/go-mutate/go-mutate
 /rule-echo/rule-echo
+/cmd/ai-bootstrap/ai-bootstrap
+/cmd/env-bootstrap/env-bootstrap
 /cmd/wait-reap/wait-reap
+/install-project/install-project
+/project-skills/project-skills

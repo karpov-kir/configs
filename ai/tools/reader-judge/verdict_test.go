@@ -59,7 +59,7 @@ func TestAVerdictRunWithNothingOfferedPrintsNoArtifact(t *testing.T) {
 	var out, errOut strings.Builder
 	called := false
 	call := func(string, string) (string, error) { called = true; return "", nil }
-	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, nil, &out, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &out, &errOut, call, nil); code != exitClean {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != "" {

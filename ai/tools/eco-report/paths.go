@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Which report an invocation acts on, and what else on disk belongs to the ship it names. Every path

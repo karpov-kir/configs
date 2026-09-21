@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	census "kk-flavor/tools/comment-census"
-	modelpolicy "kk-flavor/tools/model-policy"
+	census "configs/ai/tools/comment-census"
+	modelpolicy "configs/ai/tools/model-policy"
 )
 
 const casesDir = "testdata/cases"

@@ -1,6 +1,7 @@
 package voicecheck
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -8,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/shell"
 )
 
 // The words the corpus below treats as coined: a metaphor for a mechanism, and a word a reader would
@@ -504,8 +506,9 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 
 func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
 	var out, errs strings.Builder
-	code := Run("voice-check.sh", []string{"--profile=loud"}, t.TempDir(),
-		Config{MaxFileBytes: 1 << 18}, &out, &errs)
+	dir := t.TempDir()
+	code := Run("voice-check.sh", []string{"--profile=loud"}, dir,
+		repotest.New(dir), Config{MaxFileBytes: 1 << 18}, &out, &errs)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
@@ -840,7 +843,7 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	t.Setenv("COMMENT_VOICE_CONF", conf)
 	var out, errs strings.Builder
 	Run("voice-check.sh", []string{"--profile=prose", conf}, dir,
-		Config{MaxFileBytes: 1 << 18}, &out, &errs)
+		repotest.New(dir), Config{MaxFileBytes: 1 << 18}, &out, &errs)
 	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
 		t.Fatalf("the run did not name the conf it read: %q", errs.String())
 	}
@@ -1381,6 +1384,88 @@ func TestACompoundTheCodeDoesNotSpellIsNoRenameFinding(t *testing.T) {
 			t.Errorf("reported %q, and no identifier in that file spells it", f.Text)
 		}
 	}
+}
+
+// The count this mode prints for a path is the count a run over that path alone reports. The ratchet
+// in voice-baseline.sh holds 72 files to a recorded number, and the two counts have to agree. A
+// disagreement moves every file off its line at once.
+func TestACountIsWhatARunOverThatPathAloneReports(t *testing.T) {
+	r := newRepo(t)
+	r.write("a.md", housey(3))
+	r.write("b.md", "The register has no complaint about this line.\n")
+	r.write("c.md", housey(2))
+	named := []string{"a.md", "b.md", "c.md"}
+
+	r.run(append([]string{"--profile=instruction", "--per-file"}, named...)...)
+	r.expectCode(1)
+	together := r.stdout.String()
+	// Three files measuring zero would compare two empty reports, which a broken pairing also passes.
+	if strings.Contains(together, "0 a.md") || !strings.Contains(together, "0 b.md") {
+		t.Fatalf("the fixture no longer carries a file with findings beside one without: %q", together)
+	}
+
+	var apart strings.Builder
+	for _, name := range named {
+		r.run("--profile=instruction", name)
+		findings := strings.Count(strings.TrimSpace(r.stdout.String()), "\n")
+		if strings.TrimSpace(r.stdout.String()) != "" {
+			findings++
+		}
+		fmt.Fprintf(&apart, "%d %s\n", findings, name)
+	}
+	if together != apart.String() {
+		t.Errorf("one run reports\n%s\nand a run per path reports\n%s", together, apart.String())
+	}
+}
+
+// A file with no findings gets a line too. The ratchet tells a new file measuring zero from one
+// carrying findings, and a file left out of the report reads as a file that was never measured.
+func TestAPathWithNoFindingsStillGetsACount(t *testing.T) {
+	r := newRepo(t)
+	r.write("quiet.md", "The register has no complaint about this line.\n")
+	r.run("--profile=instruction", "--per-file", "quiet.md")
+	r.expectCode(0)
+	r.expectStdoutHas("0 quiet.md")
+}
+
+// maxFindings, a const, truncates a report of findings. A count is one line however many findings it
+// counts, so every path after a file that crosses the cap still gets its own.
+func TestCountsRunPastTheDisplayCap(t *testing.T) {
+	r := newRepo(t)
+	r.write("wall.md", housey(maxFindings+5))
+	r.write("last.md", housey(1))
+
+	r.run("--profile=instruction", "wall.md")
+	r.expectStdoutHas("further finding(s), not shown")
+
+	r.run("--profile=instruction", "--per-file", "wall.md", "last.md")
+	printed := strings.Split(strings.TrimSpace(r.stdout.String()), "\n")
+	if len(printed) != 2 || !strings.HasSuffix(printed[1], " last.md") {
+		t.Fatalf("the path after the wall got no line of its own: %q", r.stdout.String())
+	}
+	walled := 0
+	if _, err := fmt.Sscanf(printed[0], "%d", &walled); err != nil || walled <= maxFindings {
+		t.Errorf("%q counts %d findings against a cap of %d, so this case crosses nothing", printed[0], walled, maxFindings)
+	}
+}
+
+// The comment profile is handed a diff, and this mode counts the paths it is given. The refusal names
+// the mismatch, and the run stops before the diff is read.
+func TestCountingIsRefusedWhereTheProfileTakesNoPaths(t *testing.T) {
+	r := newRepo(t)
+	r.run("--per-file", "HEAD")
+	r.expectCode(2)
+	r.expectStderrHas("--per-file")
+	r.expectNoStdout()
+}
+
+// A run given no path measured zero files, and exit 0 there would read as a clean tree.
+func TestCountingWithNoPathRefusesTheRun(t *testing.T) {
+	r := newRepo(t)
+	r.run("--profile=instruction", "--per-file")
+	r.expectCode(2)
+	r.expectStderrHas("needs a path")
+	r.expectNoStdout()
 }
 
 // `no` before a comparative is the ordinary English word. The check reported its own documentation,

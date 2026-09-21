@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The `@import` half of a checkout: what the budget files declare, and what the installed mount

@@ -84,9 +84,9 @@ func TestAnUnreadableReportIsNotAState(t *testing.T) {
 		buffered.runReport("carry", "002-unreadable-second")
 		buffered.assertRefused("carry refuses a report it cannot read rather than reporting no open items")
 		// The message carries this one: with the readability refusal deleted, `carry` still exits 2,
-		// because todo-gate.sh cannot read the file either and the scan reader refuses in its place.
-		// Only this assertion tells the two apart; the discard case pins the same guard where nothing
-		// else refuses for it.
+		// because the open-item scan cannot read the file either and refuses in its place. Only this
+		// assertion tells the two apart, and the discard case pins the same guard where no other
+		// refusal covers it.
 		buffered.assertReports("its state is unknown", "and it is that guard refusing, not the scan failing behind it")
 		buffered.runReport("carry", "001-readable-first")
 		buffered.record("and a readable sibling still carries normally", buffered.status == 0,
@@ -139,28 +139,28 @@ func TestListWalksTheTreeOnceAndNeverStreamsAPartialAnswer(t *testing.T) {
 	unstamped.chmod(unstamped.repo+"/blocker.txt", 0o644)
 }
 
-func TestAScanThatDidNotRunIsNeverReadAsNothingOpen(t *testing.T) {
+func TestAReportNothingCouldReadIsNeverReadAsNothingOpen(t *testing.T) {
 	t.Parallel()
 	// `state`, `carry` and `close` share one reader, and the point of sharing it is that they cannot
-	// drift apart, so all three are asserted here against the same broken gate. Broken means an exit
-	// above 1, which read as "nothing open" would let a report still holding unrouted `- [ ]` pass the
-	// merge gate.
+	// diverge, so all three are asserted here against the same unreadable report. A failed read taken
+	// for an empty one lets unrouted `- [ ]` through the merge gate.
 	f := newShip(t, "001-scan-fails")
 	f.stampFullPass("001-scan-fails")
-	// The positive control, while the scan still works: this fixture reaches the open-item scan and
+	// The positive control, while the report still opens: this fixture reaches the open-item scan and
 	// answers `ready`. Without it, every refusal below could belong to an earlier guard and pin nothing.
 	f.runReport("state", "001-scan-fails")
-	f.record("the fixture reaches the open-item scan while the scan still works", f.out == "ready", "said '"+f.out+"'")
+	f.record("the fixture reaches the open-item scan while the report still opens", f.out == "ready", "said '"+f.out+"'")
 
-	f.write(f.todoGatePath(), "#!/bin/sh\nexit 3\n")
-	f.chmod(f.todoGatePath(), 0o755)
-	for _, scanReader := range []string{"state", "carry", "close"} {
-		f.runReport(scanReader, "001-scan-fails")
-		f.assertRefused(scanReader + " refuses when the open-item scan exits 3")
-		f.assertReports("todo-gate.sh exited 3", "and "+scanReader+" names the exit rather than reporting nothing open")
+	if f.madeUnreadable(f.reportPath("001-scan-fails"), "the unreadable-report case") {
+		for _, scanReader := range []string{"state", "carry", "close"} {
+			f.runReport(scanReader, "001-scan-fails")
+			f.assertRefused(scanReader + " refuses a report it could not read")
+			f.assertReports("cannot be read", "and "+scanReader+" names the file rather than reporting nothing open")
+		}
+		// close is the destructive one: a report it could not read must be left where it is.
+		f.record("and close retired nothing on a report it could not read", f.isFile(f.reportPath("001-scan-fails")), "")
 	}
-	// close is the destructive one: a scan it could not run must leave the report where it is.
-	f.record("and close retired nothing on a scan it could not run", f.isFile(f.reportPath("001-scan-fails")), "")
+	f.chmod(f.reportPath("001-scan-fails"), 0o644)
 }
 
 func TestStateNeverAnswersATokenItCannotStandBehind(t *testing.T) {

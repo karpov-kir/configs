@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // defaultRollDeadline bounds one roll of the model. A vote rolls every roll at once, so a judge run is
@@ -183,6 +183,17 @@ type modelCommand struct {
 // os/exec already reads as "finished, not a failure to cancel". This narrows the window from the
 // whole Wait-to-channel gap down to the two adjacent syscalls below; it does not close it. Closing it
 // needs pidfd or process handles, which darwin does not have.
+//
+// A reaped roll leaves its children to cmd.WaitDelay. They are reparented to launchd holding the
+// roll's output pipe, and five seconds later os/exec closes it and returns.
+
+// A sweep of the group stood here and has gone. Its claim was that a leader's pid being free says the
+// group behind it is this roll's. A group outlives its leader, so a free pid says only that the pid is
+// free. Any process that took that pid, made a group and exited leaves the same shape, which is the
+// shape TestAReapedRollsChildrenAreLeftToTheWaitDelay, the case for this, builds.
+
+// What the sweep bought was closing the pipe now instead of five seconds from now. What it risked was
+// SIGKILL to a process group belonging to another session. The second is worse than the first.
 func killRollGroup(p *os.Process) error {
 	if err := p.Signal(syscall.Signal(0)); err != nil {
 		return err

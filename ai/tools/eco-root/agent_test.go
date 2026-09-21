@@ -1,7 +1,7 @@
 package ecoroot_test
 
 import (
-	ecoroot "kk-flavor/tools/eco-root"
+	ecoroot "configs/ai/tools/eco-root"
 	"strings"
 	"testing"
 )

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 func TestDelimitedSectionCitations(t *testing.T) {
@@ -469,10 +469,6 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
 	t.Run("names the rule on a finding against a suite", func(t *testing.T) {
 		newHarnessCitation(t, "fixture-test.sh").reports(ecocheck.HarnessCitationNote)
-	})
-
-	t.Run("and on one against a mutation list", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-mutate.sh").reports(ecocheck.HarnessCitationNote)
 	})
 
 	// The cost this choice takes, stated as a case: there is no escape hatch, so a harness may carry no

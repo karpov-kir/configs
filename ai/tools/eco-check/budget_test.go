@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 func TestImportResolvedAtTheMount(t *testing.T) {
@@ -276,7 +276,7 @@ func TestACutRefusalSaysThatItWasCut(t *testing.T) {
 	// Matched on the whole cut name under the refusal's own wording, never on the marker alone: a
 	// refused import is also named in the uncounted-import note, which marks its own cut at a
 	// different bound — so "the marker is somewhere in the output" passes through that other call
-	// site whatever this one did. The mutation harness is where that was observed rather than argued.
+	// site whatever this one did, which is how the loose form was seen to pass over a broken bound.
 	t.Run("and marks that name under the refusal, not only in the census note", func(t *testing.T) {
 		kept := "../../" + strings.Repeat("e", budgetMessageBound-len("../../")-len(shell.CutMarker))
 		newLongRefusedImport(t).reports("named but not counted: " + kept + shell.CutMarker)
@@ -379,7 +379,7 @@ func TestEveryAgentsBudgetLineSaysWhatItLeavesOut(t *testing.T) {
 		f.write(f.root+"/owner-instructions.md", "a template no session reads from where it sits\n")
 
 		var out bytes.Buffer
-		ecocheck.Run([]string{"--agent=" + agent, f.root}, &out, &out)
+		ecocheck.Run([]string{"--agent=" + agent, f.root}, f.git, f.bash, &out, &out)
 		line := lineWith(out.String(), "always-loaded: ")
 		if !strings.HasPrefix(line, wantFigure) {
 			t.Errorf("%s: the budget counted a set this case did not build\n got %q\nwant %q...", agent, line, wantFigure)

@@ -1,10 +1,39 @@
 #!/usr/bin/env bash
-# Print the path to a runnable binary for <tool>, or exit 2 saying which way it could not be reached.
+# Reach a runnable binary for <tool>, or exit 2 saying which way it could not be reached.
 #
-#   usage: resolve.sh <tool>          # <tool> is a directory name under ai/tools
+#   usage: resolve.sh <tool>                            # print the path on stdout, then exit
+#          resolve.sh --run <tool> <argv0> [argument …] # and exec it, under that argv[0]
 #
-# Callers are the stubs in each skill's scripts/ directory. Everything about *finding* a binary lives
-# here, so a stub stays a tool name and an exec.
+# tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
+
+# Callers are the stubs in each skill's scripts/ directory, which take the second spelling. Everything
+# about reaching a binary lives here, so a stub holds a tool name, its depth and one exec. A stub has
+# to find THIS file before this file can decide anything, and that is all a stub can hold.
+
+# `--run` replaces the calling stub. This file runs IN the stub's process and execs the binary from
+# there, and a stub that read a path back forked one shell to get it. The fork and the identity reads
+# that went with it are gone: a warm stub invocation runs 12 processes where it ran 15, measured.
+
+# `<argv0>` is the stub's own `$0`, which the stub passes explicitly. The tools derive their skill
+# directory from argv[0], so a skill reached through its symlink mount still finds its own ledger and
+# siblings.
+
+# What the stub region still holds, and why each line of it is the shape it is:
+
+#   `CDPATH=`, because `cd` echoes its destination when the path is relative. That second line would
+#   land in the substitution and corrupt every path built from it. `pwd -P`, because it resolves the
+#   symlink the skill is mounted by. The resolver is then found from the stub's real location,
+#   whatever cwd happens to be.
+
+#   One declared offset, and no search. The stubs sit at four depths, and both ways of guessing between
+#   them reach a tools directory the stub does not name. An upward walk execs the first
+#   `tools/resolve.sh` in any ancestor of a checkout that ships none, and a list of relative candidates
+#   resolves outside the repository for the shallowest stubs. Either runs a stranger's binary at exit 0.
+
+#   Two guards and two messages, because the fixes differ. A missing resolver means a checkout that
+#   ships no `ai/tools/`, and a resolver lacking its exec bit means a half-finished install. Both exit
+#   2, and both say the tool did NOT run, because these tools report findings and silence from one
+#   reads as a clean tree.
 #
 # Order: a binary already at bin/<tool>, then a local `go build` when the source is here. The first
 # branch is what a release install lands on, and why installing these skills needs no Go toolchain.
@@ -16,14 +45,20 @@
 # A hash and not a timestamp, because the binary that has to be caught is one NEWER than the source
 # it disagrees with, and every downloaded release binary is. source-stamp.sh's header has the rest.
 #
+# A build takes bin/<tool>.lock and holds it over the stamping, the build, the move and the stamp
+# write. Two builds of one tool do run at once: the gate runs its checks concurrently, and every stub
+# execs this file.
+
+# The move is atomic within the directory, while the stamp write beside it is not. Two builds without
+# the lock leave one build's binary beside the other build's stamp, and that pair is served as
+# current. A lock is broken on its age, because a build killed outright runs no trap of its own.
+#
 # Where the binary came from something else, or cannot be compared at all, and nothing here can
 # rebuild, it is served with a warning on stderr.
 #
 # Every failure exits 2 and names what did not happen. These tools report findings, so exit 0 with
 # none is what a clean tree looks like, and a tool that could not run must never reach a caller as
 # silence: an empty stdout is not enough, the caller has to be told.
-#
-# tested by: resolve-test.sh
 set -euo pipefail
 
 die() {
@@ -37,8 +72,31 @@ die() {
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no tool can be located"
 
-[ $# -eq 1 ] || die "usage: resolve.sh <tool>"
-tool="$1"
+# The module root, as an offset from this directory. source-stamp.sh declares the same offset, and the
+# two have to move together.
+
+# go.mod sits at the repository root, so Go's test cache hashes every file a case opens. The cache is
+# keyed on the module and skips any file outside the module root. A suite reading the checkout used to
+# answer `ok (cached)` over an edit it should have gone red on.
+module="$tools/../.."
+
+# `exec` is the mode a stub takes, and `print` the mode a human or another script takes. The mode is
+# held in a word of its own. A mode read off argv0 being set would let `--run <tool> ""` fall back to
+# printing a path. The caller is waiting to be replaced, and would get exit 0 with no tool run.
+mode="print"
+argv0=""
+forward=()
+if [ "${1:-}" = "--run" ]; then
+  [ $# -ge 3 ] || die "usage: resolve.sh --run <tool> <argv0> [argument …]"
+  mode="exec"
+  tool="$2"
+  argv0="$3"
+  shift 3
+  forward=("$@")
+else
+  [ $# -eq 1 ] || die "usage: resolve.sh <tool>"
+  tool="$1"
+fi
 
 # A tool name is a directory name here, so anything that could climb out of this directory or name
 # something other than a plain entry is refused before it reaches a path.
@@ -48,7 +106,16 @@ esac
 
 binary="$tools/bin/$tool"
 
+# The only way out of this script that is not a refusal. Under `--run` stdout carries no line at all.
+# It belongs to the tool from here on, and a path on it would be a line every caller of every stub had
+# to learn to drop.
+
+# `${forward[@]+…}` because bash 3.2 reads an empty array under `set -u` as unbound. /bin/bash on
+# macOS is still 3.2, and a tool invoked with no arguments is the common case here.
 serve() {
+  if [ "$mode" = exec ]; then
+    exec -a "$argv0" "$binary" ${forward[@]+"${forward[@]}"}
+  fi
   printf '%s\n' "$binary"
   exit 0
 }
@@ -63,12 +130,18 @@ serve() {
 # read. A hash of the binary on every invocation would cost more. Never the stub: that file barely
 # changes, so its identity would say little about the build.
 #
-# The stamp is one of two facts a stub exports, and they answer different questions. This one says what
-# the binary was built from; ECO_TOOL_TREE says which commit the checkout serving it sits on. A tree can
-# hold a stamp that matches its own source perfectly and still be a commit nobody else has — the mount
-# resolves to one checkout's working tree, so a session reading source, running a binary or loading a
-# skill through it gets whatever that tree currently holds. Observed: a skill appeared in a live
-# session's list and vanished two turns later as that checkout moved and moved back.
+# The tool that reports this reads it off its own `os.Executable()`, and this file never hands it
+# down. The stub used to export it beside a `git rev-parse`, which cost all 23 tools two processes per
+# invocation to carry a line a single tool prints.
+
+# voice-check/bar.go is that tool, and it reads the checkout's own commit there too. That is a
+# separate fact, because a tree can hold a stamp matching its own source and still sit at a commit no
+# other checkout has.
+
+# The mount resolves to one checkout's working tree. A session reading source, running a binary or
+# loading a skill through it gets whatever that tree currently holds. It was seen once in a live
+# session: a skill appeared in the skill list and vanished two turns later as that checkout moved and
+# moved back.
 #
 # It names the SOURCE, not the bytes: identical source built under two Go toolchains stamps the same and
 # can still behave differently. Narrow, and stated rather than built for — but do not read a matching
@@ -94,7 +167,7 @@ built_from_this_source() {
   # one way a binary nobody can account for keeps being exec'd over the human's repositories. Report
   # it as the unknown it is instead, and let the caller below rebuild it or warn.
   if [ ! -d "$tools/$tool" ] && [ ! -d "$tools/cmd/$tool" ]; then
-    if [ -f "$tools/go.mod" ]; then
+    if [ -f "$module/go.mod" ]; then
       return 2
     fi
     return 0
@@ -142,12 +215,96 @@ command -v go >/dev/null 2>&1 ||
 
 mkdir -p "$tools/bin" || die "cannot create $tools/bin, so $tool did NOT run"
 
+# The stamping, the build, the move and the stamp write are one critical section per tool. The move is
+# atomic within the directory, while the stamp write beside it is not.
+
+# Two builds over source that changed between them otherwise leave the binary of one beside the stamp
+# of the other. The run after holds that stamp against the source, finds it current, and serves the
+# older binary at exit 0 in silence.
+
+# `mkdir` is the mutex, because it is atomic on every filesystem this runs on. The lock is taken at
+# this point in the file. A binary already built from this source is served long before this line, so
+# no warm invocation of any stub reaches it or pays anything for it.
+lock="$binary.lock"
+
+# How long a lock may exist before a waiter takes it for abandoned. A build of one of these tools takes
+# seconds, and the traps on EXIT, HUP, INT and TERM give the lock up on every signal a shell can catch.
+# Only a process killed outright leaves a lock behind.
+
+# The unit is whole minutes, because `find -mmin` is what asking a file's age costs without GNU stat.
+# The alternative, waiting on the lock, would wedge every session on the machine behind a lock no
+# process holds.
+lock_abandoned_minutes=5
+
+# The pid of the process holding the lock, written inside it. Age alone marked a lock abandoned. A
+# build often outruns the bound: a cold module fetch, a loaded machine, a suspended laptop. A waiter
+# then broke the lock under a live holder. That holder released the waiter's lock as its own, and the
+# critical section stood open to every process after it.
+
+# What the section guards is the `mv` and the stamp write. A break leaves one build's binary beside
+# another build's stamp, and the next run reads that pair as current.
+release_lock() {
+  trap - EXIT HUP INT TERM
+  [ "$(cat "$lock/pid" 2>/dev/null || :)" = "$$" ] || return 0
+  rm -f "$lock/pid" 2>/dev/null || :
+  rmdir "$lock" 2>/dev/null || :
+}
+
+# A waiter polls five times a second. bash 3.2 is still /bin/bash on macOS, and it offers no way to
+# wait on a directory being removed. Both machines this runs on accept a fractional sleep, which keeps
+# a queued tool off a whole second it did not need.
+
+# A lock is broken on two counts together: its holder is gone, and it is older than the bound. A live
+# holder keeps its lock however long it takes.
+
+# A lock that will not come away is a refusal. `rmdir` removes an empty directory alone. A lock
+# holding a stray file spun this loop forever, skipping the sleep and forking one `find` per turn.
+waited=""
+while ! mkdir "$lock" 2>/dev/null; do
+  [ -d "$lock" ] || die "cannot create $lock, so $tool did NOT run"
+  holder="$(cat "$lock/pid" 2>/dev/null || :)"
+  if [ -z "$holder" ] || ! kill -0 "$holder" 2>/dev/null; then
+    if [ -n "$(find "$lock" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
+      rm -f "$lock/pid" 2>/dev/null || :
+      rmdir "$lock" 2>/dev/null ||
+        die "$lock is held by no live process and will not come away, so $tool did NOT run — remove it by hand"
+      continue
+    fi
+  fi
+  waited=1
+  sleep 0.2
+done
+
+# The pid goes in first, so a waiter reading this lock finds an owner. A process killed between taking
+# the lock and this line leaves it ownerless, and a waiter breaks it once it is past the bound.
+printf '%s\n' "$$" >"$lock/pid"
+
+# A build that failed and a build a signal stopped both give the lock up here. `serve` is the
+# exception: an exec runs no trap, so every path from here to `serve` calls `release_lock` first.
+trap 'release_lock' EXIT
+trap 'release_lock; exit 2' HUP INT TERM
+
+# The build this run waited for may be the build it needed, and past the lock the stamp says so. The
+# check saves compiling the same source a second time, which is what every tool the gate launches at
+# once would otherwise pay. It never runs under ECO_TOOLS_BUILD=1. That flag is a caller asking for
+# bytes built in this tree, and a stamp attests the source alone.
+if [ "${ECO_TOOLS_BUILD:-}" != 1 ] && [ -n "$waited" ] && [ -x "$binary" ] && built_from_this_source; then
+  release_lock
+  serve
+fi
+
 # A tool whose main lives under cmd/ keeps its library in `<tool>/`, so the suite can drive that
 # package without a process per case. One directory per tool under cmd/, never a `cmd/` inside each
 # tool: `go build -o <dir>/ ./...` names every binary after its own directory, so three mains in
 # directories all called `cmd` overwrite one another and the build stays green two tools short.
 package="./$tool/"
 [ -d "$tools/cmd/$tool" ] && package="./cmd/$tool/"
+
+# The stamp is read from the source the compiler is about to read, and written after the `mv`. An edit
+# landing while the build runs would otherwise be stamped over bytes it never reached. That is the
+# same wrong pairing the lock prevents, one process wide. This order errs toward a rebuild that was
+# not needed.
+source_stamp="$("$tools/source-stamp.sh" "$tool")" || source_stamp=""
 
 # Built to a temp name and moved: `go build -o` writes in place, so two skills running at once would
 # let one exec what the other is half way through writing. The move stays in one directory, so atomic.
@@ -165,10 +322,11 @@ mv -f "$staging" "$binary" || {
 # What these bytes were built from, so the next run can hold them against the source without
 # rebuilding. A stamp that cannot be written is removed rather than left: an old one beside new bytes
 # is a wrong answer, and a missing one only costs the next run a rebuild.
-if source_stamp="$("$tools/source-stamp.sh" "$tool")"; then
+if [ -n "$source_stamp" ]; then
   printf '%s\n' "$source_stamp" >"$stamp" || rm -f "$stamp"
 else
   rm -f "$stamp"
 fi
 
+release_lock
 serve

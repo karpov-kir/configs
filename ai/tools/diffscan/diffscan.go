@@ -7,17 +7,16 @@ package diffscan
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const binaryProbeBytes = 8192
@@ -62,7 +61,7 @@ type AddedLine struct {
 // fails closed. `git diff <path>` is legal and diffs against the INDEX, so a path quietly accepted
 // scans the wrong change set and exits 0 — indistinguishable from a clean tree. `--output=` alone
 // drains the diff into a file, so the scan sees nothing and exits 0 over a real hit.
-func RefuseNonRevisions(args []string, cwd string) error {
+func RefuseNonRevisions(git repo.Git, args []string, cwd string) error {
 	for _, arg := range args {
 		if arg == "--" {
 			return nil
@@ -74,7 +73,7 @@ func RefuseNonRevisions(args []string, cwd string) error {
 		if _, err := os.Stat(filepath.Join(cwd, arg)); err != nil {
 			continue
 		}
-		if resolvesAsRevision(cwd, arg) {
+		if resolvesAsRevision(git, cwd, arg) {
 			continue
 		}
 		return fmt.Errorf("'%s' is a path, not a git-diff revision — the scan did NOT run.\n"+
@@ -83,54 +82,37 @@ func RefuseNonRevisions(args []string, cwd string) error {
 	return nil
 }
 
-func resolvesAsRevision(cwd, arg string) bool {
-	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", arg+"^{}")
-	cmd.Dir = cwd
-	return cmd.Run() == nil
+func resolvesAsRevision(git repo.Git, cwd, arg string) bool {
+	id, err := git.Resolve(cwd, arg+"^{}")
+	return err == nil && id != ""
 }
 
-// Diff is the change set's raw diff.
-//
-// The flags pin the shape the parser keys off — `+++ b/<path>`, a leading `+` — which `diff.noprefix`,
-// `color.diff=always` or an external diff driver would break. `core.quotePath=false`, or a non-ASCII
-// path arrives C-quoted and fails the `b/` test. `--text`, or one NUL byte, or a `* -diff` written by
-// whoever wrote the branch, collapses the body to "Binary files … differ" and the scan exits 0 over a
-// real hit. `--no-relative`, or `diff.relative` in the caller's own config names `pkg/a.go` as `a.go`
-// from a subdirectory and leaves every changed file outside that directory out of the diff entirely.
-func Diff(cwd string, revisions []string) ([]byte, error) {
-	args := []string{
-		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames",
-	}
-	named, paths := RevisionsNamed(revisions)
+// Diff is the change set's raw diff, with HEAD standing in where the caller named no revision. The
+// flags the parser keys off belong to `repo.Exec.Patch`, with the reason for each, and the default
+// stays here because it is policy. `git diff` with no revision diffs against the INDEX, so a scan
+// taking git's own default reports a clean tree over every change already staged.
+func Diff(git repo.Git, cwd string, revisions []string) ([]byte, error) {
+	named, pathspec := RevisionsNamed(revisions)
 	if len(named) == 0 {
-		args = append(args, "HEAD")
-	} else {
-		args = append(args, named...)
+		named = []string{"HEAD"}
 	}
-	args = append(args, paths...)
-	cmd := exec.Command("git", args...)
-	cmd.Dir = cwd
-	var out, errBuf bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &errBuf
-	if err := cmd.Run(); err != nil {
-		refusal := "git rejected these arguments — exit 2, the scan did NOT run. Not a clean result."
-		if reason := strings.TrimSpace(errBuf.String()); reason != "" {
-			refusal += "\n  git said: " + reason
-		}
-		return nil, errors.New(refusal)
+	patch, err := git.Patch(cwd, named, pathspec)
+	if err != nil {
+		return nil, fmt.Errorf("git rejected these arguments — exit 2, the scan did NOT run. "+
+			"Not a clean result.\n  git said: %v", err)
 	}
-	return out.Bytes(), nil
+	return patch, nil
 }
 
-// RevisionsNamed answers the revisions a caller named, and the `--` and pathspecs after it, kept apart:
-// everything up to the first `--` is a revision, and the separator and the rest travel to git unchanged.
+// RevisionsNamed answers the revisions a caller named and the pathspecs after the `--`, kept apart:
+// everything up to the first `--` is a revision. The separator itself is dropped, because the port
+// supplies one whether or not a pathspec follows and a second would name a file called `--`.
 // Exported because both callers need the same answer for a different question — whether to scan
 // untracked files turns on whether a REVISION was named, never on whether an argument was.
-func RevisionsNamed(args []string) (named, paths []string) {
+func RevisionsNamed(args []string) (named, pathspec []string) {
 	for i, arg := range args {
 		if arg == "--" {
-			return args[:i], args[i:]
+			return args[:i], args[i+1:]
 		}
 	}
 	return args, nil
@@ -225,20 +207,20 @@ func headerPath(field string) string {
 // WalkUntracked calls visit for every line of every untracked, un-ignored file, as though each were
 // added. Only reached when the caller named no revisions: with revisions the caller asked about two
 // commits, and a file in neither is not what they asked about.
-func (r *Result) WalkUntracked(cwd string, opts Options, visit func(AddedLine)) error {
-	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard", "-z")
-	cmd.Dir = cwd
-	out, err := cmd.Output()
+func (r *Result) WalkUntracked(git repo.Git, cwd string, opts Options, visit func(AddedLine)) error {
+	// The port names an untracked file from the working tree ROOT, so the root is what each file is
+	// opened against. TestAnUntrackedFileIsScannedFromASubdirectory holds what the other join costs.
+	root, err := git.TopLevel(cwd)
 	if err != nil {
 		return err
 	}
-	names := strings.Split(string(out), "\x00")
+	names, err := git.Untracked(cwd)
+	if err != nil {
+		return err
+	}
 	sort.Strings(names)
 	for _, name := range names {
-		if name == "" {
-			continue
-		}
-		body, ok := r.bodyToScan(filepath.Join(cwd, name), name, opts)
+		body, ok := r.bodyToScan(filepath.Join(root, name), name, opts)
 		if !ok {
 			continue
 		}

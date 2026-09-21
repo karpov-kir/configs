@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
-// What this checker needs of the shell version's primitives beyond the ones `kk-flavor/tools/shell`
+// What this checker needs of the shell version's primitives beyond the ones `ai/tools/shell`
 // holds for both ports: a bounded file read, the two `wc` figures, and the comparison form a heading
 // is matched in. Their exact edges — which space `s/^ //` removes, which bytes `wc -w` splits on —
 // are the contract several scans read a finding out of.

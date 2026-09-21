@@ -9,7 +9,7 @@
 # count without a baseline line is a new file starting dirty. Exits 1 with findings, 0 when every
 # file is on its line, and 2 when the check did not run.
 #
-# tested by: voice-baseline-test.sh
+# tested by: the Go suite in ai/tools/voicebaseline/, which execs this script once per case.
 set -euo pipefail
 
 regenerate=""
@@ -34,14 +34,36 @@ done < <(find ai/kk-flavor/standards ai/kk-flavor/workers ai/kk-flavor/skills ai
   -name '*.md' 2>/dev/null | sort)
 [ "${#files[@]}" -gt 0 ] || { echo "voice-baseline: no instruction file was found — exit 2" >&2; exit 2; }
 
-# Measured one file at a time, reading each run's own summary line. The report truncates its findings
-# at a display cap, so counting printed lines undercounts any file that runs past it.
+# One run reads every file and prints a count for each. One run per file was the gate's slowest check
+# at 102 seconds over 72 files, and about 1.3 of those seconds were the checker reading. This machine's
+# security agent inspects every exec, and the rest of that minute was the 72 launches.
+
+# `--per-file` prints counts, so the display cap that truncates a report of findings does not apply.
 measured=()
-for f in "${files[@]}"; do
-  summary="$("$check" --profile=instruction "$f" 2>&1 >/dev/null | grep -o 'instruction profile: [0-9]* finding' || true)"
-  n="${summary//[!0-9]/}"
-  measured+=("${n:-0}")
+reported=()
+status=0
+report="$("$check" --profile=instruction --per-file "${files[@]}")" || status=$?
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  measured+=("${line%% *}")
+  reported+=("${line#* }")
+done <<<"$report"
+
+# Each count is read back against the file it was asked for, at the same position. A run that stopped
+# early leaves the files after it with no line, and a count of zero there sits under the baseline. The
+# regenerate path would write that zero in as the new floor, so a run refusing to measure is fatal.
+i=0
+while [ "$i" -lt "${#files[@]}" ]; do
+  counted=""
+  if [ "$i" -lt "${#reported[@]}" ] && [ "${reported[$i]}" = "${files[$i]}" ]; then
+    case "${measured[$i]}" in ''|*[!0-9]*) ;; *) counted=1 ;; esac
+  fi
+  [ -n "$counted" ] || {
+    echo "voice-baseline: $check did not measure ${files[$i]}, so this is not a clean run — exit 2" >&2; exit 2; }
+  i=$(( i + 1 ))
 done
+[ "$status" = 2 ] && {
+  echo "voice-baseline: $check refused the run, so no count here is a measurement — exit 2" >&2; exit 2; }
 
 # Rewritten from what the tree measures now, which belongs in the same change that lowered a count.
 # A later change spends slack the baseline still records, and the count never reaches the floor it

@@ -2,6 +2,76 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
+## 1x | 2026-09-17 | What the 100-second gate left open
+
+Four things this branch measured and deferred. Three are now closed and are recorded here for the
+finding rather than the fix; the fourth is the one that is still open, and it is the general rule
+behind the narrowest of them.
+
+**Closed: `jq` is installed and nothing uses it.** Its last consumer was `ai/mcp-sync.sh`'s JSON
+handling, which is Go now; the only mention left in the tree is `gh api --jq`, which is gh's own
+embedded engine. Removing it left the default tier installing no formula at all, which turned up a
+second defect the first was hiding: the step asked whether brew was there before it asked whether the
+tier wanted anything, so a machine without brew failed an install that needed nothing from it.
+
+**Closed: `comment-density.sh --bar <base>..<head>` cost a spawn per baseline file.** 40.4s and 31.8s
+wall for 3.06s of user CPU on a 454-file repository, against 0.22s for the bare form.
+`repo.Git.ContentsAt` answers a whole list at one revision through a single `git cat-file --batch -z`:
+0.84s and 0.55s after, with git spawns over the range down from about 390 to 8.
+
+**Closed: a suite reading the checkout from inside a subpackage.** Go's test cache is keyed on the
+MODULE, so a file above `ai/tools` is invisible to it — measured twice, on `ai/README.md` and on
+`ai/kk-flavor/standards/records.md`, both answering `ok (cached)` over a changed file. The route out
+was smaller than the one first costed: only what READS THE CHECKOUT had to move, not the fixture
+helpers around it. Every such case is now in the `ai/tools` root package, which `ai/gate.sh` forces
+with `-count=1` on every run, and `gate/gate.go` says so.
+
+**Open: a case about a BOUNDED message can be decided by the machine's temp path.** Three were, and
+macOS CI caught them the day this branch put macOS on the Go job. A sweep under a longer TMPDIR found
+six in `eco-check`, and the grep for `CutMarker` reached none of them: every one asserts that a path
+appears WHOLE, not that it was cut. That is why the general answer won over six more short-root call
+sites — `report.go` cuts EVERY finding line at 500 bytes, so any case quoting a fixture path is in the
+class whether it says so or not, and nothing enumerates that set. `eco-check` and `eco-stats` now take
+every fixture root from one `newBase` helper, 14 to 16 bytes under `/tmp`, and
+`TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines` in each holds the root under 24 bytes with
+TMPDIR moved to a macOS-length path. Measured: both green up to a 349-byte TMPDIR, where six failed at
+145.
+
+What stays open is the rule everywhere else. `handoff-check`'s
+`TestNoLineLeavesTheGateCarryingAControlByte` is the same shape and turns red between 300 and 350
+bytes — past any real machine, so latent rather than live — and `diffscan`, `comment-density` and
+`dup-literals` bound messages with no such rule of their own. Worth stating once for all of them: a
+suite whose subject is where a message is cut owns the length of its own fixture root.
+
+## 1x | 2026-09-21 | A comment is data to a checker, and a rewrite can silently change it
+
+Rewriting this branch's own comments to the register rule broke two checks and nearly broke a third,
+in the same way each time. A comment is prose to a reader and input to a tool at the same time, and
+the tools give no sign when they stop finding what they read.
+
+**A blank line inside a shell script's header hides everything under it.** The leading comment block
+ends at the first line that is not a comment, and that block is where the wiring check reads a
+script's `usage:` line and its test position. Splitting a long header with a real blank line, which is
+how every overlong comment block in this branch was brought under its limit without losing reasons,
+truncated two headers so the declarations below fell outside the block any scan sees. Neither `go
+test` nor `go vet` can see this; only the wiring check can, and only if somebody runs it.
+
+**A phrase a regexp matches must not wrap.** The same scan matches `the Go suite in <package>/` on one
+line. A rewrite that put the phrase at the end of a line and the path at the start of the next left
+two scripts declaring no test position at all.
+
+**A masking match is worse than a missing one.** Eleven headers read "the Go suite beside the tool,
+X" and then "the shared stub region by the Go suite in reach". Only the second clause carried the
+phrase, so all eleven declared reach, each script's real package went unchecked, and the scan stayed
+quiet. The scan now holds every suite a header names rather than the first, which turns that silence
+into a finding. The wrapping and the blank line have no such guard.
+
+What is worth doing is making the tools say when they read nothing. A script whose leading block
+carries a `#` line below a blank one is almost certainly a header somebody split, and a scan that
+found no declaration could say which lines it read rather than only that it found none. The same
+holds for the register scan itself: the only reason these were caught is that somebody ran a check
+that was not part of the loop the sweep was verifying against.
+
 ## 3x | 2026-09-14 | Type every edge, then collapse the tooling that reads them
 
 `--graph` prints `reads` for 27 edges because a path citation carries no kind. `cite-graph` prints 10
@@ -286,7 +356,7 @@ enough to tell whether it worked.
 **A slow roll now says so, and every other wait in this pipeline still does not.** The two stalls
 above printed nothing on either stream for five and a half minutes, which from the outside is
 indistinguishable from the hang the deadline exists to end — and the gate that hosts the judge shows
-the same face during a 29-minute mutation unit. The judge answers for itself now, a line a minute
+the same face through any unit that runs for minutes. The judge answers for itself now, a line a minute
 naming the elapsed time and the bound; the rule that a long wait must say it is still a wait is
 stated nowhere, and no other tool here follows it.
 
@@ -390,25 +460,3 @@ Measure cold/warm latency, peak memory pressure and swap, impact on concurrent b
 Later trial: use 30–50 representative extraction/editing/log tasks with known expected outcomes, including lost-negation and altered-number cases. Compare the local candidate with the configured cloud helper, then test unavailable server, missing model, busy queue, oversized input, malformed output and timeout/cancellation. Separately evaluate semantic errors that pass schema validation. Keep the feature disabled unless it preserves required quality and improves measured cost or responsiveness under ordinary machine load.
 
 Standing cost: model downloads of several GB, a local runner to update, memory residency while active, one Go adapter and a maintained evaluation set. Prepare the acceptance cases before requesting installation; build the production adapter only after the benchmark earns it.
-
-## 1x | 2026-09-08 | Reusable gate evidence
-
-Typed stage ingestion shipped; `idsd-qualify/stage-results.md` is its procedure. What it bought was fewer report calls and stronger result accounting, not lower latency — coordinator turns, provider tokens and real-project savings stayed unmeasured, and a three-trial comparison had median elapsed time rising from 7.24s to 9.17s on a tiny fixture.
-
-Gate reuse is what remains, and it is deferred. Finalize still reruns build gates because report stamps hold no command, tool, dependency or environment evidence that could justify avoiding them. Keep those reruns until an explicit receipt establishes equivalent inputs and a successful real execution. Store evidence in scratch, separate from human project records. Include commands, working directory, exit status, candidate/dependency identity, relevant tool/configuration identity and logs without secrets. External or otherwise unbounded inputs require rerunning the gate.
-
-Before building gate reuse, measure repeated gates in representative releases. Compare saved runtime with receipt validation and maintenance costs; exercise changed commands, dependencies, toolchains and environments as negative controls. Keep local-model evaluation separate from this decision.
-
-Standing cost of typed ingestion: a versioned format, retained manifests, caller migration and crash-recovery tests. In-flight releases use a frozen old tool bundle until completion; new passes use the typed contract. No scheduler, provider runtime or gate cache was added.
-
-## 2x | 2026-09-11 | Where the gate's remaining wall clock is, and what not to try
-
-A cold `ai/gate.sh --full` is its default lane end to end: the shell lane runs alongside and finishes inside it, so speeding the shell suites up does not move the gate at all. After grouping the mutation units by suite set, one unit is most of the whole run — two cold `--full` runs put `mutants:go:eco-report` at 630s of 1357s and at 658s of 1194s, 46% and 55%, where the next largest is `mutants:go:eco-check` at 163–174s and nothing else exceeds 60s. Any further reduction lives in that one unit, which means in the eco-report suite it runs as its baseline, not in the gate's own scheduling.
-
-Three things not to try. **Widening the gate's lanes gains nothing**: `go-mutate` already runs its mutants `NumCPU-2` wide, so overlapping mutation units over-subscribes the machine rather than filling it, and the non-mutation checks total single-digit seconds warm. **`serialGroupFor`'s shell/non-shell boundary is not a scheduling choice** — it is containment, with a recorded incident where a suite escaped and overwrote real config files, and widening it would buy nothing anyway for the reason above. Read it as the gate's own lanes and nothing wider: it says nothing about how `ai/run-tests.sh` schedules suites inside one shell unit, which is a separate question with a separate answer below. **The mutation baseline cannot be left to Go's test cache** to avoid re-running per unit: measured on 2026-09-08, with `./eco-report` cached green, breaking a file the fixtures copy in from outside the module still answered `ok (cached)` while the same tree run with `-count=1` failed. A cached baseline is a green served over a red suite.
-
-`ai/run-tests.sh` run on its own gains about 1.31x from running its suites several at a time, and its pole is `ai/bootstrap-test.sh` — 224s as the gate measures it, against a 348s whole-run. Further gain there lives inside that suite rather than in the runner. That scheduling stays in shell rather than moving into Go beside the gate's own in `gate/run.go`. The reason is in the runner's header: `ai/bootstrap.sh --verify` calls it on a machine that may have no Go and no downloaded binary.
-
-That runner's own containment check proves less than its name suggests. `tree_state` is `git status` over the checkout, so it catches a suite writing into the repository and is blind to one that escapes its temp HOME and writes the real one — and the recorded incident reached the checkout only because a fixture write followed a symlink there. Overlap does not create that leak; a suite that escapes escapes alone just as well. It decides one default instead: `bootstrap.sh --verify` calls the runner immediately after writing `$HOME/.claude`, `$HOME/.kk-flavor` and `$HOME/.codex`, so that path takes a single lane and everything else keeps the 1.31x.
-
-Figures are from one 12-core machine and move with load: the same gate has measured 116s and 2877s on identical code. Read the per-unit times and the lane totals, never a single wall clock.

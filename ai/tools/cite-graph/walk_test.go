@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestADenseGraphDoesNotHangTheDepthWalk(t *testing.T) {

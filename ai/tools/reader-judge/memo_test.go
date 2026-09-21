@@ -17,15 +17,15 @@ func TestMemoMakesAnInconsistentModelIdempotent(t *testing.T) {
 		return "1", nil // always the first unit left, so unchecked it would empty the file
 	}
 	var first, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &first, &errOut, greedy, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &first, &errOut, greedy, memo); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	var second strings.Builder
-	if code := Run("reader-judge.sh", []string{"instruction", write(t, first.String())}, nil, &second, &errOut, greedy, memo); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"instruction", write(t, first.String())}, noRepository, nil, &second, &errOut, greedy, memo); code != exitClean {
 		t.Fatalf("the pruned text was judged again: exit %d, %q", code, second.String())
 	}
 	var replay strings.Builder
-	Run("reader-judge.sh", []string{"instruction", path}, nil, &replay, &errOut, greedy, memo)
+	Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &replay, &errOut, greedy, memo)
 	if replay.String() != first.String() {
 		t.Fatalf("the original drew a different verdict on replay")
 	}
@@ -39,7 +39,7 @@ func TestMemoThatCannotWriteStillJudges(t *testing.T) {
 	memo := &Memo{Dir: filepath.Join(write(t, "not a dir"), "judged")}
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "1", nil }
-	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 }
@@ -51,7 +51,7 @@ func TestMemoDoesNotReuseAnotherPolicy(t *testing.T) {
 	for _, policy := range []string{"first", "second", "second"} {
 		memo := &Memo{Dir: dir, Policy: policy}
 		var out, errOut strings.Builder
-		if code := Run("judge", []string{"reply"}, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
+		if code := Run("judge", []string{"reply"}, noRepository, strings.NewReader("Keep this fact.\n"), &out, &errOut, call, memo); code != 0 {
 			t.Fatalf("code=%d %s", code, errOut.String())
 		}
 	}
@@ -69,7 +69,7 @@ func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
 	for _, reader := range []string{"first reader", "new reader"} {
 		kinds["reply"] = Kind{Reader: reader}
 		var out, errOut strings.Builder
-		if code := Run("judge", []string{"reply"}, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
+		if code := Run("judge", []string{"reply"}, noRepository, strings.NewReader("An important fact.\n"), &out, &errOut, call, memo); code != 0 {
 			t.Fatalf("judge=%d %s", code, errOut.String())
 		}
 	}
@@ -88,7 +88,7 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	calls := 0
 	call := func(string, string) (string, error) { calls++; return "1", nil }
 	var out, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &out, &errOut, call, memo); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if calls != 1 {
@@ -108,11 +108,11 @@ func TestTheVerdictKindIsPaidForOnce(t *testing.T) {
 		return "1 obvious\n2 keep\n3 coined\n", nil
 	}
 	var first, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, nil, &first, &errOut, answer, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &first, &errOut, answer, memo); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	var second strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, nil, &second, &errOut, answer, memo); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &second, &errOut, answer, memo); code != exitCut {
 		t.Fatalf("second run exit %d — %s", code, errOut.String())
 	}
 	if second.String() != first.String() {
@@ -136,7 +136,7 @@ func TestALabelRecordOutsideTheOfferedBlocksIsAMiss(t *testing.T) {
 		return "1 obvious\n2 keep\n3 coined\n", nil
 	}
 	var out, errOut strings.Builder
-	Run("reader-judge.sh", []string{"comment-verdict", path}, nil, &out, &errOut, answer, memo)
+	Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &out, &errOut, answer, memo)
 	entries, err := os.ReadDir(memo.Dir)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("the run left %d record(s): %v", len(entries), err)
@@ -146,7 +146,7 @@ func TestALabelRecordOutsideTheOfferedBlocksIsAMiss(t *testing.T) {
 		t.Fatal(err)
 	}
 	out.Reset()
-	Run("reader-judge.sh", []string{"comment-verdict", path}, nil, &out, &errOut, answer, memo)
+	Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &out, &errOut, answer, memo)
 	if calls != 2 {
 		t.Fatalf("the model was called %d times, and a record naming a fourth block is a miss", calls)
 	}

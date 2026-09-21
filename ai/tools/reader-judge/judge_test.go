@@ -10,10 +10,16 @@ import (
 	"sync"
 	"testing"
 
-	modelpolicy "kk-flavor/tools/model-policy"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 func all(Unit) bool { return true }
+
+// What a case hands a run that never passes --changed. Only that option asks the repository anything.
+// A run that started to would panic here, because the case arranged no answer for it to read.
+var noRepository repo.Git
 
 const source = "// file header\n// second line\n\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
 
@@ -28,7 +34,7 @@ func TestRunNumbersPrintsFileLines(t *testing.T) {
 	path := write(t, instructions)
 	var out, errOut strings.Builder
 	call := func(string, string) (string, error) { return "2", nil }
-	Run("reader-judge.sh", []string{"--numbers", "instruction", path}, nil, &out, &errOut, call, nil)
+	Run("reader-judge.sh", []string{"--numbers", "instruction", path}, noRepository, nil, &out, &errOut, call, nil)
 	if out.String() != "3\n" {
 		t.Fatalf("got %q, want the file line of unit 2", out.String())
 	}
@@ -45,11 +51,11 @@ func TestRunIsIdempotentUnderAConsistentJudge(t *testing.T) {
 		return "none", nil
 	}
 	var first, second, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &first, &errOut, call, nil); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &first, &errOut, call, nil); code != exitCut {
 		t.Fatalf("first run exit %d — %s", code, errOut.String())
 	}
 	again := write(t, first.String())
-	if code := Run("reader-judge.sh", []string{"instruction", again}, nil, &second, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"instruction", again}, noRepository, nil, &second, &errOut, call, nil); code != exitClean {
 		t.Fatalf("second run exit %d, want clean — %s", code, errOut.String())
 	}
 	if second.String() != first.String() {
@@ -68,7 +74,7 @@ func TestRunRefusesARollThatReachedNoVerdict(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			path := write(t, source)
 			var out, errOut strings.Builder
-			if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, nil); code != exitDidNotRun {
+			if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &out, &errOut, call, nil); code != exitDidNotRun {
 				t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 			}
 			if out.Len() != 0 {
@@ -119,7 +125,7 @@ func TestClaudeArgsWithNoEffortStillEndAtThePrompt(t *testing.T) {
 
 func TestRunRefusesAnUnknownKind(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"poem"}, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
+	if code := Run("reader-judge.sh", []string{"poem"}, noRepository, strings.NewReader("x"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 	// Read off `kinds`, so a kind added tomorrow cannot break this case and a kind dropped from the
@@ -138,7 +144,7 @@ func TestRunRefusesAnUnknownKind(t *testing.T) {
 // A path carrying a newline must not forge a second line in the refusal.
 func TestARefusalCarriesNoControlByteFromItsArgument(t *testing.T) {
 	var out, errOut strings.Builder
-	Run("reader-judge.sh", []string{"instruction", "no\x1b[31msuch\nfile"}, nil, &out, &errOut, nil, nil)
+	Run("reader-judge.sh", []string{"instruction", "no\x1b[31msuch\nfile"}, noRepository, nil, &out, &errOut, nil, nil)
 	if strings.ContainsAny(errOut.String()[:len(errOut.String())-1], "\n\x1b") {
 		t.Fatalf("the refusal carried a control byte through: %q", errOut.String())
 	}
@@ -151,7 +157,7 @@ func TestRunPassesThroughWithNoUnits(t *testing.T) {
 		t.Fatal("the model was called with nothing to judge")
 		return "", nil
 	}
-	if code := Run("reader-judge.sh", []string{"instruction", path}, nil, &out, &errOut, call, nil); code != exitClean {
+	if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &out, &errOut, call, nil); code != exitClean {
 		t.Fatalf("exit %d, want clean", code)
 	}
 	if out.String() != "\n" {
@@ -168,7 +174,7 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 		return "2", nil
 	}
 	in := strings.NewReader("What changes.\n\nWhy the writer is right about it.\n")
-	if code := Run("reader-judge.sh", []string{"pr-body"}, in, &out, &errOut, call, nil); code != exitCut {
+	if code := Run("reader-judge.sh", []string{"pr-body"}, noRepository, in, &out, &errOut, call, nil); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if out.String() != "What changes.\n\n" {
@@ -178,8 +184,54 @@ func TestRunReadsProseFromStdin(t *testing.T) {
 
 func TestChangedRefusesWithoutAPath(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"--changed", "pr-body"}, strings.NewReader("x\n"), &out, &errOut, nil, nil); code != exitDidNotRun {
+	if code := Run("reader-judge.sh", []string{"--changed", "pr-body"}, noRepository, strings.NewReader("x\n"), &out, &errOut, nil, nil); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
+	}
+}
+
+// Only the blocks the diff added are offered, while the whole file stays in front of the model as
+// context. The repository answers from a table, because what a diff puts on offer is the subject
+// here. A real repository would cost a process per question without asserting anything more
+// (testing.md → 6).
+func TestChangedOffersOnlyTheBlocksTheDiffAdded(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "notes.md")
+	if err := os.WriteFile(path, []byte(instructions), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git := repotest.New(root).Diff("diff --git a/notes.md b/notes.md\n" +
+		"--- a/notes.md\n" +
+		"+++ b/notes.md\n" +
+		"@@ -1,3 +1,5 @@\n" +
+		" One plain paragraph a reader follows without effort.\n" +
+		"+\n" +
+		"+A second paragraph, since a rule file's units are its paragraphs.\n" +
+		" \n" +
+		" A third, to leave the vote something it can pass over.\n")
+
+	offered := ""
+	naming := func(_, view string) (string, error) {
+		offered = view
+		return "1", nil
+	}
+	var out, errs strings.Builder
+	code := RunIn("j", []string{"--changed", "instruction", path}, root, git, nil, &out, &errs, naming, nil)
+	if code != exitCut {
+		t.Fatalf("exit %d, stderr %s", code, errs.String())
+	}
+	if unitsInView(offered) != 1 || !strings.Contains(offered, "1| A second paragraph") {
+		t.Fatalf("the diff added one paragraph and the vote was offered something else:\n%s", offered)
+	}
+	if !strings.Contains(offered, "  | One plain paragraph") ||
+		!strings.Contains(offered, "  | A third, to leave the vote") {
+		t.Fatalf("the untouched paragraphs were not shown as context:\n%s", offered)
+	}
+	got := out.String()
+	if strings.Contains(got, "A second paragraph") {
+		t.Fatalf("the unit the vote named survived: %q", got)
+	}
+	if !strings.Contains(got, "One plain paragraph") || !strings.Contains(got, "A third, to leave") {
+		t.Fatalf("a paragraph the diff never touched was cut: %q", got)
 	}
 }
 
@@ -277,7 +329,7 @@ func TestCommitTrailersAreShownAsContextAndNeverOffered(t *testing.T) {
 		}
 		return strings.Join(named, ","), nil
 	}
-	if code := RunIn("j", []string{"commit", path}, ".", nil, &out, &errs, greedy, nil); code != exitCut {
+	if code := RunIn("j", []string{"commit", path}, ".", noRepository, nil, &out, &errs, greedy, nil); code != exitCut {
 		t.Fatalf("exit %d, stderr %s", code, errs.String())
 	}
 	// The separators a deleted block sat between stay, which git's own `--cleanup` collapses and
@@ -315,7 +367,7 @@ func TestACommitSubjectIsShownButNeverOffered(t *testing.T) {
 		}
 		return strings.Join(named, ","), nil
 	}
-	if code := RunIn("j", []string{"commit", path}, ".", nil, &out, &errs, greedy, nil); code != exitCut {
+	if code := RunIn("j", []string{"commit", path}, ".", noRepository, nil, &out, &errs, greedy, nil); code != exitCut {
 		t.Fatalf("exit %d, stderr %s", code, errs.String())
 	}
 	if got := out.String(); !strings.HasPrefix(got, "Name the commit a scanner number was read off\n") {

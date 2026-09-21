@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 // The always-loaded tier, in two parts: the router's own "Read always" targets, and every skill

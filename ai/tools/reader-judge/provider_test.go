@@ -1,8 +1,8 @@
 package readerjudge
 
 import (
+	modelpolicy "configs/ai/tools/model-policy"
 	"errors"
-	modelpolicy "kk-flavor/tools/model-policy"
 	"os"
 	"path/filepath"
 	"strings"
@@ -294,55 +294,144 @@ func TestACutOffRollNamesTheFileThatSetsTheBound(t *testing.T) {
 // A stall is silent from the outside — the two 343-second rolls this bound was measured against
 // printed nothing on either stream — so the point of the announcer is that something arrives while
 // the wait is happening rather than only in the error that ends it.
+//
+// Both halves run off a clock this case holds. A roll made slow by sleeping past a real interval
+// asserts instead that 60ms of wall clock outruns 10ms of it. That is false on a loaded machine, and
+// it is what turned this case red on a green tree.
 func TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing(t *testing.T) {
-	var said lockedBuilder
-	slow := func(string, string) (string, error) { time.Sleep(60 * time.Millisecond); return "none", nil }
-	if reply, err := announcingASlowRoll(slow, 900*time.Second, 10*time.Millisecond, &said)("prompt", "view"); reply != "none" || err != nil {
+	stalling, said := newHeldClock(), newAnnouncedLines()
+	slow := func(string, string) (string, error) {
+		stalling.tick(t)
+		said.awaitLine(t)
+		return "none", nil
+	}
+	if reply, err := announcingOnEachTick(slow, notTheSubject, said, stalling.ticking)("prompt", "view"); reply != "none" || err != nil {
 		t.Fatalf("the announcer changed the answer: %q %v", reply, err)
 	}
-	if !strings.Contains(said.String(), "still waiting") || !strings.Contains(said.String(), "15m0s") {
+	if !strings.Contains(said.String(), "still waiting") || !strings.Contains(said.String(), "1h0m0s") {
 		t.Errorf("a slow roll did not say it was waiting, or against what: %q", said.String())
 	}
 
-	said.Reset()
+	// No tick is sent here at all, and a line could only come from an announcer that speaks on entry or
+	// on exit. The case waits for the watcher to let its clock go, and that is what makes the emptiness
+	// final instead of merely unobserved.
+	answering, quiet := newHeldClock(), newAnnouncedLines()
 	quick := func(string, string) (string, error) { return "none", nil }
-	if _, err := announcingASlowRoll(quick, 900*time.Second, 10*time.Millisecond, &said)("prompt", "view"); err != nil {
+	if _, err := announcingOnEachTick(quick, notTheSubject, quiet, answering.ticking)("prompt", "view"); err != nil {
 		t.Fatal(err)
 	}
-	if said.String() != "" {
-		t.Errorf("a roll that answered at once still announced itself: %q", said.String())
+	answering.awaitStop(t)
+	if quiet.String() != "" {
+		t.Errorf("a roll that answered at once still announced itself: %q", quiet.String())
 	}
 
 	// Nil is the suite's and the eval's setting, and it must not merely go unread: a decorator that
-	// wrote to a nil writer would panic on the first tick, in a goroutine, taking the run with it.
-	if reply, err := announcingASlowRoll(slow, 900*time.Second, 10*time.Millisecond, nil)("prompt", "view"); reply != "none" || err != nil {
+	// wrote to a nil writer would panic on the first tick, in a goroutine, taking the run with it. So
+	// what a silent announcer owes is a clock it never starts.
+	unwatched := func() (<-chan time.Time, func()) {
+		t.Error("a silent announcer started a clock, so a tick would reach a nil writer")
+		return nil, func() {}
+	}
+	if reply, err := announcingOnEachTick(quick, notTheSubject, nil, unwatched)("prompt", "view"); reply != "none" || err != nil {
 		t.Fatalf("a silent announcer changed the answer: %q %v", reply, err)
 	}
 }
 
-// The announcer writes from a goroutine per roll, so the destination in a case has to be safe to
-// write and read from two of them; strings.Builder is not.
-type lockedBuilder struct {
+// The production wiring of that clock, which TestASlowRollSaysItIsStillWaitingAndAFastOneSaysNothing
+// replaces: a real ticker does reach a roll that is still waiting. The roll here ends on the line, and
+// never on a duration. Load makes this slower, and never wrong.
+func TestTheAnnouncersOwnTickerReachesARollThatIsStillWaiting(t *testing.T) {
+	said := newAnnouncedLines()
+	waiting := func(string, string) (string, error) {
+		said.awaitLine(t)
+		return "none", nil
+	}
+	if reply, err := announcingASlowRoll(waiting, notTheSubject, time.Millisecond, said)("prompt", "view"); reply != "none" || err != nil {
+		t.Fatalf("the announcer changed the answer: %q %v", reply, err)
+	}
+	if !strings.Contains(said.String(), "still waiting") {
+		t.Errorf("a ticker of the announcer's own never reached the roll: %q", said.String())
+	}
+}
+
+// announcerDeadlock bounds a step that is instant when the announcer works: a tick it is already
+// selecting on, a write it has already been told to make. Only a broken announcer ever waits this
+// long. It is a net under a hang, and never an allowance for a slow machine. That is why it can be
+// this coarse without becoming the budget this file's scan refuses.
+const announcerDeadlock = 10 * time.Second
+
+// heldClock is the announcer's clock with the case holding it, and no tick happens unless the case
+// sends it. `stopped` closes when the roll it belongs to lets its watcher go.
+type heldClock struct {
+	ticks   chan time.Time
+	stopped chan struct{}
+}
+
+func newHeldClock() *heldClock {
+	return &heldClock{ticks: make(chan time.Time), stopped: make(chan struct{})}
+}
+
+func (c *heldClock) ticking() (<-chan time.Time, func()) {
+	return c.ticks, sync.OnceFunc(func() { close(c.stopped) })
+}
+
+// tick hands the watcher one tick and returns once it has taken it, so what follows is ordered after
+// the announcement instead of hoping to outrun it.
+func (c *heldClock) tick(t *testing.T) {
+	t.Helper()
+	select {
+	case c.ticks <- time.Now():
+	case <-time.After(announcerDeadlock):
+		t.Error("the announcer took no tick, so a stalled roll would never say it was waiting")
+	}
+}
+
+func (c *heldClock) awaitStop(t *testing.T) {
+	t.Helper()
+	select {
+	case <-c.stopped:
+	case <-time.After(announcerDeadlock):
+		t.Error("the watcher outlived its roll, so a later tick could still announce a finished one")
+	}
+}
+
+// announcedLines is where a case reads the announcer's output and how it learns a line has landed. The
+// announcer writes from a goroutine per roll, so the destination has to be safe for two of them.
+// `written` lets a roll end only once the line it asked for is in hand.
+type announcedLines struct {
 	mu      sync.Mutex
 	builder strings.Builder
+	written chan struct{}
 }
 
-func (l *lockedBuilder) Write(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.builder.Write(p)
+func newAnnouncedLines() *announcedLines {
+	return &announcedLines{written: make(chan struct{}, 1)}
 }
 
-func (l *lockedBuilder) String() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.builder.String()
+func (a *announcedLines) Write(p []byte) (int, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	written, err := a.builder.Write(p)
+	select {
+	case a.written <- struct{}{}:
+	default:
+	}
+	return written, err
 }
 
-func (l *lockedBuilder) Reset() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.builder.Reset()
+func (a *announcedLines) String() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.builder.String()
+}
+
+func (a *announcedLines) awaitLine(t *testing.T) {
+	t.Helper()
+	select {
+	case <-a.written:
+	case <-time.After(announcerDeadlock):
+		t.Error("the announcer let a tick pass and wrote nothing")
+	}
 }
 
 // The false positive the subtraction exists to stop, and why it is not hypothetical: judge this very

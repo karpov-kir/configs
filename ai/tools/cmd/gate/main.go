@@ -1,24 +1,25 @@
 // The pre-commit gate as a command.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
+//	usage: gate.sh [--full]
 package main
 
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 
-	"kk-flavor/tools/gate"
+	"configs/ai/tools/gate"
 )
 
 func main() {
-	// The seams the suite drives, read here so the package takes them as data. Each exists because a
-	// suite must be able to point the whole run at a throwaway repository and its own cache: these
-	// records decide what is skipped, and a suite writing into the developer's would make their next
-	// run skip a unit it never measured.
+	// The seams the suite drives, read here so the package takes them as data. Both exist to let a
+	// suite reach the run loop and the over-budget refusal without running the real checks. Those
+	// checks are the suite this gate is part of, and a hundred seconds of it.
+	budget, _ := strconv.Atoi(os.Getenv("GATE_BUDGET_SECONDS"))
 	env := gate.Env{
-		Root:      os.Getenv("GATE_ROOT"),
-		Cache:     os.Getenv("GATE_CACHE"),
-		UnitsFile: os.Getenv("GATE_UNITS_FILE"),
+		Root:   os.Getenv("GATE_ROOT"),
+		Budget: budget,
+		Checks: os.Getenv("GATE_CHECKS_FILE"),
 	}
 	if env.Root == "" {
 		// argv[0] as the stub was invoked by, which `exec -a` preserved. The repository is the parent of

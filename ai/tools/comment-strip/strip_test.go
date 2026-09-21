@@ -6,7 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	gitrepo "configs/ai/tools/repo"
 )
+
+// What a case hands a run that never passes --changed. Only that option asks the repository anything,
+// and a run that asked anyway panics on this nil value. The case arranged no answers for it to read.
+var noRepository gitrepo.Git
 
 func TestStripRemovesEveryBlockAndRecordsItsSiteInTheStrippedFile(t *testing.T) {
 	source := "/** Lists things. */\nfunction a() {}\n\n// A note about b.\n// Its second line.\n\nfunction b() {}\n"
@@ -17,7 +23,7 @@ func TestStripRemovesEveryBlockAndRecordsItsSiteInTheStrippedFile(t *testing.T) 
 	}
 	facts := filepath.Join(dir, "facts")
 	var out, errOut strings.Builder
-	code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut)
+	code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, noRepository, &out, &errOut)
 	if code != exitCut {
 		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
 	}
@@ -43,7 +49,7 @@ func TestStripKeepsAComentTheToolchainReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
 	}
 	got, _ := os.ReadFile(path)
@@ -63,7 +69,7 @@ func TestStripWithNothingToRemoveLeavesTheFileAndExitsClean(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitClean {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut); code != exitClean {
 		t.Fatalf("exit %d, want %d: %s", code, exitClean, errOut.String())
 	}
 	got, _ := os.ReadFile(path)
@@ -86,7 +92,7 @@ func TestStripRefusesAFactsDirectoryThatIsNotEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitDidNotRun {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, noRepository, &out, &errOut); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 	if got, _ := os.ReadFile(path); string(got) != "// x\nlet a;\n" {
@@ -98,7 +104,7 @@ func TestStripRefusesAFactsDirectoryThatIsNotEmpty(t *testing.T) {
 // still passing the judge's grammar.
 func TestStripRefusesASecondArgument(t *testing.T) {
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + t.TempDir(), "comment", "x.md"}, t.TempDir(), &out, &errOut); code != exitDidNotRun {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + t.TempDir(), "comment", "x.md"}, t.TempDir(), noRepository, &out, &errOut); code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
 }
@@ -125,7 +131,7 @@ func TestStripChangedRemovesOnlyTheBlocksTheDiffTouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(repo, "facts"), "--changed", "f.go"}, repo, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(repo, "facts"), "--changed", "f.go"}, repo, gitrepo.Exec{}, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
 	}
 	got, _ := os.ReadFile(filepath.Join(repo, "f.go"))
@@ -147,7 +153,7 @@ func TestStripLeavesNoBlankLineWhereAFileHeaderWas(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	body, err := os.ReadFile(path)
@@ -168,7 +174,7 @@ func TestStripKeepsABlankLineItDidNotCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut)
+	Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut)
 	body, _ := os.ReadFile(path)
 	if got, want := string(body), "\nexport function a() {}\n"; got != want {
 		t.Errorf("the strip left %q, and the file's own first line was blank", got)
@@ -187,7 +193,7 @@ func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 	}
 	facts := filepath.Join(dir, "facts")
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if got, want := string(mustRead(t, path)), "export function a() {}\n\nexport function b() {}\n"; got != want {
@@ -213,7 +219,7 @@ func TestStripLeavesSitesWhereItTrimmedNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if got, want := string(mustRead(t, path)), "\n\nexport function a() {}\n\nexport function b() {}\n"; got != want {
@@ -241,7 +247,7 @@ func TestStripCountsEveryLineTheTrimTook(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if got, want := string(mustRead(t, path)), "export function a() {}\n"; got != want {
@@ -264,7 +270,7 @@ func TestStripWritesTheIdentifierWordsBesideTheFacts(t *testing.T) {
 	}
 	facts := filepath.Join(dir, "facts")
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	body := string(mustRead(t, filepath.Join(facts, "identifiers.txt")))
@@ -302,7 +308,7 @@ func stripInto(t *testing.T, dir, archive, source string) string {
 		t.Fatal(err)
 	}
 	var out, errOut strings.Builder
-	code := Strip("comment-strip.sh", []string{"--facts=" + facts, "--archive=" + archive, path}, dir, &out, &errOut)
+	code := Strip("comment-strip.sh", []string{"--facts=" + facts, "--archive=" + archive, path}, dir, noRepository, &out, &errOut)
 	if code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
@@ -362,7 +368,7 @@ func TestAStripWithNoArchiveCarriesOnlyTheStandingBlock(t *testing.T) {
 	}
 	facts := filepath.Join(dir, "facts")
 	var out, errOut strings.Builder
-	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitCut {
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, noRepository, &out, &errOut); code != exitCut {
 		t.Fatalf("exit %d — %s", code, errOut.String())
 	}
 	if body := string(mustRead(t, filepath.Join(facts, "1.facts"))); strings.Contains(body, earlierMarker) {

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // What the older in-tree layout left behind, and what this does about it. An external idsd used to

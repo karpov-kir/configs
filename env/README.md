@@ -7,6 +7,9 @@ owns: the two `git clone`s and `mise use --global`.
 Any target you didn't link yourself, it reports and skips rather than replacing, so the individual
 commands below still matter when a step fails.
 
+`env/bootstrap.sh` is a wrapper around a Go tool that lives next door, in `ai/tools/env-bootstrap/`, so
+`env/` and `ai/` install together: a checkout carrying only `env/` has nothing to run.
+
 - [ZSH](https://zsh.org)
   - It's already installed by default on MacOS
   - [Prezto](https://github.com/sorin-ionescu/prezto)

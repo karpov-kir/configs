@@ -20,7 +20,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const voiceConfName = "comment-voice.conf"

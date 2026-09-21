@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const dispatchNamesFewerFlags = "dispatch names fewer flags than the lane's own: "

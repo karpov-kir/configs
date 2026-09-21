@@ -173,15 +173,12 @@ func (f *fixture) takeMergeSlotFrom(intent, worktree string) {
 		intent+"\n"+worktree+"\n"+strconv.FormatInt(time.Now().Unix(), 10)+"\n")
 }
 
+// The slot lives in the git dir every worktree of the clone shares. For an ordinary repository that is
+// the repository's own `.git`, at the canonical repo path. The tool resolves that same root, and a
+// slot written beside a symlinked path is a slot no other run finds.
 func (f *fixture) mergeSlotPath() string {
 	f.t.Helper()
-	// `--git-common-dir` answers relative to the repo when asked from inside it, so joining it onto the
-	// repo is what makes this the path the tool resolves rather than one under the test's own cwd.
-	common := f.mustGit("rev-parse", "--git-common-dir")
-	if !strings.HasPrefix(common, "/") {
-		common = f.canonicalRepo() + "/" + common
-	}
-	return common + "/idsd-merge-slot"
+	return f.canonicalRepo() + "/.git/idsd-merge-slot"
 }
 
 // A slot the caller was already holding is the caller's to release. The finalizing skill takes it
@@ -285,7 +282,7 @@ func TestFinalizeStagesTheArchivedRecordsInCommittedMode(t *testing.T) {
 	f.runReport("finalize", "001-shipping")
 	f.record("finalize succeeds", f.status == 0, f.evidence())
 
-	staged, _ := f.git("diff", "--name-only", "--cached")
+	staged := f.staged()
 	for _, kept := range []string{"decisions.md", "playbook.md", "language.md"} {
 		path := ".idsd/archive/001-shipping/for-agents/" + kept
 		f.record("the archived "+kept+" is staged, so no later pathspec can drop it",
@@ -305,7 +302,7 @@ func TestFinalizeStagesNothingInExternalMode(t *testing.T) {
 	f.runReport("finalize", "001-shipping")
 	f.record("finalize succeeds", f.status == 0, f.evidence())
 
-	staged, _ := f.git("diff", "--name-only", "--cached")
+	staged := f.staged()
 	f.record("and staged nothing, the scratch being outside the tree", staged == "", "staged:\n"+staged)
 }
 
@@ -315,17 +312,19 @@ func TestFinalizeStagesNothingInExternalMode(t *testing.T) {
 func TestFinalizeStagesTheMoveRatherThanACopy(t *testing.T) {
 	t.Parallel()
 	f := newCommittedShip(t, "001-shipping")
-	f.mustGit("add", ".idsd/intents/001-shipping/intent.md")
-	f.commit("the active intent")
+	f.track(".idsd/intents/001-shipping/intent.md")
 
 	f.runReport("finalize", "001-shipping")
 	f.record("finalize succeeds", f.status == 0, f.evidence())
 
-	staged, _ := f.git("diff", "--name-status", "--cached", "--no-renames")
-	f.record("the vacated path is staged as deleted, so the commit is a move",
-		containsLine(staged, "D\t.idsd/intents/001-shipping/intent.md"), "staged:\n"+staged)
-	f.record("and the archived intent is staged as added",
-		containsLine(staged, "A\t.idsd/archive/001-shipping/intent.md"), "staged:\n"+staged)
+	// Both halves are NAMED to the add, which is the whole of what this tool decides. That naming the
+	// vacated directory stages a deletion covering every tracked file under it is git's own, and
+	// `repo/exec_test.go` holds git to it.
+	staged := f.staged()
+	f.record("the vacated path is staged, so the commit is a move rather than a copy",
+		containsLine(staged, ".idsd/intents/001-shipping"), "staged:\n"+staged)
+	f.record("and the archived intent is staged beside it",
+		containsLine(staged, ".idsd/archive/001-shipping/intent.md"), "staged:\n"+staged)
 }
 
 // Only the ship's own files are named, so nothing else that reached the folder rides into the index.
@@ -338,7 +337,7 @@ func TestFinalizeStagesNoStrayFileFoundInTheShipFolder(t *testing.T) {
 	f.runReport("finalize", "001-shipping")
 	f.record("finalize succeeds", f.status == 0, f.evidence())
 
-	staged, _ := f.git("diff", "--name-only", "--cached")
+	staged := f.staged()
 	f.record("the record is staged",
 		containsLine(staged, ".idsd/archive/001-shipping/for-agents/decisions.md"), "staged:\n"+staged)
 	f.record("and the stray file beside it is not",
@@ -368,7 +367,7 @@ func TestFinalizeRefusesWhenTheArchiveCannotBeStaged(t *testing.T) {
 	f.runReport("record", "--intent", "001-shipping", "append", "local-decisions", "settled here")
 	// What a concurrent `git add` in this worktree leaves behind. Reads still answer, so the repo mode
 	// still resolves and the staging branch is the one that fails.
-	f.write(f.repo+"/.git/index.lock", "")
+	f.failsToAnswer("Add", "fatal: Unable to create '.git/index.lock': File exists.")
 
 	f.runReport("finalize", "001-shipping")
 	f.assertRefused("a failed staging refuses")
@@ -384,15 +383,14 @@ func TestFinalizeStagesASupportingFileTheShipHadCommitted(t *testing.T) {
 	t.Parallel()
 	f := newCommittedShip(t, "001-shipping")
 	f.write(f.shipDir("001-shipping")+"/for-agents/supporting/handoff.md", "evidence the ship committed\n")
-	f.mustGit("add", ".idsd/intents/001-shipping/intent.md", ".idsd/intents/001-shipping/for-agents/supporting/handoff.md")
-	f.commit("the active intent and its evidence")
+	f.track(".idsd/intents/001-shipping/intent.md", ".idsd/intents/001-shipping/for-agents/supporting/handoff.md")
 
 	f.runReport("finalize", "001-shipping")
 	f.record("finalize succeeds", f.status == 0, f.evidence())
 
-	staged, _ := f.git("diff", "--name-status", "--cached", "--no-renames")
-	f.record("the vacated supporting file is staged as deleted",
-		containsLine(staged, "D\t.idsd/intents/001-shipping/for-agents/supporting/handoff.md"), "staged:\n"+staged)
-	f.record("and its archived copy is staged as added, so the commit moves it rather than dropping it",
-		containsLine(staged, "A\t.idsd/archive/001-shipping/for-agents/supporting/handoff.md"), "staged:\n"+staged)
+	staged := f.staged()
+	f.record("the vacated ship folder is staged, so its supporting file's removal is covered",
+		containsLine(staged, ".idsd/intents/001-shipping"), "staged:\n"+staged)
+	f.record("and its archived copy is staged as well, so the commit moves it rather than dropping it",
+		containsLine(staged, ".idsd/archive/001-shipping/for-agents/supporting/handoff.md"), "staged:\n"+staged)
 }

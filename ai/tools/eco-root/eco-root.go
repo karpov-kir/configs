@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const (
@@ -176,6 +176,23 @@ func (r Root) IsInstalled() bool {
 	return flavorCanon != "" && shell.CanonicalDir(r.FlavorMount()) == flavorCanon
 }
 
+// IsInstalled cannot say whether an agent is here. IsInstalled asks about ~/.kk-flavor, the directory
+// every agent shares, and every mount question after it is about one agent's own skills directory.
+
+// A machine installed for claude alone passes IsInstalled and then fails every codex mount question.
+// The repository's own gate asks both, so `ai/bootstrap.sh --agent=claude` failed its own verify step
+// on a machine in good order.
+
+// The tell is the mount's PARENT. The client makes that directory, so its absence means the agent was
+// never here. Its presence with an empty skills/ means an install that went wrong, and that stays a
+// finding. An answer read off the mount itself would collapse those two.
+
+// AgentPresent reports whether the agent whose mounts are about to be scanned exists on this machine
+// at all.
+func (r Root) AgentPresent() bool {
+	return r.home != "" && shell.IsDir(shell.DirName(r.SkillsMount()))
+}
+
 // Contains reports whether a file may be read as part of this tree. A refusal covers more than
 // "outside the root": a symlink, anything that is not a regular file, and a file this process cannot
 // open are all turned away wherever they sit, because existence alone is not enough to promise a read.
@@ -184,10 +201,10 @@ func (r Root) Contains(file string) bool {
 }
 
 // HoldsSkillFile reports whether a skill file found at the mount is one of this tree's own, so that
-// the skills a tool cannot shrink are counted apart from the ones it can. Strictly under the root:
-// the directory compared is the skill's own, which is never the root itself.
+// the skills a tool cannot shrink are counted apart from the ones it can. The same containment test
+// Contains makes, over the file's own directory — these two must not disagree about one file.
 func (r Root) HoldsSkillFile(file string) bool {
-	return strings.HasPrefix(shell.CanonicalDir(shell.DirName(file)), r.canon+"/")
+	return shell.IsWithin(shell.CanonicalDir(shell.DirName(file)), r.canon)
 }
 
 func (r Root) requireAgent() {

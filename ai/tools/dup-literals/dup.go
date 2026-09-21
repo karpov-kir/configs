@@ -30,8 +30,9 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const (
@@ -109,8 +110,8 @@ type scan struct {
 	announce func(string)
 }
 
-func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
-	if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+func Run(self string, args []string, cwd string, git repo.Git, cfg Config, stdout, stderr io.Writer) int {
+	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		// The grammar goes with this refusal and with no other. Every other exit 2 below is a sound
 		// invocation the scan could not carry out — a revision git would not resolve, a diff line past
 		// the cap — and answering one with the grammar sends the caller to fix an argument that was
@@ -120,7 +121,7 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 	}
 	revisions, _ := diffscan.RevisionsNamed(args)
 
-	diff, err := diffscan.Diff(cwd, args)
+	diff, err := diffscan.Diff(git, cwd, args)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %s\n", self, err)
 		return exitDidNotRun
@@ -141,7 +142,7 @@ func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.W
 			SkipSecretNamed: true,
 			Announce:        s.announce,
 		}
-		if err := s.result.WalkUntracked(cwd, opts, s.count); err != nil {
+		if err := s.result.WalkUntracked(git, cwd, opts, s.count); err != nil {
 			fmt.Fprintf(stderr, "%s: could not list untracked files — the scan did NOT run\n", self)
 			return exitDidNotRun
 		}

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestAgreementWithCheck(t *testing.T) {
@@ -461,6 +461,9 @@ func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
 		}
 	})
 
+	// The refusal quotes the path and is bounded. `shut` survives only while the prefix in front of it
+	// leaves the bound unspent. newBase, the test helper in harness_test.go, is what keeps that prefix
+	// short.
 	t.Run("and names the path it could not read", func(t *testing.T) {
 		f := build(t)
 		_, stderr, _ := f.run(f.root)
@@ -663,6 +666,10 @@ func TestACutMessageSaysThatItWasCut(t *testing.T) {
 		}
 	})
 
+	// The padding here is what has to push the message past the bound. A prefix that spends the bound
+	// first puts the cut inside itself, and the trailing `s` never reaches the message. The case then
+	// goes red over a checker that did exactly the right thing. newBase, the test helper in
+	// harness_test.go, is what keeps the prefix out of it.
 	t.Run("an unreadable path whose message runs past the bound is marked", func(t *testing.T) {
 		skipUnlessModeDeniesDirList(t, "a path it cannot read cannot be built here")
 		f := newRoot(t)

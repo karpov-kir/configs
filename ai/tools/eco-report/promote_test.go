@@ -65,14 +65,14 @@ func TestNoRefusalLeavesTheScratchStrandedInTheTree(t *testing.T) {
 	// promotion did not happen.
 	f := newShip(t, "001-promoting")
 	f.newIntentFile("001-promoting")
-	f.write(f.repo+"/.git/index.lock", "")
+	f.failsToAnswer("Add", "fatal: Unable to create '.git/index.lock': File exists.")
 	f.runReport("promote")
 	f.assertRefused("promote refuses when it cannot stage")
 	// The move is undone, so "not promoted" is the whole truth rather than half of it.
 	f.record("and put the scratch back rather than stranding it in the tree",
 		f.treeIsFreeOfScratch() && f.exists(f.sharedIdsd()), f.evidence())
 	f.assertReports("back at", "and says so, so the human is not left guessing where their intents went")
-	f.remove(f.repo + "/.git/index.lock")
+	f.answersAgain("Add")
 
 	// promote needs one report as its evidence a ship happened here, which is why it does not go
 	// through the report requirement every other reader opens with.
@@ -89,18 +89,16 @@ func TestPromoteAndCheckIgnoreAlsoRefuseAnUnreadableIndex(t *testing.T) {
 	t.Parallel()
 	// The mode decides whether .idsd/ is durable, so every caller that acts on it owes the check.
 	f := newShip(t, "001-modes")
-	if f.madeUnreadable(f.repo+"/.git/index", "the unreadable-index cases") {
-		// Again the message rather than the exit: without the assertion both subcommands still exit 2,
-		// because a later git call fails on the same unreadable index. Only the message tells the two
-		// apart, and only the assertion stops the mode being read as "external", the answer that deletes.
-		f.runReport("promote")
-		f.assertRefused("promote refuses when the repo mode cannot be read")
-		f.assertReports("repo mode is unknown", "and names the unreadable mode as the reason")
-		f.runReport("check-ignore")
-		f.assertRefused("check-ignore refuses when the repo mode cannot be read")
-		f.assertReports("repo mode is unknown", "and names it there too")
-	}
-	f.chmod(f.repo+"/.git/index", 0o644)
+	f.failsToAnswer("Tracked", "fatal: index file open failed: Permission denied")
+	// Again the message instead of the exit: without the assertion both subcommands still exit 2,
+	// because a later git call fails on the same unreadable index. Only the message tells the two
+	// apart, and only the assertion stops the mode being read as "external", the answer that deletes.
+	f.runReport("promote")
+	f.assertRefused("promote refuses when the repo mode cannot be read")
+	f.assertReports("repo mode is unknown", "and names the unreadable mode as the reason")
+	f.runReport("check-ignore")
+	f.assertRefused("check-ignore refuses when the repo mode cannot be read")
+	f.assertReports("repo mode is unknown", "and names it there too")
 }
 
 func TestPromoteIsIdempotentOverACommittedRepo(t *testing.T) {
@@ -170,7 +168,7 @@ func TestPromoteWritesNoGitignoreThroughALink(t *testing.T) {
 	unread.assertReports("git still does not ignore", "and says the entry landed without taking effect")
 	// The harm, asserted where it lands. The report carries the pass's security findings, and a
 	// promotion taken here puts it in the index on its way to a commit.
-	staged, _ := unread.git("diff", "--cached", "--name-only")
+	staged := unread.staged()
 	unread.record("and staged nothing, the report included",
 		!strings.Contains(staged, "qualify-report.md"), "staged:\n"+staged)
 	unread.record("and left the scratch unmoved, so no report reached the tree",

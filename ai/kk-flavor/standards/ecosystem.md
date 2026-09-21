@@ -101,7 +101,7 @@ A move away from the common path is only a win when that path genuinely never ne
 - **A change to a shared script lands its call site in the same edit.**
 - **A script is held to the bar it enforces** — converting prose into a script moves the cost rather than removing it.
 - **A script is Go under `ai/tools/`, reached by the `shared:tool-stub` region; shell only where Go cannot yet run.** The install path and the stub settle whether Go can run, at the moment the script runs.
-- **The conversion is a win only where the enforcement is known to fire.** Each shell script's header states its test position: the `-test.sh` that covers it, or `# untested: <why>`. The instruction lane's wiring check proves both — that the position is stated, and that the `-test.sh` it names exists.
+- **The conversion is a win only where the enforcement is known to fire.** Each shell script's header states its test position: the Go package under `ai/tools/` that holds its cases, or `# untested: <why>`. The instruction lane's wiring check proves both — that the position is stated, and that the package it names holds a Go test.
 
 ## Memory
 

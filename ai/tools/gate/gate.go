@@ -1,44 +1,31 @@
-// The pre-commit gate: every check this repo gates on, run only where the change could have moved it.
+// The pre-commit gate: every check this repository gates on, run from cold, every time.
 //
-//	usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]
-//	       (no flag)     the fast path — run what is stale, skip what is not, defer the mutation harnesses
-//	       --full        run everything from cold, ignoring and then refreshing every cached verdict
-//	       --mutants     settle the deferred mutation units, and nothing else
-//	       --units       print the unit table with each unit's freshness, and stop
-//	       --why         print the input files one unit is keyed on, and stop
-//	       --check-path  say whether a name is one the gate can safely build a command from, and stop
-//
-// Skipping is sound, not a sample, because every check here is a pure function of a declared set of
-// input files plus the toolchain: the same bytes through the same compiler give the same verdict. A
-// unit whose inputs hash to what they hashed on the last green run has a verdict that is already
-// known, so skipping it asserts nothing that was not measured. A unit whose inputs moved by a byte is
-// run. Nothing here samples, times out or guesses.
-//
-// A unit's inputs are discovered, with one exception a suite may state for itself. A shell suite that
-// builds its own copies of the tools it names — a stub installer, a stub runner — reads as driving the
-// real ones, because the two are spelt the same, and takes the whole tool tree on that. `# go-tools:
-// none — <why>` in the suite is how it says otherwise; `gate/units.go` states what the gate does with
-// it, and refuses the line where the suite's own text contradicts it.
-//
-// What it may never do, and how each is prevented:
-//   - Report a pass for a unit it did not run and has no recorded verdict for. A cache miss runs.
-//   - Resolve a unit to an empty input set. That is a rename or a typo silently narrowing the gate, so
-//     it exits 2 and names the unit, the way run-tests.sh exits 2 when discovery finds no suites.
-//   - Finish having resolved nothing at all. Also exit 2.
-//   - Skip something quietly. Every run prints one line per unit, and the deferred mutation units get
-//     their own block with the command that settles them.
-//
-// Go rather than shell, because the cost on this class of machine is process spawns rather than CPU,
-// and keying 60-odd units on their declared inputs is a library call here. What is left spawning is
-// the work itself — git's file list, the two mutation harnesses' listings, and each unit's own command.
-//
-// This is a fast path beside the full sweep, never instead of it: .github/workflows/gates.yml still
-// runs every command from cold on every push, and `--full` is the same sweep on demand.
+//	usage: gate.sh [--full]
+//	       (no flag)  every check, with Go's own test cache answering what it can.
+//	       --full     defeats that cache, and the time budget is measured on that run.
+
+// It used to be a content-keyed skip machine: 60-odd units, each keyed on a declared set of input
+// files. Verdict records went in the clone's git dir, with a list of paths outside the Go module
+// that Go's test cache could not see. The suite it guarded took about thirty minutes, and skipping
+// was the only way to make a pre-commit hook bearable.
+
+// The suite is no longer that slow, so all of that went. `ai/kk-flavor/standards/testing.md` sets
+// what replaced it: the whole suite runs cold in under 100 seconds, and the gate fails a run over
+// that. A cache that hides a slow suite hides it from the check that would have forced the fix.
+
+// Six checks. They print in this order because each costs less than the check after it, and a
+// failure in an earlier one makes a later one's output hard to read. They run concurrently all the
+// same: the order is what gets printed, and the machine has cores to spare while `go test` waits
+// on I/O.
+
+// A pass is only ever reported for a check this run executed, because there is no cache to answer
+// out of. A run past budgetSeconds, the hundred-second bound, fails and names what took the time, so
+// going over budget can never end in exit 0. Every run prints one line per check, so no check is
+// skipped quietly.
 package gate
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -46,233 +33,111 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
+// Env is what a caller supplies that this cannot work out for itself.
 type Env struct {
 	// Root is the repository the gate runs over. GATE_ROOT.
 	Root string
-	// Cache is where verdict records live. GATE_CACHE. Empty means the repository's own git dir.
-	Cache string
-	// UnitsFile replaces the discovered table with one read from a file — id, kind, inputs, command,
-	// tab-separated. GATE_UNITS_FILE. It is how the suite reaches the run loop, the cache and every
-	// refusal in seconds rather than by running the real suites, which are the very thing this exists
-	// not to run.
-	UnitsFile string
-	// SelfDigest goes into every key, and is the digest of the code deciding the verdicts. A verdict is
-	// a statement about these bytes under this toolchain, so a change to the deciding code must not be
-	// answered out of the previous one's cache.
-	SelfDigest string
+	// Budget replaces budgetSeconds, so the suite can drive the refusal a slow run gets without
+	// spending a hundred seconds to reach it. GATE_BUDGET_SECONDS.
+	Budget int
+	// Checks replaces the six real ones with a table read from a file: id, command, one per line,
+	// tab-separated. GATE_CHECKS_FILE. The suite uses it to reach the run loop, the report and every
+	// refusal in milliseconds, so it never pays for the real checks a second time.
+	Checks string
 }
 
-type mode int
+// The whole suite, cold, on the slowest machine that gates on it. `ai/kk-flavor/standards/testing.md`
+// states the same number, so the two have to move together. This gate's own wall clock is the only
+// thing enforcing it, and suiteTimeoutSeconds, the backstop const, says why `go test` must not be
+// handed this number.
+const budgetSeconds = 100
 
-const (
-	modeFast mode = iota
-	modeFull
-	modeMutants
-	modeUnits
-	modeWhy
-	modeCheckPath
-	modeHelp
-)
+// What `go test` carries as its own -timeout, above budgetSeconds, the gate's own bound, on purpose.
+// Handed the budget itself, Go killed the package first and printed a goroutine dump. The
+// slowest-first report then never ran for the check that would earn it, and that report is what names
+// the thing to speed up.
 
-type unit struct {
-	id     string
-	kind   string // "check" or "mutation"
-	inputs []string
-	cmd    string
-	stem   string
-	// blindToGoTests marks a unit that cannot observe the module's `_test.go` files, so hashing them
-	// into its key only retires a cached verdict that is still good. Two kinds of unit qualify, for
-	// two different reasons, and each has to be argued rather than assumed:
-	//
-	//   - the shell suites that exec a tool `resolve.sh` built, because `go build` does not compile a
-	//     test file into a binary;
-	//   - `wiring`, because eco-check skips them by name when it reads Go sources for subcommand
-	//     dispatches (`eco-check/subcommands.go`), and everything else it walks is `*.sh` or SKILL.md.
-	//
-	// Left off — the conservative value — everywhere else. Narrowing a key wrongly is the direction
-	// that reports a pass nobody earned.
-	blindToGoTests bool
-	// prerequisite is what THIS MACHINE has to provide for the command to measure everything it claims
-	// to, as key material. Per-unit rather than a field in g.stamp, which sits in every key: there, a
-	// provider CLI appearing would retire every verdict in the table, units that ask no model included.
-	prerequisite string
-	// prerequisiteShortfall says, for the unit's own line, what this machine does not provide. Printed
-	// on a cache hit too, where nothing runs — true there only because `prerequisite` is in the key.
-	prerequisiteShortfall string
+// Above the budget, a merely slow suite finishes and gets reported as slow. The number is left as
+// the backstop against a genuine hang, and Go's ten-minute default is what it escapes.
+
+// Both workflows spell this number into their own `go test`, and ai/tools/workflows_test.go holds
+// them to it.
+const suiteTimeoutSeconds = 300
+
+// A check the gate runs, and what it cost.
+type check struct {
+	id  string
+	cmd string
+	// out is the command's combined output, held back unless it fails: a passing check that printed
+	// something is noise in a report read on every commit.
+	out    string
+	status int
+	took   time.Duration
 }
 
 type gate struct {
-	env            Env
-	root           string
-	cache          string
-	stamp          string
-	out, errOut    io.Writer
-	units          []unit
-	manifest       []manifestLine
-	scratch        string
-	goMutateBinary string
+	root        string
+	budget      time.Duration
+	out, errOut io.Writer
 }
 
-type manifestLine struct {
-	hash string
-	path string
-}
-
-func (m manifestLine) String() string { return m.hash + "  " + m.path }
-
-// Run executes one invocation and returns its exit code. 0 is a clean gate, 1 is a finding, and 2 is
-// "this did not run" — never a result.
+// Run executes one invocation and returns its exit code. 0 is a clean gate, 1 is a finding, and 2
+// says the gate did not run. Exit 2 is a state of the machine, and a reader must never read it as a
+// result.
 func Run(args []string, env Env, out, errOut io.Writer) int {
-	g := &gate{env: env, out: out, errOut: errOut}
-	return g.run(args)
+	g := &gate{out: out, errOut: errOut, budget: time.Duration(budgetSeconds) * time.Second}
+	if env.Budget > 0 {
+		g.budget = time.Duration(env.Budget) * time.Second
+	}
+	return g.run(args, env)
 }
 
-const usageLine = "usage: gate.sh [--full] [--mutants] [--units] [--why <unit>] [--check-path <name>]"
-
-// A refusal raised while parsing the arguments, the one class a caller can fix from the flag list — so
-// it carries that list. One raised after parsing is not one the flag list answers.
-func refuseInvocation(errOut io.Writer, reason string) int {
-	refuse(errOut, reason)
-	return refuse(errOut, usageLine)
-}
-
-func (g *gate) fail(format string, a ...any) int {
-	return refuse(g.errOut, fmt.Sprintf(format, a...))
-}
+const usageLine = "usage: gate.sh [--full]"
 
 func refuse(errOut io.Writer, reason string) int {
 	fmt.Fprintf(errOut, "gate.sh: %s\n", shell.Oneline(reason))
 	return 2
 }
 
-func (g *gate) run(args []string) int {
+func (g *gate) fail(format string, a ...any) int {
+	return refuse(g.errOut, fmt.Sprintf(format, a...))
+}
+
+func (g *gate) run(args []string, env Env) int {
 	started := time.Now()
 
-	selected, whyUnit, checkPath, code := parseArgs(args, g.errOut)
+	full := false
+	for _, arg := range args {
+		switch arg {
+		case "--full":
+			full = true
+		case "-h", "--help":
+			fmt.Fprintln(g.out, usageLine)
+			return 0
+		default:
+			refuse(g.errOut, fmt.Sprintf("unknown argument '%s'", arg))
+			return refuse(g.errOut, usageLine)
+		}
+	}
+
+	if code := g.resolveRoot(env.Root); code != 0 {
+		return code
+	}
+
+	checks, code := g.plan(env, full)
 	if code != 0 {
 		return code
 	}
-
-	if selected == modeHelp {
-		fmt.Fprintln(g.out, usageLine)
-		return 0
-	}
-
-	// Driven on its own so a suite can exercise the refusal without writing a hostile filename into
-	// this checkout — which is the only other way to reach it, and not a thing to leave lying in a
-	// repository.
-	if selected == modeCheckPath {
-		if err := safeToken("path", checkPath); err != nil {
-			return g.fail("%s", err)
-		}
-		fmt.Fprintf(g.out, "gate.sh: '%s' is a name the gate can safely build a command from\n", checkPath)
-		return 0
-	}
-
-	if code := g.resolveMachine(); code != 0 {
-		return code
-	}
-	scratch, err := os.MkdirTemp("", "eco-gate")
-	if err != nil {
-		return g.fail("could not create a scratch directory — nothing ran")
-	}
-	g.scratch = scratch
-	defer os.RemoveAll(scratch)
-
-	if code := g.buildUnits(); code != 0 {
-		return code
-	}
-	if len(g.units) == 0 {
-		return g.fail("no units resolved at all — read this as the gate broken, never as a clean run")
-	}
-	if code := g.assignStems(); code != 0 {
-		return code
-	}
-	if code := g.buildManifest(); code != 0 {
-		return code
-	}
-
-	switch selected {
-	case modeUnits:
-		return g.printUnits()
-	case modeWhy:
-		return g.printWhy(whyUnit)
-	}
-	return g.runUnits(selected, started)
+	return g.runChecks(checks, started)
 }
 
-func parseArgs(args []string, errOut io.Writer) (selected mode, why, path string, code int) {
-	selected = modeFast
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--full":
-			selected = modeFull
-		case "--mutants":
-			selected = modeMutants
-		case "--units":
-			selected = modeUnits
-		case "--check-path":
-			i++
-			if i >= len(args) {
-				return selected, why, path, refuseInvocation(errOut, "--check-path needs a path")
-			}
-			path, selected = args[i], modeCheckPath
-		case "--why":
-			i++
-			if i >= len(args) {
-				return selected, why, path, refuseInvocation(errOut, "--why needs a unit id — run --units for the list")
-			}
-			why, selected = args[i], modeWhy
-		case "-h", "--help":
-			// A mode, not an early `return 0`. Returning zero here says "these arguments parsed", which
-			// is what run() reads it as — so help printed and then the whole gate ran, writing verdict
-			// records for a caller who asked what the flags were.
-			return modeHelp, why, path, 0
-		default:
-			return selected, why, path, refuseInvocation(errOut, fmt.Sprintf("unknown argument '%s'", args[i]))
-		}
-	}
-	return selected, why, path, 0
-}
-
-// A path or key that goes into a command string this later runs through a shell. Anything outside this
-// set — a space, a semicolon, a quote, a leading dash — stops being a filename and starts being
-// syntax: a zero-byte `ai/a;true;#-test.sh` runs as `ai/run-tests.sh -s ai/a` then `true`, so the unit
-// exits 0 and the gate writes a green record for a suite that never ran. The file's contents are
-// empty, so nothing reviewing contents would see it; the executable part is the name.
-//
-// Refused rather than escaped, and refused at discovery rather than at use, so the gate fails closed
-// the way its other refusals do and says which name it cannot handle.
-// Single quotes, the one form a POSIX shell reads literally throughout. Written out rather than
-// assumed safe: safeToken and the quoting are two defences, and an injection needs both to fail.
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
-}
-
-func safeToken(what, value string) error {
-	if value == "" {
-		return fmt.Errorf("an empty %s names no file, so the gate refuses to build a command from it — nothing ran", what)
-	}
-	if strings.HasPrefix(value, "-") {
-		return fmt.Errorf("%s '%s' begins with a dash, which the command it goes into would read as an option — nothing ran", what, value)
-	}
-	for i := 0; i < len(value); i++ {
-		c := value[i]
-		ok := shell.IsAlnumByte(c) || c == '.' || c == '_' || c == '/' || c == '-'
-		if !ok {
-			return fmt.Errorf("%s '%s' holds a byte the gate cannot safely put in a command, so it refuses to build one — nothing ran", what, value)
-		}
-	}
-	return nil
-}
-
-func (g *gate) resolveMachine() int {
-	root := g.env.Root
+func (g *gate) resolveRoot(root string) int {
 	if root == "" {
 		root = "."
 	}
@@ -280,194 +145,331 @@ func (g *gate) resolveMachine() int {
 	if err != nil {
 		return g.fail("could not resolve the root '%s' — nothing ran", root)
 	}
+	// Physically, because /var is a symlink to /private/var on macOS. A command that cd's would
+	// otherwise be handed a path spelt differently from what every child reports back.
 	physical, err := filepath.EvalSymlinks(abs)
 	if err != nil {
 		return g.fail("could not resolve the root '%s' — nothing ran", root)
 	}
 	g.root = physical
-
-	if _, err := exec.LookPath("go"); err != nil {
-		return g.fail("no go on this machine, so the Go half cannot be built or run — nothing ran")
-	}
-	common, err := g.capture("git", "rev-parse", "--git-common-dir")
-	if err != nil || common == "" {
-		return g.fail("%s is not a git repository, so there is nothing to scope a change against — nothing ran", g.root)
-	}
-	if !filepath.IsAbs(common) {
-		common = filepath.Join(g.root, common)
-	}
-	// The store is the CLONE's: --git-common-dir is shared by every worktree of a checkout, so three
-	// worktrees gating at once write one directory. That sharing is the intended semantics, and the
-	// reason belongs here because this line is where a reader meets it. A verdict record is an empty
-	// file whose NAME is its key, and keyMaterial in keys.go hashes the unit id, its command, the
-	// toolchain stamp and the hashes of its declared inputs — never g.root, and never an absolute path,
-	// since every command and every manifest path is relative to the repository.
-	// TestNoKeyMaterialNamesTheWorktreeItWasBuiltIn holds that over the real table, so it is a checked
-	// property rather than a claim. A record another worktree wrote is therefore found only by a
-	// worktree computing the same key, meaning it holds the same inputs under the same toolchain, which
-	// is the gate's own premise. A cross-worktree hit is the same event as a same-worktree one, and
-	// neither is a stale green. The record holds no content, so there is nothing in it to catch
-	// half-written. The `<stem>.inputs` sidecars beside the records carry no key at all;
-	// `gotest.inputs` is the only one anything reads back, and changedSinceGreen covers it.
-	//
-	// Keying the store per worktree would end all of that: every new worktree would gate from cold,
-	// which is the sweep this fast path exists to avoid. GATE_CACHE is how a run that must not share
-	// says so — a suite pointing at its own fixture, or a session isolating itself by hand.
-	g.cache = g.env.Cache
-	if g.cache == "" {
-		g.cache = filepath.Join(common, "eco-gate")
-	}
-	if err := os.MkdirAll(g.cache, 0o755); err != nil {
-		return g.fail("could not create the cache at %s — nothing ran", g.cache)
-	}
-	g.sweepLeakedSidecars()
-
-	digest := g.env.SelfDigest
-	if digest == "" {
-		// The running binary is the deciding code. Refused rather than defaulted: an empty digest is a
-		// key component that never changes, and every verdict keyed on it would survive any edit to it.
-		self, err := os.Executable()
-		if err == nil {
-			digest, err = hashFile(self)
-		}
-		if err != nil || digest == "" {
-			return g.fail("could not hash the gate binary, so a verdict could not be keyed to the code deciding it — nothing ran")
-		}
-	}
-	goVersion, _ := g.capture("go", "version")
-	gitVersion, _ := g.capture("git", "--version")
-	nodeVersion, err := g.capture("node", "--version")
-	if err != nil {
-		nodeVersion = "unavailable"
-	}
-	g.stamp = fmt.Sprintf("%s | %s | node %s | gate %s", goVersion, gitVersion, nodeVersion, digest)
 	return 0
 }
 
-// A verdict key is a sha256 rendered as hex, so every record's name ends in a tail this long. Held as
-// a number because the sweep below tells a leaked temp from a record by tail length and nothing else;
-// `TestAVerdictKeyIsAsLongAsTheSweepThinks` holds it against the function that produces one.
-const verdictKeyLength = 64
+// `--full` is `-count=1` over everything. The budget is a claim about a cold run, so the run that
+// measures it must not answer out of Go's cache at all.
 
-// How long a temp must have sat before the sweep takes it. THE POINT OF THE BOUND IS THE GUARD, not
-// tidiness: the store is the clone's, so a sibling worktree may have a temp in flight this second, and
-// deleting that one makes its sidecar vanish and the run that owns it write nothing. Publishing takes
-// milliseconds, so nothing an hour old is still being written, and a leak simply waits an hour.
-const leakedSidecarAge = time.Hour
+// An ordinary run lets that cache answer, and no check is forced past it. Go keys the test cache on
+// the module and hashes every file a case opens inside that root, skipping only what lies outside.
+// The module file sits at the repository root, so every file a case reads lies inside the module.
 
-// Temps `writeSidecar` left behind. A run killed between creating one and renaming it onto its path
-// leaks it, and the store is shared by every worktree of the clone, so they arrive from every killed
-// run in every sibling session — and killing a gate run is routine here. Each one is inert, since
-// nothing reads a name but `<stem>.inputs` and `<stem>.<key>`; a directory full of them is what makes
-// a later stale-verdict investigation unreadable.
-//
-// Silent and best-effort. A sweep that cannot read the directory, or cannot remove an entry, leaves
-// clutter and decides no verdict, so there is nothing here to report or to stop a run for.
-func (g *gate) sweepLeakedSidecars() {
-	entries, err := os.ReadDir(g.cache)
-	if err != nil {
-		return
+// Break `ai/kk-flavor/standards/records.md` or `.github/workflows/gates.yml` and the package reading
+// it goes red on the next plain `go test`. Both ways were measured before and after the module
+// moved. `ai/kk-flavor/standards/testing.md` asks for exactly this: a suite reads only what its
+// runner's cache keys on.
+
+// `go test ./...` is one check, not two. It was split while the root package was forced with
+// `-count=1`, and `./...` then paid for that package a second time out of the cache. With no package
+// forced there is one run and one duration for the slowest-first report to name.
+
+// The six, or a table a suite handed over.
+func (g *gate) plan(env Env, full bool) ([]check, int) {
+	if env.Checks != "" {
+		return g.checksFromFile(env.Checks)
 	}
-	for _, entry := range entries {
-		if entry.IsDir() || !leakedSidecarName(entry.Name()) {
-			continue
+	// gofmt as well as go, because a check that cannot find its binary is no check at all. A machine
+	// with no gofmt has measured none of the tree, and both shapes this check has carried report that
+	// as something else. The listing shape, `test -z "$(gofmt -l .)"`, reports a clean tree, and
+	// formatCmd, this file's gofmt command, reports a format finding.
+	for _, tool := range []string{"go", "gofmt"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			return nil, g.fail("no %s on this machine, so the Go checks cannot run — nothing ran", tool)
 		}
-		info, err := entry.Info()
-		if err != nil || time.Since(info.ModTime()) < leakedSidecarAge {
-			continue
-		}
-		os.Remove(filepath.Join(g.cache, entry.Name()))
 	}
-}
-
-// `<stem>.inputs.<random>`, the shape os.CreateTemp leaves. The tail is measured rather than merely
-// found, because a verdict record is `<stem>.<key>` and a units-file table may name a unit whose stem
-// ends in `.inputs` — its record is then spelt exactly like a temp. CreateTemp's tail is a short
-// decimal and a key is always verdictKeyLength, so the length is what tells a leak from a green.
-func leakedSidecarName(name string) bool {
-	at := strings.LastIndex(name, sidecarSuffix+".")
-	if at < 0 {
-		return false
+	bound := fmt.Sprintf("-timeout %ds", suiteTimeoutSeconds)
+	suite := "go test " + bound + " ./..."
+	if full {
+		suite = "go test -count=1 " + bound + " ./..."
 	}
-	tail := name[at+len(sidecarSuffix)+1:]
-	return tail != "" && len(tail) < verdictKeyLength
+	return []check{
+		{id: "gofmt", cmd: formatCmd},
+		{id: "vet", cmd: "go vet ./..."},
+		{id: "gotest", cmd: suite},
+		{id: "wiring", cmd: wiringCmd},
+		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},
+		// The instruction tree's baseline, which is a ratchet and only goes down. It had one reader
+		// before it had a job: a sentence in a skill telling an agent to look at it, which is a
+		// document and never a gate.
+		{id: "baseline", cmd: "ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh"},
+	}, 0
 }
 
-func (g *gate) captureLiteralPathspecs(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = g.root
-	cmd.Env = append(os.Environ(), "GIT_LITERAL_PATHSPECS=1")
-	out, err := cmd.Output()
-	return strings.TrimRight(string(out), "\n"), err
-}
+// This machine keeps whole checkouts inside this one, and a walk of the tree hands gofmt every .go
+// file in all of them.
 
-func (g *gate) capture(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = g.root
-	out, err := cmd.Output()
-	return strings.TrimRight(string(out), "\n"), err
-}
+// `--others` as much as `--cached`, because a .go file that is written but unstaged is work the gate
+// has to read. git also skips a nested repository, so those are dropped by git and stay dropped when
+// someone deletes an ignore rule.
 
-func hashFile(path string) (string, error) {
+// The check reads gofmt's exit status as well as its listing. Handed a file it cannot parse, gofmt
+// prints to stderr and lists no file, and a check reading the listing alone calls that formatted.
+
+// xargs ends the pipeline and reports a non-zero gofmt as 123, so the substitution carries that
+// status without pipefail. `sh` on a Linux runner has no pipefail.
+
+// A tree with no .go file in it produces an empty listing, and the xargs that follows still cannot
+// fail. macOS xargs runs the command zero times, and GNU xargs runs gofmt against /dev/null with no
+// file, which gofmt reports as formatted. Both were measured, because the macOS xargs carries no
+// `-r` flag to say this in the command.
+
+// Lists every .go file git holds, and reports the unformatted ones.
+const formatCmd = "unformatted=$(git ls-files --cached --others --exclude-standard -z -- '*.go' | xargs -0 gofmt -l) && " +
+	"test -z \"$unformatted\" || { printf '%s\\n' \"$unformatted\" >&2; exit 1; }"
+
+// Each run used to carry ECO_TOOLS_BUILD=1 and rebuild and re-stamp the same binary for itself,
+// which was the floor under a warm gate.
+
+// The flag stays where the build is. Without it the binary measured can be a downloaded release,
+// when the whole point is to measure this tree. The runs after the build reach those bytes through
+// resolve.sh, which rebuilds any binary with a stamp that no longer matches the source beside it.
+
+// Each run's output goes to a file of its own, because two reports interleaved line by line name
+// neither agent. Both statuses are read, claude's first where both are non-zero, matching what the
+// `&&` that used to chain them reported.
+
+// One build, then both agents against those bytes at once.
+const wiringCmd = `
+ECO_TOOLS_BUILD=1 ai/tools/resolve.sh eco-check >/dev/null || exit 2
+work=$(mktemp -d "${TMPDIR:-/tmp}/gate-wiring.XXXXXX") || exit 2
+check=ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh
+"$check" --agent=claude --gate >"$work/claude" 2>&1 &
+claude=$!
+"$check" --agent=codex --gate >"$work/codex" 2>&1 &
+codex=$!
+wait $claude; claude_status=$?
+wait $codex; codex_status=$?
+cat "$work/claude" "$work/codex"
+rm -rf "$work"
+[ $claude_status -eq 0 ] || exit $claude_status
+exit $codex_status
+`
+
+func (g *gate) checksFromFile(path string) ([]check, int) {
 	body, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return nil, g.fail("GATE_CHECKS_FILE names %s, which is not a file — nothing ran", path)
 	}
-	sum := sha256.Sum256(body)
-	return hex.EncodeToString(sum[:]), nil
+	var checks []check
+	for _, line := range strings.Split(string(body), "\n") {
+		id, cmd, found := strings.Cut(line, "\t")
+		if !found || id == "" {
+			continue
+		}
+		checks = append(checks, check{id: id, cmd: cmd})
+	}
+	if len(checks) == 0 {
+		return nil, g.fail("GATE_CHECKS_FILE named no check at all — read this as the gate broken, never as a clean run")
+	}
+	return checks, 0
 }
 
-func hashString(text string) string {
-	sum := sha256.Sum256([]byte(text))
-	return hex.EncodeToString(sum[:])
+// Runs every check at once and prints them in declared order. The printer blocks on each in turn, so
+// the report reads the same whatever order they finish in.
+func (g *gate) runChecks(checks []check, started time.Time) int {
+	fmt.Fprintf(g.out, "%d check(s)\n\n", len(checks))
+
+	var wait sync.WaitGroup
+	for i := range checks {
+		wait.Add(1)
+		go func(c *check) {
+			defer wait.Done()
+			at := time.Now()
+			c.out, c.status = g.execute(c.cmd)
+			c.took = time.Since(at)
+		}(&checks[i])
+	}
+	wait.Wait()
+
+	failed, unmeasured := 0, 0
+	for _, c := range checks {
+		took := fmt.Sprintf("%ds", int(c.took.Round(time.Second).Seconds()))
+		switch c.status {
+		case 0:
+			g.line("ran ok", c.id, took)
+		case 2:
+			// Exit 2 means the check did not run: a fixture that failed to build, a tool this machine
+			// lacks. The gate keeps this apart from a failure, because calling it a failure blames the
+			// code for something the machine did.
+			g.line("NO MEASURE", c.id, took+"  it exited 2 — it did not run, so nothing is known")
+			g.tail(c.out, 10)
+			unmeasured++
+		default:
+			g.line("FAILED", c.id, took)
+			g.failure(c)
+			failed++
+		}
+	}
+	return g.report(checks, started, failed, unmeasured)
 }
 
-// The record's filename, which is not the id. An id carries bytes a path segment may not: `:` in every
-// `mutants:go:…`, `+` where a unit covers more than one suite, and possibly a `/` — which would name a
-// directory the cache does not have, so every write for that unit would fail and `--mutants` would
-// report a pass having recorded nothing. Mutation ids hold no `/` today, but a units-file table may.
-func recordStem(id string) string {
-	var b strings.Builder
-	for i := 0; i < len(id); i++ {
-		c := id[i]
-		ok := shell.IsAlnumByte(c) || c == '.' || c == '_' || c == '-'
-		if ok {
-			b.WriteByte(c)
-		} else {
-			b.WriteByte('-')
-		}
+func (g *gate) report(checks []check, started time.Time, failed, unmeasured int) int {
+	wall := time.Since(started)
+	fmt.Fprintf(g.out, "\n%d check(s): %d failed, %d that never measured, %ds wall clock\n",
+		len(checks), failed, unmeasured, int(wall.Round(time.Second).Seconds()))
+
+	if failed > 0 {
+		return 1
 	}
-	return b.String()
+	if unmeasured > 0 {
+		fmt.Fprintf(g.errOut, "%d check(s) exited 2 without measuring — nothing is known about them, and this is not a pass.\n", unmeasured)
+		return 2
+	}
+	// The budget is checked last, and only over a clean run. A red gate already has a reason, and
+	// adding "and it was slow" on top of it buries the reason under the symptom.
+	if wall > g.budget {
+		g.overBudget(checks, wall)
+		return 1
+	}
+	return 0
 }
 
-// Two units that share a cache record share a verdict: running either would report the other fresh
-// over inputs nothing had read. Asked about stems rather than ids, because the stem is the record's
-// name — identical ids always flatten to one stem, so an id check could never fire on its own.
-func (g *gate) assignStems() int {
-	byStem := map[string][]string{}
-	for i := range g.units {
-		stem := recordStem(g.units[i].id)
-		g.units[i].stem = stem
-		byStem[stem] = append(byStem[stem], g.units[i].id)
+// What a run over budget says. The wall clock alone does not say what to fix, so the checks come out
+// slowest-first. Naming the thing to speed up is the whole point of the bound.
+func (g *gate) overBudget(checks []check, wall time.Duration) {
+	slowest := append([]check(nil), checks...)
+	sort.SliceStable(slowest, func(i, j int) bool { return slowest[i].took > slowest[j].took })
+	fmt.Fprintf(g.errOut, "\nthe gate took %ds, and the budget is %ds — this is a failure, not a slow pass.\n",
+		int(wall.Round(time.Second).Seconds()), int(g.budget.Seconds()))
+	fmt.Fprintln(g.errOut, "`ai/kk-flavor/standards/testing.md` rule 6 states the bound and why no other rule buys time against it.")
+	fmt.Fprintln(g.errOut, "slowest first:")
+	for _, c := range slowest {
+		fmt.Fprintf(g.errOut, "    %-12s %ds\n", c.id, int(c.took.Round(time.Second).Seconds()))
 	}
-	var clashes []string
-	for stem, ids := range byStem {
-		if len(ids) > 1 {
-			clashes = append(clashes, stem)
+}
+
+// One check's command. Through a shell, because the commands are written as shell and several of them
+// cd. Both streams go into one buffer: a check that refuses on stderr with an empty stdout would
+// otherwise print FAILED and stay silent about why.
+func (g *gate) execute(cmd string) (string, int) {
+	run := exec.Command("sh", "-c", cmd)
+	run.Dir = g.root
+	out, err := run.CombinedOutput()
+	if err == nil {
+		return string(out), 0
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return string(out), exit.ExitCode()
+	}
+	// 127 is what a shell reports for a command it could not find, and that is what this is. The
+	// command never ran. Its exit status is therefore no verdict about anything.
+	return string(out), 127
+}
+
+func (g *gate) line(state, id, detail string) {
+	fmt.Fprintf(g.out, "  %-11s %-12s %s\n", state, id, detail)
+}
+
+func (g *gate) tail(output string, n int) {
+	lines := outputLines(output)
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	for _, line := range lines {
+		g.quote(line)
+	}
+}
+
+// The most lines one failed check prints. A run that panics in every package carries thousands, and a
+// report read on every commit that prints all of them goes unread.
+const failureLineBudget = 40
+
+// What a FAILED check shows. The last n lines will not do: `go test ./...` prints an `ok` line per
+// package after the package that broke. A positional tail of a failure in an early package is forty
+// lines of successes, and carries no word about what a reader has to fix.
+func (g *gate) failure(c check) {
+	all := outputLines(c.out)
+	if len(all) == 0 {
+		return
+	}
+	shown := failureLines(all)
+	switch {
+	case len(shown) == 0:
+		// This output has no `go test` failure in it: gofmt's listing, a wiring finding. Those print
+		// what they found and stop, so the end of the output is the report.
+		shown = all
+		if len(shown) > failureLineBudget {
+			shown = shown[len(shown)-failureLineBudget:]
+		}
+	case len(shown) > failureLineBudget:
+		// The first of them, with the tail dropped. Where a run breaks in several places the earliest
+		// failure is what a reader needs, and the ones after it are often that failure again.
+		shown = shown[:failureLineBudget]
+	}
+	for _, line := range shown {
+		g.quote(line)
+	}
+	// What was dropped, and what prints all of it. A reader who is not told about the gap cannot tell
+	// a whole report from one that cut the part they needed.
+	if dropped := len(all) - len(shown); dropped > 0 {
+		g.quote(fmt.Sprintf("... %d of %d line(s) not shown, and `%s` is what prints all of them",
+			dropped, len(all), shell.Oneline(c.cmd)))
+	}
+}
+
+// The lines of a check's output that carry its failure: each `--- FAIL`, each line a failing package
+// or a panic opens with, and the output belonging to them. Empty for a check with no such lines in
+// its output. That is every check apart from `go test`.
+func failureLines(all []string) []string {
+	var kept []string
+	carrying := false
+	for _, line := range all {
+		switch {
+		case opensFailure(line):
+			carrying = true
+		case closesFailure(line):
+			carrying = false
+		}
+		if carrying {
+			kept = append(kept, line)
 		}
 	}
-	if len(clashes) == 0 {
-		return 0
-	}
-	sort.Strings(clashes)
-	fmt.Fprintln(g.errOut, "gate.sh: these units share one cache record, so a verdict could not say which of them it belongs to — nothing ran")
-	for _, stem := range clashes {
-		ids := shell.SortUnique(byStem[stem])
-		if len(ids) == 1 {
-			fmt.Fprintf(g.errOut, "    %s — carried by two units under one id\n", ids[0])
-		} else {
-			fmt.Fprintf(g.errOut, "    %s — different ids, one record name\n", strings.Join(ids, " "))
+	return kept
+}
+
+// Checks whether a line starts something a reader has to act on. `#` is the compiler's own package
+// header, which is the whole of what a package reported as `[build failed]` says about why.
+func opensFailure(line string) bool {
+	// A subtest indents its own `--- FAIL`.
+	return hasAnyPrefix(line, "FAIL", "panic:", "fatal error:", "# ") ||
+		hasAnyPrefix(strings.TrimLeft(line, " \t"), "--- FAIL")
+}
+
+// Checks whether a line ends the failure it follows. Everything here is `go test` reporting a case or
+// a package that came back fine, and none of that belongs to a failure.
+func closesFailure(line string) bool {
+	return hasAnyPrefix(line, "ok ", "ok\t", "? ", "?\t", "PASS") ||
+		hasAnyPrefix(strings.TrimLeft(line, " \t"), "--- PASS", "--- SKIP", "=== ")
+}
+
+func hasAnyPrefix(line string, prefixes ...string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(line, prefix) {
+			return true
 		}
 	}
-	return 2
+	return false
+}
+
+// A check's output as lines. Empty output gives no lines at all.
+func outputLines(output string) []string {
+	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return nil
+	}
+	return lines
+}
+
+// Prints one line of a check's own output, indented under the line that named the check.
+func (g *gate) quote(line string) {
+	fmt.Fprintf(g.out, "              %s\n", line)
 }

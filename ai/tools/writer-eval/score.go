@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	census "kk-flavor/tools/comment-census"
+	census "configs/ai/tools/comment-census"
 )
 
 // Return is what the writer hands back for one site: the block it wrote, or none, and the audit

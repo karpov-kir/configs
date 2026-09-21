@@ -1,11 +1,13 @@
 package voicecheck
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/shell"
 )
 
 func TestARevisionIsNotAPath(t *testing.T) {
@@ -55,6 +57,9 @@ func TestARevisionIsNotAPath(t *testing.T) {
 
 	t.Run("a revision git cannot resolve exits 2 as git's rejection", func(t *testing.T) {
 		r := newRepo(t)
+		// What git answers for a name it holds no object under. The answer is stated here, because a diff
+		// git refuses is the only way a caller ever hears about an unresolvable revision.
+		r.fake.Fail["Patch"] = errors.New("git diff no-such-rev --: fatal: bad revision 'no-such-rev'")
 		r.run("no-such-rev")
 		r.expectCode(2)
 		r.expectStderrHas("git rejected these arguments")
@@ -66,22 +71,28 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.expectNoStdout()
 	})
 
-	// Both a real revision and a real filename. git itself refuses the ambiguity, and this must arrive
-	// as git's rejection rather than as a path refusal that never consulted git.
-	t.Run("an argument that is both a revision and a filename exits 2 as git's rejection", func(t *testing.T) {
-		r := newRepo(t)
+	// Both a real revision and a real filename. It is read as the revision and the scan runs. Every git
+	// invocation behind this one ends with `--`, and the ambiguity git would otherwise refuse never
+	// reaches it.
+
+	// This case wanted that refusal until the port put the `--` there. A refusal hands the branch under
+	// review a way to switch the scan off for everyone reading it, by committing a file called HEAD.
+	// A revision is what the argument was always going to mean here.
+	t.Run("an argument that is both a revision and a filename is read as the revision", func(t *testing.T) {
+		// Real git, because git's own refusal is what the `--` averts, and no fake can be made to give it.
+		r := newRealRepo(t)
 		r.write("HEAD", "ambiguous\n")
 		r.commit("add a file called HEAD")
 		r.run("HEAD")
-		r.expectCode(2)
-		r.expectStderrHas("git rejected these arguments")
+		r.expectCode(exitClean)
+		r.expectStderrLacks("git rejected these arguments")
 	})
 
 	t.Run("a pathspec after -- is scanned rather than refused", func(t *testing.T) {
 		r := newRepo(t)
 		r.write("kept.go", "x := 1\n")
 		r.commit("base")
-		r.write("kept.go", housey(1))
+		r.changed("kept.go", housey(1))
 		r.run("HEAD", "--", "kept.go")
 		r.expectCode(1)
 		r.expectStdoutHas("kept.go")
@@ -91,6 +102,8 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r := newRepo(t)
 		r.write("kept.go", "x := 1\n")
 		r.commit("base")
+		// git narrows the diff to the pathspec, and this pathspec matches no file the change touched.
+		// The scan is answered with an empty diff, however heavy the tree beside it is.
 		r.write("kept.go", housey(1))
 		r.run("HEAD", "--", "no-such-path")
 		r.expectCode(0)
@@ -108,7 +121,7 @@ func TestAnAddedLineShapedLikeADiffHeader(t *testing.T) {
 	// `++ b/decoy.go` is what arrives as `+++ b/decoy.go` and can be mistaken for a real file header.
 	// Written with three, the line arrives as `++++ ` and matches nothing — a fixture that exercises
 	// the anchor is the only one that can fail when the anchor is removed.
-	r.write("real.go", "++ b/decoy.go\n"+heavy(8, 1))
+	r.changed("real.go", "++ b/decoy.go\n"+heavy(8, 1))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("real.go")
@@ -120,7 +133,9 @@ func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
 	r.write("café.go", "package fixture\n")
 	r.commit("base")
-	r.write("café.go", housey(1))
+	// The path arrives bare, and never C-quoted. That is what the config key core.quotePath, set false,
+	// buys, and repo/exec_test.go holds it against a real git for every listing the port takes.
+	r.changed("café.go", housey(1))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("café.go")
@@ -129,7 +144,9 @@ func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 // --text, or one `* -diff` in the branch author's .gitattributes collapses the body to
 // "Binary files … differ" and the scan exits 0 over a real outlier.
 func TestADiffAttributeDoesNotSuppressTheScan(t *testing.T) {
-	r := newRepo(t)
+	// Real git, because the attribute is the subject. What it does to a diff body is git's behaviour,
+	// and a fake stating it would be agreeing with itself.
+	r := newRealRepo(t)
 	r.write("attr.go", "package fixture\n")
 	r.write(".gitattributes", "* -diff\n")
 	r.commit("base")
@@ -205,6 +222,8 @@ func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 	r.write(name, "package fixture\n")
 	r.commit("base")
 	r.write(name, housey(1))
+	// The C-quoted field git really prints for this path, which is the form the scan has to unquote.
+	r.addedUnder(`"b/tab\there.go"`, strings.Split(strings.TrimSuffix(housey(1), "\n"), "\n")...)
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("tab here.go")
@@ -221,8 +240,8 @@ func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r.write("z.go", "package fixture\n")
 	r.commit("base")
 	// a.go sorts first, so the long line lands ahead of the outlier and hides it.
-	r.write("a.go", strings.Repeat("x", 70000)+"\n")
-	r.write("z.go", housey(1))
+	r.changed("a.go", strings.Repeat("x", 70000)+"\n")
+	r.changed("z.go", housey(1))
 
 	realCap := diffscan.MaxDiffLineBytes
 	diffscan.MaxDiffLineBytes = 64 * 1024
@@ -238,4 +257,31 @@ func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("z.go")
+}
+
+// No case may read the configuration of whoever runs the suite.
+
+// Pinning HOME alone was not enough. The tool takes its machine override from
+// $XDG_CONFIG_HOME/kk-flavor/ and only falls back to $HOME/.config. On a machine exporting that
+// variable, every case that set neither read the owner's own file.
+
+// Three did go red on one laptop, over a `domain` keyword a newer build of this tool had written
+// there. That failure was about the owner's config, and never about the code under test. It
+// reproduced nowhere else.
+
+// The values TestMain saved are what the assertion runs against, and never a temp-directory prefix, so
+// the case names exactly what a leak reached.
+func TestNoCaseCanReachTheConfigurationOfWhoeverRunsTheSuite(t *testing.T) {
+	for _, pin := range []struct{ name, now, machine string }{
+		{"HOME", os.Getenv("HOME"), machineHome},
+		{"XDG_CONFIG_HOME", os.Getenv("XDG_CONFIG_HOME"), machineConfigHome},
+	} {
+		if pin.now == "" {
+			t.Errorf("%s is unset, so a case falls back to this machine's own", pin.name)
+			continue
+		}
+		if pin.machine != "" && pin.now == pin.machine {
+			t.Errorf("%s is still %s, which is this machine's own", pin.name, pin.now)
+		}
+	}
 }

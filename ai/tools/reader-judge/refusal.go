@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // ModelRefused is the provider declining the name it was handed, rather than failing to answer with

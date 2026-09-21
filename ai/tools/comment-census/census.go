@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	readerjudge "kk-flavor/tools/reader-judge"
+	readerjudge "configs/ai/tools/reader-judge"
 )
 
 // Block is one comment block with its marker characters removed. OverDecl says whether a

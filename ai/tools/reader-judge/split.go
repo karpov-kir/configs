@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Unit is one thing the model may delete, by the 1-based line it starts on and how many lines it spans.

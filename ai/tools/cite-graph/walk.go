@@ -1,7 +1,7 @@
 package main
 
 import (
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func longest(adj map[string][]string, start string, budget *shell.WalkBudget) []string {

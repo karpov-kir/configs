@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 func TestDirectionScan(t *testing.T) {

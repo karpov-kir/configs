@@ -9,14 +9,12 @@ import (
 	"testing"
 )
 
-func (r *repo) runBar(args ...string) {
-	r.runBarIn(r.dir, baseConfig(), args...)
+func (f *fixture) runBar(args ...string) {
+	f.runBarIn(f.dir, baseConfig(), args...)
 }
 
-func (r *repo) runBarIn(cwd string, cfg Config, args ...string) {
-	r.stdout.Reset()
-	r.stderr.Reset()
-	r.code = Run("voice-check.sh", append([]string{"--density"}, args...), cwd, cfg, &r.stdout, &r.stderr)
+func (f *fixture) runBarIn(cwd string, cfg Config, args ...string) {
+	f.runIn(cwd, cfg, append([]string{"--density"}, args...)...)
 }
 
 func TestBarIsAModeOnlyAsTheFirstArgument(t *testing.T) {
@@ -27,7 +25,7 @@ func TestBarIsAModeOnlyAsTheFirstArgument(t *testing.T) {
 	r.expectNoStdout()
 }
 
-func newRepoWithLeanBaseline(t *testing.T) *repo {
+func newRepoWithLeanBaseline(t *testing.T) *fixture {
 	t.Helper()
 	r := newRepo(t)
 	lean := strings.Repeat("code()\n", 9) + "// one\n"
@@ -170,7 +168,8 @@ func TestBaseRevisionNamesWhatTheDiffComparedAgainst(t *testing.T) {
 }
 
 func TestBaseRevisionOfASymmetricRangeIsTheMergeBase(t *testing.T) {
-	host := hostRepo{root: newRepoWithLeanBaseline(t).dir}
+	r := newRepoWithLeanBaseline(t)
+	host := hostRepo{git: r.git, root: r.dir}
 	got, err := host.baseRevision([]string{"HEAD...HEAD"})
 	if err != nil {
 		t.Fatalf("merge base of HEAD with itself failed: %v", err)
@@ -234,35 +233,33 @@ func TestBarPathspecWithRevisionsKeepsTheirBase(t *testing.T) {
 
 func TestBarRefusesOutsideARepository(t *testing.T) {
 	r := newRepo(t)
-	r.runBarIn(t.TempDir(), baseConfig())
+	r.runBarIn(r.notARepository(), baseConfig())
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("not inside a git repository")
 	r.expectNoStdout()
 }
 
 func TestBarInARepositoryWithNoCommitNamesThat(t *testing.T) {
-	r := newRepo(t)
-	unborn := t.TempDir()
-	if err := git(unborn, "init", "-q"); err != nil {
-		t.Fatalf("could not init the unborn repo: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(unborn, "heavy.go"), []byte("// a\n// b\n// c\ncode()\n"), 0o644); err != nil {
-		t.Fatalf("could not write the fixture: %v", err)
-	}
+	r := newUnbornRepo(t)
+	r.write("heavy.go", "// a\n// b\n// c\ncode()\n")
 
-	r.runBarIn(unborn, baseConfig())
+	r.runBar()
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("this repository has no commit yet")
 	r.expectStderrLacks("rejected these arguments")
 	r.expectNoStdout()
 }
 
+// Real git, because git's own words are the subject: a fake stating them would be agreeing with
+// itself about a sentence only git writes.
 func TestBarCarriesGitsOwnAccountOfABadRevision(t *testing.T) {
-	r := newRepoWithLeanBaseline(t)
+	r := newRealRepo(t)
 	r.runBar("no-such-revision")
 	r.expectCode(exitDidNotRun)
 	r.expectStderrHas("git rejected these arguments")
-	r.expectStderrHas("git said: fatal: ")
+	// The port names the command it ran before quoting git, so git's sentence no longer opens the line.
+	r.expectStderrHas("git said: ")
+	r.expectStderrHas("fatal: bad revision")
 	r.expectStderrHas("no-such-revision")
 	r.expectNoStdout()
 }
@@ -417,9 +414,7 @@ func TestBarSkipsASymlinkRatherThanFollowingIt(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("// a\n// b\n// c\ncode()\n"), 0o644); err != nil {
 		t.Fatalf("could not write the target outside the repo: %v", err)
 	}
-	if err := os.Symlink(outside, filepath.Join(r.dir, "link.go")); err != nil {
-		t.Fatalf("could not plant the symlink: %v", err)
-	}
+	r.symlink("link.go", outside)
 
 	r.runBar()
 	r.expectCode(exitDidNotRun)
@@ -444,7 +439,12 @@ func TestBarSkipsABinaryFileUnread(t *testing.T) {
 // `git diff HEAD` is "ambiguous" once a file named HEAD sits in the working tree, and the branch under
 // review can commit one; the listings end in `--` whether a pathspec follows or not, so the bar runs.
 func TestBarRunsWithAFileNamedHEADInTheTree(t *testing.T) {
-	r := newRepoWithLeanBaseline(t)
+	// Real git, because the refusal being averted is git's own, and no fake can be made to give it.
+	r := newRealRepo(t)
+	lean := strings.Repeat("code()\n", 9) + "// one\n"
+	r.write("a.go", lean)
+	r.write("b.go", lean)
+	r.commit("baseline")
 	r.write("HEAD", "// a\n// b\n// c\ncode()\n")
 
 	r.runBar()
@@ -570,7 +570,9 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 		r.write("rewritten.go", "// old one\n// old two\n"+strings.Repeat("code()\n", 8))
 		r.commit("the file arrives")
 		// Same code, every comment line replaced: the change wrote all of its comment mass.
-		r.write("rewritten.go", heavy(40, 0)+strings.Repeat("code()\n", 8))
+		rewrite := heavy(40, 0)
+		r.write("rewritten.go", rewrite+strings.Repeat("code()\n", 8))
+		r.added("rewritten.go", strings.Split(strings.TrimSuffix(rewrite, "\n"), "\n")...)
 		r.runBar()
 		r.expectStdoutHas("rewritten.go: 40 comment line(s), 100% written here")
 	})
@@ -663,9 +665,7 @@ func TestBarTakesItsBaselineListFromTheContentRevision(t *testing.T) {
 	r.commit("a file the range still had")
 	r.write("heavy.go", "// a\n// b\n// c\n// d\n// e\n// f\ncode()\n")
 	r.commit("the commit this range names")
-	if err := os.Remove(filepath.Join(r.dir, "gone.go")); err != nil {
-		t.Fatalf("could not delete the fixture: %v", err)
-	}
+	r.remove("gone.go")
 	r.commit("later work deletes it")
 
 	r.runBar("HEAD~2..HEAD~1")

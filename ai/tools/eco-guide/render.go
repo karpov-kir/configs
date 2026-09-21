@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Every placeholder the template may carry. The set is closed in both directions: a template missing

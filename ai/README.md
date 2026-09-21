@@ -38,9 +38,8 @@ Other machines and fresh clones still need their own project installation.
 Project setup requires mise. It reuses a working installation or installs only mise through an
 existing Homebrew installation. If neither is available, it reports the prerequisite and stops;
 follow [mise's installation instructions](https://mise.jdx.dev/installing-mise.html) and rerun.
-Project MCP setup reuses Node on PATH or obtains it through mise; the first run may download
-that runtime. It does not
-install RTK, sync user MCP settings, prebuild every Go tool, or run repository tests.
+It does not install RTK, sync user MCP settings, prebuild every Go tool, or run
+the repository gate.
 Go tools resolve on first use; that requires Go if a verified binary is not already available.
 
 For agents performing a project install: use the requested client and project, inspect the resulting
@@ -56,8 +55,8 @@ Choose `--agent=claude` or `--agent=codex` for every install and uninstall. Ther
 ai/bootstrap.sh --agent=codex          # Codex, machine-wide
 ai/bootstrap.sh --agent=claude         # Claude Code, machine-wide
 ai/bootstrap.sh --agent=codex --maintainer  # include ecosystem maintenance skills
-ai/bootstrap-owner.sh --agent=claude   # Claude owner instructions, maintainer skills and RTK
-ai/bootstrap-owner.sh --agent=codex    # same owner instructions, maintainer skills and RTK
+ai/bootstrap.sh --agent=claude --owner      # owner instructions, maintainer skills and RTK
+ai/bootstrap.sh --agent=codex --owner       # the same for Codex
 ```
 
 | Target | Machine skills | Machine instructions | Project skills | Project instructions |
@@ -127,7 +126,7 @@ coordinator, which dispatches bounded leaf workers and waits on completion. Inde
 and security reviews keep separate contexts; fixes reopen affected evidence.
 
 `kk-edit` combines the former concision and humanization passes for prose and comments. It preserves
-meaning and stops at an edited artifact. the skillcraft worker remains the focused skill-structure lane;
+meaning and stops at an edited artifact. The skillcraft worker remains the focused skill-structure lane;
 `kk-ecosystem` owns instruction semantics and applies its ordered checks within one worker. A full
 ecosystem audit requires an explicit request. The editor never deletes agent obligations.
 
@@ -140,7 +139,7 @@ Qualification receipts use the `edit` stage. Existing receipts using the retired
 require requalification. A not-applicable skip needs a scope receipt for the exact review base and
 candidate; unknown paths and security surfaces keep their reviews.
 
-Machine bootstrap installs `jq` (`brew install jq`) and syncs `mcp.jsonc` plus the optional gitignored
+Machine bootstrap syncs `mcp.jsonc` plus the optional gitignored
 `mcp.private.jsonc` with `mcp-sync.sh --agent=codex` or `--agent=claude`. Codex stdio servers retain
 their command, arguments and environment; HTTP servers use Codex's streamable HTTP transport.
 Authenticate servers that require OAuth with `codex mcp login <name>` after syncing.
@@ -154,7 +153,7 @@ Use `rtk proxy <command>` when exact output is needed, including every diff read
 - `--dry-run`: report changes without writing them.
 - `--relocate`: authorize moving mounts from another checkout; otherwise the installer refuses before writing.
 - `--skip-tools`, `--skip-brew`, `--skip-mcp`, `--skip-rtk`: skip the corresponding machine step.
-- `--skip-verify`: skip the repository suites, which bootstrap runs last by default.
+- `--skip-verify`: skip `ai/gate.sh`, which bootstrap runs last by default.
 
 Re-runs preserve correct links and unchanged owned regions. A target owned by somebody else or a
 modified fenced region is refused. Bootstrap also removes its stale skill links after a skill disappears.
@@ -213,10 +212,10 @@ rule for waiting without adding to the pile.
 
 - [Claude Code](https://code.claude.com)
   - Mount the shared standards, templates, scripts and skills: `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
-  - Add this line to `~/.claude/CLAUDE.md`: ``Read `~/.kk-flavor/inject.md` now and follow it``. For owner instructions, use `ai/bootstrap-owner.sh --agent=claude`; it installs a regular copy and tracks it for upgrades.
+  - Add this line to `~/.claude/CLAUDE.md`: ``Read `~/.kk-flavor/inject.md` now and follow it``. For owner instructions, use `ai/bootstrap.sh --agent=claude --owner`; it installs a regular copy and tracks it for upgrades.
   - Mount each skill under `ai/kk-flavor/skills/`: `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/kk-flavor/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
   - Install the Go tools the skills run (needs `gh`, not Go): `~/Documents/WP/configs/ai/tools/install.sh`. Re-run after a new release. Skip it and the skills build from source on first use, which does need Go.
-  - Sync the MCP files described above with `~/Documents/WP/configs/ai/mcp-sync.sh --agent=claude`. This needs `jq` (`brew install jq`) and registers servers for every project in the CLI and IDE. Re-run after editing either file. HTTP registration does not contact the server. If it shows `! Needs authentication`, run `/mcp` in an interactive session to log in.
+  - Sync the MCP files described above with `~/Documents/WP/configs/ai/mcp-sync.sh --agent=claude`. It registers servers for every project in the CLI and IDE. Re-run after editing either file. HTTP registration does not contact the server. If it shows `! Needs authentication`, run `/mcp` in an interactive session to log in.
   - The `chrome-devtools` server drives the Chrome you already have open. Turn remote debugging on once at `chrome://inspect/#remote-debugging` (Chrome 144+). While it's on, any session can reach that profile, so untick it when you're done.
 - [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before the agent reads it
   - `brew install rtk`
@@ -240,7 +239,8 @@ ai/bootstrap.sh --agent=claude --uninstall
 ```
 
 Uninstall removes owned symlinks and fenced regions, preserving surrounding instructions. For an
-owner installation, use `ai/bootstrap-owner.sh --agent=claude|codex --uninstall` to remove its instruction copy.
+owner installation, use `ai/bootstrap.sh --agent=claude|codex --owner --uninstall` to remove its
+instruction copy.
 Bootstrap lists recorded projects still using the checkout; uninstall those before deleting it.
 
 Tool binaries live in `ai/tools/bin/` and go with the checkout. Uninstall preserves client sessions,

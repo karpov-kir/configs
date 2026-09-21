@@ -10,7 +10,7 @@
 // policy resolves for it. A worker declares no frontmatter, so those two are its only sources, and
 // neither can be edited to flatter the other.
 //
-// The frontmatter is read through `kk-flavor/tools/shell`, the same parser eco-check routes on, so the
+// The frontmatter is read through `ai/tools/shell`, the same parser eco-check routes on, so the
 // page cannot describe a skill differently from the way it is actually reached. What that parser
 // returns is the raw YAML scalar; unquoting it for a reader is this package's, in inventory.go.
 //
@@ -25,7 +25,8 @@
 // disagree with the page.
 //
 // It is a library with a thin command beside it, for the reason ecocheck and ecostats are: the suite
-// drives it once per case, and a process spawn per case is what makes a mutation run take hours.
+// drives it once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets.
 // Nothing here writes to os.Stdout or calls os.Exit, and nothing holds state between calls.
 //
 // Three exit codes, and never anything else. 0 — the page is written, the committed one already
@@ -42,9 +43,9 @@ import (
 	"slices"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	modelpolicy "kk-flavor/tools/model-policy"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 const (

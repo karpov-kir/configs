@@ -11,6 +11,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"configs/ai/tools/repo"
 )
 
 const (
@@ -35,9 +37,12 @@ const (
 // changed with how the binary was reached would leave that test no fixed text to compare.
 const stubName = "voice-check.sh"
 
-// Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
-// refused where a revision belongs, and one after `--` narrows the scan to it.
-const usage = "usage: " + stubName + " [--density | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
+// Every form a caller writes by hand, in the order the binary takes them. The pathspec half is real: a
+// bare path is refused where a revision belongs, and one after `--` narrows the scan to it.
+//
+// The stub's header states this line word for word, and a case holds the two together, so a flag added
+// here is added there in the same edit.
+const usage = "usage: " + stubName + " [--density | --per-file | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
 // stderr under the tool's name, and the rest of the package writes there through this type alone. The
@@ -134,12 +139,12 @@ func (s *stats) add(other stats) {
 // reports a change set's comment lines beside the host repository's rate, and always exits 0,
 // because no edit turns on that figure. `--density` selects the mode only as the first argument.
 // Later in the arguments it is an option like any other, and refused as one.
-func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
+func Run(self string, args []string, cwd string, git repo.Git, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--density" {
-		return bar(out, args[1:], cwd, cfg)
+		return bar(out, args[1:], cwd, git, cfg)
 	}
-	return voice(out, args, cwd, cfg)
+	return voice(out, args, cwd, git, cfg)
 }
 
 func notThisRepositorysSource(file string) bool {

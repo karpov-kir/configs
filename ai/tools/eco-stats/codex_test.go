@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	ecostats "kk-flavor/tools/eco-stats"
+	ecostats "configs/ai/tools/eco-stats"
 )
 
 func TestStatsRequiresAgentAndMeasuresCodexBudget(t *testing.T) {

@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"kk-flavor/tools/cadence"
+	"configs/ai/tools/cadence"
+	"configs/ai/tools/repo"
 )
 
 func main() {
@@ -20,5 +21,5 @@ func main() {
 	}
 	// argv[0] as the stub was invoked by, which `exec -a` preserved: every refusal then names the
 	// path the human actually ran.
-	os.Exit(cadence.Run(filepath.Base(os.Args[0]), os.Args[1:], cwd, time.Now, os.Stdout, os.Stderr))
+	os.Exit(cadence.Run(filepath.Base(os.Args[0]), os.Args[1:], cwd, repo.Exec{}, time.Now, os.Stdout, os.Stderr))
 }

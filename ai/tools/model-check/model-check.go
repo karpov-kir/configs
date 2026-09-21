@@ -33,9 +33,9 @@ import (
 	"os/exec"
 	"time"
 
-	modelpolicy "kk-flavor/tools/model-policy"
-	readerjudge "kk-flavor/tools/reader-judge"
-	"kk-flavor/tools/shell"
+	modelpolicy "configs/ai/tools/model-policy"
+	readerjudge "configs/ai/tools/reader-judge"
+	"configs/ai/tools/shell"
 )
 
 // Long enough that a slow API does not read as a bad name, short enough that a handful cannot hold a

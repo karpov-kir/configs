@@ -19,8 +19,9 @@ import (
 	"sort"
 	"strings"
 
-	readerjudge "kk-flavor/tools/reader-judge"
-	"kk-flavor/tools/shell"
+	readerjudge "configs/ai/tools/reader-judge"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const factsOption = "--facts="
@@ -76,7 +77,10 @@ func holdsDirective(lines []string, u readerjudge.Unit) bool {
 // Strip runs the grammar this file's header states. The facts directory must be empty or absent: a
 // file already there reads exactly like one this run wrote, and the writer would take another block's
 // facts as this one's.
-func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int {
+//
+// The repository arrives as a parameter because only --changed asks it anything, and a case driving
+// every other path should not have to build one.
+func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr io.Writer) int {
 	refuse := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "%s: %s — the strip did NOT run\n", self, fmt.Sprintf(format, a...))
 		fmt.Fprintf(stderr, "%s\n", usage)
@@ -142,7 +146,7 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 	lines := shell.SplitLines(content)
 	offer := func(readerjudge.Unit) bool { return true }
 	if changed {
-		added, err := readerjudge.AddedLines(cwd, path, revisions)
+		added, err := readerjudge.AddedLines(git, cwd, path, revisions)
 		if err != nil {
 			return refuse("%v", err)
 		}

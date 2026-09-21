@@ -7,20 +7,25 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
-// The fixture for the `--` in scripts.go's parse call, whose own comment says what a root opening
-// with a dash costs when `bash -n` reads it as an option. Built at all because the root arrives as a
-// literal argument, so its leading byte is the caller's to choose.
-//
-// The root has to be relative, because an absolute one always opens on `/`. That is what the chdir is
-// for, and why this case cannot be built on the fixture every other case here uses.
-func newDashLeadingRoot(t *testing.T) (root string, output string) {
+// The only case in this package that forks. Every other one hands the checker a bash that answers from
+// a table, and two parses per script cost this suite 802 processes at ~100ms each. Those processes
+// said little about what the checker does with the answer.
+
+// A table cannot stand in for the answer itself. `bash -n` reports a script that will not parse and
+// stays quiet about one that will, and the older bash refuses what the newer accepts. So this case
+// drives the real binaries, over a fixture of its own holding one script of each kind.
+
+// The root opens with a dash, which is scripts.go's `--` rule. `bash -n -r/…` without it answers `-r:
+// invalid option`, dumps its usage, and leaves the file unopened. The root has to be relative, because
+// an absolute one always opens on `/`, and that is what the chdir is for.
+
+// One run, and every case in this function reads it. A fixture per case would multiply the only forks
+// left here by four.
+func newRealBashRun(t *testing.T) (root string, output string) {
 	t.Helper()
-	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skip("no bash on PATH, so nothing here parses a script at all")
-	}
 	base := t.TempDir()
 	root = "-r"
 	for _, dir := range []string{base + "/" + root + "/kk-flavor/standards", base + "/" + root + "/kk-flavor/skills"} {
@@ -31,32 +36,70 @@ func newDashLeadingRoot(t *testing.T) (root string, output string) {
 	if err := os.WriteFile(base+"/"+root+"/kk-flavor/inject.md", []byte("# Flavor\n"), 0o644); err != nil {
 		t.Fatalf("write inject.md: %v", err)
 	}
-	// Broken on purpose: a parse that really opened the file has something to report, and one that
-	// never got past bash's option handling has only bash's usage.
-	script := base + "/" + root + "/kk-flavor/skills/broken.sh"
-	if err := os.WriteFile(script, []byte("if then\n"), 0o755); err != nil {
-		t.Fatalf("write broken.sh: %v", err)
+	// `|&` parses under bash 4 and later and is a syntax error before it, so a machine carrying both
+	// reports it under the older one alone. That is what the second parse is for.
+	scripts := map[string]string{"broken.sh": "if then\n", "parses.sh": "true\n", "v4.sh": "true |& cat\n"}
+	for name, body := range scripts {
+		if err := os.WriteFile(base+"/"+root+"/kk-flavor/skills/"+name, []byte(body), 0o755); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
 	}
 	t.Chdir(base)
 
-	return root, runChecker(t, "--agent=claude", root)
+	return root, runChecker(t, noRepository, ecocheck.InstalledBash{}, "--agent=claude", root)
 }
 
-func TestAScriptUnderADashLeadingRootIsParsedAndNotReadAsAnOption(t *testing.T) {
+func TestTheParseScanRunsARealBash(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash on PATH, so nothing here parses a script at all")
+	}
+	root, output := newRealBashRun(t)
+
 	t.Run("reports the script's own syntax error", func(t *testing.T) {
-		root, output := newDashLeadingRoot(t)
 		needle := ecocheck.SyntaxError + root + "/kk-flavor/skills/broken.sh: line 1: syntax error"
 		if !strings.Contains(output, needle) {
 			t.Errorf("expected a finding containing %q\n%s", needle, output)
 		}
 	})
 
+	// The control for "reports the script's own syntax error". A scan that called every script a syntax
+	// error would pass that case. The tables every other case here is written against would then be
+	// standing in for a bash that refuses everything.
+	t.Run("and raises no syntax error for the script that parses (control for the case above)", func(t *testing.T) {
+		needle := ecocheck.SyntaxError + root + "/kk-flavor/skills/parses.sh"
+		if strings.Contains(output, needle) {
+			t.Errorf("a script that parses was reported as a syntax error, so a real bash is not deciding this\n%s", output)
+		}
+	})
+
 	t.Run("and does not report bash refusing the path as an option", func(t *testing.T) {
-		_, output := newDashLeadingRoot(t)
 		if strings.Contains(output, "invalid option") {
 			t.Errorf("bash was handed the path as an option and never opened the file\n%s", output)
 		}
 	})
+
+	// The second binary earning its process. macOS still ships 3.2 as /bin/bash, and skills reach their
+	// scripts through `#!/usr/bin/env bash`. A construct only bash 5 accepts is a stage that dies on a
+	// colleague's machine and nowhere else.
+	t.Run("reports a construct only the newer bash accepts, under the older one", func(t *testing.T) {
+		if !refusesTheBash4Pipe(t, "/bin/bash") || refusesTheBash4Pipe(t, "bash") {
+			t.Skip("this machine has no pair of bash binaries that disagree about `|&`, so nothing here separates them")
+		}
+		needle := ecocheck.SyntaxError + root + "/kk-flavor/skills/v4.sh: line 1: syntax error"
+		if !strings.Contains(output, needle) {
+			t.Errorf("expected a finding containing %q — the older bash was asked and its answer was lost\n%s",
+				needle, output)
+		}
+	})
+}
+
+func refusesTheBash4Pipe(t *testing.T, binary string) bool {
+	t.Helper()
+	path := t.TempDir() + "/probe.sh"
+	if err := os.WriteFile(path, []byte("true |& cat\n"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	return exec.Command(binary, "-n", path).Run() != nil
 }
 
 func TestScriptTestPosition(t *testing.T) {
@@ -80,6 +123,37 @@ func TestScriptTestPosition(t *testing.T) {
 		newCoveredScript(t).doesNotReport(noPosition)
 	})
 
+	// A script whose cases are in the module. `ai/mcp-env.sh` is the script in this tree that cannot
+	// have a `-test.sh`. An MCP client launches it from a path written into a config, so it stays shell
+	// and a Go package execs it once per case.
+	t.Run("accepts a header naming a Go package that holds a suite", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/ai/tools/launcher")
+		f.write(f.root+"/ai/tools/launcher/launcher_test.go", "package launcher\n")
+		f.newScript("launcher.sh", "#!/usr/bin/env bash\n# tested by: the Go suite in ai/tools/launcher/, which execs it.\ntrue")
+		f.doesNotReport(noPosition, missingTest)
+	})
+
+	// The tools root package is an answer too, and a script outside that Go module has to give it. Go
+	// keys a test cache on the module, and a package under it answers `ok (cached)` over a script that
+	// had changed. The header names it with no subdirectory, which is how that package is spelt.
+	t.Run("accepts a header naming the tools root package", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/ai/tools")
+		f.write(f.root+"/ai/tools/launcher_test.go", "package tools_test\n")
+		f.newScript("launcher.sh", "#!/usr/bin/env bash\n# tested by: the Go suite in ai/tools/, which execs it.\ntrue")
+		f.doesNotReport(noPosition, missingTest)
+	})
+
+	// A header naming a Go package is held to what a named -test.sh is held to. A package that is absent
+	// would leave the script counting as covered by a suite that does not exist.
+	t.Run("fires on a header naming a Go package with no suite in it", func(t *testing.T) {
+		f := newRoot(t)
+		f.mkdirAll(f.root + "/ai/tools/launcher")
+		f.newScript("launcher.sh", "#!/usr/bin/env bash\n# tested by: the Go suite in ai/tools/launcher/, which execs it.\ntrue")
+		f.reports(missingTest)
+	})
+
 	t.Run("accepts an explicit untested: declaration with a reason", func(t *testing.T) {
 		f := newRoot(t)
 		f.newScript("waived.sh", "#!/usr/bin/env bash\n# untested: a four-line wrapper whose only failure mode is the exec bit.\ntrue")
@@ -93,10 +167,9 @@ func TestScriptTestPosition(t *testing.T) {
 	})
 
 	// The harness is exempt: asking a test file to name its own test makes every one of them a finding.
-	t.Run("asks nothing of -test.sh and -mutate.sh themselves", func(t *testing.T) {
+	t.Run("asks nothing of -test.sh itself", func(t *testing.T) {
 		f := newRoot(t)
 		f.newScript("harness-test.sh", "#!/usr/bin/env bash\ntrue")
-		f.newScript("harness-mutate.sh", "#!/usr/bin/env bash\ntrue")
 		f.doesNotReport(noPosition)
 	})
 
@@ -294,11 +367,18 @@ func TestATestPositionFindingNamesTheScriptByPath(t *testing.T) {
 func TestParseErrorsCarryNoControlByte(t *testing.T) {
 	newEscapedScriptName := func(t *testing.T) *fixture {
 		f := newRoot(t)
-		f.newScript("ev\x1b[2Kil.sh", "if then")
+		f.newUnparsableScript("ev\x1b[2Kil.sh", "if then", unexpectedThen(1), "line 1: `if then'")
 		return f
 	}
 
 	assertNoControlByteEscapes(t, "the syntax error", ecocheck.SyntaxError, newEscapedScriptName)
+}
+
+// What a real `bash -n` writes about a script that opens `if then`, which is the body every fixture here
+// uses when only the refusal matters. Two lines, and each becomes a finding of its own —
+// TestTheParseScanRunsARealBash is where the real binaries are held to this shape.
+func unexpectedThen(line int) string {
+	return fmt.Sprintf("line %d: syntax error near unexpected token `then'", line)
 }
 
 // `bash -n` reads the script and nothing else, so two files holding the same bytes have the same
@@ -306,19 +386,19 @@ func TestParseErrorsCarryNoControlByte(t *testing.T) {
 // script inheriting a clean one's silence, which is why only the clean answer is held.
 //
 // Every case here checks the tree twice, because the memo is held for the process and one run cannot
-// observe it: the parse workers reach both copies of a script at once, and neither has stored
-// anything yet. Every fixture carries a marker line of its own for the same reason — the cases share
-// one memo, so a fixture reusing another's bytes would pass on the answer that case's fork left.
+// observe it: the parse workers reach both copies of a script at once, and neither has stored anything
+// yet. A fixture's bash names its binaries after its own case, so what one case stored can never
+// answer another's. The memo is keyed on the binary as well as the bytes.
 func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 	// The half that would be a silent hole. Both copies are reported by their own path on a run where
 	// the bytes have been seen before, or a tree hides a broken script behind a clean one.
 	t.Run("reports a broken script on a run that has already parsed its bytes", func(t *testing.T) {
-		f := newRepeatedScript(t, "repeated-broken", "if then")
+		f := newRepeatedBrokenScript(t)
 		f.reportsOnASecondRun(f.root + "/kk-flavor/skills/second.sh: line 2")
 	})
 
 	t.Run("and reports the first copy of it too", func(t *testing.T) {
-		f := newRepeatedScript(t, "repeated-broken-b", "if then")
+		f := newRepeatedBrokenScript(t)
 		f.reportsOnASecondRun(f.root + "/kk-flavor/skills/first.sh: line 2")
 	})
 
@@ -326,45 +406,51 @@ func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
 	// and differ by their last byte, so a memo keyed on anything coarser answers for both.
 	t.Run("parses a script differing from a clean one by its last byte alone", func(t *testing.T) {
 		f := newRoot(t)
-		f.newScript("clean.sh", "# marker: one-byte\ntrue; :")
-		f.newScript("broken.sh", "# marker: one-byte\ntrue; (")
+		f.newScript("clean.sh", "# padding: one-byte\ntrue; :")
+		f.newUnparsableScript("broken.sh", "# padding: one-byte\ntrue; (",
+			"line 2: syntax error: unexpected end of file")
 		f.reportsOnASecondRun(ecocheck.SyntaxError)
 	})
 
 	t.Run("stays quiet on two copies of a script that parses", func(t *testing.T) {
-		newRepeatedScript(t, "repeated-clean", "# untested: fixture\ntrue").doesNotReportOnASecondRun(ecocheck.SyntaxError)
+		newRepeatedScript(t, "# untested: fixture\ntrue").doesNotReportOnASecondRun(ecocheck.SyntaxError)
+	})
+
+	// What the memo is FOR, and the only place it is observable. It changes no finding. It decides
+	// whether a check pays a process for bytes it has already been answered about. A real run of this
+	// repository walks 29 distinct scripts and parses each under two binaries. With the memo gone, the
+	// suite in front of it spent 802 processes at ~100ms each.
+	t.Run("asks nothing of a second run over bytes it has already parsed", func(t *testing.T) {
+		f := newRepeatedScript(t, "# untested: fixture\ntrue")
+		first, second := f.parseCounts()
+		if first == 0 {
+			t.Fatal("the first run parsed nothing, so a second parsing nothing observes no memo at all")
+		}
+		if second != 0 {
+			t.Errorf("a second check of the same tree parsed %d time(s) rather than none — every check "+
+				"after the first pays those processes again for bytes it has already been answered about", second)
+		}
 	})
 }
 
-// Two scripts holding the same bytes, marked so no other case's fork can answer for them.
-func newRepeatedScript(t *testing.T, marker, body string) *fixture {
+// Two scripts holding the same bytes.
+func newRepeatedScript(t *testing.T, body string) *fixture {
 	t.Helper()
 	f := newRoot(t)
-	f.newScript("first.sh", "# marker: "+marker+"\n"+body)
-	f.newScript("second.sh", "# marker: "+marker+"\n"+body)
+	f.newScript("first.sh", body)
+	f.newScript("second.sh", body)
 	return f
 }
 
-// A script is parsed under every bash `#!/usr/bin/env bash` could resolve to, because macOS still
-// ships 3.2 as /bin/bash and it rejects what bash 5 accepts. The memo is per binary for that reason,
-// and this is the case that says so: `|&` parses under bash 4 and later and is a syntax error before
-// it, so one binary answering for the other loses the finding entirely.
-func TestEachBashVersionIsAskedSeparately(t *testing.T) {
-	if !refusesTheBash4Pipe(t, "/bin/bash") || refusesTheBash4Pipe(t, "bash") {
-		t.Skip("this machine has no pair of bash binaries that disagree about `|&`, so nothing here separates them")
-	}
-	f := newRoot(t)
-	f.newScript("v4.sh", "# untested: fixture\ntrue |& cat")
-	f.reportsOnASecondRun(ecocheck.SyntaxError)
-}
-
-func refusesTheBash4Pipe(t *testing.T, binary string) bool {
+// The same pair, neither of which parses. One registration covers both, the way one `bash -n` answer
+// would: the refusal is keyed on the bytes, and each copy is still named by its own path. The offending
+// line sits second, so a finding that lost the line bash named reads differently from one that kept it.
+func newRepeatedBrokenScript(t *testing.T) *fixture {
 	t.Helper()
-	path := t.TempDir() + "/probe.sh"
-	if err := os.WriteFile(path, []byte("true |& cat\n"), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-	return exec.Command(binary, "-n", path).Run() != nil
+	const body = "# untested: fixture\nif then"
+	f := newRepeatedScript(t, body)
+	f.bash.Refuse(body+"\n", unexpectedThen(2), "line 2: `if then'")
+	return f
 }
 
 func newCoveredScript(t *testing.T) *fixture {

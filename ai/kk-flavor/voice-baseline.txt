@@ -2,7 +2,7 @@
 #
 # What a run of `voice-check.sh --profile=instruction` reports over
 # ai/kk-flavor/standards/, workers/, skills/ and templates/ today. A file may only go down.
-# The instruction lane's wiring check reads this file and repairs a file that rose.
+# The instruction lane reads this file and repairs a file that rose. No check enforces it.
 #
 # The file is deleted when every count here reaches zero, which is what the pass that rewrites
 # the register of the rest of the tree is for.
@@ -13,7 +13,7 @@
 125 ai/kk-flavor/standards/ecosystem.md
 99 ai/kk-flavor/standards/skill-protocol.md
 97 ai/kk-flavor/skills/idsd-reactor/SKILL.md
-71 ai/kk-flavor/standards/testing.md
+69 ai/kk-flavor/standards/testing.md
 53 ai/kk-flavor/skills/kk-foreman/SKILL.md
 51 ai/kk-flavor/skills/kk-pr/SKILL.md
 49 ai/kk-flavor/standards/quality-pipeline.md

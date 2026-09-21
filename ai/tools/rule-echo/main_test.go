@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestBoldSpans(t *testing.T) {
@@ -422,5 +423,123 @@ func TestTheReportNamesEachGroupAndCountsItInTheSummary(t *testing.T) {
 	report{read: 4}.writeTo(&bare)
 	if strings.Contains(bare.String(), "naming the same dependency") || strings.Contains(bare.String(), "citing the other's file") {
 		t.Errorf("an empty group still counted itself into the summary: %s", bare.String())
+	}
+}
+
+// One run of the whole tool, as a caller sees it: the status, and what it printed on the way there.
+func runOver(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	return run(args, &out, &errOut), out.String(), errOut.String()
+}
+
+// A tree holding one rule in two files. The headline is the only place this tool says a restatement
+// was found. Exit 0 is what a clean tree gives and what an empty scan gives too, so the status and
+// the headline are asserted together.
+func TestARuleStatedInTwoFilesIsReportedAndFailsTheRun(t *testing.T) {
+	root := t.TempDir()
+	const rule = "a shared rule stating several discriminating words plainly"
+	writeRule(t, root, "a/one.md", rule)
+	writeRule(t, root, "b/two.md", rule)
+
+	code, out, errOut := runOver(t, root)
+	if code != 1 {
+		t.Fatalf("exit %d over a tree stating one rule twice, want 1; stderr was %q", code, errOut)
+	}
+	if !strings.Contains(out, "rule stated twice") {
+		t.Errorf("the report does not name the restatement it was pointed at:\n%s", out)
+	}
+	if !strings.Contains(out, "1 pair(s) stating the same thing in two files") {
+		t.Errorf("the summary does not count the pair:\n%s", out)
+	}
+}
+
+// The other half of the pair, and the reason the first case is short alone. The same rule stated
+// once has to leave the run clean. A tool that failed every tree would otherwise satisfy
+// TestARuleStatedInTwoFilesIsReportedAndFailsTheRun.
+func TestATreeWithNothingRestatedLeavesTheRunClean(t *testing.T) {
+	root := t.TempDir()
+	writeRule(t, root, "a/one.md", "a shared rule stating several discriminating words plainly")
+
+	code, out, errOut := runOver(t, root)
+	if code != 0 {
+		t.Fatalf("exit %d over a tree with nothing restated, want 0; stderr was %q", code, errOut)
+	}
+	if strings.Contains(out, "rule stated twice") {
+		t.Errorf("a single statement was reported as a restatement:\n%s", out)
+	}
+}
+
+// The two ways a run cannot happen, and both are 2 where a clean tree exits 0. This is the only
+// cross-file restatement detector there is. A scan that never ran has to reach a caller as a
+// refusal, and an empty result would hide it.
+func TestARunThatCouldNotScanRefusesRatherThanReadingAsClean(t *testing.T) {
+	empty := t.TempDir()
+	if err := os.WriteFile(filepath.Join(empty, "notes.txt"), []byte("not markdown\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"no root at all", nil, "usage: ruleecho.sh <root> [file ...]"},
+		{"a root holding nothing to read", []string{empty}, "ruleecho.sh: nothing read under"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			code, out, errOut := runOver(t, c.args...)
+			if code != 2 {
+				t.Errorf("exit %d, want 2", code)
+			}
+			if !strings.Contains(errOut, c.want) {
+				t.Errorf("stderr %q does not carry %q", errOut, c.want)
+			}
+			if out != "" {
+				t.Errorf("a refusal printed a report:\n%s", out)
+			}
+		})
+	}
+}
+
+// A partial read outranks the pair count. The restatement it did find is real and stays printed. The
+// run cannot claim there are no others, and exit 1 would be read as the whole answer.
+func TestAScanShownLessThanTheTreeExitsTwoEvenHavingFoundARestatement(t *testing.T) {
+	root := t.TempDir()
+	const rule = "a shared rule stating several discriminating words plainly"
+	writeRule(t, root, "a/one.md", rule)
+	writeRule(t, root, "b/two.md", rule)
+
+	// The control. This same tree exits 1 with the unread path removed, so the 2 this case asserts
+	// comes from the path going unread. The pair was found either way.
+	if code, _, _ := runOver(t, root); code != 1 {
+		t.Fatalf("the fixture exits %d before anything is hidden, so this case proves nothing", code)
+	}
+	if err := os.Symlink(filepath.Join(root, "a/one.md"), filepath.Join(root, "linked.md")); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	code, out, errOut := runOver(t, root)
+	if code != 2 {
+		t.Errorf("exit %d over a tree that was not read whole, want 2", code)
+	}
+	if !strings.Contains(out, "rule stated twice") {
+		t.Errorf("the restatement it did find was dropped:\n%s", out)
+	}
+	if !strings.Contains(out, "NOT read, so this is a partial scan") {
+		t.Errorf("the summary does not say the scan was partial:\n%s", out)
+	}
+	if !strings.Contains(errOut, "ruleecho.sh: ") || !strings.Contains(errOut, "could not be read — exit 2") {
+		t.Errorf("stderr %q does not say why the run refused", errOut)
+	}
+}
+
+func writeRule(t *testing.T, root, rel, rule string) {
+	t.Helper()
+	p := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("# "+rel+"\n\n**"+rule+"**\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }

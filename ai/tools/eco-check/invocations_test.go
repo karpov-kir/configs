@@ -3,7 +3,7 @@ package ecocheck_test
 import (
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // A dropped flag leaves every path resolving, so no other check here sees it. The defect this catches

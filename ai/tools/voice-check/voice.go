@@ -21,8 +21,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"kk-flavor/tools/diffscan"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 // A block over this many text lines is a wall. A file header gets more, because a header carries the
@@ -872,24 +873,37 @@ func ScanFile(profile Profile, coined []string, allowed allowlist, file, content
 }
 
 // voice runs the register check, which is what bare arguments select.
-func voice(out console, args []string, cwd string, cfg Config) int {
+func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int {
 	profile := ProfileComment
-	for len(args) > 0 && strings.HasPrefix(args[0], "--profile=") {
-		named := Profile(strings.TrimPrefix(args[0], "--profile="))
-		switch named {
-		case ProfileComment, ProfileProse, ProfileInstruction:
-			profile = named
+	counts := false
+flags:
+	for len(args) > 0 {
+		switch {
+		case strings.HasPrefix(args[0], "--profile="):
+			named := Profile(strings.TrimPrefix(args[0], "--profile="))
+			switch named {
+			case ProfileComment, ProfileProse, ProfileInstruction:
+				profile = named
+			default:
+				return out.refuseArguments(fmt.Errorf("no profile %q — the scan did NOT run. Profiles: comment prose instruction",
+					shell.CutBytesMarked(shell.Oneline(string(named)), 40)))
+			}
+		case args[0] == "--per-file":
+			counts = true
 		default:
-			return out.refuseArguments(fmt.Errorf("no profile %q — the scan did NOT run. Profiles: comment prose instruction",
-				shell.CutBytesMarked(shell.Oneline(string(named)), 40)))
+			break flags
 		}
 		args = args[1:]
+	}
+	if counts && profile == ProfileComment {
+		return out.refuseArguments(errors.New("--per-file counts the findings in each path it is given, " +
+			"and the comment profile is handed a diff — the scan did NOT run"))
 	}
 
 	// The arguments are read before anything else, and refused with the grammar. The scan would instead
 	// hand the caller a git failure, which is silent about what this tool takes.
 	if profile == ProfileComment && len(args) > 0 && args[0] != "-" {
-		if err := diffscan.RefuseNonRevisions(args, cwd); err != nil {
+		if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 			return out.refuseArguments(err)
 		}
 	}
@@ -909,10 +923,13 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 	s := scanner{profile: profile, coined: coined, domain: domain, allowed: allowed, suppressed: &suppressed,
 		notice: func(line string) { out.note("%s", line) }}
 	over := scanned{conf: conf}
+	if counts {
+		return reportCounts(out, s, profile, args, cwd, cfg, &over)
+	}
 
 	var found []Finding
 	if profile == ProfileComment {
-		found, err = s.scanChange(args, cwd, cfg, &over)
+		found, err = s.scanChange(args, cwd, git, cfg, &over)
 	} else {
 		found, err = s.scanPaths(args, cwd, cfg, &over)
 	}
@@ -927,7 +944,7 @@ func voice(out console, args []string, cwd string, cfg Config) int {
 // is how the negative control runs over `gh pr diff`. Blocks are runs of ADDED comment lines, so the
 // scan needs no working tree: a block split by a line the diff did not touch is two blocks, which is
 // what a reviewer reading the diff sees too.
-func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
+func (s scanner) scanChange(args []string, cwd string, git repo.Git, cfg Config, over *scanned) ([]Finding, error) {
 	fromStdin := len(args) > 0 && args[0] == "-"
 	var diff []byte
 	var err error
@@ -936,10 +953,10 @@ func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned
 			return nil, fmt.Errorf("the diff on stdin %v — exit 2, the scan did NOT run", err)
 		}
 	} else {
-		if err = diffscan.RefuseNonRevisions(args, cwd); err != nil {
+		if err = diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 			return nil, err
 		}
-		if diff, err = diffscan.Diff(cwd, args); err != nil {
+		if diff, err = diffscan.Diff(git, cwd, args); err != nil {
 			return nil, err
 		}
 	}
@@ -955,7 +972,7 @@ func (s scanner) scanChange(args []string, cwd string, cfg Config, over *scanned
 	// that skipped it would report clean over the change most worth reading.
 	named, _ := diffscan.RevisionsNamed(args)
 	if !fromStdin && len(named) == 0 {
-		if err := s.readUntracked(added, cwd, cfg); err != nil {
+		if err := s.readUntracked(added, cwd, git, cfg); err != nil {
 			return nil, err
 		}
 	}
@@ -1046,10 +1063,10 @@ func (s scanner) readDiff(a *addedLines, diff []byte) error {
 	return nil
 }
 
-func (s scanner) readUntracked(a *addedLines, cwd string, cfg Config) error {
+func (s scanner) readUntracked(a *addedLines, cwd string, git repo.Git, cfg Config) error {
 	var result diffscan.Result
 	options := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes, SkipSecretNamed: true, Announce: s.announce}
-	err := result.WalkUntracked(cwd, options, func(line diffscan.AddedLine) {
+	err := result.WalkUntracked(git, cwd, options, func(line diffscan.AddedLine) {
 		if !s.skip(a, line, &result) {
 			a.take(line.File, line.Line, line.Text)
 		}
@@ -1219,6 +1236,37 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 		return exitClean
 	}
 	out.note("each finding is an edit the lane makes, not a count to drive down. A finding that must stand goes in the allowlist with its reason.")
+	return exitFound
+}
+
+// reportCounts prints one line per path: the finding count, a space, and the path as it was given. A
+// path with no findings gets a line too. reportVoice, the function that prints findings, shows at most
+// maxFindings, a const in this file. A count is one line however many findings it counts, so that cap
+// does not apply here.
+func reportCounts(out console, s scanner, profile Profile, args []string, cwd string, cfg Config, over *scanned) int {
+	if len(args) == 0 {
+		return out.refuse(fmt.Errorf("--per-file needs a path to count, and the %s profile got none — the scan did NOT run", profile))
+	}
+	total := 0
+	for _, arg := range args {
+		found, err := s.scanPaths([]string{arg}, cwd, cfg, over)
+		if err != nil {
+			// The counts already printed stay on stdout. The caller pairs them back against the paths it
+			// asked for, and the last path with a line is where the run stopped.
+			return out.refuse(err)
+		}
+		fmt.Fprintf(out.stdout, "%d %s\n", len(found), arg)
+		total += len(found)
+	}
+	over.suppressed = *s.suppressed
+	out.note("%s profile: %d finding(s) over %d file(s), %d declined unread.",
+		profile, total, over.files, over.declined)
+	if over.suppressed > 0 {
+		out.note("%d finding(s) suppressed by the allowlist in %s.", over.suppressed, over.conf)
+	}
+	if total == 0 {
+		return exitClean
+	}
 	return exitFound
 }
 

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The width and the count a finding is bounded to before anything is printed. A finding quotes text
@@ -61,8 +61,7 @@ var rankTable = []struct {
 	{syntaxError, 0},
 
 	// Three rows, because scanSharedRegions emits three kinds and one row would hold all three as one
-	// class. mutants.go anchors on the first two as a contiguous pair, so reordering them breaks that
-	// anchor.
+	// class.
 	{sharedRegionHasDrifted, 1},
 	{sharedRegionNotChecked, 1},
 	{sharedRegionWithoutCounterpart, 1},
