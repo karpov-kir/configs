@@ -593,13 +593,9 @@ var codeSubjects = map[string]bool{"this": true, "these": true, "it": true, "the
 // subjectWords is how many words of the main clause are read as its subject.
 const subjectWords = 3
 
-// AboutThisCode says whether a claim's subject names this code. The rule asks a note for a fact about
-// a device, a format or a vendor's asset. A claim whose subject is the site's own element is about
-// the code the reader is looking at.
-//
-// It reports and never drops: 158 of 304 notes on the reviewed set, because a domain noun is an
-// identifier. The consequence clause is exempt, since the note pattern gives it this code's element
-// as its subject by design.
+// AboutThisCode says whether a claim's subject names this code. It reports and never drops: 158 of
+// 304 notes on the reviewed set, because a domain noun is an identifier. The consequence clause is
+// exempt, since the note pattern gives it this code's element as its subject by design.
 func AboutThisCode(note string, identifiers map[string]bool) (subject string, about bool) {
 	main := note
 	if at := reSoClauseHead.FindStringIndex(main); at != nil {
