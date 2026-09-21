@@ -341,22 +341,25 @@ func (t *Tally) add(sentence string) {
 
 // Report is what one run of the census measured.
 type Report struct {
-	Files     int
-	Blocks    int
-	Summaries int
-	Notes     int
-	Shapes    []Tally
-	Verbs     []Tally
-	Coined    Tally
-	Long      Tally
-	SoNamed   Tally
-	SoPronoun Tally
-	SoUnnamed Tally
-	SoBoth    Tally
-	Restating Tally
-	Spelled   Tally
-	ShownBy   Tally
-	AboutCode Tally
+	Files      int
+	Blocks     int
+	Summaries  int
+	Notes      int
+	Shapes     []Tally
+	Verbs      []Tally
+	Coined     Tally
+	Long       Tally
+	SoNamed    Tally
+	SoPronoun  Tally
+	SoUnnamed  Tally
+	SoBoth     Tally
+	Restating  Tally
+	Spelled    Tally
+	ShownBy    Tally
+	AboutCode  Tally
+	BareFact   Tally
+	Unanchored Tally
+	BareIdent  Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -384,6 +387,9 @@ func Measure(files [][]string) Report {
 	spelled := &Tally{Name: "compound-the-code-spells"}
 	shownBy := &Tally{Name: "note-shown-by-the-body"}
 	aboutCode := &Tally{Name: "note-about-this-code"}
+	bareFact := &Tally{Name: "note-with-no-second-sentence"}
+	unanchored := &Tally{Name: "note-opening-on-another-actor"}
+	bareIdent := &Tally{Name: "bare-identifier-in-a-note"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
@@ -398,12 +404,34 @@ func Measure(files [][]string) Report {
 			}
 			// The keep test's first drop, as a step: a claim whose every content word the declaration
 			// already spells is shown by the body. The census counts it before it lands, like every rule here.
-			for _, note := range b.Notes() {
+			notes := b.Notes()
+			// A fact with no sentence saying what this code does about it reads out of the blue. The
+			// count is of note sections that are one sentence long.
+			// A bare fact is one sentence that adds no more than itself. The rule exempts a fact whose
+			// subject is the site's declaration, and a consequence in a clause counts as said.
+			if len(notes) == 1 && !reCarriesConsequence.MatchString(notes[0]) {
+				if _, aboutSite := AboutThisCode(notes[0], words); !aboutSite {
+					bareFact.add(notes[0])
+				}
+			}
+			// A note opening on an actor the site does not name is the same complaint with a
+			// consequence attached. The site's subject is what its declaration spells.
+			// A sentence opening on a summary's verb is a summary, whatever the loose declaration shape
+			// made of the line under it. The count read such a summary as a note on another actor.
+			if len(notes) > 0 && !opensOnASummaryVerb(notes[0]) {
+				if _, anchored := AboutThisCode(notes[0], words); !anchored {
+					unanchored.add(notes[0])
+				}
+			}
+			for _, note := range notes {
 				if survived, hadContent := Restates(note, words); hadContent && len(survived) == 0 {
 					shownBy.add(note)
 				}
 				if subject, ok := AboutThisCode(note, identifiers); ok {
 					aboutCode.add(subject + " || " + note)
+				}
+				for _, bare := range BareIdentifiers(note, words) {
+					bareIdent.add(bare + " || " + note)
 				}
 			}
 		}
@@ -476,6 +504,9 @@ func Measure(files [][]string) Report {
 	rep.Spelled = *spelled
 	rep.ShownBy = *shownBy
 	rep.AboutCode = *aboutCode
+	rep.BareFact = *bareFact
+	rep.Unanchored = *unanchored
+	rep.BareIdent = *bareIdent
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }
@@ -642,3 +673,43 @@ func AboutThisCode(note string, identifiers map[string]bool) (subject string, ab
 }
 
 var reSoClauseHead = regexp.MustCompile(`(?i),\s+so\b`)
+
+var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
+var reAppositive = regexp.MustCompile(`^\s*,`)
+
+// BareIdentifiers returns the hump-cased tokens a note names without saying what they are. A reader
+// who cannot place a name reads the sentence as being about something else. The site's own
+// declaration is exempt, since the block sits on it.
+func BareIdentifiers(note string, declared map[string]bool) []string {
+	var out []string
+	for _, at := range reCamelToken.FindAllStringIndex(note, -1) {
+		token := note[at[0]:at[1]]
+		if declared[strings.ToLower(token)] {
+			continue
+		}
+		// An appositive places it: `preferredKeySystems, the source's list of allowed systems`.
+		if reAppositive.MatchString(note[at[1]:]) {
+			continue
+		}
+		out = append(out, token)
+	}
+	return out
+}
+
+// reCarriesConsequence marks a sentence that says what follows from its fact, in a clause of its own
+// where a second sentence would also serve. The rule asks for the consequence, and a reader gets it
+// either way.
+var reCarriesConsequence = regexp.MustCompile(`(?i)\b(so|because|since|which|where|when|unless|as)\b`)
+
+// opensOnASummaryVerb says whether a sentence begins the way a summary does, on its verb. Those are
+// summaries the block split left among the notes.
+func opensOnASummaryVerb(sentence string) bool {
+	for _, raw := range strings.Fields(sentence) {
+		word := stemOf(raw)
+		if word == "" || stopWords[word] {
+			continue
+		}
+		return openingVerbs[word]
+	}
+	return false
+}

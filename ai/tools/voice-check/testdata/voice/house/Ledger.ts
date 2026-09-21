@@ -84,3 +84,10 @@ export function claimFromPeriodBlindAnswer(book: Element): boolean {
 export function toEntries(set: Element): Element[] {
   return [];
 }
+
+/**
+ * A claim is dropped where preferredSettlements no longer names it.
+ */
+export function dropStaleClaims(book: Element): Element[] {
+  return [];
+}

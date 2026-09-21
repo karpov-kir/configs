@@ -109,6 +109,7 @@ const (
 	checkCounterfact   = "counterfactual-consequence"
 	checkAnthropo      = "anthropomorphism"
 	checkElidedVerb    = "elided-verb"
+	checkBareIdent     = "bare-identifier"
 	checkLongSentence  = "long-sentence"
 	checkClauseDepth   = "clause-depth"
 	checkDoubleNeg     = "double-negative"
@@ -118,7 +119,7 @@ const (
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
-	checkCounterfact, checkAnthropo, checkElidedVerb,
+	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon}
 
 var (
@@ -496,6 +497,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool) []
 	identifiers := identifierWordsOf(lines)
 	for _, b := range commentBlocksIn(lines, held) {
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
+		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(lines, b))...)
 		limit := voiceLongBlock
 		if b.isFileHeader(lines, held) {
 			limit = voiceLongHeader
@@ -635,6 +637,9 @@ var (
 
 	// A verb the sentence borrows from a clause before it, which the reader supplies again. 1 of 711.
 	reElidedVerb = regexp.MustCompile(`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`)
+
+	// `no` before a comparative is the ordinary word, as in "saying no more than itself".
+	reComparativeTail = regexp.MustCompile(`(?i)^\s+(more|longer|further|fewer|less|worse|better)\b`)
 )
 
 // SentenceShapes are the three comment-only checks, exported so comment-census counts the patterns
@@ -676,10 +681,14 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if s.profile == ProfileComment || s.profile == ProfileProse {
 		for _, name := range []string{checkCounterfact, checkAnthropo, checkElidedVerb} {
 			for _, pattern := range SentenceShapes()[name] {
-				if at := pattern.FindStringIndex(prose); at != nil {
-					add(name, at[0], at[1])
-					break
+				at := pattern.FindStringIndex(prose)
+				// `no` before a comparative is the ordinary word, as in "saying no more than itself".
+				// The check reported its own documentation there.
+				if at == nil || reComparativeTail.MatchString(prose[at[1]:]) {
+					continue
 				}
+				add(name, at[0], at[1])
+				break
 			}
 		}
 	}
@@ -1289,6 +1298,35 @@ func identifierWordsOf(lines []string) map[string]bool {
 	return out
 }
 
+// A hump-cased name, and the comma that would place it.
+var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
+var reAppositiveTail = regexp.MustCompile(`^\s*,`)
+
+// placeableNames are the terms of art a reader already places, spelled the way an identifier is.
+// This check reported three of them in its own comment, which is what that run is for.
+var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": true, "macos": true,
+	"tvos": true, "watchos": true, "iphone": true, "ipad": true, "javascript": true, "typescript": true}
+
+// bareIdentifiers finds a name a block uses without saying what it is. A reader who cannot place a
+// name reads the sentence as being about something else. An appositive places one, and the site's own
+// declaration needs none. It reached 37 of 304 notes on a sixty-file set, and its false positives are
+// the terms of art in placeableNames, a list of names a reader already knows.
+func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
+	var found []Finding
+	for at := b.start; at <= b.end && at <= len(lines); at++ {
+		text := proseOf(lines[at-1])
+		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
+			token := text[span[0]:span[1]]
+			if declared[strings.ToLower(token)] || placeableNames[strings.ToLower(token)] ||
+				reAppositiveTail.MatchString(text[span[1]:]) {
+				continue
+			}
+			found = append(found, Finding{File: file, Line: at, Check: checkBareIdent, Text: token})
+		}
+	}
+	return found
+}
+
 // coinedIdentifiers finds a hyphenated compound in a block whose camelCase join the code spells. The
 // code invented the word and the prose took it, so the rename lane owns it. A compound the conf
 // names as the domain's passes. comment-census's README holds the measurement that seeds it.
@@ -1308,4 +1346,21 @@ func (s scanner) coinedIdentifiers(file string, b block, lines []string, identif
 		}
 	}
 	return found
+}
+
+// declaredAt is what the declaration under a block spells, which is the name a block may use without
+// placing it. The block sits on that declaration, so its reader has the name in front of them.
+func declaredAt(lines []string, b block) map[string]bool {
+	at := b.end + 1
+	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
+		at++
+	}
+	out := map[string]bool{}
+	if at > len(lines) {
+		return out
+	}
+	for _, word := range reIdentifierWord.FindAllString(lines[at-1], -1) {
+		out[strings.ToLower(word)] = true
+	}
+	return out
 }

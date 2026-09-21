@@ -133,13 +133,24 @@ func TestADeclinedSiteFailsNoTextCheck(t *testing.T) {
 	}
 }
 
-func TestTheSentenceCeilingCountsTheBlocksSentences(t *testing.T) {
-	long := "/** One. Two. Three. Four. */"
-	if !checkedBy(Score(ParseReturn(long)), "over-the-sentence-ceiling") {
-		t.Errorf("four sentences did not reach the ceiling")
-	}
-	if checkedBy(Score(ParseReturn("/** A summary. One note. Two notes. */")), "over-the-sentence-ceiling") {
+// The ceiling is the note's two sentences, and the summary sits outside it. A check counting the
+// block put a summary and a two-sentence note over a limit neither of them breaks.
+func TestTheSentenceCeilingCountsTheNoteAndNotTheSummary(t *testing.T) {
+	allowed := ParseReturn("summary: needed\nnote: written\n/** A summary. One note. Two notes. */")
+	if checkedBy(Score(allowed), "over-the-sentence-ceiling") {
 		t.Errorf("a summary and two notes reached the ceiling, and that is the shape the rule allows")
+	}
+	overLong := ParseReturn("summary: needed\nnote: written\n/** A summary. One. Two. Three. */")
+	if !checkedBy(Score(overLong), "over-the-sentence-ceiling") {
+		t.Errorf("three note sentences did not reach the ceiling")
+	}
+	noSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. Three. */")
+	if !checkedBy(Score(noSummary), "over-the-sentence-ceiling") {
+		t.Errorf("three note sentences with no summary did not reach the ceiling")
+	}
+	twoNoSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. */")
+	if checkedBy(Score(twoNoSummary), "over-the-sentence-ceiling") {
+		t.Errorf("two note sentences reached the ceiling")
 	}
 }
 
@@ -198,5 +209,25 @@ func TestThePartAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
 	}
 	if got := r.Text(); got != "A closing period posts in the base currency." {
 		t.Errorf("block text %q", got)
+	}
+}
+
+// A writer returns the declaration under the block as often as not. A score counting that line as a
+// sentence put seven of twenty-one plain blocks over the note's ceiling. That is a parser reading
+// code as prose, and the writer had broken no rule.
+func TestTheDeclarationUnderTheBlockIsNoSentence(t *testing.T) {
+	r := ParseReturn("summary: none\nnote: written\n" +
+		"```ts\n" +
+		"/**\n" +
+		" * HAVE_CURRENT_DATA is undefined on some ledgers.\n" +
+		" * This file spells the number out instead.\n" +
+		" */\n" +
+		"const HAVE_CURRENT_DATA = 2;\n" +
+		"```\n")
+	if strings.Contains(r.Text(), "const HAVE_CURRENT_DATA") {
+		t.Fatalf("the declaration is in the block's text: %q", r.Text())
+	}
+	if got := Score(r); checkedBy(got, "over-the-sentence-ceiling") {
+		t.Errorf("two note sentences reached the ceiling: %+v", got)
 	}
 }

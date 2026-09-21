@@ -1,0 +1,10 @@
+expect: written
+note: written
+why: a fact standing alone reads out of the blue; Kirill on 2026-09-21 called the same shape "Same", after calling its neighbour "This looks out of blue and hard to follow"; the second sentence says what this code does about the fact
+labelled: 2026-09-21
+--- code
+export function knownSchemeNames(clearing: Clearing): string[] {
+  return SCHEME_NAMES[clearing] ?? [];
+}
+--- facts
+The audit framework probes its own scheme names, and `direct-cash-legacy` is not among them.

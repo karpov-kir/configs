@@ -1467,3 +1467,92 @@ func TestCountingWithNoPathRefusesTheRun(t *testing.T) {
 	r.expectStderrHas("needs a path")
 	r.expectNoStdout()
 }
+
+// `no` before a comparative is the ordinary English word. The check reported its own documentation,
+// and a false positive announces itself there.
+func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
+	lines := []string{
+		"// A bare fact is one sentence saying no more than itself.",
+		"export function readFact(book: Element): string {",
+		"  return '';",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", lines, nil) {
+		if f.Check == checkAnthropo {
+			t.Errorf("reported %q, and that is the ordinary word before a comparative", f.Text)
+		}
+	}
+	saying := []string{
+		"// A device can say no to the entry type.",
+		"export function readClaim(book: Element): string {",
+		"  return '';",
+		"}",
+	}
+	found := false
+	for _, f := range voiceScanner().scanSource("f.ts", saying, nil) {
+		if f.Check == checkAnthropo {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the guard silenced a true finding, which is the control for it")
+	}
+}
+
+// A name the block's own declaration spells needs no placing: the reader has it in front of them. A
+// name from elsewhere is placed by an appositive, or the reader cannot tell what it is.
+func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
+	declared := []string{
+		"/** Drops a claim that dropStaleClaims no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", declared, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and the declaration under the block spells it", f.Text)
+		}
+	}
+	placed := []string{
+		"/** Drops a claim that preferredSettlements, the ledger's allowed schemes, no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", placed, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and an appositive places it", f.Text)
+		}
+	}
+	bare := []string{
+		"/** Drops a claim that preferredSettlements no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	found := false
+	for _, f := range voiceScanner().scanSource("f.ts", bare, nil) {
+		if f.Check == checkBareIdent && f.Text == "preferredSettlements" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("a name from elsewhere with nothing placing it was not reported")
+	}
+}
+
+// A term of art spelled like an identifier is a name a reader already places. The check reported
+// three of them in its own comment, which is the run that finds this class.
+func TestATermOfArtIsNoBareIdentifier(t *testing.T) {
+	lines := []string{
+		"/** A name in camelCase, on a display narrower than sRGB, on iOS. */",
+		"export function readName(book: Element): string {",
+		"  return '';",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", lines, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and a reader places that word already", f.Text)
+		}
+	}
+}

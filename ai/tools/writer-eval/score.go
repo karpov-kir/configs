@@ -100,10 +100,24 @@ func ParseReturn(raw string) Return {
 	return out
 }
 
-// Text is the block with its comment markers removed, which is what every check below reads.
+// Text is the block's comment lines with their markers removed, which is what every check below
+// reads. A writer returns the declaration under the block as often as not, and a declaration counted
+// as a sentence put seven of twenty-one plain blocks over the note's two-sentence ceiling.
 func (r Return) Text() string {
 	var out []string
+	inSpan := false
 	for _, line := range strings.Split(r.Block, "\n") {
+		trimmed := strings.TrimSpace(line)
+		opens := strings.HasPrefix(trimmed, "/*")
+		marked := inSpan || opens || blockMarker.MatchString(line)
+		if strings.Contains(trimmed, "*/") {
+			inSpan = false
+		} else if opens {
+			inSpan = true
+		}
+		if !marked {
+			continue
+		}
 		cut := blockMarker.ReplaceAllString(line, "")
 		cut = strings.TrimSuffix(strings.TrimSpace(cut), "*/")
 		out = append(out, strings.TrimSpace(cut))
@@ -151,8 +165,16 @@ func Score(r Return) []Failure {
 			add("metaphor-verb", stem)
 		}
 	}
-	if len(sentences) > noteSentences+1 {
-		add("over-the-sentence-ceiling", fmt.Sprintf("%d sentences", len(sentences)))
+	// The ceiling is the note's, and the summary sits outside it. The rule's two-sentence bound is in
+	// the note paragraph, and the block's own bound is four prose lines. A check counting the block
+	// put a summary and a two-sentence note over a limit neither of them breaks, and the plain half
+	// went from 6% failing to 15%.
+	inNote := sentences
+	if r.Summary == PartWritten && len(inNote) > 0 {
+		inNote = inNote[1:]
+	}
+	if len(inNote) > noteSentences {
+		add("over-the-sentence-ceiling", fmt.Sprintf("%d note sentence(s)", len(inNote)))
 	}
 	for _, v := range r.Verbs {
 		if v.Class == "figure" {

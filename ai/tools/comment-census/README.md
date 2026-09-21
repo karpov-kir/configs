@@ -124,3 +124,14 @@ noun is the thing that puts it in the code.
 
 So a presence test over the code's own vocabulary cannot reach this class. What decides it is the
 writer's judgement, and what holds that judgement is the fixture.
+
+## A new check is run over its own comment
+
+Three checks have reported their own documentation on the first run they were given. `coined-identifier`
+found the compound in the sentence explaining it. `anthropomorphism` found the phrase it was cut for,
+in the comment naming that phrase. Then `anthropomorphism` found "saying no more than itself", where
+`no` is the ordinary word before a comparative, and that one was the check in the wrong.
+
+So the first thing a new check is asked is its own comment. A finding there is one of two things: a
+comment that should take the plain wording, or a false positive announcing itself before it reaches
+anybody's diff. Both are worth having before the check lands.

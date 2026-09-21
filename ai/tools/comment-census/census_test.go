@@ -156,6 +156,9 @@ func TestCensusOverThePlainSet(t *testing.T) {
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.Restating.Name, rep.Restating.Count, rep.Summaries)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.ShownBy.Name, rep.ShownBy.Count, rep.Notes)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.AboutCode.Name, rep.AboutCode.Count, rep.Notes)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.BareFact.Name, rep.BareFact.Count, rep.Blocks)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.Unanchored.Name, rep.Unanchored.Count, rep.Blocks)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.BareIdent.Name, rep.BareIdent.Count, rep.Notes)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.Spelled.Name, rep.Spelled.Count,
 		rep.Spelled.Count+rep.Coined.Count)
 	fmt.Fprintf(&out, "\n%-30s %6d  %d\n", "coined-compound", rep.Coined.Count, rep.Blocks)
@@ -179,6 +182,15 @@ func TestCensusOverThePlainSet(t *testing.T) {
 		}
 		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", v.Name, len(v.Samples), v.Count)
 		for _, sample := range v.Samples {
+			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	for _, tally := range []Tally{rep.BareFact, rep.Unanchored, rep.BareIdent} {
+		if len(tally.Samples) == 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", tally.Name, len(tally.Samples), tally.Count)
+		for _, sample := range tally.Samples {
 			fmt.Fprintf(&out, "  %s\n", sample)
 		}
 	}
