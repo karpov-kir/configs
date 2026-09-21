@@ -47,11 +47,11 @@ var configFiles = map[string]string{
 // Every message a human reads from this tool, whichever client it was asked about.
 const label = "project MCP"
 
-// `configsDir` is the directory holding `mcp.jsonc`, which is the tool's own directory. The caller
-// resolves it from the path the stub was invoked by.
+// configsDir, a parameter of Run, is the directory holding `mcp.jsonc`, which is the tool's own
+// directory. The caller resolves it from the path the stub was invoked by.
 
-// `home` is the home directory refuseHome compares against. It arrives as a value, so no case in the
-// suite can reach the owner's own by reading the environment.
+// `home` is the home directory refuseHome, the guard method, compares against. It arrives as a value,
+// so no case in the suite can reach the owner's own by reading the environment.
 
 // Run executes one invocation and returns its exit code.
 func Run(self string, args []string, configsDir, home string, git repo.Git, stdout, stderr io.Writer) int {
@@ -142,9 +142,9 @@ func isKnownAgent(agent string) bool {
 
 // The whole of one run: resolve the project, work out what the file should hold, and write it.
 func (run *invocation) do(stdout io.Writer) error {
-	// The path is made absolute as well as symlink-free, because refuseHome compares it against paths
-	// that already are. `.` is what a human standing in their home types, and a relative spelling
-	// reaching the home guard matches none of what it guards.
+	// The path is made absolute as well as symlink-free, because refuseHome, the guard method, compares
+	// it against paths that already are. `.` is what a human standing in their home types, and a
+	// relative spelling reaching the home guard matches none of what it guards.
 	project, err := shell.RealPath(run.project)
 	if err != nil {
 		return err

@@ -384,10 +384,10 @@ func TestANameThatCouldBecomeSomethingOtherThanADirectoryIsRefusedAsAName(t *tes
 // Three properties at once, because a resolver that dropped any of them would still look like it
 // worked.
 
-// The binary is REPLACED into, so its own exit status is what a caller sees. Its arguments arrive
-// whole and in order. stdout carries exactly what the tool printed, which is why the whole stream is
+// The binary is REPLACED into, so its own exit status is what a caller sees. Its arguments arrive whole
+// and in order. stdout carries exactly what the tool printed, which is why the whole stream is
 // asserted. A search would pass over an extra line. The fourth property, argv[0], is
-// stub_reach_test.go's, for the reason reportingBinary states.
+// stub_reach_test.go's, for the reason reportingBinary, the fake tool const, states.
 func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)

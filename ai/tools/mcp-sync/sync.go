@@ -63,8 +63,8 @@ type Client interface {
 // PATH. The suite passes a function returning a fake that records what it was asked to register.
 type NewClient func(agent string) (Client, error)
 
-// `configsDir` is the directory holding the declaration files and the launcher, which is the tool's
-// own directory. The caller resolves it from the path the stub was invoked by, so the suite can drive
+// configsDir, the directory holding the declaration files and the launcher, is the tool's own
+// directory. The caller resolves it from the path the stub was invoked by, so the suite can drive
 // many fixtures without moving a shared process.
 
 // Run executes one invocation and returns its exit code.

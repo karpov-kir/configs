@@ -642,8 +642,8 @@ func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 //
 // Reports false the moment the write finishes instead — which is what a lock excluding nothing does,
 // and the only other end this loop has. Nothing here is bounded by the clock. A starved machine merely
-// sends the loop round more times, and the suite timeout the gate gives every package
-// (gate/gate.go, budgetSeconds) is what ends a run whose write never arrives at all.
+// sends the loop round more times. The suite timeout the gate gives every package (budgetSeconds, the
+// const in gate/gate.go) is what ends a run whose write never arrives at all.
 func awaitTheWriteParkedOnTheLock(id string, landed <-chan struct{}) (string, bool) {
 	confirmed := false
 	for {

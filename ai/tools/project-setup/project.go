@@ -158,8 +158,8 @@ func hookBody() string {
 	}, "\n") + "\n"
 }
 
-// Whether a hook already in a repository is one this installer wrote, and therefore one it may replace
-// or remove. Every spelling this has ever written, newest first. supersededHookBody is here because a
+// Whether a hook already in a repository is one this installer wrote, and so may replace or remove.
+// Every spelling this has ever written, newest first. supersededHookBody, the const, stays because a
 // hook is compared byte for byte. Drop it, and an install refuses to touch the older hook while an
 // uninstall leaves it firing on every checkout. It goes once no machine still carries that spelling.
 func isOurHookBody(body string) bool {

@@ -8,8 +8,8 @@ type targets struct {
 	agentDirectory      string
 	otherAgentDirectory string
 	skillsMount         string
-	// instructionsFile is the shared file both clients load. claudeFile imports it and holds no second
-	// copy, so the two clients cannot disagree about the instructions.
+	// instructionsFile is the shared file both clients load. claudeFile, a field of targets, imports it
+	// and holds no second copy, so the two clients cannot disagree about the instructions.
 	instructionsFile string
 	claudeFile       string
 	ignoreFile       string

@@ -45,8 +45,8 @@ const untrackedSecret = "a-credential-no-ref-would-ever-point-at\n"
 
 func TestMain(m *testing.M) {
 	// The developer's own git config must not reach these fixtures. Both variables, because NOSYSTEM
-	// blocks /etc/gitconfig alone. A global core.excludesFile is what actually reaches in here, and
-	// one holding *.txt turns every case in this file red on correct code.
+	// blocks /etc/gitconfig alone. A global core.excludesFile, the config key, is what actually reaches in
+	// here, and one holding *.txt turns every case in this file red on correct code.
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	// The identity the commits in this file need, set in the environment instead of in each
@@ -111,9 +111,9 @@ type fixture struct {
 // assembled by hand would be asserting against a shape git did not make.
 
 // The untracked nested repository is named `wt*` for the case about a nested repository whose name
-// globs over its siblings. Every other case that needs a nested repository needs no more of it, and
-// a second one would be four more processes to prove the same exclusion twice. `wtKEEP` is the
-// sibling directory that name globs over.
+// globs over its siblings. Every other case that needs a nested repository needs no more of it, and a
+// second one would be four more processes to prove the same exclusion twice. wtKEEP, a directory in
+// the fixture, is the sibling that name globs over.
 
 // The repository every case reads, holding every shape they need at once. It carries a tracked file,
 // a tracked file that matches an ignore rule, and a subdirectory. It also carries a repository
@@ -293,8 +293,8 @@ func (f *fixture) nestedFiles(t *testing.T) {
 }
 
 // The other half: a gitlink HEAD already holds is a declared submodule, and its pointer is part of
-// what this repository tracks. A recipe that dropped every gitlink would pass nestedCommits and
-// nestedFiles, and go blind on a submodule bump.
+// what this repository tracks. A recipe that dropped every gitlink would pass the cases nestedCommits,
+// and nestedFiles, and go blind on a submodule bump.
 func (f *fixture) declaredSubmodule(t *testing.T) {
 	git(t, filepath.Join(f.dir, "declared"), "commit", "-q", "--allow-empty", "-m", "the submodule moves on")
 	if before, after := f.reading(t); after == before {
@@ -363,8 +363,8 @@ func (f *fixture) whatMoves(t *testing.T) {
 // it is pointed at. The throwaway store is what keeps that content out of the repository's own.
 // Content written there has no ref pointing at it, and gc leaves it in place for good.
 func (f *fixture) untrackedStaysOutOfTheStore(t *testing.T) {
-	// whatMoves took the fingerprint that would have written it. With the file gone this case asks
-	// about a blob the store was never offered, and its absence would prove only that.
+	// whatMoves, a case in this file, took the fingerprint that would have written it. With the file gone
+	// this case asks about a blob the store was never offered, and its absence would prove only that.
 	if _, err := os.Stat(filepath.Join(f.dir, "secret.txt")); err != nil {
 		t.Fatalf("the untracked credential is not in the tree, so this case would prove nothing: %v", err)
 	}
@@ -502,8 +502,8 @@ func (f *fixture) argumentTable(t *testing.T) {
 	}
 }
 
-// The invocation with no path at all: the default every caller of the stub takes, and the single
-// branch argumentTable cannot reach, since every row of it supplies a path.
+// The invocation with no path at all: the default every caller of the stub takes. It is the single
+// branch argumentTable, a case in this file, cannot reach, since every row of it supplies a path.
 func (f *fixture) noPath(t *testing.T) {
 	t.Chdir(f.dir)
 	var out, errOut bytes.Buffer

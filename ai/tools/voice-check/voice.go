@@ -1240,8 +1240,9 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 }
 
 // reportCounts prints one line per path: the finding count, a space, and the path as it was given. A
-// path with no findings gets a line too. maxFindings bounds the findings reportVoice prints, and a
-// count is one line however many findings it counts, so that cap does not apply here.
+// path with no findings gets a line too. reportVoice, the function that prints findings, shows at most
+// maxFindings, a const in this file. A count is one line however many findings it counts, so that cap
+// does not apply here.
 func reportCounts(out console, s scanner, profile Profile, args []string, cwd string, cfg Config, over *scanned) int {
 	if len(args) == 0 {
 		return out.refuse(fmt.Errorf("--per-file needs a path to count, and the %s profile got none — the scan did NOT run", profile))

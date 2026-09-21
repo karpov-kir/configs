@@ -12,7 +12,7 @@ import (
 // The owner tier's memory store, and where an owner install before this one put it. The spelling was
 // `Document` for months, which no other tool on a Mac uses, and the owner's own instructions name
 // `Documents`. A fix to the destination alone would leave every entry already written at a path no
-// session reads, so moveLegacyOwnerMemory moves them.
+// session reads, so moveLegacyOwnerMemory, a step of the install run, moves them.
 const (
 	ownerMemoryFile = "/Documents/AI/MEMORY.md"
 	legacyMemoryOne = "/Document/AI/MEMORY.md"
@@ -244,8 +244,9 @@ func (run *invocation) moveLegacyOwnerMemory() bool {
 	}
 	if run.isDryRun {
 		run.mounting.Say("  would move " + legacy + " to " + memory)
-		// A dry run moves no file. ensureOwnerMemory then finds the destination absent and says it would
-		// create one. That is two lines that cannot both hold, about the file this exists to protect.
+		// A dry run moves no file. ensureOwnerMemory, the step that follows, then finds the destination
+		// absent and says it would create one. That is two lines that cannot both hold, about the file
+		// this exists to protect.
 		return false
 	}
 	if err := os.MkdirAll(shell.DirName(memory), 0o755); err != nil {

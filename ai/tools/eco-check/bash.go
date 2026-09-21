@@ -10,8 +10,8 @@ import (
 // fixture once per binary that machine happens to carry, and the fork count is what the seam takes out.
 type Bash interface {
 	// Binaries names every bash a `#!/usr/bin/env bash` line could resolve to here. An empty answer is a
-	// machine carrying none. scanScriptsParse reports that as a scan that failed to run, which keeps the
-	// tree from reading as clean scripts.
+	// machine carrying none. scanScriptsParse, the parse scan, reports that as a scan that failed to
+	// run, which keeps the tree from reading as clean scripts.
 	Binaries() []string
 
 	// Parse answers what `bash -n` writes about one script, and empty for one that parses. Bash exits

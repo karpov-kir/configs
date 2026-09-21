@@ -10,9 +10,9 @@ import (
 // The mode a config file is created with when the project has none yet.
 const newConfigMode = 0o644
 
-// writeConfig replaces the file by rename. A followed symlink writes outside the project, at whatever
-// the link names, and a followed hard link breaks a link the project deliberately made. The human
-// sees neither outcome, so a link here is refused.
+// writeConfig, the function that writes a project's config file, replaces it by rename. A followed
+// symlink writes outside the project, at whatever the link names, and a followed hard link breaks a
+// link the project deliberately made. The human sees neither outcome, so a link here is refused.
 
 // The previous contents of a project's config file, or empty where there is none.
 func readConfig(file string) (string, error) {

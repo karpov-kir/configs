@@ -93,9 +93,9 @@ func newBareRoot(t *testing.T) *fixture {
 	return f
 }
 
-// report.go cuts EVERY finding line at lineWidthCap before printing it, and most of these cases assert
-// a finding that quotes a fixture path. Such a case reads the root's length as much as the code's.
-// What the root spends, the case's own content cannot.
+// report.go cuts EVERY finding line at lineWidthCap, the width const, before printing it, and most of
+// these cases assert a finding that quotes a fixture path. Such a case reads the root's length as much
+// as the code's. What the root spends, the case's own content cannot.
 
 // `t.TempDir()` makes that length ambient: about 140 bytes on a macOS runner
 // (`/var/folders/<two>/<28 random>/T/<the test's own name>/001`) against around 60 on Linux. A case
@@ -123,10 +123,10 @@ func newBase(t *testing.T) string {
 	return base
 }
 
-// What a fixture root may spend of a bounded finding before the case writes a byte. newBase builds a
-// base of 14 to 16 bytes, and every fixture puts `/r` on the end of it. That leaves room to rename the
-// prefix and none to go back to a path the machine picked. `t.TempDir()` costs upwards of 35 bytes on
-// the shortest Linux runner and about 160 on a macOS one.
+// What a fixture root may spend of a bounded finding before the case writes a byte. newBase, the test
+// helper, builds a base of 14 to 16 bytes, and every fixture puts `/r` on the end of it. That leaves
+// room to rename the prefix and none to go back to a path the machine picked. `t.TempDir()` costs
+// upwards of 35 bytes on the shortest Linux runner and about 160 on a macOS one.
 const maxFixtureRootBytes = 24
 
 // A comment on each affected fixture only helps the author who reads it, so the property is held as a
@@ -142,11 +142,11 @@ const maxFixtureRootBytes = 24
 // ten digits, so a root wobbles by two bytes inside a 24-byte budget, and no case here reads that
 // wobble.
 
-// The property newBase exists for.
+// newBase, the test helper, exists for this property.
 func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
-	// t.TempDir creates ONE directory per test and numbers the rest inside it. A newBase reaching for
-	// it would answer out of a tree already pinned to the ambient TMPDIR, and the moved TMPDIR would go
-	// unread. That second leg is what this case is for, hence os.MkdirTemp here.
+	// t.TempDir creates ONE directory per test and numbers the rest inside it. The helper newBase,
+	// reaching for it, would answer out of a tree already pinned to the ambient TMPDIR, and the moved
+	// TMPDIR would go unread. That second leg is what this case is for, hence os.MkdirTemp here.
 	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
 	if err != nil {
 		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)

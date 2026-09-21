@@ -9,8 +9,8 @@ import (
 
 // This package owns every seam except the tree fingerprint, which belongs to
 // `ai/tools/tree-fingerprint/` and runs in process. The code here calls that package instead of
-// reimplementing it, and newRun records what recomputing the fingerprint costs. The open-item scan
-// belongs to this package now, in openitems.go.
+// reimplementing it, and newRun, the constructor, records what recomputing the fingerprint costs. The
+// open-item scan belongs to this package now, in openitems.go.
 
 // The open-item scan over this run's own report.
 func (r *run) reportOpenItems() (string, error) {
@@ -44,8 +44,9 @@ func (r *run) anyOpenItemsBeforeMerge(consequence string) bool {
 	if intent == "" {
 		return false
 	}
-	// No upstream step opens the intent file. intentFilePath checks only that the path is a regular
-	// file, excluding a symlink. This is the only open-item refusal a caller reaches directly.
+	// No upstream step opens the intent file. intentFilePath, the path lookup, checks only that the
+	// path is a regular file, excluding a symlink. This is the only open-item refusal a caller reaches
+	// directly.
 	items, err := openItemsIn(intent)
 	if err != nil {
 		r.refuse("error: the open-item scan of " + intent + " did not run — " + shell.Oneline(err.Error()) + "; " + consequence)

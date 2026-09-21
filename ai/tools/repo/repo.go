@@ -45,9 +45,9 @@ type Git interface {
 	Prefix(dir string) (string, error)
 	// ConfigValue is `config --get <key>`, and whether the key is set.
 	//
-	// git spells unset as a non-zero exit with empty stdout, and a failure looks the same, so this method
-	// returns no error. A key set to the EMPTY STRING is still set, and the two mean opposite things.
-	// core.hooksPath set empty sends git to the worktree root for hooks, and the installed hook never runs.
+	// git spells unset as a non-zero exit with empty stdout, and a failure looks the same, so no error comes
+	// back. A key set to the EMPTY STRING is still set, and the two mean opposite things. core.hooksPath,
+	// the config key, set empty sends git to the worktree root for hooks, and the installed hook never runs.
 	ConfigValue(dir, key string) (value string, isSet bool)
 
 	// Resolve is `rev-parse --verify --quiet <rev>`: the object id, or "" with a nil error for a

@@ -40,7 +40,8 @@ type Fake struct {
 	// Common is the store linked worktrees share, and empty means Git.
 	Common string
 	// PrefixByDir is what a directory's path below Root is, for a case that spells its directories some
-	// way prefixOf cannot read. Every directory under Root places itself while this is empty.
+	// way prefixOf, a method of Fake, cannot read. Every directory under Root places itself while this is
+	// empty.
 	PrefixByDir map[string]string
 	// Trees is what git answers PER DIRECTORY, for a suite driving a sibling worktree, a subdirectory that
 	// answers its worktree's root, or a forged `.git/worktrees/` entry naming another clone. NIL means
@@ -223,7 +224,7 @@ func (f *Fake) AddUntracked(names ...string) *Fake {
 
 // Ignore marks paths ignored, with source as what `check-ignore -v` would print for each. A path the
 // working tree also TRACKS stays unignored however this is called, because git does not call a tracked
-// file ignored. isIgnored is where that is decided.
+// file ignored. isIgnored, a method of Fake, is where that is decided.
 func (f *Fake) Ignore(source string, names ...string) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()

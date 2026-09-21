@@ -1428,8 +1428,8 @@ func TestAPathWithNoFindingsStillGetsACount(t *testing.T) {
 	r.expectStdoutHas("0 quiet.md")
 }
 
-// maxFindings truncates a report of findings. A count is one line however many findings it counts, so
-// every path after a file that crosses the cap still gets its own.
+// maxFindings, a const, truncates a report of findings. A count is one line however many findings it
+// counts, so every path after a file that crosses the cap still gets its own.
 func TestCountsRunPastTheDisplayCap(t *testing.T) {
 	r := newRepo(t)
 	r.write("wall.md", housey(maxFindings+5))

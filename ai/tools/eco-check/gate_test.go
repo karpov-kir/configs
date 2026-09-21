@@ -14,7 +14,7 @@ package ecocheck_test
 // that exit as an answer.
 
 // A case says what git answered by naming paths relative to the root under review, which is how
-// `newIgnoredPaths` asks and how git answers.
+// newIgnoredPaths, the function in gate.go, asks and how git answers.
 
 import (
 	"bytes"
@@ -60,7 +60,7 @@ func (f *fixture) ignores(paths ...string) {
 
 // What `repo.Exec` hands back when git refuses the question: git's own words behind the command that
 // asked. The refusal cases here are about what this package does with that, so the shape is stated
-// once in this var. `repo/exec.go`'s gitError is what makes it.
+// once in this var. `repo/exec.go`'s gitError, the function, is what makes it.
 var gitRefused = errors.New("git check-ignore --stdin: fatal: not a git repository (or any of the parent directories): .git")
 
 func newRefusingGit(root string) *repotest.Fake {

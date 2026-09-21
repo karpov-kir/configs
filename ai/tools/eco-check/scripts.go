@@ -245,9 +245,9 @@ func (c *checker) reportTestPosition(script string, lines []string, carriers map
 // test file. A header naming a package that is absent leaves the script counted as covered by a suite
 // that does not exist, which is the failure this scan prevents.
 
-// Such a header gets the scriptNamesMissingTest finding. A fall through to
-// scriptDeclaresNoTestPosition would ask the reader for a reason, and the script already states where
-// its cases are.
+// Such a header gets scriptNamesMissingTest, the finding const. A fall through to
+// scriptDeclaresNoTestPosition, another finding const, would ask the reader for a reason, and the
+// script already states where its cases are.
 
 // Every suite a header names is held, and for a while only the first one was. Eleven headers read "the
 // Go suite beside the tool, X" and then "the shared stub region by the Go suite in reach". Only the

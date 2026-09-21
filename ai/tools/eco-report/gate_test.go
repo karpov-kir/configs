@@ -72,8 +72,8 @@ func TestGateScansTheShipsIntentFileAsWellAsItsReport(t *testing.T) {
 
 	// A scan that did not run differs from a scan that found zero items. Read them alike and a ship
 	// whose ICE still holds unrouted items passes the merge gate. The intent file is where the scan can
-	// still fail. The report is probed for readability first, while intentFilePath only asks for a
-	// regular file, excluding a symlink.
+	// still fail. The report is probed for readability first, while intentFilePath, the path lookup,
+	// only asks for a regular file, excluding a symlink.
 	if f.madeUnreadable(f.shipDir("001-follow-ups")+"/intent.md", "the unreadable-intent case") {
 		f.runReport("gate", "001-follow-ups")
 		f.record("gate blocks when the open-item scan of the intent did not run",

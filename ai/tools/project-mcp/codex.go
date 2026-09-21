@@ -20,8 +20,8 @@ const (
 // a trailing comment.
 var serverTable = regexp.MustCompile(`^\s*\[mcp_servers\.([a-zA-Z0-9_-]+)(?:\.[a-zA-Z0-9_-]+)*\]\s*(?:#.*)?$`)
 
-// A TOML escape. A file using them can spell `mcp_servers` in a way `serverTable` fails to recognise,
-// so such a file is left for an explicit edit.
+// A TOML escape. A file using them can spell `mcp_servers` in a way serverTable, the table regexp,
+// fails to recognise, so such a file is left for an explicit edit.
 var tomlEscape = regexp.MustCompile(`\\[uU]`)
 
 // The whole approach is to recognise ordinary server tables and leave everything else alone. Other

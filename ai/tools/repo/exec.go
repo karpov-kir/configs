@@ -27,10 +27,10 @@ type Exec struct {
 // ahead of the first caller that wires one in.
 var _ Git = Exec{}
 
-// Every git call goes through here, so the two flags every call needs are set in one place.
-// `-C dir` stands in for cmd.Dir, and git then prints the path in its own error text.
-// `core.quotePath=false` joins the `-z` each listing passes. Drop either one, and a path holding a
-// non-ASCII byte comes back C-quoted or newline-split, and the caller reads a name no file has.
+// Every git call goes through here, so the two flags every call needs are set in one place. `-C dir`
+// stands in for cmd.Dir, and git then prints the path in its own error text. The config key
+// core.quotePath, set to false, joins the `-z` each listing passes. Drop either one, and a path holding
+// a non-ASCII byte comes back C-quoted or newline-split, and the caller reads a name no file has.
 func (e Exec) run(dir string, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "core.quotePath=false"}, args...)...)
 	if e.Env != nil {

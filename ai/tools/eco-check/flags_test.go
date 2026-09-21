@@ -285,8 +285,8 @@ func TestTheFlagScanStaysWithinItsBounds(t *testing.T) {
 	// takes the printer's 500-byte bound and the sentence naming the defect goes with it. Marked,
 	// because an unmarked cut leaves a shorter wrong flag name reading as a whole one.
 	//
-	// The 400 below is what has to spend that bound, and newBase in harness_test.go keeps an ambient
-	// path from spending it first.
+	// The 400 below is what has to spend that bound, and newBase, a helper in harness_test.go, keeps
+	// an ambient path from spending it first.
 	t.Run("and marks a flag name the instruction file made too long to print", func(t *testing.T) {
 		f := newFlagScript(t, "#   usage: toy.sh [--gate]")
 		f.newCallSites("toy.sh --" + strings.Repeat("a", 400))

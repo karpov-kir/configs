@@ -43,9 +43,10 @@ jobs:
   # steps. The Coverage step runs the same suite, and without the flag it would report a number read
   # out of the Gate step's cache. release-tools.yml's Gate step says the same.
 
-  # `-timeout 300s`, the backstop `ai/gate.sh` hands its own `go test` — `suiteTimeoutSeconds`, and
-  # the two numbers have to move together. A suite that hangs then fails in minutes, ahead of Go's
-  # ten-minute default, with a goroutine dump that reads like a deadlock.
+  # `-timeout 300s`, the backstop `ai/gate.sh` hands its own `go test` — suiteTimeoutSeconds, the
+  # const in ai/tools/gate/gate.go, and the two numbers have to move together. A suite that hangs
+  # then fails in minutes, ahead of Go's ten-minute default, with a goroutine dump that reads like a
+  # deadlock.
 
   # That 300 is NOT the 100 seconds `testing.md` rule 6 states. Rule 6 is a budget over the whole
   # gate, and gate.go's own wall clock is what enforces it. No wall clock runs here, so this leg
@@ -76,8 +77,8 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at suiteTimeoutSeconds.
-          # The two have to match.
+          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at
+          # suiteTimeoutSeconds, the const holding the bound. The two have to match.
           go test -count=1 -timeout 300s ./...
 
       # The coverage number `ai/kk-flavor/standards/testing.md` asks for, and the floor it sets.

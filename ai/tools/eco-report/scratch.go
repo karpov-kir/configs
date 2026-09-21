@@ -125,7 +125,7 @@ func (r *run) cmdPromote() {
 	// committed from external, and `discard` reads that before deleting.
 	r.forgetIndexAnswers()
 	// git's account of a failed add is what the human gets, and it names the paths it could not stage.
-	// One line, for the reason sayWhatGitSaid states.
+	// One line. sayWhatGitSaid, the helper that prints it, states the reason.
 	if err := r.git.Add(r.root, []string{".idsd", ".gitignore"}); err != nil {
 		r.refuseUnmoved(moved, target, "error: could not stage .idsd/ and .gitignore — not promoted.",
 			"  git said: "+shell.Oneline(err.Error()))

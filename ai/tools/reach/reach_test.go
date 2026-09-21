@@ -119,13 +119,13 @@ for argument in "$@"; do printf 'argument=%s\n' "$argument"; done
 exit 7
 `
 
-// The first line reportingBinary prints. Cases hold the WHOLE of stdout against this and the arguments.
-// Under `--run` that stream is the tool's, and a path or a warning on it is a line every caller of
-// every stub would have to learn to drop.
+// The first line reportingBinary, the fake tool const, prints. Cases hold the WHOLE of stdout against
+// this and the arguments. Under `--run` that stream is the tool's, and a path or a warning on it is a
+// line every caller of every stub would have to learn to drop.
 const reportingMark = "the tool ran\n"
 
-// The status reportingBinary leaves. Neither 0 nor 2, so "the binary's own status reached the caller"
-// cannot be satisfied by resolve.sh succeeding or refusing.
+// The status reportingBinary, the fake tool const, leaves. Neither 0 nor 2, so "the binary's own status
+// reached the caller" cannot be satisfied by resolve.sh succeeding or refusing.
 const reportingExit = 7
 
 // What one launch of a script came back with. stdout and stderr are kept apart, because several cases

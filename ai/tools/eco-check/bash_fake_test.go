@@ -15,7 +15,8 @@ import (
 type FakeBash struct {
 	binaries []string
 
-	// scanScriptsParse parses in a worker per CPU, so both halves of the table are reached at once.
+	// scanScriptsParse, the parse scan, parses in a worker per CPU, so both halves of the table are
+	// reached at once.
 	mutex    sync.Mutex
 	refusals map[string][]string
 	asked    int

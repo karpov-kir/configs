@@ -83,7 +83,7 @@ func (run *invocation) installOne(name string) {
 }
 
 // What this tier does not install, by name. A formula left out silently reads the same as a step that
-// never ran, which is why installPackages prints its own skip lines.
+// never ran, which is why installPackages, the step that installs them, prints its own skip lines.
 func (run *invocation) sayWhatThisTierSkips() {
 	for _, formula := range formulae {
 		if formula.isOwnersOnly && !run.isOwner {

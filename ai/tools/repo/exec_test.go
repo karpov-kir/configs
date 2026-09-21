@@ -175,8 +175,8 @@ func (f fixture) listings(t *testing.T) {
 	}
 
 	untracked := f.list(f.git.Untracked(f.root))
-	// The non-ASCII name is the case: git prints it C-quoted where `-z` and core.quotePath=false are
-	// missing, and the caller then reads a name no file has.
+	// The non-ASCII name is the case. git prints it C-quoted where `-z` and the value false for
+	// core.quotePath, a git config key, are missing, and the caller then reads a name no file has.
 	if !slices.Contains(untracked, "sundæ.txt") {
 		t.Errorf("Untracked did not name sundæ.txt as it is spelt on disk: %v", untracked)
 	}
@@ -455,9 +455,9 @@ func (f fixture) prunableWorktree(t *testing.T) {
 }
 
 // Unset and set-to-empty are different answers, and they mean opposite things to the caller that asks.
-// core.hooksPath set empty sends git to the worktree root for hooks, and the installed hook never
-// runs. git spells both as a non-zero exit with an empty stdout, so only `--get`'s exit code separates
-// them.
+// The config key core.hooksPath, set empty, sends git to the worktree root for hooks, and the installed
+// hook never runs. git spells both as a non-zero exit with an empty stdout, so only `--get`'s exit
+// code separates them.
 func (f fixture) configValue(t *testing.T) {
 	if value, isSet := f.git.ConfigValue(f.root, "core.hooksPath"); isSet || value != "" {
 		t.Errorf("ConfigValue over an unset key = (%q, %v), wanted (%q, false)", value, isSet, "")

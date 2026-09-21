@@ -412,8 +412,8 @@ func (f *fixture) stageResultsPath(intent string) string {
 }
 
 // Ignorable report files are skipped for the same reason git's own ignore rules skip them. A report
-// written inside the tree it fingerprints makes every stamp stale on arrival, and assertReportIsIgnored
-// is the guard that exists because of it. `.git` is skipped because git's own recipe never reads it.
+// written inside the tree it fingerprints makes every stamp stale on arrival, and assertReportIsIgnored,
+// the tool's own guard, exists because of it. `.git` is skipped because git's own recipe never reads it.
 
 // Forty hex characters, because `gate` prints the value and index_test.go matches it as one.
 
@@ -460,8 +460,9 @@ func (f *fixture) newTreeFingerprint() func(string) (string, error) {
 	}
 }
 
-// The ship working files `.gitignore` covers, by the same patterns the tool writes. ignoreEntries()
-// mirrors ignoreSurface(), so the fixture and the tool agree on the files a fingerprint must skip.
+// The ship working files `.gitignore` covers, by the same patterns the tool writes. ignoreEntries, the
+// fixture's list, mirrors ignoreSurface, the tool's own list, so the fixture and the tool agree on the
+// files a fingerprint must skip.
 func fingerprintSkips(name string) bool {
 	for _, entry := range ignoreEntries() {
 		if matched, _ := path.Match(entry, filepath.ToSlash(name)); matched {
@@ -481,9 +482,10 @@ func fingerprintSkips(name string) bool {
 func (f *fixture) newLinkedWorktree(name string) string {
 	f.t.Helper()
 	linked := f.base + "/" + name
-	// Canonical, because the pointer is what layoutGitDir reads and what layoutCommonDir then resolves
-	// against. A `/var` spelling here resolves one location and the main tree's `/private/var` another.
-	// Two worktrees of one clone would then answer two scratch directories, and both would look right.
+	// Canonical, because the pointer is what layoutGitDir, the git dir lookup, reads and what
+	// layoutCommonDir, the common dir lookup, then resolves against. A `/var` spelling here resolves one
+	// location and the main tree's `/private/var` another. Two worktrees of one clone would then answer
+	// two scratch directories, and both would look right.
 	gitDir := f.canonicalRepo() + "/.git/worktrees/" + name
 	f.mkdirAll(gitDir)
 	f.write(gitDir+"/commondir", "../..\n")
@@ -528,8 +530,8 @@ func (f *fixture) moveLinkedWorktree(from, to string) {
 	f.worktrees[canonical(to)] = moved
 }
 
-// A path as the tool will resolve it: physically, the way layoutRoot answers and the way git's own
-// `--show-toplevel` does. A path that does not exist yet keeps whatever it was given.
+// A path as the tool will resolve it: physically, the way layoutRoot, the root lookup, answers and the
+// way git's own `--show-toplevel` does. A path that does not exist yet keeps whatever it was given.
 func canonical(path string) string {
 	if real, err := filepath.EvalSymlinks(path); err == nil {
 		return real
@@ -564,9 +566,9 @@ func (f *fixture) newSecondClone(name string) string {
 }
 
 // Only literal glob matching with git's last-match-wins negation is modelled. An implementation of
-// gitignore here would be the fake agreeing with itself about a question `repo/exec_test.go` holds
-// real git to. A case wanting any other rule — `.git/info/exclude`, a global excludesFile — states
-// the answer with f.ignore, and .gitignore is consulted first because that is git's own precedence.
+// gitignore here would be the fake agreeing with itself about a question `repo/exec_test.go` holds real
+// git to. A case wanting any other rule — `.git/info/exclude` or core.excludesFile, a global setting —
+// states the answer with f.ignore, and .gitignore is consulted first because that is git's precedence.
 
 // What the tree's own .gitignore says about a path, at the moment of the question. `promote` writes
 // that file mid-run and then asks whether the write took effect, and an answer arranged before the run

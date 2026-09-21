@@ -391,12 +391,13 @@ func (p *Policy) TopTier(client string) (string, bool) {
 // kk-flavor/skills/ answers `ok (cached)` over declarations that changed underneath the run. The
 // fixture case beside this file holds the derivation itself.
 
-// validateSettings makes every row name a model for every client, so every orchestrator ranks here.
+// validateSettings, the row check, makes every row name a model for every client, so every
+// orchestrator ranks here.
 
-// The unranked arm is the other half of that, and it is unreachable on purpose. It walks the same
-// dispatchClients that validateTiers demands an order for, so every client asked about here is a
-// client Parse refused to leave unranked. It stays because a client added to that list with no order
-// behind it makes this report an empty ceiling and pass.
+// The unranked arm is the other half of that, and it is unreachable on purpose. It walks
+// dispatchClients, the client list. validateTiers, the order check, demands an order for every name on
+// it, so every client asked about here is a client Parse refused to leave unranked. It stays because a
+// client added to that list with no order behind it makes this report an empty ceiling and pass.
 
 // OrchestratorsAtTheCeiling names every skill in `declared` that calls itself an orchestrator and is
 // priced at the top tier, as `<client>/<skill>`, sorted.

@@ -322,8 +322,9 @@ func newSignals(t *testing.T, sandbox string) string {
 	return sandboxed(t, sandbox, dir)
 }
 
-// A shim standing where newPathDir linked a real command. The link goes first: writing through it would
-// follow it to the real binary outside the sandbox, which is the accident newSandbox's own header records.
+// A shim standing where newPathDir, the PATH fixture helper, linked a real command. The link goes first:
+// writing through it would follow it to the real binary outside the sandbox. That is the accident
+// newSandbox, the sandbox helper, records in its own header.
 func placeShim(t *testing.T, sandbox, path, name, body string) {
 	t.Helper()
 	shim := sandboxed(t, sandbox, filepath.Join(path, name))

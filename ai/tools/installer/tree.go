@@ -118,10 +118,10 @@ func (t *tree) appendLine(file, line string) error {
 	return handle.Close()
 }
 
-// The three ways replaceFile fails, held apart because each sends the reader somewhere different.
-// There was nowhere to put the new bytes, the new bytes could not be written, or the swap failed.
-// The first has no temporary file to clean up, and the second and third both leave the original as
-// it was.
+// The three ways replaceFile, a method on tree, fails, held apart because each sends the reader
+// somewhere different. There was nowhere to put the new bytes, the new bytes could not be written,
+// or the swap failed. The first has no temporary file to clean up, and the second and third both
+// leave the original as it was.
 var (
 	errNoTemporary = errors.New("could not create a temporary file")
 	errNotWritten  = errors.New("could not write the replacement")
@@ -178,8 +178,8 @@ func (t *tree) replaceFile(file string, content []byte) error {
 // `stat -f` is the filesystem flag, and it prints a block of facts a numeric comparison silently
 // reads as one link.
 
-// Go asks the kernel. The way left is a filesystem with a stat of its own, and that is why linkCount
-// is a seam.
+// Go asks the kernel. The way left is a filesystem with a stat of its own, and that is why linkCount,
+// a field of tree, is a seam.
 
 // Returns how many names this file has.
 func statLinkCount(path string) (uint64, error) {

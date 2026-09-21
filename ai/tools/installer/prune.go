@@ -83,8 +83,9 @@ func (r *Run) unmountStale(scan unmountScan) {
 			continue
 		}
 		value := linkValue(path)
-		// Absolute only, for the reason mountForeignRoot gives. A relative value resolves against the
-		// link's own directory, and a resolution made here lands against the wrong directory.
+		// Absolute only, for the reason mountForeignRoot, the mount guard, gives. A relative value
+		// resolves against the link's own directory, and a resolution made here lands against the wrong
+		// directory.
 		if !strings.HasPrefix(value, "/") {
 			continue
 		}

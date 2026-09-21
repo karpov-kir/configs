@@ -101,9 +101,9 @@ func TestAnExistingHookIsPreservedAndReportedWithTheRepair(t *testing.T) {
 	f.expectSaid(`project-skills.sh" --sync .`)
 }
 
-// An empty core.hooksPath counts as set, since git then looks in the worktree root. A hook written
-// where this installer puts one never runs, and a run reporting success promises links that fail to
-// arrive.
+// An empty core.hooksPath, the Git config setting, counts as set, since git then looks in the worktree
+// root. A hook written where this installer puts one never runs, and a run reporting success promises
+// links that fail to arrive.
 func TestAnEmptyHooksPathIsStillAHookManagerAndIsReported(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()

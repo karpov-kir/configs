@@ -133,8 +133,8 @@ func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
 	r.write("café.go", "package fixture\n")
 	r.commit("base")
-	// The path arrives bare, and never C-quoted, which is what `core.quotePath=false` buys and
-	// repo/exec_test.go holds against a real git for every listing the port takes.
+	// The path arrives bare, and never C-quoted. That is what the config key core.quotePath, set false,
+	// buys, and repo/exec_test.go holds it against a real git for every listing the port takes.
 	r.changed("café.go", housey(1))
 	r.run("HEAD")
 	r.expectCode(1)

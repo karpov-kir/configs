@@ -315,16 +315,17 @@ func TestClaudeCallerReportsAModelThatFailedRatherThanTimedOut(t *testing.T) {
 	}
 }
 
-// The case the group kill exists for, driven through the caller and never through killRollGroup. That
-// way Setpgid and Cancel are read against a real roll, and not only against their own correctness.
+// The case the group kill exists for, driven through the caller and never through killRollGroup, the
+// function that signals the group. That way Setpgid and Cancel are read against a real roll, and not
+// only against their own correctness.
 
 // `claude` starts children, and a child that outlives the process we signalled goes on holding the
 // output pipe, which is the hang the deadline was supposed to remove.
 
 // The child is what the case reads, and never a stopwatch. An elapsed-time budget for the same fact is
 // what concurrent gates erode. As a 3-second one this went red on a green tree at 3.4s, with the group
-// killed on time at 501ms and no part of it left alive. That is the reading notTheSubject gives every
-// wall clock figure in this file.
+// killed on time at 501ms and no part of it left alive. That is the reading notTheSubject, the deadline
+// const, gives every wall clock figure in this file.
 func TestAClaudeRollCutOffAtItsDeadlineLeavesNoChildRunning(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "grandchild")
 	fakeClaude(t, "sleep 30 &\necho $! >"+pidFile+"\nsleep 30")

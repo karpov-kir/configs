@@ -14,8 +14,8 @@ package ecoreport_test
 
 // Every case gets its own tree under t.TempDir(), so none of them runs against this checkout. Every
 // destructive path is aimed by the resolved idsd location, because this suite reaches `discard`. That
-// subcommand removes .idsd/ and deletes intent files. newWorkingTree says what stands where git's own
-// "this directory is its own root" check used to.
+// subcommand removes .idsd/ and deletes intent files. newWorkingTree, the fixture's tree builder, says
+// what stands where git's own "this directory is its own root" check used to.
 
 import (
 	"bytes"
@@ -54,8 +54,9 @@ func ignoreBlock() string { return strings.Join(ignoreEntries(), "\n") + "\n" }
 
 // One case's tree.
 type fixture struct {
-	// How this fixture's tree is fingerprinted. newTreeFingerprint by default. countFingerprints wraps
-	// it to count, and one case swaps in a failing recipe.
+	// How this fixture's tree is fingerprinted. The default is newTreeFingerprint, the fixture's recipe.
+	// countFingerprints, the fixture's counter, wraps it to count, and one case swaps in a failing
+	// recipe.
 	fingerprint func(root string) (string, error)
 	// What the tool's repository questions are answered from. Never nil: the scope fixtures put this
 	// table over a real seed repository, since applicability.go still runs one git command itself, but
@@ -75,8 +76,8 @@ type fixture struct {
 	// Where the tool looks for this machine's override. Empty means there is none, which is what every
 	// case wants but the few that write one; never the developer's real $XDG_CONFIG_HOME.
 	configHome string
-	// Holds one table per linked worktree, keyed by the worktree's canonical path. newLinkedWorktree
-	// fills it.
+	// Holds one table per linked worktree, keyed by the worktree's canonical path. newLinkedWorktree,
+	// the fixture's builder, fills it.
 	worktrees map[string]*repotest.Fake
 	// Every FILE the tool's staging reached, beside the pathspecs it named. This is what `git diff
 	// --cached` would have listed, since git expands a directory pathspec and `staged` reads as that
@@ -120,7 +121,7 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 // The old guard asked git whether the fixture directory was its own root: a fixture inside an enclosing
 // repository could send `discard` at that repository's .idsd/. The tool resolves its root from the `.git`
 // this builder just made, and the fake answers about that root alone. An enclosing checkout stays out of
-// reach, whatever stands above t.TempDir(), as newNeutral arranges in `ai/tools/cadence`.
+// reach, whatever stands above t.TempDir(), as newNeutral, the cadence fixture, arranges.
 
 // What a repository is to this tool: a directory holding `.git`, plus a table of answers. layout.go
 // reads the layout off the disk itself, and the port answers every question that is a decision instead
@@ -135,8 +136,8 @@ func (f *fixture) newWorkingTree() {
 	f.write(f.repo+"/.git/HEAD", "ref: refs/heads/main\n")
 	f.write(f.repo+"/tracked.txt", "base\n")
 	// The fixture is rooted at the canonical path, because that is what the tool resolves. On macOS a
-	// temp dir sits under /var, a symlink to /private/var, and layoutRoot answers physically for the
-	// reason it states.
+	// temp dir sits under /var, a symlink to /private/var, and layoutRoot, the root lookup, answers
+	// physically for the reason it states.
 	f.fake = repotest.New(f.canonicalRepo())
 	f.worktrees = map[string]*repotest.Fake{}
 	f.track("tracked.txt")
@@ -284,8 +285,9 @@ func (f *fixture) scratch() string {
 
 // This fixture's repo path as the tool records it, and the base every location below is built from.
 //
-// Physically resolved, because that is the root the tool resolves. layoutRoot answers physically, and
-// git's own `--show-toplevel` does too. On macOS a fixture under /var is reported under /private/var.
+// Physically resolved, because that is the root the tool resolves. layoutRoot, the root lookup, answers
+// physically, and git's own `--show-toplevel` does too. On macOS a fixture under /var is reported under
+// /private/var.
 func (f *fixture) canonicalRepo() string {
 	if real, err := filepath.EvalSymlinks(f.repo); err == nil {
 		return real
@@ -445,8 +447,8 @@ func (f *fixture) newDurableCharter() {
 }
 
 // The HOME every case runs against, holding the script the tool looks for before fingerprinting. Its
-// CONTENT never runs, since Invocation.Fingerprint calls the recipe in process and currentTree only
-// checks that the install is complete. The body is a refusal, so a case sees one when that stops
+// CONTENT never runs: Invocation.Fingerprint calls the recipe in process, and currentTree, the guard,
+// only checks that the install is complete. The body is a refusal, so a case sees one when that stops
 // holding. Written here and never copied in, so `go test` can cache the suite and a case may chmod it.
 func (f *fixture) newFlavorHome() {
 	f.t.Helper()
@@ -550,8 +552,8 @@ func (f *fixture) nonEmptyLinesIn(path string) int {
 }
 
 // The entries are expanded here because `check-ignore` reads its argument as a literal pathname. An
-// entry holding `*` can only be asked about through a path it covers, and the tool's own ignoreProbe
-// does the same.
+// entry holding `*` can only be asked about through a path it covers, and the tool's own ignoreProbe,
+// the expander, does the same.
 
 // Says the file git would name as ignoring each ship's working files, for the cases whose subject is
 // the source. `.gitignore` travels with the repository and other sources do not, which is the
@@ -580,7 +582,8 @@ type stagingRepo struct {
 }
 
 // The tree's own .gitignore decides first, as it does for git. Anything a case stated answers what it
-// does not cover. gitignoreSourceFor holds why this is read per question and never arranged once.
+// does not cover. gitignoreSourceFor, the fixture's lookup, holds why this is read per question and
+// never arranged once.
 func (s stagingRepo) IgnoreSource(dir, full string) (string, error) {
 	defer s.holdTheRepository()()
 	if source, matched := s.f.gitignoreSourceFor(full); matched {

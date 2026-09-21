@@ -10,9 +10,9 @@
 // the Invocation carries and returns the code the command exits on — and nothing here holds state
 // between calls, so two runs in one process cannot see each other's caches.
 //
-// One seam stays out of this package, and must: the fingerprint recipe belongs to the
-// `treefingerprint` package, imported and run in process. This package calls it instead of
-// reimplementing it, and newRun says what recomputing it costs. No code here spawns a child.
+// One seam stays out of this package, and must: the fingerprint recipe belongs to the `treefingerprint`
+// package, imported and run in process. This package calls it instead of reimplementing it, and newRun,
+// the constructor, says what recomputing it costs. No code here spawns a child.
 //
 // This tool deletes files (discard) and writes to the git index (promote). Every refusal below is
 // load-bearing: read the comment before removing one.
@@ -177,7 +177,7 @@ type stop struct{ code int }
 type run struct {
 	// Where this run's repository questions go. Never nil once Exec has built the run.
 	git repo.Git
-	// The repository answers already asked, per invocation. git.go → askOnce owns it.
+	// The repository answers already asked, per invocation. askOnce, the memo method in git.go, owns it.
 	gitMemo map[string]gitAnswer
 
 	// The fingerprint recipe, in process. Never nil once Exec has built the run.

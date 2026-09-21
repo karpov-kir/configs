@@ -19,8 +19,9 @@
 // on I/O.
 
 // A pass is only ever reported for a check this run executed, because there is no cache to answer
-// out of. A run past budgetSeconds fails and names what took the time, so going over budget can
-// never end in exit 0. Every run prints one line per check, so no check is skipped quietly.
+// out of. A run past budgetSeconds, the hundred-second bound, fails and names what took the time, so
+// going over budget can never end in exit 0. Every run prints one line per check, so no check is
+// skipped quietly.
 package gate
 
 import (
@@ -53,12 +54,14 @@ type Env struct {
 
 // The whole suite, cold, on the slowest machine that gates on it. `ai/kk-flavor/standards/testing.md`
 // states the same number, so the two have to move together. This gate's own wall clock is the only
-// thing enforcing it, and suiteTimeoutSeconds says why `go test` must not be handed this number.
+// thing enforcing it, and suiteTimeoutSeconds, the backstop const, says why `go test` must not be
+// handed this number.
 const budgetSeconds = 100
 
-// What `go test` carries as its own -timeout, above budgetSeconds on purpose. Handed the budget
-// itself, Go killed the package first and printed a goroutine dump. The slowest-first report then
-// never ran for the check that would earn it, and that report is what names the thing to speed up.
+// What `go test` carries as its own -timeout, above budgetSeconds, the gate's own bound, on purpose.
+// Handed the budget itself, Go killed the package first and printed a goroutine dump. The
+// slowest-first report then never ran for the check that would earn it, and that report is what names
+// the thing to speed up.
 
 // Above the budget, a merely slow suite finishes and gets reported as slow. The number is left as
 // the backstop against a genuine hang, and Go's ten-minute default is what it escapes.
@@ -176,7 +179,7 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 	// gofmt as well as go, because a check that cannot find its binary is no check at all. A machine
 	// with no gofmt has measured none of the tree, and both shapes this check has carried report that
 	// as something else. The listing shape, `test -z "$(gofmt -l .)"`, reports a clean tree, and
-	// formatCmd reports a format finding.
+	// formatCmd, this file's gofmt command, reports a format finding.
 	for _, tool := range []string{"go", "gofmt"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			return nil, g.fail("no %s on this machine, so the Go checks cannot run — nothing ran", tool)

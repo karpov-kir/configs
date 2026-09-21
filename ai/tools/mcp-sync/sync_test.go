@@ -12,9 +12,9 @@ import (
 	"configs/ai/tools/mcp"
 )
 
-// No case here runs a client CLI. The seam is `Client`, and the suite drives the REAL claudeClient
-// and codexClient with their one process call replaced by a recorder. The argument lists this file
-// asserts come from that recorder, so they are what a machine is handed.
+// No case here runs a client CLI. The seam is `Client`. The suite drives the REAL claudeClient, the
+// Claude arm, and codexClient, the Codex arm, with their one process call replaced by a recorder. The
+// argument lists this file asserts come from that recorder, so they are what a machine is handed.
 
 // The real CLIs are out of reach on purpose as well as in practice. `claude mcp add-json` writes the
 // human's live registry, and no CI runner has either binary. The single case that genuinely needs a
@@ -75,7 +75,7 @@ const (
 )
 
 // `name` may carry a quote, because that is the injection case. Everything lands under t.TempDir(),
-// and newCheckout refuses a name that would leave it.
+// and newCheckout, the fixture helper, refuses a name that would leave it.
 
 // These fixtures are the shape of the script that once followed a live symlink out of a sandbox and
 // overwrote real config files in this checkout. The containment is asserted before the first write,

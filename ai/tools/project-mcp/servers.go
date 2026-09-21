@@ -46,7 +46,8 @@ type projectServer struct {
 func readPublicServers(configsDir string) ([]projectServer, error) {
 	file := filepath.Join(configsDir, "mcp.jsonc")
 	// The document is read with the token left in place, because a project entry carries no checkout
-	// path. The token stays as written, and portableArgs holds the command against it literally.
+	// path. The token stays as written, and portableArgs, the mapping function, holds the command
+	// against it literally.
 	document, err := mcp.ReadDocument(file, mcp.ConfigsToken)
 	if err != nil {
 		return nil, err

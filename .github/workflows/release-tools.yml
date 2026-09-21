@@ -56,8 +56,8 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at suiteTimeoutSeconds.
-          # The two have to match.
+          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at
+          # suiteTimeoutSeconds, the const holding the bound. The two have to match.
           go test -count=1 -timeout 300s ./...
 
       # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is

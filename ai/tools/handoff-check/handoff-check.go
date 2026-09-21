@@ -198,8 +198,9 @@ func Run(prog, draft, repoDir string, git repo.Git, out, errOut io.Writer) int {
 		return die("could not resolve: %s", repoDir)
 	}
 
-	// `repoDir`, because the drafting session is often standing in another checkout. An error yields
-	// no abbreviation. reportTitlePrefix says why that produces no finding either.
+	// The abbreviation is read for repoDir, the directory this run was handed, because the drafting
+	// session is often standing in another checkout. An error yields no abbreviation.
+	// reportTitlePrefix, the prefix check, says why that produces no finding either.
 
 	// The gate's own port, and never one repokey builds for itself. Two adapters can answer about two
 	// repositories, and the title would then be weighed against one clone while the base commit and

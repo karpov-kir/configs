@@ -66,8 +66,8 @@ func (run *invocation) syncMcp() {
 
 // A setup that reports success without running a check proves only that it ran, so the last step is
 // the repository's own gate over what was just linked. The gate needs a machine that can run Go, and
-// installTools earns that. A machine that cannot download or build the tool binaries is refused
-// there, so by the time verify runs there is a binary or a refusal.
+// installTools, a step of this run, earns that. A machine that cannot download or build the tool
+// binaries is refused there, so by the time verify runs there is a binary or a refusal.
 func (run *invocation) verify() {
 	gate := run.Repo + "/gate.sh"
 	switch {

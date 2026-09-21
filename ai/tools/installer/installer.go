@@ -35,13 +35,14 @@ import (
 
 // RunOptions is everything a run needs that it must not go looking for itself.
 type RunOptions struct {
-	// The value is resolved physically on the way in, for the reason realDir exists. /var is a symlink
-	// to /private/var on macOS. A guard comparing a resolved root against an unresolved Repo calls this
-	// checkout a stranger to itself, and it refuses a machine that is mounted correctly.
+	// The value is resolved physically on the way in, for the reason realDir, the physical resolver in
+	// tree.go, exists. /var is a symlink to /private/var on macOS. A guard comparing a resolved root
+	// against an unresolved Repo calls this checkout a stranger to itself, and it refuses a machine
+	// that is mounted correctly.
 
 	// Repo is the directory the calling installer lives in — env/ or ai/. Every source path is built
-	// from it, and mountForeignRoot recognises a stranger by finding a file named ScriptName at the
-	// same relative depth under a different root.
+	// from it, and mountForeignRoot, the mount guard, recognises a stranger by finding a file named
+	// ScriptName at the same relative depth under a different root.
 	Repo string
 	// ScriptName is the calling installer's own filename, which the guard looks for under a candidate
 	// root. The caller takes it from the running program, so a rename cannot leave the guard hunting
@@ -202,7 +203,8 @@ func (r *Run) Report() int {
 }
 
 // Every write in this package goes through apply, which is the single place the dry run branches. A
-// second `if dryRun` beside a write is how a flag that must write no file starts writing on one path.
+// second branch on dryRun, a field of Run, beside a write is how a flag that must write no file
+// starts writing on one path.
 
 // change is one write and what the run says about it. That is the line a dry run prints, the line a
 // real run prints, and the refusal when the write could not land.

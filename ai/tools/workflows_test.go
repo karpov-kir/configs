@@ -127,9 +127,9 @@ func gateSteps(t *testing.T) map[string]string {
 	return gates
 }
 
-// `suiteTimeoutSeconds` in ai/tools/gate/gate.go is the bound's one home. It is the backstop every
-// `go test` carries, so a suite that hangs on a runner fails in minutes, well inside Go's ten-minute
-// default.
+// suiteTimeoutSeconds, the const in ai/tools/gate/gate.go, is the bound's one home. It is the
+// backstop every `go test` carries, so a suite that hangs on a runner fails in minutes, well inside
+// Go's ten-minute default.
 
 // It is NOT the 100 seconds `testing.md` rule 6 states. That number is a budget over the whole gate,
 // and gate.go's own wall clock enforces it. A `go test` carrying the budget killed the package before

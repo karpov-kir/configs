@@ -27,8 +27,8 @@ func countedLines(t *testing.T, walk func(*Result, func(AddedLine)) error) (map[
 	return seen, result
 }
 
-// A repository whose untracked files are on disk as well as in the listing. bodyToScan opens each one,
-// and a case that only listed them measures the open failing.
+// A repository whose untracked files are on disk as well as in the listing. bodyToScan, a method on
+// Result, opens each one, and a case that only listed them measures the open failing.
 func untrackedRepo(t *testing.T, files map[string]string) (*repotest.Fake, string) {
 	t.Helper()
 	root := t.TempDir()

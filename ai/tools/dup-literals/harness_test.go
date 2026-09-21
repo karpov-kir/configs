@@ -4,9 +4,9 @@
 // The two halves are not interchangeable. The fake answers a diff verbatim. Git is what says which
 // lines a change added, and deriving one here would make every finding a property of this fixture.
 
-// An untracked file is listed by the fake and then read off disk by `bodyToScan`. The symlink,
-// binary and byte-cap cases need a real file, or they measure the open failing in place of the
-// guard. File I/O is not what these suites pay for, and process spawns are.
+// An untracked file is listed by the fake and then read off disk by bodyToScan, a method on
+// diffscan.Result. The symlink, binary and byte-cap cases need a real file, or they measure the open
+// failing in place of the guard. File I/O is not what these suites pay for, and process spawns are.
 package duplicates
 
 import (

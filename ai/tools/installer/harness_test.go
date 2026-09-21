@@ -23,8 +23,8 @@ package installer_test
 // resolve a parent physically before touching it, and the run itself is built with WriteRoot, which
 // makes the package refuse the same way.
 
-// expectContained is what reads the second half back. It fails the case as a guard, and never as a
-// result.
+// expectContained, a method on fixture, is what reads the second half back. It fails the case as a
+// guard, and never as a result.
 
 // Fixtures are built with os.MkdirAll, os.WriteFile and os.Symlink, with no shell process in
 // between. A process costs about 100ms on the machine these are written on, and file I/O costs
@@ -183,8 +183,8 @@ func (f *fixture) expectContained(run *installer.Run) {
 // --- the fixture writers ----------------------------------------------------------------------
 
 // A fixture link dropped so another can take its place. It goes through the containment guard,
-// because refuseExistingSymlink deliberately leaves an existing symlink alone. That refusal is a
-// rule, and reaching for os directly would work around it.
+// because RefuseExistingSymlink, one of its checks, deliberately leaves an existing symlink alone.
+// That refusal is a rule, and reaching for os directly would work around it.
 func (f *fixture) removeLink(path string) {
 	f.t.Helper()
 	f.ContainedParent(path)

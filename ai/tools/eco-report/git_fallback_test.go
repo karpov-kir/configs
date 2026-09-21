@@ -5,9 +5,9 @@ package ecoreport_test
 // layout.go answers the repository's shape by reading the filesystem, and every caller in this package
 // takes that answer when it comes. It comes for every fixture the rest of the suite builds, so the
 // port underneath it ran in no case. Mutation reported exactly that: disabling the CommonDir call, the
-// absolutize-against-the-root step and gitPath's absolute-answer guard each left the suite green. Two
-// of those three now live in `ai/tools/repo`'s adapter, which makes every answer absolute, and
-// `repo/exec_test.go` holds them to real git. What is left here is that this package asks at all.
+// absolute-answer guard in gitPath, the helper, and the absolutize-against-the-root step each left the
+// suite green. Two of the three now live in `ai/tools/repo`'s adapter, which makes every answer absolute,
+// and `repo/exec_test.go` holds them to real git. What is left here is that this package asks at all.
 //
 // The lever is GIT_CEILING_DIRECTORIES, pointed somewhere that is no ancestor of the fixture. layout.go
 // refuses on any of its four environment names, so the callers fall through to git; and a ceiling that

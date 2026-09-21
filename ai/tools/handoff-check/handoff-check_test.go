@@ -80,9 +80,9 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// newRepo is a directory the gate can be pointed at and the port that answers for it. That is a work
-// tree holding one commit, a clean tree, and a shared git dir whose parent name is what `repo-key`
-// abbreviates.
+// newRepo, the fixture helper, builds a directory the gate can be pointed at and the port that
+// answers for it. That is a work tree holding one commit, a clean tree, and a shared git dir whose
+// parent name is what `repo-key` abbreviates.
 
 // Two things are real on disk and both have to be. The gate resolves the path a draft must name, and
 // `repo-key` refuses a git dir with no HEAD in it. The case for a repository lacking an abbreviation
@@ -709,7 +709,8 @@ func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
 	if !strings.Contains(path, "\x1b") {
 		t.Skipf("the filesystem did not keep the escape in %q, so this proves nothing", path)
 	}
-	// Dirty, so `dirtyNote` speaks on every case in this block. No other case reads this repository.
+	// Dirty, so dirtyNote, the function behind the advisory note, speaks on every case in this block.
+	// No other case reads this repository.
 	git.StatusLines = []string{"?? untracked.txt"}
 	for _, tc := range []struct {
 		name     string

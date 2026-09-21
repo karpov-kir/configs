@@ -30,10 +30,10 @@ func newCommittedRepoUnignored(t *testing.T) *fixture {
 func TestAGlobalExcludeDoesNotCountAsIgnoringTheReport(t *testing.T) {
 	t.Parallel()
 	f := newCommittedRepoUnignored(t)
-	// An absolute source is what `check-ignore -v` names for a `core.excludesFile` outside the
-	// repository, and an absolute path is what the tool keys on. The arrangement is stated here and
-	// never probed for. That git really names the excludesFile that way is git's own question, and
-	// `repo/exec_test.go` holds it.
+	// An absolute source is what `check-ignore -v` names for core.excludesFile, git's global setting,
+	// when it sits outside the repository, and an absolute path is what the tool keys on. The
+	// arrangement is stated here and never probed for. That git really names core.excludesFile, the
+	// global setting, that way is git's own question, and `repo/exec_test.go` holds it.
 	f.ignoreShipFiles(f.base+"/global-exclude", "001-global-only")
 	f.runReport("init", "001-global-only")
 	f.assertRefused("init refuses when only a global core.excludesFile ignores the reports directory")

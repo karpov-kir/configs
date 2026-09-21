@@ -25,9 +25,9 @@ func (r *Run) BulkMounts() []Mount {
 }
 
 // The project installer is the caller. It declares its skills against this checkout, which gives
-// mountForeignRoot a checkout to recognise. It then points them at the shared bucket, and every
-// install of this flavor holds the same path. A declaration at the bucket up front would leave the
-// guard blind and a project quietly repointed off somebody else's clone.
+// mountForeignRoot, the mount guard, a checkout to recognise. It then points them at the shared
+// bucket, and every install of this flavor holds the same path. A declaration at the bucket up
+// front would leave the guard blind and a project quietly repointed off somebody else's clone.
 
 // RewriteBulkSources replaces every declared bulk source with what rewrite answers for it.
 func (r *Run) RewriteBulkSources(rewrite func(source string) string) {
@@ -37,8 +37,8 @@ func (r *Run) RewriteBulkSources(rewrite func(source string) string) {
 }
 
 // Link writes over an existing symlink, since a symlink carries no data of its own. Any other
-// existing target is refused. mountForeignRoot covers the case where that reasoning holds for the
-// link but fails for what the link is part of.
+// existing target is refused. mountForeignRoot, the mount guard, covers the case where that
+// reasoning holds for the link but fails for what the link is part of.
 
 // The project installer is why this is exported. It mounts a bucket that every other mount in its
 // table then resolves THROUGH, and that bucket has to land before the rest are even spelled. Mount
@@ -313,10 +313,10 @@ func (r *Run) UnmountTarget(target string) bool {
 		r.Refuse("could not read where " + target + " points, so whether this wrote it is unknown — left alone")
 		return false
 	}
-	// Absolute only, the same test mountForeignRoot makes and for the same reason. A relative value
-	// resolves against THIS process's working directory instead of the link's own, and ownership then
-	// gets judged from somewhere the link never named. A link reading `notmine` resolves under the
-	// checkout and is deleted.
+	// Absolute only. mountForeignRoot, the mount guard, makes the same test and for the same reason. A
+	// relative value resolves against THIS process's working directory instead of the link's own, and
+	// ownership then gets judged from somewhere the link never named. A link reading `notmine` resolves
+	// under the checkout and is deleted.
 
 	// Every link written here is absolute, so a relative value came from elsewhere and this run leaves
 	// it alone.

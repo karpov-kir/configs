@@ -52,7 +52,8 @@ type fixture struct {
 	code   int
 }
 
-// newRepo is a working tree with a git dir under it and a port answering for it.
+// newRepo, the fixture builder, returns a working tree with a git dir under it and a port answering
+// for it.
 func newRepo(t *testing.T) *fixture {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "repo")
@@ -63,9 +64,9 @@ func newRepo(t *testing.T) *fixture {
 	return &fixture{repo: root, state: filepath.Join(git.Git, recordName), git: git}
 }
 
-// newNeutral answers as git does outside any repository, for the cases that must reach no record.
-// The fixture arranges that answer. A temp dir that happens to sit inside a repository passes those
-// cases for the wrong reason.
+// newNeutral, a second fixture builder, answers as git does outside any repository, for the cases
+// that must reach no record. The fixture arranges that answer. A temp dir that happens to sit inside
+// a repository passes those cases for the wrong reason.
 func newNeutral(t *testing.T) *fixture {
 	t.Helper()
 	dir := t.TempDir()
@@ -380,8 +381,9 @@ func TestARecordThatCannotBeRead(t *testing.T) {
 // --- which repository the record belongs to -----------------------------------------------------
 
 // Run from a subdirectory, which is where an unabsolutised `--git-common-dir` invents a .git of its
-// own. recordPath carries why. The guard is that the question goes from the working tree root, so
-// that is what this asserts. The answer coming back absolute is `repo/exec_test.go`'s.
+// own. recordPath, the function in cadence.go, carries why. The guard is that the question goes from
+// the working tree root, so that is what this asserts. The answer coming back absolute is
+// `repo/exec_test.go`'s.
 func TestRecordingFromASubdirectory(t *testing.T) {
 	f := newRepo(t)
 	deep := filepath.Join(f.repo, "deep", "deeper")
